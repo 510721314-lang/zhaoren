@@ -1,0 +1,9 @@
+﻿{
+  "name": "partner-apply",
+  "version": "1.0.0",
+  "description": "partner-apply cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

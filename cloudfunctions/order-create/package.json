@@ -1,0 +1,9 @@
+﻿{
+  "name": "order-create",
+  "version": "1.0.0",
+  "description": "order-create cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

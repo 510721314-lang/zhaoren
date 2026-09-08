@@ -1,0 +1,56 @@
+<view class="page-center" wx:if="{{profile}}">
+  <!-- 接单开关(醒目) -->
+  <view class="switch-card {{profile.accept_switch ? 'on' : 'off'}}">
+    <view class="switch-info">
+      <view class="switch-status">{{profile.accept_switch ? '接单中' : '已关闭'}}</view>
+      <view class="switch-tip">{{profile.accept_switch ? '可在大厅接单' : '关闭后不会出现在候选'}}</view>
+    </view>
+    <switch checked="{{profile.accept_switch}}" bindchange="onSwitchToggle" color="#D4875A" />
+  </view>
+
+  <!-- 接单统计 -->
+  <view class="card stats-card">
+    <view class="title-md">接单统计</view>
+    <view class="stats-grid">
+      <view class="stat-item">
+        <view class="stat-num">{{stats.total_orders || 0}}</view>
+        <view class="stat-label">总单数</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-num">{{stats.completed_orders || 0}}</view>
+        <view class="stat-label">完成单数</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-num">{{stats.good_rate || 0}}%</view>
+        <view class="stat-label">好评率</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 接单场景与时薪(每场景一个时薪) -->
+  <view class="card">
+    <view class="title-md">接单场景与时薪</view>
+    <view class="text-muted">点击场景切换是否接受,滑条调整该场景时薪</view>
+    <view class="scene-list-center">
+      <view wx:for="{{scenes}}" wx:key="code" class="scene-row">
+        <view class="scene-row-header" bindtap="onSceneToggle" data-code="{{item.code}}">
+          <view class="scene-check {{sceneChecked[item.code] ? 'checked' : ''}}">
+            <text wx:if="{{sceneChecked[item.code]}}">✓</text>
+          </view>
+          <text class="scene-icon">{{item.icon}}</text>
+          <text class="scene-name">{{item.name}}</text>
+        </view>
+        <view wx:if="{{sceneChecked[item.code]}}" class="scene-rate-row">
+          <view class="rate-display-sm">¥ {{sceneRates[item.code] / 100}}.00 / 小时</view>
+          <slider min="{{rateMin}}" max="{{rateMax}}" step="5" value="{{sceneRates[item.code] / 100}}"
+            bindchange="onSceneRateChange" data-code="{{item.code}}"
+            block-size="24" activeColor="#D4875A" />
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary btn-block" bindtap="saveConfig">保存配置</button>
+
+  <button class="btn-ghost btn-block" bindtap="toHall">去接单大厅</button>
+</view>

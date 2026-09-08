@@ -1,0 +1,9 @@
+﻿{
+  "name": "demand-publish",
+  "version": "1.0.0",
+  "description": "demand-publish cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

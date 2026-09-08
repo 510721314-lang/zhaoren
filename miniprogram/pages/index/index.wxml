@@ -1,0 +1,6 @@
+<view class="container">
+  <view class="hero">
+    <view class="hero-title">{{title}}</view>
+    <view class="hero-slogan">{{slogan}}</view>
+  </view>
+</view>

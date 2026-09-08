@@ -1,0 +1,9 @@
+﻿{
+  "name": "im-conv",
+  "version": "1.0.0",
+  "description": "im-conv cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

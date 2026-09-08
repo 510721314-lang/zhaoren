@@ -1,0 +1,200 @@
+// 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
+// partner-action 耍伴配置与接单动作 · 身份取自 getWXContext().OPENID
+// 4 个 action: set_switch / update_config / my_profile / review
+const cloud = require('wx-server-sdk');
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const db = cloud.database();
+const _ = db.command;
+const col = (n) => db.collection(n);
+
+// 进行中订单状态集合
+const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 场景白名单
+const SCENE_WHITELIST = ['W1', 'W2', 'W8', 'W10', 'W11'];
+
+async function getConfig() {
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    if (r.data && r.data[0]) return r.data[0];
+  } catch (e) {}
+  return {
+    rate_min_fen: 3000, rate_max_fen: 10000,
+    min_credit_take_order: 600, admin_openids: []
+  };
+}
+
+async function getProfile(openid) {
+  const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
+  return (r.data && r.data[0]) || null;
+}
+
+// 检查是否有进行中订单
+async function hasBusyOrder(openid) {
+  const r = await col('order_main').where({
+    partner_openid: openid, status: _.in(BUSY_STATUS), is_deleted: false
+  }).limit(1).get();
+  return r.data && r.data.length > 0;
+}
+
+exports.main = async (event, context) => {
+  const wxCtx = cloud.getWXContext();
+  const openid = wxCtx.OPENID;
+  if (!openid) return { ok: false, code: 'pa_no_openid', msg: '未获取到登录身份' };
+
+  const { action } = event;
+  console.log(`partner-action action=${action} openid=${openid}`);
+
+  switch (action) {
+
+    // 1. 接单开关切换
+    case 'set_switch': {
+      const profile = await getProfile(openid);
+      if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
+      if (profile.status !== 'approved') {
+        return { ok: false, code: 'pa_not_approved', msg: '耍伴资料未审核通过' };
+      }
+
+      // 关闭时检查进行中订单
+      const newSwitch = event.accept_switch === false || event.accept_switch === 'false' ? false : true;
+      if (!newSwitch) {
+        const busy = await hasBusyOrder(openid);
+        if (busy) return { ok: false, code: 'pa_busy_order', msg: '有进行中订单,不可关闭接单' };
+      }
+
+      await col('partner_profile').doc(profile._id).update({ data: {
+        accept_switch: newSwitch, updated_at: Date.now()
+      }});
+      console.log(`partner switch -> ${newSwitch}: ${openid}`);
+      return { ok: true, data: { accept_switch: newSwitch } };
+    }
+
+    // 2. 修改时薪与场景
+    case 'update_config': {
+      const profile = await getProfile(openid);
+      if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
+      if (profile.status !== 'approved') {
+        return { ok: false, code: 'pa_not_approved', msg: '耍伴资料未审核通过' };
+      }
+
+      const config = await getConfig();
+      const update = { updated_at: Date.now() };
+      const rateMin = config.rate_min_fen || 3000;
+      const rateMax = config.rate_max_fen || 10000;
+
+      // 场景校验
+      let newScenes = profile.accept_scenes || [];
+      if (Array.isArray(event.accept_scenes)) {
+        if (event.accept_scenes.length === 0) {
+          return { ok: false, code: 'pa_scenes_empty', msg: '请至少选择一个接单场景' };
+        }
+        for (const s of event.accept_scenes) {
+          if (SCENE_WHITELIST.indexOf(s) < 0) {
+            return { ok: false, code: 'pa_scene_invalid', msg: `场景 ${s} 不在白名单` };
+          }
+        }
+        newScenes = event.accept_scenes;
+        update.accept_scenes = newScenes;
+      }
+
+      // 各场景时薪校验(scene_rates: { W1: 5000, ... })
+      if (event.scene_rates && typeof event.scene_rates === 'object') {
+        const rateKeys = Object.keys(event.scene_rates);
+        // 校验:每个选中场景必须有对应时薪
+        for (const s of newScenes) {
+          if (rateKeys.indexOf(s) < 0) {
+            return { ok: false, code: 'pa_rate_missing', msg: `请为场景 ${s} 设置时薪` };
+          }
+          const r = Number(event.scene_rates[s]);
+          if (!r || r < rateMin || r > rateMax) {
+            return { ok: false, code: 'pa_rate_range', msg: `场景 ${s} 时薪需在 30-100 元/小时之间` };
+          }
+        }
+        // 不允许多余 key
+        for (const k of rateKeys) {
+          if (newScenes.indexOf(k) < 0) {
+            return { ok: false, code: 'pa_rate_extra', msg: `场景 ${k} 未勾选但设置了时薪` };
+          }
+        }
+        update.scene_rates = event.scene_rates;
+      } else if (update.accept_scenes) {
+        // 只改场景未带时薪:校验原 scene_rates 是否覆盖新场景
+        const oldRates = profile.scene_rates || {};
+        for (const s of newScenes) {
+          if (oldRates[s] === undefined) {
+            return { ok: false, code: 'pa_rate_missing', msg: `新增场景 ${s} 需设置时薪` };
+          }
+        }
+      }
+
+      await col('partner_profile').doc(profile._id).update({ data: update });
+      console.log(`partner config updated: ${openid}`);
+      return { ok: true, data: { updated: Object.keys(update).filter(k => k !== 'updated_at') } };
+    }
+
+    // 3. 我的耍伴资料与接单统计
+    case 'my_profile': {
+      const profile = await getProfile(openid);
+      if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
+
+      // 统计:总单数、完成单数、好评率(占位)
+      let totalOrders = 0, completedOrders = 0;
+      try {
+        const tr = await col('order_main').where({
+          partner_openid: openid, is_deleted: false
+        }).count();
+        totalOrders = tr.total || 0;
+        const cr = await col('order_main').where({
+          partner_openid: openid, status: _.in(['S5', 'S8', 'S9', 'S10']), is_deleted: false
+        }).count();
+        completedOrders = cr.total || 0;
+      } catch (e) {}
+
+      return {
+        ok: true,
+        data: {
+          profile: {
+            _id: profile._id, openid: profile.openid,
+            nickname: profile.nickname, avatar: profile.avatar,
+            accept_scenes: profile.accept_scenes || [],
+            scene_rates: profile.scene_rates || {},
+            city: profile.city, accept_switch: profile.accept_switch,
+            status: profile.status, applied_at: profile.applied_at
+          },
+          stats: {
+            total_orders: totalOrders,
+            completed_orders: completedOrders,
+            good_rate: 0   // 占位,阶段评价模块完成后接入
+          }
+        }
+      };
+    }
+
+    // 4. 审核(管理员专用)
+    case 'review': {
+      const config = await getConfig();
+      const adminList = config.admin_openids || [];
+      if (adminList.indexOf(openid) < 0) {
+        return { ok: false, code: 'pa_not_admin', msg: '无管理员权限' };
+      }
+
+      const { target_openid, pass } = event;
+      if (!target_openid) return { ok: false, code: 'pa_no_target', msg: '缺少待审核用户' };
+
+      const profile = await getProfile(target_openid);
+      if (!profile) return { ok: false, code: 'pa_target_no_profile', msg: '目标用户不是耍伴' };
+      if (profile.status !== 'pending_review') {
+        return { ok: false, code: 'pa_already_reviewed', msg: '该耍伴已审核过' };
+      }
+
+      const newStatus = pass ? 'approved' : 'rejected';
+      await col('partner_profile').doc(profile._id).update({ data: {
+        status: newStatus, updated_at: Date.now()
+      }});
+      console.log(`partner reviewed: ${target_openid} -> ${newStatus}`);
+      return { ok: true, data: { target_openid, status: newStatus } };
+    }
+
+    default:
+      return { ok: false, code: 'pa_unknown_action', msg: '未知动作' };
+  }
+};

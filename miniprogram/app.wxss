@@ -1,0 +1,85 @@
+/* app.wxss - 全局样式 · 找人帮忙 小程序
+   主题色:主 #D4875A(赭橙) / 辅 #1A2330(墨蓝) / 成功 #3E7C4F / 警示 #A8652A / 危险 #B03A2E
+*/
+page {
+  --primary: #D4875A;
+  --secondary: #1A2330;
+  --success: #3E7C4F;
+  --warning: #A8652A;
+  --danger: #B03A2E;
+  --text-1: #1A2330;
+  --text-2: #6B7280;
+  --text-3: #9CA3AF;
+  --bg-page: #F5F5F5;
+  --bg-card: #FFFFFF;
+  --border: #E5E7EB;
+  background: var(--bg-page);
+  color: var(--text-1);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
+
+.container { padding: 24rpx; }
+
+/* 卡片 */
+.card {
+  background: var(--bg-card);
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+}
+
+/* 主按钮 */
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 20rpx 40rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  text-align: center;
+}
+.btn-primary::after { border: none; }
+.btn-primary[disabled] { background: #E8C9B0; color: #fff; }
+
+/* 幽灵按钮 */
+.btn-ghost {
+  background: transparent;
+  color: var(--primary);
+  border: 2rpx solid var(--primary);
+  padding: 18rpx 38rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  text-align: center;
+}
+.btn-ghost::after { border: none; }
+
+/* 状态标签基础类 */
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  margin-right: 8rpx;
+}
+.tag-primary { background: #F5E6DA; color: var(--primary); }
+.tag-success { background: #D9EBDF; color: var(--success); }
+.tag-warn { background: #F5E6D2; color: var(--warning); }
+.tag-danger { background: #F5DAD5; color: var(--danger); }
+
+/* 通用文本 */
+.title-lg { font-size: 40rpx; font-weight: 600; color: var(--text-1); }
+.title-md { font-size: 32rpx; font-weight: 600; color: var(--text-1); }
+.title-sm { font-size: 28rpx; font-weight: 500; color: var(--text-1); }
+.text-muted { color: var(--text-2); font-size: 26rpx; }
+
+/* 通用布局 */
+.flex-row { display: flex; flex-direction: row; align-items: center; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-center { display: flex; justify-content: center; align-items: center; }
+.btn-block { display: block; width: 100%; }
+.safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 20rpx); }

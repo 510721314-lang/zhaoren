@@ -1,0 +1,14 @@
+.hero {
+  padding: 80rpx 32rpx;
+  text-align: center;
+}
+.hero-title {
+  font-size: 48rpx;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 16rpx;
+}
+.hero-slogan {
+  font-size: 28rpx;
+  color: var(--text-2);
+}

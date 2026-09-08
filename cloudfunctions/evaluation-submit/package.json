@@ -1,0 +1,9 @@
+﻿{
+  "name": "evaluation-submit",
+  "version": "1.0.0",
+  "description": "evaluation-submit cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

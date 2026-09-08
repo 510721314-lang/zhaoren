@@ -1,0 +1,62 @@
+<view class="page-apply">
+  <view wx:if="{{applyStatus === 'pending_review'}}" class="status-banner warn">
+    申请已提交,等待审核
+  </view>
+  <view wx:elif="{{applyStatus === 'rejected'}}" class="status-banner danger">
+    申请被驳回,请联系管理员
+  </view>
+
+  <view class="card intro">
+    <view class="title-md">成为耍伴</view>
+    <view class="text-muted">耍伴即服务提供者。需先完成实名认证与紧急联系人填写,通过审核后可接单。</view>
+  </view>
+
+  <!-- 场景多选 -->
+  <view class="card">
+    <view class="title-md">接单场景(可多选)</view>
+    <view class="text-muted">仅可在白名单场景内接单</view>
+    <view class="scene-list">
+      <view wx:for="{{scenes}}" wx:key="code" class="scene-block">
+        <view class="scene-header" bindtap="onSceneToggle" data-code="{{item.code}}">
+          <view class="scene-check {{sceneChecked[item.code] ? 'checked' : ''}}">
+            <text wx:if="{{sceneChecked[item.code]}}">✓</text>
+          </view>
+          <text class="scene-icon">{{item.icon}}</text>
+          <text class="scene-name">{{item.name}}</text>
+        </view>
+        <view wx:if="{{sceneChecked[item.code]}}" class="option-list">
+          <view wx:for="{{item.options}}" wx:for-item="opt" wx:key="*item" class="option-item"
+            bindtap="onOptionToggle" data-code="{{item.code}}" data-option="{{opt}}">
+            <view class="option-check {{optionChecked[item.code] && optionChecked[item.code][opt] ? 'checked' : ''}}"></view>
+            <text>{{opt}}</text>
+          </view>
+          <!-- 该场景的时薪滑条 -->
+          <view class="scene-rate">
+            <view class="scene-rate-label">时薪</view>
+            <view class="scene-rate-value">¥ {{sceneRates[item.code] / 100}}.00 / 小时</view>
+            <slider min="{{rateMin}}" max="{{rateMax}}" step="5" value="{{sceneRates[item.code] / 100}}"
+              bindchange="onSceneRateChange" data-code="{{item.code}}"
+              block-size="24" activeColor="#D4875A" />
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 协议勾选 -->
+  <view class="card">
+    <view class="agree-row" bindtap="onAgreementToggle">
+      <view class="agree-check {{agreementChecked ? 'checked' : ''}}">
+        <text wx:if="{{agreementChecked}}">✓</text>
+      </view>
+      <text>我已阅读并同意</text>
+      <text class="link" catchtap="toAgreement">《耍伴服务协议》</text>
+    </view>
+  </view>
+
+  <view class="safe-bottom">
+    <button class="btn-primary btn-block" bindtap="submitApply" disabled="{{isSubmitting}}">
+      {{isSubmitting ? '提交中...' : '提交申请'}}
+    </button>
+  </view>
+</view>

@@ -1,0 +1,9 @@
+﻿{
+  "name": "safety-report",
+  "version": "1.0.0",
+  "description": "safety-report cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}
