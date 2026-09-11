@@ -4,3 +4,5 @@ miniprogram_npm/
 *.log
 .env
 project.private.config.json
+.backup-*/
+_db_tmp/

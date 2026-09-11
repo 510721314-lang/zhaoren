@@ -10,6 +10,45 @@ const col = (n) => db.collection(n);
 // 场景白名单(MVP-V1 · rules.md 三.11)
 const SCENE_WHITELIST = ['W1', 'W2', 'W8', 'W10', 'W11'];
 
+// 场景子服务选项兜底(与 init-db 种子 admin_config.scene_list / 小程序 constants 一致)
+const SCENE_OPTIONS_FALLBACK = {
+  W1: ['挂号排队', '取药送药', '陪诊解压'],
+  W2: ['自习陪伴', '口语陪练', '作业督促'],
+  W8: ['排队代办', '搬家帮手', '采买陪同'],
+  W10: ['逛街同行', '夜跑陪跑', '活动搭子'],
+  W11: ['树洞倾听', '游戏陪玩', '打卡监督']
+};
+
+// 备注安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词)
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+const REMARK_MAX_LEN = 200;
+
+// 备注内容安全:msgSecCheck v2;87014 明确违规;其他异常(未开通/网络)降级本地违禁词
+async function checkText(openid, text, blockWords) {
+  try {
+    await cloud.openapi.security.msgSecCheck({
+      content: text,
+      version: 2,
+      scene: 2,   // 2=评论/留言场景
+      openid
+    });
+    return { pass: true };
+  } catch (e) {
+    if (e && (e.errCode === 87014 || e.errCode === '87014')) {
+      return { pass: false, reason: '备注包含违规信息,请修改后重试' };
+    }
+    // 降级:本地违禁词库
+    const words = (blockWords && blockWords.length) ? blockWords : BLOCK_WORDS_FALLBACK;
+    const lower = String(text).toLowerCase();
+    for (const w of words) {
+      if (w && lower.indexOf(String(w).toLowerCase()) >= 0) {
+        return { pass: false, reason: '备注包含平台禁止的内容(如联系方式/转账),请修改后重试' };
+      }
+    }
+    return { pass: true };
+  }
+}
+
 // 生成需求编号 DR + yyyymmdd + 6位随机
 function genDemandNo() {
   const d = new Date();
@@ -45,10 +84,15 @@ async function hasEmergencyContact(openid) {
   return r.data && r.data.length > 0;
 }
 
+// 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截需求编号/占位符)
+function isValidDocId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
+}
+
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'publish_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
@@ -59,8 +103,8 @@ exports.main = async (event, context) => {
     // 1. 发布需求
     case 'publish': {
       const {
-        scene, start_time, duration_h, location, content_options, remark,
-        rate_fen, aa_tier
+        scene, start_time, duration_h, location, publish_location, content_option, content_options,
+        remark, rate_fen, aa_tier, aa_promise_checked
       } = event;
 
       // ── 基础校验 ──
@@ -70,6 +114,11 @@ exports.main = async (event, context) => {
       if (!start_time || typeof start_time !== 'number' || start_time <= Date.now()) {
         return { ok: false, code: 'publish_start_time', msg: '开始时间必须是未来时间戳' };
       }
+      // 服务时间距发布最长 30 天(产品反馈硬规则)
+      const MAX_ADVANCE_MS = 30 * 24 * 3600 * 1000;
+      if (start_time > Date.now() + MAX_ADVANCE_MS) {
+        return { ok: false, code: 'publish_time_too_far', msg: '服务时间距发布时间不能超过 30 天' };
+      }
       if (!duration_h || duration_h < 1 || duration_h > 12) {
         return { ok: false, code: 'publish_duration', msg: '时长需 1-12 小时' };
       }
@@ -77,21 +126,48 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'publish_rate', msg: '时薪金额格式有误' };
       }
       if (!location || !location.name || !location.latitude || !location.longitude) {
-        return { ok: false, code: 'publish_location', msg: '服务地点信息不完整' };
+        return { ok: false, code: 'publish_location', msg: '履约地点信息不完整,请在地图上选择' };
+      }
+      // 发布地址(发布时实际GPS, 只读留痕): 真实客户端必传; 自测链路(mock_openid)缺省时用履约地址兜底
+      const isMockPub = !wxCtx.OPENID && !!event.mock_openid;
+      let pubLoc = (publish_location && publish_location.latitude && publish_location.longitude)
+        ? publish_location : null;
+      if (!pubLoc) {
+        if (isMockPub) {
+          pubLoc = { name: location.name, latitude: location.latitude, longitude: location.longitude, city: location.city };
+        } else {
+          return { ok: false, code: 'publish_pub_location', msg: '发布地址缺失,请允许定位后重新发布' };
+        }
       }
       if (!aa_tier) {
         return { ok: false, code: 'publish_aa_tier', msg: '请选择 AA 档位' };
       }
+      // AA 承诺书必勾(rules.md 三.6 · 服务端兜底,不勾不能提交)
+      if (!aa_promise_checked) {
+        return { ok: false, code: 'publish_aa_promise', msg: '请先阅读并勾选《线下费用自理承诺书》' };
+      }
 
-      const config = await getConfig();
-      const user = await getUser(openid);
+      // 并行拉取 配置/用户/紧急联系人(减少串行往返, 冷启动也能压进超时)
+      const [config, user, hasEC] = await Promise.all([
+        getConfig(), getUser(openid), hasEmergencyContact(openid)
+      ]);
       if (!user) return { ok: false, code: 'publish_no_user', msg: '用户不存在,请先登录' };
+
+      // ── 账号状态: 冻结/封禁统一拦截 ──
+      if (user.status === 'frozen') {
+        return { ok: false, code: 'publish_frozen', msg: '账号已冻结,不可发布需求' };
+      }
+      if (user.status === 'banned') {
+        return { ok: false, code: 'publish_banned', msg: '账号已封禁,请联系客服' };
+      }
+      if (user.status === 'closed') {
+        return { ok: false, code: 'publish_closed', msg: '账号已注销' };
+      }
 
       // ── 实名 + 紧急联系人 ──
       if (!user.is_realname_done) {
         return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证' };
       }
-      const hasEC = await hasEmergencyContact(openid);
       if (!hasEC) {
         return { ok: false, code: 'publish_no_emergency', msg: '请先填写紧急联系人' };
       }
@@ -117,10 +193,74 @@ exports.main = async (event, context) => {
         }
       }
 
-      // ── 城市 ──
-      const city = (location.city || '成都');
-      if ((config.city_enabled || ['成都']).indexOf(city) < 0) {
-        return { ok: false, code: 'publish_city_disabled', msg: '当前城市未开通服务' };
+      // ── 城市(归一化: 去掉结尾「市」, 兼容「成都市」/「成都」两种写法) ──
+      const normCity = (c) => String(c || '').replace(/市$/, '').trim();
+      const city = normCity(location.city) || '成都';
+      // 白名单: 配置缺失/为空数组时兜底「成都」(空数组是真值, 不会走 || 兜底, 需显式判空)
+      let enabledCities = (Array.isArray(config.city_enabled) ? config.city_enabled : [])
+        .map(normCity).filter(Boolean);
+      if (enabledCities.length === 0) enabledCities = ['成都'];
+      // 精确匹配优先; 容错: 城市串/地点名包含任一开通城市名也放行(防止前端解析出「川省成都」类脏值误伤)
+      const locName = String((location && location.name) || '');
+      const cityOk = enabledCities.indexOf(city) >= 0
+        || enabledCities.some((c) => city.indexOf(c) >= 0 || locName.indexOf(c) >= 0);
+      if (!cityOk) {
+        return { ok: false, code: 'publish_city_disabled', msg: `当前城市未开通服务(${city})` };
+      }
+
+      // ── 子服务内容校验(多选;兼容旧版单选 content_option) ──
+      let opts = Array.isArray(content_options)
+        ? content_options
+        : (typeof content_option === 'string' ? [content_option] : []);
+      opts = Array.from(new Set(opts.map((s) => String(s || '').trim()).filter(Boolean)));
+      if (opts.length === 0) {
+        return { ok: false, code: 'publish_content_option', msg: '请选择服务内容' };
+      }
+      if (opts.length > 3) {
+        return { ok: false, code: 'publish_content_too_many', msg: '服务内容最多选择 3 项' };
+      }
+      // 选项必须属于该场景(admin_config.scene_list 优先,兜底常量)
+      const sceneCfg = (config.scene_list || []).find((s) => s.code === scene);
+      const allowedOptions = (sceneCfg && sceneCfg.options) || SCENE_OPTIONS_FALLBACK[scene] || [];
+      for (const o of opts) {
+        if (allowedOptions.indexOf(o) < 0) {
+          return { ok: false, code: 'publish_content_invalid', msg: `服务内容「${o}」不在该场景可选项内` };
+        }
+      }
+
+      // ── 备注安全检测(msgSecCheck v2,降级违禁词 · rules.md 六) ──
+      const remarkStr = remark ? String(remark).trim() : '';
+      if (remarkStr) {
+        if (remarkStr.length > REMARK_MAX_LEN) {
+          return { ok: false, code: 'publish_remark_long', msg: `备注最长 ${REMARK_MAX_LEN} 字` };
+        }
+        const chk = await checkText(openid, remarkStr, config.block_words);
+        if (!chk.pass) {
+          return { ok: false, code: 'publish_remark_blocked', msg: chk.reason };
+        }
+      }
+
+      // ── 时间冲突校验:同用户 + 同场景 + 服务内容有交集,时间段不可重叠 ──
+      const newStart = start_time;
+      const newEnd = start_time + duration_h * 3600 * 1000;
+      const existDemands = await col('demand').where({
+        creator_openid: openid,
+        scene,
+        is_deleted: false,
+        status: _.neq('cancelled')
+      }).get();
+      for (const d of existDemands.data) {
+        const oldStart = d.start_time;
+        const oldEnd = d.start_time + (d.duration_h || 1) * 3600 * 1000;
+        // 区间重叠判定:新区间与旧区间有交集(端点相接不算冲突)
+        if (!(newStart < oldEnd && oldStart < newEnd)) continue;
+        // 多选口径:服务内容有交集才算冲突
+        const oldOpts = (d.content_options && d.content_options.length)
+          ? d.content_options
+          : (d.content_option ? [d.content_option] : []);
+        if (opts.some((o) => oldOpts.indexOf(o) >= 0)) {
+          return { ok: false, code: 'publish_time_conflict', msg: '该时段已有同类服务需求,请调整时间' };
+        }
       }
 
       // ── 写入 ──
@@ -133,17 +273,25 @@ exports.main = async (event, context) => {
         start_time,
         duration_h,
         location: { name: location.name, latitude: location.latitude, longitude: location.longitude, city },
-        content_options: Array.isArray(content_options) ? content_options : [],
-        remark: remark || '',
+        // 发布地址: 发布时实际GPS定位(只读留痕, 不参与接单距离/通勤计算)
+        publish_location: {
+          name: pubLoc.name || '当前位置',
+          latitude: pubLoc.latitude,
+          longitude: pubLoc.longitude,
+          city: normCity(pubLoc.city) || city
+        },
+        content_option: opts[0],  // 兼容旧字段:取首项
+        content_options: opts,    // 多选全量
+        remark: remarkStr,
         rate_fen,
         total_fen,
         aa_tier,
-        aa_promise_signed: true,   // rules.md 三.6 AA承诺书
-        match_mode: 'broadcast',   // 默认广场广播
+        aa_promise_signed: !!aa_promise_checked,   // rules.md 三.6 AA承诺书(服务端已兜底校验)
+        match_mode: 'invite',      // 发布后先走定向邀约; 用户在匹配页点「广场广播」后转 broadcast
         status: 'matching',
         match_candidates: [],
         invited: [],
-        broadcast: false,
+        broadcast: false,          // 广播后才上接单大厅(匹配页显式触发)
         expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
         created_at: now,
         updated_at: now,
@@ -169,6 +317,7 @@ exports.main = async (event, context) => {
     case 'cancel': {
       const { demand_id } = event;
       if (!demand_id) return { ok: false, code: 'cancel_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'cancel_bad_id', msg: '需求 ID 格式不正确:请传入需求 _id(32位十六进制),不是需求编号(DR 开头)' };
 
       // 先懒过期
       await lazyExpire();

@@ -1,7 +1,1059 @@
-﻿// 对应 PRD 章节：PRD 5.1 B端后台RBAC权限模型(MVP最小后台)
+// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+// 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
+// 否则拒绝并写 platform_event(P1, admin_probe)。
+// 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const db = cloud.database();
+const _ = db.command;
+const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命名空间下)
+const col = (n) => db.collection(n);
+
+// 进行中订单(数据看板口径)
+const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+const PAGE_SIZE = 15;
+
+async function getConfig() {
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    if (r.data && r.data[0]) return r.data[0];
+  } catch (e) {}
+  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: true, block_words: [], payment_visible: true };
+}
+
+// 平台事件(P0 紧急 / P1 安全/越权 / P2 运营 / P3 业务异常)
+async function logEvent(level, type, openid, payload) {
+  const now = Date.now();
+  try {
+    await col('platform_event').add({ data: {
+      level, type, openid: openid || 'unknown', payload: payload || {},
+      created_at: now, updated_at: now, is_deleted: false
+    }});
+  } catch (e) {
+    console.log(`platform_event write fail: ${e.message}`);
+  }
+}
+
+// ── 敏感信息脱敏 ──
+function maskPhone(p) {
+  if (!p || typeof p !== 'string') return p || '';
+  return p.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+}
+function maskIdCard(id) {
+  if (!id || typeof id !== 'string') return id || '';
+  return id.replace(/^(.{4}).+(.{4})$/, '$1**********$2');
+}
+function maskDoc(o) {
+  if (!o) return o;
+  const out = Object.assign({}, o);
+  Object.keys(out).forEach((k) => {
+    if (/phone/i.test(k) && typeof out[k] === 'string') out[k] = maskPhone(out[k]);
+    if (/idcard|id_card/i.test(k) && typeof out[k] === 'string') out[k] = maskIdCard(out[k]);
+  });
+  return out;
+}
+
+function todayStart() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// ── 分页参数 ──
+function pager(event) {
+  const page = Math.max(1, parseInt(event.page, 10) || 1);
+  return { page, size: PAGE_SIZE, skip: (page - 1) * PAGE_SIZE };
+}
+function isOpenid(s) {
+  return typeof s === 'string' && /^[a-zA-Z0-9_-]{20,40}$/.test(s);
+}
+function isDocId(s) {
+  return typeof s === 'string' && /^[a-f0-9]{32}$/i.test(s);
+}
+function dayKey(ts) {
+  const d = new Date(ts);
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function last7Days() {
+  const arr = [];
+  const base = todayStart();
+  for (let i = 6; i >= 0; i--) arr.push(dayKey(base - i * 86400000));
+  return arr;
+}
+// 按天分桶计数
+function bucketCount(days, arr, tsField) {
+  const m = {};
+  days.forEach((d) => { m[d] = 0; });
+  (arr || []).forEach((x) => {
+    const k = dayKey(x[tsField] || x.created_at);
+    if (m[k] !== undefined) m[k]++;
+  });
+  return days.map((d) => m[d]);
+}
+function bucketFen(days, arr) {
+  const m = {};
+  days.forEach((d) => { m[d] = 0; });
+  (arr || []).forEach((x) => {
+    const k = dayKey(x.paid_at || x.created_at);
+    if (m[k] !== undefined) m[k] += (x.amount_fen || 0);
+  });
+  return days.map((d) => m[d]);
+}
+async function sumTx(type) {
+  try {
+    const r = await col('pay_transaction').aggregate()
+      .match({ type, status: 'success', is_deleted: _.neq(true) })
+      .group({ _id: null, total: $.sum('$amount_fen'), fee: $.sum('$fee_fen') })
+      .end();
+    return r.list && r.list[0] ? r.list[0] : { total: 0, fee: 0 };
+  } catch (e) { return { total: 0, fee: 0 }; }
+}
 
 exports.main = async (event, context) => {
-  return { ok: false, code: 'NOT_IMPLEMENTED', msg: '功能开发中' };
+  const wxCtx = cloud.getWXContext();
+  const openid = wxCtx.OPENID;
+  const action = event.action;
+  console.log(`admin-action action=${action} openid=${openid || 'none'}`);
+
+  const config = await getConfig();
+  const adminOpenids = config.admin_openids || [];
+
+  // ───────── 例外: 白名单为空时首个管理员自助声明(仅一次) ─────────
+  if (action === 'claim_admin') {
+    if (adminOpenids.length > 0) {
+      await logEvent('P1', 'admin_probe', openid, { action, reason: 'claim_after_init' });
+      return { ok: false, code: 'admin_forbidden', msg: '无权限' };
+    }
+    if (!openid) return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
+    const now = Date.now();
+    try {
+      await col('admin_config').where({ _id: 'global' }).update({
+        data: { admin_openids: [openid], updated_at: now }
+      });
+    } catch (e) {
+      return { ok: false, code: 'admin_claim_fail', msg: '初始化失败' };
+    }
+    await logEvent('P2', 'admin_bootstrap', openid, { at: now });
+    return { ok: true, data: { admin_openids: [openid], msg: '管理员初始化成功' } };
+  }
+
+  // ───────── 统一鉴权 ─────────
+  if (!openid) {
+    await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
+    return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
+  }
+  if (adminOpenids.indexOf(openid) < 0) {
+    await logEvent('P1', 'admin_probe', openid, { action, reason: 'not_in_whitelist' });
+    if (adminOpenids.length === 0) {
+      return { ok: false, code: 'admin_empty', msg: '后台尚未初始化管理员' };
+    }
+    return { ok: false, code: 'admin_forbidden', msg: '无权限,该操作已被记录' };
+  }
+
+  const now = Date.now();
+  const ok = (data) => ({ ok: true, data: data || {} });
+  const fail = (code, msg) => ({ ok: false, code, msg });
+
+  // ───────── 1. 数据看板(统计卡 + 7天趋势 + 待办 + 财务汇总) ─────────
+  if (action === 'dashboard') {
+    const t7 = todayStart() - 6 * 86400000;
+    const [userR, partnerR, reviewR, demandR, activeR, disputeR,
+           users7, demands7, orders7, pays7, reportR, payExpiredR,
+           payAgg, refundAgg, tipAgg] = await Promise.all([
+      col('user_account').where({ is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('partner_profile').where({ status: 'approved', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('partner_profile').where({ status: 'pending_review', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('demand').where({ created_at: _.gte(todayStart()), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ status: _.in(ACTIVE_STATUS), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ status: 'S10.5', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('user_account').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('demand').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('order_main').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where({ type: 'pay', status: 'success', created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('safety_report').where({ status: 'active', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ status: 'S0', pay_expire_at: _.lt(now), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      sumTx('pay'), sumTx('refund'), sumTx('tip')
+    ]);
+    const days = last7Days();
+    return ok({
+      user_count: userR.total || 0,
+      partner_count: partnerR.total || 0,
+      today_demand_count: demandR.total || 0,
+      active_order_count: activeR.total || 0,
+      pending_review_count: reviewR.total || 0,
+      dispute_count: disputeR.total || 0,
+      gmv_fen: payAgg.total || 0,
+      trend: {
+        days,
+        users: bucketCount(days, users7.data, 'created_at'),
+        demands: bucketCount(days, demands7.data, 'created_at'),
+        orders: bucketCount(days, orders7.data, 'created_at'),
+        gmv_fen: bucketFen(days, pays7.data)
+      },
+      todo: {
+        pending_review: reviewR.total || 0,
+        dispute: disputeR.total || 0,
+        report_active: reportR.total || 0,
+        pay_expired: payExpiredR.total || 0
+      },
+      finance: {
+        gmv_fen: payAgg.total || 0,
+        refund_fen: refundAgg.total || 0,
+        tip_fen: tipAgg.total || 0,
+        fee_fen: payAgg.fee || 0
+      }
+    });
+  }
+
+  // ───────── 2. 用户管理 ─────────
+  if (action === 'user_list') {
+    const { keyword, status, is_partner, sort } = event;
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    const conds = [];
+    if (status) q.status = status;
+    if (is_partner === true || is_partner === 'true') q.roles = 'partner';
+    if (keyword) {
+      const kw = String(keyword).trim();
+      if (isOpenid(kw)) conds.push({ openid: kw });
+      else conds.push({ nickname: db.RegExp({ regexp: kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), options: 'i' }) });
+    }
+    if (conds.length) q = _.and([q, _.or(conds)]);
+    const query = col('user_account').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy(sort === 'credit' ? 'user_credit_score' : 'created_at', 'desc')
+        .skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const list = (rows.data || []).map((u) => ({
+      openid: u.openid,
+      nickname: u.nickname || '微信用户',
+      avatar: u.avatar || '',
+      roles: u.roles || [],
+      status: u.status || 'normal',
+      user_credit_score: u.user_credit_score || 800,
+      partner_credit_score: u.partner_credit_score || 800,
+      is_realname_done: !!u.is_realname_done,
+      phone: maskPhone(u.phone),
+      created_at: u.created_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  if (action === 'user_detail') {
+    const { target_openid } = event;
+    if (!isOpenid(target_openid)) return fail('detail_bad_openid', 'openid 格式不正确');
+    const [uR, ecR, dCnt, oUser, oPartner, logsR] = await Promise.all([
+      col('user_account').where({ openid: target_openid }).limit(1).get().catch(() => ({ data: [] })),
+      col('emergency_contact').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] })),
+      col('demand').where({ creator_openid: target_openid, is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ user_openid: target_openid, is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ partner_openid: target_openid, is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('credit_score_log').where({ openid: target_openid, is_deleted: _.neq(true) })
+        .orderBy('created_at', 'desc').limit(10).get().catch(() => ({ data: [] }))
+    ]);
+    const u = uR.data && uR.data[0];
+    if (!u) return fail('user_not_found', '用户不存在');
+    const profileR = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const p = profileR.data && profileR.data[0];
+    return ok({
+      user: maskDoc({
+        openid: u.openid, nickname: u.nickname, avatar: u.avatar, roles: u.roles || [],
+        status: u.status || 'normal', age: u.age || null,
+        user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
+        is_realname_done: !!u.is_realname_done, phone: u.phone, id_card: u.id_card,
+        banned_reason: u.banned_reason || '', created_at: u.created_at
+      }),
+      partner: p ? {
+        status: p.status, accept_scenes: p.accept_scenes || [], accept_switch: !!p.accept_switch,
+        scene_rates: p.scene_rates || {}, applied_at: p.applied_at
+      } : null,
+      emergency_contact: ecR.data && ecR.data[0] ? maskDoc({
+        name: ecR.data[0].name || ecR.data[0].contact_name || '',
+        phone: ecR.data[0].phone || ecR.data[0].contact_phone || '',
+        relation: ecR.data[0].relation || ''
+      }) : null,
+      stats: { demand_count: dCnt.total || 0, order_as_user: oUser.total || 0, order_as_partner: oPartner.total || 0 },
+      credit_logs: (logsR.data || []).map((l) => ({
+        type: l.type, delta: l.delta, score: l.score, reason: l.reason || '',
+        is_system: !!l.is_system, created_at: l.created_at
+      }))
+    });
+  }
+
+  if (action === 'user_freeze' || action === 'user_unfreeze') {
+    const { target_openid, reason } = event;
+    if (!isOpenid(target_openid)) return fail('freeze_bad_openid', 'openid 格式不正确');
+    const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
+    if (!ur.data || !ur.data[0]) return fail('user_not_found', '用户不存在');
+    const freeze = action === 'user_freeze';
+    const patch = { status: freeze ? 'frozen' : 'normal', updated_at: now };
+    if (freeze) { patch.frozen_reason = reason || ''; patch.frozen_at = now; patch.frozen_by = openid; }
+    await col('user_account').doc(ur.data[0]._id).update({ data: patch });
+    if (freeze) {
+      await col('partner_profile').where({ openid: target_openid }).update({ data: { accept_switch: false, updated_at: now } }).catch(() => {});
+    }
+    await logEvent('P2', freeze ? 'user_frozen' : 'user_unfrozen', openid, {
+      target_openid, reason: reason || '', before: ur.data[0].status, after: patch.status
+    });
+    return ok({ openid: target_openid, status: patch.status });
+  }
+
+  // 人工调整信用分(delta 非零整数; reason 必填; 写 credit_score_log + P2)
+  if (action === 'user_credit_adjust') {
+    const { target_openid, score_type, delta, reason } = event;
+    if (!isOpenid(target_openid)) return fail('credit_bad_openid', 'openid 格式不正确');
+    const d = parseInt(delta, 10);
+    if (!Number.isInteger(d) || d === 0) return fail('credit_bad_delta', '调整分值须为非零整数');
+    if (d < -100 || d > 100) return fail('credit_bad_delta', '单次调整范围 -100 ~ 100');
+    if (!reason || !String(reason).trim()) return fail('credit_no_reason', '请填写调整原因');
+    if (score_type !== 'user' && score_type !== 'partner') return fail('credit_bad_type', 'score_type 须为 user/partner');
+    const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
+    if (!ur.data || !ur.data[0]) return fail('user_not_found', '用户不存在');
+    const u = ur.data[0];
+    const field = score_type === 'partner' ? 'partner_credit_score' : 'user_credit_score';
+    const before = u[field] || 800;
+    const after = Math.max(0, Math.min(1000, before + d));
+    await col('user_account').doc(u._id).update({ data: { [field]: after, updated_at: now } });
+    try {
+      await col('credit_score_log').add({ data: {
+        openid: target_openid, type: 'admin_adjust', score_type,
+        delta: d, score: after, reason: String(reason).trim(),
+        order_id: null, is_system: false, admin_openid: openid,
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+    } catch (e) {}
+    await logEvent('P2', 'credit_adjust', openid, {
+      target_openid, score_type, before, after, delta: d, reason: String(reason).trim()
+    });
+    return ok({ openid: target_openid, score_type, before, after });
+  }
+
+  // ───────── 3. 耍伴管理 ─────────
+  if (action === 'partner_list') {
+    const { status } = event;   // pending_review/approved/rejected/不传=全部
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    if (status) q.status = status;
+    const query = col('partner_profile').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('applied_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const openids = (rows.data || []).map((p) => p.openid);
+    const userMap = {};
+    if (openids.length) {
+      const ur = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get().catch(() => ({ data: [] }));
+      for (const u of (ur.data || [])) {
+        userMap[u.openid] = {
+          nickname: u.nickname || '', phone: maskPhone(u.phone),
+          user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
+          age: u.age || '', status: u.status || 'normal'
+        };
+      }
+    }
+    const list = (rows.data || []).map((p) => ({
+      openid: p.openid,
+      nickname: p.nickname || (userMap[p.openid] && userMap[p.openid].nickname) || '耍伴',
+      avatar: p.avatar || '',
+      status: p.status,
+      accept_scenes: p.accept_scenes || [],
+      scene_rates: p.scene_rates || {},
+      accept_switch: !!p.accept_switch,
+      applied_at: p.applied_at,
+      review_note: p.review_note || '',
+      user: userMap[p.openid] || null
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  if (action === 'partner_detail') {
+    const { target_openid } = event;
+    if (!isOpenid(target_openid)) return fail('detail_bad_openid', 'openid 格式不正确');
+    const [pR, uR, oCnt, doneCnt, evR] = await Promise.all([
+      col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] })),
+      col('user_account').where({ openid: target_openid }).limit(1).get().catch(() => ({ data: [] })),
+      col('order_main').where({ partner_openid: target_openid, is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ partner_openid: target_openid, status: _.in(['S5', 'S8', 'S9']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('evaluation').where({ to_openid: target_openid, is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }))
+    ]);
+    const p = pR.data && pR.data[0];
+    if (!p) return fail('partner_not_found', '耍伴不存在');
+    const u = uR.data && uR.data[0];
+    const evs = evR.data || [];
+    const avgStar = evs.length ? Math.round(evs.reduce((s, e) => s + (e.star || 0), 0) / evs.length * 10) / 10 : 0;
+    return ok({
+      profile: {
+        openid: p.openid, nickname: p.nickname, avatar: p.avatar, status: p.status,
+        accept_scenes: p.accept_scenes || [], scene_rates: p.scene_rates || {},
+        accept_switch: !!p.accept_switch, city: p.city || [],
+        applied_at: p.applied_at, reviewed_at: p.reviewed_at, review_note: p.review_note || ''
+      },
+      user: u ? maskDoc({
+        nickname: u.nickname, phone: u.phone, status: u.status || 'normal',
+        user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
+        is_realname_done: !!u.is_realname_done
+      }) : null,
+      stats: {
+        order_count: oCnt.total || 0,
+        done_count: doneCnt.total || 0,
+        eval_count: evs.length,
+        avg_star: avgStar
+      }
+    });
+  }
+
+  // 强制下架/恢复耍伴接单(不影响其发单人身份)
+  if (action === 'partner_offline' || action === 'partner_online') {
+    const { target_openid, reason } = event;
+    if (!isOpenid(target_openid)) return fail('partner_bad_openid', 'openid 格式不正确');
+    const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
+    if (!pr.data || !pr.data[0]) return fail('partner_not_found', '耍伴不存在');
+    const online = action === 'partner_online';
+    if (pr.data[0].status !== 'approved' && online) return fail('partner_not_approved', '仅审核通过的耍伴可恢复接单');
+    await col('partner_profile').doc(pr.data[0]._id).update({
+      data: { accept_switch: online, updated_at: now }
+    });
+    await logEvent('P2', online ? 'partner_online' : 'partner_offline', openid, {
+      target_openid, reason: reason || '', before: pr.data[0].accept_switch, after: online
+    });
+    return ok({ openid: target_openid, accept_switch: online });
+  }
+
+  // 耍伴审核(通过/驳回)
+  if (action === 'review') {
+    const { target_openid, decision, note } = event;
+    if (!isOpenid(target_openid)) return fail('review_no_openid', '缺少耍伴 openid');
+    if (decision !== 'approve' && decision !== 'reject') {
+      return fail('review_bad_decision', 'decision 必须为 approve/reject');
+    }
+    const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
+    if (!pr.data || !pr.data[0]) return fail('review_not_found', '耍伴申请不存在');
+    const profile = pr.data[0];
+    const newStatus = decision === 'approve' ? 'approved' : 'rejected';
+    await col('partner_profile').doc(profile._id).update({
+      data: {
+        status: newStatus, review_note: note || '', reviewed_by: openid, reviewed_at: now,
+        accept_switch: decision === 'approve' ? true : profile.accept_switch, updated_at: now
+      }
+    });
+    if (decision === 'approve') {
+      await col('user_account').where({ openid: target_openid }).update({
+        data: { roles: _.addToSet('partner'), updated_at: now }
+      }).catch(() => {});
+    }
+    await logEvent('P2', 'partner_review_' + decision, openid, {
+      target_openid, before: profile.status, after: newStatus, note: note || ''
+    });
+    return ok({ openid: target_openid, status: newStatus });
+  }
+
+  // ───────── 4. 需求管理 ─────────
+  if (action === 'demand_list') {
+    const { keyword, scene, status } = event;
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    if (scene) q.scene = scene;
+    if (status) q.status = status;
+    const conds = [];
+    if (keyword) {
+      const kw = String(keyword).trim();
+      if (isDocId(kw)) conds.push({ _id: kw }, { creator_openid: kw });
+      else conds.push({ demand_no: db.RegExp({ regexp: kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), options: 'i' }) });
+    }
+    if (conds.length) q = _.and([q, _.or(conds)]);
+    const query = col('demand').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const openids = (rows.data || []).map((d) => d.creator_openid);
+    const nameMap = {};
+    if (openids.length) {
+      const ur = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get().catch(() => ({ data: [] }));
+      for (const u of (ur.data || [])) nameMap[u.openid] = u.nickname || '微信用户';
+    }
+    const list = (rows.data || []).map((d) => ({
+      demand_id: d._id, demand_no: d.demand_no,
+      creator_openid: d.creator_openid, creator_name: nameMap[d.creator_openid] || '微信用户',
+      scene: d.scene, status: d.status,
+      content_options: d.content_options || (d.content_option ? [d.content_option] : []),
+      remark: d.remark || '',
+      start_time: d.start_time, duration_h: d.duration_h,
+      location_name: d.location && d.location.name, city: d.location && d.location.city,
+      rate_fen: d.rate_fen, total_fen: d.total_fen,
+      broadcast: !!d.broadcast, match_mode: d.match_mode || 'invite',
+      admin_note: d.admin_note || '', created_at: d.created_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  // 强制下架违规需求(仅 matching 可下架; 记 admin_note + P2)
+  if (action === 'demand_offline') {
+    const { demand_id, note } = event;
+    if (!isDocId(demand_id)) return fail('demand_bad_id', '需求 ID 格式不正确');
+    if (!note || !String(note).trim()) return fail('demand_no_note', '请填写下架原因');
+    let d;
+    try { d = (await col('demand').doc(demand_id).get()).data; } catch (e) { d = null; }
+    if (!d) return fail('demand_not_found', '需求不存在');
+    if (d.status !== 'matching') return fail('demand_bad_status', `当前状态(${d.status})不可下架,仅匹配中需求可下架`);
+    await col('demand').doc(demand_id).update({
+      data: {
+        status: 'cancelled', admin_note: String(note).trim(),
+        offline_by: openid, offline_at: now, updated_at: now
+      }
+    });
+    await logEvent('P2', 'demand_offline', openid, {
+      demand_id, demand_no: d.demand_no, reason: String(note).trim()
+    });
+    return ok({ demand_id, status: 'cancelled' });
+  }
+
+  // ───────── 5. 订单管理 ─────────
+  if (action === 'order_list' || action === 'order_query') {
+    const { keyword, status } = event;
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    const conds = [];
+    if (status) q.status = status;
+    if (keyword) {
+      const kw = String(keyword).trim();
+      if (isDocId(kw)) {
+        conds.push({ _id: kw }, { user_openid: kw }, { partner_openid: kw }, { demand_id: kw });
+      } else {
+        conds.push({ order_no: db.RegExp({ regexp: kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), options: 'i' }) });
+      }
+    }
+    if (conds.length) q = _.and([q, _.or(conds)]);
+    const query = col('order_main').where(q);
+    const usePage = action === 'order_list';
+    const [totalR, rowsR] = await Promise.all([
+      usePage ? query.count().catch(() => ({ total: 0 })) : Promise.resolve({ total: 0 }),
+      usePage
+        ? query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+        : query.orderBy('created_at', 'desc').limit(30).get().catch(() => ({ data: [] }))
+    ]);
+    const list = (rowsR.data || []).map((o) => maskDoc({
+      order_id: o._id, order_no: o.order_no,
+      status: o.status, scene: o.scene,
+      user_openid: o.user_openid, partner_openid: o.partner_openid,
+      total_fen: o.total_fen, tip_total_fen: o.tip_total_fen || 0,
+      start_time: o.start_time, created_at: o.created_at,
+      help_flag: !!o.help_flag, admin_note: o.admin_note || ''
+    }));
+    return ok(usePage
+      ? { list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) }
+      : { list });
+  }
+
+  // 订单详情时间线(订单 + 状态流水 + 支付流水 + 评价 + 四确认)
+  if (action === 'order_detail') {
+    const { order_id } = event;
+    if (!isDocId(order_id)) return fail('order_bad_id', '订单 ID 格式不正确');
+    let o;
+    try { o = (await col('order_main').doc(order_id).get()).data; } catch (e) { o = null; }
+    if (!o) return fail('order_not_found', '订单不存在');
+    const [logsR, txR, evR, cfR] = await Promise.all([
+      col('order_status_log').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(50).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(20).get().catch(() => ({ data: [] })),
+      col('evaluation').where({ order_id, is_deleted: _.neq(true) }).limit(10).get().catch(() => ({ data: [] })),
+      col('order_confirmations').where({ order_id, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }))
+    ]);
+    return ok({
+      order: maskDoc({
+        order_id: o._id, order_no: o.order_no, demand_no: o.demand_no,
+        user_openid: o.user_openid, partner_openid: o.partner_openid,
+        status: o.status, scene: o.scene,
+        content_options: o.content_options || [],
+        start_time: o.start_time, duration_h: o.duration_h,
+        location: o.location, total_fen: o.total_fen, fee_fen: o.fee_fen,
+        partner_income_fen: o.partner_income_fen, tip_total_fen: o.tip_total_fen || 0,
+        aa_tier: o.aa_tier, pay_expire_at: o.pay_expire_at,
+        help_flag: !!o.help_flag, dispute_reason: o.dispute_reason || '',
+        admin_note: o.admin_note || '', created_at: o.created_at
+      }),
+      status_logs: (logsR.data || []).map((l) => ({
+        from: l.from_status, to: l.to_status,
+        action: l.action || l.note || '', actor: l.operator || l.actor_openid || l.actor || '',
+        created_at: l.created_at
+      })),
+      transactions: (txR.data || []).map((t) => ({
+        pay_no: t.pay_no || t.refund_no || t.tip_no || '',
+        type: t.type, amount_fen: t.amount_fen, fee_fen: t.fee_fen || 0,
+        status: t.status, created_at: t.created_at || t.paid_at
+      })),
+      evaluations: (evR.data || []).map((e) => ({
+        from_openid: e.from_openid, to_openid: e.to_openid,
+        star: e.star, content: e.content, is_system: !!e.is_system, created_at: e.created_at
+      })),
+      confirmations: cfR.data && cfR.data[0] ? {
+        version: cfR.data[0].version,
+        items: Object.keys(cfR.data[0].items || {}).map((k) => ({
+          key: k,
+          user_ok: !!cfR.data[0].items[k].user_ok,
+          partner_ok: !!cfR.data[0].items[k].partner_ok
+        }))
+      } : null
+    });
+  }
+
+  // 人工强制取消订单(S1/S0 → S6; S1 释放需求回匹配池; 记流水 + P2)
+  if (action === 'order_force_cancel') {
+    const { order_id, note } = event;
+    if (!isDocId(order_id)) return fail('order_bad_id', '订单 ID 格式不正确');
+    if (!note || !String(note).trim()) return fail('cancel_no_note', '请填写取消原因');
+    let o;
+    try { o = (await col('order_main').doc(order_id).get()).data; } catch (e) { o = null; }
+    if (!o) return fail('order_not_found', '订单不存在');
+    if (o.status !== 'S1' && o.status !== 'S0') {
+      return fail('cancel_bad_status', `当前状态(${o.status})不可强制取消,仅待确认/待支付订单可取消`);
+    }
+    const before = o.status;
+    await col('order_main').doc(order_id).update({
+      data: { status: 'S6', admin_note: String(note).trim(), cancel_by: openid, cancel_at: now, updated_at: now }
+    });
+    // 释放需求回匹配池(可被其他耍伴接)
+    if (o.demand_id) {
+      await col('demand').doc(o.demand_id).update({ data: { status: 'matching', updated_at: now } }).catch(() => {});
+    }
+    try {
+      await col('order_status_log').add({ data: {
+        order_id, order_no: o.order_no, from_status: before, to_status: 'S6',
+        actor: 'admin', actor_openid: openid, action: 'admin_force_cancel',
+        note: String(note).trim(), created_at: now, updated_at: now, is_deleted: false
+      }});
+    } catch (e) {}
+    await logEvent('P2', 'order_force_cancel', openid, {
+      order_id, order_no: o.order_no, before, after: 'S6', note: String(note).trim()
+    });
+    return ok({ order_id, before, after: 'S6' });
+  }
+
+  // ───────── 争议处置(S10→S10.5→裁决 S7/S5) ─────────
+  if (action === 'dispute_list') {
+    const r = await col('order_main').where({
+      status: _.in(['S10.5', 'S10']), is_deleted: _.neq(true)
+    }).orderBy('updated_at', 'desc').limit(50).get();
+    return ok({
+      list: (r.data || []).map((o) => ({
+        order_id: o._id, order_no: o.order_no, status: o.status, scene: o.scene,
+        user_openid: o.user_openid, partner_openid: o.partner_openid,
+        total_fen: o.total_fen, dispute_reason: o.dispute_reason || '',
+        admin_note: o.admin_note || '', updated_at: o.updated_at
+      }))
+    });
+  }
+
+  if (action === 'dispute_handle') {
+    const { order_id, decision, note } = event;
+    if (!isDocId(order_id)) return fail('dispute_bad_id', '订单 ID 格式不正确');
+    let order;
+    try { order = (await col('order_main').doc(order_id).get()).data; } catch (e) { order = null; }
+    if (!order) return fail('dispute_not_found', '订单不存在');
+    const before = order.status;
+    let after;
+    if (decision === 'open') {
+      if (before !== 'S10') return fail('dispute_bad_transition', '仅 S10 已关闭订单可登记争议');
+      after = 'S10.5';
+    } else if (decision === 'refund') {
+      if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
+      after = 'S7';
+    } else if (decision === 'complete') {
+      if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
+      after = 'S5';
+    } else {
+      return fail('dispute_bad_decision', 'decision 必须为 open/refund/complete');
+    }
+    if (!note || !String(note).trim()) return fail('dispute_no_note', '请填写处置说明');
+    const patch = {
+      status: after, admin_note: String(note).trim(),
+      dispute_handled_by: openid, dispute_handled_at: now, updated_at: now
+    };
+    if (decision === 'open') patch.dispute_opened_at = now;
+    await col('order_main').doc(order_id).update({ data: patch });
+    try {
+      await col('order_status_log').add({ data: {
+        order_id, order_no: order.order_no, from_status: before, to_status: after,
+        actor: 'admin', actor_openid: openid, action: 'dispute_' + decision,
+        note: String(note).trim(), created_at: now, updated_at: now, is_deleted: false
+      }});
+    } catch (e) {}
+    await logEvent('P2', 'dispute_' + decision, openid, {
+      order_id, order_no: order.order_no, before, after, note: String(note).trim()
+    });
+    return ok({ order_id, before, after });
+  }
+
+  // ───────── 6. 财务流水 ─────────
+  if (action === 'finance_list') {
+    const { type, status } = event;
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    if (type) q.type = type;
+    if (status) q.status = status;
+    const query = col('pay_transaction').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const orderIds = (rows.data || []).map((t) => t.order_id).filter(Boolean);
+    const noMap = {};
+    if (orderIds.length) {
+      const oR = await col('order_main').where({ _id: _.in(orderIds) }).limit(orderIds.length).get().catch(() => ({ data: [] }));
+      for (const o of (oR.data || [])) noMap[o._id] = { user_openid: o.user_openid, partner_openid: o.partner_openid };
+    }
+    const list = (rows.data || []).map((t) => ({
+      tx_id: t._id, pay_no: t.pay_no || t.refund_no || t.tip_no || '',
+      type: t.type, status: t.status,
+      amount_fen: t.amount_fen, fee_fen: t.fee_fen || 0,
+      order_id: t.order_id, order_no: t.order_no,
+      user_openid: noMap[t.order_id] && noMap[t.order_id].user_openid,
+      partner_openid: noMap[t.order_id] && noMap[t.order_id].partner_openid,
+      is_mock: !!t.is_mock, created_at: t.created_at || t.paid_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  // ───────── 7. 风控: 举报 / 平台事件 ─────────
+  if (action === 'report_list') {
+    const { status: rStatus } = event;
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    if (rStatus) q.status = rStatus;
+    const query = col('safety_report').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const list = (rows.data || []).map((r) => ({
+      report_id: r._id, order_id: r.order_id, order_no: r.order_no || '',
+      reporter_openid: r.reporter_openid, reporter_role: r.reporter_role || '',
+      type: r.type, status: r.status, note: r.note || '',
+      resolve_note: r.resolve_note || '',
+      location: r.location ? (r.location.name || '') : '',
+      resolved_at: r.resolved_at, created_at: r.created_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  if (action === 'report_handle') {
+    const { report_id, note } = event;
+    if (!isDocId(report_id)) return fail('report_bad_id', '举报记录 ID 格式不正确');
+    if (!note || !String(note).trim()) return fail('report_no_note', '请填写处理说明');
+    let r;
+    try { r = (await col('safety_report').doc(report_id).get()).data; } catch (e) { r = null; }
+    if (!r) return fail('report_not_found', '举报记录不存在');
+    await col('safety_report').doc(report_id).update({
+      data: {
+        status: 'resolved', resolve_note: String(note).trim(),
+        resolved_by: openid, resolved_at: now, updated_at: now
+      }
+    });
+    await logEvent('P2', 'report_resolved', openid, {
+      report_id, order_no: r.order_no, type: r.type, note: String(note).trim()
+    });
+    return ok({ report_id, status: 'resolved' });
+  }
+
+  if (action === 'event_list') {
+    const { level, type: evType } = event;
+    const pg = pager(event);
+    let q = { is_deleted: _.neq(true) };
+    if (level) q.level = level;
+    if (evType) q.type = evType;
+    const query = col('platform_event').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const list = (rows.data || []).map((e) => ({
+      event_id: e._id, level: e.level, type: e.type, openid: e.openid,
+      payload: e.payload || {}, created_at: e.created_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  // ───────── 8. 参数配置(白名单字段; 每次修改写 P2 config_change before/after) ─────────
+  if (action === 'config_get') {
+    return ok({
+      platform_fee_rate_fen: config.platform_fee_rate_fen,
+      auto_approve_partner: !!config.auto_approve_partner,
+      payment_visible: config.payment_visible !== false,   // 默认 true, false 才隐藏支付入口
+      block_words: config.block_words || [],
+      city_enabled: config.city_enabled || [],
+      timeouts: {
+        s0_timeout_min: config.s0_timeout_min || 30,
+        s1_timeout_min: config.s1_timeout_min || 15,
+        interrupt_timeout_h: config.interrupt_timeout_h || 24,
+        eval_window_h: config.eval_window_h || 48
+      },
+      credits: {
+        min_credit_take_order: config.min_credit_take_order || 600,
+        min_credit_place_order: config.min_credit_place_order || 600,
+        credit_freeze_line: config.credit_freeze_line || 400
+      },
+      rate_range: { rate_min_fen: config.rate_min_fen || 3000, rate_max_fen: config.rate_max_fen || 10000 },
+      scene_list: config.scene_list || [],
+      system_templates: config.system_templates || []
+    });
+  }
+
+  if (action === 'config_set') {
+    const patch = { updated_at: now };
+    const before = {};
+    const touch = (k, v) => { before[k] = config[k]; patch[k] = v; };
+
+    if (event.platform_fee_rate_fen !== undefined) {
+      const fee = Number(event.platform_fee_rate_fen);
+      if (!Number.isInteger(fee) || fee < 0 || fee > 10000) {
+        return fail('config_bad_fee', '平台抽成需为 0-10000 之间的整数(单位:万分之)');
+      }
+      touch('platform_fee_rate_fen', fee);
+    }
+    if (event.auto_approve_partner !== undefined) touch('auto_approve_partner', !!event.auto_approve_partner);
+    if (event.payment_visible !== undefined) touch('payment_visible', !!event.payment_visible);
+
+    // 屏蔽词增删
+    let words = (config.block_words || []).slice();
+    let wordsTouched = false;
+    if (Array.isArray(event.block_words_add)) {
+      event.block_words_add.map((w) => String(w).trim()).filter(Boolean).forEach((w) => {
+        if (words.indexOf(w) < 0) { words.push(w); wordsTouched = true; }
+      });
+    }
+    if (Array.isArray(event.block_words_remove)) {
+      const rm = event.block_words_remove.map((w) => String(w).trim());
+      const next = words.filter((w) => rm.indexOf(w) < 0);
+      if (next.length !== words.length) wordsTouched = true;
+      words = next;
+    }
+    if (wordsTouched) { before.block_words = config.block_words || []; patch.block_words = words; }
+
+    // 开通城市增删
+    let cities = (config.city_enabled || []).slice();
+    let citiesTouched = false;
+    if (Array.isArray(event.city_add)) {
+      event.city_add.map((c) => String(c).trim()).filter(Boolean).forEach((c) => {
+        if (cities.indexOf(c) < 0) { cities.push(c); citiesTouched = true; }
+      });
+    }
+    if (Array.isArray(event.city_remove)) {
+      const rm = event.city_remove.map((c) => String(c).trim());
+      const next = cities.filter((c) => rm.indexOf(c) < 0);
+      if (next.length !== cities.length) citiesTouched = true;
+      cities = next;
+    }
+    if (citiesTouched) { before.city_enabled = config.city_enabled || []; patch.city_enabled = cities; }
+
+    // 超时参数(正整数 + 合理范围)
+    const intFields = [
+      ['s0_timeout_min', 1, 1440], ['s1_timeout_min', 1, 1440],
+      ['interrupt_timeout_h', 1, 168], ['eval_window_h', 1, 720],
+      ['min_credit_take_order', 0, 1000], ['min_credit_place_order', 0, 1000],
+      ['credit_freeze_line', 0, 1000], ['rate_min_fen', 0, 100000], ['rate_max_fen', 0, 100000]
+    ];
+    for (const [f, lo, hi] of intFields) {
+      if (event[f] !== undefined) {
+        const v = parseInt(event[f], 10);
+        if (!Number.isInteger(v) || v < lo || v > hi) return fail('config_bad_' + f, `${f} 须为 ${lo}-${hi} 的整数`);
+        touch(f, v);
+      }
+    }
+    if (patch.rate_min_fen !== undefined || patch.rate_max_fen !== undefined) {
+      const minF = patch.rate_min_fen !== undefined ? patch.rate_min_fen : (config.rate_min_fen || 3000);
+      const maxF = patch.rate_max_fen !== undefined ? patch.rate_max_fen : (config.rate_max_fen || 10000);
+      if (minF >= maxF) return fail('config_bad_rate_range', '最低时薪必须小于最高时薪');
+    }
+
+    // 场景服务项增删(仅对已有场景; 新增服务项需小程序发版后才会在发布页显示)
+    let scenes = (config.scene_list || []).map((s) => Object.assign({}, s, { options: (s.options || []).slice() }));
+    let scenesTouched = false;
+    const sceneOpt = event.scene_option_add || event.scene_option_remove;
+    if (sceneOpt) {
+      const isAdd = !!event.scene_option_add;
+      const req = isAdd ? event.scene_option_add : event.scene_option_remove;
+      const sc = scenes.find((s) => s.code === req.scene);
+      if (!sc) return fail('config_scene_not_found', '场景不存在: ' + req.scene);
+      const opt = String(req.option || '').trim();
+      if (!opt || opt.length > 10) return fail('config_bad_option', '服务项名称须为 1-10 字');
+      if (isAdd) {
+        if ((sc.options || []).length >= 8) return fail('config_too_many_options', '单场景服务项最多 8 个');
+        if (sc.options.indexOf(opt) < 0) { sc.options.push(opt); scenesTouched = true; }
+      } else {
+        const next = sc.options.filter((x) => x !== opt);
+        if (next.length !== sc.options.length) { sc.options = next; scenesTouched = true; }
+      }
+    }
+    if (scenesTouched) { before.scene_list = config.scene_list || []; patch.scene_list = scenes; }
+
+    // IM 模板增删
+    let templates = (config.system_templates || []).slice();
+    let tplTouched = false;
+    if (event.template_add) {
+      const text = String(event.template_add).trim();
+      if (!text || text.length > 30) return fail('config_bad_template', '模板文案须为 1-30 字');
+      const maxNum = templates.reduce((m, t) => {
+        const n = parseInt(String(t.id || '').replace(/^T/, ''), 10);
+        return Number.isInteger(n) && n > m ? n : m;
+      }, 0);
+      templates.push({ id: 'T' + (maxNum + 1), text });
+      tplTouched = true;
+    }
+    if (event.template_remove) {
+      const id = String(event.template_remove).trim();
+      const next = templates.filter((t) => t.id !== id);
+      if (next.length !== templates.length) { templates = next; tplTouched = true; }
+    }
+    if (tplTouched) { before.system_templates = config.system_templates || []; patch.system_templates = templates; }
+
+    const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
+    if (!changed.length) return fail('config_no_change', '没有需要修改的字段');
+    await col('admin_config').where({ _id: 'global' }).update({ data: patch });
+    await logEvent('P2', 'config_change', openid, { before, after: patch });
+    return ok({ updated: changed });
+  }
+
+  // ───────── 9. 封禁/解封 ─────────
+  if (action === 'user_ban' || action === 'user_unban') {
+    const { target_openid, reason } = event;
+    if (!isOpenid(target_openid)) return fail('ban_bad_openid', 'openid 格式不正确');
+    const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
+    if (!ur.data || !ur.data[0]) return fail('ban_user_not_found', '用户不存在');
+    const ban = action === 'user_ban';
+    if (ban && (!reason || !String(reason).trim())) return fail('ban_no_reason', '请填写封禁原因');
+    const patch = { status: ban ? 'banned' : 'normal', updated_at: now };
+    if (ban) {
+      patch.banned_reason = String(reason).trim();
+      patch.banned_at = now; patch.banned_by = openid;
+    } else {
+      patch.unbanned_at = now; patch.unbanned_by = openid;
+    }
+    await col('user_account').doc(ur.data[0]._id).update({ data: patch });
+    if (ban) {
+      await col('partner_profile').where({ openid: target_openid }).update({
+        data: { accept_switch: false, updated_at: now }
+      }).catch(() => {});
+    }
+    await logEvent('P2', ban ? 'user_banned' : 'user_unbanned', openid, {
+      target_openid, reason: reason || '', before: ur.data[0].status, after: patch.status
+    });
+    return ok({ openid: target_openid, status: patch.status });
+  }
+
+  // ───────── 10. 管理员权限 ─────────
+  if (action === 'admin_list') {
+    return ok({ admins: adminOpenids, count: adminOpenids.length });
+  }
+
+  if (action === 'admin_add') {
+    const { target_openid } = event;
+    if (!isOpenid(target_openid)) return fail('admin_bad_openid', 'openid 格式不正确');
+    if (adminOpenids.indexOf(target_openid) >= 0) return fail('admin_exists', '该 openid 已是管理员');
+    const next = adminOpenids.concat([target_openid]);
+    await col('admin_config').where({ _id: 'global' }).update({
+      data: { admin_openids: next, updated_at: now }
+    });
+    await logEvent('P2', 'admin_add', openid, { target_openid });
+    return ok({ admins: next });
+  }
+
+  if (action === 'admin_remove') {
+    const { target_openid } = event;
+    if (!isOpenid(target_openid)) return fail('admin_bad_openid', 'openid 格式不正确');
+    if (target_openid === openid) return fail('admin_cannot_remove_self', '不能移除当前登录的管理员自己');
+    if (adminOpenids.length <= 1) return fail('admin_last_one', '至少保留 1 名管理员');
+    const next = adminOpenids.filter((x) => x !== target_openid);
+    if (next.length === adminOpenids.length) return fail('admin_not_found', '该 openid 不在管理员名单');
+    await col('admin_config').where({ _id: 'global' }).update({
+      data: { admin_openids: next, updated_at: now }
+    });
+    await logEvent('P2', 'admin_remove', openid, { target_openid });
+    return ok({ admins: next });
+  }
+
+  // ─────────────── 服务动态(blog)管理 ───────────────
+  if (action === 'blog_list') {
+    const status = ['normal', 'offline', 'deleted'].indexOf(event.status) >= 0 ? event.status : '';
+    const { page, size, skip } = pager(event);
+    const where = status ? { status } : {};
+    const countAll = await col('blog_post').where(where).count();
+    const r = await col('blog_post').where(where).orderBy('created_at', 'desc')
+      .skip(skip).limit(size + 1).get();
+    const rows = r.data || [];
+    const has_more = rows.length > size;
+    const list = (has_more ? rows.slice(0, size) : rows).map((p) => ({
+      _id: p._id, author_openid: p.author_openid,
+      author_nickname: p.author_nickname || '微信用户',
+      scene: p.scene || '', content: p.content, image_count: (p.images || []).length,
+      like_count: p.like_count || 0, comment_count: p.comment_count || 0,
+      view_count: p.view_count || 0, status: p.status || 'normal', created_at: p.created_at
+    }));
+    return ok({ list, has_more, page, total: countAll.total });
+  }
+
+  if (action === 'blog_offline') {
+    const { post_id, note } = event;
+    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
+    if (!note || !String(note).trim()) return fail('blog_note_required', '请填写下架原因');
+    const doc = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
+    if (!doc) return fail('blog_gone', '动态不存在');
+    if (doc.status === 'offline') return fail('blog_already_offline', '该动态已下架');
+    await col('blog_post').doc(post_id).update({ data: { status: 'offline', offline_by: openid, offline_note: String(note).trim(), updated_at: now } });
+    await logEvent('P2', 'blog_offline', openid, { post_id, author_openid: doc.author_openid, note: String(note).trim() });
+    return ok({ msg: '已下架' });
+  }
+
+  if (action === 'blog_restore') {
+    const { post_id } = event;
+    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
+    const doc = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
+    if (!doc) return fail('blog_gone', '动态不存在');
+    if (doc.status !== 'offline') return fail('blog_not_offline', '仅已下架动态可恢复');
+    await col('blog_post').doc(post_id).update({ data: { status: 'normal', updated_at: now } });
+    await logEvent('P2', 'blog_restore', openid, { post_id });
+    return ok({ msg: '已恢复' });
+  }
+
+  if (action === 'blog_delete') {
+    const { post_id, note } = event;
+    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
+    if (!note || !String(note).trim()) return fail('blog_note_required', '请填写删除原因');
+    const doc = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
+    if (!doc || doc.is_deleted) return fail('blog_gone', '动态不存在');
+    await col('blog_post').doc(post_id).update({ data: { status: 'deleted', is_deleted: true, delete_by: openid, delete_note: String(note).trim(), updated_at: now } });
+    await logEvent('P2', 'blog_delete', openid, { post_id, author_openid: doc.author_openid, note: String(note).trim() });
+    return ok({ msg: '已删除' });
+  }
+
+  if (action === 'blog_comment_list') {
+    const { post_id } = event;
+    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
+    const { page, size, skip } = pager(event);
+    const r = await col('blog_comment').where({ post_id }).orderBy('created_at', 'desc')
+      .skip(skip).limit(size + 1).get();
+    const rows = r.data || [];
+    const has_more = rows.length > size;
+    const list = (has_more ? rows.slice(0, size) : rows).map((c) => ({
+      _id: c._id, author_openid: c.author_openid, author_nickname: c.author_nickname || '微信用户',
+      content: c.content, status: c.status || 'normal', created_at: c.created_at
+    }));
+    return ok({ list, has_more, page });
+  }
+
+  if (action === 'blog_comment_delete') {
+    const { comment_id, note } = event;
+    if (!isDocId(comment_id)) return fail('blog_bad_comment_id', '评论 ID 格式不正确');
+    if (!note || !String(note).trim()) return fail('blog_note_required', '请填写删除原因');
+    const cdoc = await col('blog_comment').doc(comment_id).get().then((r) => r.data).catch(() => null);
+    if (!cdoc || cdoc.is_deleted) return fail('blog_comment_gone', '评论不存在');
+    await col('blog_comment').doc(comment_id).update({ data: { status: 'deleted', is_deleted: true, delete_by: openid, updated_at: now } });
+    if (cdoc.status !== 'deleted') {
+      await col('blog_post').doc(cdoc.post_id).update({ data: { comment_count: db.command.inc(-1) } }).catch(() => {});
+    }
+    await logEvent('P2', 'blog_comment_delete', openid, { comment_id, post_id: cdoc.post_id, note: String(note).trim() });
+    return ok({ msg: '评论已删除' });
+  }
+
+  return fail('admin_unknown_action', '未知动作');
 };

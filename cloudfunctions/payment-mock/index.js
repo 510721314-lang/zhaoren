@@ -1,6 +1,7 @@
 // 对应 PRD 章节：3.5.1 资金担保与分账架构 / 8.4 退款规则 / 3.4 AA费用 / 附录G 状态机
 // payment-mock 模拟支付与退款(MVP 无真实微信支付,一律 is_mock=true)
-// 3 个 action: cashier_info(收银台摘要) / mock_pay(模拟支付) / mock_refund(模拟全额退款)
+// 4 个 action: cashier_info(收银台摘要) / mock_pay(模拟支付) / mock_refund(模拟全额退款)
+//             / mock_tip(模拟打赏, 已履约完成订单 S5/S8/S9/S10, 发单人可多次打赏)
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -34,6 +35,11 @@ async function getOrder(orderId) {
   }
 }
 
+// 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截订单号/流水号/占位符)
+function isValidDocId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
+}
+
 // 写状态流水
 async function logStatus(orderId, from, to, action, operator) {
   await col('order_status_log').add({ data: {
@@ -45,11 +51,16 @@ async function logStatus(orderId, from, to, action, operator) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  const openid = wxCtx.OPENID || event.mock_openid;  // 真实 OPENID 永远优先; mock_openid 仅在云端测试(无 OPENID)时兜底, 防止水平越权
   if (!openid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
   console.log(`payment-mock action=${action} openid=${openid}`);
+
+  // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
+  if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
+    return { ok: false, code: 'pay_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)或支付流水号(PAY 开头)' };
+  }
 
   switch (action) {
 
@@ -66,7 +77,8 @@ exports.main = async (event, context) => {
       const config = await getConfig();
       const sceneList = config.scene_list || [];
       const sceneConf = sceneList.find(s => s.code === order.scene) || {};
-      const needAaPromise = !!order.aa_tier && order.aa_tier !== '0-50元';
+      // 0-50 元档免 AA 承诺书(兼容新旧档位取值:'0-50' / '0-50元')
+      const needAaPromise = !!order.aa_tier && ['0-50', '0-50元'].indexOf(order.aa_tier) < 0;
 
       return {
         ok: true,
@@ -118,8 +130,8 @@ exports.main = async (event, context) => {
       if (order.pay_expire_at && order.pay_expire_at < Date.now()) {
         return { ok: false, code: 'pay_expired', msg: '支付超时,请重新下单' };
       }
-      // AA 承诺书:非 0-50 元档位必须勾选
-      if (order.aa_tier && order.aa_tier !== '0-50元' && !aa_promise_checked) {
+      // AA 承诺书:非 0-50 元档位必须勾选(兼容新旧档位取值)
+      if (order.aa_tier && ['0-50', '0-50元'].indexOf(order.aa_tier) < 0 && !aa_promise_checked) {
         return { ok: false, code: 'pay_aa_promise', msg: '请先阅读并同意《线下费用自理承诺书》' };
       }
 
@@ -221,6 +233,59 @@ exports.main = async (event, context) => {
       } catch (e) {
         console.log(`mock_refund fail: ${e.message}`);
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
+      }
+    }
+
+    // 4. 模拟打赏(已履约完成订单; 发单人主动给耍伴, 可多次; is_mock=true, 不改变订单状态)
+    case 'mock_tip': {
+      const { order_id, amount_fen } = event;
+      if (!order_id) return { ok: false, code: 'tip_no_order', msg: '缺少订单 ID' };
+
+      const order = await getOrder(order_id);
+      if (!order) return { ok: false, code: 'tip_not_found', msg: '订单不存在' };
+      if (order.user_openid !== openid) {
+        return { ok: false, code: 'tip_not_owner', msg: '只能给自己的订单打赏' };
+      }
+      // 已履约完成: S5已完成 / S8已评价 / S9评价超时 / S10已关闭
+      if (['S5', 'S8', 'S9', 'S10'].indexOf(order.status) < 0) {
+        return { ok: false, code: 'tip_status', msg: `订单当前状态(${order.status})暂不能打赏,服务完成后可打赏` };
+      }
+      const amount = Number(amount_fen);
+      if (!Number.isInteger(amount) || amount < 100 || amount > 50000) {
+        return { ok: false, code: 'tip_amount', msg: '打赏金额需为 1-500 元之间的整数' };
+      }
+
+      const now = Date.now();
+      const tipNo = genPayNo('TIP');
+      try {
+        // 打赏流水(is_mock=true)
+        await col('pay_transaction').add({ data: {
+          pay_no: tipNo,
+          order_id,
+          order_no: order.order_no,
+          type: 'tip',
+          amount_fen: amount,
+          channel: 'mock',
+          is_mock: true,
+          status: 'success',
+          paid_at: now,
+          created_at: now, updated_at: now, is_deleted: false
+        }});
+
+        // 累计打赏总额到订单(分单位整数运算)
+        const tipTotal = (order.tip_total_fen || 0) + amount;
+        await col('order_main').doc(order_id).update({ data: {
+          tip_total_fen: tipTotal, updated_at: now
+        }});
+
+        console.log(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
+        return {
+          ok: true,
+          data: { order_id, order_no: order.order_no, tip_no: tipNo, amount_fen: amount, tip_total_fen: tipTotal, is_mock: true }
+        };
+      } catch (e) {
+        console.log(`mock_tip fail: ${e.message}`);
+        return { ok: false, code: 'tip_db_fail', msg: '打赏失败,请稍后重试' };
       }
     }
 

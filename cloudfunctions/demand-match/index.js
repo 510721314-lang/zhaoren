@@ -1,6 +1,6 @@
 // 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
 // demand-match 需求匹配 · 身份取自 getWXContext().OPENID
-// 3 个 action: top5 / invite / broadcast
+// 4 个 action: top5 / invite / broadcast / hall_list
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -9,6 +9,15 @@ const col = (n) => db.collection(n);
 
 // 进行中订单状态集合(S1/S0/S2/S3/S3.5)
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 已完成订单状态集合(计入耍伴累计履约单数)
+const DONE_STATUS = ['S5', 'S8', 'S9', 'S10'];
+
+// 耍伴等级文案(MVP: 按累计履约单数)
+function partnerLevel(completedOrders) {
+  if (completedOrders >= 20) return { code: 'L3', name: '金牌耍伴' };
+  if (completedOrders >= 5) return { code: 'L2', name: '熟练耍伴' };
+  return { code: 'L1', name: '新手耍伴' };
+}
 
 // 取运营参数
 async function getConfig() {
@@ -22,7 +31,7 @@ async function getConfig() {
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'match_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
@@ -79,6 +88,8 @@ exports.main = async (event, context) => {
       const candidates = [];
       for (const p of partners) {
         if (candidates.length >= 5) break;
+        // 排除需求发布者自己(不能邀约/接自己的单)
+        if (p.openid === demand.creator_openid) continue;
         // 城市:partner_profile.city 是数组
         if (!Array.isArray(p.city) || p.city.indexOf('成都') < 0) continue;
 
@@ -104,6 +115,23 @@ exports.main = async (event, context) => {
         });
       }
 
+      // ── 并行统计每位候选的累计履约单数(S5/S8/S9/S10)并派生等级 ──
+      await Promise.all(candidates.map(async (c) => {
+        let done = 0;
+        try {
+          const cr = await col('order_main').where({
+            partner_openid: c.openid,
+            status: _.in(DONE_STATUS),
+            is_deleted: false
+          }).count();
+          done = (cr && cr.total) || 0;
+        } catch (e) { /* 统计失败按 0 处理 */ }
+        c.completed_orders = done;
+        const lv = partnerLevel(done);
+        c.level_code = lv.code;
+        c.level_name = lv.name;
+      }));
+
       // 写入 demand.match_candidates
       try {
         await col('demand').doc(demand_id).update({ data: {
@@ -113,7 +141,72 @@ exports.main = async (event, context) => {
         console.log(`match write candidates fail: ${e.message}`);
       }
 
-      return { ok: true, data: { candidates, total: candidates.length } };
+      // 需求摘要(供匹配页展示上下文)
+      const sceneCfg = (config.scene_list || []).find((s) => s.code === scene);
+      const demandBrief = {
+        scene,
+        scene_name: sceneCfg ? sceneCfg.name : scene,
+        content_options: demand.content_options && demand.content_options.length
+          ? demand.content_options
+          : (demand.content_option ? [demand.content_option] : []),
+        start_time: demand.start_time,
+        duration_h: demand.duration_h,
+        location_name: (demand.location && demand.location.name) || '',
+        rate_fen: demand.rate_fen,
+        total_fen: demand.total_fen,
+        aa_tier: demand.aa_tier || '',
+        invited: demand.invited || [],
+        broadcast: !!demand.broadcast,
+        status: demand.status,
+        expire_at: demand.expire_at || null
+      };
+
+      return { ok: true, data: { candidates, total: candidates.length, demand: demandBrief } };
+    }
+
+    // 1.5 需求状态轮询(匹配页每 15 秒): matched 时回带订单 ID 供跳转 IM
+    case 'status': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'status_no_id', msg: '缺少需求 ID' };
+
+      let demand;
+      try {
+        const dr = await col('demand').doc(demand_id).get();
+        demand = dr.data;
+        if (!demand) return { ok: false, code: 'status_not_found', msg: '需求不存在' };
+      } catch (e) {
+        return { ok: false, code: 'status_not_found', msg: '需求不存在' };
+      }
+      if (demand.creator_openid !== openid) {
+        return { ok: false, code: 'status_not_owner', msg: '只有需求创建者可查询' };
+      }
+
+      const out = {
+        status: demand.status,
+        broadcast: !!demand.broadcast,
+        invited: demand.invited || [],
+        expire_at: demand.expire_at || null,
+        order_id: '',
+        order_no: ''
+      };
+
+      // 已被接单 → 查订单(接单时 demand.status 置为 matched)
+      if (demand.status === 'matched') {
+        try {
+          const or = await col('order_main').where({
+            demand_id, is_deleted: false
+          }).orderBy('created_at', 'desc').limit(1).get();
+          if (or.data && or.data[0]) {
+            out.order_id = or.data[0]._id;
+            out.order_no = or.data[0].order_no || '';
+            out.order_status = or.data[0].status;
+          }
+        } catch (e) {
+          console.log(`status query order fail: ${e.message}`);
+        }
+      }
+
+      return { ok: true, data: out };
     }
 
     // 2. 定向邀约(1-3 人,必须来自候选)
@@ -187,6 +280,65 @@ exports.main = async (event, context) => {
       }});
       console.log(`demand broadcast: ${demand.demand_no}`);
       return { ok: true, data: { broadcast: true } };
+    }
+
+    // 4. 接单大厅列表(广场可接单需求)
+    case 'hall_list': {
+      // lazy_expire:把已过期的 matching 需求置为 expired
+      try {
+        const expiredRes = await col('demand').where({
+          status: 'matching',
+          expire_at: _.lt(Date.now()),
+          is_deleted: false
+        }).limit(50).get();
+        if (expiredRes.data && expiredRes.data.length > 0) {
+          for (const d of expiredRes.data) {
+            try { await col('demand').doc(d._id).update({ data: { status: 'expired', updated_at: Date.now() } }); } catch (e) {}
+          }
+          console.log(`hall lazy_expire: ${expiredRes.data.length} demands expired`);
+        }
+      } catch (e) { console.log(`hall lazy_expire fail: ${e.message}`); }
+
+      let list;
+      try {
+        // 仅展示已广场广播(broadcast=true)的需求; 未广播需求处于定向邀约阶段, 不上大厅
+        const r = await col('demand').where({
+          status: 'matching',
+          broadcast: true,
+          is_deleted: _.neq(true)
+        }).orderBy('created_at', 'desc').limit(50).get();
+        list = r.data || [];
+      } catch (e) {
+        console.log(`hall_list query fail: ${e.message}`);
+        return { ok: false, code: 'hall_query_fail', msg: '加载接单列表失败' };
+      }
+
+      // 取场景中文名(从 config)
+      const config = await getConfig();
+      const sceneList = config.scene_list || [];
+      const sceneName = (code) => {
+        const s = sceneList.find(x => x.code === code);
+        return s ? s.name : code;
+      };
+
+      const data = list.map(d => ({
+        demand_id: d._id,
+        demand_no: d.demand_no,
+        scene: d.scene,
+        scene_name: sceneName(d.scene),
+        content_options: d.content_options || [],
+        remark: d.remark || '',
+        location_name: (d.location && d.location.name) || '',
+        start_time: d.start_time,
+        duration_h: d.duration_h,
+        rate_fen: d.rate_fen,
+        total_fen: d.total_fen,
+        aa_tier: d.aa_tier || '',
+        created_at: d.created_at,
+        is_mine: d.creator_openid === openid
+      }));
+
+      return { ok: true, data: { list: data, total: data.length } };
     }
 
     default:

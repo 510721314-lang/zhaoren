@@ -23,6 +23,7 @@ const INDEXES = [
   { coll: 'order_main', name: 'idx_partner_status', keys: { partner_openid: 1, status: 1 } },
   { coll: 'pay_transaction', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'order_status_log', name: 'idx_order_created', keys: { order_id: 1, created_at: -1 } },
+  { coll: 'im_conversation', name: 'uk_order_id', keys: { order_id: 1 }, unique: true },
   { coll: 'im_message', name: 'idx_conv_created', keys: { conv_id: 1, created_at: -1 } },
   { coll: 'evaluation', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'settlement', name: 'idx_order_id', keys: { order_id: 1 } }

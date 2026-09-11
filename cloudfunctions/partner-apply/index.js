@@ -30,7 +30,7 @@ async function hasEmergencyContact(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'apply_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
@@ -91,6 +91,12 @@ exports.main = async (event, context) => {
   }
   if (user.status === 'frozen') {
     return { ok: false, code: 'apply_frozen', msg: '账号已被冻结,不可申请' };
+  }
+  if (user.status === 'banned') {
+    return { ok: false, code: 'apply_banned', msg: '账号已封禁,请联系客服' };
+  }
+  if (user.status === 'closed') {
+    return { ok: false, code: 'apply_closed', msg: '账号已注销' };
   }
 
   // ── upsert partner_profile ──

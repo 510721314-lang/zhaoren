@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
+// 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
 // order-create 订单创建 · 耍伴接单(create_from_take) · 身份取自 getWXContext().OPENID
 // 1 个 action: create_from_take · 订单初始状态 S1(待确认/四确认阶段)
 const cloud = require('wx-server-sdk');
@@ -56,9 +56,28 @@ function genOrderNo() {
   return `ORD${ymd}${r}`;
 }
 
+// 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截需求编号/占位符)
+function isValidDocId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
+}
+
+// Haversine 球面距离(公里) · 两经纬度间直线距离
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 接单距离上限(公里): 耍伴接单时实际位置与履约地点直线距离
+const TAKE_MAX_DISTANCE_KM = 50;
+
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'order_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
@@ -70,6 +89,7 @@ exports.main = async (event, context) => {
 
   const { demand_id } = event;
   if (!demand_id) return { ok: false, code: 'order_no_demand', msg: '缺少需求 ID' };
+  if (!isValidDocId(demand_id)) return { ok: false, code: 'order_bad_demand_id', msg: '需求 ID 格式不正确:请传入需求 _id(32位十六进制),不是需求编号(DR 开头)' };
 
   const config = await getConfig();
 
@@ -103,19 +123,6 @@ exports.main = async (event, context) => {
   if ((partnerUser.partner_credit_score || 800) < (config.min_credit_take_order || 600)) {
     await logReject(openid, demand_id, 'partner_credit_low');
     return { ok: false, code: 'order_credit_low', msg: '信用分低于接单门槛' };
-  }
-
-  // ── 无进行中订单 ──
-  try {
-    const busy = await col('order_main').where({
-      partner_openid: openid, status: _.in(BUSY_STATUS), is_deleted: false
-    }).limit(1).get();
-    if (busy.data && busy.data.length > 0) {
-      await logReject(openid, demand_id, 'partner_busy');
-      return { ok: false, code: 'order_busy', msg: '你有进行中订单,不可同时接单' };
-    }
-  } catch (e) {
-    return { ok: false, code: 'order_busy_check_fail', msg: '系统繁忙,请稍后重试' };
   }
 
   // ── 取需求 ──
@@ -156,10 +163,64 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_not_allowed', msg: '你不在该需求的接单范围' };
   }
 
+  // ── 接单距离校验: 耍伴接单时实际位置与履约地点直线距离 ≤ 50km(产品反馈硬规则) ──
+  // 真实客户端必须传 partner_location(前端 wx.getLocation);
+  // 服务端自测链路(mock_openid 且无真实 OPENID)无定位, 跳过以免阻断自测。
+  let takeDistanceKm = null;
+  const isMockCall = !wxCtx.OPENID && !!event.mock_openid;
+  const pl = event.partner_location;
+  const partnerLoc = (pl && Number(pl.latitude) && Number(pl.longitude))
+    ? { lat: Number(pl.latitude), lng: Number(pl.longitude) } : null;
+  if (!isMockCall) {
+    if (!partnerLoc) {
+      await logReject(openid, demand_id, 'no_partner_location');
+      return { ok: false, code: 'order_location_required', msg: '接单需要获取你的实时位置，请授权定位后重试' };
+    }
+    const site = demand.location;
+    if (site && site.latitude && site.longitude) {
+      takeDistanceKm = haversineKm(partnerLoc.lat, partnerLoc.lng, site.latitude, site.longitude);
+      if (takeDistanceKm > TAKE_MAX_DISTANCE_KM) {
+        await logReject(openid, demand_id, `too_far_${Math.round(takeDistanceKm)}km`);
+        return {
+          ok: false,
+          code: 'order_too_far',
+          msg: `你当前位置距履约地点约 ${Math.round(takeDistanceKm)} 公里，超过 ${TAKE_MAX_DISTANCE_KM} 公里，无法接单`
+        };
+      }
+      takeDistanceKm = Math.round(takeDistanceKm * 10) / 10;
+    }
+  }
+
+  // ── 时间重叠校验:该耍伴有效订单中,时间段不可与新订单重叠(端点相接不算冲突) ──
+  try {
+    const newStart = demand.start_time;
+    const newEnd = demand.start_time + (demand.duration_h || 1) * 3600 * 1000;
+    const myOrders = await col('order_main').where({
+      partner_openid: openid,
+      status: _.in(BUSY_STATUS),
+      is_deleted: false
+    }).get();
+    for (const o of myOrders.data) {
+      const oStart = o.start_time;
+      const oEnd = o.start_time + (o.duration_h || 1) * 3600 * 1000;
+      if (newStart < oEnd && oStart < newEnd) {
+        await logReject(openid, demand_id, 'time_overlap');
+        return { ok: false, code: 'order_time_conflict', msg: '该时段你已有订单,时间冲突无法接单' };
+      }
+    }
+  } catch (e) {
+    console.log(`time overlap check fail: ${e.message}`);
+    return { ok: false, code: 'order_busy_check_fail', msg: '系统繁忙,请稍后重试' };
+  }
+
   // ── 场景须在耍伴接受范围内 ──
-  if (!(profile.accept_scenes || []).includes(demand.scene)) {
+  const acceptScenes = Array.isArray(profile.accept_scenes) ? profile.accept_scenes : [];
+  const demandScene = String(demand.scene || '');
+  const sceneHit = acceptScenes.includes(demandScene);
+  console.log(`[ORDER_DEBUG] demand.scene=${JSON.stringify(demandScene)} profile.accept_scenes=${JSON.stringify(acceptScenes)} hit=${sceneHit}`);
+  if (!sceneHit) {
     await logReject(openid, demand_id, 'scene_not_accepted');
-    return { ok: false, code: 'order_scene_not_accepted', msg: '你未开通该场景的接单' };
+    return { ok: false, code: 'order_scene_not_accepted', msg: `你未开通该场景的接单(需求场景:${demandScene},你已开通:${acceptScenes.join(',')})` };
   }
 
   // ── 创建者校验:存在 + 未冻结 + 信用分 ──
@@ -171,6 +232,14 @@ exports.main = async (event, context) => {
   if (creator.status === 'frozen') {
     await logReject(openid, demand_id, 'creator_frozen');
     return { ok: false, code: 'order_creator_frozen', msg: '对方账号已冻结' };
+  }
+  if (creator.status === 'banned') {
+    await logReject(openid, demand_id, 'creator_banned');
+    return { ok: false, code: 'order_creator_banned', msg: '对方账号已封禁' };
+  }
+  if (creator.status === 'closed') {
+    await logReject(openid, demand_id, 'creator_closed');
+    return { ok: false, code: 'order_creator_closed', msg: '对方账号已注销' };
   }
   if ((creator.user_credit_score || 800) < (config.min_credit_place_order || 600)) {
     await logReject(openid, demand_id, 'creator_credit_low');
@@ -202,6 +271,7 @@ exports.main = async (event, context) => {
     start_time: demand.start_time,
     duration_h: demand.duration_h,
     location: demand.location,
+    publish_location: demand.publish_location || null,   // 发布地址(留痕, 来自需求)
     content_options: demand.content_options || [],
     rate_fen: demand.rate_fen,
     total_fen: totalFen,
@@ -212,6 +282,7 @@ exports.main = async (event, context) => {
     status: 'S1',               // 待确认(四确认阶段)
     pay_expire_at: null,        // 四确认完成进入 S0 时设置 now+30min
     help_flag: false,           // 紧急求助标记
+    take_distance_km: takeDistanceKm,   // 接单时耍伴实际位置距履约地点(公里, 自测链路为 null)
     created_at: now,
     updated_at: now,
     is_deleted: false

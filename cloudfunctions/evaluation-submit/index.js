@@ -1,7 +1,142 @@
-﻿// 对应 PRD 章节：PRD 3.3.4 评价与默认4星规则
+// 对应 PRD 章节：3.3.4 评价与默认4星规则 / 附录G 状态机 / 8.1 信用分
+// evaluation-submit 评价提交 · 身份取自 getWXContext().OPENID
+// 2 个 action: submit(用户评价耍伴, S5→S8) / get_default_star(获取默认星数)
+// 规则:S5 完成后 48h 内用户可评价;超时系统默认 4 星转 S9;评价内容过 msgSecCheck。
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const db = cloud.database();
+const _ = db.command;
+const col = (n) => db.collection(n);
+
+const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我'];
+
+async function getConfig() {
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    if (r.data && r.data[0]) return r.data[0];
+  } catch (e) {}
+  return { default_star: 4, eval_window_h: 48 };
+}
+
+async function getOrder(orderId) {
+  try {
+    return (await col('order_main').doc(orderId).get()).data || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 内容安全:msgSecCheck 不可用时降级本地违禁词
+async function checkText(openid, text) {
+  if (!text) return true;
+  try {
+    await cloud.openapi.security.msgSecCheck({
+      content: text,
+      version: 2,
+      scene: 2,
+      openid
+    });
+    return true;
+  } catch (e) {
+    // 降级:本地违禁词
+    const lower = text.toLowerCase();
+    for (const w of BLOCK_WORDS) {
+      if (lower.includes(w.toLowerCase())) return false;
+    }
+    return true;
+  }
+}
+
+async function logStatus(orderId, from, to, action, operator) {
+  await col('order_status_log').add({ data: {
+    order_id: orderId, from_status: from, to_status: to,
+    action, operator,
+    created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+  }});
+}
+
+// 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截订单号/占位符)
+function isValidDocId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
+}
 
 exports.main = async (event, context) => {
-  return { ok: false, code: 'NOT_IMPLEMENTED', msg: '功能开发中' };
+  const wxCtx = cloud.getWXContext();
+  const openid = wxCtx.OPENID || event.mock_openid;  // 真实 OPENID 永远优先; mock_openid 仅云端测试兜底, 防止水平越权
+  if (!openid) return { ok: false, code: 'ev_no_openid', msg: '未获取到登录身份' };
+
+  const { action } = event;
+  console.log(`evaluation-submit action=${action} openid=${openid}`);
+
+  // 获取默认星数(用于超时默认评价)
+  if (action === 'get_default_star') {
+    const cfg = await getConfig();
+    return { ok: true, data: { default_star: cfg.default_star || 4 } };
+  }
+
+  // 用户提交评价:S5 → S8
+  if (action === 'submit') {
+    const { order_id, star, content } = event;
+    if (!order_id) return { ok: false, code: 'ev_no_order', msg: '缺少订单 ID' };
+    if (!isValidDocId(order_id)) return { ok: false, code: 'ev_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)' };
+    if (!star || star < 1 || star > 5) return { ok: false, code: 'ev_star_invalid', msg: '评分需在 1-5 之间' };
+
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'ev_not_found', msg: '订单不存在' };
+    if (order.user_openid !== openid) return { ok: false, code: 'ev_not_owner', msg: '仅下单用户可评价' };
+    if (order.status !== 'S5') return { ok: false, code: 'ev_status', msg: `订单当前状态(${order.status})不可评价` };
+
+    // 评价内容安全校验
+    if (content && !(await checkText(openid, content))) {
+      return { ok: false, code: 'ev_text_unsafe', msg: '评价内容包含敏感词,请修改' };
+    }
+
+    const now = Date.now();
+    try {
+      // 写评价记录
+      await col('evaluation').add({ data: {
+        order_id,
+        from_openid: openid,
+        to_openid: order.partner_openid,
+        star,
+        content: content || '',
+        created_at: now,
+        updated_at: now,
+        is_deleted: false
+      }});
+
+      // 更新耍伴信用分:5星+2, 4星+1, 3星0, 2星-2, 1星-5(冷启动期简化规则)
+      const delta = star >= 5 ? 2 : star === 4 ? 1 : star === 3 ? 0 : star === 2 ? -2 : -5;
+      try {
+        const partner = await col('user_account').where({ openid: order.partner_openid }).limit(1).get();
+        if (partner.data && partner.data[0]) {
+          const cur = partner.data[0].partner_credit_score || 800;
+          const next = Math.max(0, Math.min(1000, cur + delta));
+          await col('user_account').doc(partner.data[0]._id).update({ data: {
+            partner_credit_score: next, updated_at: now
+          }});
+          await col('credit_score_log').add({ data: {
+            openid: order.partner_openid, type: 'evaluation', score: next, delta,
+            order_id, created_at: now, updated_at: now, is_deleted: false
+          }});
+        }
+      } catch (e) {
+        console.log(`credit update fail: ${e.message}`);
+      }
+
+      // 订单转 S8
+      await col('order_main').doc(order_id).update({ data: {
+        status: 'S8', evaluated_at: now, updated_at: now
+      }});
+      await logStatus(order_id, 'S5', 'S8', 'user_evaluate', openid);
+
+      console.log(`evaluation submitted: ${order.order_no} star=${star} S5→S8`);
+      return { ok: true, data: { order_id, status: 'S8', star, credit_delta: delta } };
+    } catch (e) {
+      console.log(`submit fail: ${e.message}`);
+      return { ok: false, code: 'ev_submit_fail', msg: '评价提交失败' };
+    }
+  }
+
+  return { ok: false, code: 'ev_unknown_action', msg: '未知动作' };
 };
