@@ -206,7 +206,7 @@ Page({
 
   // ───────── 通勤(耍伴:当前位置 → 履约地点) ─────────
   async calcToSite(d) {
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) return;
     wx.getLocation({
       type: 'gcj02',
@@ -378,7 +378,7 @@ Page({
 
   // 取定位(失败不阻断,SOS/报备位置为可选)
   async getLocation() {
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) return null;
     return new Promise((resolve) => {
       wx.getLocation({

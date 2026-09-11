@@ -92,7 +92,7 @@ Page({
 
   // 获取当前位置 → 计算待履约订单的通勤
   async calcToSite(orders) {
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) { this.setData({ orders }); return; }
     wx.getLocation({
       type: 'gcj02',

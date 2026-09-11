@@ -70,3 +70,4 @@
     <button wx:if="{{role === 'user'}}" class="btn-primary empty-btn" bindtap="goPublish">去发布需求</button>
   </view>
 </view>
+<privacy-popup id="privacyPopup" />

@@ -87,7 +87,7 @@ Page({
 
   // 定位 → 反查城市;反查失败/未配置 key 兜底「成都」(首发城市)
   async locateCity() {
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) { this.setData({ city: '成都' }); return; }
     wx.getLocation({
       type: 'gcj02',

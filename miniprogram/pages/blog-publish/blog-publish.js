@@ -48,7 +48,7 @@ Page({
   async chooseImage() {
     const remain = MAX_IMAGES - this.data.images.length;
     if (remain <= 0) { wx.showToast({ title: '最多 ' + MAX_IMAGES + ' 张', icon: 'none' }); return; }
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) return;
     wx.chooseMedia({
       count: remain,

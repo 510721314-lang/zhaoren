@@ -112,13 +112,28 @@ Page({
     });
   },
 
-  // 定位失败分类:auth=微信 scope 被拒(openSetting) / system=系统定位服务关闭 / other=网络、超时、取消等
-  // 注意:Windows 系统定位关闭时报 "system permission denied",含 denied 但并非微信授权问题,必须先判 system
+  // 定位失败分类:privacy=未同意隐私指引/后台未声明 / auth=微信 scope 被拒(openSetting) /
+  // system=系统定位服务关闭 / other=网络、超时、取消等
+  // 注意:"system permission denied" 含 denied 但并非微信授权,必须先判 system;
+  // "api scope is not declared in the privacy agreement" 属隐私合规问题,必须先判 privacy
   classifyLocError(err) {
     const msg = (err && err.errMsg) || '';
+    if (/privacy|not declared|隐私/i.test(msg)) return 'privacy';
     if (/system permission/i.test(msg)) return 'system';
-    if (/auth|deny|scope/i.test(msg)) return 'auth';
+    if (/auth|deny|scope|no permission/i.test(msg)) return 'auth';
     return 'other';
+  },
+
+  // 隐私接口被拒:真机根因多为①用户未同意《用户隐私保护指引》②后台指引未声明位置信息
+  showPrivacyError(rawMsg, retry) {
+    console.error('[privacy] location blocked:', rawMsg);
+    wx.showModal({
+      title: '需同意隐私保护指引',
+      content: '位置信息属于隐私接口，请在弹出的隐私提示中点击「同意」。若同意后仍提示本框，说明小程序后台《用户隐私保护指引》尚未声明「位置信息」（wx.getLocation / chooseLocation），需在 mp.weixin.qq.com 后台补充配置并生效后再试。',
+      confirmText: '重新授权',
+      showCancel: true,
+      success: (r) => { if (r.confirm && retry) retry(); }
+    });
   },
 
   isDevtools() {
@@ -140,7 +155,7 @@ Page({
   // 获取当前GPS位置(发布者实际位置; 点击发布地址卡可重新定位)
   async locate() {
     if (this.data.locating) return;
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) return;
     this.setData({ locating: true });
     wx.getLocation({
@@ -159,6 +174,12 @@ Page({
       fail: (err) => {
         this.setData({ locating: false });
         const kind = this.classifyLocError(err);
+        console.error('[locate] getLocation fail:', err);
+        // 隐私合规问题(未同意指引/后台未声明位置信息)不兜底,明确引导
+        if (kind === 'privacy') {
+          this.showPrivacyError((err && err.errMsg) || '', () => this.locate());
+          return;
+        }
         // 模拟器:系统定位关闭/网络等非微信权限问题 → 成都兜底,不弹权限死循环
         if (this.isDevtools() && kind !== 'auth') {
           this.applyDefaultLocation('模拟器定位失败，已用成都默认位置');
@@ -203,7 +224,7 @@ Page({
 
   // ───────── 履约地址(用户在地图上自主选择) ─────────
   async chooseSite() {
-    const ok = await getApp().requirePrivacyAuth();
+    const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) return;
     wx.chooseLocation({
       success: (res) => {
@@ -216,6 +237,11 @@ Page({
       },
       fail: (err) => {
         const kind = this.classifyLocError(err);
+        console.error('[chooseSite] fail:', err);
+        if (kind === 'privacy') {
+          this.showPrivacyError((err && err.errMsg) || '', () => this.chooseSite());
+          return;
+        }
         if (kind === 'auth') {
           wx.showModal({
             title: '需要位置权限',
@@ -370,7 +396,7 @@ Page({
     this.setData({ submitting: true });
     wx.showLoading({ title: '定位中', mask: true });
 
-    const locOk = await getApp().requirePrivacyAuth();
+    const locOk = await this.selectComponent('#privacyPopup').ensure();
     if (!locOk) { wx.hideLoading(); this.setData({ submitting: false }); return; }
 
     // 提交瞬间重新取一次实际GPS作为发布地址(留痕优先); 履约地址用用户所选
@@ -407,6 +433,14 @@ Page({
           return;
         }
         const kind = this.classifyLocError(err);
+        console.error('[submit] getLocation fail:', err);
+        // 隐私合规问题:引导同意指引/后台声明,不走任何兜底
+        if (kind === 'privacy') {
+          wx.hideLoading();
+          this.setData({ submitting: false });
+          this.showPrivacyError((err && err.errMsg) || '', () => this.onSubmit());
+          return;
+        }
         // 降级2: 仅模拟器——系统定位/权限均不可用时用成都默认坐标,保证自测可继续(真机无此分支)
         if (this.isDevtools()) {
           this.applyDefaultLocation('');

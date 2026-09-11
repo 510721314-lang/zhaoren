@@ -43,23 +43,19 @@ App({
     }
   },
 
-  // 隐私接口授权: 在调用 getLocation/chooseLocation/chooseMedia 等隐私接口前调用
-  // 微信合规要求: 使用隐私接口需先取得用户同意
+  // 隐私授权状态(被动查询,不弹窗):true=已同意或无需授权/老基础库; false=需要用户同意
+  // 注意:微信不存在 wx.requirePrivacyAuthorize 这个 API;
+  // 正式授权流程是 wx.getPrivacySetting 判定 + <button open-type="agreePrivacyAuthorization">,
+  // 已由 components/privacy-popup 组件实现,页面应调用 selectComponent('#privacyPopup').ensure()
   requirePrivacyAuth() {
     return new Promise((resolve) => {
-      if (typeof wx.requirePrivacyAuthorize !== 'function') {
-        resolve(true); return;
+      if (typeof wx.getPrivacySetting !== 'function') {
+        resolve(true);
+        return;
       }
-      wx.requirePrivacyAuthorize({
-        success: () => resolve(true),
-        fail: () => {
-          wx.showModal({
-            title: '需要隐私授权',
-            content: '请在弹出的隐私授权弹窗中点击「同意」，否则无法使用该功能',
-            showCancel: false
-          });
-          resolve(false);
-        }
+      wx.getPrivacySetting({
+        success: (res) => resolve(!res.needAuthorization),
+        fail: () => resolve(true)
       });
     });
   }

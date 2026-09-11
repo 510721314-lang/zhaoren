@@ -1,1 +1,1 @@
-{ "navigationBarTitleText": "接单大厅", "enablePullDownRefresh": true, "usingComponents": {} }
+{ "navigationBarTitleText": "接单大厅", "enablePullDownRefresh": true, "usingComponents": { "privacy-popup": "/components/privacy-popup/privacy-popup" } }

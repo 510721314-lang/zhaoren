@@ -1,1 +1,1 @@
-{ "navigationBarTitleText": "发布需求", "usingComponents": {} }
+{ "navigationBarTitleText": "发布需求", "usingComponents": { "privacy-popup": "/components/privacy-popup/privacy-popup" } }

@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "发布动态",
-  "usingComponents": {}
+  "usingComponents": {
+    "privacy-popup": "/components/privacy-popup/privacy-popup"
+  }
 }

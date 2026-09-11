@@ -5,10 +5,12 @@ const { aaTierLabel, ORDER_STATUS } = require('../../utils/constants.js');
 // 模拟器兜底坐标(仅 devtools;Windows 系统定位关闭时保证接单自测链路不中断),真机不允许兜底
 const DEFAULT_LOC = { latitude: 30.572815, longitude: 104.066801 };
 // "system permission denied" 含 denied 但属系统级错误,必须先于 auth 判断
+// "not declared in the privacy agreement" 属隐私合规问题,必须最先判断
 function classifyLocError(err) {
   const msg = (err && err.errMsg) || '';
+  if (/privacy|not declared|隐私/i.test(msg)) return 'privacy';
   if (/system permission/i.test(msg)) return 'system';
-  if (/auth|deny|scope/i.test(msg)) return 'auth';
+  if (/auth|deny|scope|no permission/i.test(msg)) return 'auth';
   return 'other';
 }
 
@@ -180,49 +182,67 @@ Page({
     wx.showModal({
       title: '确认接单',
       content: '接单后将进入四确认流程,确认接单吗?',
-      success: async (r) => {
+      success: (r) => {
         if (!r.confirm) return;
-        const ok = await getApp().requirePrivacyAuth();
-        if (!ok) return;
-        this.setData({ taking: true, takingId: demandId });
-        // 接单需校验当前位置与履约地点距离(≤50公里), 先取实时GPS
-        wx.showLoading({ title: '定位中', mask: true });
-        wx.getLocation({
-          type: 'gcj02',
-          success: (loc) => this.doTake(demandId, { latitude: loc.latitude, longitude: loc.longitude }),
-          fail: (err) => {
-            const kind = classifyLocError(err);
-            // 仅模拟器:系统定位/权限不可用时用成都坐标继续(服务端仍做 50km 校验);真机无此分支
-            let platform = '';
-            try { platform = wx.getSystemInfoSync().platform; } catch (e) {}
-            if (platform === 'devtools') {
-              this.doTake(demandId, { latitude: DEFAULT_LOC.latitude, longitude: DEFAULT_LOC.longitude });
-              return;
-            }
-            wx.hideLoading();
-            this.setData({ taking: false, takingId: '' });
-            if (kind === 'auth') {
-              wx.showModal({
-                title: '需要位置权限',
-                content: '接单需校验你当前位置与履约地点的距离（不超过 50 公里），请在设置中允许使用位置信息',
-                confirmText: '去设置',
-                success: (m) => { if (m.confirm) wx.openSetting(); }
-              });
-            } else if (kind === 'system') {
-              wx.showModal({
-                title: '请开启系统定位服务',
-                content: '微信已获得位置权限，但系统定位服务未开启。请在手机「设置→隐私与安全→定位服务」中打开，并允许微信获取位置后重试',
-                showCancel: false
-              });
-            } else {
-              wx.showModal({
-                title: '定位失败',
-                content: '请检查网络或 GPS 信号后重试接单',
-                showCancel: false
-              });
-            }
-          }
-        });
+        this.takeWithLocation(demandId);
+      }
+    });
+  },
+
+  // 隐私授权 → 实时GPS(50km 校验) → 接单;独立成方法便于隐私拒绝后重试
+  async takeWithLocation(demandId) {
+    const ok = await this.selectComponent('#privacyPopup').ensure();
+    if (!ok) return;
+    this.setData({ taking: true, takingId: demandId });
+    // 接单需校验当前位置与履约地点距离(≤50公里), 先取实时GPS
+    wx.showLoading({ title: '定位中', mask: true });
+    wx.getLocation({
+      type: 'gcj02',
+      success: (loc) => this.doTake(demandId, { latitude: loc.latitude, longitude: loc.longitude }),
+      fail: (err) => {
+        const kind = classifyLocError(err);
+        console.error('[take] getLocation fail:', err);
+        // 隐私合规问题:引导同意指引/后台声明
+        if (kind === 'privacy') {
+          wx.hideLoading();
+          this.setData({ taking: false, takingId: '' });
+          wx.showModal({
+            title: '需同意隐私保护指引',
+            content: '接单定位属于隐私接口，请在弹出的隐私提示中点击「同意」。若同意后仍提示本框，说明小程序后台《用户隐私保护指引》尚未声明「位置信息」，需在 mp.weixin.qq.com 补充配置并生效后再试。',
+            confirmText: '重新授权',
+            success: (m) => { if (m.confirm) this.takeWithLocation(demandId); }
+          });
+          return;
+        }
+        // 仅模拟器:系统定位/权限不可用时用成都坐标继续(服务端仍做 50km 校验);真机无此分支
+        let platform = '';
+        try { platform = wx.getSystemInfoSync().platform; } catch (e) {}
+        if (platform === 'devtools') {
+          this.doTake(demandId, { latitude: DEFAULT_LOC.latitude, longitude: DEFAULT_LOC.longitude });
+          return;
+        }
+        wx.hideLoading();
+        this.setData({ taking: false, takingId: '' });
+        if (kind === 'auth') {
+          wx.showModal({
+            title: '需要位置权限',
+            content: '接单需校验你当前位置与履约地点的距离（不超过 50 公里），请在设置中允许使用位置信息',
+            confirmText: '去设置',
+            success: (m) => { if (m.confirm) wx.openSetting(); }
+          });
+        } else if (kind === 'system') {
+          wx.showModal({
+            title: '请开启系统定位服务',
+            content: '微信已获得位置权限，但系统定位服务未开启。请在手机「设置→隐私与安全→定位服务」中打开，并允许微信获取位置后重试',
+            showCancel: false
+          });
+        } else {
+          wx.showModal({
+            title: '定位失败',
+            content: '请检查网络或 GPS 信号后重试接单',
+            showCancel: false
+          });
+        }
       }
     });
   },

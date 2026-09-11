@@ -111,3 +111,4 @@
     </button>
   </view>
 </view>
+<privacy-popup id="privacyPopup" />

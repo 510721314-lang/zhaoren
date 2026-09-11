@@ -93,3 +93,4 @@
     </view>
   </block>
 </view>
+<privacy-popup id="privacyPopup" />

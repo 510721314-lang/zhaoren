@@ -174,3 +174,4 @@
     <view class="empty-sub">下拉重试</view>
   </view>
 </view>
+<privacy-popup id="privacyPopup" />
