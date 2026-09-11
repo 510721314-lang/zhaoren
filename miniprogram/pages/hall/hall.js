@@ -198,20 +198,18 @@ Page({
     wx.showLoading({ title: '定位中', mask: true });
     wx.getLocation({
       type: 'gcj02',
-      success: (loc) => this.doTake(demandId, { latitude: loc.latitude, longitude: loc.longitude }),
+      success: (loc) => {
+        this._privacyRetried = false;
+        this.doTake(demandId, { latitude: loc.latitude, longitude: loc.longitude });
+      },
       fail: (err) => {
         const kind = classifyLocError(err);
         console.error('[take] getLocation fail:', err);
-        // 隐私合规问题:引导同意指引/后台声明
+        // 隐私合规问题: 熔断式引导, 避免"重新授权→再失败→再弹窗"死循环
         if (kind === 'privacy') {
           wx.hideLoading();
           this.setData({ taking: false, takingId: '' });
-          wx.showModal({
-            title: '需同意隐私保护指引',
-            content: '接单定位属于隐私接口，请在弹出的隐私提示中点击「同意」。若同意后仍提示本框，说明小程序后台《用户隐私保护指引》尚未声明「位置信息」，需在 mp.weixin.qq.com 补充配置并生效后再试。',
-            confirmText: '重新授权',
-            success: (m) => { if (m.confirm) this.takeWithLocation(demandId); }
-          });
+          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.takeWithLocation(demandId));
           return;
         }
         // 仅模拟器:系统定位/权限不可用时用成都坐标继续(服务端仍做 50km 校验);真机无此分支
@@ -245,6 +243,36 @@ Page({
         }
       }
     });
+  },
+
+  // 隐私被拒熔断: 第一次"去授权"(弹官方同意窗) → 再失败 = 后台未声明, 静态提示不再重试
+  handlePrivacyBlock(rawMsg, retry) {
+    console.error('[privacy] take location blocked:', rawMsg, 'retried=', !!this._privacyRetried);
+    if (!this._privacyRetried) {
+      this._privacyRetried = true;
+      wx.showModal({
+        title: '需同意隐私保护指引',
+        content: '请先在隐私保护提示中点击「同意」。若同意后仍无法定位，说明小程序后台《用户隐私保护指引》未声明「位置信息」。',
+        confirmText: '去授权',
+        cancelText: '取消',
+        success: (r) => {
+          if (!r.confirm) return;
+          const popup = this.selectComponent('#privacyPopup');
+          if (popup) {
+            popup.ensure().then((ok) => { if (ok && retry) retry(); });
+          } else if (retry) {
+            retry();
+          }
+        }
+      });
+    } else {
+      wx.showModal({
+        title: '后台未声明位置信息',
+        content: '你已完成隐私授权，但微信仍拒绝定位，说明小程序后台《用户隐私保护指引》中尚未声明「位置信息」（接口 wx.getLocation）。\n\n请由管理员登录 mp.weixin.qq.com → 设置 → 服务内容声明 → 用户隐私保护指引，添加「位置信息」并提交，等配置生效后再尝试接单。',
+        showCancel: false,
+        confirmText: '我知道了'
+      });
+    }
   },
 
   // 实际接单(带上接单时实时位置)

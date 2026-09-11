@@ -124,16 +124,36 @@ Page({
     return 'other';
   },
 
-  // 隐私接口被拒:真机根因多为①用户未同意《用户隐私保护指引》②后台指引未声明位置信息
-  showPrivacyError(rawMsg, retry) {
-    console.error('[privacy] location blocked:', rawMsg);
-    wx.showModal({
-      title: '需同意隐私保护指引',
-      content: '位置信息属于隐私接口，请在弹出的隐私提示中点击「同意」。若同意后仍提示本框，说明小程序后台《用户隐私保护指引》尚未声明「位置信息」（wx.getLocation / chooseLocation），需在 mp.weixin.qq.com 后台补充配置并生效后再试。',
-      confirmText: '重新授权',
-      showCancel: true,
-      success: (r) => { if (r.confirm && retry) retry(); }
-    });
+  // 隐私接口被拒熔断: 第一次给"去授权"(弹官方同意窗) → 重试后仍失败 = 后台指引未声明,
+  // 改静态强提示且不再重试, 避免"重新授权→再失败→再弹窗"死循环
+  handlePrivacyBlock(rawMsg, retry) {
+    console.error('[privacy] location blocked:', rawMsg, 'retried=', !!this._privacyRetried);
+    if (!this._privacyRetried) {
+      this._privacyRetried = true;
+      wx.showModal({
+        title: '需同意隐私保护指引',
+        content: '请先在隐私保护提示中点击「同意」。若同意后仍无法定位，说明小程序后台《用户隐私保护指引》未声明「位置信息」。',
+        confirmText: '去授权',
+        cancelText: '取消',
+        success: (r) => {
+          if (!r.confirm) return;
+          // 先触发官方隐私同意弹窗, 通过后再重试一次
+          const popup = this.selectComponent('#privacyPopup');
+          if (popup) {
+            popup.ensure().then((ok) => { if (ok && retry) retry(); });
+          } else if (retry) {
+            retry();
+          }
+        }
+      });
+    } else {
+      wx.showModal({
+        title: '后台未声明位置信息',
+        content: '你已完成隐私授权，但微信仍拒绝定位，说明小程序后台《用户隐私保护指引》中尚未声明「位置信息」（接口 wx.getLocation、wx.chooseLocation）。\n\n请由管理员登录 mp.weixin.qq.com → 设置 → 服务内容声明 → 用户隐私保护指引，添加「位置信息」并提交，等配置生效后，重新进入本页面再发布。',
+        showCancel: false,
+        confirmText: '我知道了'
+      });
+    }
   },
 
   isDevtools() {
@@ -161,6 +181,7 @@ Page({
     wx.getLocation({
       type: 'gcj02',
       success: (loc) => {
+        this._privacyRetried = false;
         this.reverseLocation(loc.latitude, loc.longitude, (info) => {
           this.setData({
             locating: false,
@@ -177,7 +198,7 @@ Page({
         console.error('[locate] getLocation fail:', err);
         // 隐私合规问题(未同意指引/后台未声明位置信息)不兜底,明确引导
         if (kind === 'privacy') {
-          this.showPrivacyError((err && err.errMsg) || '', () => this.locate());
+          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.locate());
           return;
         }
         // 模拟器:系统定位关闭/网络等非微信权限问题 → 成都兜底,不弹权限死循环
@@ -239,7 +260,7 @@ Page({
         const kind = this.classifyLocError(err);
         console.error('[chooseSite] fail:', err);
         if (kind === 'privacy') {
-          this.showPrivacyError((err && err.errMsg) || '', () => this.chooseSite());
+          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.chooseSite());
           return;
         }
         if (kind === 'auth') {
@@ -438,7 +459,7 @@ Page({
         if (kind === 'privacy') {
           wx.hideLoading();
           this.setData({ submitting: false });
-          this.showPrivacyError((err && err.errMsg) || '', () => this.onSubmit());
+          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.onSubmit());
           return;
         }
         // 降级2: 仅模拟器——系统定位/权限均不可用时用成都默认坐标,保证自测可继续(真机无此分支)
