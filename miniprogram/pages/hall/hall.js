@@ -2,6 +2,15 @@
 const app = getApp();
 const { formatMoney, timeAgo } = require('../../utils/util.js');
 const { aaTierLabel, ORDER_STATUS } = require('../../utils/constants.js');
+// 模拟器兜底坐标(仅 devtools;Windows 系统定位关闭时保证接单自测链路不中断),真机不允许兜底
+const DEFAULT_LOC = { latitude: 30.572815, longitude: 104.066801 };
+// "system permission denied" 含 denied 但属系统级错误,必须先于 auth 判断
+function classifyLocError(err) {
+  const msg = (err && err.errMsg) || '';
+  if (/system permission/i.test(msg)) return 'system';
+  if (/auth|deny|scope/i.test(msg)) return 'auth';
+  return 'other';
+}
 
 Page({
   data: {
@@ -181,15 +190,37 @@ Page({
         wx.getLocation({
           type: 'gcj02',
           success: (loc) => this.doTake(demandId, { latitude: loc.latitude, longitude: loc.longitude }),
-          fail: () => {
+          fail: (err) => {
+            const kind = classifyLocError(err);
+            // 仅模拟器:系统定位/权限不可用时用成都坐标继续(服务端仍做 50km 校验);真机无此分支
+            let platform = '';
+            try { platform = wx.getSystemInfoSync().platform; } catch (e) {}
+            if (platform === 'devtools') {
+              this.doTake(demandId, { latitude: DEFAULT_LOC.latitude, longitude: DEFAULT_LOC.longitude });
+              return;
+            }
             wx.hideLoading();
             this.setData({ taking: false, takingId: '' });
-            wx.showModal({
-              title: '需要位置权限',
-              content: '接单需校验你当前位置与履约地点的距离（不超过 50 公里），请在设置中允许使用位置信息',
-              confirmText: '去设置',
-              success: (m) => { if (m.confirm) wx.openSetting(); }
-            });
+            if (kind === 'auth') {
+              wx.showModal({
+                title: '需要位置权限',
+                content: '接单需校验你当前位置与履约地点的距离（不超过 50 公里），请在设置中允许使用位置信息',
+                confirmText: '去设置',
+                success: (m) => { if (m.confirm) wx.openSetting(); }
+              });
+            } else if (kind === 'system') {
+              wx.showModal({
+                title: '请开启系统定位服务',
+                content: '微信已获得位置权限，但系统定位服务未开启。请在手机「设置→隐私与安全→定位服务」中打开，并允许微信获取位置后重试',
+                showCancel: false
+              });
+            } else {
+              wx.showModal({
+                title: '定位失败',
+                content: '请检查网络或 GPS 信号后重试接单',
+                showCancel: false
+              });
+            }
           }
         });
       }

@@ -19,6 +19,8 @@ const MAX_ADVANCE_DAYS = 30;          // 服务时间距发布最长 30 天
 const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我'];
 // AA 承诺书全文(rules.md 三.6)
 const AA_PROMISE_TEXT = 'AA 费用为线下共同消费，本人自行承担本人份额，平台不代收、不担保、不仲裁 AA 费用争议。';
+// 兜底坐标:仅开发者工具模拟器使用(Windows 系统定位关闭时保证发单自测链路不中断); 真机不允许兜底
+const DEFAULT_LOC = { latitude: 30.572815, longitude: 104.066801, name: '当前位置(模拟器默认)', city: '成都' };
 
 Page({
   data: {
@@ -110,6 +112,31 @@ Page({
     });
   },
 
+  // 定位失败分类:auth=微信 scope 被拒(openSetting) / system=系统定位服务关闭 / other=网络、超时、取消等
+  // 注意:Windows 系统定位关闭时报 "system permission denied",含 denied 但并非微信授权问题,必须先判 system
+  classifyLocError(err) {
+    const msg = (err && err.errMsg) || '';
+    if (/system permission/i.test(msg)) return 'system';
+    if (/auth|deny|scope/i.test(msg)) return 'auth';
+    return 'other';
+  },
+
+  isDevtools() {
+    try { return wx.getSystemInfoSync().platform === 'devtools'; } catch (e) { return false; }
+  },
+
+  // 模拟器兜底坐标(仅 devtools 使用)
+  applyDefaultLocation(tip) {
+    this.setData({
+      locating: false,
+      pubLatitude: DEFAULT_LOC.latitude,
+      pubLongitude: DEFAULT_LOC.longitude,
+      pubLocationName: DEFAULT_LOC.name,
+      pubCity: DEFAULT_LOC.city
+    });
+    if (tip) wx.showToast({ title: tip, icon: 'none', duration: 2500 });
+  },
+
   // 获取当前GPS位置(发布者实际位置; 点击发布地址卡可重新定位)
   async locate() {
     if (this.data.locating) return;
@@ -129,22 +156,42 @@ Page({
           });
         });
       },
-      fail: () => {
+      fail: (err) => {
         this.setData({ locating: false });
-        wx.showModal({
-          title: '需要位置权限',
-          content: '发布地址需记录您发布时的实际位置，请在设置中允许使用位置信息',
-          confirmText: '去设置',
-          success: (r) => {
-            if (r.confirm) {
-              wx.openSetting({
-                success: (s) => {
-                  if (s.authSetting && s.authSetting['scope.userLocation']) this.locate();
-                }
-              });
+        const kind = this.classifyLocError(err);
+        // 模拟器:系统定位关闭/网络等非微信权限问题 → 成都兜底,不弹权限死循环
+        if (this.isDevtools() && kind !== 'auth') {
+          this.applyDefaultLocation('模拟器定位失败，已用成都默认位置');
+          return;
+        }
+        if (kind === 'auth') {
+          wx.showModal({
+            title: '需要位置权限',
+            content: '发布地址需记录您发布时的实际位置，请在设置中允许使用位置信息',
+            confirmText: '去设置',
+            success: (r) => {
+              if (r.confirm) {
+                wx.openSetting({
+                  success: (s) => {
+                    if (s.authSetting && s.authSetting['scope.userLocation']) this.locate();
+                  }
+                });
+              }
             }
-          }
-        });
+          });
+        } else if (kind === 'system') {
+          wx.showModal({
+            title: '请开启系统定位服务',
+            content: '微信已获得位置权限，但系统定位服务未开启。请在手机「设置→隐私与安全→定位服务」中打开，并允许微信获取位置后，点击发布地址卡片重试',
+            showCancel: false
+          });
+        } else {
+          wx.showModal({
+            title: '定位失败',
+            content: '请检查网络或 GPS 信号后，点击发布地址卡片重新定位',
+            showCancel: false
+          });
+        }
       }
     });
   },
@@ -168,8 +215,8 @@ Page({
         });
       },
       fail: (err) => {
-        const msg = (err && err.errMsg) || '';
-        if (msg.indexOf('auth') >= 0 || msg.indexOf('deny') >= 0) {
+        const kind = this.classifyLocError(err);
+        if (kind === 'auth') {
           wx.showModal({
             title: '需要位置权限',
             content: '请在设置中允许使用位置信息，才能在地图上选择履约地点',
@@ -184,7 +231,16 @@ Page({
               }
             }
           });
+        } else if (kind === 'system') {
+          wx.showModal({
+            title: '请开启系统定位服务',
+            content: this.isDevtools()
+              ? '模拟器无法定位：请在开发者工具模拟器工具栏设置「模拟位置」，或开启 Windows 系统定位服务后重试'
+              : '请在手机系统设置中开启定位服务，并允许微信获取位置后重试',
+            showCancel: false
+          });
         }
+        // other(如用户取消 chooseLocation:fail cancel)不弹窗
       }
     });
   },
@@ -317,41 +373,69 @@ Page({
     const locOk = await getApp().requirePrivacyAuth();
     if (!locOk) { wx.hideLoading(); this.setData({ submitting: false }); return; }
 
-    // 提交瞬间重新取一次实际GPS作为发布地址(留痕, 不用页面缓存坐标); 履约地址用用户所选
+    // 提交瞬间重新取一次实际GPS作为发布地址(留痕优先); 履约地址用用户所选
+    // 失败降级链:实时GPS → 进入页面时缓存的坐标(同一次会话内真实定位) → 模拟器成都兜底 → 真机按错误类型引导
+    const continueWith = (lat, lng) => {
+      this.reverseLocation(lat, lng, (info) => {
+        const publishLocation = {
+          name: info.name,
+          latitude: lat,
+          longitude: lng,
+          city: info.city || '成都'
+        };
+        this.setData({
+          pubLatitude: lat, pubLongitude: lng,
+          pubLocationName: info.name, pubCity: publishLocation.city
+        });
+        const site = {
+          name: this.data.siteName,
+          latitude: this.data.siteLatitude,
+          longitude: this.data.siteLongitude,
+          city: this.data.siteCity || '成都'
+        };
+        this.doPublish(ts, selectedOptions, remark, site, publishLocation);
+      });
+    };
+
     wx.getLocation({
       type: 'gcj02',
-      success: (loc) => {
-        this.reverseLocation(loc.latitude, loc.longitude, (info) => {
-          const publishLocation = {
-            name: info.name,
-            latitude: loc.latitude,
-            longitude: loc.longitude,
-            city: info.city || '成都'
-          };
-          this.setData({
-            pubLatitude: loc.latitude, pubLongitude: loc.longitude,
-            pubLocationName: info.name, pubCity: publishLocation.city
-          });
-          const site = {
-            name: this.data.siteName,
-            latitude: this.data.siteLatitude,
-            longitude: this.data.siteLongitude,
-            city: this.data.siteCity || '成都'
-          };
-          this.doPublish(ts, selectedOptions, remark, site, publishLocation);
-        });
-      },
-      fail: () => {
+      success: (loc) => continueWith(loc.latitude, loc.longitude),
+      fail: (err) => {
+        // 降级1: 页面进入时已成功定位过(同会话真实坐标,留痕有效),直接沿用
+        if (this.data.pubLatitude && this.data.pubLongitude) {
+          continueWith(this.data.pubLatitude, this.data.pubLongitude);
+          return;
+        }
+        const kind = this.classifyLocError(err);
+        // 降级2: 仅模拟器——系统定位/权限均不可用时用成都默认坐标,保证自测可继续(真机无此分支)
+        if (this.isDevtools()) {
+          this.applyDefaultLocation('');
+          continueWith(DEFAULT_LOC.latitude, DEFAULT_LOC.longitude);
+          return;
+        }
+        // 真机:按真实错误类型引导,不再一律提示"需要位置权限"
         wx.hideLoading();
         this.setData({ submitting: false });
-        wx.showModal({
-          title: '需要位置权限',
-          content: '发布地址需记录您发布时的实际位置，请在设置中允许使用位置信息后再发布',
-          confirmText: '去设置',
-          success: (r) => {
-            if (r.confirm) wx.openSetting();
-          }
-        });
+        if (kind === 'auth') {
+          wx.showModal({
+            title: '需要位置权限',
+            content: '发布地址需记录您发布时的实际位置，请在设置中允许使用位置信息后再发布',
+            confirmText: '去设置',
+            success: (r) => { if (r.confirm) wx.openSetting(); }
+          });
+        } else if (kind === 'system') {
+          wx.showModal({
+            title: '请开启系统定位服务',
+            content: '微信已获得位置权限，但系统定位服务未开启。请在手机「设置→隐私与安全→定位服务」中打开，并允许微信获取位置后重试',
+            showCancel: false
+          });
+        } else {
+          wx.showModal({
+            title: '定位失败',
+            content: '请检查网络或 GPS 信号后重试发布',
+            showCancel: false
+          });
+        }
       }
     });
   },
