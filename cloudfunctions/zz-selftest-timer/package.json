@@ -1,9 +1,0 @@
-{
-  "name": "zz-selftest-timer",
-  "version": "1.0.0",
-  "description": "temporary selftest for order-timer (safe to delete)",
-  "main": "index.js",
-  "dependencies": {
-    "wx-server-sdk": "latest"
-  }
-}
