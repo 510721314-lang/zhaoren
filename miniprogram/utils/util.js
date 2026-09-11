@@ -45,10 +45,34 @@ function debounce(fn, wait) {
   };
 }
 
+// Haversine 球面距离(公里) · 两经纬度间直线距离
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 通勤估算:步行 5km/h、骑行 15km/h、公交 20km/h(含等车)、驾车 30km/h(城市道路)
+function estimateCommute(km) {
+  return {
+    distance_km: Math.round(km * 10) / 10,
+    walk_min: Math.round(km / 5 * 60),
+    bike_min: Math.round(km / 15 * 60),
+    bus_min: Math.round(km / 20 * 60),
+    drive_min: Math.round(km / 30 * 60)
+  };
+}
+
 module.exports = {
   formatMoney,
   maskPhone,
   maskIdCard,
   timeAgo,
-  debounce
+  debounce,
+  haversineKm,
+  estimateCommute
 };

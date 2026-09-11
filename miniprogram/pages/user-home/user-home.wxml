@@ -1,0 +1,74 @@
+<view class="page-user-home">
+  <!-- 加载骨架屏 -->
+  <view wx:if="{{loading}}">
+    <view class="sk-row" style="padding:36rpx 28rpx;">
+      <view class="skeleton sk-circle" style="width:110rpx;height:110rpx;"></view>
+      <view style="flex:1; margin-left:24rpx;">
+        <view class="skeleton sk-line"></view>
+        <view class="skeleton sk-line-sm"></view>
+      </view>
+    </view>
+    <view class="skeleton sk-card"></view>
+    <view class="skeleton sk-card"></view>
+  </view>
+
+  <block wx:elif="{{profile}}">
+    <!-- 资料卡 -->
+    <view class="profile-card">
+      <image wx:if="{{profile.avatar}}" class="p-avatar" src="{{profile.avatar}}" />
+      <view wx:else class="p-avatar p-avatar-default">👤</view>
+      <view class="p-info">
+        <view class="p-name">{{profile.nickname}}</view>
+        <view wx:if="{{profile.is_partner}}" class="p-badge tag tag-primary">耍伴</view>
+        <view wx:if="{{profile.city}}" class="p-city">📍 {{profile.city}}</view>
+      </view>
+    </view>
+
+    <!-- 统计卡 -->
+    <view class="stat-card">
+      <view class="stat-item">
+        <view class="stat-icon">📷</view>
+        <view class="stat-num">{{stats.post_count}}</view>
+        <view class="stat-label">动态</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-icon">🛡️</view>
+        <view class="stat-num">{{profile.partner_credit_score || 0}}</view>
+        <view class="stat-label">信用分</view>
+      </view>
+    </view>
+
+    <!-- TA 的动态 -->
+    <view class="section-title">
+      <text class="st-bar"></text>
+      <text>📷 TA 的动态</text>
+    </view>
+
+    <view wx:if="{{postEmpty}}" class="empty-state">
+      <view class="empty-icon">📭</view>
+      <view class="empty-text">还没有发布动态</view>
+    </view>
+
+    <block wx:for="{{posts}}" wx:key="_id">
+      <view class="post-card" bindtap="goDetail" data-id="{{item._id}}">
+        <view class="post-head">
+          <view class="post-time">{{item.scene_name}}</view>
+        </view>
+        <view class="post-content">{{item.content}}</view>
+        <image wx:if="{{item.hasCover}}" class="post-cover" src="{{item.cover}}" mode="aspectFill" />
+        <view wx:if="{{item.hasTags}}" class="topic-row">
+          <text wx:for="{{item.tags}}" wx:for-item="tg" wx:key="*this" class="topic-tag">#{{tg}}</text>
+        </view>
+        <view class="post-foot">
+          <text wx:if="{{item.likeText}}" class="post-meta">👍 {{item.likeText}}</text>
+          <text wx:if="{{item.commentText}}" class="post-meta">💬 {{item.commentText}}</text>
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <view wx:else class="empty-state">
+    <view class="empty-icon">🔍</view>
+    <view class="empty-text">该用户不存在或已注销</view>
+  </view>
+</view>

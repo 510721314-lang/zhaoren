@@ -64,8 +64,9 @@
 
   <!-- 支付按钮 -->
   <view class="safe-bottom">
-    <button class="btn-primary btn-block pay-btn" bindtap="doPay" disabled="{{paying}}">
+    <button wx:if="{{paymentVisible}}" class="btn-primary btn-block pay-btn" bindtap="doPay" disabled="{{paying}}">
       模拟支付(不产生真实扣款)¥ {{totalText}}
     </button>
+    <view wx:else class="pay-disabled-tip">支付功能暂未开放</view>
   </view>
 </view>

@@ -1,1 +1,1 @@
-{ "navigationBarTitleText": "接单大厅", "usingComponents": {} }
+{ "navigationBarTitleText": "接单大厅", "enablePullDownRefresh": true, "usingComponents": {} }

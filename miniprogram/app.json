@@ -13,7 +13,15 @@
     "pages/partner-center/partner-center",
     "pages/admin/admin",
     "pages/agreement/agreement",
-    "pages/cashier/cashier"
+    "pages/privacy/privacy",
+    "pages/cashier/cashier",
+    "pages/login/login",
+    "pages/phone-login/phone-login",
+    "pages/blog/blog",
+    "pages/blog-detail/blog-detail",
+    "pages/blog-publish/blog-publish",
+    "pages/partner-home/partner-home",
+    "pages/user-home/user-home"
   ],
   "window": {
     "navigationBarBackgroundColor": "#D4875A",
@@ -37,13 +45,15 @@
   },
   "permission": {
     "scope.userLocation": {
-      "desc": "用于安全报备定位"
+      "desc": "用于获取您的实际位置、履约距离提示及安全报备"
     }
   },
   "requiredPrivateInfos": [
-    "getLocation"
+    "getLocation",
+    "chooseLocation"
   ],
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
-  "sitemapLocation": "sitemap.json"
+  "sitemapLocation": "sitemap.json",
+  "__usePrivacyCheck__": true
 }

@@ -1,0 +1,48 @@
+<view class="page-publish">
+  <!-- 正文 -->
+  <view class="card">
+    <textarea class="content-input" placeholder="分享一次你的服务经历、陪诊心得或日常…"
+              maxlength="1000" value="{{content}}" bindinput="onContentInput"
+              auto-height show-confirm-bar="{{false}}" />
+    <view class="word-count">{{contentLen}}/1000</view>
+  </view>
+
+  <!-- 关联服务场景 -->
+  <view class="card">
+    <view class="card-label">关联服务场景（选填）</view>
+    <view class="scene-pick">
+      <view wx:for="{{sceneOpts}}" wx:key="code"
+            class="scene-chip {{sceneCode===item.code?'chip-on':''}}"
+            bindtap="pickScene" data-code="{{item.code}}">{{item.icon}} {{item.name}}</view>
+    </view>
+  </view>
+
+  <!-- 话题标签 -->
+  <view class="card">
+    <view class="card-label">添加话题（选填，最多 3 个）</view>
+    <view class="scene-pick">
+      <view wx:for="{{topicChks}}" wx:key="name"
+            class="scene-chip {{item.on?'chip-on':''}}"
+            bindtap="pickTopic" data-name="{{item.name}}">{{item.icon}} {{item.name}}</view>
+    </view>
+  </view>
+
+  <!-- 图片 -->
+  <view class="card">
+    <view class="card-label">添加图片（最多 9 张）</view>
+    <view class="img-picker">
+      <view wx:for="{{images}}" wx:key="path" class="picker-item">
+        <image class="picker-img" src="{{item.path}}" mode="aspectFill" bindtap="previewImage" data-path="{{item.path}}" />
+        <view wx:if="{{item.uploading}}" class="up-mask"><view class="up-spinner"></view></view>
+        <view class="up-del" catchtap="removeImage" data-path="{{item.path}}">×</view>
+      </view>
+      <view wx:if="{{canAddMore}}" class="picker-add" bindtap="chooseImage">
+        <view class="add-plus">＋</view>
+        <view class="add-text">{{images.length}}/9</view>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary btn-block submit-btn" loading="{{submitting}}" bindtap="onSubmit">发布动态</button>
+  <view class="tip">发布即表示遵守社区规范，禁止违规、导流、辱骂等内容</view>
+</view>

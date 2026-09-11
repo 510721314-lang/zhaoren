@@ -1,1 +1,161 @@
-.placeholder { padding: 120rpx 32rpx; text-align: center; color: var(--text-3); font-size: 32rpx; }
+/* pages/order-detail/order-detail.wxss */
+.page { padding: 24rpx 24rpx 180rpx; min-height: 100vh; background: var(--bg-page); }
+
+.card {
+  background: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 24rpx rgba(0,0,0,0.06);
+}
+.card-title {
+  font-size: 28rpx; font-weight: 600; color: var(--text-1);
+  margin-bottom: 16rpx; display: flex; justify-content: space-between; align-items: center;
+}
+
+/* 状态头 */
+.status-card {
+  background: linear-gradient(135deg, #FBF1E9 0%, #FFFFFF 50%);
+}
+.status-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.scene-tag {
+  background: rgba(212,135,90,0.12); color: var(--primary);
+  font-size: 24rpx; padding: 6rpx 18rpx; border-radius: 20rpx;
+}
+.status { font-size: 32rpx; font-weight: 700; }
+.status-success { color: #3E7C4F; }
+.status-warn { color: #A8652A; }
+.status-danger { color: #B03A2E; }
+.status-primary { color: var(--primary); }
+.status-muted { color: #999; }
+.status-tip { font-size: 26rpx; color: var(--text-2); line-height: 1.6; }
+.pay-expire { margin-top: 12rpx; font-size: 24rpx; color: var(--danger); }
+
+/* 通勤提示(耍伴) */
+.to-site { background: rgba(58,104,176,0.08); border-left: 6rpx solid #3A68B0; }
+.to-site-title { font-size: 26rpx; font-weight: 600; color: #3A68B0; margin-bottom: 12rpx; }
+.commute-modes { display: flex; flex-wrap: wrap; gap: 8rpx 24rpx; font-size: 24rpx; color: var(--text-1); }
+.to-site-depart { font-size: 24rpx; color: var(--text-2); margin-top: 10rpx; }
+.to-site-depart text { color: var(--danger); font-weight: 600; }
+
+/* 定位引导条 */
+.loc-tip {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #fff; border-radius: 12rpx; padding: 20rpx 24rpx; margin-bottom: 20rpx;
+  font-size: 26rpx; color: var(--text-1); border: 2rpx dashed #ccc;
+  transition: var(--transition, 0.2s ease);
+}
+.loc-tip:active { background: #FAFAFA; }
+.loc-tip-btn {
+  font-size: 24rpx; color: #fff; background: var(--primary);
+  padding: 8rpx 24rpx; border-radius: 24rpx;
+}
+
+/* 服务信息 */
+.info-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10rpx 0; font-size: 26rpx; }
+.info-label { color: var(--text-2); flex-shrink: 0; }
+.info-val { color: var(--text-1); text-align: right; max-width: 62%; }
+
+/* 费用 */
+.fee-row { display: flex; justify-content: space-between; align-items: center; padding: 8rpx 0; font-size: 26rpx; color: var(--text-2); }
+.fee-strong {
+  color: var(--danger); font-weight: 700; font-size: 32rpx;
+  font-variant-numeric: tabular-nums;
+}
+.fee-income {
+  color: var(--success); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fee-muted { color: var(--text-3); }
+
+/* 四项确认 */
+.confirm-progress { font-size: 26rpx; color: var(--primary); font-weight: 600; }
+.confirm-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18rpx 0; border-bottom: 2rpx solid var(--bg-page);
+}
+.confirm-item:last-of-type { border-bottom: none; }
+.confirm-label { font-size: 24rpx; color: var(--text-2); margin-bottom: 6rpx; }
+.confirm-value { font-size: 28rpx; color: var(--text-1); font-weight: 500; }
+.confirm-bits { display: flex; flex-direction: column; gap: 8rpx; align-items: flex-end; flex-shrink: 0; margin-left: 20rpx; }
+.bit { font-size: 22rpx; color: #bbb; max-width: 200rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bit-ok { color: var(--success); font-weight: 600; }
+.confirm-btn { margin-top: 24rpx; }
+.wait-tip {
+  margin-top: 20rpx; text-align: center; font-size: 26rpx; color: var(--success);
+  padding: 18rpx; background: rgba(62,124,79,0.08); border-radius: 12rpx;
+}
+
+/* 等待提示卡 */
+.wait-card { font-size: 26rpx; color: var(--text-2); text-align: center; padding: 28rpx 24rpx; }
+
+/* 评价 */
+.stars { display: flex; gap: 20rpx; margin-bottom: 20rpx; }
+.star {
+  font-size: 56rpx; color: #ddd; line-height: 1;
+  transition: var(--transition, 0.2s ease);
+}
+.star:active { transform: scale(1.2); }
+.star-on { color: #F5A623; }
+.eval-stars { margin-bottom: 8rpx; }
+.eval-stars .star { font-size: 40rpx; }
+.eval-input {
+  width: 100%; height: 140rpx; background: var(--bg-page); border-radius: 12rpx;
+  padding: 16rpx; font-size: 26rpx; margin-bottom: 20rpx; box-sizing: border-box;
+}
+.eval-content { font-size: 26rpx; color: var(--text-1); line-height: 1.6; }
+
+/* 订单信息 */
+.order-meta { font-size: 22rpx; color: #aaa; line-height: 2; }
+
+/* 底部操作栏 */
+.action-bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  background: #fff; padding: 16rpx 24rpx;
+  display: flex; gap: 20rpx; box-shadow: 0 -2rpx 12rpx rgba(0,0,0,0.06);
+}
+.bar-btn { flex: 1; margin: 0; }
+.bar-btn-chat { flex: 0 0 auto; padding-left: 28rpx; padding-right: 28rpx; }
+
+/* 空状态 */
+/* 空状态已提升为全局类(app.wxss .empty-state) */
+
+/* ───────── 安全中心 ───────── */
+/* 紧急求助中横幅 */
+.sos-active {
+  background: #B03A2E; color: #fff;
+  border-radius: 16rpx; padding: 28rpx 24rpx;
+  margin-bottom: 20rpx;
+}
+.sos-active-head { font-size: 34rpx; font-weight: 700; margin-bottom: 12rpx; }
+.sos-active-info { font-size: 24rpx; line-height: 1.6; opacity: 0.92; margin-bottom: 20rpx; }
+.btn-sos-resolve {
+  background: #fff; color: #B03A2E;
+  font-size: 28rpx; font-weight: 600;
+  border-radius: 40rpx; padding: 14rpx 0; margin: 0;
+}
+.btn-sos-resolve::after { border: none; }
+
+/* 安全中心卡 */
+.safety-actions { display: flex; gap: 20rpx; margin: 8rpx 0 16rpx; }
+.btn-sos, .btn-checkin {
+  flex: 1; margin: 0;
+  font-size: 28rpx; font-weight: 600;
+  border-radius: 12rpx; padding: 18rpx 0;
+}
+.btn-sos { background: #B03A2E; color: #fff; }
+.btn-sos::after { border: none; }
+.btn-checkin {
+  background: rgba(212,135,90,0.1); color: var(--primary);
+  border: 2rpx solid rgba(212,135,90,0.5);
+}
+.btn-checkin::after { border: none; }
+.safety-tip { font-size: 22rpx; color: #999; line-height: 1.5; }
+
+/* 报备记录 */
+.checkin-list {
+  margin-top: 16rpx; padding-top: 16rpx;
+  border-top: 2rpx solid var(--bg-page);
+}
+.checkin-item {
+  display: flex; justify-content: space-between;
+  font-size: 24rpx; color: var(--text-2); padding: 8rpx 0;
+}
+.checkin-time { color: #bbb; }

@@ -1,5 +1,13 @@
 // pages/cashier/cashier.js - 收银台(模拟支付 · 对应 PRD 3.5.1)
 const { formatMoney } = require('../../utils/util.js');
+const { AA_TIERS } = require('../../utils/constants.js');
+
+// 档位值转中文文案(兼容旧数据直接存中文文案的情况)
+function aaTierText(tier) {
+  if (!tier) return '无';
+  const hit = AA_TIERS.find((t) => t.value === tier);
+  return hit ? hit.label : tier;
+}
 
 Page({
   data: {
@@ -14,7 +22,21 @@ Page({
     totalText: '0.00',
     aaPromiseChecked: false,
     paying: false,
-    loaded: false
+    loaded: false,
+    paymentVisible: true
+  },
+
+  onShow() {
+    // 读取审核开关: payment_visible=false 隐藏支付入口(被拒后可快速隐藏二次提审)
+    wx.cloud.callFunction({
+      name: 'user-login',
+      data: { action: 'global_config' },
+      success: (r) => {
+        if (r.result && r.result.ok) {
+          this.setData({ paymentVisible: r.result.data.payment_visible !== false });
+        }
+      }
+    });
   },
 
   onLoad(opts) {
@@ -43,7 +65,7 @@ Page({
             durationText: d.duration_h + ' 小时',
             contentText: (d.content_options || []).join('、') || '无',
             locationName: (d.location && d.location.name) || '待确认',
-            aaTierText: d.aa_tier || '无',
+            aaTierText: aaTierText(d.aa_tier),
             totalText: formatMoney(d.total_fen),
             loaded: true
           });

@@ -1,1 +1,95 @@
-<view class="placeholder">接单大厅</view>
+<view class="page-hall">
+  <!-- ═══════ 耍伴身份: 接单大厅 ═══════ -->
+  <block wx:if="{{activeRole === 'partner'}}">
+    <!-- 我接的单 -->
+    <view class="hall-section">我接的单（{{myOrders.length}}）</view>
+    <view wx:if="{{myOrders.length === 0}}" class="empty-line">暂无已接订单，在下方大厅接单吧</view>
+    <view wx:for="{{myOrders}}" wx:key="order_id" class="card myorder-card"
+          data-id="{{item.order_id}}" bindtap="onMyOrderTap">
+      <view class="myorder-head">
+        <view class="scene-tag">{{item.scene_name}}</view>
+        <text class="mo-status mo-status-{{item.status_color}}">{{item.status_name}}</text>
+      </view>
+      <view class="myorder-content">{{item.contentText}}</view>
+      <view class="myorder-meta">
+        <text>📍 {{item.location_name || '地点待确认'}}</text>
+        <text>🕐 {{item.timeText}} · {{item.duration_h}}小时</text>
+      </view>
+      <view class="myorder-foot">
+        <text class="demand-no">{{item.order_no}}</text>
+        <text class="mo-price">¥{{item.totalText}}</text>
+      </view>
+    </view>
+
+    <!-- 可接需求 -->
+    <view class="hall-section hall-section-gap">待接需求</view>
+    <view wx:if="{{loading}}">
+      <view class="skeleton sk-card"></view>
+      <view class="skeleton sk-card"></view>
+    </view>
+    <view wx:elif="{{list.length === 0}}" class="empty-state">
+      <view class="empty-icon">📭</view>
+      <view class="empty-text">暂无待接需求</view>
+      <view class="empty-sub">请稍后下拉刷新</view>
+    </view>
+
+    <!-- 列表 -->
+    <view wx:for="{{list}}" wx:key="demand_id" class="card demand-card">
+      <view class="demand-head">
+        <view class="scene-tag">{{item.scene_name}}</view>
+        <text class="demand-no">{{item.demand_no}}</text>
+      </view>
+      <view class="demand-content">{{item.contentText}}</view>
+      <view wx:if="{{item.remark}}" class="demand-remark">「{{item.remark}}」</view>
+      <view class="demand-meta">
+        <view class="meta-row"><text class="meta-label">📍</text><text class="meta-val">{{item.location_name || '地点待确认'}}</text></view>
+        <view class="meta-row"><text class="meta-label">🕐</text><text class="meta-val">{{item.timeText}} · {{item.duration_h}}小时</text></view>
+        <view class="meta-row"><text class="meta-label">💰</text><text class="meta-val">{{item.rateText}}/时 · 总价 {{item.totalText}}</text></view>
+      </view>
+      <view wx:if="{{item.aa_tier}}" class="aa-tag">AA {{item.aa_tier}}</view>
+      <view class="demand-foot">
+        <text class="ago">{{item.agoText}}</text>
+        <button class="btn-primary take-btn" size="mini"
+          data-id="{{item.demand_id}}" data-mine="{{item.is_mine}}"
+          bindtap="onTake" disabled="{{taking}}">
+          {{taking && takingId === item.demand_id ? '接单中...' : (item.is_mine ? '我的需求' : '立即接单')}}
+        </button>
+      </view>
+    </view>
+  </block>
+
+  <!-- ═══════ 发单人身份: 发布需求 · 找耍伴 ═══════ -->
+  <block wx:else>
+    <view class="card user-hall-hero">
+      <view class="hero-title">👋 需要人帮忙？发个需求</view>
+      <view class="hero-sub">描述时间地点与预算，系统为你匹配附近合适耍伴，也可广播到接单大厅</view>
+      <button class="btn-primary btn-block hero-btn" bindtap="goPublish">＋ 发布需求</button>
+      <view class="hero-switch" bindtap="goSwitchRole">想接单赚钱？去「我的」切换为耍伴身份 ›</view>
+    </view>
+
+    <view class="hall-section">我发布的需求 · 待接单（{{myDemands.length}}）</view>
+
+    <view wx:if="{{!loading && myDemands.length === 0}}" class="empty-state">
+      <view class="empty-icon">📝</view>
+      <view class="empty-text">还没有发布需求</view>
+      <view class="empty-sub">点上方按钮立即发布</view>
+    </view>
+
+    <view wx:for="{{myDemands}}" wx:key="demand_id" class="card demand-card"
+          data-id="{{item.demand_id}}" bindtap="onMyDemandTap">
+      <view class="demand-head">
+        <view class="scene-tag">{{item.scene_name}}</view>
+        <text class="demand-no">{{item.order_no}}</text>
+      </view>
+      <view class="demand-content">{{item.contentText}}</view>
+      <view class="demand-meta">
+        <view class="meta-row"><text class="meta-label">🕐</text><text class="meta-val">{{item.timeText}} · {{item.duration_h}}小时</text></view>
+        <view class="meta-row"><text class="meta-label">💰</text><text class="meta-val">总价 {{item.totalText}}</text></view>
+      </view>
+      <view class="demand-foot">
+        <text class="ago">待接单 · 点此查看候选耍伴</text>
+        <text class="take-link">去匹配 ›</text>
+      </view>
+    </view>
+  </block>
+</view>

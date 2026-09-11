@@ -1,1 +1,176 @@
-<view class="placeholder">订单详情</view>
+<view class="page">
+  <view wx:if="{{loading}}">
+    <view class="skeleton sk-card"></view>
+    <view class="skeleton sk-card" style="height:120rpx;"></view>
+    <view class="skeleton sk-card" style="height:120rpx;"></view>
+  </view>
+
+  <block wx:elif="{{d}}">
+    <!-- 状态头卡 -->
+    <view class="card status-card">
+      <view class="status-head">
+        <text class="scene-tag">{{d.scene_name}}</text>
+        <text class="status status-{{d.status_color}}">{{d.status_name}}</text>
+      </view>
+      <view class="status-tip">{{d.status_tip}}</view>
+      <view wx:if="{{d.pay_expire_str && d.status === 'S0'}}" class="pay-expire">⏰ 支付截止时间 {{d.pay_expire_str}}，超时订单自动取消</view>
+    </view>
+
+    <!-- 定位未授权引导(耍伴) -->
+    <view wx:if="{{d.is_partner && locationTried && !hasLocation}}" class="loc-tip" bindtap="openLocationSetting">
+      <text>📡 开启定位后可查看距履约地点的出行信息</text>
+      <text class="loc-tip-btn">去开启</text>
+    </view>
+
+    <!-- 通勤提示(耍伴·待履约) -->
+    <view wx:if="{{d.is_partner && toSite}}" class="card to-site">
+      <view class="to-site-title">📍 距履约地点 {{toSite.distance_km}} 公里</view>
+      <view class="commute-modes">
+        <text>🚶 步行{{toSite.walk_min}}分</text>
+        <text>🚲 骑行{{toSite.bike_min}}分</text>
+        <text>🚌 公交{{toSite.bus_min}}分</text>
+        <text>🚗 驾车{{toSite.drive_min}}分</text>
+      </view>
+      <view wx:if="{{toSite.depart_str}}" class="to-site-depart">
+        🚗 建议最晚 <text>{{toSite.depart_str}}</text> 出发（按驾车估算，直线距离请预留余量）
+      </view>
+    </view>
+
+    <!-- 紧急求助中(红色横幅,双方可见) -->
+    <view wx:if="{{d.can_safety && safety && safety.active_sos}}" class="sos-active">
+      <view class="sos-active-head">🚨 紧急求助中</view>
+      <view class="sos-active-info">{{safety.active_sos.reporter_label}}于 {{safety.active_sos.time_str}} 发起求助，请尽快联系确认安全</view>
+      <button class="btn-sos-resolve" bindtap="onResolveSos" disabled="{{safetyBusy}}">确认安全，解除求助</button>
+    </view>
+
+    <!-- 安全中心(赴约~待评价阶段) -->
+    <view wx:if="{{d.can_safety && safety && !safety.active_sos}}" class="card safety-card">
+      <view class="card-title">🛡️ 安全中心</view>
+      <view class="safety-actions">
+        <button class="btn-sos" bindtap="onSos" disabled="{{safetyBusy}}">🆘 紧急求助</button>
+        <button class="btn-checkin" bindtap="onCheckin" disabled="{{safetyBusy}}">📍 安全报备</button>
+      </view>
+      <view class="safety-tip">紧急求助将记录位置并通知平台；安全报备可向对方报平安</view>
+      <view wx:if="{{safety.checkins.length > 0}}" class="checkin-list">
+        <view class="checkin-item" wx:for="{{safety.checkins}}" wx:key="key">
+          <text>✅ {{item.role_label}}已报备</text>
+          <text class="checkin-time">{{item.time_str}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 服务信息 -->
+    <view class="card">
+      <view class="card-title">服务信息</view>
+      <view class="info-row">
+        <text class="info-label">📋 服务内容</text>
+        <text class="info-val">{{d.content_str}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">📍 服务地点</text>
+        <text class="info-val">{{d.location_name}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">🕐 服务时间</text>
+        <text class="info-val">{{d.time_str}} · {{d.duration_h}}小时</text>
+      </view>
+      <view wx:if="{{d.aa_tier}}" class="info-row">
+        <text class="info-label">💴 AA档位</text>
+        <text class="info-val">{{d.aa_tier}}（线下费用自理）</text>
+      </view>
+    </view>
+
+    <!-- 费用明细 -->
+    <view class="card">
+      <view class="card-title">费用明细</view>
+      <view class="fee-row">
+        <text>订单总额</text>
+        <text class="fee-strong">¥{{d.total_yuan}}</text>
+      </view>
+      <view class="fee-row">
+        <text>平台服务费（10%）</text>
+        <text class="fee-muted">¥{{d.fee_yuan}}</text>
+      </view>
+      <view class="fee-row">
+        <text>{{d.is_partner ? '我的预计收入' : '耍伴收入'}}</text>
+        <text class="{{d.is_partner ? 'fee-income' : 'fee-muted'}}">¥{{d.income_yuan}}</text>
+      </view>
+      <view wx:if="{{d.tip_total_fen > 0}}" class="fee-row">
+        <text>🎁 累计打赏</text>
+        <text class="fee-income">¥{{d.tip_yuan}}</text>
+      </view>
+    </view>
+
+    <!-- 四项确认(S1) -->
+    <view wx:if="{{d.status === 'S1'}}" class="card">
+      <view class="card-title">
+        <text>四项确认</text>
+        <text class="confirm-progress">{{d.confirmed_count}}/8</text>
+      </view>
+      <view class="confirm-item" wx:for="{{d.confirm_items}}" wx:key="key">
+        <view class="confirm-main">
+          <view class="confirm-label">{{item.label}}</view>
+          <view class="confirm-value">{{item.value_str}}</view>
+        </view>
+        <view class="confirm-bits">
+          <text class="bit {{item.user_ok ? 'bit-ok' : ''}}">{{d.user_label}} {{item.user_ok ? '✓' : '…'}}</text>
+          <text class="bit {{item.partner_ok ? 'bit-ok' : ''}}">{{d.partner_label}} {{item.partner_ok ? '✓' : '…'}}</text>
+        </view>
+      </view>
+      <button wx:if="{{d.can_confirm}}" class="btn-primary btn-block confirm-btn" bindtap="onConfirmAll" disabled="{{acting}}">
+        ✓ 我已确认以上 4 项（{{d.role_name}}）
+      </button>
+      <view wx:if="{{d.wait_confirm}}" class="wait-tip">✅ 你已确认，等待对方确认</view>
+    </view>
+
+    <!-- 等待提示(各状态非操作方) -->
+    <view wx:if="{{d.wait_pay}}" class="card wait-card">⏳ {{d.wait_pay_tip}}</view>
+    <view wx:if="{{d.wait_start}}" class="card wait-card">⏳ {{d.wait_start_tip}}</view>
+    <view wx:if="{{d.wait_complete}}" class="card wait-card">⏳ {{d.wait_complete_tip}}</view>
+    <view wx:if="{{d.wait_eval}}" class="card wait-card">⏳ {{d.wait_eval_tip}}</view>
+
+    <!-- 评价表单(S5 发单人) -->
+    <view wx:if="{{d.can_eval}}" class="card">
+      <view class="card-title">服务评价</view>
+      <view class="stars">
+        <text wx:for="{{stars}}" wx:key="n" data-star="{{item.n}}" bindtap="pickStar" class="star {{item.on ? 'star-on' : ''}}">★</text>
+      </view>
+      <textarea class="eval-input" placeholder="说说本次服务体验（可选）" value="{{evalContent}}" bindinput="onEvalInput" maxlength="200" />
+      <button class="btn-primary btn-block" bindtap="submitEval" disabled="{{submitting}}">提交评价</button>
+    </view>
+
+    <!-- 已评价(S8/S9) -->
+    <view wx:if="{{d.evaluation}}" class="card">
+      <view class="card-title">服务评价</view>
+      <view class="stars eval-stars">
+        <text wx:for="{{d.eval_stars}}" wx:key="n" class="star {{item.on ? 'star-on' : ''}}">★</text>
+      </view>
+      <view wx:if="{{d.evaluation.content}}" class="eval-content">{{d.evaluation.content}}</view>
+    </view>
+
+    <!-- 订单信息 -->
+    <view class="card order-meta">
+      <view>订单号：{{d.order_no}}</view>
+      <view wx:if="{{d.demand_no}}">需求号：{{d.demand_no}}</view>
+      <view>我的身份：{{d.role_name}}</view>
+    </view>
+
+    <!-- 底部操作栏 -->
+    <view class="action-bar safe-bottom">
+      <button class="btn-ghost bar-btn bar-btn-chat" bindtap="goChat">💬 联系对方</button>
+      <button wx:if="{{d.can_cancel}}" class="btn-ghost bar-btn" bindtap="onCancel" disabled="{{acting}}">取消订单</button>
+      <button wx:if="{{d.can_confirm}}" class="btn-primary bar-btn" bindtap="onConfirmAll" disabled="{{acting}}">确认四项</button>
+      <button wx:if="{{paymentVisible && d.can_pay}}" class="btn-primary bar-btn" bindtap="goPay">立即支付 ¥{{d.total_yuan}}</button>
+      <button wx:if="{{d.can_start}}" class="btn-primary bar-btn" bindtap="onStart" disabled="{{acting}}">开始履约</button>
+      <button wx:if="{{d.can_complete}}" class="btn-primary bar-btn" bindtap="onComplete" disabled="{{acting}}">完成履约</button>
+      <button wx:if="{{d.can_tip}}" class="btn-ghost bar-btn" bindtap="onTip" disabled="{{acting}}">🎁 打赏耍伴</button>
+    </view>
+  </block>
+
+  <!-- 加载失败/空 -->
+  <view wx:if="{{!d && !loading}}" class="empty-state">
+    <view class="empty-icon">📭</view>
+    <view class="empty-text">订单加载失败</view>
+    <view class="empty-sub">下拉重试</view>
+  </view>
+</view>

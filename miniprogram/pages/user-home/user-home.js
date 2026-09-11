@@ -1,0 +1,89 @@
+const SCENE_MAP = {
+  W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴'
+};
+
+Page({
+  data: {
+    openid: '',
+    loading: true,
+    profile: null,
+    stats: { post_count: 0 },
+    posts: [],
+    postEmpty: false,
+    page: 1,
+    hasMore: true,
+    loadingMore: false
+  },
+
+  onLoad(opts) {
+    const oid = opts.openid || '';
+    if (!oid) {
+      wx.showToast({ title: '参数错误', icon: 'none' });
+      setTimeout(() => wx.navigateBack(), 1000);
+      return;
+    }
+    this.setData({ openid: oid });
+    this.loadHome();
+  },
+
+  loadHome() {
+    this.setData({ loading: true });
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'user_home', openid: this.data.openid }
+    }).then((res) => {
+      const r = res.result || {};
+      if (r.ok) {
+        const d = r.data;
+        const profile = d.profile || {};
+        const stats = d.stats || { post_count: 0 };
+        const posts = (d.posts || []).map((p) => {
+          return Object.assign(p, {
+            scene_name: SCENE_MAP[p.scene] || '',
+            hasCover: !!(p.cover && typeof p.cover === 'string' && p.cover.indexOf('cloud://') === 0),
+            hasTags: !!(p.tags && p.tags.length > 0),
+            likeText: p.like_count > 0 ? p.like_count + '' : '',
+            commentText: p.comment_count > 0 ? p.comment_count + '' : ''
+          });
+        });
+        this.setData({
+          loading: false,
+          profile: profile,
+          stats: stats,
+          posts: posts,
+          postEmpty: posts.length === 0,
+          hasMore: posts.length >= 15
+        });
+      } else {
+        this.setData({ loading: false });
+        if (r.code === 'home_user_gone') {
+          wx.showToast({ title: '该用户不存在或已注销', icon: 'none' });
+        } else {
+          wx.showToast({ title: r.msg || '加载失败', icon: 'none' });
+        }
+      }
+    }).catch(() => {
+      this.setData({ loading: false });
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
+  },
+
+  goDetail(e) {
+    const id = e.currentTarget.dataset.id;
+    if (id) wx.navigateTo({ url: '/pages/blog-detail/blog-detail?id=' + id });
+  },
+
+  previewImage(e) {
+    const url = e.currentTarget.dataset.url;
+    if (url) wx.previewImage({ urls: [url] });
+  },
+
+  onReachBottom() {
+    // 动态不分页, 一次15条, 暂不加载更多
+  },
+
+  onPullDownRefresh() {
+    this.loadHome();
+    setTimeout(() => wx.stopPullDownRefresh(), 1000);
+  }
+});

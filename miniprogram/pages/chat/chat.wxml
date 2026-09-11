@@ -1,1 +1,40 @@
-<view class="placeholder">消息</view>
+<!-- pages/chat/chat.wxml - 消息(会话列表) -->
+<view class="page">
+  <block wx:if="{{list.length > 0}}">
+    <view class="conv-card" wx:for="{{list}}" wx:key="conv_id" data-order-id="{{item.order_id}}" bindtap="openConv">
+      <view class="avatar">
+        <image wx:if="{{item.peer.avatar}}" src="{{item.peer.avatar}}" class="avatar-img" mode="aspectFill"></image>
+        <text wx:else class="avatar-text">{{item.avatar_text}}</text>
+      </view>
+      <view class="conv-main">
+        <view class="conv-top">
+          <view class="conv-name">
+            <text class="name">{{item.peer.nickname}}</text>
+            <text class="role-tag">{{item.role_label}}</text>
+            <text class="scene-tag">{{item.scene_name}}</text>
+          </view>
+          <text class="conv-time">{{item.time_str}}</text>
+        </view>
+        <view class="conv-bottom">
+          <text class="conv-last">{{item.last_text}}</text>
+          <view class="unread-badge" wx:if="{{item.unread > 0}}">{{item.unread > 99 ? '99+' : item.unread}}</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 加载态 -->
+  <view class="empty-state" wx:if="{{loading && list.length === 0}}">
+    <view class="state-spinner"></view>
+    <view class="empty-text">消息加载中…</view>
+  </view>
+
+  <!-- 空态: 引导下单后沟通 -->
+  <view class="empty-state" wx:elif="{{list.length === 0}}">
+    <view class="empty-icon">💬</view>
+    <view class="empty-text">下单后在这里沟通</view>
+    <view class="empty-sub">发布需求或接单成单后，与对方的消息沟通会显示在这里</view>
+    <button class="empty-btn" bindtap="goPublish">去发布需求</button>
+    <view class="empty-link" bindtap="goHall">我是耍伴，去接单广场 ›</view>
+  </view>
+</view>

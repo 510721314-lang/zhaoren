@@ -1,0 +1,69 @@
+<view class="page-privacy">
+  <view class="doc">
+    <view class="doc-title">找人帮忙 隐私政策</view>
+    <view class="doc-meta">版本号：MVP 测试版  更新日期：2026-09-01</view>
+    <view class="doc-tip">本政策说明「找人帮忙」如何收集、使用、存储和保护您的个人信息。使用本服务即视为您同意本政策全部内容。</view>
+
+    <!-- 1. 总则 -->
+    <view class="section">
+      <view class="sec-title">一、总则</view>
+      <view class="para">1.1 本平台严格遵循《个人信息保护法》《网络安全法》及微信小程序规范，在最小必要原则下处理您的个人信息。</view>
+      <view class="para">1.2 您在本平台产生的所有数据均存储于腾讯云开发环境（北京），仅本平台云函数有权限读取，未经您明确同意不会对外共享。</view>
+      <view class="para">1.3 本平台不会以任何方式获取、存储或传输您的微信支付密码、银行卡密码等敏感支付凭证。</view>
+    </view>
+
+    <!-- 2. 信息收集 -->
+    <view class="section">
+      <view class="sec-title">二、信息收集</view>
+      <view class="para">本平台仅在以下场景收集相应信息，均在功能使用时由您主动触发授权：</view>
+      <view class="para">2.1 <text class="tag">身份唯一标识</text> 微信 openid（用户首次进入小程序时自动获取，用于识别您的身份和关联订单）</view>
+      <view class="para">2.2 <text class="tag">联系信息</text> 手机号（通过微信 getPhoneNumber 能力获取，仅在您点击「手机号登录」「账号密码登录（校验用）」时触发）</view>
+      <view class="para">2.3 <text class="tag">地理信息</text> 当前位置（用于接单大厅距离排序、订单履约位置确认；仅在您发布需求或接单时触发 getLocation/chooseLocation）</view>
+      <view class="para">2.4 <text class="tag">紧急联系人</text> 姓名、手机号、关系（仅在耍伴入驻时要求填写，用于平台风控和 S0S 求助场景）</view>
+      <view class="para">2.5 <text class="tag">实名认证</text> 身份证号（耍伴入驻时必填，仅做格式校验和后台脱敏存储，不用于其他任何目的）</view>
+      <view class="para">2.6 <text class="tag">通讯内容</text> 文本消息（IM 聊天功能的正常业务数据，消息过期自动清理）</view>
+      <view class="para">2.7 <text class="tag">设备与日志</text> 基础设备信息、操作日志（用于平台安全审计和异常排查，定期清理）</view>
+    </view>
+
+    <!-- 3. 信息使用 -->
+    <view class="section">
+      <view class="sec-title">三、信息使用</view>
+      <view class="para">3.1 所有收集的信息仅用于：①身份识别与账号管理；②需求发布/匹配/履约流程；③支付/结算/信用分管理；④安全风控与异常事件响应；⑤客服与纠纷处理。</view>
+      <view class="para">3.2 本平台不会将您的信息用于广告投放、用户画像或第三方数据交易。</view>
+      <view class="para">3.3 紧急联系人信息仅在您触发 S0S 求助、或账号出现风控告警时，由平台管理员手动查看（查看记录记入 platform_event P0 级安全日志）。</view>
+    </view>
+
+    <!-- 4. 信息存储 -->
+    <view class="section">
+      <view class="sec-title">四、信息存储与保护</view>
+      <view class="para">4.1 核心敏感字段（手机号、身份证号）在返回前端时会自动脱敏（手机号 138****1234、身份证号 5101**********1234），前端不保留明文。</view>
+      <view class="para">4.2 账号密码采用 SHA256 + 随机 salt 存储，本平台技术团队也无法还原明文。</view>
+      <view class="para">4.3 您的 openid 作为身份唯一标识，在账号注销后会被用于历史订单追溯（不影响您的注销权）。</view>
+      <view class="para">4.4 本平台采取腾讯云开发自带的访问控制规则（DB read/write 规则 + 云函数 RBAC），确保数据不被未授权方读取。</view>
+    </view>
+
+    <!-- 5. 用户权利 -->
+    <view class="section">
+      <view class="sec-title">五、您的权利</view>
+      <view class="para">5.1 您可随时在「我的」页面查看并修改昵称、头像、手机号绑定等个人信息。</view>
+      <view class="para">5.2 您可随时申请注销账号：注销后个人信息自动匿名化（nickname → 已注销用户、phone/idcard/avatar 清空），所有订单记录保留但无法关联到具体用户。</view>
+      <view class="para">5.3 您可随时在耍伴身份和普通用户之间切换（切换不影响数据）。</view>
+      <view class="para">5.4 如对您的信息处理有疑问，可通过「我的→联系客服」提交申诉，本平台将在 7 个工作日内回复。</view>
+    </view>
+
+    <!-- 6. 免责 -->
+    <view class="section">
+      <view class="sec-title">六、免责与限制</view>
+      <view class="para">6.1 本平台 MVP 测试版不涉及真实资金，所有支付能力仅为演示用途，不产生真实交易行为。</view>
+      <view class="para">6.2 因黑客攻击、系统漏洞、不可抗力等非平台可控原因导致的数据泄露，本平台将依法配合处置但不承担额外责任。</view>
+    </view>
+
+    <!-- 7. 联系方式 -->
+    <view class="section">
+      <view class="sec-title">七、联系方式</view>
+      <view class="para">如对本政策有任何疑问或意见，可通过小程序「我的→联系客服」提交反馈，或发送邮件至 support@zhaoren-mvp.test。</view>
+    </view>
+
+    <view class="doc-bottom">继续使用本服务即视为您已阅读并同意以上全部条款。</view>
+  </view>
+</view>

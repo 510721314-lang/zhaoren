@@ -47,9 +47,29 @@ const SYSTEM_TEMPLATES = [
   { id: 't8', text: '好的马上到' }
 ];
 
+// 服务动态话题白名单(MVP · 预设话题, 不支持自由输入; name 必须与 blog-action 云函数 TOPIC_WHITELIST 完全一致)
+const BLOG_TOPICS = [
+  { name: '陪诊日常', icon: '🏥' },
+  { name: '学习陪伴', icon: '📚' },
+  { name: '生活协助', icon: '🛠️' },
+  { name: '出行陪伴', icon: '🚗' },
+  { name: '线上陪伴', icon: '💬' },
+  { name: '服务心得', icon: '💡' },
+  { name: '暖心瞬间', icon: '💛' }
+];
+
+// AA 档位值转中文文案(兼容旧数据直接存中文文案的情况)
+function aaTierLabel(tier) {
+  if (!tier) return '';
+  const hit = AA_TIERS.find((t) => t.value === tier);
+  return hit ? hit.label : tier;
+}
+
 module.exports = {
   ORDER_STATUS,
   SCENE_LIST,
+  BLOG_TOPICS,
   AA_TIERS,
-  SYSTEM_TEMPLATES
+  SYSTEM_TEMPLATES,
+  aaTierLabel
 };

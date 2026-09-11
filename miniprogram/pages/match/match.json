@@ -1,1 +1,5 @@
-{ "navigationBarTitleText": "匹配", "usingComponents": {} }
+{
+  "navigationBarTitleText": "匹配耍伴",
+  "enablePullDownRefresh": true,
+  "usingComponents": {}
+}

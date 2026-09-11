@@ -13,6 +13,13 @@ page {
   --bg-page: #F5F5F5;
   --bg-card: #FFFFFF;
   --border: #E5E7EB;
+  /* 间距体系 */
+  --gap-xs: 8rpx;
+  --gap-sm: 16rpx;
+  --gap-md: 24rpx;
+  --gap-lg: 32rpx;
+  /* 过渡 */
+  --transition: 0.2s ease;
   background: var(--bg-page);
   color: var(--text-1);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
@@ -27,10 +34,10 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
 /* 卡片 */
 .card {
   background: var(--bg-card);
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+  border-radius: 20rpx;
+  padding: var(--gap-md);
+  margin-bottom: var(--gap-md);
+  box-shadow: 0 4rpx 24rpx rgba(0,0,0,0.06);
 }
 
 /* 主按钮 */
@@ -42,8 +49,10 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
   border-radius: 12rpx;
   font-size: 30rpx;
   text-align: center;
+  transition: var(--transition);
 }
 .btn-primary::after { border: none; }
+.btn-primary:active { transform: scale(0.97); opacity: 0.9; }
 .btn-primary[disabled] { background: #E8C9B0; color: #fff; }
 
 /* 幽灵按钮 */
@@ -55,8 +64,24 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
   border-radius: 12rpx;
   font-size: 30rpx;
   text-align: center;
+  transition: var(--transition);
 }
 .btn-ghost::after { border: none; }
+.btn-ghost:active { transform: scale(0.97); background: rgba(212,135,90,0.06); }
+
+/* 危险按钮 */
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 20rpx 40rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  text-align: center;
+  transition: var(--transition);
+}
+.btn-danger::after { border: none; }
+.btn-danger:active { transform: scale(0.97); opacity: 0.9; }
 
 /* 状态标签基础类 */
 .tag {
@@ -71,6 +96,14 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
 .tag-warn { background: #F5E6D2; color: var(--warning); }
 .tag-danger { background: #F5DAD5; color: var(--danger); }
 
+/* 迷你按钮(卡片内小操作) */
+.mini-btn {
+  font-size: 24rpx; color: var(--primary);
+  padding: 8rpx 24rpx; border-radius: 999rpx;
+  background: #FBF1E9; transition: var(--transition);
+}
+.mini-btn:active { transform: scale(0.95); opacity: 0.85; }
+
 /* 通用文本 */
 .title-lg { font-size: 40rpx; font-weight: 600; color: var(--text-1); }
 .title-md { font-size: 32rpx; font-weight: 600; color: var(--text-1); }
@@ -83,3 +116,54 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
 .flex-center { display: flex; justify-content: center; align-items: center; }
 .btn-block { display: block; width: 100%; }
 .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 20rpx); }
+
+/* ═══════ 骨架屏(shimmer 动画, 替代文字"加载中") ═══════ */
+@keyframes skeleton-shimmer {
+  0% { background-position: -468rpx 0; }
+  100% { background-position: 468rpx 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #F0F0F0 25%, #F8F8F8 50%, #F0F0F0 75%);
+  background-size: 936rpx 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: 8rpx;
+}
+/* 骨架块形状 */
+.sk-line { height: 28rpx; margin-bottom: 12rpx; }
+.sk-line-sm { height: 22rpx; width: 60%; margin-bottom: 12rpx; }
+.sk-circle { width: 80rpx; height: 80rpx; border-radius: 50%; flex-shrink: 0; }
+.sk-card { height: 200rpx; margin-bottom: 24rpx; border-radius: 20rpx; }
+.sk-row { display: flex; align-items: center; margin-bottom: 24rpx; }
+
+/* ═══════ 统一空状态(各页复用, 删冗余) ═══════ */
+.empty-state {
+  text-align: center;
+  padding: 120rpx 48rpx;
+}
+.empty-icon {
+  font-size: 80rpx;
+  margin-bottom: 24rpx;
+  opacity: 0.6;
+}
+.empty-text {
+  font-size: 28rpx;
+  color: var(--text-2);
+}
+.empty-sub {
+  font-size: 24rpx;
+  color: var(--text-3);
+  margin-top: 12rpx;
+  line-height: 1.6;
+}
+.empty-btn {
+  margin-top: 32rpx;
+  display: inline-block;
+}
+
+/* ═══════ 统一加载提示 ═══════ */
+.loading-tip {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 26rpx;
+  padding: 80rpx 0;
+}

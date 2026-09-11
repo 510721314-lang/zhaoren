@@ -1,4 +1,19 @@
 <view class="page-mine">
+  <!-- ═══════ 未登录态 ═══════ -->
+  <view wx:if="{{!isLoggedIn}}" class="guest-box">
+    <view class="guest-icon">👤</view>
+    <view class="guest-title">登录后体验完整功能</view>
+    <view class="guest-sub">登录即可发布需求、申请成为耍伴、查看信用分与订单</view>
+    <button class="btn-primary btn-block guest-btn" bindtap="onLoginTap">微信一键登录</button>
+    <button class="btn-ghost btn-block guest-btn" bindtap="onPhoneLogin">手机号登录 / 注册</button>
+    <button class="btn-ghost btn-block guest-btn" bindtap="onPasswordLogin">账号密码登录 / 注册</button>
+    <view class="guest-agree">登录即代表同意
+      <text class="guest-link" bindtap="toAgreement" data-type="user">《用户协议》</text>与
+      <text class="guest-link" bindtap="toAgreement" data-type="privacy">《隐私政策》</text>
+    </view>
+  </view>
+
+  <block wx:if="{{isLoggedIn}}">
   <!-- 头部:头像+昵称+信用分 -->
   <view class="header">
     <view class="avatar-wrap">
@@ -10,34 +25,90 @@
     <view class="user-meta">
       <view class="nickname-row">
         <text class="nickname">{{user.nickname || '微信用户'}}</text>
+        <text class="active-badge">{{activeRole === 'partner' ? '🤝 当前：耍伴' : '👤 当前：发单人'}}</text>
       </view>
       <view class="role-row">
-        <text class="role-tag">C端用户</text>
-        <text wx:if="{{user.is_realname_done}}" class="tag tag-success">已实名</text>
+        <text class="role-tag {{activeRole === 'user' ? 'role-tag-on' : ''}}">C端用户</text>
+        <text wx:if="{{isPartner}}" class="role-tag role-tag-partner {{activeRole === 'partner' ? 'role-tag-on' : ''}}">耍伴</text>
+        <text wx:if="{{user.is_realname_done}}" class="tag tag-success">🛡️ 已实名</text>
         <text wx:else class="tag tag-warn">未实名</text>
       </view>
       <view class="credit-row">
-        <view class="credit-item">
-          <text class="credit-num">{{userCredit}}</text>
+        <view class="credit-item {{activeRole === 'user' ? 'credit-item-on' : 'credit-item-off'}}">
+          <text class="credit-num {{userCreditCls}}">{{userCredit}}</text>
           <text class="credit-label">用户信用分</text>
         </view>
         <view class="credit-divider"></view>
-        <view class="credit-item">
-          <text class="credit-num">{{partnerCredit}}</text>
+        <view class="credit-item {{activeRole === 'partner' ? 'credit-item-on' : 'credit-item-off'}}">
+          <text class="credit-num {{partnerCreditCls}}">{{partnerCredit}}</text>
           <text class="credit-label">耍伴信用分</text>
         </view>
       </view>
     </view>
   </view>
 
-  <!-- 耍伴入口 -->
-  <view class="card partner-entry" bindtap="onPartnerTap">
-    <view class="partner-entry-icon">🤝</view>
-    <view class="partner-entry-text">
-      <view class="partner-entry-title">{{isPartner ? '耍伴中心' : '申请成为耍伴'}}</view>
-      <view class="partner-entry-desc">{{isPartner ? '查看接单统计与配置' : '提供专业陪伴服务,赚取收入'}}</view>
+  <!-- 身份切换: 发单人 / 耍伴(决定大厅与订单页呈现) -->
+  <view wx:if="{{isLoggedIn}}" class="card role-switch-card">
+    <view class="role-switch-title">当前身份 · 点击切换</view>
+    <view class="role-switch">
+      <view class="role-opt {{activeRole === 'user' ? 'role-opt-on' : ''}}"
+            bindtap="onRoleTap" data-role="user">
+        <view class="role-opt-icon">👤</view>
+        <view class="role-opt-name">发单人</view>
+        <view class="role-opt-desc">发布需求·找耍伴</view>
+      </view>
+      <view class="role-opt {{activeRole === 'partner' ? 'role-opt-on' : ''}}"
+            bindtap="onRoleTap" data-role="partner">
+        <view class="role-opt-icon">🤝</view>
+        <view class="role-opt-name">耍伴</view>
+        <view class="role-opt-desc">{{isPartner ? '接单赚钱' : '未开通 · 点此申请'}}</view>
+      </view>
     </view>
-    <view class="partner-entry-arrow">›</view>
+  </view>
+
+  <!-- 功能列表 -->
+  <view class="card menu-card">
+    <view class="menu-row" bindtap="onMenuTap" data-action="demands">
+      <text class="menu-icon">📋</text>
+      <text class="menu-label">我的需求</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-row" bindtap="onMenuTap" data-action="blog_my">
+      <text class="menu-icon">📷</text>
+      <view class="menu-text">
+        <view class="menu-label">我的动态</view>
+        <view class="menu-desc">发布与管理我的服务动态</view>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-row" bindtap="onMenuTap" data-action="partner">
+      <text class="menu-icon">🤝</text>
+      <view class="menu-text">
+        <view class="menu-label">{{isPartner ? '耍伴中心' : '申请成为耍伴'}}</view>
+        <view class="menu-desc">{{isPartner ? '查看接单统计与配置' : '提供专业陪伴服务,赚取收入'}}</view>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-row" bindtap="onMenuTap" data-action="contacts">
+      <text class="menu-icon">📞</text>
+      <text class="menu-label">紧急联系人</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-row" bindtap="onMenuTap" data-action="agreement" data-type="user">
+      <text class="menu-icon">📄</text>
+      <text class="menu-label">用户协议</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-row" bindtap="onMenuTap" data-action="privacy" data-type="privacy">
+      <text class="menu-icon">🔒</text>
+      <text class="menu-label">隐私政策</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-row" bindtap="onMenuTap" data-action="service">
+      <text class="menu-icon">🎧</text>
+      <text class="menu-label">联系客服</text>
+      <text class="menu-arrow">›</text>
+    </view>
   </view>
 
   <!-- 昵称与头像编辑 -->
@@ -74,8 +145,8 @@
     <button class="btn-ghost btn-block" bindtap="saveIdcard">保存身份证</button>
   </view>
 
-  <!-- 紧急联系人 -->
-  <view class="card">
+  <!-- 紧急联系人(功能菜单「紧急联系人」滚动定位到此处) -->
+  <view class="card" id="contact-card">
     <view class="title-md">紧急联系人</view>
     <view class="form-tip">1~2 名联系人,订单紧急求助时一键拨号。</view>
     <view class="form-row">
@@ -113,13 +184,23 @@
     <button class="btn-ghost btn-block" bindtap="saveContacts">保存联系人</button>
   </view>
 
-  <!-- 底部 -->
-  <view class="footer">
-    <view class="about-row" bindtap="onAboutTap">关于</view>
-    <view class="link-row">
-      <text class="link" bindtap="toAgreement" data-type="user">用户协议</text>
-      <text class="link" bindtap="toAgreement" data-type="privacy">隐私政策</text>
+  <!-- 账号管理: 退出登录 / 注销账号 -->
+  <view class="card menu-card account-card">
+    <view class="menu-row" bindtap="onLogout">
+      <text class="menu-icon">🚪</text>
+      <text class="menu-label">退出登录</text>
+      <text class="menu-arrow">›</text>
     </view>
-    <view class="version">版本 {{version}}</view>
+    <view class="menu-row" bindtap="onCloseAccount">
+      <text class="menu-icon">⚠️</text>
+      <text class="menu-label menu-danger">注销账号</text>
+      <text class="menu-arrow">›</text>
+    </view>
   </view>
+
+  <!-- 底部: 版本号(连续点击 5 次进入管理员入口) -->
+  <view class="footer">
+    <view class="version" bindtap="onVersionTap">版本 {{version}}</view>
+  </view>
+  </block>
 </view>

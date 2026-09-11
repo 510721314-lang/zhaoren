@@ -1,4 +1,57 @@
-<view class="container">
-  <view class="title-lg">{{title}}</view>
-  <view class="content">{{content}}</view>
+<view class="page-agreement">
+  <view class="doc">
+    <view class="doc-title">找人帮忙 用户服务协议</view>
+    <view class="doc-meta">版本号：MVP 测试版  更新日期：2026-09-01</view>
+    <view class="doc-tip">欢迎使用「找人帮忙」小程序。在使用本服务前，请仔细阅读本协议。一旦点击「同意」，即视为您已充分理解并接受本协议全部内容。</view>
+
+    <!-- 1. 总则 -->
+    <view class="section">
+      <view class="sec-title">一、总则</view>
+      <view class="para">1.1 「找人帮忙」（以下简称「本平台」）是一款基于微信小程序的生活协助服务撮合平台，为用户提供需求发布、服务匹配、线上沟通、履约确认、评价等全流程服务。</view>
+      <view class="para">1.2 本平台上的「发单人」（发布需求方）与「耍伴」（提供服务方）均为自然人，双方之间的服务关系由其自行协商、自行承担，本平台仅提供信息撮合及交易流程管理，不承担服务结果的担保责任。</view>
+      <view class="para">1.3 本协议适用于所有使用本平台服务的注册用户。未成年人禁止使用本平台进行任何交易类操作。</view>
+    </view>
+
+    <!-- 2. 服务内容 -->
+    <view class="section">
+      <view class="sec-title">二、服务内容</view>
+      <view class="para">2.1 本平台当前开放以下服务场景：就医陪诊、学习陪伴、生活协助、出行陪伴、线上陪伴。具体场景及子项以小程序内实际展示为准。</view>
+      <view class="para">2.2 本平台 MVP 测试版提供的支付能力为「模拟支付」，仅用于演示交易流程，不产生真实资金划转。正式上线前本平台会另行通知，并以真实支付渠道替换。</view>
+      <view class="para">2.3 本平台保留随时调整、暂停或终止某项服务的权利，且不承担因此产生的任何责任。</view>
+    </view>
+
+    <!-- 3. 用户行为规范 -->
+    <view class="section">
+      <view class="sec-title">三、用户行为规范</view>
+      <view class="para">3.1 您发布的所有需求描述、沟通内容不得包含以下内容：①违反宪法或法律法规；②危及国家安全、泄露国家秘密；③侵犯他人合法权益；④虚假、欺诈、低俗、暴力信息；⑤敏感词库中拦截的内容（如「加微信」「加V」「转账」「私聊我」等）。</view>
+      <view class="para">3.2 禁止通过本平台撮合任何违法违规交易，包括但不限于代挂号诈骗、网络刷单、黄色交易等。</view>
+      <view class="para">3.3 禁止引导对方脱离本平台进行私下交易，本平台对私下交易不提供任何保障。</view>
+      <view class="para">3.4 发布虚假需求、恶意下单、恶意评价等扰乱平台秩序的行为将被记入信用分并可能被冻结或封禁账号。</view>
+    </view>
+
+    <!-- 4. 交易规则 -->
+    <view class="section">
+      <view class="sec-title">四、交易规则</view>
+      <view class="para">4.1 耍伴在接单前需通过本平台实名认证、提交紧急联系人信息，并经平台审核通过。</view>
+      <view class="para">4.2 订单状态流转以平台规则为准：四确认（时间/地点/内容/费用 × 双方）全部勾选后方可进入支付环节；支付后进入履约；履约完成后双方互评。</view>
+      <view class="para">4.3 任何一方超过超时阈值未操作将被自动处理（如待确认 15 分钟自动取消、待支付 30 分钟自动关闭、中断 24 小时默认部分完成、完成后 48 小时未评价默认 4 星评价）。</view>
+      <view class="para">4.4 MVP 测试版不涉及真实资金，所有金额字段仅作为服务记录参考。</view>
+    </view>
+
+    <!-- 5. 免责与承诺 -->
+    <view class="section">
+      <view class="sec-title">五、免责与承诺</view>
+      <view class="para">5.1 本平台仅为信息撮合方，不对交易结果、服务质量、人身及财产安全承担担保责任。</view>
+      <view class="para">5.2 因不可抗力（如疫情、自然灾害、政策变化、网络故障等）导致的服务中断，本平台不承担责任。</view>
+      <view class="para">5.3 用户通过本平台获得的联系方式、地理位置等敏感信息仅可用于本次交易，禁止保存、传播或用于其他目的。</view>
+    </view>
+
+    <!-- 6. 联系方式 -->
+    <view class="section">
+      <view class="sec-title">六、联系方式</view>
+      <view class="para">如对本协议有任何疑问或意见，可通过小程序「我的→联系客服」提交反馈，或发送邮件至 support@zhaoren-mvp.test。</view>
+    </view>
+
+    <view class="doc-bottom">继续使用本服务即视为您已阅读并同意以上全部条款。</view>
+  </view>
 </view>

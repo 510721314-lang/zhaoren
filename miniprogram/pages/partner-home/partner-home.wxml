@@ -1,0 +1,95 @@
+<view class="page-home">
+  <view wx:if="{{loading}}">
+    <view class="sk-row" style="padding:36rpx 28rpx;">
+      <view class="skeleton sk-circle" style="width:110rpx;height:110rpx;"></view>
+      <view style="flex:1; margin-left:24rpx;">
+        <view class="skeleton sk-line"></view>
+        <view class="skeleton sk-line-sm"></view>
+      </view>
+    </view>
+    <view class="skeleton sk-card"></view>
+    <view class="skeleton sk-card"></view>
+  </view>
+
+  <block wx:elif="{{profile}}">
+    <!-- 资料卡 -->
+    <view class="profile-card">
+      <image wx:if="{{profile.hasAvatar}}" class="p-avatar" src="{{profile.avatar}}" mode="aspectFill" />
+      <view wx:else class="p-avatar p-avatar-default">👤</view>
+      <view class="p-mid">
+        <view class="p-name-row">
+          <text class="p-name">{{profile.nickname}}</text>
+          <text wx:if="{{profile.isPartner}}" class="partner-badge">认证耍伴</text>
+        </view>
+        <view class="p-city" wx:if="{{cityText}}">📍 {{cityText}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{profile.abnormal}}" class="abnormal-tip">该账号当前状态异常，请注意甄别</view>
+
+    <!-- 统计 -->
+    <view class="stat-card">
+      <view class="stat-item">
+        <view class="stat-icon">📋</view>
+        <view class="stat-num">{{stats.totalOrders}}</view>
+        <view class="stat-label">接单</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-icon">✅</view>
+        <view class="stat-num">{{stats.doneOrders}}</view>
+        <view class="stat-label">完单</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-icon">⭐</view>
+        <view class="stat-num">{{stats.starText}}</view>
+        <view class="stat-label">评分({{stats.evalCount}})</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-icon">🛡️</view>
+        <view class="stat-num">{{profile.creditScore}}</view>
+        <view class="stat-label">信用分</view>
+      </view>
+    </view>
+
+    <!-- 服务场景 -->
+    <view wx:if="{{sceneNames.length}}" class="card scene-card">
+      <view class="block-label">提供服务</view>
+      <view class="scene-tags">
+        <text wx:for="{{sceneNames}}" wx:key="*this" class="scene-tag">{{item}}</text>
+      </view>
+    </view>
+
+    <!-- TA 的动态 -->
+    <view class="block-label posts-label">TA 的动态 · {{stats.postCount}}</view>
+
+    <view wx:if="{{postEmpty}}" class="empty-state">
+      <view class="empty-icon">📭</view>
+      <view class="empty-text">还没有发布动态</view>
+    </view>
+
+    <view wx:for="{{posts}}" wx:key="_id" class="post-card" bindtap="goDetail" data-id="{{item._id}}">
+      <view class="post-content">{{item.content}}</view>
+      <view wx:if="{{item.hasTags}}" class="tag-row">
+        <text wx:for="{{item.tags}}" wx:for-item="tg" wx:key="*this" class="topic-tag">#{{tg}}</text>
+      </view>
+      <view wx:if="{{item.single}}" class="img-single-wrap">
+        <image class="img-single" src="{{item.images[0]}}" mode="widthFix"
+               catchtap="previewImage" data-current="{{item.images[0]}}" data-urls="{{item.images}}" />
+      </view>
+      <view wx:elif="{{item.multi}}" class="img-grid img-grid-{{item.imgCount>=3 ? 3 : 2}}">
+        <image wx:for="{{item.images}}" wx:for-item="img" wx:for-index="ii" wx:key="ii"
+               class="grid-img" src="{{img}}" mode="aspectFill"
+               catchtap="previewImage" data-current="{{img}}" data-urls="{{item.images}}" />
+      </view>
+      <view class="post-foot">
+        <text class="foot-item">{{item.timeText}}</text>
+        <text class="foot-item">♡ {{item.likeCount}}</text>
+        <text class="foot-item">💬 {{item.commentCount}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{hasMore}}" class="load-more" catchtap="loadPosts">{{loadingMore ? '加载中…' : '加载更多'}}</view>
+  </block>
+
+  <view wx:else class="loading-tip">用户不存在或已注销</view>
+</view>

@@ -1,1 +1,653 @@
-<view class="placeholder">管理后台</view>
+<!-- pages/admin/admin.wxml - 管理后台 V2(九模块) -->
+<view class="page-admin">
+
+  <!-- 启动: 加载中 -->
+  <view wx:if="{{bootState === 'loading'}}" class="state-box">
+    <view class="spinner"></view>
+    <view class="state-text">正在校验身份…</view>
+  </view>
+
+  <!-- 无权限 -->
+  <view wx:elif="{{bootState === 'forbidden'}}" class="state-box">
+    <view class="state-icon">🚫</view>
+    <view class="state-title">无权限</view>
+    <view class="state-text">该后台仅对管理员开放，本次访问已被安全记录。</view>
+  </view>
+
+  <!-- 白名单为空: 首个管理员自助初始化 -->
+  <view wx:elif="{{bootState === 'empty'}}" class="state-box">
+    <view class="state-icon">🔧</view>
+    <view class="state-title">后台尚未初始化</view>
+    <view class="state-text">当前为首次使用，可将当前微信账号初始化为管理员（仅此一次）。</view>
+    <button class="btn-primary state-btn" bindtap="claimAdmin">初始化管理员</button>
+  </view>
+
+  <block wx:else>
+    <!-- ───────── 顶部 Tab 条 ───────── -->
+    <scroll-view scroll-x="true" class="tab-bar" enhanced="true" show-scrollbar="{{false}}">
+      <view wx:for="{{tabs}}" wx:key="key"
+            class="tab-item {{item.cls}}"
+            data-key="{{item.key}}"
+            bindtap="switchTab">
+        {{item.name}}
+        <text wx:if="{{item.badge}}" class="tab-badge">{{item.badge}}</text>
+      </view>
+    </scroll-view>
+
+    <!-- ═══════════ ① 数据看板 ═══════════ -->
+    <block wx:if="{{activeTab === 'dash'}}">
+      <view class="card dash-refresh" bindtap="loadDash">
+        <text class="section-title-inline">数据看板</text>
+        <text class="refresh-link">🔄 刷新</text>
+      </view>
+
+      <view class="stat-grid">
+        <view class="stat-item"><view class="stat-num">{{dash.user_count}}</view><view class="stat-label">用户数</view></view>
+        <view class="stat-item"><view class="stat-num">{{dash.partner_count}}</view><view class="stat-label">耍伴数</view></view>
+        <view class="stat-item"><view class="stat-num">{{dash.today_demand_count}}</view><view class="stat-label">今日新需求</view></view>
+        <view class="stat-item"><view class="stat-num">{{dash.active_order_count}}</view><view class="stat-label">进行中订单</view></view>
+        <view class="stat-item stat-warn"><view class="stat-num">{{dash.pending_review_count}}</view><view class="stat-label">待审核耍伴</view></view>
+        <view class="stat-item stat-danger"><view class="stat-num">{{dash.dispute_count}}</view><view class="stat-label">争议中订单</view></view>
+        <view class="stat-item stat-wide"><view class="stat-num">¥{{dash.gmvText}}</view><view class="stat-label">累计模拟交易额</view></view>
+      </view>
+
+      <!-- 待办角标 -->
+      <view class="card todo-card">
+        <view class="todo-title">⚠️ 待办事项</view>
+        <view class="todo-line">待审核耍伴 <text class="todo-num">{{dash.todo.pending_review}}</text> 件</view>
+        <view class="todo-line">未决争议 <text class="todo-num todo-danger">{{dash.todo.dispute}}</text> 件</view>
+        <view class="todo-line">进行中安全求助 <text class="todo-num todo-danger">{{dash.todo.report_active}}</text> 件</view>
+        <view class="todo-line">超时未支付订单 <text class="todo-num">{{dash.todo.pay_expired}}</text> 件</view>
+      </view>
+
+      <!-- 7 天趋势 -->
+      <view class="section-title">近 7 天趋势（GMV 柱图，单位: 元）</view>
+      <view class="card trend-card">
+        <view class="trend-row">
+          <view wx:for="{{trendRows}}" wx:key="label" class="trend-col">
+            <view class="trend-bar-wrap">
+              <view class="trend-bar" style="height: {{item.barH}}%"></view>
+            </view>
+            <view class="trend-gmv">¥{{item.gmvText}}</view>
+            <view class="trend-label">{{item.label}}</view>
+          </view>
+        </view>
+        <view class="trend-meta" wx:for="{{trendRows}}" wx:key="label" wx:for-item="t">
+          <text class="trend-day">{{t.label}}</text>
+          <text>新增用户 {{t.users}}</text>
+          <text>需求 {{t.demands}}</text>
+          <text>订单 {{t.orders}}</text>
+        </view>
+      </view>
+
+      <!-- 财务汇总 -->
+      <view class="section-title">财务汇总（模拟）</view>
+      <view class="card fin-card">
+        <view class="fin-line"><text>累计支付 GMV</text><text class="fin-val">¥{{dash.finGmvText}}</text></view>
+        <view class="fin-line"><text>累计退款</text><text class="fin-val fin-danger">-¥{{dash.finRefundText}}</text></view>
+        <view class="fin-line"><text>累计打赏</text><text class="fin-val">¥{{dash.finTipText}}</text></view>
+        <view class="fin-line"><text>平台抽成收入</text><text class="fin-val">¥{{dash.finFeeText}}</text></view>
+      </view>
+    </block>
+
+    <!-- ═══════════ ② 用户管理 ═══════════ -->
+    <block wx:elif="{{activeTab === 'user'}}">
+      <view class="section-title">用户管理（共 {{userTotal}} 人）</view>
+      <view class="card filter-card">
+        <input class="adm-input" placeholder="昵称关键词 / openid（可留空）" value="{{userKw}}" bindinput="onUserKwInput" />
+        <picker mode="selector" range="{{userStatusOpts}}" range-key="name" value="{{userStatusIdx}}" bindchange="onUserStatusChange">
+          <view class="picker-line">状态：{{userStatusOpts[userStatusIdx].name}} ›</view>
+        </picker>
+        <picker mode="selector" range="{{userPartnerOpts}}" range-key="name" value="{{userPartnerIdx}}" bindchange="onUserPartnerChange">
+          <view class="picker-line">身份：{{userPartnerOpts[userPartnerIdx].name}} ›</view>
+        </picker>
+        <picker mode="selector" range="{{userSortOpts}}" range-key="name" value="{{userSortIdx}}" bindchange="onUserSortChange">
+          <view class="picker-line">排序：{{userSortOpts[userSortIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchUsers">查询用户</button>
+      </view>
+
+      <view class="card list-card" wx:for="{{users}}" wx:key="openid">
+        <view class="list-head">
+          <text class="list-name">{{item.nickname}}</text>
+          <text class="tag {{item.creditTagCls}}">信用 {{item.user_credit_score}}</text>
+          <text class="tag tag-primary" wx:if="{{item.isPartner}}">耍伴</text>
+          <text class="tag {{item.statusTagCls}}" wx:if="{{!item.isNormal}}">{{item.statusText}}</text>
+        </view>
+        <view class="list-line">{{item.realText}} · {{item.openidShort}}</view>
+        <view class="list-line list-sub">注册 {{item.createdText}}</view>
+        <view class="list-actions">
+          <button class="btn-ghost mini-btn" data-openid="{{item.openid}}" bindtap="openUserDetail">详情/处置</button>
+        </view>
+      </view>
+      <view class="card" wx:if="{{users.length === 0}}"><view class="empty-line">暂无用户数据</view></view>
+      <button wx:if="{{userHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadUsers">{{userLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ③ 耍伴管理 ═══════════ -->
+    <block wx:elif="{{activeTab === 'partner'}}">
+      <view class="section-title">耍伴管理（共 {{partnerTotal}} 人）</view>
+      <view class="card filter-card">
+        <picker mode="selector" range="{{partnerStatusOpts}}" range-key="name" value="{{partnerStatusIdx}}" bindchange="onPartnerStatusChange">
+          <view class="picker-line">审核状态：{{partnerStatusOpts[partnerStatusIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchPartners">查询耍伴</button>
+      </view>
+
+      <view class="card list-card" wx:for="{{partners}}" wx:key="openid">
+        <view class="list-head">
+          <text class="list-name">{{item.nickname}}</text>
+          <text class="tag {{item.isApproved ? 'tag-success' : (item.isPending ? 'tag-warn' : 'tag-danger')}}">{{item.statusText}}</text>
+          <text class="tag tag-primary" wx:if="{{item.isApproved}}">{{item.onlineText}}</text>
+        </view>
+        <view class="list-line">场景：{{item.scenesText}}</view>
+        <view class="list-line list-sub">发单信用 {{item.userCredit}} · 申请 {{item.appliedText}} · {{item.openidShort}}</view>
+        <view class="list-actions">
+          <button class="btn-ghost mini-btn" data-openid="{{item.openid}}" bindtap="openPartnerDetail">详情</button>
+          <button wx:if="{{item.isPending}}" class="btn-primary mini-btn" data-openid="{{item.openid}}" data-nickname="{{item.nickname}}" data-decision="approve" bindtap="onReview">通过</button>
+          <button wx:if="{{item.isPending}}" class="btn-danger mini-btn" data-openid="{{item.openid}}" data-nickname="{{item.nickname}}" data-decision="reject" bindtap="onReview">驳回</button>
+          <button wx:if="{{item.isApproved && item.accept_switch}}" class="btn-warn mini-btn" data-openid="{{item.openid}}" data-nickname="{{item.nickname}}" data-online="0" bindtap="onPartnerSwitch">停止接单</button>
+          <button wx:if="{{item.isApproved && !item.accept_switch}}" class="btn-primary mini-btn" data-openid="{{item.openid}}" data-nickname="{{item.nickname}}" data-online="1" bindtap="onPartnerSwitch">恢复接单</button>
+        </view>
+      </view>
+      <view class="card" wx:if="{{partners.length === 0}}"><view class="empty-line">暂无耍伴数据</view></view>
+      <button wx:if="{{partnerHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadPartners">{{partnerLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ④ 需求管理 ═══════════ -->
+    <block wx:elif="{{activeTab === 'demand'}}">
+      <view class="section-title">需求管理（共 {{demandTotal}} 条）</view>
+      <view class="card filter-card">
+        <input class="adm-input" placeholder="需求号 / 需求ID / 发单人 openid（可留空）" value="{{demandKw}}" bindinput="onDemandKwInput" />
+        <picker mode="selector" range="{{demandSceneOpts}}" range-key="name" value="{{demandSceneIdx}}" bindchange="onDemandSceneChange">
+          <view class="picker-line">场景：{{demandSceneOpts[demandSceneIdx].name}} ›</view>
+        </picker>
+        <picker mode="selector" range="{{demandStatusOpts}}" range-key="name" value="{{demandStatusIdx}}" bindchange="onDemandStatusChange">
+          <view class="picker-line">状态：{{demandStatusOpts[demandStatusIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchDemands">查询需求</button>
+      </view>
+
+      <view class="card list-card" wx:for="{{demands}}" wx:key="demand_id">
+        <view class="list-head">
+          <text class="list-name">{{item.demand_no}}</text>
+          <text class="tag {{item.isMatching ? 'tag-warn' : 'tag-primary'}}">{{item.statusText}}</text>
+        </view>
+        <view class="list-line">{{item.sceneText}} · {{item.optionsText}}</view>
+        <view class="list-line">{{item.location_name}} · {{item.timeText}} · {{item.duration_h}}h</view>
+        <view class="list-line">时薪 ¥{{item.rateText}} · 合计 ¥{{item.totalText}} · {{item.modeText}}</view>
+        <view class="list-line list-sub">发单人 {{item.creatorName}}（{{item.creatorShort}}）· 发布 {{item.createdText}}</view>
+        <view class="list-actions">
+          <button wx:if="{{item.isMatching}}" class="btn-danger mini-btn" data-id="{{item.demand_id}}" data-no="{{item.demand_no}}" bindtap="onDemandOffline">强制下架</button>
+        </view>
+      </view>
+      <view class="card" wx:if="{{demands.length === 0}}"><view class="empty-line">暂无需求数据</view></view>
+      <button wx:if="{{demandHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadDemands">{{demandLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ⑤ 订单管理（含争议处置） ═══════════ -->
+    <block wx:elif="{{activeTab === 'order'}}">
+      <view class="section-title">争议处置（S10/S10.5 共 {{disputes.length}} 单）</view>
+      <view class="card" wx:if="{{disputes.length === 0}}"><view class="empty-line">暂无争议订单</view></view>
+      <view class="card list-card" wx:for="{{disputes}}" wx:key="order_id">
+        <view class="list-head">
+          <text class="list-name">{{item.order_no}}</text>
+          <text class="tag tag-danger">{{item.statusText}}</text>
+        </view>
+        <view class="list-line">{{item.sceneText}} · ¥{{item.totalText}} · 更新 {{item.updatedText}}</view>
+        <view class="list-line list-sub" wx:if="{{item.dispute_reason}}">争议原因：{{item.dispute_reason}}</view>
+        <view class="list-actions">
+          <button class="btn-ghost mini-btn" data-id="{{item.order_id}}" bindtap="openOrderDetail">订单详情</button>
+          <button wx:if="{{item.status === 'S10'}}" class="btn-warn mini-btn" data-id="{{item.order_id}}" data-no="{{item.order_no}}" data-decision="open" bindtap="onDispute">登记争议</button>
+          <button wx:if="{{item.status === 'S10.5'}}" class="btn-danger mini-btn" data-id="{{item.order_id}}" data-no="{{item.order_no}}" data-decision="refund" bindtap="onDispute">裁决退款</button>
+          <button wx:if="{{item.status === 'S10.5'}}" class="btn-primary mini-btn" data-id="{{item.order_id}}" data-no="{{item.order_no}}" data-decision="complete" bindtap="onDispute">裁决完成</button>
+        </view>
+      </view>
+
+      <view class="section-title">订单查询（共 {{orderTotal}} 单）</view>
+      <view class="card filter-card">
+        <input class="adm-input" placeholder="订单号 / 订单ID / openid / 需求ID（可留空）" value="{{orderKw}}" bindinput="onOrderKwInput" />
+        <picker mode="selector" range="{{orderStatusOpts}}" range-key="name" value="{{orderStatusIdx}}" bindchange="onOrderStatusChange">
+          <view class="picker-line">状态：{{orderStatusOpts[orderStatusIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchOrders">查询订单</button>
+      </view>
+
+      <view class="card list-card" wx:for="{{orders}}" wx:key="order_id">
+        <view class="list-head">
+          <text class="list-name">{{item.order_no}}</text>
+          <text class="tag st-tag {{item.statusCls}}">{{item.statusText}}</text>
+        </view>
+        <view class="list-line">{{item.sceneText}} · ¥{{item.totalText}}<text wx:if="{{item.hasTip}}"> · 打赏 ¥{{item.tipText}}</text></view>
+        <view class="list-line list-sub">发单 {{item.userShort}} · 耍伴 {{item.partnerShort}} · {{item.createdText}}</view>
+        <view class="list-actions">
+          <button class="btn-ghost mini-btn" data-id="{{item.order_id}}" bindtap="openOrderDetail">详情</button>
+          <button wx:if="{{item.canCancel}}" class="btn-danger mini-btn" data-id="{{item.order_id}}" data-no="{{item.order_no}}" bindtap="onForceCancel">强制取消</button>
+        </view>
+      </view>
+      <view class="card" wx:if="{{orders.length === 0}}"><view class="empty-line">暂无订单数据，点上方「查询订单」加载</view></view>
+      <button wx:if="{{orderHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadOrders">{{orderLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ⑥ 财务流水 ═══════════ -->
+    <block wx:elif="{{activeTab === 'finance'}}">
+      <view class="section-title">财务流水（共 {{finTotal}} 笔，均为模拟支付）</view>
+      <view class="card filter-card">
+        <picker mode="selector" range="{{finTypeOpts}}" range-key="name" value="{{finTypeIdx}}" bindchange="onFinTypeChange">
+          <view class="picker-line">类型：{{finTypeOpts[finTypeIdx].name}} ›</view>
+        </picker>
+        <picker mode="selector" range="{{finStatusOpts}}" range-key="name" value="{{finStatusIdx}}" bindchange="onFinStatusChange">
+          <view class="picker-line">状态：{{finStatusOpts[finStatusIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchFinance">查询流水</button>
+      </view>
+
+      <view class="card list-card" wx:for="{{finances}}" wx:key="tx_id">
+        <view class="list-head">
+          <text class="list-name">{{item.typeText}}</text>
+          <text class="fin-amt {{item.amtCls}}">{{item.amtSign}}¥{{item.amountText}}</text>
+        </view>
+        <view class="list-line list-sub">单号 {{item.pay_no}}</view>
+        <view class="list-line list-sub">订单 {{item.order_no || item.orderShort}} · {{item.timeText}}</view>
+        <view class="list-line list-sub">发单 {{item.userShort}} · 耍伴 {{item.partnerShort}} · 抽成 ¥{{item.feeText}}</view>
+      </view>
+      <view class="card" wx:if="{{finances.length === 0}}"><view class="empty-line">暂无流水数据，点上方「查询流水」加载</view></view>
+      <button wx:if="{{finHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadFinance">{{finLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ⑦ 风控安全 ═══════════ -->
+    <block wx:elif="{{activeTab === 'risk'}}">
+      <view class="section-title">安全求助 / 报备</view>
+      <view class="card filter-card">
+        <picker mode="selector" range="{{reportStatusOpts}}" range-key="name" value="{{reportStatusIdx}}" bindchange="onReportStatusChange">
+          <view class="picker-line">状态：{{reportStatusOpts[reportStatusIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchReports">查询记录</button>
+      </view>
+      <view class="card list-card {{item.isSos ? 'sos-card' : ''}}" wx:for="{{reports}}" wx:key="report_id">
+        <view class="list-head">
+          <text class="list-name">{{item.typeText}}</text>
+          <text class="tag {{item.isActive ? 'tag-danger' : 'tag-success'}}">{{item.statusText}}</text>
+        </view>
+        <view class="list-line">订单 {{item.order_no || item.order_id}}</view>
+        <view class="list-line list-sub">{{item.roleText}} {{item.reporterShort}} · {{item.timeText}}</view>
+        <view class="list-line list-sub" wx:if="{{item.note}}">说明：{{item.note}}</view>
+        <view class="list-line list-sub" wx:if="{{item.resolve_note}}">处理：{{item.resolve_note}}（{{item.resolvedText}}）</view>
+        <view class="list-actions">
+          <button wx:if="{{item.isActive}}" class="btn-primary mini-btn" data-id="{{item.report_id}}" bindtap="onReportHandle">标记已解决</button>
+        </view>
+      </view>
+      <view class="card" wx:if="{{reports.length === 0}}"><view class="empty-line">暂无求助/报备记录</view></view>
+      <button wx:if="{{reportHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadReports">{{reportLoading ? '加载中…' : '加载更多'}}</button>
+
+      <view class="section-title">平台事件日志（P0-P3）</view>
+      <view class="card filter-card">
+        <picker mode="selector" range="{{eventLevelOpts}}" range-key="name" value="{{eventLevelIdx}}" bindchange="onEventLevelChange">
+          <view class="picker-line">级别：{{eventLevelOpts[eventLevelIdx].name}} ›</view>
+        </picker>
+        <button class="btn-primary btn-block" bindtap="searchEvents">查询事件</button>
+      </view>
+      <view class="card list-card" wx:for="{{events}}" wx:key="event_id">
+        <view class="list-head">
+          <text class="evt-level {{item.levelCls}}">{{item.level}}</text>
+          <text class="list-name">{{item.type}}</text>
+        </view>
+        <view class="list-line list-sub">{{item.openidShort}} · {{item.timeText}}</view>
+        <view class="list-line list-sub evt-payload">{{item.payloadText}}</view>
+      </view>
+      <view class="card" wx:if="{{events.length === 0}}"><view class="empty-line">暂无事件记录，点上方「查询事件」加载</view></view>
+      <button wx:if="{{eventHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadEvents">{{eventLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ⑦.5 服务动态 ═══════════ -->
+    <block wx:elif="{{activeTab === 'blog'}}">
+      <view class="section-title">服务动态管理（共 {{blogTotal}} 条）</view>
+      <view class="card filter-card">
+        <picker mode="selector" range="{{blogStatusOpts}}" range-key="name" value="{{blogStatusIdx}}" bindchange="onBlogStatusChange">
+          <view class="picker-line">状态：{{blogStatusOpts[blogStatusIdx].name}} ›</view>
+        </picker>
+      </view>
+      <view class="card list-card" wx:for="{{blogs}}" wx:key="_id">
+        <view class="list-head">
+          <text class="list-name">{{item.author_nickname}}</text>
+          <text class="tag {{item.statusTagCls}}">{{item.statusText}}</text>
+        </view>
+        <view class="list-line blog-content-line">{{item.content}}</view>
+        <view class="list-line list-sub">
+          {{item.openidShort}}<text wx:if="{{item.hasScene}}"> · {{item.sceneName}}</text>
+        </view>
+        <view class="list-line list-sub">🖼 {{item.image_count}} · ♡ {{item.like_count}} · 💬 {{item.comment_count}} · 👁 {{item.view_count}} · {{item.timeText}}</view>
+        <view class="list-actions">
+          <button class="btn-ghost mini-btn" data-id="{{item._id}}" bindtap="openBlogComments">评论</button>
+          <button wx:if="{{item.isNormal}}" class="btn-primary mini-btn" data-id="{{item._id}}" bindtap="blogOffline">下架</button>
+          <button wx:if="{{item.isOffline}}" class="btn-primary mini-btn" data-id="{{item._id}}" bindtap="blogRestore">恢复</button>
+          <button class="btn-danger mini-btn" data-id="{{item._id}}" bindtap="blogDelete">删除</button>
+        </view>
+      </view>
+      <view class="card" wx:if="{{blogs.length === 0}}"><view class="empty-line">暂无动态</view></view>
+      <button wx:if="{{blogHasMore}}" class="btn-ghost btn-block load-more" bindtap="loadBlogs">{{blogLoading ? '加载中…' : '加载更多'}}</button>
+    </block>
+
+    <!-- ═══════════ ⑧ 运营配置 ═══════════ -->
+    <block wx:elif="{{activeTab === 'config'}}">
+      <view class="section-title">费用与审核</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view class="cfg-line">
+          <text class="cfg-label">平台抽成（万分之）</text>
+          <input class="adm-input cfg-input" type="number" value="{{feeInput}}" bindinput="onFeeInput" />
+          <button class="btn-ghost mini-btn" bindtap="saveFee">保存</button>
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">耍伴自动审核</text>
+          <text class="cfg-val">{{cfg.auto_approve_partner ? '已开启（自动通过）' : '已关闭（人工审核）'}}</text>
+          <button class="btn-ghost mini-btn" bindtap="toggleAutoApprove">{{cfg.auto_approve_partner ? '关闭' : '开启'}}</button>
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">时薪范围（元/时）</text>
+          <input class="adm-input cfg-input cfg-input-sm" type="digit" value="{{rateInputs.min}}" data-k="min" bindinput="onRateInput" />
+          <text class="cfg-sep">~</text>
+          <input class="adm-input cfg-input cfg-input-sm" type="digit" value="{{rateInputs.max}}" data-k="max" bindinput="onRateInput" />
+          <button class="btn-ghost mini-btn" bindtap="saveRateRange">保存</button>
+        </view>
+      </view>
+
+      <view class="section-title">超时参数</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view class="cfg-line">
+          <text class="cfg-label">支付时限（分钟）</text>
+          <input class="adm-input cfg-input" type="number" value="{{tmoInputs.s0}}" data-k="s0" bindinput="onTmoInput" />
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">四确认时限（分钟）</text>
+          <input class="adm-input cfg-input" type="number" value="{{tmoInputs.s1}}" data-k="s1" bindinput="onTmoInput" />
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">中断自动完成（小时）</text>
+          <input class="adm-input cfg-input" type="number" value="{{tmoInputs.interrupt}}" data-k="interrupt" bindinput="onTmoInput" />
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">评价时限（小时）</text>
+          <input class="adm-input cfg-input" type="number" value="{{tmoInputs.eval}}" data-k="eval" bindinput="onTmoInput" />
+        </view>
+        <button class="btn-primary btn-block" bindtap="saveTimeouts">保存超时参数</button>
+      </view>
+
+      <view class="section-title">信用分参数</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view class="cfg-line">
+          <text class="cfg-label">接单信用下限</text>
+          <input class="adm-input cfg-input" type="number" value="{{creditInputs.take}}" data-k="take" bindinput="onCreditInput" />
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">发单信用下限</text>
+          <input class="adm-input cfg-input" type="number" value="{{creditInputs.place}}" data-k="place" bindinput="onCreditInput" />
+        </view>
+        <view class="cfg-line">
+          <text class="cfg-label">冻结线</text>
+          <input class="adm-input cfg-input" type="number" value="{{creditInputs.freeze}}" data-k="freeze" bindinput="onCreditInput" />
+        </view>
+        <button class="btn-primary btn-block" bindtap="saveCredits">保存信用参数</button>
+      </view>
+
+      <view class="section-title">开通城市</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view class="word-tags">
+          <text wx:for="{{cfg.city_enabled}}" wx:key="*this" class="word-tag city-tag" data-city="{{item}}" bindtap="removeCity">{{item}} ✕</text>
+        </view>
+        <view class="cfg-line">
+          <input class="adm-input cfg-input" placeholder="新增城市名，如 重庆" value="{{cityInput}}" bindinput="onCityInput" />
+          <button class="btn-ghost mini-btn" bindtap="addCity">添加</button>
+        </view>
+      </view>
+
+      <view class="section-title">屏蔽词库</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view class="word-tags">
+          <text wx:for="{{cfg.block_words}}" wx:key="*this" class="word-tag" data-word="{{item}}" bindtap="removeWord">{{item}} ✕</text>
+        </view>
+        <view class="cfg-line">
+          <input class="adm-input cfg-input" placeholder="新增屏蔽词" value="{{wordInput}}" bindinput="onWordInput" />
+          <button class="btn-ghost mini-btn" bindtap="addWord">添加</button>
+        </view>
+      </view>
+
+      <view class="section-title">场景服务项（新增项需发版后在发布页显示）</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view wx:for="{{cfg.scene_list}}" wx:key="code" class="scene-block">
+          <view class="scene-title">{{item.icon}} {{item.name}}（{{item.code}}）</view>
+          <view class="word-tags">
+            <text wx:for="{{item.options}}" wx:for-item="opt" wx:key="*this" class="word-tag opt-tag"
+                  data-scene="{{item.code}}" data-option="{{opt}}" bindtap="removeSceneOption">{{opt}} ✕</text>
+          </view>
+        </view>
+        <view class="cfg-line">
+          <picker mode="selector" range="{{cfgSceneOpts}}" range-key="name" value="{{cfgSceneIdx}}" bindchange="onCfgSceneChange">
+            <view class="picker-line picker-inline">场景：{{cfgSceneOpts[cfgSceneIdx].name}} ›</view>
+          </picker>
+          <input class="adm-input cfg-input" placeholder="新服务项（1-10字）" value="{{sceneOptInput}}" bindinput="onSceneOptInput" />
+          <button class="btn-ghost mini-btn" bindtap="addSceneOption">添加</button>
+        </view>
+      </view>
+
+      <view class="section-title">IM 系统模板（四确认前可用）</view>
+      <view class="card" wx:if="{{cfg}}">
+        <view wx:for="{{cfg.system_templates}}" wx:key="id" class="tpl-line">
+          <text class="tpl-id">{{item.id}}</text>
+          <text class="tpl-text">{{item.text}}</text>
+          <text class="tpl-del" data-id="{{item.id}}" bindtap="removeTemplate">✕</text>
+        </view>
+        <view class="cfg-line">
+          <input class="adm-input cfg-input" placeholder="新模板文案（1-30字）" value="{{tplInput}}" bindinput="onTplInput" />
+          <button class="btn-ghost mini-btn" bindtap="addTemplate">添加</button>
+        </view>
+      </view>
+    </block>
+
+    <!-- ═══════════ ⑨ 管理员 + 快速封禁 ═══════════ -->
+    <block wx:elif="{{activeTab === 'admin'}}">
+      <view class="section-title">管理员白名单（{{admins.length}} 人）</view>
+      <view class="card list-card" wx:for="{{admins}}" wx:key="openid">
+        <view class="list-head">
+          <text class="list-name">{{item.openidShort}}</text>
+          <text class="tag tag-success" wx:if="{{item.isSelf}}">当前账号</text>
+        </view>
+        <view class="list-line list-sub">{{item.openid}}</view>
+        <view class="list-actions">
+          <button wx:if="{{!item.isSelf}}" class="btn-danger mini-btn" data-openid="{{item.openid}}" bindtap="adminRemove">移除管理员</button>
+        </view>
+      </view>
+      <view class="card">
+        <input class="adm-input" placeholder="粘贴要添加的 openid" value="{{adminInput}}" bindinput="onAdminInput" />
+        <button class="btn-primary btn-block" bindtap="adminAdd">添加管理员</button>
+      </view>
+
+      <view class="section-title">按 openid 快速封禁 / 解封</view>
+      <view class="card">
+        <input class="adm-input" placeholder="要封禁的 openid" value="{{banOpenid}}" bindinput="onBanOpenidInput" />
+        <input class="adm-input" placeholder="封禁原因（必填，留档）" value="{{banReason}}" bindinput="onBanReasonInput" />
+        <button class="btn-danger btn-block" bindtap="doBan">封禁该用户</button>
+        <view class="cfg-gap"></view>
+        <input class="adm-input" placeholder="要解封的 openid" value="{{unbanOpenid}}" bindinput="onUnbanOpenidInput" />
+        <button class="btn-primary btn-block" bindtap="doUnban">解封该用户</button>
+      </view>
+    </block>
+
+    <view class="adm-footer">管理后台 V2 · 所有写操作均二次确认并记录留痕</view>
+  </block>
+
+  <!-- ═══════════ 弹层: 用户详情 ═══════════ -->
+  <view wx:if="{{userDetail}}" class="mask" bindtap="closeUserDetail">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-head">
+        <text class="sheet-title">用户详情</text>
+        <text class="sheet-close" bindtap="closeUserDetail">✕</text>
+      </view>
+      <scroll-view scroll-y="true" class="sheet-body">
+        <view class="detail-name">{{userDetail.user.nickname}}
+          <text class="tag {{userDetail.user.statusTagCls}}">{{userDetail.user.statusText}}</text>
+          <text class="tag tag-primary" wx:if="{{userDetail.user.isPartner}}">耍伴</text>
+          <text class="tag tag-success" wx:if="{{userDetail.user.is_realname_done}}">🛡️ 已实名</text>
+        </view>
+        <view class="detail-line">openid：{{userDetail.user.openid}}</view>
+        <view class="detail-line">手机：{{userDetail.user.phone || '未绑定'}}</view>
+        <view class="detail-line">发单信用 <text class="{{userDetail.user.creditCls}}">{{userDetail.user.user_credit_score}}</text>
+          · 耍伴信用 <text class="{{userDetail.user.partnerCreditCls}}">{{userDetail.user.partner_credit_score}}</text></view>
+        <view class="detail-line">注册时间：{{userDetail.user.createdText}}</view>
+        <view class="detail-line" wx:if="{{userDetail.user.banned_reason}}">封禁原因：{{userDetail.user.banned_reason}}</view>
+
+        <view class="detail-sub">数据统计</view>
+        <view class="detail-line">发布需求 {{userDetail.stats.demand_count}} 条 · 发单 {{userDetail.stats.order_as_user}} 单 · 接单 {{userDetail.stats.order_as_partner}} 单</view>
+
+        <view class="detail-sub" wx:if="{{userDetail.partner}}">耍伴身份</view>
+        <view class="detail-line" wx:if="{{userDetail.partner}}">审核状态：{{userDetail.partner.statusText}} · {{userDetail.partner.onlineText}}</view>
+        <view class="detail-line" wx:if="{{userDetail.partner}}">接单场景：{{userDetail.partner.scenesText}}</view>
+
+        <view class="detail-sub" wx:if="{{userDetail.ec}}">紧急联系人</view>
+        <view class="detail-line" wx:if="{{userDetail.ec}}">{{userDetail.ec.name}} · {{userDetail.ec.phone}} · {{userDetail.ec.relation}}</view>
+
+        <view class="detail-sub">信用变动（近 10 条）</view>
+        <view class="detail-line log-line" wx:for="{{userDetail.logs}}" wx:key="timeText">
+          <text class="{{item.deltaCls}}">{{item.deltaText}}</text>
+          <text>（{{item.scoreTypeText}} {{item.score}}分）{{item.reason}}</text>
+          <text class="list-sub"> · {{item.typeText}} {{item.timeText}}</text>
+        </view>
+        <view class="detail-line list-sub" wx:if="{{userDetail.logs.length === 0}}">暂无信用变动记录</view>
+      </scroll-view>
+      <view class="sheet-actions">
+        <button class="btn-ghost mini-btn" data-openid="{{userDetail.user.openid}}" data-nickname="{{userDetail.user.nickname}}" data-type="user" bindtap="onCreditAdjust">调发单信用</button>
+        <button class="btn-ghost mini-btn" data-openid="{{userDetail.user.openid}}" data-nickname="{{userDetail.user.nickname}}" data-type="partner" bindtap="onCreditAdjust">调耍伴信用</button>
+        <button wx:if="{{userDetail.user.isFrozen}}" class="btn-primary mini-btn" data-openid="{{userDetail.user.openid}}" data-nickname="{{userDetail.user.nickname}}" data-freeze="0" bindtap="onFreezeToggle">解冻</button>
+        <button wx:elif="{{userDetail.user.isNormal}}" class="btn-warn mini-btn" data-openid="{{userDetail.user.openid}}" data-nickname="{{userDetail.user.nickname}}" data-freeze="1" bindtap="onFreezeToggle">冻结</button>
+        <button wx:if="{{userDetail.user.isBanned}}" class="btn-primary mini-btn" data-openid="{{userDetail.user.openid}}" data-nickname="{{userDetail.user.nickname}}" data-ban="0" bindtap="onBanToggle">解封</button>
+        <button wx:elif="{{userDetail.user.isNormal || userDetail.user.isFrozen}}" class="btn-danger mini-btn" data-openid="{{userDetail.user.openid}}" data-nickname="{{userDetail.user.nickname}}" data-ban="1" bindtap="onBanToggle">封禁</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- ═══════════ 弹层: 耍伴详情 ═══════════ -->
+  <view wx:if="{{partnerDetail}}" class="mask" bindtap="closePartnerDetail">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-head">
+        <text class="sheet-title">耍伴详情</text>
+        <text class="sheet-close" bindtap="closePartnerDetail">✕</text>
+      </view>
+      <scroll-view scroll-y="true" class="sheet-body">
+        <view class="detail-name">{{partnerDetail.profile.nickname}}
+          <text class="tag {{partnerDetail.profile.isApproved ? 'tag-success' : (partnerDetail.profile.isPending ? 'tag-warn' : 'tag-danger')}}">{{partnerDetail.profile.statusText}}</text>
+          <text class="tag tag-primary">{{partnerDetail.profile.onlineText}}</text>
+        </view>
+        <view class="detail-line">openid：{{partnerDetail.profile.openid}}</view>
+        <view class="detail-line">接单城市：{{partnerDetail.profile.cityText}}</view>
+        <view class="detail-line">接单场景：{{partnerDetail.profile.scenesText}}</view>
+        <view class="detail-line">申请时间：{{partnerDetail.profile.appliedText}}</view>
+        <view class="detail-line" wx:if="{{partnerDetail.profile.reviewedText}}">审核时间：{{partnerDetail.profile.reviewedText}}</view>
+        <view class="detail-line" wx:if="{{partnerDetail.profile.review_note}}">审核备注：{{partnerDetail.profile.review_note}}</view>
+
+        <view class="detail-sub">关联账号</view>
+        <view class="detail-line">{{partnerDetail.user.realText}} · 账号状态 {{partnerDetail.user.statusText}}</view>
+        <view class="detail-line">手机：{{partnerDetail.user.phone || '未绑定'}}</view>
+        <view class="detail-line">发单信用 <text class="{{partnerDetail.user.userCreditCls}}">{{partnerDetail.user.userCredit}}</text>
+          · 耍伴信用 <text class="{{partnerDetail.user.partnerCreditCls}}">{{partnerDetail.user.partnerCredit}}</text></view>
+
+        <view class="detail-sub">接单数据</view>
+        <view class="detail-line">累计接单 {{partnerDetail.stats.order_count}} 单 · 完单 {{partnerDetail.stats.done_count}} 单</view>
+        <view class="detail-line">评价 {{partnerDetail.stats.eval_count}} 条 · 平均星级 {{partnerDetail.avgStarText}}</view>
+      </scroll-view>
+      <view class="sheet-actions">
+        <button wx:if="{{partnerDetail.profile.isPending}}" class="btn-primary mini-btn" data-openid="{{partnerDetail.profile.openid}}" data-nickname="{{partnerDetail.profile.nickname}}" data-decision="approve" bindtap="onReview">通过审核</button>
+        <button wx:if="{{partnerDetail.profile.isPending}}" class="btn-danger mini-btn" data-openid="{{partnerDetail.profile.openid}}" data-nickname="{{partnerDetail.profile.nickname}}" data-decision="reject" bindtap="onReview">驳回</button>
+        <button wx:if="{{partnerDetail.profile.isApproved && partnerDetail.profile.online}}" class="btn-warn mini-btn" data-openid="{{partnerDetail.profile.openid}}" data-nickname="{{partnerDetail.profile.nickname}}" data-online="0" bindtap="onPartnerSwitch">停止接单</button>
+        <button wx:if="{{partnerDetail.profile.isApproved && !partnerDetail.profile.online}}" class="btn-primary mini-btn" data-openid="{{partnerDetail.profile.openid}}" data-nickname="{{partnerDetail.profile.nickname}}" data-online="1" bindtap="onPartnerSwitch">恢复接单</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- ═══════════ 弹层: 订单详情 ═══════════ -->
+  <view wx:if="{{orderDetail}}" class="mask" bindtap="closeOrderDetail">
+    <view class="sheet sheet-wide" catchtap="noop">
+      <view class="sheet-head">
+        <text class="sheet-title">订单详情</text>
+        <text class="sheet-close" bindtap="closeOrderDetail">✕</text>
+      </view>
+      <scroll-view scroll-y="true" class="sheet-body">
+        <view class="detail-name">{{orderDetail.order.order_no}}
+          <text class="tag st-tag {{orderDetail.order.statusCls}}">{{orderDetail.order.statusText}}</text>
+          <text class="tag tag-danger" wx:if="{{orderDetail.order.help_flag}}">🚨 求助中</text>
+        </view>
+        <view class="detail-line">{{orderDetail.order.sceneText}} · {{orderDetail.order.optionsText}}</view>
+        <view class="detail-line">履约时间：{{orderDetail.order.timeText}} · {{orderDetail.order.duration_h}} 小时</view>
+        <view class="detail-line">履约地点：{{orderDetail.order.locationText}}</view>
+        <view class="detail-line">合计 ¥{{orderDetail.order.totalText}} · 抽成 ¥{{orderDetail.order.feeText}} · 耍伴到手 ¥{{orderDetail.order.incomeText}}</view>
+        <view class="detail-line">打赏累计 ¥{{orderDetail.order.tipText}}</view>
+        <view class="detail-line">发单人：{{orderDetail.order.user_openid}}</view>
+        <view class="detail-line">耍伴：{{orderDetail.order.partner_openid}}</view>
+        <view class="detail-line" wx:if="{{orderDetail.order.expireText}}">支付截止：{{orderDetail.order.expireText}}</view>
+        <view class="detail-line" wx:if="{{orderDetail.order.dispute_reason}}">争议原因：{{orderDetail.order.dispute_reason}}</view>
+        <view class="detail-line" wx:if="{{orderDetail.order.admin_note}}">管理员备注：{{orderDetail.order.admin_note}}</view>
+
+        <block wx:if="{{orderDetail.confirms}}">
+          <view class="detail-sub">四确认（版本 v{{orderDetail.confirms.version}}）</view>
+          <view class="detail-line" wx:for="{{orderDetail.confirms.items}}" wx:key="keyText">
+            {{item.keyText}}：发单 {{item.userOk ? '✅' : '⬜'}} · 耍伴 {{item.partnerOk ? '✅' : '⬜'}}
+          </view>
+        </block>
+
+        <view class="detail-sub">状态时间线</view>
+        <view class="detail-line log-line" wx:for="{{orderDetail.logs}}" wx:key="timeText">
+          <text>{{item.text}}</text>
+          <text class="list-sub"> · {{item.actionText}} · {{item.actorText}} · {{item.timeText}}</text>
+        </view>
+
+        <block wx:if="{{orderDetail.hasTxs}}">
+          <view class="detail-sub">支付流水</view>
+          <view class="detail-line log-line" wx:for="{{orderDetail.txs}}" wx:key="payNo">
+            <text>{{item.typeText}} ¥{{item.amountText}}</text>
+            <text class="list-sub"> · 抽成 ¥{{item.feeText}} · {{item.payNo}} · {{item.timeText}}</text>
+          </view>
+        </block>
+
+        <block wx:if="{{orderDetail.hasEvals}}">
+          <view class="detail-sub">评价</view>
+          <view class="detail-line log-line" wx:for="{{orderDetail.evals}}" wx:key="timeText">
+            <text class="star-text">{{item.starText}}</text>
+            <text> {{item.content}}</text>
+            <text class="list-sub"> · {{item.fromShort}} · {{item.timeText}}</text>
+          </view>
+        </block>
+      </scroll-view>
+      <view class="sheet-actions">
+        <button wx:if="{{orderDetail.order.canCancel}}" class="btn-danger mini-btn" data-id="{{orderDetail.order.order_id}}" data-no="{{orderDetail.order.order_no}}" bindtap="onForceCancel">强制取消</button>
+        <button wx:if="{{orderDetail.order.canOpenDispute}}" class="btn-warn mini-btn" data-id="{{orderDetail.order.order_id}}" data-no="{{orderDetail.order.order_no}}" data-decision="open" bindtap="onDispute">登记争议</button>
+        <button wx:if="{{orderDetail.order.canJudge}}" class="btn-danger mini-btn" data-id="{{orderDetail.order.order_id}}" data-no="{{orderDetail.order.order_no}}" data-decision="refund" bindtap="onDispute">裁决退款</button>
+        <button wx:if="{{orderDetail.order.canJudge}}" class="btn-primary mini-btn" data-id="{{orderDetail.order.order_id}}" data-no="{{orderDetail.order.order_no}}" data-decision="complete" bindtap="onDispute">裁决完成</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 动态评论管理弹层 -->
+  <view wx:if="{{blogCommentVisible}}" class="mask" bindtap="closeBlogComments">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-head">
+        <text class="sheet-title">动态评论管理</text>
+        <text class="sheet-close" bindtap="closeBlogComments">✕</text>
+      </view>
+      <scroll-view scroll-y="true" class="sheet-body">
+        <view class="detail-sub blog-cmt-post">{{blogCommentPostTitle}}</view>
+        <view wx:if="{{blogCommentLoading}}" class="empty-line">加载中…</view>
+        <view wx:if="{{blogCommentEmpty}}" class="empty-line">暂无评论</view>
+        <view class="card list-card" wx:for="{{blogComments}}" wx:key="_id">
+          <view class="list-head">
+            <text class="list-name">{{item.author_nickname}}</text>
+            <text wx:if="{{item.deleted}}" class="tag tag-danger">已删除</text>
+          </view>
+          <view class="list-line">{{item.content}}</view>
+          <view class="list-line list-sub">{{item.openidShort}} · {{item.timeText}}</view>
+          <view class="list-actions">
+            <button wx:if="{{!item.deleted}}" class="btn-danger mini-btn" data-id="{{item._id}}" bindtap="adminBlogCommentDelete">删除评论</button>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+</view>

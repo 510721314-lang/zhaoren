@@ -1,1 +1,109 @@
-.placeholder { padding: 120rpx 32rpx; text-align: center; color: var(--text-3); font-size: 32rpx; }
+.page-match { padding: 24rpx; }
+
+/* 需求摘要 */
+.demand-summary { padding: 28rpx; }
+.summary-head { display: flex; align-items: center; margin-bottom: 16rpx; }
+.scene-tag {
+  display: inline-block; padding: 6rpx 20rpx;
+  background: rgba(212,135,90,0.12); color: var(--primary);
+  border-radius: 20rpx; font-size: 24rpx; font-weight: 500; margin-right: 16rpx;
+}
+.summary-title { font-size: 26rpx; color: var(--text-2); }
+.summary-content { font-size: 30rpx; color: var(--text-1); font-weight: 500; line-height: 1.5; }
+.summary-meta { margin-top: 16rpx; }
+.meta-row { display: flex; align-items: center; padding: 6rpx 0; }
+.meta-label { font-size: 26rpx; margin-right: 12rpx; }
+.meta-val { font-size: 26rpx; color: var(--text-2); }
+.aa-tag {
+  display: inline-block; margin-top: 16rpx;
+  padding: 4rpx 16rpx; background: var(--bg-page);
+  color: var(--warning); border-radius: 8rpx; font-size: 22rpx;
+}
+
+/* 加载/失败态 */
+.state-tip { text-align: center; padding: 80rpx 0; }
+.state-spinner {
+  width: 56rpx; height: 56rpx; margin: 0 auto 24rpx;
+  border: 6rpx solid rgba(212,135,90,0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: match-spin 0.8s linear infinite;
+}
+.state-card { text-align: center; padding: 60rpx 24rpx; }
+.state-icon { font-size: 72rpx; }
+.state-text { font-size: 28rpx; color: var(--text-2); margin: 20rpx 0; }
+.state-btn { width: 280rpx; margin-top: 16rpx; }
+
+@keyframes match-spin { to { transform: rotate(360deg); } }
+
+/* 区块标题 */
+.section-title {
+  font-size: 30rpx; font-weight: 600; color: var(--text-1);
+  margin: 8rpx 0 20rpx; display: flex; align-items: baseline;
+}
+.section-sub { font-size: 24rpx; color: var(--text-3); font-weight: 400; margin-left: 16rpx; }
+
+/* 耍伴卡片 */
+.partner-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24rpx; margin-bottom: 20rpx;
+  transition: var(--transition, 0.2s ease);
+}
+.partner-card:active { transform: scale(0.99); }
+.partner-main { display: flex; align-items: center; flex: 1; min-width: 0; }
+.avatar-wrap { margin-right: 20rpx; flex-shrink: 0; }
+.avatar {
+  width: 96rpx; height: 96rpx; border-radius: 50%; background: var(--bg-page);
+  border: 2rpx solid #fff; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.08);
+}
+.avatar-fallback {
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(212,135,90,0.15); color: var(--primary);
+  font-size: 40rpx; font-weight: 600;
+  border: 2rpx solid #fff; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.08);
+}
+.partner-info { flex: 1; min-width: 0; }
+.partner-name-row { display: flex; align-items: center; }
+.partner-name {
+  font-size: 30rpx; font-weight: 600; color: var(--text-1);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  max-width: 260rpx;
+}
+.level-tag {
+  flex-shrink: 0; margin-left: 12rpx;
+  font-size: 20rpx; color: #B07A4A;
+  background: rgba(212,135,90,0.1); border-radius: 6rpx;
+  padding: 2rpx 12rpx;
+}
+.partner-tags { margin-top: 12rpx; display: flex; gap: 12rpx; }
+.partner-orders { font-size: 22rpx; color: var(--text-3); margin-top: 10rpx; }
+
+/* 卡片右侧双按钮(纵向) */
+.partner-actions { display: flex; flex-direction: column; gap: 12rpx; margin-left: 16rpx; flex-shrink: 0; }
+.invite-btn, .profile-btn { font-size: 24rpx; padding: 0 20rpx; line-height: 56rpx; margin: 0; }
+
+/* 空候选 */
+/* 空状态已提升为全局类(app.wxss .empty-state) */
+
+/* 等待接单态 */
+.waiting-card { text-align: center; padding: 48rpx 24rpx; margin-bottom: 20rpx; }
+.waiting-spinner {
+  width: 64rpx; height: 64rpx; margin: 0 auto 24rpx;
+  border: 6rpx solid rgba(212,135,90,0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: match-spin 0.8s linear infinite;
+}
+.waiting-title { font-size: 32rpx; font-weight: 600; color: var(--text-1); }
+.waiting-sub { font-size: 26rpx; color: var(--text-3); margin-top: 12rpx; line-height: 1.6; }
+.waiting-valid { font-size: 26rpx; color: var(--warning); margin-top: 16rpx; }
+.waiting-cancel { width: 240rpx; margin: 28rpx auto 0; font-size: 26rpx; color: var(--danger); }
+
+/* 广播卡 */
+.broadcast-card { text-align: center; padding: 32rpx 24rpx; margin-top: 8rpx; }
+.broadcast-title { font-size: 30rpx; font-weight: 600; color: var(--text-1); }
+.broadcast-sub { font-size: 26rpx; color: var(--text-3); margin: 12rpx 0 24rpx; line-height: 1.6; }
+
+/* 底部操作 */
+.foot-actions { display: flex; gap: 20rpx; margin-top: 8rpx; }
+.foot-btn { flex: 1; font-size: 28rpx; }

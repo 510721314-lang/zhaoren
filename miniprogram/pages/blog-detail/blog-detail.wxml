@@ -1,0 +1,80 @@
+<view class="page-detail">
+  <view wx:if="{{loading}}">
+    <view class="sk-row">
+      <view class="skeleton sk-circle"></view>
+      <view style="flex:1; margin-left:20rpx;">
+        <view class="skeleton sk-line"></view>
+        <view class="skeleton sk-line-sm"></view>
+      </view>
+    </view>
+    <view class="skeleton sk-line" style="margin-top:28rpx;"></view>
+    <view class="skeleton sk-line"></view>
+    <view class="skeleton sk-line-sm"></view>
+    <view class="skeleton sk-card" style="margin-top:24rpx;"></view>
+  </view>
+
+  <block wx:elif="{{post}}">
+    <!-- 作者卡 -->
+    <view class="author-card">
+      <image wx:if="{{post.hasAvatar}}" class="avatar" src="{{post.author_avatar}}" mode="aspectFill" bindtap="goAuthor" />
+      <view wx:else class="avatar avatar-default" bindtap="goAuthor">👤</view>
+      <view class="author-mid">
+        <view class="author-name">
+          <text class="nick" bindtap="goAuthor">{{post.author_nickname}}</text>
+          <text wx:if="{{post.isPartner}}" class="partner-badge">认证耍伴</text>
+        </view>
+        <view class="author-sub">
+          <text wx:if="{{post.hasScene}}" class="scene-tag">{{post.sceneName}}</text>
+          <text class="time">{{post.timeText}} · {{post.viewCount}} 次浏览</text>
+        </view>
+      </view>
+      <view wx:if="{{post.isAuthor}}" class="del-entry" catchtap="onDeletePost">删除</view>
+    </view>
+
+    <!-- 正文 -->
+    <view class="content">{{post.content}}</view>
+
+    <!-- 话题标签 -->
+    <view wx:if="{{post.hasTags}}" class="topic-row">
+      <text wx:for="{{post.tags}}" wx:key="*this" class="topic-tag" bindtap="goTopic" data-tag="{{item}}">#{{item}}</text>
+    </view>
+
+    <!-- 图片 -->
+    <view wx:if="{{post.hasImages}}" class="img-list">
+      <image wx:for="{{post.images}}" wx:for-item="img" wx:for-index="ii" wx:key="ii"
+             class="detail-img" src="{{img}}" mode="widthFix"
+             bindtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}" />
+    </view>
+
+    <!-- 评论区 -->
+    <view class="comment-sec">
+      <view class="comment-title">评论 {{post.commentCount}}</view>
+
+      <view wx:if="{{showCommentEmpty}}" class="comment-empty">还没有评论，快来抢沙发～</view>
+
+      <view wx:for="{{comments}}" wx:key="_id" class="comment-item">
+        <image wx:if="{{item.author_avatar}}" class="c-avatar" src="{{item.author_avatar}}" mode="aspectFill" />
+        <view wx:else class="c-avatar c-avatar-default">👤</view>
+        <view class="c-body">
+          <view class="c-name">{{item.author_nickname}}</view>
+          <view class="c-content">{{item.content}}</view>
+          <view class="c-time">{{item.timeText}}</view>
+        </view>
+        <view wx:if="{{item.isAuthor}}" class="c-del" catchtap="onDeleteComment" data-id="{{item._id}}">删除</view>
+      </view>
+    </view>
+
+    <view class="bottom-holder"></view>
+
+    <!-- 底部互动栏 -->
+    <view class="bottom-bar">
+      <view class="like-btn {{post.likeCls}}" bindtap="toggleLike">
+        <text class="like-icon">{{post.liked ? '❤️' : '🤍'}}</text>
+        <text>{{post.likeCount}}</text>
+      </view>
+      <input class="comment-input" placeholder="友善评论，认真交流" value="{{commentText}}"
+             bindinput="onCommentInput" confirm-type="send" bindconfirm="onSendComment" />
+      <view class="send-btn {{sending?'send-disabled':''}}" bindtap="onSendComment">发送</view>
+    </view>
+  </block>
+</view>

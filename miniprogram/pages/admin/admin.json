@@ -1,1 +1,1 @@
-{ "navigationBarTitleText": "管理后台", "usingComponents": {} }
+{ "navigationBarTitleText": "管理后台", "enablePullDownRefresh": true, "usingComponents": {} }
