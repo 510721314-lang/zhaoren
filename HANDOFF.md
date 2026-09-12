@@ -1,7 +1,26 @@
 # 找人帮忙小程序 · 收工交接与商用化指引
 
-> 更新：2026-09-10　环境：`cloud1-d9gkefwcp5c777088`　AppID：`wxbc4a4afacdf234f5`
-> 备份：`H:\zhaoren_backup\zhaoren_20260909_2120.zip`（含全部源码 + envList.js + project.config.json + 各云函数 config.json + PRD + .trae 规则）
+> 更新：2026-09-12　环境：`cloud1-d9gkefwcp5c777088`　AppID：`wxbc4a4afacdf234f5`
+> 项目根：`c:\Users\DC\Desktop\zhaoren`（2026-09-11 从 H 盘迁出，H 盘已不存在）
+> 备份：git tag `backup-2026-09-12`（=提交 e208e01）；全量归档 `C:\Users\DC\Desktop\临时备份文件\zhaoren-backup-2026-09-12.zip`
+> IDE：`c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat`，服务端口 11841；最新代码提交 `092e6b7`
+
+---
+
+## ★ 上线前阻断项（2026-09-12 登记）
+
+1. **隐私指引未闭环（最高优先）**：真机 `wx.getLocation` 被微信拦截（后台《用户隐私保护指引》的"位置信息"声明未审核通过/未找到添加入口）。
+   - 代码侧已定稿：直接调 API，由**微信官方自动弹窗**接管（自定义 privacy-popup 组件已在 `092e6b7` 删除）；后台声明生效后无需再改代码。
+   - 商用前必做：① mp.weixin.qq.com → 账号设置 → 服务内容声明 → 用户隐私保护指引，添加 位置信息(wx.getLocation)/选中的位置信息(wx.chooseLocation)/选中的照片或视频信息(wx.chooseMedia)/手机号(getPhoneNumber)，等审核通过；② 真机验证官方弹窗→同意→真实 GPS 成功；③ **删除自测模式**：`miniprogram/utils/testmode.js`、mine.js 的 `onVersionLongPress`、mine.wxml 的 `bindlongpress`（自测模式：我的页长按版本号开启，storage key `dev_test_mode`，开启后真机定位降级成都坐标，仅供测试）。
+2. **云函数超时锁死 3 秒**：控制台统一调超时或升级套餐（详见阶段 A 第 1 条），改完用 `cli cloud functions info` 读回。
+3. **order-timer 超时流转未验收**：自驱链新版只存在于 git `cf138e0`（zz-selftest-timer），本地/云端均已删除且从未跑通 all_pass；商用前需在测试环境重建验收 S1/S0/S3.5/S5 四个超时流转。
+4. **全链路实测未完成**：发布→匹配→四确认→S0→模拟支付→S3→S5→评价→打赏（含时间冲突拦截、50km 校验）。当前可用模拟器或真机自测模式走查。
+
+### 2026-09-12 完成项
+- 环境迁移收尾：IDE 新路径验证、部署 skill 更新、端口 11841 联通；9-09～9-11 全部工作入库（4 提交）；PRD 三文件从 git 恢复
+- zz-selftest-timer 本地删除 + 云端删除（用户手动），云端 17 个正式函数
+- 定位问题修复链：模拟器/系统定位误判修复(e208e01) → 真机隐私拦截修复尝试(51344c1) → 重试熔断(b0d0285) → 自测模式(2fdad32) → 移除自定义弹窗回归官方机制(092e6b7)
+- 三层备份（git tag / .backup-2026-09-12 / zip 全量归档，含 SHA256 校验）
 
 ---
 
@@ -149,8 +168,11 @@
 ---
 
 ## 四、待办（下次）
-- [ ] 编译后实测：发布→匹配页、广播；订单两笔自测单、S9 系统评价。
-- [ ] `{"action":"report"}` 确认 all_pass 后删除 zz-selftest-timer。
-- [ ] 控制台统一调超时（或升级套餐）。
+- [ ] 全链路编译/真机实测（模拟器或自测模式）：发布→匹配页/广播→接单→四确认→模拟支付→履约→评价→打赏；时间冲突与 50km 校验
+- [ ] 隐私指引后台声明审核通过 → 真机验证真实 GPS → 删除自测模式（阻断项 1）
+- [ ] 控制台统一调超时（或升级套餐），`functions info` 读回校验（阻断项 2）
+- [ ] 测试环境重建 zz-selftest-timer 完成 order-timer all_pass 验收（阻断项 3，代码在 git `cf138e0`）
+- [x] zz-selftest-timer 已从本地与云端删除（2026-09-12）
+- [x] git 初始化与全量入库、PRD 恢复、备份归档（2026-09-12）
 - [x] demand-match hall_list 的 HALL_DEBUG 全表日志已删除（2026-09-09 已部署，3.6KB）。
-- [x] 把"CLI 不应用 timeout/triggers、免费版锁 3s"补进 `.trae/skills/wx-cloud-deploy/SKILL.md`（2026-09-10 已完成，含排障速查 3 条）。
+- [x] 把"CLI 不应用 timeout/triggers、免费版锁 3s"补进 `.trae/skills/wx-cloud-deploy/SKILL.md`（2026-09-10 已完成，含排障速查 3 条；2026-09-12 更新 IDE 新路径）。
