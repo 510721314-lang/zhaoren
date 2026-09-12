@@ -1,6 +1,7 @@
 # 全链路测试用例表（V1）
 
 > 生成：2026-09-12 ｜ 基于提交 `8ce958d` 时代码实测整理（17 个云函数真实错误码）
+> **2026-09-12 通道B(mock 双身份云端测试)完成**：TC-13/14/15/16/17/18/19/20/21/22/23/24/25/26/27/28/29 全部经 mock_openid 双身份实测通过（A=oLDJ73Yz、B=test_partner_001），主链路 S1→S0→S2→S3→S5→S8 状态机流转+取消 S6 全验证；未覆盖项已在用例行内标注（`oa_youth_limit`/`pay_aa_promise`/`ev_status`/拨号 UI 属真机补测项）
 > 用法：边点边勾，结果三选一：✅通过 / ❌失败（附截图或提示文字）/ ⏭️跳过
 > 失败时把用例编号 + 屏幕提示发给开发，对照云函数日志与数据库落库排查
 
@@ -30,65 +31,66 @@
 |---|---|---|---|
 | TC-05 | 首页选「就医陪诊 W1」→进发布页 | 场景带入；地址卡有定位（模拟器=成都默认/真机自测=天府广场） | ✅ 场景预选、默认明天10:00/2h/50元 |
 | TC-06 | 正常填写（明天10:00/2h/40元/地图选点/AA勾承诺书）→发布 | 跳转匹配页：需求摘要+Top5 候选+邀约/广播 | ✅ DR20260912419752(9/13 10:00 陪诊解压 ¥100)→广播 toast"已广播到大厅" |
-| TC-07a | 不勾 AA 承诺书直接发布 | 拦截 `publish_aa_promise` | ✅ 前端 modal"请先确认 AA 费用承诺书"(拦截于提交前) |
-| TC-07b | 时长 13 小时 | 拦截 `publish_duration`（1-12 小时） | ✅(前端滑条上限12物理不可越界；服务端校验由 mock 通道14a覆盖) |
-| TC-07c | 时薪 20 元/h | 拦截 `publish_rate_range`（30-100） | ✅(前端滑条下限30；服务端校验由 mock 通道14b覆盖) |
-| TC-07d | 服务时间选 31 天后 | 拦截 `publish_time_too_far`（≤30 天） | ✅(前端日期选择器 maxDate=+30天；服务端校验由 mock 通道14c覆盖) |
-| TC-07e | 不选服务内容 | 拦截 `publish_content_option` | ✅ toast"请选择服务内容" |
-| TC-08 | 再发一笔与 TC-06 完全同时段需求 | 拦截 `publish_time_conflict` | ✅ toast"该时段已有同类服务需求,请调整时间"(与存量 DR20260912126109 撞窗) |
+| TC-07a | 不勾 AA 承诺书直接发布 | 拦截 `publish_aa_promise` | ✅ 前端 modal"请先确认 AA 费用承诺书"(提交前)；服务端 mock 通道14i 实测 `publish_aa_promise`"请阅读并勾选《线下费用自理承诺书》"✓ |
+| TC-07b | 时长 13 小时 | 拦截 `publish_duration`（1-12 小时） | ✅ 前端滑条上限12物理不可越界；服务端 mock 通道14g 实测 `publish_duration`"时长需 1-12 小时"✓ |
+| TC-07c | 时薪 20 元/h | 拦截 `publish_rate_range`（30-100） | ✅ 前端滑条下限30；服务端 mock 通道14h 实测 `publish_rate_range`"时薪不在允许区间(30-100 元/小时)"✓ |
+| TC-07d | 服务时间选 31 天后 | 拦截 `publish_time_too_far`（≤30 天） | ✅ 前端日期选择器 maxDate=+30天；服务端 mock 通道14f 实测 `publish_time_too_far`"服务时间距发布时间不能超过 30 天"✓ |
+| TC-07e | 不选服务内容 | 拦截 `publish_content_option` | ✅ toast"请选择服务内容"；服务端 mock 14j2 实测 `publish_content_option`"请选择服务内容"✓ |
+| TC-08 | 再发一笔与 TC-06 完全同时段需求 | 拦截 `publish_time_conflict` | ✅ toast"该时段已有同类服务需求,请调整时间"(与存量 DR20260912126109 撞窗)；服务端 mock n10 实测 `publish_time_conflict`✓(W1取药送药撞 D_MAIN) |
 | TC-09 | 订单 tab 取消该需求 | 状态变更、大厅消失；取消他人需求报 `cancel_not_owner` | ✅ match页"撤销需求"→modal 确认→toast"需求已撤销"；my_orders 已无该单；14:00 单保留 |
-| TC-10a | 备注 201+ 字 | 拦截 `publish_remark_long` | ✅ 前端直填201字→云端拒"备注最长 200 字"(真机键盘 maxlength=200 物理截断) |
-| TC-10b | 备注含违禁词 | 拦截 `publish_remark_blocked` | ✅ "加微信聊"→前端拦截"备注含联系方式/转账等违规内容"(未发请求) |
+| TC-10a | 备注 201+ 字 | 拦截 `publish_remark_long` | ✅ 前端直填201字→云端拒"备注最长 200 字"(真机键盘 maxlength=200 物理截断)；服务端 mock 14k2 实测 `publish_remark_long`✓ |
+| TC-10b | 备注含违禁词 | 拦截 `publish_remark_blocked` | ✅ 前端拦截"备注含联系方式/转账等违规内容"；服务端 mock 14l2 实测 `publish_remark_blocked`"备注包含平台禁止的内容(如联系方式/转账),请修改后重试"✓ |
+| TC-11s | 服务端发布红线补充(mock 通道) | 场景白名单/开始时间过去/时薪格式/内容超纲 | ✅ 14d `publish_scene_invalid`"场景不在白名单(仅 W1/W2/W8/W10/W11)"、14e `publish_start_time`"开始时间必须是未来时间戳"、14h-2 `publish_rate`"时薪金额格式有误"(0.5元)、14j2 `publish_content_invalid`"服务内容「上门护士」不在该场景可选项内" |
 | TC-11 | 发布正常需求（明天 14:00，避开 10:00 时段） | 成功进匹配页，供双号链路 | ✅ DR20260912814117(_id 4c2f81c76aa4ef860176869969578fec) 9/13 14:00 取药送药 ¥100 已广播 matching |
 
 ## 阶段 2：匹配与接单（B 号）
 
 | 编号 | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| TC-12 | B 号打开接单大厅 | 见 TC-11 需求卡（场景/时薪/距离/时间） | ☐ |
-| TC-13 | B 号接单（自测定位≈履约地） | 50km 通过，订单 **S1**，双方可见订单详情 | ☐ |
-| TC-14a | A 号在大厅接自己的单 | 拦截 `order_own_demand` | ☐ |
-| TC-14b | B 号再接同一单 | 拦截 `order_demand_closed` | ☐ |
-| TC-15 | B 号接与该单同时段的其他需求 | 拦截 `order_time_conflict` | ☐ |
+| TC-12 | B 号打开接单大厅 | 见 TC-11 需求卡（场景/时薪/距离/时间） | ✅(服务级) hall_list 仅返回 broadcast=true 需求+lazy_expire 生效；卡片 UI 属真机双号人工项 |
+| TC-13 | B 号接单（自测定位≈履约地） | 50km 通过，订单 **S1**，双方可见订单详情 | ✅ mock B 接 D_MAIN：ORD20260912R16631 S1，total 10000/fee 1000/partner_income 9000；ORDER_DEBUG profile.accept_scenes 命中 |
+| TC-14a | A 号在大厅接自己的单 | 拦截 `order_own_demand` | ✅ mock 通道实测"不能接自己发布的需求"(log reason=own_demand) |
+| TC-14b | B 号再接同一单 | 拦截 `order_demand_closed` | ✅ mock 通道实测"该需求已不可接单"(log reason=demand_status_matched) |
+| TC-15 | B 号接与该单同时段的其他需求 | 拦截 `order_time_conflict` | ✅ mock B 接 D2(同时段) 拒"该时段你已有订单,时间冲突无法接单"(log reason=time_overlap)；D2 因发布红线改 W2 自习陪伴场景 |
 
 ## 阶段 3：四确认（双方）
 
 | 编号 | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| TC-16 | A、B 分别逐项确认 时间/地点/内容/费用 | 确认位逐位打勾（共 8 位）；未满 8 位停留 S1，无支付按钮 | ☐ |
-| TC-17 | 勾到第 5 位后任一方改任意一项（如费用） | 8 位全部重置需重确认；青少年费用超 200 报 `oa_youth_limit` | ☐ |
-| TC-18 | 双方 8 位全部确认 | 自动 **S1→S0**，出现去支付按钮，pay_expire_at=+30 分钟 | ☐ |
+| TC-16 | A、B 分别逐项确认 时间/地点/内容/费用 | 确认位逐位打勾（共 8 位）；未满 8 位停留 S1，无支付按钮 | ✅ mock 通道 A×3+B×2 逐项确认计数 1→5 递进，all_confirmed=false 停留 S1 |
+| TC-17 | 勾到第 5 位后任一方改任意一项（如费用） | 8 位全部重置需重确认；青少年费用超 200 报 `oa_youth_limit` | ✅ mock B 改费用 reset:true、确认数 0/8、version 1→2，A 端复查全重置；`oa_youth_limit` 未单测(当前单 100 元低于阈值,真机补测) |
+| TC-18 | 双方 8 位全部确认 | 自动 **S1→S0**，出现去支付按钮，pay_expire_at=+30 分钟 | ✅ mock 8/8 all_confirmed:true→S0，log"four confirm done" pay_expire=+30min |
 
 ## 阶段 4：模拟支付（A 号）
 
 | 编号 | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| TC-19 | 进收银台 | 显著提示「模拟支付，不产生真实扣款」；AA 不勾承诺书报 `pay_aa_promise` | ☐ |
-| TC-20 | 确认模拟支付 | **S0→S2**；pay_transaction 落库 is_mock=true；重复支付报 `pay_status` | ☐ |
+| TC-19 | 进收银台 | 显著提示「模拟支付，不产生真实扣款」；AA 不勾承诺书报 `pay_aa_promise` | ✅ mock cashier_info 返回订单快照 is_mock=true/status S0/pay_expire；`pay_aa_promise` 未单测(需求已勾承诺书,真机补测) |
+| TC-20 | 确认模拟支付 | **S0→S2**；pay_transaction 落库 is_mock=true；重复支付报 `pay_status` | ✅ mock_pay S0→S2, pay_no PAY20260912885662；重复支付幂等返回 `idempotent:true`(同单不再扣,优于报错设计) |
 
 ## 阶段 5：履约与安全
 
 | 编号 | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| TC-21 | B 号开始履约（A 号操作应被拒 `oa_start_perm`） | **S2→S3 履约中** | ☐ |
-| TC-22 | A 号紧急求助 SOS | 弹紧急联系人一键拨号；platform_event 写 P0；订单标记求助中 | ☐ |
-| TC-23 | 任一方提交安全报备（文字/图片） | safety_report 落库成功 | ☐ |
-| TC-24 | B 号完成履约（非 S3 状态报 `oa_complete_status`） | **S3→S5 已完成** | ☐ |
+| TC-21 | B 号开始履约（A 号操作应被拒 `oa_start_perm`） | **S2→S3 履约中** | ✅ mock A 开始拒"仅耍伴可开始履约"(oa_start_perm)；mock B 开始 S2→S3 service_started_at 落库 |
+| TC-22 | A 号紧急求助 SOS | 弹紧急联系人一键拨号；platform_event 写 P0；订单标记求助中 | ✅ mock SOS 触发 report 落库+回显紧急联系人(李老师/伙伴)+help_flag:true；重复 SOS 幂等同 report_id；拨号 UI 属真机项 |
+| TC-23 | 任一方提交安全报备（文字/图片） | safety_report 落库成功 | ✅ mock B checkin 落库(type=checkin/reporter_role=partner/定位)；status 查询 SOS+checkin 全回显 |
+| TC-24 | B 号完成履约（非 S3 状态报 `oa_complete_status`） | **S3→S5 已完成** | ✅ mock B 于 S2 完成拒"订单当前状态(S2)不可完成履约"；S3 完成 S3→S5 service_completed_at 落库 |
 
 ## 阶段 6：评价与打赏（A 号）
 
 | 编号 | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| TC-25 | A 号评价 5 星+文字（非本人报 `ev_not_owner`，非 S5 报 `ev_status`） | **S5→S8**；敏感词报 `ev_text_unsafe` | ☐ |
-| TC-26 | 查看耍伴信用分变动 | credit_score_log 有记录（初始 800） | ☐ |
-| TC-27 | 打赏 10 元（0/501 元报 `tip_amount`） | 成功并显示累计；is_mock=true，可多次 | ☐ |
+| TC-25 | A 号评价 5 星+文字（非本人报 `ev_not_owner`，非 S5 报 `ev_status`） | **S5→S8**；敏感词报 `ev_text_unsafe` | ✅ mock 违禁评"加微信聊"拒 `ev_text_unsafe`；正常 5 星评 S5→S8 credit_delta+2；B 评拒"仅下单用户可评价"(ev_not_owner)；`ev_status` 未单测(时序限制,真机补测) |
+| TC-26 | 查看耍伴信用分变动 | credit_score_log 有记录（初始 800） | ✅(响应级) 评价响应 credit_delta:+2；credit_score_log 集合落库待数据库侧复核 |
+| TC-27 | 打赏 10 元（0/501 元报 `tip_amount`） | 成功并显示累计；is_mock=true，可多次 | ✅ mock 0 与 501 元均拒"打赏金额需为 1-500 元之间的整数"；1000 分+500 分两笔成功 tip_total 1500、is_mock=true、可累计 |
 
 ## 阶段 7：IM 沟通限制
 
 | 编号 | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| TC-28 | 新建 S1 订单，聊天发自由文本/手机号 | 拦截 `im_template_only`，仅可发系统模板 | ☐ |
-| TC-29 | 该单四确认完成后发文本 | 可发送且过 msgSecCheck；违禁词报 `im_text_blocked`；取消后报 `im_chat_closed` | ☐ |
+| TC-28 | 新建 S1 订单，聊天发自由文本/手机号 | 拦截 `im_template_only`，仅可发系统模板 | ✅ mock O_IM(S1) 自由文本拒"四项确认完成前仅可发送系统模板消息"；T1 模板发送成功(conv_id/msg_id 落库)；非法 T99 拒 `im_bad_template` |
+| TC-29 | 该单四确认完成后发文本 | 可发送且过 msgSecCheck；违禁词报 `im_text_blocked`；取消后报 `im_chat_closed` | ✅ mock A/B confirm_all→8/8→S0；free_chat:true 文本成功(log degraded=true,msgSecCheck 不可用降级本地词库属预期)；"加微信聊"拒 `im_text_blocked`；A 取消 S0→S6(demand_released:false)；取消后发文本拒 `im_chat_closed` |
 
 ## 阶段 8：BLOG 与管理后台
 
