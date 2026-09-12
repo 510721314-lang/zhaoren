@@ -2,6 +2,7 @@
 const app = getApp();
 const { formatMoney, timeAgo } = require('../../utils/util.js');
 const { aaTierLabel, ORDER_STATUS } = require('../../utils/constants.js');
+const { isTestMode } = require('../../utils/testmode.js');
 // 模拟器兜底坐标(仅 devtools;Windows 系统定位关闭时保证接单自测链路不中断),真机不允许兜底
 const DEFAULT_LOC = { latitude: 30.572815, longitude: 104.066801 };
 // "system permission denied" 含 denied 但属系统级错误,必须先于 auth 判断
@@ -191,8 +192,11 @@ Page({
 
   // 隐私授权 → 实时GPS(50km 校验) → 接单;独立成方法便于隐私拒绝后重试
   async takeWithLocation(demandId) {
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) return;
+    // 自测模式不弹隐私同意窗, 直接尝试定位(失败后降级默认坐标)
+    if (!isTestMode()) {
+      const ok = await this.selectComponent('#privacyPopup').ensure();
+      if (!ok) return;
+    }
     this.setData({ taking: true, takingId: demandId });
     // 接单需校验当前位置与履约地点距离(≤50公里), 先取实时GPS
     wx.showLoading({ title: '定位中', mask: true });
@@ -205,6 +209,12 @@ Page({
       fail: (err) => {
         const kind = classifyLocError(err);
         console.error('[take] getLocation fail:', err);
+        // 自测模式: 任何定位失败均用成都默认坐标继续(服务端仍做 50km 校验)
+        if (isTestMode()) {
+          wx.showToast({ title: '自测模式：已用成都默认位置', icon: 'none', duration: 2000 });
+          this.doTake(demandId, { latitude: DEFAULT_LOC.latitude, longitude: DEFAULT_LOC.longitude });
+          return;
+        }
         // 隐私合规问题: 熔断式引导, 避免"重新授权→再失败→再弹窗"死循环
         if (kind === 'privacy') {
           wx.hideLoading();

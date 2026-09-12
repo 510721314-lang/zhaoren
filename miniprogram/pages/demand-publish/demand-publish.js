@@ -4,6 +4,7 @@
 // 时薪滑条 / 费用自动计算 / AA档位+《线下费用自理承诺书》 / 备注预检 / 提交→top5→匹配页
 const app = getApp();
 const { SCENE_LIST, AA_TIERS } = require('../../utils/constants.js');
+const { isTestMode } = require('../../utils/testmode.js');
 
 // 从地址文本剥掉省/自治区前缀后取段首「XX市」, 结果不带「市」后缀(如「四川省成都市…」→「成都」)
 function parseCity(addr) {
@@ -160,7 +161,7 @@ Page({
     try { return wx.getSystemInfoSync().platform === 'devtools'; } catch (e) { return false; }
   },
 
-  // 模拟器兜底坐标(仅 devtools 使用)
+  // 模拟器/自测模式兜底坐标
   applyDefaultLocation(tip) {
     this.setData({
       locating: false,
@@ -172,11 +173,25 @@ Page({
     if (tip) wx.showToast({ title: tip, icon: 'none', duration: 2500 });
   },
 
+  // 自测模式兜底履约地点(不走 wx.chooseLocation)
+  applyDefaultSite() {
+    this.setData({
+      siteName: '成都市天府广场(自测默认地点)',
+      siteLatitude: DEFAULT_LOC.latitude,
+      siteLongitude: DEFAULT_LOC.longitude,
+      siteCity: DEFAULT_LOC.city
+    });
+    wx.showToast({ title: '自测模式：已用默认履约地点', icon: 'none', duration: 2500 });
+  },
+
   // 获取当前GPS位置(发布者实际位置; 点击发布地址卡可重新定位)
   async locate() {
     if (this.data.locating) return;
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) return;
+    // 自测模式不弹隐私同意窗, 直接尝试定位(失败后降级默认坐标)
+    if (!isTestMode()) {
+      const ok = await this.selectComponent('#privacyPopup').ensure();
+      if (!ok) return;
+    }
     this.setData({ locating: true });
     wx.getLocation({
       type: 'gcj02',
@@ -196,6 +211,11 @@ Page({
         this.setData({ locating: false });
         const kind = this.classifyLocError(err);
         console.error('[locate] getLocation fail:', err);
+        // 自测模式(我的页长按版本号开启): 任何定位失败均降级成都坐标, 保证真机全流程可测
+        if (isTestMode()) {
+          this.applyDefaultLocation('自测模式：已用成都默认位置');
+          return;
+        }
         // 隐私合规问题(未同意指引/后台未声明位置信息)不兜底,明确引导
         if (kind === 'privacy') {
           this.handlePrivacyBlock((err && err.errMsg) || '', () => this.locate());
@@ -245,6 +265,8 @@ Page({
 
   // ───────── 履约地址(用户在地图上自主选择) ─────────
   async chooseSite() {
+    // 自测模式: 直接填默认履约地点, 跳过隐私接口
+    if (isTestMode()) { this.applyDefaultSite(); return; }
     const ok = await this.selectComponent('#privacyPopup').ensure();
     if (!ok) return;
     wx.chooseLocation({
@@ -417,7 +439,7 @@ Page({
     this.setData({ submitting: true });
     wx.showLoading({ title: '定位中', mask: true });
 
-    const locOk = await this.selectComponent('#privacyPopup').ensure();
+    const locOk = isTestMode() || await this.selectComponent('#privacyPopup').ensure();
     if (!locOk) { wx.hideLoading(); this.setData({ submitting: false }); return; }
 
     // 提交瞬间重新取一次实际GPS作为发布地址(留痕优先); 履约地址用用户所选
@@ -455,6 +477,12 @@ Page({
         }
         const kind = this.classifyLocError(err);
         console.error('[submit] getLocation fail:', err);
+        // 自测模式优先: 任何定位失败均用默认坐标继续(真机正式用户无此分支)
+        if (isTestMode()) {
+          this.applyDefaultLocation('');
+          continueWith(DEFAULT_LOC.latitude, DEFAULT_LOC.longitude);
+          return;
+        }
         // 隐私合规问题:引导同意指引/后台声明,不走任何兜底
         if (kind === 'privacy') {
           wx.hideLoading();
@@ -462,7 +490,7 @@ Page({
           this.handlePrivacyBlock((err && err.errMsg) || '', () => this.onSubmit());
           return;
         }
-        // 降级2: 仅模拟器——系统定位/权限均不可用时用成都默认坐标,保证自测可继续(真机无此分支)
+        // 降级2: 模拟器——用成都默认坐标,保证自测可继续
         if (this.isDevtools()) {
           this.applyDefaultLocation('');
           continueWith(DEFAULT_LOC.latitude, DEFAULT_LOC.longitude);
