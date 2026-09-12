@@ -205,9 +205,8 @@ Page({
   },
 
   // ───────── 通勤(耍伴:当前位置 → 履约地点) ─────────
-  async calcToSite(d) {
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) return;
+  // 首次调用由微信官方隐私弹窗自动处理授权
+  calcToSite(d) {
     wx.getLocation({
       type: 'gcj02',
       success: (loc) => {
@@ -376,10 +375,8 @@ Page({
     });
   },
 
-  // 取定位(失败不阻断,SOS/报备位置为可选)
-  async getLocation() {
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) return null;
+  // 取定位(失败不阻断,SOS/报备位置为可选; 首次调用由官方隐私弹窗自动处理授权)
+  getLocation() {
     return new Promise((resolve) => {
       wx.getLocation({
         type: 'gcj02',

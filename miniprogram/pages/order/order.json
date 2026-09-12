@@ -1,7 +1,4 @@
 {
   "navigationBarTitleText": "订单",
-  "enablePullDownRefresh": true,
-  "usingComponents": {
-    "privacy-popup": "/components/privacy-popup/privacy-popup"
-  }
+  "enablePullDownRefresh": true
 }

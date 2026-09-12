@@ -44,12 +44,10 @@ Page({
     this.setData({ topicChks, tagCount });
   },
 
-  // 选图并立即上传云存储
-  async chooseImage() {
+  // 选图并立即上传云存储(首次调用由微信官方隐私弹窗自动处理授权)
+  chooseImage() {
     const remain = MAX_IMAGES - this.data.images.length;
     if (remain <= 0) { wx.showToast({ title: '最多 ' + MAX_IMAGES + ' 张', icon: 'none' }); return; }
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) return;
     wx.chooseMedia({
       count: remain,
       mediaType: ['image'],

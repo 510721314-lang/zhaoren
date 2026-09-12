@@ -91,9 +91,8 @@ Page({
   },
 
   // 获取当前位置 → 计算待履约订单的通勤
-  async calcToSite(orders) {
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) { this.setData({ orders }); return; }
+  // 首次调用由微信官方隐私弹窗自动处理授权
+  calcToSite(orders) {
     wx.getLocation({
       type: 'gcj02',
       success: (loc) => {

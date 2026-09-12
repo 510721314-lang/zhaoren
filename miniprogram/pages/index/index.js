@@ -86,9 +86,8 @@ Page({
   },
 
   // 定位 → 反查城市;反查失败/未配置 key 兜底「成都」(首发城市)
-  async locateCity() {
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) { this.setData({ city: '成都' }); return; }
+  // 首次调用由微信官方隐私弹窗自动处理授权
+  locateCity() {
     wx.getLocation({
       type: 'gcj02',
       success: (loc) => this.reverseCity(loc.latitude, loc.longitude),

@@ -125,36 +125,15 @@ Page({
     return 'other';
   },
 
-  // 隐私接口被拒熔断: 第一次给"去授权"(弹官方同意窗) → 重试后仍失败 = 后台指引未声明,
-  // 改静态强提示且不再重试, 避免"重新授权→再失败→再弹窗"死循环
-  handlePrivacyBlock(rawMsg, retry) {
-    console.error('[privacy] location blocked:', rawMsg, 'retried=', !!this._privacyRetried);
-    if (!this._privacyRetried) {
-      this._privacyRetried = true;
-      wx.showModal({
-        title: '需同意隐私保护指引',
-        content: '请先在隐私保护提示中点击「同意」。若同意后仍无法定位，说明小程序后台《用户隐私保护指引》未声明「位置信息」。',
-        confirmText: '去授权',
-        cancelText: '取消',
-        success: (r) => {
-          if (!r.confirm) return;
-          // 先触发官方隐私同意弹窗, 通过后再重试一次
-          const popup = this.selectComponent('#privacyPopup');
-          if (popup) {
-            popup.ensure().then((ok) => { if (ok && retry) retry(); });
-          } else if (retry) {
-            retry();
-          }
-        }
-      });
-    } else {
-      wx.showModal({
-        title: '后台未声明位置信息',
-        content: '你已完成隐私授权，但微信仍拒绝定位，说明小程序后台《用户隐私保护指引》中尚未声明「位置信息」（接口 wx.getLocation、wx.chooseLocation）。\n\n请由管理员登录 mp.weixin.qq.com → 设置 → 服务内容声明 → 用户隐私保护指引，添加「位置信息」并提交，等配置生效后，重新进入本页面再发布。',
-        showCancel: false,
-        confirmText: '我知道了'
-      });
-    }
+  // 定位被隐私拦截: 首次授权由微信官方弹窗自动处理; 走到这里说明后台指引未声明位置信息
+  handlePrivacyBlock(rawMsg) {
+    console.error('[privacy] location blocked:', rawMsg);
+    wx.showModal({
+      title: '后台未声明位置信息',
+      content: '微信拒绝了定位请求，说明小程序后台《用户隐私保护指引》中尚未声明「位置信息」（接口 wx.getLocation、wx.chooseLocation），或声明尚未审核生效。\n\n请由管理员登录 mp.weixin.qq.com → 账号设置 → 服务内容声明 → 用户隐私保护指引，添加「位置信息」并提交，生效后重新进入本页面再发布。',
+      showCancel: false,
+      confirmText: '我知道了'
+    });
   },
 
   isDevtools() {
@@ -185,18 +164,13 @@ Page({
   },
 
   // 获取当前GPS位置(发布者实际位置; 点击发布地址卡可重新定位)
-  async locate() {
+  // 首次调用由微信官方隐私弹窗自动处理授权, 无需前置检查
+  locate() {
     if (this.data.locating) return;
-    // 自测模式不弹隐私同意窗, 直接尝试定位(失败后降级默认坐标)
-    if (!isTestMode()) {
-      const ok = await this.selectComponent('#privacyPopup').ensure();
-      if (!ok) return;
-    }
     this.setData({ locating: true });
     wx.getLocation({
       type: 'gcj02',
       success: (loc) => {
-        this._privacyRetried = false;
         this.reverseLocation(loc.latitude, loc.longitude, (info) => {
           this.setData({
             locating: false,
@@ -218,7 +192,7 @@ Page({
         }
         // 隐私合规问题(未同意指引/后台未声明位置信息)不兜底,明确引导
         if (kind === 'privacy') {
-          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.locate());
+          this.handlePrivacyBlock((err && err.errMsg) || '');
           return;
         }
         // 模拟器:系统定位关闭/网络等非微信权限问题 → 成都兜底,不弹权限死循环
@@ -264,11 +238,9 @@ Page({
   },
 
   // ───────── 履约地址(用户在地图上自主选择) ─────────
-  async chooseSite() {
+  chooseSite() {
     // 自测模式: 直接填默认履约地点, 跳过隐私接口
     if (isTestMode()) { this.applyDefaultSite(); return; }
-    const ok = await this.selectComponent('#privacyPopup').ensure();
-    if (!ok) return;
     wx.chooseLocation({
       success: (res) => {
         this.setData({
@@ -282,7 +254,7 @@ Page({
         const kind = this.classifyLocError(err);
         console.error('[chooseSite] fail:', err);
         if (kind === 'privacy') {
-          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.chooseSite());
+          this.handlePrivacyBlock((err && err.errMsg) || '');
           return;
         }
         if (kind === 'auth') {
@@ -439,10 +411,8 @@ Page({
     this.setData({ submitting: true });
     wx.showLoading({ title: '定位中', mask: true });
 
-    const locOk = isTestMode() || await this.selectComponent('#privacyPopup').ensure();
-    if (!locOk) { wx.hideLoading(); this.setData({ submitting: false }); return; }
-
     // 提交瞬间重新取一次实际GPS作为发布地址(留痕优先); 履约地址用用户所选
+    // 首次调用隐私接口由微信官方弹窗自动处理授权
     // 失败降级链:实时GPS → 进入页面时缓存的坐标(同一次会话内真实定位) → 模拟器成都兜底 → 真机按错误类型引导
     const continueWith = (lat, lng) => {
       this.reverseLocation(lat, lng, (info) => {
@@ -487,7 +457,7 @@ Page({
         if (kind === 'privacy') {
           wx.hideLoading();
           this.setData({ submitting: false });
-          this.handlePrivacyBlock((err && err.errMsg) || '', () => this.onSubmit());
+          this.handlePrivacyBlock((err && err.errMsg) || '');
           return;
         }
         // 降级2: 模拟器——用成都默认坐标,保证自测可继续
