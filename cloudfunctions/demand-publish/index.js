@@ -317,7 +317,7 @@ exports.main = async (event, context) => {
         status: 'matching',
         match_candidates: [],
         invited: [],
-        broadcast: mode === 'broadcast' ? false : false,  // 抢单模式仍需用户点广场广播;选单模式直接可报名
+        broadcast: mode === 'broadcast',  // 抢单模式入厅可接;选单模式需报名→确认
         expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
         created_at: now,
         updated_at: now,

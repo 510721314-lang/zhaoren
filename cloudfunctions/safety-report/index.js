@@ -220,7 +220,9 @@ exports.main = async (event, context) => {
           type: 'checkin',
           reporter_role: role,
           created_at: now,
-          location
+          location,
+          // W1 就医陪诊:每30分钟报备一次,返回下次报备时间(超时5分钟预警由 order-timer 处理)
+          next_checkin_at: order.scene === 'W1' ? now + 30 * 60 * 1000 : null
         }
       };
     } catch (e) {

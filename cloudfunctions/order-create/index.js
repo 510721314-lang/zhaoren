@@ -158,6 +158,15 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_switch_off', msg: '接单开关已关闭' };
   }
 
+  // ── W1 就医陪诊:耍伴需通过国标专项考核(>=80分) ──
+  if (demand.scene === 'W1') {
+    const w1Score = Number(profile.exam_scores && profile.exam_scores.W1);
+    if (!w1Score || w1Score < 80) {
+      await logReject(openid, demand_id, 'w1_exam_failed');
+      return { ok: false, code: 'order_w1_exam_required', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
+    }
+  }
+
   // ── 耍伴信用分 ──
   if ((partnerUser.partner_credit_score || 800) < (config.min_credit_take_order || 600)) {
     await logReject(openid, demand_id, 'partner_credit_low');
@@ -335,6 +344,17 @@ exports.main = async (event, context) => {
     is_deleted: false
   };
 
+  // W1 就医陪诊:订单级责任险(mock,真实支付替换时对接保险公司API)
+  if (demand.scene === 'W1') {
+    orderData.insurance = {
+      policy_no: 'INS' + Date.now(),
+      type: 'W1_caregiver',
+      amount_fen: 5000000,   // 50万保额(mock)
+      is_mock: true,
+      created_at: now
+    };
+  }
+
   // ① 抢占需求: 抢单模式 CAS matching→matched(防超卖); 选单模式仅被确认的耍伴可接
   let casRes;
   try {
@@ -415,7 +435,8 @@ exports.main = async (event, context) => {
     ok: true,
     data: {
       order_id: orderId, order_no: orderNo,
-      status: 'S1', total_fen: totalFen, fee_fen: feeFen, partner_income_fen: partnerIncomeFen
+      status: 'S1', total_fen: totalFen, fee_fen: feeFen, partner_income_fen: partnerIncomeFen,
+      insurance: orderData.insurance || null
     }
   };
 };

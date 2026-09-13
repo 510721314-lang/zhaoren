@@ -38,7 +38,7 @@ exports.main = async (event, context) => {
 
   if (action !== 'apply') return { ok: false, code: 'apply_unknown_action', msg: '未知动作' };
 
-  const { accept_scenes, scene_rates } = event;
+  const { accept_scenes, scene_rates, exam_scores } = event;
 
   // ── 校验场景:非空 + 白名单 ──
   if (!Array.isArray(accept_scenes) || accept_scenes.length === 0) {
@@ -47,6 +47,14 @@ exports.main = async (event, context) => {
   for (const s of accept_scenes) {
     if (SCENE_WHITELIST.indexOf(s) < 0) {
       return { ok: false, code: 'apply_scene_invalid', msg: `场景 ${s} 不在白名单` };
+    }
+  }
+
+  // ── W1 就医陪诊专项考核:国标考核分需 >= 80 ──
+  if (accept_scenes.indexOf('W1') >= 0) {
+    const score = Number(exam_scores && exam_scores.W1);
+    if (!score || score < 80) {
+      return { ok: false, code: 'apply_w1_exam_failed', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
     }
   }
 
@@ -108,6 +116,7 @@ exports.main = async (event, context) => {
     avatar: user.avatar || '',
     accept_scenes,
     scene_rates,
+    exam_scores: exam_scores || {},
     city: ['成都'],
     accept_switch: true,
     status,
@@ -121,7 +130,7 @@ exports.main = async (event, context) => {
     if (exist.data && exist.data.length > 0) {
       // 已是耍伴:仅更新可改字段(状态按当前 config 决定)
       await col('partner_profile').doc(exist.data[0]._id).update({ data: {
-        accept_scenes, scene_rates, city: ['成都'], status,
+        accept_scenes, scene_rates, exam_scores: exam_scores || {}, city: ['成都'], status,
         updated_at: now
       }});
       console.log(`partner profile updated: ${openid}`);
