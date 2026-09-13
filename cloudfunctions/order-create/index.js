@@ -1,6 +1,6 @@
 // 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
-// order-create 订单创建 · 耍伴接单(create_from_take) · 身份取自 getWXContext().OPENID
-// 1 个 action: create_from_take · 订单初始状态 S1(待确认/四确认阶段)
+// order-create 订单创建 · 耍伴接单(create_from_take) · 免责声明签署(sign_disclaimer)
+// 2 个 action: create_from_take / sign_disclaimer · 订单初始状态 S1(待确认/四确认阶段)
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -91,6 +91,33 @@ exports.main = async (event, context) => {
   const { action } = event;
   console.log(`order-create action=${action} openid=${openid}`);
 
+  // ── 耍伴签署场景免责声明(code.html 第一道防线·接单前置) ──
+  if (action === 'sign_disclaimer') {
+    const { scene } = event;
+    if (!scene) return { ok: false, code: 'sign_no_scene', msg: '缺少场景' };
+    const disclaimerType = {
+      W1: 'medical_disclaimer', W2: 'general_disclaimer', W8: 'general_disclaimer',
+      W10: 'general_disclaimer', W11: 'online_disclaimer'
+    }[scene] || 'general_disclaimer';
+
+    // 已签同场景则幂等返回
+    const exist = await col('disclaimer_signature').where({
+      openid, role: 'partner', scene, is_deleted: false
+    }).limit(1).get().catch(() => ({ data: [] }));
+    if (exist.data && exist.data[0]) {
+      return { ok: true, data: { scene, signed: true, idempotent: true } };
+    }
+
+    const now = Date.now();
+    await col('disclaimer_signature').add({ data: {
+      openid, role: 'partner', scene, disclaimer_type: disclaimerType,
+      signed_at: now, signature_hash: `sig_${openid}_${scene}_${now}`,
+      created_at: now, updated_at: now, is_deleted: false
+    }});
+    console.log(`partner signed disclaimer: openid=${openid} scene=${scene}`);
+    return { ok: true, data: { scene, signed: true } };
+  }
+
   if (action !== 'create_from_take') {
     return { ok: false, code: 'order_unknown_action', msg: '未知动作' };
   }
@@ -161,11 +188,24 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_demand_expired', msg: '该需求已过期' };
   }
 
-  // 广播或在邀约名单中
-  const invited = demand.invited || [];
-  if (!demand.broadcast && invited.indexOf(openid) < 0) {
-    await logReject(openid, demand_id, 'not_invited_or_broadcast');
-    return { ok: false, code: 'order_not_allowed', msg: '你不在该需求的接单范围' };
+  // ── 免责声明双签校验(code.html 第一道防线):耍伴必须已签同场景声明 ──
+  const demandScene = String(demand.scene || '');
+  const signed = await col('disclaimer_signature').where({
+    openid, role: 'partner', scene: demandScene, is_deleted: false
+  }).limit(1).get().catch(() => ({ data: [] }));
+  if (!signed.data || !signed.data[0]) {
+    await logReject(openid, demand_id, 'disclaimer_not_signed');
+    return { ok: false, code: 'order_disclaimer_required', msg: '请先签署该场景免责声明后再接单' };
+  }
+
+  // 接单范围校验: 抢单模式需 broadcast 或在邀约名单; 选单模式跳过(由 apply/confirm_apply 控制)
+  const demandMatchMode = demand.match_mode || 'broadcast';
+  if (demandMatchMode !== 'select') {
+    const invited = demand.invited || [];
+    if (!demand.broadcast && invited.indexOf(openid) < 0) {
+      await logReject(openid, demand_id, 'not_invited_or_broadcast');
+      return { ok: false, code: 'order_not_allowed', msg: '你不在该需求的接单范围' };
+    }
   }
 
   // ── 接单距离校验: 耍伴接单时实际位置与履约地点直线距离 ≤ 50km(产品反馈硬规则) ──
@@ -224,7 +264,6 @@ exports.main = async (event, context) => {
 
   // ── 场景须在耍伴接受范围内 ──
   const acceptScenes = Array.isArray(profile.accept_scenes) ? profile.accept_scenes : [];
-  const demandScene = String(demand.scene || '');
   const sceneHit = acceptScenes.includes(demandScene);
   console.log(`[ORDER_DEBUG] demand.scene=${JSON.stringify(demandScene)} profile.accept_scenes=${JSON.stringify(acceptScenes)} hit=${sceneHit}`);
   if (!sceneHit) {
@@ -296,12 +335,26 @@ exports.main = async (event, context) => {
     is_deleted: false
   };
 
-  // ① CAS 抢占需求: matching→matched 原子条件更新, 并发接单仅一方成功(防超卖)
+  // ① 抢占需求: 抢单模式 CAS matching→matched(防超卖); 选单模式仅被确认的耍伴可接
   let casRes;
   try {
-    casRes = await col('demand').where({ _id: demand_id, status: 'matching' }).update({
-      data: { status: 'matched', matched_at: now, updated_at: now }
-    });
+    if (demandMatchMode === 'select') {
+      // 选单模式:仅 demand.matched_openid 等于当前耍伴才可接单
+      if (demand.matched_openid !== openid) {
+        await logReject(openid, demand_id, 'select_not_confirmed');
+        return { ok: false, code: 'order_select_not_confirmed', msg: '你未被需求者确认,无法接单' };
+      }
+      casRes = await col('demand').where({
+        _id: demand_id, status: 'matching', matched_openid: openid
+      }).update({
+        data: { status: 'matched', matched_at: now, updated_at: now }
+      });
+    } else {
+      // 抢单模式: matching→matched 原子条件更新, 并发接单仅一方成功(防超卖)
+      casRes = await col('demand').where({ _id: demand_id, status: 'matching' }).update({
+        data: { status: 'matched', matched_at: now, updated_at: now }
+      });
+    }
   } catch (e) {
     console.log(`order create cas fail: ${e.message}`);
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
@@ -335,6 +388,16 @@ exports.main = async (event, context) => {
       await t.collection('order_status_log').add({ data: {
         order_id: orderId, from_status: null, to_status: 'S1',
         action: 'create_from_take', operator: openid,
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+
+      // 需求者免责声明签署凭证(双签入库 · code.html 第一道防线)
+      await t.collection('disclaimer_signature').add({ data: {
+        openid: demand.creator_openid, role: 'user', scene: demandScene,
+        disclaimer_type: demand.disclaimer_type || 'general_disclaimer',
+        demand_id, order_id: orderId,
+        signed_at: demand.disclaimer_signed_at || now,
+        signature_hash: `sig_user_${demand.creator_openid}_${demandScene}_${orderId}`,
         created_at: now, updated_at: now, is_deleted: false
       }});
     });

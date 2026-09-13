@@ -10,6 +10,18 @@ const col = (n) => db.collection(n);
 // 场景白名单(MVP-V1 · rules.md 三.11)
 const SCENE_WHITELIST = ['W1', 'W2', 'W8', 'W10', 'W11'];
 
+// 接单模式白名单: broadcast=抢单(先到先得) · select=选单(耍伴报名→需求者确认)
+const MATCH_MODE_WHITELIST = ['broadcast', 'select'];
+
+// 场景→免责声明类型映射(code.html 第一道防线·双签)
+const DISCLAIMER_TYPE_MAP = {
+  W1: 'medical_disclaimer',     // 就医陪诊免责声明(国标第7条)
+  W2: 'general_disclaimer',     // 学习陪伴
+  W8: 'general_disclaimer',     // 生活协助
+  W10: 'general_disclaimer',    // 出行陪伴
+  W11: 'online_disclaimer'      // 线上陪伴内容协议
+};
+
 // 场景子服务选项兜底(与 init-db 种子 admin_config.scene_list / 小程序 constants 一致)
 const SCENE_OPTIONS_FALLBACK = {
   W1: ['挂号排队', '取药送药', '陪诊解压'],
@@ -104,13 +116,16 @@ exports.main = async (event, context) => {
     case 'publish': {
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
-        remark, rate_fen, aa_tier, aa_promise_checked
+        remark, rate_fen, aa_tier, aa_promise_checked,
+        match_mode, disclaimer_signed
       } = event;
 
       // ── 基础校验 ──
       if (!scene || SCENE_WHITELIST.indexOf(scene) < 0) {
         return { ok: false, code: 'publish_scene_invalid', msg: '场景不在白名单(仅 W1/W2/W8/W10/W11)' };
       }
+      // 接单模式(默认抢单 broadcast; 选单 select 需耍伴报名→需求者确认)
+      const mode = MATCH_MODE_WHITELIST.indexOf(match_mode) >= 0 ? match_mode : 'broadcast';
       if (!start_time || typeof start_time !== 'number' || start_time <= Date.now()) {
         return { ok: false, code: 'publish_start_time', msg: '开始时间必须是未来时间戳' };
       }
@@ -145,6 +160,10 @@ exports.main = async (event, context) => {
       // AA 承诺书必勾(rules.md 三.6 · 服务端兜底,不勾不能提交)
       if (!aa_promise_checked) {
         return { ok: false, code: 'publish_aa_promise', msg: '请先阅读并勾选《线下费用自理承诺书》' };
+      }
+      // 场景免责声明必勾(code.html 第一道防线·需求者下单前签署)
+      if (!disclaimer_signed) {
+        return { ok: false, code: 'publish_disclaimer', msg: '请先阅读并勾选《场景免责声明》' };
       }
 
       // 并行拉取 配置/用户/紧急联系人(减少串行往返, 冷启动也能压进超时)
@@ -287,11 +306,18 @@ exports.main = async (event, context) => {
         total_fen,
         aa_tier,
         aa_promise_signed: !!aa_promise_checked,   // rules.md 三.6 AA承诺书(服务端已兜底校验)
-        match_mode: 'invite',      // 发布后先走定向邀约; 用户在匹配页点「广场广播」后转 broadcast
+        // ── 合规双签(code.html 第一道防线) ──
+        disclaimer_type: DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer',
+        disclaimer_signed: true,
+        disclaimer_signed_at: now,
+        // ── 接单模式 ──
+        match_mode: mode,                            // broadcast=抢单 / select=选单
+        applicants: [],                              // 选单模式:报名耍伴列表
+        matched_openid: null,                        // 选单模式:已确认的耍伴
         status: 'matching',
         match_candidates: [],
         invited: [],
-        broadcast: false,          // 广播后才上接单大厅(匹配页显式触发)
+        broadcast: mode === 'broadcast' ? false : false,  // 抢单模式仍需用户点广场广播;选单模式直接可报名
         expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
         created_at: now,
         updated_at: now,

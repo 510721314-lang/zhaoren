@@ -1,6 +1,6 @@
 // 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
 // demand-match 需求匹配 · 身份取自 getWXContext().OPENID
-// 4 个 action: top5 / invite / broadcast / hall_list
+// 6 个 action: top5 / invite / broadcast / hall_list / apply / confirm_apply
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -280,6 +280,98 @@ exports.main = async (event, context) => {
       }});
       console.log(`demand broadcast: ${demand.demand_no}`);
       return { ok: true, data: { broadcast: true } };
+    }
+
+    // 5. 耍伴报名(选单模式 · match_mode=select)
+    case 'apply': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'apply_no_id', msg: '缺少需求 ID' };
+
+      let demand;
+      try {
+        const dr = await col('demand').doc(demand_id).get();
+        demand = dr.data;
+        if (!demand) return { ok: false, code: 'apply_not_found', msg: '需求不存在' };
+      } catch (e) {
+        return { ok: false, code: 'apply_not_found', msg: '需求不存在' };
+      }
+      // 仅选单模式可报名
+      if ((demand.match_mode || 'broadcast') !== 'select') {
+        return { ok: false, code: 'apply_mode_invalid', msg: '该需求为抢单模式,请直接接单' };
+      }
+      if (demand.status !== 'matching') {
+        return { ok: false, code: 'apply_closed', msg: '该需求已不可报名' };
+      }
+      if (demand.creator_openid === openid) {
+        return { ok: false, code: 'apply_own', msg: '不能报名自己发布的需求' };
+      }
+      // 耍伴身份校验
+      const profile = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get()
+        .then(r => (r.data && r.data[0]) || null).catch(() => null);
+      if (!profile || profile.status !== 'approved') {
+        return { ok: false, code: 'apply_not_partner', msg: '耍伴资料未审核通过' };
+      }
+      // 免责声明校验
+      const scene = String(demand.scene || '');
+      const signed = await col('disclaimer_signature').where({
+        openid, role: 'partner', scene, is_deleted: false
+      }).limit(1).get().catch(() => ({ data: [] }));
+      if (!signed.data || !signed.data[0]) {
+        return { ok: false, code: 'apply_disclaimer_required', msg: '请先签署该场景免责声明后再报名' };
+      }
+      // 防重复报名
+      const applicants = Array.isArray(demand.applicants) ? demand.applicants : [];
+      if (applicants.some(a => a.openid === openid)) {
+        return { ok: false, code: 'apply_duplicate', msg: '你已报名该需求' };
+      }
+      // 追加报名者
+      applicants.push({ openid, applied_at: Date.now(), status: 'pending' });
+      await col('demand').doc(demand_id).update({ data: {
+        applicants, updated_at: Date.now()
+      }});
+      console.log(`apply success: demand=${demand_id} partner=${openid}`);
+      return { ok: true, data: { demand_id, applied: true, applicant_count: applicants.length } };
+    }
+
+    // 6. 需求者确认报名(选单模式)
+    case 'confirm_apply': {
+      const { demand_id, partner_openid } = event;
+      if (!demand_id) return { ok: false, code: 'confirm_no_id', msg: '缺少需求 ID' };
+      if (!partner_openid) return { ok: false, code: 'confirm_no_partner', msg: '缺少耍伴 ID' };
+
+      let demand;
+      try {
+        const dr = await col('demand').doc(demand_id).get();
+        demand = dr.data;
+        if (!demand) return { ok: false, code: 'confirm_not_found', msg: '需求不存在' };
+      } catch (e) {
+        return { ok: false, code: 'confirm_not_found', msg: '需求不存在' };
+      }
+      if (demand.creator_openid !== openid) {
+        return { ok: false, code: 'confirm_not_owner', msg: '只有需求创建者可确认报名' };
+      }
+      if ((demand.match_mode || 'broadcast') !== 'select') {
+        return { ok: false, code: 'confirm_mode_invalid', msg: '该需求不是选单模式' };
+      }
+      if (demand.status !== 'matching') {
+        return { ok: false, code: 'confirm_closed', msg: '该需求已不可确认' };
+      }
+      const applicants = Array.isArray(demand.applicants) ? demand.applicants : [];
+      const target = applicants.find(a => a.openid === partner_openid);
+      if (!target) {
+        return { ok: false, code: 'confirm_not_applicant', msg: '该耍伴未报名' };
+      }
+      // 设置已确认耍伴(CAS 防止重复确认)
+      const cr = await col('demand').where({
+        _id: demand_id, status: 'matching', matched_openid: null
+      }).update({ data: {
+        matched_openid: partner_openid, updated_at: Date.now()
+      }});
+      if (!cr.stats || cr.stats.updated !== 1) {
+        return { ok: false, code: 'confirm_conflict', msg: '该需求已确认其他耍伴' };
+      }
+      console.log(`confirm_apply: demand=${demand_id} partner=${partner_openid}`);
+      return { ok: true, data: { demand_id, confirmed_partner: partner_openid } };
     }
 
     // 4. 接单大厅列表(广场可接单需求)

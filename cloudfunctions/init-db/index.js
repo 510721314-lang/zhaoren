@@ -9,7 +9,8 @@ const db = cloud.database();
 const COLLECTIONS = [
   'user_account', 'partner_profile', 'demand', 'order_main', 'order_confirmations',
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
-  'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config'
+  'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
+  'disclaimer_signature'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
