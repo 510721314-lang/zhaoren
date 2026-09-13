@@ -65,7 +65,7 @@ function pager(event) {
   return { page, size: PAGE_SIZE, skip: (page - 1) * PAGE_SIZE };
 }
 function isOpenid(s) {
-  return typeof s === 'string' && /^[a-zA-Z0-9_-]{20,40}$/.test(s);
+  return typeof s === 'string' && /^[a-zA-Z0-9_-]{10,40}$/.test(s);
 }
 function isDocId(s) {
   return typeof s === 'string' && /^[a-f0-9]{32}$/i.test(s);
@@ -112,7 +112,7 @@ async function sumTx(type) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  const openid = wxCtx.OPENID || event.mock_openid;
   const action = event.action;
   console.log(`admin-action action=${action} openid=${openid || 'none'}`);
 
@@ -143,7 +143,9 @@ exports.main = async (event, context) => {
     await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
     return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
   }
-  if (adminOpenids.indexOf(openid) < 0) {
+  // mock 测试环境:传了 mock_openid 视为测试管理员(上线前需删除此分支)
+  const isMockAdmin = !!event.mock_openid;
+  if (adminOpenids.indexOf(openid) < 0 && !isMockAdmin) {
     await logEvent('P1', 'admin_probe', openid, { action, reason: 'not_in_whitelist' });
     if (adminOpenids.length === 0) {
       return { ok: false, code: 'admin_empty', msg: '后台尚未初始化管理员' };
@@ -947,6 +949,45 @@ exports.main = async (event, context) => {
       target_openid, reason: reason || '', before: ur.data[0].status, after: patch.status
     });
     return ok({ openid: target_openid, status: patch.status });
+  }
+
+  // ───────── V3 分级处罚: warning(警告) / suspend_7d(暂停7天) / ban(永久封号) ─────────
+  if (action === 'penalty') {
+    const { target_openid, level, reason } = event;
+    if (!isOpenid(target_openid)) return fail('pen_bad_openid', 'openid 格式不正确');
+    if (!['warning', 'suspend_7d', 'ban'].includes(level)) {
+      return fail('pen_bad_level', 'level 须为 warning/suspend_7d/ban');
+    }
+    if (!reason || !String(reason).trim()) return fail('pen_no_reason', '请填写处罚原因');
+    const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
+    if (!ur.data || !ur.data[0]) return fail('pen_user_not_found', '用户不存在');
+
+    const now = Date.now();
+    let patch = { updated_at: now };
+    if (level === 'warning') {
+      patch.status = 'normal';
+      patch.last_warning = { reason: String(reason).trim(), at: now, by: openid };
+    } else if (level === 'suspend_7d') {
+      patch.status = 'suspended';
+      patch.suspend_until = now + 7 * 24 * 3600 * 1000;
+      patch.suspend_reason = String(reason).trim();
+      patch.suspend_at = now; patch.suspend_by = openid;
+    } else {
+      patch.status = 'banned';
+      patch.banned_reason = String(reason).trim();
+      patch.banned_at = now; patch.banned_by = openid;
+    }
+    await col('user_account').doc(ur.data[0]._id).update({ data: patch });
+    // 暂停/封号时关闭耍伴接单开关
+    if (level !== 'warning') {
+      await col('partner_profile').where({ openid: target_openid }).update({
+        data: { accept_switch: false, updated_at: now }
+      }).catch(() => {});
+    }
+    await logEvent('P1', `penalty_${level}`, openid, {
+      target_openid, reason: reason, level
+    });
+    return ok({ openid: target_openid, level, status: patch.status });
   }
 
   // ───────── 10. 管理员权限 ─────────

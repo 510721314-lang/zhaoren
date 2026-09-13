@@ -16,6 +16,16 @@ const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴',
 const CHAT_BLOCKED = ['S6', 'S10'];
 const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+
+// W11 线上陪伴 R3 红线词库(6类:引流/虚拟币/赌博/色情/政治/暴力)
+const W11_R3_WORDS = {
+  '引流站外': ['加微信', '加V', 'QQ', '联系方式', '站外', '私聊我', '加我vx'],
+  '虚拟币': ['比特币', 'USDT', '虚拟币', '炒币', '区块链投资', '币圈'],
+  '赌博': ['赌博', '赌球', '彩票', '下注', '押注', '百家乐'],
+  '色情': ['色情', '裸聊', '约炮', '一夜情', '成人视频'],
+  '政治': ['政治敏感', '反动', '颠覆'],
+  '暴力': ['暴力', '打人', '杀', '砍人']
+};
 const TEXT_MAX_LEN = 500;
 
 async function getConfig() {
@@ -208,6 +218,23 @@ exports.main = async (event, context) => {
     if (!chk.pass) {
       console.log(`im text blocked: order=${order.order_no} by=${role} reason=${chk.reason}`);
       return { ok: false, code: 'im_text_blocked', msg: chk.reason };
+    }
+
+    // W11 线上陪伴 R3 红线检测(6类),命中拦截并记录 redline_event
+    if (order.scene === 'W11') {
+      for (const [rtype, words] of Object.entries(W11_R3_WORDS)) {
+        if (words.some(w => text.indexOf(w) >= 0)) {
+          try {
+            await col('platform_event').add({ data: {
+              level: 'P1', type: 'redline', openid,
+              payload: { order_id, scene: 'W11', redline_type: rtype, text: text.slice(0, 100) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }});
+          } catch (e) {}
+          console.log(`W11 R3 hit: order=${order.order_no} by=${role} type=${rtype}`);
+          return { ok: false, code: 'im_r3_blocked', msg: `消息触发W11红线(${rtype}),已记录并上报` };
+        }
+      }
     }
 
     try {
