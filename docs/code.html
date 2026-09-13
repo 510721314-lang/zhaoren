@@ -1,0 +1,333 @@
+<div style="width:100%;box-sizing:border-box;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;padding:12px;background:#fff;color:#0F172A;">
+<h3 style="margin:4px 0 2px;font-size:19px;">「找人帮忙」小程序 · 陪伴类全场景合规业务逻辑（整合版）</h3>
+<p style="margin:2px 0 10px;font-size:13.5px;color:#475569;">三泳道：需求者 / 平台系统 / <b>耍伴</b>（平台认证服务者）。业务闭环「发布 → 接单 → 履约 → 验收 → 结算 → 评价 → 售后」；两大关键设计升级为合规三道防线：① 接单双模式（抢单/选单）+ <b>免责声明双向签署</b> + 场景专项认证前置校验 + 订单级责任险一单一保；② 资金托管 + 里程碑三段式（30%→60%→100%）+ 超时兜底；合规引擎（红线R3→V3、安全报备、隐私脱敏、W2 AA制SSOT）贯穿全流程。</p>
+
+<h4 style="margin:14px 0 6px;font-size:15.5px;color:#0F172A;">一、总体设计框架：合规驱动三道防线</h4>
+<table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:6px;">防线</th><th style="border:1px solid #CBD5E1;padding:6px;">机制</th><th style="border:1px solid #CBD5E1;padding:6px;">流程落点</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:6px;"><b>第一道 · 准入</b></td><td style="border:1px solid #CBD5E1;padding:6px;">耍伴场景专项认证（W1须通过国标专项考核≥80分，未过暂停接单、7天后补考1次、连续3次取消资格）+ 免责声明双向签署 + W9宠物授权凭证</td><td style="border:1px solid #CBD5E1;padding:6px;">发布/接单按钮前置校验，未达标置灰</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:6px;"><b>第二道 · 履约</b></td><td style="border:1px solid #CBD5E1;padding:6px;">场景边界硬约束（时间/场地）+ 里程碑三段式确认 + 安全报备每30分钟（W7危机后15分钟）+ AI实时审核 + 人工抽检5%</td><td style="border:1px solid #CBD5E1;padding:6px;">履约监控引擎 + 里程碑引擎，全程留痕</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:6px;"><b>第三道 · 兜底</b></td><td style="border:1px solid #CBD5E1;padding:6px;">订单级责任险一单一保 + 红线R3按V3分级处置 + 人工客服/仲裁 + 国标第10条评价闭环反向驱动培训</td><td style="border:1px solid #CBD5E1;padding:6px;">结算、争议、售后环节</td></tr>
+</table>
+
+<h4 style="margin:16px 0 4px;font-size:15.5px;">二、全平台主业务流程（三泳道 · 合规节点内嵌）</h4>
+<p style="margin:0 0 6px;font-size:12.5px;color:#475569;">实线箭头＝流程推进与消息传递；橙色虚线＝驳回·选单确认·争议等分支；<b>红色节点＝合规关键节点</b>；<b>琥珀节点＝资金环节</b>。</p>
+<svg viewBox="0 0 1260 1255" width="100%" xmlns="http://www.w3.org/2000/svg" style="display:block;max-width:1240px;margin:0 auto;">
+  <defs>
+    <marker id="aGry" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#334155"/></marker>
+    <marker id="aOrg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#EA580C"/></marker>
+  </defs>
+  <rect x="0" y="60" width="420" height="1180" fill="#F0F9FF"/>
+  <rect x="420" y="60" width="420" height="1180" fill="#F8FAFC"/>
+  <rect x="840" y="60" width="420" height="1180" fill="#F0FDF4"/>
+  <line x1="420" y1="60" x2="420" y2="1240" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <line x1="840" y1="60" x2="840" y2="1240" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <text x="210" y="38" text-anchor="middle" font-size="16" font-weight="700" fill="#1D4ED8">需求者（发单方）</text>
+  <text x="630" y="38" text-anchor="middle" font-size="16" font-weight="700" fill="#475569">平台系统（微信小程序）</text>
+  <text x="1050" y="38" text-anchor="middle" font-size="16" font-weight="700" fill="#15803D">耍伴（认证服务者）</text>
+
+  <g stroke="#64748B" stroke-width="1.8" fill="none">
+    <line x1="210" y1="162" x2="210" y2="198" marker-end="url(#aGry)"/><line x1="210" y1="267" x2="210" y2="303" marker-end="url(#aGry)"/><line x1="210" y1="372" x2="210" y2="408" marker-end="url(#aGry)"/><line x1="210" y1="477" x2="210" y2="513" marker-end="url(#aGry)"/><line x1="210" y1="582" x2="210" y2="618" marker-end="url(#aGry)"/><line x1="210" y1="687" x2="210" y2="723" marker-end="url(#aGry)"/><line x1="210" y1="792" x2="210" y2="828" marker-end="url(#aGry)"/><line x1="210" y1="897" x2="210" y2="933" marker-end="url(#aGry)"/><line x1="210" y1="1002" x2="210" y2="1038" marker-end="url(#aGry)"/><line x1="210" y1="1107" x2="210" y2="1143" marker-end="url(#aGry)"/>
+  </g>
+  <g stroke="#94A3B8" stroke-width="1.8" fill="none">
+    <line x1="630" y1="162" x2="630" y2="198" marker-end="url(#aGry)"/><line x1="630" y1="267" x2="630" y2="303" marker-end="url(#aGry)"/><line x1="630" y1="372" x2="630" y2="408" marker-end="url(#aGry)"/><line x1="630" y1="477" x2="630" y2="513" marker-end="url(#aGry)"/><line x1="630" y1="582" x2="630" y2="618" marker-end="url(#aGry)"/><line x1="630" y1="687" x2="630" y2="723" marker-end="url(#aGry)"/><line x1="630" y1="792" x2="630" y2="828" marker-end="url(#aGry)"/><line x1="630" y1="897" x2="630" y2="933" marker-end="url(#aGry)"/><line x1="630" y1="1002" x2="630" y2="1038" marker-end="url(#aGry)"/><line x1="630" y1="1107" x2="630" y2="1143" marker-end="url(#aGry)"/>
+  </g>
+  <g stroke="#4ADE80" stroke-width="1.8" fill="none">
+    <line x1="1050" y1="162" x2="1050" y2="198" marker-end="url(#aGry)"/><line x1="1050" y1="267" x2="1050" y2="303" marker-end="url(#aGry)"/><line x1="1050" y1="372" x2="1050" y2="408" marker-end="url(#aGry)"/><line x1="1050" y1="477" x2="1050" y2="513" marker-end="url(#aGry)"/><line x1="1050" y1="582" x2="1050" y2="618" marker-end="url(#aGry)"/><line x1="1050" y1="687" x2="1050" y2="723" marker-end="url(#aGry)"/><line x1="1050" y1="792" x2="1050" y2="828" marker-end="url(#aGry)"/><line x1="1050" y1="897" x2="1050" y2="933" marker-end="url(#aGry)"/><line x1="1050" y1="1002" x2="1050" y2="1038" marker-end="url(#aGry)"/><line x1="1050" y1="1107" x2="1050" y2="1143" marker-end="url(#aGry)"/>
+  </g>
+
+  <g stroke="#334155" stroke-width="2" fill="none">
+    <line x1="375" y1="236" x2="458" y2="236" marker-end="url(#aGry)"/>
+    <line x1="802" y1="341" x2="878" y2="341" marker-end="url(#aGry)"/>
+    <line x1="885" y1="446" x2="802" y2="446" marker-end="url(#aGry)"/>
+    <line x1="375" y1="551" x2="458" y2="551" marker-end="url(#aGry)"/>
+    <line x1="802" y1="551" x2="878" y2="551" marker-end="url(#aGry)"/>
+    <line x1="375" y1="656" x2="458" y2="656" marker-end="url(#aGry)"/>
+    <line x1="802" y1="656" x2="878" y2="656" marker-end="url(#aGry)"/>
+    <line x1="885" y1="761" x2="802" y2="761" marker-end="url(#aGry)"/>
+    <line x1="465" y1="761" x2="382" y2="761" marker-end="url(#aGry)"/>
+    <line x1="885" y1="866" x2="802" y2="866" marker-end="url(#aGry)"/>
+    <line x1="465" y1="866" x2="382" y2="866" marker-end="url(#aGry)"/>
+    <line x1="375" y1="971" x2="458" y2="971" marker-end="url(#aGry)"/>
+    <line x1="802" y1="971" x2="878" y2="971" marker-end="url(#aGry)"/>
+    <line x1="375" y1="1076" x2="458" y2="1076" marker-end="url(#aGry)"/>
+    <line x1="802" y1="1076" x2="878" y2="1076" marker-end="url(#aGry)"/>
+  </g>
+  <g stroke="#EA580C" stroke-width="1.8" fill="none" stroke-dasharray="5,4">
+    <line x1="465" y1="252" x2="382" y2="264" marker-end="url(#aOrg)"/>
+    <line x1="465" y1="460" x2="382" y2="530" marker-end="url(#aOrg)"/>
+    <line x1="375" y1="890" x2="465" y2="948" marker-end="url(#aOrg)"/>
+    <line x1="465" y1="1195" x2="382" y2="1195" marker-end="url(#aOrg)"/>
+  </g>
+
+  <!-- 需求者节点 -->
+  <g font-family="inherit">
+    <rect x="45" y="100" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="124" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R1 微信登录 · 实名认证</text><text x="210" y="144" text-anchor="middle" font-size="10.8" fill="#334155">首次使用授权微信信息</text>
+    <rect x="45" y="205" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="229" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R2 选择场景(W1-W11)·填写需求单</text><text x="210" y="249" text-anchor="middle" font-size="10.8" fill="#334155">类型·时段·地点·服务对象·特殊需求</text>
+    <rect x="45" y="310" width="330" height="62" rx="12" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.8"/><text x="210" y="334" text-anchor="middle" font-size="13.5" font-weight="700" fill="#7F1D1D">R3 勾选场景《免责声明》</text><text x="210" y="354" text-anchor="middle" font-size="10.8" fill="#7F1D1D">下单前置 · 仅生活辅助（国标第7条）</text>
+    <rect x="45" y="415" width="330" height="62" rx="12" fill="#FEF3C7" stroke="#D97706" stroke-width="1.8"/><text x="210" y="439" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">R4 支付资金托管</text><text x="210" y="459" text-anchor="middle" font-size="10.8" fill="#92400E">W2走AA制SSOT记账 · 不经耍伴账户</text>
+    <rect x="45" y="520" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="544" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R5 确认服务者（选单制）</text><text x="210" y="564" text-anchor="middle" font-size="10.8" fill="#334155">查看场景认证·信用·报价后确认成交</text>
+    <rect x="45" y="625" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="649" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R6 站内沟通确认细节</text><text x="210" y="669" text-anchor="middle" font-size="10.8" fill="#334155">虚拟号保护 · 约定时间地点</text>
+    <rect x="45" y="730" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="754" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R7 里程碑确认 · 查看报备</text><text x="210" y="774" text-anchor="middle" font-size="10.8" fill="#334155">15分钟未确认自动通过 · 24h内可申诉</text>
+    <rect x="45" y="835" width="330" height="62" rx="12" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.8"/><text x="210" y="859" text-anchor="middle" font-size="13.5" font-weight="700" fill="#7F1D1D">R8 验收核对</text><text x="210" y="879" text-anchor="middle" font-size="10.8" fill="#7F1D1D">确认 / 申请修改(≤3次) / 发起争议</text>
+    <rect x="45" y="940" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="964" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R9 确认完成 · 触发结算</text><text x="210" y="984" text-anchor="middle" font-size="10.8" fill="#334155">超24h未操作系统自动确认</text>
+    <rect x="45" y="1045" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="1069" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R10 双向评价</text><text x="210" y="1089" text-anchor="middle" font-size="10.8" fill="#334155">星级+标签+文字 · 对齐国标第10条</text>
+    <rect x="45" y="1150" width="330" height="62" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.8"/><text x="210" y="1174" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E3A8A">R11 订单完结</text><text x="210" y="1194" text-anchor="middle" font-size="10.8" fill="#334155">凭证归档 · 回流再发单</text>
+  </g>
+
+  <!-- 平台节点 -->
+  <g font-family="inherit">
+    <rect x="465" y="100" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="124" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P1 登录态 · 实名校验</text><text x="630" y="144" text-anchor="middle" font-size="10.8" fill="#475569">未认证禁止发布与接单</text>
+    <rect x="465" y="205" width="330" height="62" rx="12" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.8"/><text x="630" y="229" text-anchor="middle" font-size="13.5" font-weight="700" fill="#7F1D1D">P2 场景合规校验</text><text x="630" y="249" text-anchor="middle" font-size="10.8" fill="#7F1D1D">时间硬约束 · 场地校验 · W9授权前置提示</text>
+    <rect x="465" y="310" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="334" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P3 内容合规审核 · 需求上架</text><text x="630" y="354" text-anchor="middle" font-size="10.8" fill="#475569">违禁词自动拦截 · 按场景认证精准推送</text>
+    <rect x="465" y="415" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="439" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P4 接单判定</text><text x="630" y="459" text-anchor="middle" font-size="10.8" fill="#475569">抢单先到先得 / 选单待确认 · 认证无效置灰</text>
+    <rect x="465" y="520" width="330" height="62" rx="12" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.8"/><text x="630" y="544" text-anchor="middle" font-size="13.5" font-weight="700" fill="#7F1D1D">P5 双签校验 · 生成订单</text><text x="630" y="564" text-anchor="middle" font-size="10.8" fill="#7F1D1D">声明凭证入库 · 责任险一单一保(W1) · 资金托管</text>
+    <rect x="465" y="625" width="330" height="62" rx="12" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.8"/><text x="630" y="649" text-anchor="middle" font-size="13.5" font-weight="700" fill="#7F1D1D">P6 履约监控 · 越界拦截</text><text x="630" y="669" text-anchor="middle" font-size="10.8" fill="#7F1D1D">报备30/15分钟 · GPS轨迹 · AI审核 · R3→V3处置</text>
+    <rect x="465" y="730" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="754" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P7 里程碑引擎</text><text x="630" y="774" text-anchor="middle" font-size="10.8" fill="#475569">30%→60%→100% · 超15分钟自动确认留痕</text>
+    <rect x="465" y="835" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="859" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P8 验收处理</text><text x="630" y="879" text-anchor="middle" font-size="10.8" fill="#475569">确认 / 修改≤3次 · 超24h自动确认</text>
+    <rect x="465" y="940" width="330" height="62" rx="12" fill="#FEF3C7" stroke="#D97706" stroke-width="1.8"/><text x="630" y="964" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">P9 结算 · 争议仲裁</text><text x="630" y="984" text-anchor="middle" font-size="10.8" fill="#92400E">释放托管扣阶梯佣金 · 争议→仲裁退款/理赔</text>
+    <rect x="465" y="1045" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="1069" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P10 评价校验 · 信用更新</text><text x="630" y="1089" text-anchor="middle" font-size="10.8" fill="#475569">防刷评 · 差评申诉 · 按国标第10条维度统计</text>
+    <rect x="465" y="1150" width="330" height="62" rx="12" fill="#E2E8F0" stroke="#64748B" stroke-width="1.8"/><text x="630" y="1174" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">P11 凭证归档留存</text><text x="630" y="1194" text-anchor="middle" font-size="10.8" fill="#475569">W1医嘱国标格式留存 · W11录制90天自动销毁</text>
+  </g>
+
+  <!-- 耍伴节点 -->
+  <g font-family="inherit">
+    <rect x="885" y="100" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="124" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S1 耍伴入驻 · 场景专项认证</text><text x="1050" y="144" text-anchor="middle" font-size="10.8" fill="#166534">W1国标考核≥80分 · 7天补考 · 3次取消</text>
+    <rect x="885" y="205" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="229" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S2 浏览大厅 · 订阅推送</text><text x="1050" y="249" text-anchor="middle" font-size="10.8" fill="#166534">按已认证场景 · 距离 · 价格筛选</text>
+    <rect x="885" y="310" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="334" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S3 查看需求详情</text><text x="1050" y="354" text-anchor="middle" font-size="10.8" fill="#166534">评估距离 · 能力 · 时段合规性</text>
+    <rect x="885" y="415" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="439" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S4 抢单 / 报名竞标</text><text x="1050" y="459" text-anchor="middle" font-size="10.8" fill="#166534">系统校验场景认证有效期 · 在途单上限</text>
+    <rect x="885" y="520" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="544" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S5 勾选《免责声明》· 接单成功</text><text x="1050" y="564" text-anchor="middle" font-size="10.8" fill="#166534">接单前置：同场景声明签署</text>
+    <rect x="885" y="625" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="649" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S6 服务前准备</text><text x="1050" y="669" text-anchor="middle" font-size="10.8" fill="#166534">W9上传授权凭证 · W1加密采集患者信息</text>
+    <rect x="885" y="730" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="754" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S7 GPS签到 · 开始履约</text><text x="1050" y="774" text-anchor="middle" font-size="10.8" fill="#166534">到达约定地点(≤200米) · 启动安全报备</text>
+    <rect x="885" y="835" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="859" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S8 提交完成申请</text><text x="1050" y="879" text-anchor="middle" font-size="10.8" fill="#166534">里程碑100% + 结束打卡 + 材料交接确认</text>
+    <rect x="885" y="940" width="330" height="62" rx="12" fill="#FEF3C7" stroke="#D97706" stroke-width="1.8"/><text x="1050" y="964" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">S9 收款 · 提现</text><text x="1050" y="984" text-anchor="middle" font-size="10.8" fill="#92400E">T+0/T+1到账 · 微信零钱或银行卡</text>
+    <rect x="885" y="1045" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="1069" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S10 回评需求者</text><text x="1050" y="1089" text-anchor="middle" font-size="10.8" fill="#166534">评价守时/沟通/边界尊重 · 信用沉淀</text>
+    <rect x="885" y="1150" width="330" height="62" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.8"/><text x="1050" y="1174" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532D">S11 订单完结</text><text x="1050" y="1194" text-anchor="middle" font-size="10.8" fill="#166534">服务记录沉淀 · 信用累积</text>
+  </g>
+
+  <!-- 箭头标签 -->
+  <g font-size="10.5" fill="#334155">
+    <text x="382" y="228" text-anchor="start">提交需求</text>
+    <text x="808" y="333" text-anchor="start">推送通知</text>
+    <text x="843" y="438" text-anchor="middle">抢单/报名</text>
+    <text x="382" y="543" text-anchor="start">确认成交</text>
+    <text x="808" y="543" text-anchor="start">接单成功</text>
+    <text x="382" y="648" text-anchor="start">发起沟通</text>
+    <text x="808" y="648" text-anchor="start">消息互通·虚拟号</text>
+    <text x="843" y="753" text-anchor="middle">里程碑+报备</text>
+    <text x="423" y="753" text-anchor="middle">确认推送</text>
+    <text x="843" y="858" text-anchor="middle">完成申请</text>
+    <text x="423" y="858" text-anchor="middle">推送验收</text>
+    <text x="382" y="963" text-anchor="start">确认完成</text>
+    <text x="808" y="963" text-anchor="start">结算打款</text>
+    <text x="382" y="1068" text-anchor="start">提交评价</text>
+    <text x="808" y="1068" text-anchor="start">邀请回评</text>
+  </g>
+  <g font-size="9.5" fill="#EA580C">
+    <text x="423" y="284" text-anchor="middle">不合规→驳回修改</text>
+    <text x="423" y="500" text-anchor="middle">选单→需求者确认</text>
+    <text x="423" y="926" text-anchor="middle">争议→仲裁</text>
+    <text x="423" y="1187" text-anchor="middle">完结通知</text>
+  </g>
+
+  <!-- 规则旁注 -->
+  <g font-size="10" fill="#EA580C">
+    <text x="630" y="292" text-anchor="middle">时间硬约束：W2/W3/W10 禁23:00后 · W11 限06:00-23:00 且单次≤2h</text>
+    <text x="630" y="397" text-anchor="middle">无人接单超24h → 自动下架 / 加价重发</text>
+    <text x="630" y="705" text-anchor="middle">安全报备：W1每30分钟（国标第8条）· W7危机后15分钟+后续3单客服监控</text>
+    <text x="630" y="810" text-anchor="middle">里程碑凭证：定位+照片+时间戳 · 需求者15分钟未确认自动通过</text>
+    <text x="630" y="920" text-anchor="middle">修改≤3次→重交凭证 · 超限/投诉→转争议仲裁</text>
+    <text x="210" y="708" text-anchor="middle">W1异地家属可远程查看报备时间线</text>
+    <text x="210" y="502" text-anchor="middle">支付超时15分钟→订单自动关闭</text>
+    <text x="1050" y="500" text-anchor="middle">认证无效·暂停中 → 接单按钮置灰</text>
+    <text x="1050" y="705" text-anchor="middle">W9授权凭证OCR校验 · 无凭证订单冻结不得履约</text>
+    <text x="1050" y="810" text-anchor="middle">GPS签到≤200米 · 报备超时5分钟家属预警/15分钟客服介入</text>
+  </g>
+  <g font-size="10" fill="#B45309">
+    <text x="630" y="600" text-anchor="middle">双签凭证入库（国标第7条）· 订单级责任险一单一保（W1）</text>
+    <text x="630" y="1025" text-anchor="middle">佣金阶梯10%~20%（示例）· T+0/T+1提现 · W2 AA按里程碑分账</text>
+  </g>
+</svg>
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:12.5px;color:#334155;">
+  <span>▬ 实线：流程推进 / 消息传递</span>
+  <span style="color:#EA580C;">╌ 橙虚线：异常与确认分支（驳回·选单确认·争议·完结通知）</span>
+  <span style="color:#B45309;">■ 琥珀节点：资金环节（托管·结算·提现）</span>
+  <span style="color:#DC2626;">■ 红色节点：合规关键节点（合规校验·双签·越界拦截·验收争议）</span>
+</div>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">三、订单状态机（里程碑三段式嵌入）</h4>
+<div style="font-size:12.5px;line-height:2;">
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">待支付</span> →
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">待接单</span> →
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">耍伴已申请</span> →
+  <span style="background:#FEE2E2;border:1px solid #DC2626;border-radius:8px;padding:2px 8px;">已锁定（双签达成）</span> →
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">待履约</span> →
+  <span style="background:#FEF3C7;border:1px solid #D97706;border-radius:8px;padding:2px 8px;">里程碑30%</span> →
+  <span style="background:#FEF3C7;border:1px solid #D97706;border-radius:8px;padding:2px 8px;">里程碑60%</span> →
+  <span style="background:#FEF3C7;border:1px solid #D97706;border-radius:8px;padding:2px 8px;">里程碑100% → 待验收</span> →
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">已完成</span> →
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">已评价</span> →
+  <span style="background:#DBEAFE;border:1px solid #2563EB;border-radius:8px;padding:2px 8px;">已归档</span><br>
+  异常分支：<span style="background:#F1F5F9;border:1px dashed #EA580C;border-radius:8px;padding:2px 8px;">已关闭（15分钟未支付）</span>
+  <span style="background:#F1F5F9;border:1px dashed #EA580C;border-radius:8px;padding:2px 8px;">已取消（拒绝/超2h/阶梯退款/未签到违约扣分）</span>
+  <span style="background:#F1F5F9;border:1px dashed #EA580C;border-radius:8px;padding:2px 8px;">争议中 → 仲裁 → 已完成 / 已退款（可走保险理赔）</span>
+  <span style="background:#F1F5F9;border:1px dashed #EA580C;border-radius:8px;padding:2px 8px;">30天未评价 → 默认好评（标注）</span>
+</div>
+<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;">关键状态规则</th><th style="border:1px solid #CBD5E1;padding:5px;">说明</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">免责声明前置校验</td><td style="border:1px solid #CBD5E1;padding:5px;">「已锁定」必须满足双向签署：需求者下单前勾选 + 耍伴接单前勾选，缺一不可，签署凭证入库</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">场景认证前置校验</td><td style="border:1px solid #CBD5E1;padding:5px;">耍伴接单前实时校验该场景专项认证状态，未认证/暂停中/已取消资格者接单按钮置灰</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">里程碑自动确认</td><td style="border:1px solid #CBD5E1;padding:5px;">需求者15分钟未响应 → 系统自动通过并留痕，24h内可申诉；里程碑节点支持分段结算</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">时间硬约束</td><td style="border:1px solid #CBD5E1;padding:5px;">W2/W3/W10 预约含23:00后自动拦截；W11 窗口06:00-23:00外不可下单、超2小时自动切断</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W9授权凭证前置</td><td style="border:1px solid #CBD5E1;padding:5px;">宠物陪伴订单进入履约前必须上传授权凭证，未上传订单冻结</td></tr>
+</table>
+<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;">规则速查</th><th style="border:1px solid #CBD5E1;padding:5px;">取值</th><th style="border:1px solid #CBD5E1;padding:5px;">规则速查</th><th style="border:1px solid #CBD5E1;padding:5px;">取值</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">需求审核</td><td style="border:1px solid #CBD5E1;padding:5px;">关键词即时拦截 + 24h人工抽检</td><td style="border:1px solid #CBD5E1;padding:5px;">无人接单</td><td style="border:1px solid #CBD5E1;padding:5px;">超24h下架/加价重发</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">开始履约</td><td style="border:1px solid #CBD5E1;padding:5px;">接单后2h未开始提醒，可协商取消</td><td style="border:1px solid #CBD5E1;padding:5px;">修改次数</td><td style="border:1px solid #CBD5E1;padding:5px;">≤3次，超出转纠纷</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">验收超时</td><td style="border:1px solid #CBD5E1;padding:5px;">超24h自动确认</td><td style="border:1px solid #CBD5E1;padding:5px;">售后窗口</td><td style="border:1px solid #CBD5E1;padding:5px;">7天，违规分级处罚</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">平台服务费</td><td style="border:1px solid #CBD5E1;padding:5px;">阶梯10%~20%（示例）</td><td style="border:1px solid #CBD5E1;padding:5px;">提现</td><td style="border:1px solid #CBD5E1;padding:5px;">T+0 / T+1</td></tr>
+</table>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">四、八场景差异化配置总表（一套状态机骨架 + 场景配置表驱动）</h4>
+<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:980px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;">场景</th><th style="border:1px solid #CBD5E1;padding:5px;">场地/时间约束</th><th style="border:1px solid #CBD5E1;padding:5px;">准入与前置文件</th><th style="border:1px solid #CBD5E1;padding:5px;">保险</th><th style="border:1px solid #CBD5E1;padding:5px;">报备/监控</th><th style="border:1px solid #CBD5E1;padding:5px;">里程碑</th><th style="border:1px solid #CBD5E1;padding:5px;">绝对禁止</th><th style="border:1px solid #CBD5E1;padding:5px;">特殊机制</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W1 就医陪诊</b></td><td style="border:1px solid #CBD5E1;padding:5px;">三甲/专科/社区医院营业时间</td><td style="border:1px solid #CBD5E1;padding:5px;">国标专项考核≥80分（未过暂停、7天补考1次、3次取消）+《就医陪诊免责声明》双向签署</td><td style="border:1px solid #CBD5E1;padding:5px;">订单级责任险一单一保</td><td style="border:1px solid #CBD5E1;padding:5px;">每30分钟报备（第8条）· 隐私脱敏（第9条）</td><td style="border:1px solid #CBD5E1;padding:5px;">到院签到→陪同就诊→医嘱记录→结束</td><td style="border:1px solid #CBD5E1;padding:5px;">医疗行为/代签医疗文件/解读报告/用药建议/医患沟通翻译</td><td style="border:1px solid #CBD5E1;padding:5px;">医嘱按国标格式留存 · 家属远程查看报备</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W2 学习陪伴</b></td><td style="border:1px solid #CBD5E1;padding:5px;">图书馆/自习室/咖啡厅 · 禁23:00后</td><td style="border:1px solid #CBD5E1;padding:5px;">平台基础认证 + AA制SSOT确认</td><td style="border:1px solid #CBD5E1;padding:5px;">常规</td><td style="border:1px solid #CBD5E1;padding:5px;">里程碑节点</td><td style="border:1px solid #CBD5E1;padding:5px;">到达自习30%→学习1h 60%→约定时长100%</td><td style="border:1px solid #CBD5E1;padding:5px;">讲课补课/学科辅导（双减）</td><td style="border:1px solid #CBD5E1;padding:5px;">AA制SSOT记账 · 禁私下收款（触发R3-4）</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W3 健身陪伴</b></td><td style="border:1px solid #CBD5E1;padding:5px;">健身房/公共场地 · 禁23:00后 · 需会员/场地</td><td style="border:1px solid #CBD5E1;padding:5px;">平台基础认证</td><td style="border:1px solid #CBD5E1;padding:5px;">常规+意外险</td><td style="border:1px solid #CBD5E1;padding:5px;">里程碑节点</td><td style="border:1px solid #CBD5E1;padding:5px;">到达+热身30%→核心训练60%→约定时长100%</td><td style="border:1px solid #CBD5E1;padding:5px;">私教收费教学/动作指导收费</td><td style="border:1px solid #CBD5E1;padding:5px;">动作互相提醒非指导</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W7 情绪陪伴</b></td><td style="border:1px solid #CBD5E1;padding:5px;">公园/江边/步道/小区 · 白天优先</td><td style="border:1px solid #CBD5E1;padding:5px;">心理危机干预SOP培训 + 免责声明</td><td style="border:1px solid #CBD5E1;padding:5px;">常规</td><td style="border:1px solid #CBD5E1;padding:5px;">常规30分钟 · 危机后15分钟+后续3单客服全程监控</td><td style="border:1px solid #CBD5E1;padding:5px;">开始陪伴→结束确认</td><td style="border:1px solid #CBD5E1;padding:5px;">任何心理咨询/疏导/治疗表述</td><td style="border:1px solid #CBD5E1;padding:5px;">高危语句→人工介入 · 优先转W11线上</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W8 生活协助</b></td><td style="border:1px solid #CBD5E1;padding:5px;">公共场所 · 禁夜间长途</td><td style="border:1px solid #CBD5E1;padding:5px;">平台基础认证 + 免责声明</td><td style="border:1px solid #CBD5E1;padding:5px;">常规</td><td style="border:1px solid #CBD5E1;padding:5px;">里程碑+关键节点</td><td style="border:1px solid #CBD5E1;padding:5px;">到达30%→主要协助60%→约定内容100%</td><td style="border:1px solid #CBD5E1;padding:5px;">代签法律文件/全权委托/重货/居家看护/喂药</td><td style="border:1px solid #CBD5E1;padding:5px;">贵重代办四确认留痕</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W9 宠物陪伴</b></td><td style="border:1px solid #CBD5E1;padding:5px;">遛狗路线/宠物医院 · 主人同行或授权</td><td style="border:1px solid #CBD5E1;padding:5px;">平台基础认证 + 书面/电子授权凭证</td><td style="border:1px solid #CBD5E1;padding:5px;">宠物伤人责任险</td><td style="border:1px solid #CBD5E1;padding:5px;">关键节点</td><td style="border:1px solid #CBD5E1;padding:5px;">开始→结束</td><td style="border:1px solid #CBD5E1;padding:5px;">代为饲养/上门喂猫/寄养</td><td style="border:1px solid #CBD5E1;padding:5px;">授权凭证OCR校验 · 无凭证冻结</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W10 出行陪伴</b></td><td style="border:1px solid #CBD5E1;padding:5px;">交通枢纽/公共道路 · 禁夜间长途</td><td style="border:1px solid #CBD5E1;padding:5px;">平台基础认证 + 免责声明</td><td style="border:1px solid #CBD5E1;padding:5px;">意外险</td><td style="border:1px solid #CBD5E1;padding:5px;">里程碑+全程轨迹</td><td style="border:1px solid #CBD5E1;padding:5px;">到达30%→主要陪同60%→约定陪同100%</td><td style="border:1px solid #CBD5E1;padding:5px;">私密空间/夜间长途</td><td style="border:1px solid #CBD5E1;padding:5px;">轨迹偏离预约路线自动预警</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;"><b>W11 线上陪伴</b></td><td style="border:1px solid #CBD5E1;padding:5px;">TRTC音视频 · 06:00-23:00 · 单次≤2h</td><td style="border:1px solid #CBD5E1;padding:5px;">平台基础认证 + 内容协议</td><td style="border:1px solid #CBD5E1;padding:5px;">不适用</td><td style="border:1px solid #CBD5E1;padding:5px;">通话全程录制 + AI实时审核 + 人工抽检5%</td><td style="border:1px solid #CBD5E1;padding:5px;">连麦计时</td><td style="border:1px solid #CBD5E1;padding:5px;">心理咨询诊疗/暧昧话术/引导线下交易/私下转账</td><td style="border:1px solid #CBD5E1;padding:5px;">R3→V3处置 · 降级链路 · 录制加密90天销毁</td></tr>
+</table></div>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">五、W1 就医陪诊专项SOP（GB/T 47801—2026 全对齐）</h4>
+<div style="display:flex;flex-wrap:wrap;gap:10px;">
+  <div style="flex:1;min-width:280px;border:1px solid #BFDBFE;border-radius:10px;padding:10px;background:#EFF6FF;">
+    <b style="color:#1D4ED8;font-size:13px;">服务前（第6条人员要求 + 第7条边界）</b>
+    <ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:#334155;">
+      <li>耍伴完成基于国标的专项培训 → 考核（满分100，<b>≥80分通过</b>）</li>
+      <li>未通过：暂停接单，<b>7天后补考1次</b>；<b>连续3次未过 → 取消W1场景资格</b>（不可恢复，其他场景不受影响）</li>
+      <li>接单前系统实时校验认证状态：有效可接 / 暂停·补考等待期按钮置灰</li>
+      <li>用户下单勾选《就医陪诊免责声明》，耍伴接单前勾选同声明 → 双签凭证入库</li>
+      <li>订单级责任险一单一保自动投保；服务前1天联系确认；患者既往病史/过敏史/行动能力加密采集；履约清单（病历本/医保卡/检查单）确认</li>
+    </ul>
+  </div>
+  <div style="flex:1;min-width:280px;border:1px solid #FECACA;border-radius:10px;padding:10px;background:#FEF2F2;">
+    <b style="color:#DC2626;font-size:13px;">服务中（第8条安全保障 + 第9条信息保护）</b>
+    <ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:#334155;">
+      <li>GPS到院签到 → 挂号取号 → 候诊陪同 → 就诊在场（仅记录、不参与医患沟通）→ 缴费取药 → 化验单/报告代取封装 → 药品材料逐项清点交接 → 结束打卡</li>
+      <li><b>安全报备每30分钟</b>（国标第8条）：位置+环节+简述+可选照片；超5分钟家属预警、超15分钟客服介入</li>
+      <li>越界拦截：尝试解读报告/建议用药 → 弹窗警告并记录violation_event；尝试代签医疗文件 → <b>直接冻结订单</b>升级人工</li>
+      <li>隐私脱敏（国标第9条）：证件号/病历号中间脱敏展示；诊断原文仅存加密库、耍伴端仅见摘要；影像加密存储、90天后清理</li>
+    </ul>
+  </div>
+  <div style="flex:1;min-width:280px;border:1px solid #A7F3D0;border-radius:10px;padding:10px;background:#ECFDF5;">
+    <b style="color:#059669;font-size:13px;">服务后（第10条评价体系 + 医嘱留存）</b>
+    <ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:#334155;">
+      <li>医嘱按国标格式结构化留存（就诊时间/科室/医嘱要点/复诊提醒/用药清单），仅存摘要，下次复诊一键调取形成健康档案</li>
+      <li>材料交接逐项照片留档，双方电子签字确认；责任险在保期内可理赔</li>
+      <li>评价按国标第10条五维度执行（见第九节），评价结果反向驱动耍伴再培训</li>
+    </ul>
+  </div>
+</div>
+<blockquote style="margin:10px 0 0;padding:10px 14px;background:#FFFBEB;border-left:4px solid #D97706;font-size:12px;color:#78350F;">《就医陪诊免责声明》核心内容（双端展示，对齐国标第7条）：本服务仅提供挂号排队、取号取药、医嘱记录、就诊在场陪同等生活辅助，不提供任何医疗行为，包括但不限于：诊断、治疗、用药建议、检查报告解读、医患沟通翻译、代签医疗文件、代做治疗决策。服务过程中产生的医疗结果与耍伴及平台无关。</blockquote>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">六、W11 线上陪伴专项（红线R3 + V3分级处置 + TRTC降级链路）</h4>
+<div style="display:flex;flex-wrap:wrap;gap:10px;">
+  <div style="flex:1;min-width:280px;border:1px solid #E2E8F0;border-radius:10px;padding:10px;">
+    <b style="font-size:13px;color:#334155;">红线R3（内容红线）情形</b>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;">
+      <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:4px;">编号</th><th style="border:1px solid #CBD5E1;padding:4px;">情形</th></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">R3-1</td><td style="border:1px solid #CBD5E1;padding:4px;">使用「心理咨询/疏导/治疗」等服务表述</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">R3-2</td><td style="border:1px solid #CBD5E1;padding:4px;">暧昧话术、性暗示内容</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">R3-3</td><td style="border:1px solid #CBD5E1;padding:4px;">引导线下交易（加微信私下约等）</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">R3-4</td><td style="border:1px solid #CBD5E1;padding:4px;">引导脱离平台支付（私下转账）</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">R3-5</td><td style="border:1px solid #CBD5E1;padding:4px;">自伤/他伤等高危内容未按SOP上报</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">R3-6</td><td style="border:1px solid #CBD5E1;padding:4px;">政治敏感、违法违规内容</td></tr>
+    </table>
+  </div>
+  <div style="flex:1;min-width:280px;border:1px solid #E2E8F0;border-radius:10px;padding:10px;">
+    <b style="font-size:13px;color:#334155;">V3 违规分级处罚</b>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;">
+      <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:4px;">级别</th><th style="border:1px solid #CBD5E1;padding:4px;">判定</th><th style="border:1px solid #CBD5E1;padding:4px;">处罚（均可7日内申诉复核）</th></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">一级轻微</td><td style="border:1px solid #CBD5E1;padding:4px;">首次触发R3-1/R3-2低敏感</td><td style="border:1px solid #CBD5E1;padding:4px;">警告+内容切断+双端弹窗</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">二级中度</td><td style="border:1px solid #CBD5E1;padding:4px;">再次触发/触发R3-3/R3-4</td><td style="border:1px solid #CBD5E1;padding:4px;">暂停接单7天+扣信用分20+公示</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">三级严重</td><td style="border:1px solid #CBD5E1;padding:4px;">触发R3-5/R3-6或三次二级</td><td style="border:1px solid #CBD5E1;padding:4px;">永久封号+冻结资金+上报监管+行业黑名单</td></tr>
+      <tr><td style="border:1px solid #CBD5E1;padding:4px;">紧急处置</td><td style="border:1px solid #CBD5E1;padding:4px;">识别自伤/他伤高危语句</td><td style="border:1px solid #CBD5E1;padding:4px;">立即切断通话+人工介入+紧急联系人通知+必要时联动公共救援（保护性措施）</td></tr>
+    </table>
+  </div>
+  <div style="flex:1;min-width:280px;border:1px solid #E2E8F0;border-radius:10px;padding:10px;">
+    <b style="font-size:13px;color:#334155;">TRTC 降级链路（四级兜底）</b>
+    <div style="font-size:12px;margin-top:6px;line-height:1.9;color:#334155;">
+      <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:4px 10px;">主链路：TRTC 正常通话</div>
+      <div style="color:#EA580C;font-size:11px;">↓ 心跳超时3秒</div>
+      <div style="background:#FEF9C3;border:1px solid #FDE047;border-radius:8px;padding:4px 10px;">一级：切换备选TRTC区域节点（用户无感重连）</div>
+      <div style="color:#EA580C;font-size:11px;">↓ 10秒内未恢复</div>
+      <div style="background:#FEF9C3;border:1px solid #FDE047;border-radius:8px;padding:4px 10px;">二级：备用SDK / 低码率模式</div>
+      <div style="color:#EA580C;font-size:11px;">↓ 30秒内未恢复</div>
+      <div style="background:#FFEDD5;border:1px solid #FDBA74;border-radius:8px;padding:4px 10px;">三级：推送电话临时联系 + 客服介入记录故障</div>
+      <div style="color:#EA580C;font-size:11px;">↓ 通话完全无法建立</div>
+      <div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:4px 10px;">兜底：订单保护——不计费、可免费改期、双方免责</div>
+    </div>
+    <p style="font-size:11.5px;color:#475569;margin:6px 0 0;">通话达2小时前10分钟双向提醒，到点系统自动切断（可另起新订单）；录制加密存储<b>90天后自动销毁</b>。</p>
+  </div>
+</div>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">七、里程碑引擎与安全报备机制</h4>
+<ul style="font-size:12.5px;color:#334155;margin:4px 0;padding-left:20px;">
+  <li><b>通用里程碑引擎</b>：耍伴上报达成凭证（照片+定位+时间戳）→ 推送需求者确认 → <b>15分钟未响应系统自动确认并留痕</b>（24h内可申诉）→ 有异议进IM协商，协商失败转客服仲裁 → 最终里程碑达成进待验收 → 里程碑节点支持<b>分段结算</b>（AA制场景按比例分账）。</li>
+  <li><b>安全报备差异化配置</b>：W1每30分钟（国标第8条硬性要求，超时5分钟家属预警/15分钟客服介入）；W7常规30分钟、危机事件后提升至15分钟且后续3笔订单强制客服全程监控；W8里程碑节点+贵重物品交接四确认；W10全程GPS轨迹留痕、偏离自动预警；W11以通话全程录制+AI审核替代报备。</li>
+</ul>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">八、资金结算设计（含 W2 AA制SSOT方案）</h4>
+<p style="font-size:12.5px;color:#334155;margin:4px 0;"><b>主链：</b>需求者支付 → 平台托管账户（非耍伴账户）→ 里程碑推进 → 验收确认 → T+1结算至耍伴 → 平台扣阶梯佣金留存。退款联动：释放档期、退优惠券、撤销信用分变更、保单退保；W1责任险保费由佣金覆盖，出险平台先行赔付再向责任方追偿。</p>
+<ul style="font-size:12.5px;color:#334155;margin:4px 0;padding-left:20px;">
+  <li><b>W2 AA制SSOT（单一事实源）</b>：所有资金往来必须经平台账本记账，每笔变动生成流水号可追溯；服务费与场地费/咖啡费等AA支出分别记入SSOT账本、各自支付各自份额，AA支出需上传消费凭证（小票照片）方可结算。</li>
+  <li>耍伴不得私下收取现金/微信转账——AI与客服监控私下交易话术，识别即触发<b>红线R3-4</b>，按V3分级处置。</li>
+</ul>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">九、评价体系（对齐国标第10条服务质量评价体系）</h4>
+<p style="font-size:12.5px;color:#334155;margin:4px 0;">W1评价维度直接映射国标条款，评价结果反向驱动耍伴培训（单维度低分自动推送课程再学习，连续两单低于3星触发复核）：</p>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;">维度</th><th style="border:1px solid #CBD5E1;padding:5px;">权重</th><th style="border:1px solid #CBD5E1;padding:5px;">国标对应</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">服务流程规范性</td><td style="border:1px solid #CBD5E1;padding:5px;">30%</td><td style="border:1px solid #CBD5E1;padding:5px;">第5条（挂号→候诊→就诊→取药→交接）</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">人员服务态度</td><td style="border:1px solid #CBD5E1;padding:5px;">20%</td><td style="border:1px solid #CBD5E1;padding:5px;">第6条</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">服务边界遵守（无医疗越界）</td><td style="border:1px solid #CBD5E1;padding:5px;">20%</td><td style="border:1px solid #CBD5E1;padding:5px;">第7条</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">安全保障执行（报备/应急）</td><td style="border:1px solid #CBD5E1;padding:5px;">15%</td><td style="border:1px solid #CBD5E1;padding:5px;">第8条</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">信息保护（脱敏/无泄露）</td><td style="border:1px solid #CBD5E1;padding:5px;">15%</td><td style="border:1px solid #CBD5E1;padding:5px;">第9条</td></tr>
+</table>
+<ul style="font-size:12.5px;color:#334155;margin:6px 0 0;padding-left:20px;">
+  <li>全场景通用：双向评价（耍伴评需求者守时/沟通/尊重边界）、评价文字敏感词过滤、仅「已完成」订单可评、完成后30天未评默认好评并标注、被评方7日内可申诉（复核后可屏蔽恶意差评）、带图详细评价赠券；评价实时更新双方信用分与等级。</li>
+</ul>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">十、越界行为实时监控（贯穿全流程的合规引擎）</h4>
+<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:720px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;">场景</th><th style="border:1px solid #CBD5E1;padding:5px;">监控手段</th><th style="border:1px solid #CBD5E1;padding:5px;">拦截动作</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W1</td><td style="border:1px solid #CBD5E1;padding:5px;">IM/上报文本敏感词（诊断·用药·解读·代签医疗文件）</td><td style="border:1px solid #CBD5E1;padding:5px;">首次弹窗警告记录violation_event → 再犯冻结订单</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W2</td><td style="border:1px solid #CBD5E1;padding:5px;">补课话术+私下收款识别（双减关键词）</td><td style="border:1px solid #CBD5E1;padding:5px;">记录+警告，涉及双减违规上报</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W3</td><td style="border:1px solid #CBD5E1;padding:5px;">私教收费话术识别</td><td style="border:1px solid #CBD5E1;padding:5px;">记录+警告</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W7</td><td style="border:1px solid #CBD5E1;padding:5px;">AI识别自伤/抑郁高危语句</td><td style="border:1px solid #CBD5E1;padding:5px;">立即人工介入+危机干预SOP+15分钟报备+3单监控</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W8</td><td style="border:1px solid #CBD5E1;padding:5px;">代签/居家看护意图识别</td><td style="border:1px solid #CBD5E1;padding:5px;">高风险直接冻结订单</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W9</td><td style="border:1px solid #CBD5E1;padding:5px;">授权凭证OCR校验</td><td style="border:1px solid #CBD5E1;padding:5px;">无凭证订单冻结不得履约</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">W11</td><td style="border:1px solid #CBD5E1;padding:5px;">AI实时审核（语音转文本+敏感词）+人工抽检5%</td><td style="border:1px solid #CBD5E1;padding:5px;">触发R3按V3分级处置</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">通用</td><td style="border:1px solid #CBD5E1;padding:5px;">违规累计计数</td><td style="border:1px solid #CBD5E1;padding:5px;">单订单3次预警→冻结+客服介入；累计多次→暂停该场景接单资格</td></tr>
+</table></div>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">十一、核心数据模型（关键表）</h4>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;">模块</th><th style="border:1px solid #CBD5E1;padding:5px;">核心表与关键字段</th></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">耍伴认证</td><td style="border:1px solid #CBD5E1;padding:5px;">provider_certification：scene_type / exam_score（满分100）/ cert_status（有效·暂停·取消）/ failed_count（达3次取消）/ retake_time（失败后7天）/ valid_until</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">合规签署</td><td style="border:1px solid #CBD5E1;padding:5px;">disclaimer_signature：signer_role / disclaimer_type / signed_time / signature_hash / compliance_standard（GB/T 47801—2026 第7条）；pet_authorization（W9授权凭证，无凭证订单冻结）</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">履约过程</td><td style="border:1px solid #CBD5E1;padding:5px;">milestone_record：milestone_seq(1/2/3) / progress_ratio(30/60/100) / evidence_json / confirm_type；safety_report：report_interval(30/15分钟) / overdue_flag / alert_triggered；medical_record_entry（W1医嘱国标格式：脱敏摘要+原文加密+复诊提醒+留存期限）</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">监控违规</td><td style="border:1px solid #CBD5E1;padding:5px;">redline_event：redline_code(R3-1~R3-6) / detected_by / confidence_score / manual_review_status；violation_penalty：penalty_level(V3一/二/三级) / penalty_action / appeal_deadline(7日)；call_record（W11：duration校验≤2h / recording_url加密 / auto_destroy_at 90天）</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">资金</td><td style="border:1px solid #CBD5E1;padding:5px;">ssot_ledger（W2 AA记账：entry_type / share_ratio / evidence_url / settle_status）；insurance_policy（W1订单级责任险一单一保：policy_no / coverage_amount / status）</td></tr>
+  <tr><td style="border:1px solid #CBD5E1;padding:5px;">订单主表扩展</td><td style="border:1px solid #CBD5E1;padding:5px;">companion_order：scene_config_snapshot（下单时场景配置快照：时间限制/报备频率/里程碑定义/禁止清单）/ disclaimer_signed / insurance_policy_id / report_interval / crisis_flag / monitored_orders_left</td></tr>
+</table>
+
+<h4 style="margin:16px 0 6px;font-size:15.5px;">十二、落地路径建议</h4>
+
+</ol>
+<p style="font-size:12.5px;color:#475569;margin:8px 0 2px;"><b>架构核心理念：</b>一套状态机骨架 + 场景配置表驱动差异分支 + 合规引擎贯穿全流程——国标条款、免责声明、报备频率、里程碑比例、红线R3/V3、降级链路全部转化为可配置、可校验、可留痕的系统规则，而非文档层面的口号。</p>
+</div>

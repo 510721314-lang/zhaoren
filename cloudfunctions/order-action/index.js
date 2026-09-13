@@ -572,7 +572,7 @@ exports.main = async (event, context) => {
     const role = roleOf(order, openid);
     if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
 
-    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
+    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
     // 四确认状态
     let confirm = null;
@@ -672,7 +672,7 @@ exports.main = async (event, context) => {
   if (action === 'my_orders') {
     const role = event.role === 'user' ? 'user' : 'partner';
     const queryField = role === 'partner' ? 'partner_openid' : 'user_openid';
-    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
+    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
     let orders = [];
     try {

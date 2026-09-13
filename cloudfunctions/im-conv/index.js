@@ -13,7 +13,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 
-const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
+const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 // 可聊天状态:S6 已取消 / S10 已关闭 禁止收发
 const CHAT_BLOCKED = ['S6', 'S10'];
 // 自由文本开放状态:四确认完成(S1 之后),且订单未取消/关闭

@@ -6,7 +6,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 
-const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
+const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 const CONTENT_TRUNC = 60;
 
 // 集合自愈: 新环境首次调用自动建 blog 相关集合(demand/user_account/partner_profile 属已有核心集合, 不自动建)

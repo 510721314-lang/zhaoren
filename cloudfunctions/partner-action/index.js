@@ -10,7 +10,7 @@ const col = (n) => db.collection(n);
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 // 场景白名单
-const SCENE_WHITELIST = ['W1', 'W2', 'W8', 'W10', 'W11'];
+const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
 
 async function getConfig() {
   try {

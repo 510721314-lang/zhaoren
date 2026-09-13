@@ -12,7 +12,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 
-const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
+const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 const CHAT_BLOCKED = ['S6', 'S10'];
 const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];

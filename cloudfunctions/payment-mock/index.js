@@ -8,7 +8,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 
-const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
+const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
 async function getConfig() {
   try {

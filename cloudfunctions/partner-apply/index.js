@@ -8,7 +8,7 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 
 // 场景白名单(MVP-V1)
-const SCENE_WHITELIST = ['W1', 'W2', 'W8', 'W10', 'W11'];
+const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
 
 async function getConfig() {
   try {
