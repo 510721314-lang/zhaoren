@@ -332,9 +332,13 @@ exports.main = async (event, context) => {
         if (d.status !== 'matching') {
           return { ok: false, code: 'cancel_status', msg: `当前状态${d.status},不可取消` };
         }
-        await col('demand').doc(demand_id).update({ data: {
-          status: 'cancelled', updated_at: Date.now()
+        // CAS: 仅 matching→cancelled, 与接单(order-create CAS matching→matched)/懒过期互斥
+        const cr = await col('demand').where({ _id: demand_id, status: 'matching' }).update({ data: {
+          status: 'cancelled', cancelled_at: Date.now(), updated_at: Date.now()
         }});
+        if (!cr.stats || cr.stats.updated !== 1) {
+          return { ok: false, code: 'cancel_status', msg: '需求状态已变化,请刷新后重试' };
+        }
         console.log(`demand cancelled: ${d.demand_no}`);
         return { ok: true, data: { demand_id, status: 'cancelled' } };
       } catch (e) {
@@ -385,13 +389,20 @@ async function lazyExpire() {
       status: 'matching', expire_at: _.lt(Date.now()), is_deleted: false
     }).limit(100).get();
     if (!r.data || r.data.length === 0) return 0;
+    let n = 0;
     for (const d of r.data) {
-      await col('demand').doc(d._id).update({ data: {
-        status: 'expired', updated_at: Date.now()
-      }});
-      console.log(`demand expired: ${d.demand_no}`);
+      // CAS: 仅 matching→expired, 不覆盖刚被接单(matched)/取消的需求
+      try {
+        const cr = await col('demand').where({ _id: d._id, status: 'matching' }).update({ data: {
+          status: 'expired', expired_at: Date.now(), updated_at: Date.now()
+        }});
+        if (cr.stats && cr.stats.updated === 1) {
+          n++;
+          console.log(`demand expired: ${d.demand_no}`);
+        }
+      } catch (e) {}
     }
-    return r.data.length;
+    return n;
   } catch (e) {
     console.log(`lazy_expire error: ${e.message}`);
     return 0;

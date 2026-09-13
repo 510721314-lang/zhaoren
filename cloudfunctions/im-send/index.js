@@ -9,6 +9,7 @@
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
+const _ = db.command;
 const col = (n) => db.collection(n);
 
 const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W8: '生活协助', W10: '出行陪伴', W11: '线上陪伴' };
@@ -127,9 +128,9 @@ async function appendMessage(conv, order, role, openid, type, text, templateId) 
     last_msg_from: openid,
     updated_at: now
   };
-  // 对方未读 +1
-  if (role === 'user') convPatch.partner_unread = (conv.partner_unread || 0) + 1;
-  else convPatch.user_unread = (conv.user_unread || 0) + 1;
+  // 对方未读 +1(原子 inc, 避免并发消息读改写丢计数)
+  if (role === 'user') convPatch.partner_unread = _.inc(1);
+  else convPatch.user_unread = _.inc(1);
   await col('im_conversation').doc(conv._id).update({ data: convPatch });
 
   return {

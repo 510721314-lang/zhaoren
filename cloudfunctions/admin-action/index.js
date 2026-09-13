@@ -610,12 +610,16 @@ exports.main = async (event, context) => {
       return fail('cancel_bad_status', `当前状态(${o.status})不可强制取消,仅待确认/待支付订单可取消`);
     }
     const before = o.status;
-    await col('order_main').doc(order_id).update({
+    // CAS: 仅 S1/S0→S6, 与用户取消/定时器/支付互斥
+    const cr = await col('order_main').where({ _id: order_id, status: _.in(['S1', 'S0']) }).update({
       data: { status: 'S6', admin_note: String(note).trim(), cancel_by: openid, cancel_at: now, updated_at: now }
     });
-    // 释放需求回匹配池(可被其他耍伴接)
-    if (o.demand_id) {
-      await col('demand').doc(o.demand_id).update({ data: { status: 'matching', updated_at: now } }).catch(() => {});
+    if (!cr.stats || cr.stats.updated !== 1) {
+      return fail('cancel_conflict', '订单状态已变化,请刷新后重试');
+    }
+    // 释放需求回匹配池(条件更新, 仅 matched→matching)
+    if (o.demand_id && before === 'S1') {
+      await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({ data: { status: 'matching', updated_at: now } }).catch(() => {});
     }
     try {
       await col('order_status_log').add({ data: {
@@ -671,7 +675,11 @@ exports.main = async (event, context) => {
       dispute_handled_by: openid, dispute_handled_at: now, updated_at: now
     };
     if (decision === 'open') patch.dispute_opened_at = now;
-    await col('order_main').doc(order_id).update({ data: patch });
+    // CAS: 仅当订单仍处于读取时的原状态才允许裁决, 防并发双处置
+    const dcr = await col('order_main').where({ _id: order_id, status: before }).update({ data: patch });
+    if (!dcr.stats || dcr.stats.updated !== 1) {
+      return fail('dispute_conflict', '订单状态已变化,请刷新后重试');
+    }
     try {
       await col('order_status_log').add({ data: {
         order_id, order_no: order.order_no, from_status: before, to_status: after,

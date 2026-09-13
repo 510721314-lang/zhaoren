@@ -12,7 +12,7 @@
 1. **隐私指引未闭环（最高优先）**：真机 `wx.getLocation` 被微信拦截（后台《用户隐私保护指引》的"位置信息"声明未审核通过/未找到添加入口）。
    - 代码侧已定稿：直接调 API，由**微信官方自动弹窗**接管（自定义 privacy-popup 组件已在 `092e6b7` 删除）；后台声明生效后无需再改代码。
    - 商用前必做：① mp.weixin.qq.com → 账号设置 → 服务内容声明 → 用户隐私保护指引，添加 位置信息(wx.getLocation)/选中的位置信息(wx.chooseLocation)/选中的照片或视频信息(wx.chooseMedia)/手机号(getPhoneNumber)，等审核通过；② 真机验证官方弹窗→同意→真实 GPS 成功；③ **删除自测模式**：`miniprogram/utils/testmode.js`、mine.js 的 `onVersionLongPress`、mine.wxml 的 `bindlongpress`（自测模式：我的页长按版本号开启，storage key `dev_test_mode`，开启后真机定位降级成都坐标，仅供测试）。
-2. **云函数超时锁死 3 秒**：控制台统一调超时或升级套餐（详见阶段 A 第 1 条），改完用 `cli cloud functions info` 读回。
+2. ~~**云函数超时锁死 3 秒**~~ **✅ 2026-09-13 已解决**：个人版（免费体验版）IDE 内置云开发控制台的超时输入框实际可编辑（1~60 秒），无需升级套餐。已逐个设置并经 `cli cloud functions info` 读回核验：order-timer=60、demand-publish/order-create/order-action/demand-match=20、payment-mock=10，全部 Active / Nodejs16.13。腾讯云网页控制台才需扫码，IDE 面板直接可改。
 3. **order-timer 超时流转未验收**：自驱链新版只存在于 git `cf138e0`（zz-selftest-timer），本地/云端均已删除且从未跑通 all_pass；商用前需在测试环境重建验收 S1/S0/S3.5/S5 四个超时流转。
 4. **全链路实测未完成**：发布→匹配→四确认→S0→模拟支付→S3→S5→评价→打赏（含时间冲突拦截、50km 校验）。当前可用模拟器或真机自测模式走查。
 
@@ -21,6 +21,69 @@
 - zz-selftest-timer 本地删除 + 云端删除（用户手动），云端 17 个正式函数
 - 定位问题修复链：模拟器/系统定位误判修复(e208e01) → 真机隐私拦截修复尝试(51344c1) → 重试熔断(b0d0285) → 自测模式(2fdad32) → 移除自定义弹窗回归官方机制(092e6b7)
 - 三层备份（git tag / .backup-2026-09-12 / zip 全量归档，含 SHA256 校验）
+
+---
+
+## ★ 2026-09-13 阶段B（事务/CAS 加固）进度 —— A+B 批次已完成
+
+> 状态：代码改造与部署 100% 完成；**A（3 个 broadcast + hall_list 终验）与 B（n02~n09 共 10 个参数校验）已全部 PASS**（2026-09-13 晚）。
+> 剩余：接单/四确认/支付/履约/评价/IM 等订单链路 mock 回归（见"未完成"清单），可单独续跑。续跑入口见文末"剩余工作"。
+
+### ✅ 已完成
+
+1. **阻断项2 关闭**：6 个云函数超时已在 IDE 内置云开发控制台改好并经 CLI 读回（order-timer=60，demand-publish/order-create/order-action/demand-match=20，payment-mock=10）。
+2. **9 个云函数阶段B 改造完成并全部部署成功**（串行部署，success / filesCount=3）：
+   - `order-create`：接单 CAS 防超卖（demand matching→matched）+ runTransaction 三文档（order/demand/流水）+ 失败补偿。
+   - `order-action`：全状态流转 casStatus（S1→S0 等）+ 四确认位点路径原子写 + version OCC。
+   - `payment-mock`：支付 CAS S0→S2 + 事务 + tip_total_fen `_.inc` 累加。
+   - `evaluation-submit`：CAS S5→S8 + 幂等 + 信用分事务（delta：5★+2/4★+1/3★0/2★-2/1★-5，clamp 0-1000）。
+   - `order-timer` / `demand-publish` / `demand-match` / `admin-action`：配套 CAS。
+   - `im-send`：补 `const _ = db.command` + 未读数 `_.inc(1)`。
+   - 新冲突码约定：`*_status_conflict` / `oa_conflict` / `*_db_fail`；幂等成功返 `idempotent:true`。
+3. **回归数据已重建**（ID 以 `.tmp-cloud-runner/vars.json` 为准；D_MAIN/新D2/D3 均已 broadcast=true 在厅、未接单）：
+   - `D_MAIN=f9ecc4af6aa5de120afd3da669b6ddee`（W1 取药送药，start=1789736400000=**2026-09-18 21:00**，"阶段B回归主单"）
+   - `D2=e04f59456aa632dc045c64450c5c640b`（W2 自习陪伴，start=1789729200000=**2026-09-18 19:00**，DR20260913475712）
+   - 旧 D2 `e04f59456aa5de66044bb8ef0b01f29b4`（09-18 21:00，DR20260912589508）：**33 位异常 _id，where 可查但 `doc(id).get()` 抛错**（broadcast/top5 均 not_found），云函数不可寻址；保留为 TC15 同时段冲突夹具（重发 21:00 W2 实测撞 `publish_time_conflict`）。
+   - `D3=a9defcfd6aa5debc01423920402335ca`（W1 陪诊解压，start=1789974000000=**2026-09-21 15:00**，IM 测试单）
+   - 注意：旧 vars 的 D_MAIN/D2/D3/O_MAIN/O_IM 全部作废。发布成功返回字段是 **`data._id`**（不是 demand_id），列表用 `action=my_demands` → `data.list`；hall_list 条目字段叫 `demand_id`。
+4. **已实际验证的回归点**：
+   - demand-publish 3 个需求发布全部 `ok:true`（主单最初用 09-16 18:00 撞旧数据返回 `publish_time_conflict`，改 09-18 21:00 冷门时段后成功）。
+   - 参数校验 **n01 PASS**：非法场景返回 `publish_scene_invalid`，**场景白名单实际为 W1/W2/W8/W10/W11**。
+   - **A 批次 PASS（2026-09-13）**：demand-match `broadcast` 对 D_MAIN/新D2/D3 均返 `{"ok":true,"data":{"broadcast":true}}`；`hall_list` total=6，三单全部在厅。
+   - **B 批次 PASS（2026-09-13）**：n02~n09 实测码序 `publish_start_time` / `publish_time_too_far` / `publish_duration` / `publish_rate_range`(20元) / `publish_rate`(0.5元) / `publish_aa_promise` / `publish_content_invalid` / `publish_content_option` / `publish_remark_long`(220字) / `publish_remark_blocked`（明细已回填 tests/full-link-cases.md）。
+
+### ⛔ 未完成（订单链路回归）
+
+1. ~~参数校验 n02~n09~~ **✅ 2026-09-13 全部 PASS**（含 n02，明细见 tests/full-link-cases.md 与 vars.json）。
+2. ~~3 个需求的 broadcast（main/d2/d3）~~ **✅ 2026-09-13 完成**（新 D2 替换 33 位坏 _id 旧单；hall_list 已终验）。待续：B 接主单（matching→matched CAS，得 O_MAIN）+ 防超卖重放；A 接自己单被拒；B 重复接 `order_demand_closed`；B 接同时段单时间冲突拒（可用旧 D2 21:00 或再发一单）。
+3. order-action 确认流（get/pre/full，S1→S0 CAS + 位点原子写 + version）；payment-mock cashier/mock_pay（S0→S2）/重复支付幂等；start_service（S2→S3 权限）/SOS/checkin/complete_service（S3→S5）；evaluation-submit（S5→S8，违规词拒、非 owner 拒、信用分事务）；mock_tip 0/超限/1000/500 分（inc 累加，重读取真值）。
+4. D3 IM 单（得 O_IM）：send_text/send_template（S1 可发、违规词拦截）、confirm_all A+B、cancel（→S6 + 需求释放）、关闭后发消息拦截。
+5. 重点验证幂等重放与新冲突码；order-timer `{action:'run'}` 四个超时流转（可加 `s0_force:true`）。
+6. ~~文档回填 tests/full-link-cases.md~~ ✅ 2026-09-13 已追加 A+B 回归小节；**git 提交**：只 add cloudfunctions + 文档 + `.trae/skills/`；`.tmp-cloud-runner/`、preview-info.json/preview-qr.png 不入库；单行中文 commit。
+7. 阶段A#3 索引（控制台手动，清单见下）；阻断项1（隐私审核+真机验证+删自测模式）；阻断项3（order-timer 定时触发器控制台手动重建，CLI 不应用 triggers）。
+
+### 🔧 续跑技术要点（Computer Use 云端测试面板，本次新踩的坑，务必照做）
+
+- 唯一调用通道：IDE 云开发控制台 → 云函数列表 → 搜索 → "云端测试"面板（WS 直连/CLI 均不可用，已定论勿重试）。
+- **get_app_state 内联树约 5000 字符截断；完整树落盘**：`C:\Users\DC\AppData\Local\Temp\trae\computer-use\YYYYMMDD\trees\tree-<uuid>.txt`，输出末尾有 `read <路径>`。**必须读该文件**解析元素 id；但 Shell stdout 对大输出也截断，取内容用 `Select-String` 精准取行，勿整文件 cat。
+- 树文件里 JSON 引号**不转义**：编辑器行形如 `edit [set_value,set_focus] val="{"action":...}" id=251`（id 在行尾，与"运行测试"按钮 id 同行不同模式）。
+- **set_value 防静默写错**：面板内有多个 edit（如行号 val="1" id=102）；只认特征行 `edit [set_value,set_focus] val="{` 且行尾 id；set_value 后**必须重新读树校验该行包含新事件标记**（如 start_time 数字），否则会重发旧事件（本次 n02/n03 就是这样白跑的）；set_value 后 id 会变，操作前现取现用。
+- 结果识别：树文件中返回节点为行首缩进 `text "{...}"`（引号不转义，直接 JSON.parse）；出现"历史测试结果"横幅=旧结果；`data-item "<uuid>"`=RequestId，与上次不同且无横幅才算新结果。
+- webview DOM 被大结果撑爆后树长期只有 ~5900 字符缓存：`perform_action set_focus element_id=3`（文档节点）→ `press_key key=r modifiers=[ctrl]` 重载 webview（会话态保留，停在云函数列表），重新搜索函数开面板即可。
+- 后台坐标 click 穿不透 webview（再确认），一切点击用 `perform_action invoke element_id`；导航后树失效先跑 `.tmp-cloud-runner/fg.ps1` 置前（pid 17872 / windowId 307760310，IDE 重启需更新）。
+- 单个 Exec 内 ≤4 个用例、控制在 ~1000 秒内（10 用例+复杂轮询约 900~1100 秒，1800 秒必超时且无中间输出）。
+- 事件文件：`.tmp-cloud-runner/ev/*.json`（d3-publish.json 时间已改 1789974000000；main-publish.json 占位符需同步为 1789736400000）。mock 身份 A=`oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`，B=`test_partner_001`；_id 必须 32 位 hex。
+
+#### 2026-09-13 晚补充（IDE 2.02.2609102 Nightly / 控制台 v2.0.3）
+
+- **新版 IDE 2.0 工具栏没有"云开发"文字按钮**：入口=右上角 **∞ 双环图标**，悬停 tooltip「云开发」。2026-09-13 窗口化主窗口（rect 277,50,1502,800）时逻辑坐标约 **(1173,70)**；图标左边紧邻的是"上传"（误点会弹上传确认框，点"取消"即可）。菜单栏（项目/工具/设置）鼠标与 Alt 助记键均不展开下拉，勿走。
+- 控制台 v2.0.3 独立窗口标题「云开发控制台 v2.0.3 (2.0.34@...)」，pid 跟随 IDE（19660），windowId 每次重开都变（当晚 33753470 → 关闭重开 28967582）。
+- **结果节点布局变化**：短结果是 12 空格缩进 `text "{...}" id=N`（在 `text "返回结果"` 之后、`button "arrowdown 摘要"` 之前）；长结果（如 hall_list/my_demands）是 `group` 节点内嵌 14 空格 `text "{...}"`，且一行可能上千字符，要用 `/text "(\{.*\})" id=\d+\s*$/` 整行提取再 JSON.parse。
+- **读结果用"固定等待+单次读树"比 RequestId 轮询可靠**：invoke「运行测试」后 sleep 12~16 秒（msgSecCheck 类 16 秒），再定位 `text "返回结果"` 行向下找含 `"ok"` 的行；按 RequestId 变化轮询在 v2.0.3 多次误判 NO_RESULT（实际调用已成功）。
+- **切函数必须先关面板**：树里标题区找 `button "关闭"`（v2.0.3 在 `text "demand-xxx"` 后面）invoke，确认「测试普通云函数」消失再搜索下一个函数；只换搜索词直接点云端测试会停留在旧函数（本次踩过：demand-publish 的 my_demands 发到 demand-match 返 `match_unknown_action`）。Ctrl+R 重载有时导致 a11y 树退化成 ~1600 字符骨架，**整窗关闭从工具栏重开最稳**。
+- **33 位 hex _id 陷阱**：CloudBase 自动 id 为 32 位；若夹具 _id 异常为 33 位，`where` 能查到但 `collection.doc(id).get()` 直接抛错（被 catch 成 not_found），广播/top5/取消全部不可用。发单后校验 _id 长度，异常就重发。
+- **锁屏根因**：反复锁屏的真凶是 ToDesk（已改 config.ini `PrivateScreenLockScreen=0`/`autoLockScreen=0`），非系统空闲锁；360 安全卫士抢前台问题已随其卸载消失。防锁屏只能用 keybd_event 硬件级 F15（SendKeys 无效），LogonUI 合成输入无法解锁。
+- 坐标点击一律 PowerShell `SetCursorPos`+`mouse_event`(0x0002/0x0004)；MCP click 偶尔不移动光标。
 
 ---
 
@@ -72,10 +135,8 @@
 
 ### 阶段 A：环境与稳定性（1～2 天）
 
-1. **超时配置（必做）**
-   - 云开发控制台 → 云函数 → 点函数名 → 函数配置 → 超时时间：`zz/order-timer=60s`，`demand-publish/order-create/order-action/demand-match=20s`，`payment-mock=10s`。
-   - 若输入框灰锁：升级云开发套餐（标准版）解锁；或坚持 3s 则所有云函数必须"DB 并行 + 每步落库 + 幂等续跑"（demand-publish、zz 已是范本）。
-   - **注意：CLI 部署和 config.json 都不会改超时，只能控制台手动改；改完用 `cli cloud functions info` 读回校验。**
+1. **超时配置（必做）✅ 2026-09-13 已完成**：IDE 内置云开发控制台（个人版免费）即可改，路径：云函数列表 → 搜索函数 → 行内"版本与配置" → "配置" → 展开"高级配置" → 执行超时（1~60）→ 确定。已生效：order-timer=60s，demand-publish/order-create/order-action/demand-match=20s，payment-mock=10s，CLI info 读回 Active。
+   - **注意：CLI 部署和 config.json 都不会改超时；`cli cloud functions info --names` 不支持逗号多函数，逐个查。**
 
 2. **冷启动/性能**
    - 高频云函数里多个无依赖的 DB 读用 `Promise.all` 并行（demand-publish 的 config/user/紧急联系人已改）。
@@ -168,9 +229,13 @@
 ---
 
 ## 四、待办（下次）
+- [ ] **阶段B mock 订单链路回归（详见上方 2026-09-13 章节；A 广播 + B n02~n09 已 PASS；从 B 接 D_MAIN 续跑，夹具以 vars.json 为准：D_MAIN/新D2/D3 均 broadcast=true 在厅）**
+- [x] ~~n02~n09 参数校验 + 3 个 broadcast~~ ✅ 2026-09-13 完成；tests/full-link-cases.md 已回填
+- [ ] git 提交 cloudfunctions/文档/.trae/skills（单行中文 commit；.tmp-cloud-runner、preview-info.json、preview-qr.png 不入库）
+- [ ] 阶段A#3 数据库索引（控制台手动）：demand(status,created_at)/(creator_openid,status)/expire_at；order_main(partner_openid,status)/(user_openid,status)/demand_id/created_at；evaluation order_id/to_openid；credit_score_log(openid,created_at)；im_message(conversation_id,created_at)
 - [ ] 全链路编译/真机实测（模拟器或自测模式）：发布→匹配页/广播→接单→四确认→模拟支付→履约→评价→打赏；时间冲突与 50km 校验
 - [ ] 隐私指引后台声明审核通过 → 真机验证真实 GPS → 删除自测模式（阻断项 1）
-- [ ] 控制台统一调超时（或升级套餐），`functions info` 读回校验（阻断项 2）
+- [x] ~~控制台统一调超时（阻断项 2）~~ ✅ 2026-09-13 完成（个人版 IDE 面板可改，无需升级套餐）
 - [ ] 测试环境重建 zz-selftest-timer 完成 order-timer all_pass 验收（阻断项 3，代码在 git `cf138e0`）
 - [x] zz-selftest-timer 已从本地与云端删除（2026-09-12）
 - [x] git 初始化与全量入库、PRD 恢复、备份归档（2026-09-12）

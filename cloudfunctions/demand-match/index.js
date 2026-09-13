@@ -293,7 +293,12 @@ exports.main = async (event, context) => {
         }).limit(50).get();
         if (expiredRes.data && expiredRes.data.length > 0) {
           for (const d of expiredRes.data) {
-            try { await col('demand').doc(d._id).update({ data: { status: 'expired', updated_at: Date.now() } }); } catch (e) {}
+            // CAS: 仅 matching→expired, 不覆盖刚被接单(matched)的需求
+            try {
+              await col('demand').where({ _id: d._id, status: 'matching' }).update({
+                data: { status: 'expired', expired_at: Date.now(), updated_at: Date.now() }
+              });
+            } catch (e) {}
           }
           console.log(`hall lazy_expire: ${expiredRes.data.length} demands expired`);
         }

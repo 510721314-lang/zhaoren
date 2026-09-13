@@ -33,6 +33,14 @@ async function getPartnerProfile(openid) {
   return (r.data && r.data[0]) || null;
 }
 
+async function getDemand(demandId) {
+  try {
+    return (await col('demand').doc(demandId).get()).data || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // 接单被拒写 P3 事件,便于排查
 async function logReject(openid, demand_id, reason) {
   try {
@@ -91,10 +99,15 @@ exports.main = async (event, context) => {
   if (!demand_id) return { ok: false, code: 'order_no_demand', msg: '缺少需求 ID' };
   if (!isValidDocId(demand_id)) return { ok: false, code: 'order_bad_demand_id', msg: '需求 ID 格式不正确:请传入需求 _id(32位十六进制),不是需求编号(DR 开头)' };
 
-  const config = await getConfig();
+  // 并行预取(配置/耍伴账号/耍伴资料/需求互不依赖, 缩短串行耗时规避 3s 超时)
+  const [config, partnerUser, profile, demand] = await Promise.all([
+    getConfig(),
+    getUser(openid),
+    getPartnerProfile(openid),
+    getDemand(demand_id)
+  ]);
 
   // ── 取耍伴身份 ──
-  const partnerUser = await getUser(openid);
   if (!partnerUser) {
     await logReject(openid, demand_id, 'partner_no_user');
     return { ok: false, code: 'order_no_user', msg: '用户不存在' };
@@ -109,7 +122,6 @@ exports.main = async (event, context) => {
   }
 
   // ── 耍伴资料:审核通过 + 接单开关 ──
-  const profile = await getPartnerProfile(openid);
   if (!profile || profile.status !== 'approved') {
     await logReject(openid, demand_id, 'partner_not_approved');
     return { ok: false, code: 'order_not_approved', msg: '耍伴资料未审核通过' };
@@ -125,14 +137,7 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_credit_low', msg: '信用分低于接单门槛' };
   }
 
-  // ── 取需求 ──
-  let demand;
-  try {
-    demand = (await col('demand').doc(demand_id).get()).data;
-  } catch (e) {
-    await logReject(openid, demand_id, 'demand_not_found');
-    return { ok: false, code: 'order_demand_not_found', msg: '需求不存在' };
-  }
+  // ── 需求(已并行预取) ──
   if (!demand) {
     await logReject(openid, demand_id, 'demand_not_found');
     return { ok: false, code: 'order_demand_not_found', msg: '需求不存在' };
@@ -191,26 +196,30 @@ exports.main = async (event, context) => {
     }
   }
 
-  // ── 时间重叠校验:该耍伴有效订单中,时间段不可与新订单重叠(端点相接不算冲突) ──
-  try {
-    const newStart = demand.start_time;
-    const newEnd = demand.start_time + (demand.duration_h || 1) * 3600 * 1000;
-    const myOrders = await col('order_main').where({
+  // ── 并行: 创建者资料 + 耍伴进行中订单(时间重叠校验用, 互不依赖) ──
+  const [creator, myOrdersRes] = await Promise.all([
+    getUser(demand.creator_openid),
+    col('order_main').where({
       partner_openid: openid,
       status: _.in(BUSY_STATUS),
       is_deleted: false
-    }).get();
-    for (const o of myOrders.data) {
-      const oStart = o.start_time;
-      const oEnd = o.start_time + (o.duration_h || 1) * 3600 * 1000;
-      if (newStart < oEnd && oStart < newEnd) {
-        await logReject(openid, demand_id, 'time_overlap');
-        return { ok: false, code: 'order_time_conflict', msg: '该时段你已有订单,时间冲突无法接单' };
-      }
-    }
-  } catch (e) {
-    console.log(`time overlap check fail: ${e.message}`);
+    }).limit(50).get().catch(() => null)
+  ]);
+  if (myOrdersRes === null) {
+    console.log('time overlap query fail');
     return { ok: false, code: 'order_busy_check_fail', msg: '系统繁忙,请稍后重试' };
+  }
+
+  // ── 时间重叠校验:该耍伴有效订单中,时间段不可与新订单重叠(端点相接不算冲突) ──
+  const newStart = demand.start_time;
+  const newEnd = demand.start_time + (demand.duration_h || 1) * 3600 * 1000;
+  for (const o of myOrdersRes.data) {
+    const oStart = o.start_time;
+    const oEnd = o.start_time + (o.duration_h || 1) * 3600 * 1000;
+    if (newStart < oEnd && oStart < newEnd) {
+      await logReject(openid, demand_id, 'time_overlap');
+      return { ok: false, code: 'order_time_conflict', msg: '该时段你已有订单,时间冲突无法接单' };
+    }
   }
 
   // ── 场景须在耍伴接受范围内 ──
@@ -223,8 +232,7 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_scene_not_accepted', msg: `你未开通该场景的接单(需求场景:${demandScene},你已开通:${acceptScenes.join(',')})` };
   }
 
-  // ── 创建者校验:存在 + 未冻结 + 信用分 ──
-  const creator = await getUser(demand.creator_openid);
+  // ── 创建者校验(已并行预取):存在 + 未冻结 + 信用分 ──
   if (!creator) {
     await logReject(openid, demand_id, 'creator_not_found');
     return { ok: false, code: 'order_creator_not_found', msg: '需求发布者状态异常' };
@@ -288,45 +296,63 @@ exports.main = async (event, context) => {
     is_deleted: false
   };
 
+  // ① CAS 抢占需求: matching→matched 原子条件更新, 并发接单仅一方成功(防超卖)
+  let casRes;
   try {
-    const addRes = await col('order_main').add({ data: orderData });
-    const orderId = addRes._id;
-
-    // 四确认文档:8 个确认位,初值取自需求,任一方修改则全部重置(下一模块实现)
-    await col('order_confirmations').add({ data: {
-      order_id: orderId,
-      items: {
-        time:     { value: demand.start_time,              user_ok: false, partner_ok: false },
-        location: { value: demand.location,                user_ok: false, partner_ok: false },
-        content:  { value: demand.content_options || [],   user_ok: false, partner_ok: false },
-        fee:      { value: totalFen,                       user_ok: false, partner_ok: false }
-      },
-      version: 1,
-      created_at: now, updated_at: now, is_deleted: false
-    }});
-
-    // 需求状态 → matched
-    await col('demand').doc(demand_id).update({ data: {
-      status: 'matched', updated_at: now
-    }});
-
-    // 状态流水
-    await col('order_status_log').add({ data: {
-      order_id: orderId, from_status: null, to_status: 'S1',
-      action: 'create_from_take', operator: openid,
-      created_at: now, updated_at: now, is_deleted: false
-    }});
-
-    console.log(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
-    return {
-      ok: true,
-      data: {
-        order_id: orderId, order_no: orderNo,
-        status: 'S1', total_fen: totalFen, fee_fen: feeFen, partner_income_fen: partnerIncomeFen
-      }
-    };
+    casRes = await col('demand').where({ _id: demand_id, status: 'matching' }).update({
+      data: { status: 'matched', matched_at: now, updated_at: now }
+    });
   } catch (e) {
-    console.log(`order create fail: ${e.message}`);
+    console.log(`order create cas fail: ${e.message}`);
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
   }
+  if (!casRes.stats || casRes.stats.updated !== 1) {
+    await logReject(openid, demand_id, 'demand_cas_lost');
+    return { ok: false, code: 'order_demand_closed', msg: '手慢了,该需求已被其他耍伴接单' };
+  }
+
+  // ② 事务建单: order_main + order_confirmations + 状态流水 同成同败
+  let orderId = '';
+  try {
+    await db.runTransaction(async (t) => {
+      const addRes = await t.collection('order_main').add({ data: orderData });
+      orderId = addRes._id;
+
+      // 四确认文档:8 个确认位,初值取自需求,任一方修改则全部重置
+      await t.collection('order_confirmations').add({ data: {
+        order_id: orderId,
+        items: {
+          time:     { value: demand.start_time,              user_ok: false, partner_ok: false },
+          location: { value: demand.location,                user_ok: false, partner_ok: false },
+          content:  { value: demand.content_options || [],   user_ok: false, partner_ok: false },
+          fee:      { value: totalFen,                       user_ok: false, partner_ok: false }
+        },
+        version: 1,
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+
+      // 状态流水
+      await t.collection('order_status_log').add({ data: {
+        order_id: orderId, from_status: null, to_status: 'S1',
+        action: 'create_from_take', operator: openid,
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+    });
+  } catch (e) {
+    // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接
+    console.log(`order txn fail: ${e.message}; compensating demand ${demand_id} → matching`);
+    await col('demand').where({ _id: demand_id, status: 'matched' }).update({
+      data: { status: 'matching', updated_at: Date.now() }
+    }).catch((ce) => console.log(`demand compensate fail: ${ce.message}`));
+    return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
+  }
+
+  console.log(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
+  return {
+    ok: true,
+    data: {
+      order_id: orderId, order_no: orderNo,
+      status: 'S1', total_fen: totalFen, fee_fen: feeFen, partner_income_fen: partnerIncomeFen
+    }
+  };
 };

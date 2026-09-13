@@ -101,6 +101,36 @@
 
 ---
 
+## 2026-09-13 A+B 回归补测（mock 通道，IDE 云开发控制台 v2.0.3）
+
+### A. demand-match 广场广播（期望 ok:true，broadcast=true 上大厅）
+
+| 用例 | 需求 | 结果 |
+|---|---|---|
+| bc-main | D_MAIN `f9ecc4af...b6ddee`（W1 取药送药 09-18 21:00） | ✅ `{"ok":true,"data":{"broadcast":true}}`；hall_list 在厅 |
+| bc-d2 | 新 D2 `e04f5945...0c5c640b`（W2 自习陪伴 09-18 19:00，DR20260913475712） | ✅ 同上；hall_list 在厅（W2） |
+| bc-d3 | D3 `a9defcfd...02335ca`（W1 陪诊解压 09-21 15:00） | ✅ 同上；hall_list 在厅 |
+| 终验 | `action=hall_list` | ✅ total=6，D_MAIN/新D2/D3 三单全部在厅（仅 broadcast=true 的 matching 需求可见） |
+
+> 夹具变更：原 D2 `e04f59456aa5de66044bb8ef0b01f29b4`（DR20260912589508）的 `_id` 是异常 **33 位** hex——`where` 可查到但 `doc(id).get()` 抛错（broadcast/top5 均返回 not_found），云函数无法寻址；该单仍 matching/broadcast=false 不上大厅，保留为 TC15 同时段冲突夹具（09-18 21:00 重发 W2 会被 `publish_time_conflict` 拦截，已实测）。新 D2 改发同日 19:00。
+
+### B. demand-publish 参数校验 n02~n09（全部期望 ok:false）
+
+| 用例 | 构造 | 实测 code / msg | 结果 |
+|---|---|---|---|
+| n02 | start_time=1789000000000（过去） | `publish_start_time`「开始时间必须是未来时间戳」 | ✅ |
+| n03 | start_time=1792459200000（>30天） | `publish_time_too_far`「服务时间距发布时间不能超过 30 天」 | ✅ |
+| n04 | duration_h=13 | `publish_duration`「时长需 1-12 小时」 | ✅ |
+| n05a | rate_fen=2000（20 元/h） | `publish_rate_range`「时薪不在允许区间(30-100 元/小时)」 | ✅ |
+| n05b | rate_fen=50（0.5 元/h） | `publish_rate`「时薪金额格式有误」 | ✅ |
+| n06 | aa_promise_checked=false | `publish_aa_promise`「请先阅读并勾选《线下费用自理承诺书》」 | ✅ |
+| n07a | content_options=["上门护士"] | `publish_content_invalid`「服务内容「上门护士」不在该场景可选项内」 | ✅ |
+| n07b | content_options=[] | `publish_content_option`「请选择服务内容」 | ✅ |
+| n08 | remark=220 字 | `publish_remark_long`「备注最长 200 字」 | ✅ |
+| n09 | remark="加微信私聊我" | `publish_remark_blocked`「备注包含平台禁止的内容(如联系方式/转账),请修改后重试」 | ✅ |
+
+---
+
 ## 状态机速查（13 态合法流转）
 
 S1待确认 → S0待支付 → S2已支付待履约 → S3履约中 → S5已完成 → S8已评价 → S10已关闭

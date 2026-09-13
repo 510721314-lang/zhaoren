@@ -69,10 +69,12 @@ exports.main = async (event, context) => {
     for (const o of s1s) {
       const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now });
       if (!won) { out.skipped.push(o.order_no + ':S1竞态'); continue; }
-      // 释放需求回 matching, 可被其他耍伴接
+      // 释放需求回 matching, 可被其他耍伴接; 条件更新仅 matched→matching, 不覆盖已过期/取消需求
       if (o.demand_id) {
         try {
-          await col('demand').doc(o.demand_id).update({ data: { status: 'matching', updated_at: now } });
+          await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
+            data: { status: 'matching', updated_at: now }
+          });
         } catch (e) {}
       }
       await logStatus(o._id, 'S1', 'S6', 'timeout_s1_cancel', 'system');
@@ -144,20 +146,25 @@ exports.main = async (event, context) => {
       }});
 
       // 耍伴信用分: 4 星 +1(与 evaluation-submit 同规则, 0-1000 截断)
+      // 事务内读改写, 避免与同耍伴其他订单评价并发时丢失更新
       try {
         const delta = defaultStar >= 5 ? 2 : defaultStar === 4 ? 1 : defaultStar === 3 ? 0 : defaultStar === 2 ? -2 : -5;
         if (delta !== 0) {
           const pR = await col('user_account').where({ openid: o.partner_openid }).limit(1).get();
           if (pR.data && pR.data[0]) {
-            const cur = pR.data[0].partner_credit_score || 800;
-            const next = Math.max(0, Math.min(1000, cur + delta));
-            await col('user_account').doc(pR.data[0]._id).update({ data: {
-              partner_credit_score: next, updated_at: now
-            }});
-            await col('credit_score_log').add({ data: {
-              openid: o.partner_openid, type: 'evaluation', is_system: true, score: next, delta,
-              order_id: o._id, created_at: now, updated_at: now, is_deleted: false
-            }});
+            const pId = pR.data[0]._id;
+            await db.runTransaction(async (t) => {
+              const u = await t.collection('user_account').doc(pId).get();
+              const cur = (u.data && u.data.partner_credit_score) || 800;
+              const next = Math.max(0, Math.min(1000, cur + delta));
+              await t.collection('user_account').doc(pId).update({ data: {
+                partner_credit_score: next, updated_at: now
+              }});
+              await t.collection('credit_score_log').add({ data: {
+                openid: o.partner_openid, type: 'evaluation', is_system: true, score: next, delta,
+                order_id: o._id, created_at: now, updated_at: now, is_deleted: false
+              }});
+            });
           }
         }
       } catch (e) { console.log(`auto eval credit fail: ${e.message}`); }

@@ -138,39 +138,68 @@ exports.main = async (event, context) => {
       const now = Date.now();
       const payNo = genPayNo('PAY');
 
+      // ① CAS 抢占: S0→S2, 并发双发/超时取消只有一方成功(资金红线)
+      let casRes;
       try {
-        // 支付流水(is_mock=true)
-        await col('pay_transaction').add({ data: {
-          pay_no: payNo,
-          order_id,
-          order_no: order.order_no,
-          type: 'pay',
-          amount_fen: order.total_fen,
-          fee_fen: order.fee_fen,
-          channel: 'mock',
-          is_mock: true,
-          status: 'success',
-          paid_at: now,
-          created_at: now, updated_at: now, is_deleted: false
-        }});
-
-        // 订单 → S2(已支付待履约)
-        await col('order_main').doc(order_id).update({ data: {
-          status: 'S2', updated_at: now
-        }});
-
-        // 状态流水 S0 → S2
-        await logStatus(order_id, 'S0', 'S2', 'mock_pay', openid);
-
-        console.log(`mock_pay success: ${order.order_no} pay_no=${payNo}`);
-        return {
-          ok: true,
-          data: { order_id, order_no: order.order_no, pay_no: payNo, status: 'S2', is_mock: true }
-        };
+        casRes = await col('order_main').where({ _id: order_id, status: 'S0' }).update({
+          data: { status: 'S2', updated_at: now }
+        });
       } catch (e) {
-        console.log(`mock_pay fail: ${e.message}`);
+        console.log(`mock_pay cas fail: ${e.message}`);
         return { ok: false, code: 'pay_db_fail', msg: '支付失败,请稍后重试' };
       }
+      if (!casRes.stats || casRes.stats.updated !== 1) {
+        // 未抢到: 查成功流水判幂等, 否则按最新状态给原因
+        const dup = await col('pay_transaction').where({
+          order_id, type: 'pay', status: 'success', is_deleted: false
+        }).limit(1).get().catch(() => ({ data: [] }));
+        if (dup.data && dup.data[0]) {
+          const latest = await getOrder(order_id);
+          console.log(`mock_pay idempotent after cas miss: ${order.order_no}`);
+          return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S2', idempotent: true } };
+        }
+        const latest = await getOrder(order_id);
+        if (latest && latest.status === 'S6') {
+          return { ok: false, code: 'pay_closed', msg: '订单已取消,无法支付' };
+        }
+        return { ok: false, code: 'pay_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+      }
+
+      // ② 事务: 支付流水 + 状态流水同成同败; 失败补偿订单回 S0
+      try {
+        await db.runTransaction(async (t) => {
+          await t.collection('pay_transaction').add({ data: {
+            pay_no: payNo,
+            order_id,
+            order_no: order.order_no,
+            type: 'pay',
+            amount_fen: order.total_fen,
+            fee_fen: order.fee_fen,
+            channel: 'mock',
+            is_mock: true,
+            status: 'success',
+            paid_at: now,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+          await t.collection('order_status_log').add({ data: {
+            order_id, from_status: 'S0', to_status: 'S2',
+            action: 'mock_pay', operator: openid,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+        });
+      } catch (e) {
+        console.log(`mock_pay txn fail: ${e.message}; compensating order ${order_id} → S0`);
+        await col('order_main').where({ _id: order_id, status: 'S2' }).update({
+          data: { status: 'S0', updated_at: Date.now() }
+        }).catch(() => {});
+        return { ok: false, code: 'pay_db_fail', msg: '支付失败,请稍后重试' };
+      }
+
+      console.log(`mock_pay success: ${order.order_no} pay_no=${payNo}`);
+      return {
+        ok: true,
+        data: { order_id, order_no: order.order_no, pay_no: payNo, status: 'S2', is_mock: true }
+      };
     }
 
     // 3. 模拟全额退款(本期自动全额退款;demand 保持 matched)
@@ -187,53 +216,77 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'refund_status', msg: `订单当前状态(${order.status})不可退款` };
       }
 
-      // 幂等:已有退款流水直接返回
+      // 幂等:已有退款流水直接返回(返回订单真实状态, 不硬编码)
       try {
         const exist = await col('pay_transaction').where({
           order_id, type: 'refund', status: 'success', is_deleted: false
         }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
+          const latest = await getOrder(order_id);
           console.log(`mock_refund idempotent hit: ${order.order_no}`);
-          return { ok: true, data: { order_id, order_no: order.order_no, status: 'S7', idempotent: true } };
+          return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
         }
       } catch (e) {}
 
       const now = Date.now();
       const refundNo = genPayNo('REF');
-      const fromStatus = order.status;
+      const fromStatus = order.status;   // S2 或 S3(已通过上面的状态校验)
 
+      // ① CAS 抢占: S2/S3→S7, 并发双退只有一方成功
+      let casRes;
       try {
-        // 退款流水(全额,is_mock=true)
-        await col('pay_transaction').add({ data: {
-          pay_no: refundNo,
-          order_id,
-          order_no: order.order_no,
-          type: 'refund',
-          amount_fen: order.total_fen,
-          channel: 'mock',
-          is_mock: true,
-          status: 'success',
-          paid_at: now,
-          created_at: now, updated_at: now, is_deleted: false
-        }});
-
-        // 订单 → S7(已退款);demand 保持 matched
-        await col('order_main').doc(order_id).update({ data: {
-          status: 'S7', updated_at: now
-        }});
-
-        // 状态流水 S? → S7
-        await logStatus(order_id, fromStatus, 'S7', 'mock_refund', openid);
-
-        console.log(`mock_refund success: ${order.order_no} refund_no=${refundNo}`);
-        return {
-          ok: true,
-          data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }
-        };
+        casRes = await col('order_main').where({
+          _id: order_id, status: _.in(['S2', 'S3'])
+        }).update({ data: { status: 'S7', refunded_at: now, updated_at: now } });
       } catch (e) {
-        console.log(`mock_refund fail: ${e.message}`);
+        console.log(`mock_refund cas fail: ${e.message}`);
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
       }
+      if (!casRes.stats || casRes.stats.updated !== 1) {
+        const dup = await col('pay_transaction').where({
+          order_id, type: 'refund', status: 'success', is_deleted: false
+        }).limit(1).get().catch(() => ({ data: [] }));
+        if (dup.data && dup.data[0]) {
+          const latest = await getOrder(order_id);
+          return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
+        }
+        return { ok: false, code: 'refund_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+      }
+
+      // ② 事务: 退款流水 + 状态流水; 失败补偿订单回原状态
+      try {
+        await db.runTransaction(async (t) => {
+          await t.collection('pay_transaction').add({ data: {
+            pay_no: refundNo,
+            order_id,
+            order_no: order.order_no,
+            type: 'refund',
+            amount_fen: order.total_fen,
+            channel: 'mock',
+            is_mock: true,
+            status: 'success',
+            paid_at: now,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+          await t.collection('order_status_log').add({ data: {
+            order_id, from_status: fromStatus, to_status: 'S7',
+            action: 'mock_refund', operator: openid,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+        });
+      } catch (e) {
+        console.log(`mock_refund txn fail: ${e.message}; compensating order ${order_id} → ${fromStatus}`);
+        await col('order_main').where({ _id: order_id, status: 'S7' }).update({
+          data: { status: fromStatus, updated_at: Date.now() }
+        }).catch(() => {});
+        return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
+      }
+
+      console.log(`mock_refund success: ${order.order_no} refund_no=${refundNo}`);
+      return {
+        ok: true,
+        data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }
+      };
     }
 
     // 4. 模拟打赏(已履约完成订单; 发单人主动给耍伴, 可多次; is_mock=true, 不改变订单状态)
@@ -272,11 +325,12 @@ exports.main = async (event, context) => {
           created_at: now, updated_at: now, is_deleted: false
         }});
 
-        // 累计打赏总额到订单(分单位整数运算)
-        const tipTotal = (order.tip_total_fen || 0) + amount;
+        // 累计打赏总额: 原子 inc, 避免并发打赏读改写丢更新
         await col('order_main').doc(order_id).update({ data: {
-          tip_total_fen: tipTotal, updated_at: now
+          tip_total_fen: _.inc(amount), updated_at: now
         }});
+        const after = await getOrder(order_id);
+        const tipTotal = after ? (after.tip_total_fen || 0) : amount;
 
         console.log(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
         return {

@@ -72,6 +72,19 @@ async function logStatus(orderId, from, to, action, operator) {
   }});
 }
 
+// CAS 条件更新: 仅当订单仍处于期望状态(字符串或数组)时更新, 防止并发/重复流转
+// 与 order-timer.casStatus 同构; 返回是否"抢到"
+async function casStatus(orderId, expect, patch) {
+  try {
+    const cond = Array.isArray(expect) ? _.in(expect) : expect;
+    const r = await col('order_main').where({ _id: orderId, status: cond }).update({ data: patch });
+    return !!(r.stats && r.stats.updated === 1);
+  } catch (e) {
+    console.log(`casStatus fail: ${e.message}`);
+    return false;
+  }
+}
+
 // 判定调用者在订单中的角色
 function roleOf(order, openid) {
   if (order.user_openid === openid) return 'user';
@@ -204,30 +217,39 @@ exports.main = async (event, context) => {
       };
     }
 
+    // OCC 乐观锁: 以 version 为条件整单替换; 期间若有并发确认(version+1)则放弃, 避免静默吃掉确认位
+    const v = conf.version || 1;
+    let occRes;
     try {
-      await col('order_confirmations').doc(conf._id).update({ data: {
+      occRes = await col('order_confirmations').where({ _id: conf._id, version: v }).update({ data: {
         items: newItems,
-        version: (conf.version || 1) + 1,
+        version: v + 1,
         updated_at: now
       }});
-
-      // 改费用同步订单金额与时间
-      const orderPatch = { updated_at: now };
-      if (item === 'fee') Object.assign(orderPatch, updateOrder);
-      if (item === 'time') orderPatch.start_time = Number(value);
-      if (item === 'location') orderPatch.location = value;
-      if (item === 'content') orderPatch.content_options = value;
-      await col('order_main').doc(order_id).update({ data: orderPatch });
-
-      console.log(`confirm item updated: order=${order.order_no} item=${item} by=${role}, all reset`);
-      return {
-        ok: true,
-        data: { item, reset: true, version: (conf.version || 1) + 1, confirmed_count: 0, total_count: 8 }
-      };
     } catch (e) {
-      console.log(`update_item fail: ${e.message}`);
+      console.log(`update_item occ fail: ${e.message}`);
       return { ok: false, code: 'oa_update_fail', msg: '修改失败,请稍后重试' };
     }
+    if (!occRes.stats || occRes.stats.updated !== 1) {
+      return { ok: false, code: 'oa_conflict', msg: '确认信息刚被对方更新,请刷新后重试' };
+    }
+
+    // 改费用同步订单金额与时间; CAS: 仅订单仍在 S1 时写入(已取消/超时则不动)
+    const orderPatch = { updated_at: now };
+    if (item === 'fee') Object.assign(orderPatch, updateOrder);
+    if (item === 'time') orderPatch.start_time = Number(value);
+    if (item === 'location') orderPatch.location = value;
+    if (item === 'content') orderPatch.content_options = value;
+    const orderWon = await casStatus(order_id, 'S1', orderPatch);
+    if (!orderWon) {
+      return { ok: false, code: 'oa_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+
+    console.log(`confirm item updated: order=${order.order_no} item=${item} by=${role}, all reset`);
+    return {
+      ok: true,
+      data: { item, reset: true, version: v + 1, confirmed_count: 0, total_count: 8 }
+    };
   }
 
   // ───────── 3. 确认某一项(置本方 ok) ─────────
@@ -259,47 +281,58 @@ exports.main = async (event, context) => {
       return { ok: true, data: { item, idempotent: true, confirmed_count: cnt, total_count: 8, all_confirmed: allConfirmed(conf.items), status: order.status } };
     }
 
-    // 置本方 ok(只改这一位,不动其他位)
-    const newItems = JSON.parse(JSON.stringify(conf.items));
-    newItems[item][okKey] = true;
-
+    // 原子置本方 ok: 只写这一位(点路径) + version+1, 避免双方并发确认整对象覆盖丢位
+    const now = Date.now();
     try {
       await col('order_confirmations').doc(conf._id).update({ data: {
-        items: newItems, updated_at: Date.now()
+        ['items.' + item + '.' + okKey]: true,
+        version: _.inc(1),
+        updated_at: now
       }});
-
-      // 统计
-      let cnt = 0;
-      for (const f of CONFIRM_FIELDS) {
-        if (newItems[f].user_ok) cnt++;
-        if (newItems[f].partner_ok) cnt++;
-      }
-      const done = allConfirmed(newItems);
-
-      // 8 位全完成 → S1 → S0(待支付,30 分钟支付时限)
-      let newStatus = order.status;
-      if (done) {
-        const config = await getConfig();
-        const payExpire = Date.now() + (config.s0_timeout_min || 30) * 60 * 1000;
-        await col('order_main').doc(order_id).update({ data: {
-          status: 'S0', pay_expire_at: payExpire, updated_at: Date.now()
-        }});
-        await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
-        newStatus = 'S0';
-        console.log(`four confirm done: order=${order.order_no} → S0, pay_expire=${payExpire}`);
-      }
-
-      return {
-        ok: true,
-        data: {
-          item, role, confirmed_count: cnt, total_count: 8,
-          all_confirmed: done, status: newStatus
-        }
-      };
     } catch (e) {
       console.log(`confirm_item fail: ${e.message}`);
       return { ok: false, code: 'oa_confirm_fail', msg: '确认失败,请稍后重试' };
     }
+
+    // 重读确认单统计(不基于写前快照, 保证并发下计数正确)
+    const fresh = await getConfirmation(order_id);
+    const freshItems = (fresh && fresh.items) || conf.items;
+    let cnt = 0;
+    for (const f of CONFIRM_FIELDS) {
+      if (freshItems[f].user_ok) cnt++;
+      if (freshItems[f].partner_ok) cnt++;
+    }
+    const done = allConfirmed(freshItems);
+
+    // 8 位全完成 → CAS S1→S0(待支付,30 分钟支付时限); 并发的最后一笔确认仅一方抢到
+    let newStatus = order.status;
+    if (done) {
+      const config = await getConfig();
+      const payExpire = now + (config.s0_timeout_min || 30) * 60 * 1000;
+      const won = await casStatus(order_id, 'S1', {
+        status: 'S0', pay_expire_at: payExpire, updated_at: now
+      });
+      if (won) {
+        await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
+        newStatus = 'S0';
+        console.log(`four confirm done: order=${order.order_no} → S0, pay_expire=${payExpire}`);
+      } else {
+        // 未抢到: 多为并发确认/定时器取消; S0 视为幂等成功, 其余报冲突
+        const latest = await getOrder(order_id);
+        newStatus = latest ? latest.status : 'S1';
+        if (newStatus !== 'S0') {
+          return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      data: {
+        item, role, confirmed_count: cnt, total_count: 8,
+        all_confirmed: done, status: newStatus
+      }
+    };
   }
 
   // ───────── 3.5 一键确认本方全部 4 项(测试便捷用) ─────────
@@ -317,29 +350,44 @@ exports.main = async (event, context) => {
     if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
 
     const okKey = role + '_ok';
-    const newItems = JSON.parse(JSON.stringify(conf.items));
-    for (const f of CONFIRM_FIELDS) { newItems[f][okKey] = true; }
 
+    // 原子置本方 4 位(点路径, 一次更新) + version+1
+    const now = Date.now();
+    const bitPatch = { version: _.inc(1), updated_at: now };
+    for (const f of CONFIRM_FIELDS) { bitPatch['items.' + f + '.' + okKey] = true; }
     try {
-      await col('order_confirmations').doc(conf._id).update({ data: { items: newItems, updated_at: Date.now() } });
-      let cnt = 0;
-      for (const f of CONFIRM_FIELDS) {
-        if (newItems[f].user_ok) cnt++;
-        if (newItems[f].partner_ok) cnt++;
-      }
-      const done = allConfirmed(newItems);
-      let newStatus = order.status;
-      if (done) {
-        const config = await getConfig();
-        const payExpire = Date.now() + (config.s0_timeout_min || 30) * 60 * 1000;
-        await col('order_main').doc(order_id).update({ data: { status: 'S0', pay_expire_at: payExpire, updated_at: Date.now() } });
-        await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
-        newStatus = 'S0';
-      }
-      return { ok: true, data: { role, confirmed_count: cnt, total_count: 8, all_confirmed: done, status: newStatus } };
+      await col('order_confirmations').doc(conf._id).update({ data: bitPatch });
     } catch (e) {
+      console.log(`confirm_all fail: ${e.message}`);
       return { ok: false, code: 'oa_confirm_fail', msg: '确认失败' };
     }
+
+    // 重读统计
+    const fresh = await getConfirmation(order_id);
+    const freshItems = (fresh && fresh.items) || conf.items;
+    let cnt = 0;
+    for (const f of CONFIRM_FIELDS) {
+      if (freshItems[f].user_ok) cnt++;
+      if (freshItems[f].partner_ok) cnt++;
+    }
+    const done = allConfirmed(freshItems);
+    let newStatus = order.status;
+    if (done) {
+      const config = await getConfig();
+      const payExpire = now + (config.s0_timeout_min || 30) * 60 * 1000;
+      const won = await casStatus(order_id, 'S1', { status: 'S0', pay_expire_at: payExpire, updated_at: now });
+      if (won) {
+        await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
+        newStatus = 'S0';
+      } else {
+        const latest = await getOrder(order_id);
+        newStatus = latest ? latest.status : 'S1';
+        if (newStatus !== 'S0') {
+          return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+        }
+      }
+    }
+    return { ok: true, data: { role, confirmed_count: cnt, total_count: 8, all_confirmed: done, status: newStatus } };
   }
 
   // ───────── 4. 取消订单(S1/S0 → S6) ─────────
@@ -360,28 +408,35 @@ exports.main = async (event, context) => {
     }
 
     const now = Date.now();
-    try {
-      await col('order_main').doc(order_id).update({ data: {
-        status: 'S6', updated_at: now
-      }});
-      await logStatus(order_id, order.status, 'S6', role === 'user' ? 'user_cancel' : 'partner_cancel', openid);
-
-      // S1 阶段取消:释放需求回 matching,可被其他耍伴接
-      if (order.status === 'S1' && order.demand_id) {
-        try {
-          await col('demand').doc(order.demand_id).update({ data: {
-            status: 'matching', updated_at: now
-          }});
-          console.log(`demand released: ${order.demand_id} → matching`);
-        } catch (e) {}
+    const fromStatus = order.status;
+    // CAS: 仅 S1/S0 → S6, 与定时器/并发取消/支付互斥
+    const won = await casStatus(order_id, ['S1', 'S0'], {
+      status: 'S6', cancel_at: now, updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S6') {
+        return { ok: true, data: { order_id, status: 'S6', demand_released: false, idempotent: true } };
       }
-
-      console.log(`order cancelled: ${order.order_no} ${order.status}→S6 by=${role}`);
-      return { ok: true, data: { order_id, status: 'S6', demand_released: order.status === 'S1' } };
-    } catch (e) {
-      console.log(`cancel fail: ${e.message}`);
-      return { ok: false, code: 'oa_cancel_fail', msg: '取消失败' };
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
+
+    await logStatus(order_id, fromStatus, 'S6', role === 'user' ? 'user_cancel' : 'partner_cancel', openid);
+
+    // S1 阶段取消:条件释放需求(仅 matched→matching, 不覆盖已过期/取消的需求)
+    let demandReleased = false;
+    if (fromStatus === 'S1' && order.demand_id) {
+      try {
+        const dr = await col('demand').where({ _id: order.demand_id, status: 'matched' }).update({
+          data: { status: 'matching', updated_at: now }
+        });
+        demandReleased = !!(dr.stats && dr.stats.updated === 1);
+        console.log(`demand released: ${order.demand_id} → matching (released=${demandReleased})`);
+      } catch (e) {}
+    }
+
+    console.log(`order cancelled: ${order.order_no} ${fromStatus}→S6 by=${role}`);
+    return { ok: true, data: { order_id, status: 'S6', demand_released: demandReleased } };
   }
 
   // 开始履约:S2 → S3(耍伴发起)
@@ -396,17 +451,20 @@ exports.main = async (event, context) => {
     if (order.status !== 'S2') return { ok: false, code: 'oa_start_status', msg: `订单当前状态(${order.status})不可开始履约` };
 
     const now = Date.now();
-    try {
-      await col('order_main').doc(order_id).update({ data: {
-        status: 'S3', service_started_at: now, updated_at: now
-      }});
-      await logStatus(order_id, 'S2', 'S3', 'start_service', openid);
-      console.log(`service started: ${order.order_no} S2→S3`);
-      return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
-    } catch (e) {
-      console.log(`start_service fail: ${e.message}`);
-      return { ok: false, code: 'oa_start_fail', msg: '开始履约失败' };
+    // CAS S2→S3, 防重复开始
+    const won = await casStatus(order_id, 'S2', {
+      status: 'S3', service_started_at: now, updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S3') {
+        return { ok: true, data: { order_id, status: 'S3', service_started_at: latest.service_started_at || now, idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
+    await logStatus(order_id, 'S2', 'S3', 'start_service', openid);
+    console.log(`service started: ${order.order_no} S2→S3`);
+    return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
   }
 
   // 完成履约:S3 → S5(耍伴发起)
@@ -421,17 +479,20 @@ exports.main = async (event, context) => {
     if (order.status !== 'S3') return { ok: false, code: 'oa_complete_status', msg: `订单当前状态(${order.status})不可完成履约` };
 
     const now = Date.now();
-    try {
-      await col('order_main').doc(order_id).update({ data: {
-        status: 'S5', service_completed_at: now, updated_at: now
-      }});
-      await logStatus(order_id, 'S3', 'S5', 'complete_service', openid);
-      console.log(`service completed: ${order.order_no} S3→S5`);
-      return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
-    } catch (e) {
-      console.log(`complete_service fail: ${e.message}`);
-      return { ok: false, code: 'oa_complete_fail', msg: '完成履约失败' };
+    // CAS S3→S5, 防重复完成
+    const won = await casStatus(order_id, 'S3', {
+      status: 'S5', service_completed_at: now, updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S5') {
+        return { ok: true, data: { order_id, status: 'S5', service_completed_at: latest.service_completed_at || now, idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
+    await logStatus(order_id, 'S3', 'S5', 'complete_service', openid);
+    console.log(`service completed: ${order.order_no} S3→S5`);
+    return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
   }
 
   // ───────── 订单详情(全字段 + 四确认状态 + 评价, 仅参与方可读) ─────────
@@ -485,20 +546,24 @@ exports.main = async (event, context) => {
       if (pR.data && pR.data[0] && pR.data[0].nickname) partnerNickname = pR.data[0].nickname;
     } catch (e) {}
 
-    // 安全状态(紧急求助/安全报备, 时间戳原样返回由前端格式化)
+    // 安全状态(紧急求助/安全报备, 时间戳原样返回由前端格式化); 有界查询避免全表拉取
     const safety = { help_flag: !!order.help_flag, active_sos: null, checkins: [] };
     try {
-      const srR = await col('safety_report').where({ order_id, is_deleted: false }).get();
-      const reports = srR.data || [];
-      const activeSos = reports.find(r => r.type === 'sos' && r.status === 'active');
+      const [sosR, ckR] = await Promise.all([
+        col('safety_report')
+          .where({ order_id, type: 'sos', status: 'active', is_deleted: false })
+          .orderBy('created_at', 'desc').limit(1).get(),
+        col('safety_report')
+          .where({ order_id, type: 'checkin', is_deleted: false })
+          .orderBy('created_at', 'desc').limit(3).get()
+      ]);
+      const activeSos = sosR.data && sosR.data[0];
       if (activeSos) {
         safety.active_sos = { reporter_role: activeSos.reporter_role || '', created_at: activeSos.created_at || null };
       }
-      safety.checkins = reports
-        .filter(r => r.type === 'checkin')
-        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-        .slice(0, 3)
-        .map(r => ({ reporter_role: r.reporter_role || '', created_at: r.created_at || null, location: r.location || null }));
+      safety.checkins = (ckR.data || []).map(r => ({
+        reporter_role: r.reporter_role || '', created_at: r.created_at || null, location: r.location || null
+      }));
     } catch (e) {}
 
     return {
