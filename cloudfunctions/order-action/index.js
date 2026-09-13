@@ -453,7 +453,8 @@ exports.main = async (event, context) => {
     const now = Date.now();
     // CAS S2→S3, 防重复开始
     const won = await casStatus(order_id, 'S2', {
-      status: 'S3', service_started_at: now, updated_at: now
+      status: 'S3', service_started_at: now, updated_at: now,
+      milestone: { current: 0, confirmed: [false, false, false], evidence: [], submitted_at: null }
     });
     if (!won) {
       const latest = await getOrder(order_id);
@@ -478,6 +479,12 @@ exports.main = async (event, context) => {
     if (role !== 'partner') return { ok: false, code: 'oa_complete_perm', msg: '仅耍伴可完成履约' };
     if (order.status !== 'S3') return { ok: false, code: 'oa_complete_status', msg: `订单当前状态(${order.status})不可完成履约` };
 
+    // 里程碑校验:需提交到100%(current===3)才可完成履约
+    const ms = order.milestone || { current: 0 };
+    if (ms.current < 3) {
+      return { ok: false, code: 'oa_milestone_required', msg: `请先提交履约进度到100%(当前${ms.current}/3)再完成履约` };
+    }
+
     const now = Date.now();
     // CAS S3→S5, 防重复完成
     const won = await casStatus(order_id, 'S3', {
@@ -493,6 +500,68 @@ exports.main = async (event, context) => {
     await logStatus(order_id, 'S3', 'S5', 'complete_service', openid);
     console.log(`service completed: ${order.order_no} S3→S5`);
     return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
+  }
+
+  // ───────── 里程碑三段式:耍伴提交 30%→60%→100% ─────────
+  // current: 0=待开始 1=30% 2=60% 3=100%待验收; complete_service 要求 current===3
+  const MS_LABEL = { 1: '30%', 2: '60%', 3: '100%' };
+  if (action === 'milestone_submit') {
+    const { order_id, note, location } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (role !== 'partner') return { ok: false, code: 'oa_ms_perm', msg: '仅耍伴可提交履约进度' };
+    if (order.status !== 'S3') return { ok: false, code: 'oa_ms_status', msg: `订单当前状态(${order.status})不可提交进度` };
+
+    const ms = order.milestone || { current: 0, confirmed: [false, false, false], evidence: [] };
+    if (ms.current >= 3) return { ok: false, code: 'oa_ms_done', msg: '履约进度已提交到100%,无需重复提交' };
+
+    const next = ms.current + 1;
+    const evidence = Array.isArray(ms.evidence) ? ms.evidence : [];
+    evidence.push({
+      milestone: next,
+      label: MS_LABEL[next],
+      note: note || '',
+      location: location || null,
+      submitted_by: openid,
+      submitted_at: Date.now()
+    });
+
+    await col('order_main').doc(order_id).update({
+      data: {
+        'milestone.current': next,
+        'milestone.evidence': evidence,
+        'milestone.submitted_at': Date.now(),
+        updated_at: Date.now()
+      }
+    });
+    console.log(`milestone ${next}/3 submitted: ${order.order_no}`);
+    return { ok: true, data: { order_id, milestone: next, label: MS_LABEL[next] } };
+  }
+
+  // 需求者确认里程碑(可手动确认;15分钟自动确认由 order-timer 处理)
+  if (action === 'milestone_confirm') {
+    const { order_id, milestone } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    if (![1, 2, 3].includes(milestone)) return { ok: false, code: 'oa_ms_invalid', msg: 'milestone 须为 1/2/3' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (role !== 'user') return { ok: false, code: 'oa_ms_confirm_perm', msg: '仅需求者可确认履约进度' };
+
+    const ms = order.milestone || { current: 0, confirmed: [false, false, false] };
+    if (ms.current < milestone) return { ok: false, code: 'oa_ms_not_submitted', msg: '该进度尚未提交' };
+    const confirmed = Array.isArray(ms.confirmed) ? [...ms.confirmed] : [false, false, false];
+    confirmed[milestone - 1] = true;
+
+    await col('order_main').doc(order_id).update({
+      data: { 'milestone.confirmed': confirmed, updated_at: Date.now() }
+    });
+    console.log(`milestone ${milestone} confirmed by user: ${order.order_no}`);
+    return { ok: true, data: { order_id, milestone, confirmed: true } };
   }
 
   // ───────── 订单详情(全字段 + 四确认状态 + 评价, 仅参与方可读) ─────────
