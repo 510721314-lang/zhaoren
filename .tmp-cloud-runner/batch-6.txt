@@ -1,0 +1,8 @@
+order-action|ev\c08-full-A-time.json|TC18-A-time
+order-action|ev\c09-full-A-location.json|TC18-A-location
+order-action|ev\c10-full-A-content.json|TC18-A-content
+order-action|ev\c11-full-A-fee.json|TC18-A-fee
+order-action|ev\c12-full-B-time.json|TC18-B-time
+order-action|ev\c13-full-B-location.json|TC18-B-location
+order-action|ev\c14-full-B-content.json|TC18-B-content
+order-action|ev\c15-full-B-fee.json|TC18-B-fee-S0

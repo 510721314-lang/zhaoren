@@ -1,0 +1,4 @@
+﻿{"id":"01-myDemands-A","fn":"demand-publish","ok":null,"code":"","timeout":false,"capture":"","raw":"NO_RESULT"}
+{"id":"02-myOrders-A","fn":"order-action","ok":null,"code":"","timeout":false,"capture":"","raw":"NO_RESULT"}
+{"id":"03-myOrders-B","fn":"order-action","ok":null,"code":"","timeout":false,"capture":"","raw":"NO_RESULT"}
+{"id":"04-hall","fn":"demand-match","ok":null,"code":"","timeout":false,"capture":"","raw":"NO_RESULT"}

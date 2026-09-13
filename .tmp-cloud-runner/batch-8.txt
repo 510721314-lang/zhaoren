@@ -1,0 +1,5 @@
+safety-report|ev\s04-sos-A.json|TC22-sos
+safety-report|ev\s05-sos-repeat-A.json|TC22-sos-idempotent
+safety-report|ev\s06-checkin-B.json|TC23-checkin
+order-action|ev\s07-complete-B.json|TC24-complete
+safety-report|ev\sr-status-A.json|safety-status

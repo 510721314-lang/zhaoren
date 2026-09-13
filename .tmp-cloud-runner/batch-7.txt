@@ -1,0 +1,6 @@
+payment-mock|ev\p01-cashier-A.json|TC19-cashier
+payment-mock|ev\p02-pay-A.json|TC20-pay
+payment-mock|ev\p03-pay-repeat-A.json|TC20-pay-repeat
+order-action|ev\s01-start-A.json|TC21-start-A-perm
+order-action|ev\s02-complete-at-S2-B.json|TC24-complete-not-S3
+order-action|ev\s03-start-B.json|TC21-start-B
