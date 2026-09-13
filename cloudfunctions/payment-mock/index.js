@@ -58,7 +58,7 @@ exports.main = async (event, context) => {
   console.log(`payment-mock action=${action} openid=${openid}`);
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
-  if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
+  if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
     return { ok: false, code: 'pay_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)或支付流水号(PAY 开头)' };
   }
 
@@ -341,6 +341,48 @@ exports.main = async (event, context) => {
         console.log(`mock_tip fail: ${e.message}`);
         return { ok: false, code: 'tip_db_fail', msg: '打赏失败,请稍后重试' };
       }
+    }
+
+    // W2 AA制 SSOT 账本:记录线下 AA 消费(凭证+金额+付款方),平台仅记账不代收
+    case 'aa_record': {
+      const { order_id, amount_fen, note, evidence_url } = event;
+      if (!order_id) return { ok: false, code: 'aa_no_order', msg: '缺少订单 ID' };
+      const order = await getOrder(order_id);
+      if (!order) return { ok: false, code: 'aa_not_found', msg: '订单不存在' };
+      // 仅 W2 学习陪伴场景启用 AA 制
+      if (order.scene !== 'W2') {
+        return { ok: false, code: 'aa_scene_not_supported', msg: '仅学习陪伴(W2)场景支持AA记账' };
+      }
+      if (!order.aa_promise_signed) {
+        return { ok: false, code: 'aa_no_promise', msg: '该订单未签署AA费用自理承诺' };
+      }
+      const amount = Number(amount_fen);
+      if (!Number.isInteger(amount) || amount <= 0) {
+        return { ok: false, code: 'aa_amount', msg: 'AA金额需为正整数(分)' };
+      }
+      const role = order.user_openid === openid ? 'user' : (order.partner_openid === openid ? 'partner' : null);
+      if (!role) return { ok: false, code: 'aa_not_participant', msg: '你不是该订单参与方' };
+
+      const now = Date.now();
+      const record = {
+        record_id: 'AA' + now,
+        amount_fen: amount,
+        note: String(note || '').slice(0, 200),
+        evidence_url: evidence_url || '',
+        paid_by: role,
+        paid_openid: openid,
+        created_at: now
+      };
+      // 累加到 order_main.aa_ledger(SSOT 单一账本)
+      await col('order_main').doc(order_id).update({
+        data: {
+          'aa_ledger.records': _.push([record]),
+          'aa_ledger.total_fen': _.inc(amount),
+          updated_at: now
+        }
+      });
+      console.log(`aa_record: ${order.order_no} amount=${amount} by=${role}`);
+      return { ok: true, data: { order_id, record_id: record.record_id, amount_fen: amount, paid_by: role } };
     }
 
     default:
