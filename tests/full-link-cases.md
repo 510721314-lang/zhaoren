@@ -129,6 +129,49 @@
 | n08 | remark=220 字 | `publish_remark_long`「备注最长 200 字」 | ✅ |
 | n09 | remark="加微信私聊我" | `publish_remark_blocked`「备注包含平台禁止的内容(如联系方式/转账),请修改后重试」 | ✅ |
 
+### C. 订单链路 mock 回归（2026-09-13，阶段B 事务/CAS 新代码下重跑）
+
+夹具：D_MAIN=`f9ecc4af...b6ddee`(09-18 21:00 W1取药送药)，O_MAIN=`e04f59456aa6950604866b24791a2ab2`(ORD20260913892888)；D3=`a9defcfd...02335ca`(09-21 15:00 W1陪诊解压)，O_IM=`e04f59456aa69a6204886d4313a89a35`(ORD20260913927972)。A=oLDJ73Yz…(发单)，B=test_partner_001(耍伴)。
+
+| 批次 | 云函数 | 用例 | 实测结果 |
+|---|---|---|---|
+| 1 | order-create | B 接 D_MAIN | ✅ ok:true S1 total=10000/fee=1000/partner_income=9000 |
+| 1 | order-create | B 重接同一单 | ✅ `order_demand_closed`（防超卖 CAS） |
+| 1 | order-create | A 接自己单 | ✅ `order_own_demand` |
+| 2 | order-action | A get_confirmation 基线 | ✅ S1 0/8 version=1 |
+| 2 | order-action | A 确认 time/location/content | ✅ 0→1→2→3 递增，S1 |
+| 2 | order-action | B 确认 time/location | ✅ 4→5，S1 |
+| 2 | order-action | B 改 fee | ✅ reset=true version=7 confirmed_count=0（8位全重置+OCC） |
+| 2 | order-action | A 复查 | ✅ 0/8 version=7 |
+| 3 | order-action | A×4 + B×4 confirm_item | ✅ 1→8/8 → 自动 S1→S0 |
+| 4 | payment-mock | cashier_info | ✅ S0 pay_expire_at=+30min is_mock=true |
+| 4 | payment-mock | mock_pay | ✅ S0→S2 pay_no=PAY20260913588324 is_mock=true |
+| 4 | payment-mock | 重复支付 | ✅ `idempotent:true`（不重复扣款） |
+| 5 | order-action | A 开始履约 | ✅ `oa_start_perm`（仅耍伴可开始） |
+| 5 | order-action | B 在 S2 完成 | ✅ `oa_complete_status` |
+| 5 | order-action | B 开始履约 | ✅ S2→S3 service_started_at 落库 |
+| 6 | safety-report | A SOS | ✅ report_id=a9defcfd… help_flag=true 紧急联系人回显 |
+| 6 | safety-report | A 重复 SOS | ✅ `idempotent:true` 同 report_id |
+| 6 | safety-report | B checkin | ✅ type=checkin reporter_role=partner |
+| 6 | order-action | B 完成履约 | ✅ S3→S5 service_completed_at 落库 |
+| 6 | safety-report | status 回显 | ✅ active_sos + checkins + my_contacts 完整 |
+| 7 | evaluation-submit | A 违禁词评价 | ✅ `ev_text_unsafe` |
+| 7 | evaluation-submit | A 正常5星 | ✅ S5→S8 credit_delta=+2 |
+| 7 | evaluation-submit | B 评价 | ✅ `ev_not_owner` |
+| 8 | payment-mock | 打赏0元/501元 | ✅ `tip_amount`（边界拒） |
+| 8 | payment-mock | 打赏10元+5元 | ✅ tip_total 1000→1500 累加 is_mock=true |
+| 9 | order-create | B 接 D3 | ✅ ok:true S1（得 O_IM） |
+| 9 | im-send | S1 自由文本 | ✅ `im_template_only` |
+| 9 | im-send | S1 模板 T1 | ✅ ok:true free_chat=false |
+| 9 | im-send | S1 非法模板 T99 | ✅ `im_bad_template` |
+| 9 | order-action | A+B confirm_all | ✅ 4→8/8 → S0 |
+| 9 | im-send | S0 自由文本 | ✅ ok:true free_chat=true |
+| 9 | im-send | S0 违禁词 | ✅ `im_text_blocked` |
+| 9 | order-action | A 取消 | ✅ S0→S6 demand_released=false |
+| 9 | im-send | 关闭后发消息 | ✅ `im_chat_closed` |
+
+**结论：33 个用例全部 PASS。** 阶段B 事务/CAS 改造在真实调用下行为符合预期，主链路 S1→S0→S2→S3→S5→S8、取消 S0→S6、IM 分级、幂等、内容安全全部验证通过。
+
 ---
 
 ## 状态机速查（13 态合法流转）
