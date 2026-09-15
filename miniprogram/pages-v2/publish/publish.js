@@ -325,29 +325,41 @@ Page({
   onPublish() {
     if (this.data.publishing) return;
     const f = this.data.form;
-    // W1 带 disclaimer 的场景 → 强制弹免责声明（如果还没勾）
+    // 带 disclaimer 的场景 → 强制弹免责声明（统一用 wx.showModal）
     const curScene = SCENES.find((s) => s.code === f.scene_code);
     if (curScene && curScene.disclaimer && !this.data.disclaimerChecked) {
-      this.setData({ disclaimerVisible: true });
+      wx.showModal({
+        title: '就医陪诊免责声明',
+        content: '本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴不具备医疗执业资格，不提供诊断、治疗、用药建议。耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。遇紧急医疗情况请立即呼叫120或寻求医院专业帮助。',
+        confirmText: '同意',
+        cancelText: '不同意',
+        success: (r) => {
+          if (r.confirm) {
+            this.setData({ disclaimerChecked: true });
+            this._continuePublish();
+          } else {
+            wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
+          }
+        }
+      });
       return;
     }
+    this._continuePublish();
+  },
+  // 实际执行 validate + AA 弹窗
+  _continuePublish() {
+    const f = this.data.form;
     const errs = this.validatePublish(f);
     if (errs.length > 0) {
       wx.showToast({ title: errs[0], icon: 'none' });
       return;
     }
-    // 弹 AA 确认弹窗
     this.setData({ aaSheetVisible: true });
   },
 
   validatePublish(f) {
     const errs = [];
     if (!f.scene_code) errs.push('请选择场景');
-    // W1 就医陪诊须勾免责
-    const curScene = SCENES.find((s) => s.code === f.scene_code);
-    if (curScene && curScene.disclaimer && !this.data.disclaimerChecked) {
-      errs.push('请先确认场景免责声明');
-    }
     if (!f.title) errs.push('请输入标题');
     if (!f.description) errs.push('请输入描述');
     if (!f.service_date) errs.push('请选择日期');
