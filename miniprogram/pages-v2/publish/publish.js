@@ -438,7 +438,7 @@ Page({
       match_mode: f.match_mode
     };
 
-    console.log('[confirmPublish] → demand-publish:', { action: 'publish', scene: params.scene, start_time: startTs });
+    console.log('[confirmPublish] → demand-publish:', { action: 'publish', scene: params.scene });
 
     wx.cloud.callFunction({
       name: 'demand-publish',
