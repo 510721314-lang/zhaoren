@@ -171,22 +171,35 @@ Page({
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
     const scene = SCENES.find((s) => s.code === code);
-    console.log('[setScene] code=', code, 'scene=', scene, 'disclaimer=', scene && scene.disclaimer);
     if (!scene) return;
     const form = Object.assign({}, this.data.form);
     form.scene_code = code;
-    // 选中带 disclaimer 的场景 → 立即弹免责声明
-    this.setData({
-      form,
-      disclaimerVisible: !!scene.disclaimer,
-      disclaimerChecked: false
-    });
+    // 选中带 disclaimer 的场景 → 用 wx.showModal 弹免责声明（绕开 bottom-sheet 真机渲染问题）
+    if (scene.disclaimer) {
+      wx.showModal({
+        title: '就医陪诊免责声明',
+        content: '本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴不具备医疗执业资格，不提供诊断、治疗、用药建议。耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。遇紧急医疗情况请立即呼叫120或寻求医院专业帮助。',
+        confirmText: '同意',
+        cancelText: '不同意',
+        success: (r) => {
+          if (r.confirm) {
+            this.setData({ form, disclaimerChecked: true });
+          } else {
+            // 不同意 → 取消场景选择
+            form.scene_code = '';
+            this.setData({ form, disclaimerChecked: false });
+            wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
+          }
+        }
+      });
+    } else {
+      this.setData({ form, disclaimerChecked: false });
+    }
   },
   toggleDisclaimer() {
     this.setData({ disclaimerChecked: !this.data.disclaimerChecked });
   },
   closeDisclaimer() {
-    // 未勾选时取消场景选择
     if (!this.data.disclaimerChecked) {
       const form = Object.assign({}, this.data.form);
       form.scene_code = '';
