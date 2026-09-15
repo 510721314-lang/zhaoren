@@ -146,20 +146,14 @@ exports.main = async (event, context) => {
       if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
         return { ok: false, code: 'publish_rate', msg: '时薪金额格式有误' };
       }
-      if (!location || !location.name || !location.latitude || !location.longitude) {
-        return { ok: false, code: 'publish_location', msg: '履约地点信息不完整,请在地图上选择' };
+      // 履约地点: MVP 阶段只校验 name 非空, 经纬度可选(隐私指引审核期间用户无法选点, 允许 0)
+      if (!location || !location.name) {
+        return { ok: false, code: 'publish_location', msg: '请填写履约地点名称' };
       }
-      // 发布地址(发布时实际GPS, 只读留痕): 真实客户端必传; 自测链路(mock_openid)缺省时用履约地址兜底
-      const isMockPub = !wxCtx.OPENID && !!event.mock_openid;
+      // 发布地址(发布时实际GPS, 只读留痕): 缺省时用履约地址兜底, MVP 阶段放宽校验
       let pubLoc = (publish_location && publish_location.latitude && publish_location.longitude)
-        ? publish_location : null;
-      if (!pubLoc) {
-        if (isMockPub) {
-          pubLoc = { name: location.name, latitude: location.latitude, longitude: location.longitude, city: location.city };
-        } else {
-          return { ok: false, code: 'publish_pub_location', msg: '发布地址缺失,请允许定位后重新发布' };
-        }
-      }
+        ? publish_location
+        : { name: location.name, latitude: location.latitude || 0, longitude: location.longitude || 0, city: location.city };
       if (!aa_tier) {
         return { ok: false, code: 'publish_aa_tier', msg: '请选择 AA 档位' };
       }
