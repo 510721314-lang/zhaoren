@@ -65,17 +65,6 @@
     </block>
   </view>
 
-  <!-- 接单确认弹窗 -->
-  <bottom-sheet visible="{{sheetVisible}}" bind:close="closeSheet" has-footer="{{true}}">
-    <view class="dd__grab-title">确认接单？</view>
-    <view class="dd__grab-desc" wx:if="{{demand}}">{{demand.title}}</view>
-    <view class="dd__grab-meta" wx:if="{{demand}}">{{demand.service_date}} {{demand.service_time}} · {{demand.location.name}}</view>
-    <view class="dd__grab-tip">接单后进入待确认(S1)，请在{{confirmTimeoutMin}}分钟内完成四确认。</view>
-    <view slot="footer" class="dd__grab-btns">
-      <button class="dd__btn dd__btn--ghost" bindtap="closeSheet">再想想</button>
-      <button class="dd__btn dd__btn--primary" bindtap="confirmGrab">确认接单</button>
-    </view>
-  </bottom-sheet>
   </block>
   <!-- 空态 -->
   <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />

@@ -15,8 +15,6 @@ Page({
     todayCount: 0,
     onlinePartners: 8,
     isRedline: false,
-    sheetVisible: false,
-    selectedDemand: null,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: CONFIG.TIME_REDLINE.close,
@@ -103,28 +101,14 @@ Page({
     this.setData({ list });
   },
 
-  // 点击抢单 → 二次确认弹窗（真实校验在后端 create_from_take）
+  // 点击抢单 → 直接进接单链路: 免责声明 modal(同意并接单) → 定位 → 建单
+  // 不用 bottom-sheet 二次确认(真机渲染不可靠)
   onGrab(e) {
     if (this.data.isRedline) {
       wx.showToast({ title: `夜间${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}暂停抢单`, icon: 'none' });
       return;
     }
     const demand = e.detail.demand;
-    if (demand && demand.match_mode === 'select') {
-      wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
-      return;
-    }
-    this.setData({ sheetVisible: true, selectedDemand: demand });
-  },
-
-  closeSheet() {
-    this.setData({ sheetVisible: false });
-  },
-
-  // 确认抢单 → 免责声明双签 + 定位 + create_from_take → 跳 IM 四确认
-  confirmGrab() {
-    this.setData({ sheetVisible: false });
-    const demand = this.data.selectedDemand;
     if (!demand) return;
     takeOrder(demand, {
       onSuccess: (data) => {

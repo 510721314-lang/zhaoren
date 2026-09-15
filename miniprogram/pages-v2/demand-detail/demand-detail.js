@@ -11,7 +11,6 @@ Page({
     role: 'partner',
     certified: true,   // 接单方场景签署在后端(create_from_take 强校验), 前端不灰态拦截
     recommendPartners: [],
-    sheetVisible: false,
     isOwner: false,
     loading: false,
     loadError: false,
@@ -68,23 +67,10 @@ Page({
       wx.showToast({ title: `夜间${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}暂停接单`, icon: 'none' });
       return;
     }
-    const d = this.data.demand;
-    if (d && d.match_mode === 'select') {
-      wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
-      return;
-    }
-    this.setData({ sheetVisible: true });
-  },
-
-  closeSheet() {
-    this.setData({ sheetVisible: false });
-  },
-
-  // 确认接单 → 免责声明双签 + 定位 + create_from_take → 跳 IM 四确认
-  confirmGrab() {
-    this.setData({ sheetVisible: false });
     const demand = this.data.demand;
     if (!demand) return;
+    // 直接进接单链路: 免责声明 modal(同意并接单) → 定位 → 建单
+    // 不用 bottom-sheet 二次确认(真机渲染不可靠, 与免责声明根治同一方案)
     takeOrder(demand, {
       onSuccess: (data) => {
         wx.showToast({ title: '接单成功,已进入待确认(S1)', icon: 'success', duration: 1500 });

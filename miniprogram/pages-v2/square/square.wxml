@@ -43,19 +43,5 @@
   <!-- S4 脚注 -->
   <view class="square__footnote" wx:if="{{list.length > 0}}">广场广播模式 · 先到先得，抢到即进入四确认流程</view>
 
-  <!-- 抢单二次确认 -->
-  <bottom-sheet visible="{{sheetVisible}}" bind:close="closeSheet" has-footer="{{true}}">
-    <view class="grab__title">确认接单？</view>
-    <view class="grab__desc" wx:if="{{selectedDemand}}">
-      <view>{{selectedDemand.title}}</view>
-      <view class="grab__meta">{{selectedDemand.service_date}} {{selectedDemand.service_time}} · {{selectedDemand.location.name}}</view>
-    </view>
-    <view class="grab__tip">抢到后订单进入「待确认(S1)」，请在{{confirmTimeoutMin}}分钟内与对方完成时间/地点/内容/费用四确认。</view>
-    <view slot="footer" class="grab__btns">
-      <button class="grab__btn grab__btn--ghost" bindtap="closeSheet">再想想</button>
-      <button class="grab__btn grab__btn--primary" bindtap="confirmGrab">确认抢单</button>
-    </view>
-  </bottom-sheet>
-
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>
