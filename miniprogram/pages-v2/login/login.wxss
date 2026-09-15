@@ -1,4 +1,4 @@
-﻿.login {
+.login {
   min-height: 100vh;
   background: var(--bg-page);
   padding: 0 48rpx;

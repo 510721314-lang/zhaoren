@@ -1,4 +1,4 @@
-﻿.dcard {
+.dcard {
   background: var(--bg-card);
   border-radius: var(--r-lg);
   padding: 24rpx 28rpx;

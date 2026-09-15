@@ -36,34 +36,34 @@
     <empty-state wx:elif="{{orderList.length === 0}}" icon="💬" title="暂无消息" desc="订单创建后会话将出现在此" />
     <!-- 网络异常态 -->
     <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
-    <!-- 正常态 -->
-    <view
-      class="msg__conv {{item.pinned ? 'is-pinned' : ''}}"
-      wx:for="{{orderList}}"
-      wx:key="_id"
-      data-id="{{item._id}}"
-      bindtap="onConvTap"
-      bindlongpress="onLongPress"
-      wx:else
-    >
-      <view class="msg__avatar">{{item.avatar}}
-        <text class="msg__badge" wx:if="{{item.unread_count}}">{{item.unread_count}}</text>
-      </view>
-      <view class="msg__main">
-        <view class="msg__row1">
-          <text class="msg__name">{{item.displayTitle}}</text>
-          <status-tag code="{{item.order_status}}"></status-tag>
+    <!-- 正常态：block 承接 wx:elif，内部 view 承接 wx:for，避免同元素双指令冲突 -->
+    <block wx:elif="{{orderList.length > 0}}">
+      <view
+        class="msg__conv {{item.pinned ? 'is-pinned' : ''}}"
+        wx:for="{{orderList}}"
+        wx:key="_id"
+        data-id="{{item._id}}"
+        bindtap="onConvTap"
+        bindlongpress="onLongPress"
+      >
+        <view class="msg__avatar">{{item.avatar}}
+          <text class="msg__badge" wx:if="{{item.unread_count}}">{{item.unread_count}}</text>
         </view>
-        <view class="msg__row2">
-          <text class="msg__summary">{{item.summary}}</text>
-          <view class="msg__right">
-            <text class="msg__time">{{item.last_msg_at}}</text>
-            <text class="msg__read" wx:if="{{item.is_read}}">✓✓</text>
+        <view class="msg__main">
+          <view class="msg__row1">
+            <text class="msg__name">{{item.displayTitle}}</text>
+            <status-tag code="{{item.order_status}}"></status-tag>
+          </view>
+          <view class="msg__row2">
+            <text class="msg__summary">{{item.summary}}</text>
+            <view class="msg__right">
+              <text class="msg__time">{{item.last_msg_at}}</text>
+              <text class="msg__read" wx:if="{{item.is_read}}">✓✓</text>
+            </view>
           </view>
         </view>
       </view>
-    </view>
-    <view class="msg__empty-tip" wx:if="{{orderList.length === 0}}">暂无订单会话，去广场看看吧～</view>
+    </block>
   </view>
 
   <night-mask visible="{{isRedline}}"></night-mask>

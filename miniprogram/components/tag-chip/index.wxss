@@ -1,4 +1,4 @@
-﻿.chip {
+.chip {
   display: inline-block;
   font-size: var(--font-xs);
   line-height: 1.4;
