@@ -200,7 +200,7 @@
 
   <!-- 底部: 版本号(连续点击 5 次进入管理员入口) -->
   <view class="footer">
-    <view class="version" bindtap="onVersionTap" bindlongpress="onVersionLongPress">版本 {{version}}</view>
+    <view class="version" bindtap="onVersionTap">版本 {{version}}</view>
   </view>
   </block>
 </view>

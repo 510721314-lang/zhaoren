@@ -1,6 +1,5 @@
 // pages/mine/mine.js - 我的 · 登录与实名注册(对应 PRD 3.1)
 const app = getApp();
-const { isTestMode, setTestMode } = require('../../utils/testmode.js');
 
 Page({
   data: {
@@ -608,22 +607,5 @@ Page({
         }
       });
     }
-  },
-
-  // ───────── 长按版本号 → 自测模式开关(真机隐私声明生效前的临时测试通道, 上线前移除) ─────────
-  onVersionLongPress() {
-    const on = !isTestMode();
-    wx.showModal({
-      title: on ? '开启自测模式？' : '关闭自测模式？',
-      content: on
-        ? '开启后，真机定位相关流程将使用成都默认坐标（发布地址/履约地点/接单距离），便于在隐私声明生效前跑通全流程。仅限测试，上线前必须关闭。'
-        : '关闭后将恢复真实 GPS 定位与距离校验。',
-      confirmText: on ? '开启' : '关闭',
-      success: (r) => {
-        if (!r.confirm) return;
-        setTestMode(on);
-        wx.showToast({ title: on ? '自测模式已开启' : '自测模式已关闭', icon: 'none' });
-      }
-    });
   }
 });
