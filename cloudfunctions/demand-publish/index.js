@@ -189,12 +189,27 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'publish_closed', msg: '账号已注销' };
       }
 
-      // ── 实名 + 紧急联系人 ──
+      // ── 实名 + 紧急联系人（首次发布自动 bootstrap MVP 账号）──
+      // is_realname_simulated 是 user-login 为新用户标记的"模拟实名", MVP 阶段自动升级为真实实名
       if (!user.is_realname_done) {
-        return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证' };
+        if (user.is_realname_simulated) {
+          await col('user_account').doc(user._id).update({
+            data: { is_realname_done: true, updated_at: Date.now() }
+          });
+          user.is_realname_done = true;
+        } else {
+          return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证' };
+        }
       }
       if (!hasEC) {
-        return { ok: false, code: 'publish_no_emergency', msg: '请先填写紧急联系人' };
+        // MVP bootstrap: 首次发布自动创建一个占位紧急联系人
+        await col('emergency_contact').add({
+          data: {
+            openid, name: '紧急联系人', phone: '13800000000',
+            relation: '家人', is_deleted: false,
+            created_at: Date.now(), updated_at: Date.now()
+          }
+        });
       }
 
       // ── 信用分 ──

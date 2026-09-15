@@ -5,13 +5,13 @@
 
 const CONFIG = require('./index.js');
 
-// 一期场景白名单（PRD 3.3.1，硬编码校验 R9）。一期仅5场景，无 W3/W7/W9
+// 一期场景白名单（PRD 3.3.1，硬编码校验 R9）。code 与云函数 demand-publish SCENE_WHITELIST 对齐
 const SCENES = [
-  { code: 'medical_escort', name: '就医陪诊', icon: '🏥', color: '#E8F1FF', gb: true, cert: '陪诊认证', disclaimer: true },
-  { code: 'study_companion', name: '学习陪伴', icon: '📚', color: '#EDE8FF', gb: false, cert: '学习认证', disclaimer: false },
-  { code: 'life_assist', name: '生活协助', icon: '🧾', color: '#FFF3E0', gb: false, cert: '生活协助认证', disclaimer: false },
-  { code: 'travel_companion', name: '出行陪伴', icon: '🚄', color: '#E0F5F4', gb: false, cert: '出行认证', disclaimer: false },
-  { code: 'online_companion', name: '线上陪伴', icon: '💬', color: '#FFE9EC', gb: false, cert: '线上认证', disclaimer: false }
+  { code: 'W1',  name: '就医陪诊', icon: '🏥', color: '#E8F1FF', gb: true,  cert: '陪诊认证', disclaimer: true,  options: ['挂号排队', '取药送药', '陪诊解压'] },
+  { code: 'W2',  name: '学习陪伴', icon: '📚', color: '#EDE8FF', gb: false, cert: '学习认证', disclaimer: false, options: ['自习陪伴', '口语陪练', '作业督促'] },
+  { code: 'W8',  name: '生活协助', icon: '🛠️', color: '#FFF3E0', gb: false, cert: '生活协助认证', disclaimer: false, options: ['排队代办', '搬家帮手', '采买陪同'] },
+  { code: 'W10', name: '出行陪伴', icon: '🚄', color: '#E0F5F4', gb: false, cert: '出行认证', disclaimer: false, options: ['逛街同行', '夜跑陪跑', '活动搭子'] },
+  { code: 'W11', name: '线上陪伴', icon: '💬', color: '#FFE9EC', gb: false, cert: '线上认证', disclaimer: false, options: ['树洞倾听', '游戏陪玩', '打卡监督'] }
 ];
 
 // 订单13态（PRD 3.5.2 SSOT）

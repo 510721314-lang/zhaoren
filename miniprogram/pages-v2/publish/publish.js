@@ -40,6 +40,8 @@ Page({
       duration_hours: 3,           // B5
       duration_custom: '',
       location_name: '',           // B5
+      latitude: 0,                 // B5 wx.chooseLocation 回填
+      longitude: 0,                // B5
       headcount: 1,                // B6
       budget: '',                  // B6
       aa_estimate: '',             // B7
@@ -172,11 +174,10 @@ Page({
     if (!scene) return;
     const form = Object.assign({}, this.data.form);
     form.scene_code = code;
-    // 选中 medical → 立即弹免责声明
-    const showDisclaimer = code === 'medical_escort';
+    // 选中带 disclaimer 的场景 → 立即弹免责声明
     this.setData({
       form,
-      disclaimerVisible: showDisclaimer,
+      disclaimerVisible: !!scene.disclaimer,
       disclaimerChecked: false
     });
   },
@@ -229,7 +230,25 @@ Page({
     this.setData({ 'form.location_name': e.detail.value });
   },
   onLocationPick() {
-    wx.showToast({ title: '地图选点功能将在正式版接入', icon: 'none' });
+    wx.chooseLocation({
+      success: (res) => {
+        this.setData({
+          'form.location_name': res.name || res.address,
+          'form.latitude': res.latitude,
+          'form.longitude': res.longitude
+        });
+      },
+      fail: (err) => {
+        // 用户主动取消不提示
+        if (err && err.errMsg && err.errMsg.indexOf('cancel') >= 0) return;
+        console.error('[onLocationPick] fail:', err);
+        wx.showModal({
+          title: '选点失败',
+          content: (err && err.errMsg) || '请检查系统定位服务是否开启',
+          showCancel: false
+        });
+      }
+    });
   },
 
   // ── B6 人数/预算 ──
@@ -304,9 +323,10 @@ Page({
   validatePublish(f) {
     const errs = [];
     if (!f.scene_code) errs.push('请选择场景');
-    // medical 须勾过免责
-    if (f.scene_code === 'medical_escort' && !this.data.disclaimerChecked) {
-      errs.push('请先确认就医陪诊免责声明');
+    // W1 就医陪诊须勾免责
+    const curScene = SCENES.find((s) => s.code === f.scene_code);
+    if (curScene && curScene.disclaimer && !this.data.disclaimerChecked) {
+      errs.push('请先确认场景免责声明');
     }
     if (!f.title) errs.push('请输入标题');
     if (!f.description) errs.push('请输入描述');
@@ -346,43 +366,109 @@ Page({
   confirmPublish() {
     if (!this.data.aaCommitChecked) return;
     this.setData({ aaSheetVisible: false, publishing: true });
-    // 写入 mock demands
     const f = this.data.form;
-    const newDemand = {
-      _id: 'd_new_' + Date.now(),
-      order_no: 'D' + Date.now(),
-      scene_code: f.scene_code,
-      project_attr: f.project_attr,
-      title: f.title,
-      description: f.description,
-      service_date: f.service_date,
-      service_time: f.service_time,
-      duration_hours: f.duration_hours || Number(f.duration_custom) || 0,
-      location: { name: f.location_name, address: '', lat: 0, lng: 0 },
-      district: '成都',
-      distance_km: 0,
-      headcount: f.headcount,
-      budget: f.project_attr === 'public_welfare' ? null : Number(f.budget),
-      gender_pref: f.gender_pref,
-      aa_estimate: f.aa_estimate,
-      match_mode: f.match_mode,
-      status: 'matching',
-      publisher: { surname: '张', real_name_verified: true, minutes_ago: 0 },
-      published_at: new Date().toISOString(),
-      draft: false
-    };
-    // 推入 mock（内存态）
-    const { demands } = require('../../mock/demands.js');
-    demands.unshift(newDemand);
-    setTimeout(() => {
-      this.setData({ publishing: false });
-      wx.showToast({ title: '发布成功', icon: 'success' });
-      setTimeout(() => {
-        wx.redirectTo({
-          url: `/pages-v2/demand-detail/demand-detail?id=${newDemand._id}`,
-          fail: () => wx.showToast({ title: '需求详情页即将上线', icon: 'none' })
+    const durationH = f.duration_hours || Number(f.duration_custom) || 0;
+
+    // 1. 先取发布地址 GPS（publish_location）
+    wx.getLocation({
+      type: 'gcj02',
+      success: (loc) => {
+        this._doPublish(f, durationH, {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          name: '当前位置',
+          city: '成都'
         });
-      }, 800);
-    }, 500);
+      },
+      fail: (err) => {
+        // 真机定位失败 → 提示用户但不阻塞（部分用户没开定位权限）
+        console.warn('[confirmPublish] getLocation fail:', err);
+        wx.showModal({
+          title: '发布地址获取失败',
+          content: '发布地址将使用履约地点代替，建议开启定位权限',
+          confirmText: '继续发布',
+          success: (r) => {
+            if (r.confirm) {
+              this._doPublish(f, durationH, null);
+            } else {
+              this.setData({ publishing: false });
+            }
+          },
+          fail: () => {
+            this.setData({ publishing: false });
+          }
+        });
+      }
+    });
+  },
+
+  _doPublish(f, durationH, pubLoc) {
+    // 场景子服务选项（前端无单独选择 UI → 用场景全选兜底）
+    const scene = SCENES.find((s) => s.code === f.scene_code);
+    const contentOptions = scene && scene.options ? scene.options : [];
+
+    // 服务开始时间 → 时间戳
+    const startTs = new Date(`${f.service_date}T${f.service_time}:00`).getTime();
+
+    // 时薪 → 分（云函数 rate_fen 要求分单位）
+    const rateFen = f.project_attr === 'public_welfare' ? 3000 : Math.round(Number(f.budget) * 100);
+
+    // 履约地点坐标（如果用户选了点就有，否则兜底 0,0）
+    const location = {
+      name: f.location_name,
+      address: f.location_name,
+      latitude: f.latitude || 0,
+      longitude: f.longitude || 0,
+      city: '成都'
+    };
+
+    const params = {
+      action: 'publish',
+      scene: f.scene_code,
+      content_options: contentOptions,
+      start_time: startTs,
+      duration_h: durationH,
+      location,
+      publish_location: pubLoc || location,
+      remark: `${f.title}｜${f.description}`,
+      rate_fen: rateFen,
+      aa_tier: f.aa_estimate,
+      aa_promise_checked: this.data.aaCommitChecked,
+      disclaimer_signed: this.data.disclaimerChecked,
+      match_mode: f.match_mode
+    };
+
+    console.log('[confirmPublish] → demand-publish:', { action: 'publish', scene: params.scene, start_time: startTs });
+
+    wx.cloud.callFunction({
+      name: 'demand-publish',
+      data: params,
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data) {
+          const demandId = r.data._id;
+          wx.showToast({ title: '发布成功', icon: 'success' });
+          setTimeout(() => {
+            wx.redirectTo({
+              url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
+              fail: () => {
+                wx.redirectTo({
+                  url: `/pages/match/match?demand_id=${demandId}`,
+                  fail: () => wx.showToast({ title: '发布成功，请在广场查看', icon: 'none' })
+                });
+              }
+            });
+          }, 800);
+        } else {
+          wx.showToast({ title: r.msg || '发布失败', icon: 'none', duration: 2500 });
+          this.setData({ publishing: false });
+        }
+      },
+      fail: (err) => {
+        console.error('[confirmPublish] cloud fail:', err);
+        wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+        this.setData({ publishing: false });
+      }
+    });
   }
 });
