@@ -171,6 +171,7 @@ Page({
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
     const scene = SCENES.find((s) => s.code === code);
+    console.log('[setScene] code=', code, 'scene=', scene, 'disclaimer=', scene && scene.disclaimer);
     if (!scene) return;
     const form = Object.assign({}, this.data.form);
     form.scene_code = code;
@@ -311,6 +312,12 @@ Page({
   onPublish() {
     if (this.data.publishing) return;
     const f = this.data.form;
+    // W1 带 disclaimer 的场景 → 强制弹免责声明（如果还没勾）
+    const curScene = SCENES.find((s) => s.code === f.scene_code);
+    if (curScene && curScene.disclaimer && !this.data.disclaimerChecked) {
+      this.setData({ disclaimerVisible: true });
+      return;
+    }
     const errs = this.validatePublish(f);
     if (errs.length > 0) {
       wx.showToast({ title: errs[0], icon: 'none' });
