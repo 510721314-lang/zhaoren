@@ -1,6 +1,6 @@
 ---
 name: "mp-privacy-release"
-description: "微信小程序隐私指引配置 + 真机发布链路调试经验库。Invoke when 隐私指引审核失败、chooseLocation/getLocation 报 api scope not declared、免责声明循环拦截、真机地图选点不弹出、MVP bootstrap 首次发布被云函数拒绝。"
+description: "微信小程序隐私指引配置 + 真机发布链路调试经验库。Invoke when 隐私指引审核失败、chooseLocation/getLocation 报 api scope not declared、免责声明循环拦截、真机地图选点不弹出、MVP bootstrap 首次发布被云函数拒绝、按钮点击无反应/showModal 不弹（confirmText 4字符限制）。"
 ---
 
 # 微信小程序隐私指引 + 真机发布链路线索库
@@ -233,3 +233,39 @@ W1 就医陪诊发布正常；其他 4 个场景在 AA 承诺书确认后弹「�
 ### 教训
 
 **前后端对「哪些场景需要免责」的认知必须以云函数白名单/MAP 为准**；改前端枚举时先 grep 云函数同名映射。凡是 AA 确认后才出现的拦截 toast，优先怀疑云函数返回 msg。
+
+---
+
+## 线索八：wx.showModal confirmText 超 4 字符 = 真机弹窗静默失败（2026-09-16 追加）
+
+### 症状
+
+点击「接单/抢单」按钮**完全无反应**——无弹窗、无 toast、无 loading。所有接单入口（详情页接单、广场抢单）全死，因为都汇入同一个 `utils/take-order.js` 的免责声明 `wx.showModal`。
+
+### 根因
+
+`wx.showModal` 官方限制：**confirmText / cancelText 最多 4 个字符**。超限（如 `'同意并接单'` 5 字）调用直接 fail，弹窗不渲染，且**没有 fail 处理时无任何可见反馈**。
+
+铁证：同项目发布页免责弹窗真机一直正常，它的 `confirmText: '同意'`（2 字）；接单弹窗写成 `'同意并接单'`（5 字）就死。
+
+### 修复
+
+1. confirmText 控制在 4 字符内（`'同意接单'`），完整语义放 title/content 里
+2. **所有 wx.showModal 必须加 fail 兜底**（toast 可见反馈），杜绝静默死亡：
+
+```js
+wx.showModal({
+  title: d.title, content: d.content,
+  confirmText: '同意接单',   // ≤4 字符！
+  cancelText: '不同意',
+  success: (r) => { if (r.confirm) next(); },
+  fail: (err) => {
+    console.error('[showModal] fail:', err);
+    wx.showToast({ title: '弹窗加载失败,请重试', icon: 'none' });
+  }
+});
+```
+
+### 排查规律
+
+「点击无反应」类问题的检查顺序：①处理函数是否触发 ②wx.showModal confirmText/cancelText 是否 >4 字 ③组件级弹层（bottom-sheet）真机渲染 ④夜间红线等全局拦截。**v1 遗留页（demand-publish `'我已阅读并同意'` 7 字）和 admin 页（`'标记已解决'` 5 字）还有同类地雷，动到时顺手修**。

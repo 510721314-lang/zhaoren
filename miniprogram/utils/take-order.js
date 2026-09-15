@@ -19,13 +19,19 @@ function takeOrder(demand, opts) {
   const d = scene && scene.disclaimer;
   if (d) {
     // 免责声明用 wx.showModal(真机稳定, 与发布侧弹法统一, 禁用 bottom-sheet)
+    // 注意: confirmText 上限 4 字符, 超限真机上弹窗不渲染且无反应(教训已入 skill)
     wx.showModal({
       title: d.title,
       content: d.content,
-      confirmText: '同意并接单',
+      confirmText: '同意接单',
       cancelText: '不同意',
       success: (r) => {
         if (r.confirm) _locate(demand, opts);
+      },
+      fail: (err) => {
+        // 静默失败兜底: 弹窗渲染失败时给出可见反馈, 不允许无反应
+        console.error('[takeOrder] showModal fail:', err);
+        wx.showToast({ title: '弹窗加载失败,请重试', icon: 'none' });
       }
     });
   } else {
