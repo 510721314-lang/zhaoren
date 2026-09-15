@@ -2,7 +2,7 @@
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
-const { CURRENT_USER } = require('../../mock/users.js');
+const { takeOrder } = require('../../utils/take-order.js');
 
 Page({
   data: {
@@ -14,13 +14,9 @@ Page({
     rawList: [],       // 云端原始需求列表
     todayCount: 0,
     onlinePartners: 8,
-    user: CURRENT_USER,
-    certifiedScenes: CURRENT_USER.certified_scenes,
-    grabbedIds: [],
     isRedline: false,
     sheetVisible: false,
     selectedDemand: null,
-    selectedCertified: false,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: CONFIG.TIME_REDLINE.close,
@@ -90,7 +86,7 @@ Page({
   },
 
   buildList() {
-    const { activeChip, activeSort, grabbedIds, certifiedScenes, rawList } = this.data;
+    const { activeChip, activeSort, rawList } = this.data;
     let list = (rawList || []).filter((d) => d.status === 'matching');
     if (activeChip === 'public_welfare') {
       list = list.filter((d) => d.project_attr === 'public_welfare');
@@ -104,54 +100,49 @@ Page({
     } else if (activeSort === 3) {
       list = list.slice().sort((a, b) => (a.budget || 0) - (b.budget || 0));
     }
-    list = list.map((d) => Object.assign({}, d, {
-      grabbed: grabbedIds.indexOf(d._id) > -1,
-      certified: certifiedScenes.indexOf(d.scene_code) > -1
-    }));
     this.setData({ list });
   },
 
-  // R9：未认证灰态由 demand-card 渲染；点击时二次兜底提示
+  // 点击抢单 → 二次确认弹窗（真实校验在后端 create_from_take）
   onGrab(e) {
-    const demand = e.detail.demand;
     if (this.data.isRedline) {
       wx.showToast({ title: `夜间${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}暂停抢单`, icon: 'none' });
       return;
     }
-    const certified = this.data.certifiedScenes.indexOf(demand.scene_code) > -1;
-    if (!certified) {
-      const scene = redline.getScene(demand.scene_code);
-      wx.showToast({ title: `需先完成${scene ? scene.cert : '场景认证'}`, icon: 'none' });
+    const demand = e.detail.demand;
+    if (demand && demand.match_mode === 'select') {
+      wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
       return;
     }
-    // 18-22岁青年保护：单笔金额（单价×时长）上限取 CONFIG.YOUTH.maxOrderAmount
-    if (demand.project_attr === 'commercial') {
-      const amount = Number(demand.budget) * Number(demand.duration_hours || 1);
-      const youth = redline.validateYouthAmount(amount, this.data.user.age);
-      if (!youth.ok) {
-        wx.showToast({ title: youth.msg, icon: 'none' });
-        return;
-      }
-    }
-    this.setData({ sheetVisible: true, selectedDemand: demand, selectedCertified: certified });
+    this.setData({ sheetVisible: true, selectedDemand: demand });
   },
 
   closeSheet() {
     this.setData({ sheetVisible: false });
   },
 
-  // mock 创建 S1 订单 → 进入四确认 IM
+  // 确认抢单 → 免责声明双签 + 定位 + create_from_take → 跳 IM 四确认
   confirmGrab() {
+    this.setData({ sheetVisible: false });
     const demand = this.data.selectedDemand;
-    const grabbedIds = this.data.grabbedIds.concat([demand._id]);
-    this.setData({ sheetVisible: false, grabbedIds }, () => this.buildList());
-    wx.showToast({ title: '抢单成功，已创建待确认订单(S1)', icon: 'none', duration: 1800 });
-    setTimeout(() => {
-      wx.navigateTo({
-        url: `/pages-v2/chat/chat?demandId=${demand._id}&mockStatus=S1`,
-        fail: () => wx.showToast({ title: '聊天页将在批次2上线，已进入S1四确认', icon: 'none', duration: 2000 })
-      });
-    }, 700);
+    if (!demand) return;
+    takeOrder(demand, {
+      onSuccess: (data) => {
+        wx.showToast({ title: '抢单成功,已进入待确认(S1)', icon: 'success', duration: 1500 });
+        setTimeout(() => {
+          wx.redirectTo({
+            url: `/pages-v2/chat/chat?orderId=${data.order_id}`,
+            fail: () => wx.showToast({ title: '聊天页打开失败', icon: 'none' })
+          });
+        }, 700);
+      },
+      onError: (r) => {
+        // 需求已被抢/过期 → 刷新广场同步状态
+        if (r && (r.code === 'order_demand_closed' || r.code === 'order_demand_expired')) {
+          this.fetchSquare();
+        }
+      }
+    });
   },
 
   onCardTap(e) {

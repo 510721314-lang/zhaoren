@@ -33,8 +33,7 @@
       wx:key="_id"
       demand="{{item}}"
       role="partner"
-      grabbed="{{item.grabbed}}"
-      certified="{{item.certified}}"
+      certified="{{true}}"
       bind:action="onGrab"
       bind:cardtap="onCardTap"
     ></demand-card>

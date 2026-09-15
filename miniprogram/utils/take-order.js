@@ -1,0 +1,94 @@
+// utils/take-order.js · 耍伴接单链路（P0-1）
+// 流程: 场景免责声明(wx.showModal·接单方双签) → wx.getLocation → sign_disclaimer(幂等) → create_from_take
+// 拒绝规则(身份/资料审核/信用分/距离50km/时间冲突/接单范围)以后端 order-create 为准, 前端只做入口校验
+const { SCENES } = require('../config/enums.js');
+
+// demand: 需求对象(需 _id / scene_code / match_mode)
+// opts:   { onSuccess(data), onError(result) }  data = { order_id, order_no, status: 'S1', ... }
+function takeOrder(demand, opts) {
+  if (!demand || !demand._id) {
+    wx.showToast({ title: '需求数据异常', icon: 'none' });
+    return;
+  }
+  // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast
+  if (demand.match_mode === 'select') {
+    wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
+    return;
+  }
+  const scene = SCENES.find((s) => s.code === demand.scene_code) || null;
+  const d = scene && scene.disclaimer;
+  if (d) {
+    // 免责声明用 wx.showModal(真机稳定, 与发布侧弹法统一, 禁用 bottom-sheet)
+    wx.showModal({
+      title: d.title,
+      content: d.content,
+      confirmText: '同意并接单',
+      cancelText: '不同意',
+      success: (r) => {
+        if (r.confirm) _locate(demand, opts);
+      }
+    });
+  } else {
+    _locate(demand, opts);
+  }
+}
+
+// 真实客户端 create_from_take 必传 partner_location(服务端 50km 距离校验), 定位失败直接拦截
+function _locate(demand, opts) {
+  wx.showLoading({ title: '获取定位...', mask: true });
+  wx.getLocation({
+    type: 'gcj02',
+    success: (loc) => {
+      wx.hideLoading();
+      _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
+    },
+    fail: (err) => {
+      wx.hideLoading();
+      console.warn('[takeOrder] getLocation fail:', err);
+      wx.showModal({
+        title: '需要定位权限',
+        content: '接单需获取你的实时位置用于距离校验，请开启定位权限后重试',
+        confirmText: '去设置',
+        success: (r) => { if (r.confirm) wx.openSetting(); }
+      });
+    }
+  });
+}
+
+function _signThenCreate(demand, loc, opts) {
+  wx.showLoading({ title: '接单中...', mask: true });
+  wx.cloud.callFunction({
+    name: 'order-create',
+    data: { action: 'sign_disclaimer', scene: demand.scene_code }
+  }).then((res) => {
+    const r = res.result || {};
+    if (!r.ok) {
+      wx.hideLoading();
+      wx.showToast({ title: r.msg || '签署失败,请重试', icon: 'none' });
+      return;
+    }
+    return wx.cloud.callFunction({
+      name: 'order-create',
+      data: {
+        action: 'create_from_take',
+        demand_id: demand._id,
+        partner_location: loc
+      }
+    }).then((res2) => {
+      wx.hideLoading();
+      const r2 = res2.result || {};
+      if (r2.ok && r2.data) {
+        if (opts && opts.onSuccess) opts.onSuccess(r2.data);
+      } else {
+        // 拒绝原因以云函数 r.msg 为准(已被抢/距离超限/资料未审核/时间冲突等)
+        wx.showModal({ title: '无法接单', content: r2.msg || '接单失败,请稍后重试', showCancel: false });
+        if (opts && opts.onError) opts.onError(r2);
+      }
+    });
+  }).catch(() => {
+    wx.hideLoading();
+    wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+  });
+}
+
+module.exports = { takeOrder };

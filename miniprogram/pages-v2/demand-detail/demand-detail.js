@@ -2,13 +2,14 @@
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
+const { takeOrder } = require('../../utils/take-order.js');
 
 Page({
   data: {
     demand: null,
     scene: null,
     role: 'partner',
-    certified: false,
+    certified: true,   // 接单方场景签署在后端(create_from_take 强校验), 前端不灰态拦截
     recommendPartners: [],
     sheetVisible: false,
     isOwner: false,
@@ -63,8 +64,13 @@ Page({
   },
 
   onGrab(e) {
-    if (!this.data.certified) {
-      wx.showToast({ title: `需先完成${this.data.scene ? this.data.scene.cert : '场景认证'}`, icon: 'none' });
+    if (this.data.isRedline) {
+      wx.showToast({ title: `夜间${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}暂停接单`, icon: 'none' });
+      return;
+    }
+    const d = this.data.demand;
+    if (d && d.match_mode === 'select') {
+      wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
       return;
     }
     this.setData({ sheetVisible: true });
@@ -74,15 +80,28 @@ Page({
     this.setData({ sheetVisible: false });
   },
 
+  // 确认接单 → 免责声明双签 + 定位 + create_from_take → 跳 IM 四确认
   confirmGrab() {
     this.setData({ sheetVisible: false });
-    wx.showToast({ title: '抢单成功，已创建S1订单', icon: 'none', duration: 1800 });
-    setTimeout(() => {
-      wx.navigateTo({
-        url: '/pages-v2/chat/chat?orderId=o_s1_001',
-        fail: () => wx.showToast({ title: '聊天页已上线', icon: 'none' })
-      });
-    }, 800);
+    const demand = this.data.demand;
+    if (!demand) return;
+    takeOrder(demand, {
+      onSuccess: (data) => {
+        wx.showToast({ title: '接单成功,已进入待确认(S1)', icon: 'success', duration: 1500 });
+        setTimeout(() => {
+          wx.redirectTo({
+            url: `/pages-v2/chat/chat?orderId=${data.order_id}`,
+            fail: () => wx.showToast({ title: '聊天页打开失败', icon: 'none' })
+          });
+        }, 700);
+      },
+      onError: (r) => {
+        // 需求已被抢/过期 → 刷新详情同步状态
+        if (r && (r.code === 'order_demand_closed' || r.code === 'order_demand_expired')) {
+          this.reload();
+        }
+      }
+    });
   },
 
   onEdit() {
