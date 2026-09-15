@@ -1,0 +1,3 @@
+<view class="sellbar">
+  <text class="sellbar__item" wx:for="{{items}}" wx:key="*this">{{item}}</text>
+</view>

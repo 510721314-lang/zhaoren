@@ -1,0 +1,106 @@
+<view class="v2 ac">
+  <nav-bar title="接单配置"></nav-bar>
+
+  <!-- 加载态 -->
+  <view class="ac__loading" wx:if="{{loading}}">
+    <view class="ac__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+  <!-- 网络异常态 -->
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <!-- 正常态 -->
+  <block wx:else>
+  <view class="ac__body">
+    <!-- 1. 场景多选（仅已认证） -->
+    <view class="ac__card">
+      <view class="ac__card-title">接单场景 <text class="ac__required">*</text></view>
+      <view class="ac__tip">仅显示已通过认证的场景</view>
+      <view class="ac__scene-list">
+        <view class="ac__scene-chip {{form.scenes.indexOf(item.code) > -1 ? 'is-on' : ''}}" wx:for="{{certifiedScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneToggle">
+          {{item.icon}} {{item.name}}
+        </view>
+      </view>
+    </view>
+
+    <!-- 2. 每周时段 -->
+    <view class="ac__card">
+      <view class="ac__card-title">每周接单时段</view>
+      <view class="ac__week-list">
+        <view class="ac__week-row" wx:for="{{weekLabels}}" wx:key="key">
+          <view class="ac__week-left">
+            <switch checked="{{form.weeklySlots[item.key].enabled}}" color="var(--brand-primary)" data-key="{{item.key}}" bindchange="onWeekToggle" />
+            <text class="ac__week-name">{{item.name}}</text>
+          </view>
+          <picker mode="time" start="{{redlineOpen}}" end="{{redlineClose}}" value="{{form.weeklySlots[item.key].time}}" data-key="{{item.key}}" bindchange="onWeekTimeChange" wx:if="{{form.weeklySlots[item.key].enabled}}">
+            <view class="ac__week-time">{{form.weeklySlots[item.key].time}} ›</view>
+          </picker>
+          <text class="ac__week-off" wx:else>休息</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 3. 最低单价 -->
+    <view class="ac__card">
+      <view class="ac__card-title">最低单价</view>
+      <view class="ac__row">
+        <input class="ac__input" type="digit" value="{{form.minPrice}}" bindinput="onMinPriceInput" placeholder="{{budgetPlaceholder}}" />
+        <text class="ac__unit">元/小时</text>
+      </view>
+    </view>
+
+    <!-- 4. 最大距离 -->
+    <view class="ac__card">
+      <view class="ac__card-title">最大接单距离</view>
+      <view class="ac__slider-row">
+        <slider min="{{distanceRange[0]}}" max="{{distanceRange[1]}}" value="{{form.maxDistance}}" show-value bindchange="onDistanceChange" activeColor="var(--brand-primary)" />
+        <text class="ac__slider-unit">km</text>
+      </view>
+    </view>
+
+    <!-- 5. 性别偏好 -->
+    <view class="ac__card">
+      <view class="ac__card-title">性别偏好</view>
+      <view class="ac__chips">
+        <view class="ac__chip {{form.genderPref === item ? 'is-on' : ''}}" wx:for="{{genderOptions}}" wx:key="*this" data-val="{{item}}" bindtap="onGenderTap">{{item}}</view>
+      </view>
+    </view>
+
+    <!-- 6. 每日接单上限 -->
+    <view class="ac__card">
+      <view class="ac__card-title">每日接单上限</view>
+      <view class="ac__row">
+        <slider min="{{dailyLimitRange[0]}}" max="{{dailyLimitRange[1]}}" value="{{form.dailyLimit}}" show-value bindchange="onDailyLimitChange" activeColor="var(--brand-primary)" />
+        <text class="ac__slider-unit">单</text>
+      </view>
+    </view>
+
+    <!-- 7. 接受公益订单 -->
+    <view class="ac__card">
+      <view class="ac__row-between">
+        <view>
+          <view class="ac__card-title">接受公益订单</view>
+          <view class="ac__tip">公益单按标准单价{{subsidyPercent}}%补贴</view>
+        </view>
+        <switch checked="{{form.acceptWelfare}}" color="var(--func-success)" bindchange="onWelfareToggle" />
+      </view>
+    </view>
+
+    <!-- 8. 缓冲时间 -->
+    <view class="ac__card">
+      <view class="ac__card-title">接单缓冲时间</view>
+      <picker mode="selector" range="{{bufferOptions}}" value="{{bufferIndex}}" bindchange="onBufferChange">
+        <view class="ac__picker-row">
+          <text class="ac__picker-val">{{form.bufferMin}}分钟</text>
+          <text class="ac__arrow">›</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <!-- 9. 保存 -->
+  <view class="ac__bottom">
+    <button class="ac__btn" bindtap="onSave">保存配置</button>
+  </view>
+  </block>
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

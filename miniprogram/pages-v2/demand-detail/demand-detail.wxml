@@ -1,0 +1,83 @@
+<view class="v2 dd">
+  <nav-bar title="需求详情"></nav-bar>
+
+  <!-- 加载态 -->
+  <view class="dd__loading" wx:if="{{loading}}">
+    <view class="dd__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+  <!-- 网络异常态 -->
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <!-- 正常态 -->
+  <block wx:elif="{{demand}}">
+  <view class="dd__body">
+    <!-- D1 需求信息 -->
+    <view class="dd__card">
+      <view class="dd__tags">
+        <tag-chip type="gongyi" wx:if="{{demand.project_attr === 'public_welfare'}}" />
+        <tag-chip type="scene" scene-code="{{demand.scene_code}}" />
+        <tag-chip type="aa" wx:if="{{demand.project_attr === 'commercial'}}" />
+      </view>
+      <view class="dd__title">{{demand.title}}</view>
+      <view class="dd__desc">{{demand.description}}</view>
+      <view class="dd__info-grid">
+        <view class="dd__info-item"><text class="dd__info-label">日期</text><text class="dd__info-val">{{demand.service_date}}</text></view>
+        <view class="dd__info-item"><text class="dd__info-label">时间</text><text class="dd__info-val">{{demand.service_time}}</text></view>
+        <view class="dd__info-item"><text class="dd__info-label">时长</text><text class="dd__info-val">{{demand.duration_hours}}小时</text></view>
+        <view class="dd__info-item"><text class="dd__info-label">地点</text><text class="dd__info-val">{{demand.location.name}}</text></view>
+        <view class="dd__info-item"><text class="dd__info-label">人数</text><text class="dd__info-val">{{demand.headcount}}人</text></view>
+        <view class="dd__info-item" wx:if="{{demand.project_attr === 'commercial'}}"><text class="dd__info-label">预算</text><text class="dd__info-val">¥{{demand.budget}}/小时</text></view>
+        <view class="dd__info-item"><text class="dd__info-label">AA区间</text><text class="dd__info-val">{{demand.aa_estimate}}</text></view>
+      </view>
+    </view>
+
+    <!-- D2 发布者卡 -->
+    <view class="dd__card">
+      <view class="dd__pub-row">
+        <view class="dd__pub-avatar">🧑</view>
+        <view class="dd__pub-info">
+          <view class="dd__pub-name">{{demand.publisher.surname}}** <text class="dd__pub-verified">已实名✓</text></view>
+          <view class="dd__pub-time">发布于 {{demand.publisher.minutes_ago}}分钟前</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- D3 推荐耍伴横滑 -->
+    <view class="dd__section-title" wx:if="{{recommendPartners.length > 0}}">推荐耍伴</view>
+    <scroll-view scroll-x class="dd__partner-scroll" wx:if="{{recommendPartners.length > 0}}" enhanced show-scrollbar="{{false}}">
+      <view class="dd__partner-item" wx:for="{{recommendPartners}}" wx:key="_id">
+        <partner-card partner="{{item}}" bind:cardtap="onPartnerTap" bind:invite="onPartnerTap"></partner-card>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- D4 底部操作栏 -->
+  <view class="dd__bottom">
+    <block wx:if="{{isOwner}}">
+      <button class="dd__btn dd__btn--ghost" bindtap="onEdit">编辑</button>
+      <button class="dd__btn dd__btn--danger" bindtap="onCancel">取消需求</button>
+    </block>
+    <block wx:else>
+      <view class="dd__grab-info">
+        <view class="dd__grab-price" wx:if="{{demand.project_attr === 'commercial'}}">¥{{demand.budget}}<text class="dd__grab-unit">/小时</text></view>
+        <view class="dd__grab-price" wx:else>公益免费</view>
+      </view>
+      <button class="dd__btn dd__btn--primary" bindtap="onGrab">{{certified ? '⚡ 接单' : '需' + scene.cert}}</button>
+    </block>
+  </view>
+
+  <!-- 接单确认弹窗 -->
+  <bottom-sheet visible="{{sheetVisible}}" bind:close="closeSheet" has-footer="{{true}}">
+    <view class="dd__grab-title">确认接单？</view>
+    <view class="dd__grab-desc" wx:if="{{demand}}">{{demand.title}}</view>
+    <view class="dd__grab-meta" wx:if="{{demand}}">{{demand.service_date}} {{demand.service_time}} · {{demand.location.name}}</view>
+    <view class="dd__grab-tip">接单后进入待确认(S1)，请在{{confirmTimeoutMin}}分钟内完成四确认。</view>
+    <view slot="footer" class="dd__grab-btns">
+      <button class="dd__btn dd__btn--ghost" bindtap="closeSheet">再想想</button>
+      <button class="dd__btn dd__btn--primary" bindtap="confirmGrab">确认接单</button>
+    </view>
+  </bottom-sheet>
+  </block>
+  <!-- 空态 -->
+  <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

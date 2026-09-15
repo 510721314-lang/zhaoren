@@ -1,0 +1,58 @@
+.navbar {
+  width: 100%;
+  z-index: 100;
+}
+.navbar.is-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.navbar__bar {
+  position: relative;
+  height: 92rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1rpx solid var(--border-2);
+}
+.navbar__bar--ghost {
+  border-bottom: none;
+}
+.navbar__left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.navbar__left--empty {
+  visibility: hidden;
+}
+.navbar__back {
+  font-size: var(--font-2xl);
+  color: var(--text-1);
+  line-height: 1;
+  margin-top: -6rpx;
+}
+.navbar__title {
+  font-size: var(--font-xl);
+  font-weight: 600;
+  color: var(--text-1);
+  max-width: 360rpx;
+  text-align: center;
+}
+.navbar__right {
+  position: absolute;
+  right: 20rpx;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+}
+.navbar__placeholder {
+  width: 100%;
+}

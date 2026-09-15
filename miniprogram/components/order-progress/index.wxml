@@ -1,0 +1,20 @@
+<view class="op">
+  <view class="op__axis">
+    <block wx:for="{{mainSteps}}" wx:key="code">
+      <view class="op__node op__node--{{item.state}}">
+        <view class="op__dot {{item.isCurrent ? 'is-current' : ''}}">
+          <text wx:if="{{item.state === 'done'}}">✓</text>
+          <text wx:elif="{{item.isCurrent}}">●</text>
+        </view>
+        <text class="op__name">{{item.name}}</text>
+      </view>
+      <view class="op__line op__line--{{item.state}}" wx:if="{{index < mainSteps.length - 1}}"></view>
+    </block>
+  </view>
+  <view class="op__branches" wx:if="{{branches.length > 0}}">
+    <view class="op__branch {{item.active ? 'is-active' : ''}}" style="{{item.activeStyle}}" wx:for="{{branches}}" wx:key="code">
+      <text class="op__branch-dot">⚠</text>
+      <text class="op__branch-name">{{item.name}}</text>
+    </view>
+  </view>
+</view>

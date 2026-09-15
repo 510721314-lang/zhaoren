@@ -1,0 +1,14 @@
+<view class="sheet-mask {{visible ? 'sheet-mask--show' : ''}}" bindtap="onMaskTap" catchtouchmove="noop">
+  <view class="sheet {{visible ? 'sheet--show' : ''}}" catchtap="noop">
+    <view class="sheet__handle"></view>
+    <view class="sheet__header" wx:if="{{title}}">
+      <text class="sheet__title">{{title}}</text>
+    </view>
+    <view class="sheet__body">
+      <slot></slot>
+    </view>
+    <view class="sheet__footer" wx:if="{{hasFooter}}">
+      <slot name="footer"></slot>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,72 @@
+<view class="v2 ev">
+  <nav-bar title="评价"></nav-bar>
+
+  <!-- 加载态 -->
+  <view class="ev__loading" wx:if="{{loading}}">
+    <view class="ev__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+  <!-- 网络异常态 -->
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <!-- 正常态 -->
+  <block wx:elif="{{order}}">
+  <view class="ev__body">
+    <!-- 订单摘要 + 对方卡 -->
+    <view class="ev__card">
+      <view class="ev__summary">
+        <view class="ev__summary-left">
+          <view class="ev__summary-title">{{order.partner_name}}</view>
+          <view class="ev__summary-meta">{{scene.name}} · {{order.service_date}}</view>
+        </view>
+        <view class="ev__summary-avatar">{{order.partner_avatar}}</view>
+      </view>
+    </view>
+
+    <!-- 5星选择 -->
+    <view class="ev__card">
+      <view class="ev__card-title">星级评价 <text class="ev__required">*</text></view>
+      <view class="ev__stars">
+        <view class="ev__star {{stars >= item ? 'is-on' : ''}}" wx:for="{{[1,2,3,4,5]}}" wx:key="*this" data-star="{{item}}" bindtap="onStarTap">★</view>
+      </view>
+      <view class="ev__stars-tip">{{stars === 0 ? '请选择' : stars >= 4 ? '好评' : stars === 3 ? '中评' : '差评'}}</view>
+    </view>
+
+    <!-- 快捷标签 -->
+    <view class="ev__card">
+      <view class="ev__card-title">快捷标签</view>
+      <view class="ev__tag-group-title">好评</view>
+      <view class="ev__tags">
+        <view class="ev__tag {{selectedTags.indexOf(item) > -1 ? 'is-on' : ''}}" wx:for="{{goodTags}}" wx:key="*this" data-tag="{{item}}" bindtap="onTagTap">{{item}}</view>
+      </view>
+      <view class="ev__tag-group-title">中评</view>
+      <view class="ev__tags">
+        <view class="ev__tag {{selectedTags.indexOf(item) > -1 ? 'is-on' : ''}}" wx:for="{{midTags}}" wx:key="*this" data-tag="{{item}}" bindtap="onTagTap">{{item}}</view>
+      </view>
+      <view class="ev__tag-group-title">差评</view>
+      <view class="ev__tags">
+        <view class="ev__tag {{selectedTags.indexOf(item) > -1 ? 'is-on' : ''}}" wx:for="{{badTags}}" wx:key="*this" data-tag="{{item}}" bindtap="onTagTap">{{item}}</view>
+      </view>
+    </view>
+
+    <!-- 文字评价 -->
+    <view class="ev__card">
+      <view class="ev__card-title">文字评价</view>
+      <textarea class="ev__textarea" value="{{content}}" placeholder="说说你的体验..." maxlength="{{evalTextMax}}" bindinput="onContentInput" />
+      <view class="ev__count">{{contentCount}}/{{evalTextMax}}</view>
+    </view>
+
+    <!-- 双向匿名说明 -->
+    <view class="ev__anon-tip">🔒 双向匿名：对方看不到你的真实姓名，你也看不到对方</view>
+
+    <!-- 48h窗口倒计时 -->
+    <view class="ev__countdown">评价窗口剩余：{{countdownText}}</view>
+  </view>
+
+  <!-- 提交 -->
+  <view class="ev__bottom">
+    <button class="ev__btn" bindtap="onSubmit">提交评价</button>
+  </view>
+  </block>
+  <!-- 空态 -->
+  <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

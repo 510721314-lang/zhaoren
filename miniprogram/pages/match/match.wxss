@@ -6,18 +6,18 @@
 .scene-tag {
   display: inline-block; padding: 6rpx 20rpx;
   background: rgba(212,135,90,0.12); color: var(--primary);
-  border-radius: 20rpx; font-size: 24rpx; font-weight: 500; margin-right: 16rpx;
+  border-radius: 20rpx; font-size: var(--font-base); font-weight: 500; margin-right: 16rpx;
 }
-.summary-title { font-size: 26rpx; color: var(--text-2); }
-.summary-content { font-size: 30rpx; color: var(--text-1); font-weight: 500; line-height: 1.5; }
+.summary-title { font-size: var(--font-md); color: var(--text-2); }
+.summary-content { font-size: var(--font-xl); color: var(--text-1); font-weight: 500; line-height: 1.5; }
 .summary-meta { margin-top: 16rpx; }
 .meta-row { display: flex; align-items: center; padding: 6rpx 0; }
-.meta-label { font-size: 26rpx; margin-right: 12rpx; }
-.meta-val { font-size: 26rpx; color: var(--text-2); }
+.meta-label { font-size: var(--font-md); margin-right: 12rpx; }
+.meta-val { font-size: var(--font-md); color: var(--text-2); }
 .aa-tag {
   display: inline-block; margin-top: 16rpx;
   padding: 4rpx 16rpx; background: var(--bg-page);
-  color: var(--warning); border-radius: 8rpx; font-size: 22rpx;
+  color: var(--warning); border-radius: 8rpx; font-size: var(--font-sm);
 }
 
 /* 加载/失败态 */
@@ -30,18 +30,18 @@
   animation: match-spin 0.8s linear infinite;
 }
 .state-card { text-align: center; padding: 60rpx 24rpx; }
-.state-icon { font-size: 72rpx; }
-.state-text { font-size: 28rpx; color: var(--text-2); margin: 20rpx 0; }
+.state-icon { font-size: var(--font-display-xxl); }
+.state-text { font-size: var(--font-lg); color: var(--text-2); margin: 20rpx 0; }
 .state-btn { width: 280rpx; margin-top: 16rpx; }
 
 @keyframes match-spin { to { transform: rotate(360deg); } }
 
 /* 区块标题 */
 .section-title {
-  font-size: 30rpx; font-weight: 600; color: var(--text-1);
+  font-size: var(--font-xl); font-weight: 600; color: var(--text-1);
   margin: 8rpx 0 20rpx; display: flex; align-items: baseline;
 }
-.section-sub { font-size: 24rpx; color: var(--text-3); font-weight: 400; margin-left: 16rpx; }
+.section-sub { font-size: var(--font-base); color: var(--text-3); font-weight: 400; margin-left: 16rpx; }
 
 /* 耍伴卡片 */
 .partner-card {
@@ -54,33 +54,33 @@
 .avatar-wrap { margin-right: 20rpx; flex-shrink: 0; }
 .avatar {
   width: 96rpx; height: 96rpx; border-radius: 50%; background: var(--bg-page);
-  border: 2rpx solid #fff; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.08);
+  border: 2rpx solid var(--text-invert); box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.08);
 }
 .avatar-fallback {
   display: flex; align-items: center; justify-content: center;
   background: rgba(212,135,90,0.15); color: var(--primary);
-  font-size: 40rpx; font-weight: 600;
-  border: 2rpx solid #fff; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.08);
+  font-size: var(--font-display-lg); font-weight: 600;
+  border: 2rpx solid var(--text-invert); box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.08);
 }
 .partner-info { flex: 1; min-width: 0; }
 .partner-name-row { display: flex; align-items: center; }
 .partner-name {
-  font-size: 30rpx; font-weight: 600; color: var(--text-1);
+  font-size: var(--font-xl); font-weight: 600; color: var(--text-1);
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   max-width: 260rpx;
 }
 .level-tag {
   flex-shrink: 0; margin-left: 12rpx;
-  font-size: 20rpx; color: #B07A4A;
+  font-size: var(--font-xs); color: var(--text-banner-sub);
   background: rgba(212,135,90,0.1); border-radius: 6rpx;
   padding: 2rpx 12rpx;
 }
 .partner-tags { margin-top: 12rpx; display: flex; gap: 12rpx; }
-.partner-orders { font-size: 22rpx; color: var(--text-3); margin-top: 10rpx; }
+.partner-orders { font-size: var(--font-sm); color: var(--text-3); margin-top: 10rpx; }
 
 /* 卡片右侧双按钮(纵向) */
 .partner-actions { display: flex; flex-direction: column; gap: 12rpx; margin-left: 16rpx; flex-shrink: 0; }
-.invite-btn, .profile-btn { font-size: 24rpx; padding: 0 20rpx; line-height: 56rpx; margin: 0; }
+.invite-btn, .profile-btn { font-size: var(--font-base); padding: 0 20rpx; line-height: 56rpx; margin: 0; }
 
 /* 空候选 */
 /* 空状态已提升为全局类(app.wxss .empty-state) */
@@ -94,16 +94,16 @@
   border-radius: 50%;
   animation: match-spin 0.8s linear infinite;
 }
-.waiting-title { font-size: 32rpx; font-weight: 600; color: var(--text-1); }
-.waiting-sub { font-size: 26rpx; color: var(--text-3); margin-top: 12rpx; line-height: 1.6; }
-.waiting-valid { font-size: 26rpx; color: var(--warning); margin-top: 16rpx; }
-.waiting-cancel { width: 240rpx; margin: 28rpx auto 0; font-size: 26rpx; color: var(--danger); }
+.waiting-title { font-size: var(--font-xxl); font-weight: 600; color: var(--text-1); }
+.waiting-sub { font-size: var(--font-md); color: var(--text-3); margin-top: 12rpx; line-height: 1.6; }
+.waiting-valid { font-size: var(--font-md); color: var(--warning); margin-top: 16rpx; }
+.waiting-cancel { width: 240rpx; margin: 28rpx auto 0; font-size: var(--font-md); color: var(--danger); }
 
 /* 广播卡 */
 .broadcast-card { text-align: center; padding: 32rpx 24rpx; margin-top: 8rpx; }
-.broadcast-title { font-size: 30rpx; font-weight: 600; color: var(--text-1); }
-.broadcast-sub { font-size: 26rpx; color: var(--text-3); margin: 12rpx 0 24rpx; line-height: 1.6; }
+.broadcast-title { font-size: var(--font-xl); font-weight: 600; color: var(--text-1); }
+.broadcast-sub { font-size: var(--font-md); color: var(--text-3); margin: 12rpx 0 24rpx; line-height: 1.6; }
 
 /* 底部操作 */
 .foot-actions { display: flex; gap: 20rpx; margin-top: 8rpx; }
-.foot-btn { flex: 1; font-size: 28rpx; }
+.foot-btn { flex: 1; font-size: var(--font-lg); }

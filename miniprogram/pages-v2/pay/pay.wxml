@@ -1,0 +1,67 @@
+<view class="v2 pay">
+  <nav-bar title="支付确认"></nav-bar>
+
+  <view class="pay__loading" wx:if="{{loading}}">
+    <view class="pay__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <view class="pay__body" wx:elif="{{order}}">
+    <!-- Y1 订单摘要 -->
+    <view class="pay__card">
+      <view class="pay__card-title">订单摘要</view>
+      <view class="pay__summary-row"><text class="pay__s-label">场景</text><tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip></view>
+      <view class="pay__summary-row"><text class="pay__s-label">时间</text><text class="pay__s-val">{{order.service_date}} {{order.service_time}}</text></view>
+      <view class="pay__summary-row"><text class="pay__s-label">地点</text><text class="pay__s-val">{{order.location.name}}</text></view>
+      <view class="pay__summary-row"><text class="pay__s-label">耍伴</text><text class="pay__s-val">{{order.partner_name}}</text></view>
+      <view class="pay__summary-row"><text class="pay__s-label">时长</text><text class="pay__s-val">{{order.duration_hours}}小时</text></view>
+    </view>
+
+    <!-- Y2 费用明细 -->
+    <view class="pay__card">
+      <view class="pay__card-title">费用明细</view>
+      <view class="pay__fee-row">
+        <text class="pay__fee-label">服务费</text>
+        <text class="pay__fee-val">¥{{serviceFee}}</text>
+      </view>
+      <view class="pay__fee-sub">单价 ¥{{unitPriceYuan}}/小时 × {{order.duration_hours}}小时</view>
+      <view class="pay__fee-row">
+        <text class="pay__fee-label">保险费</text>
+        <text class="pay__fee-val pay__fee-val--free">¥{{insuranceFee}}</text>
+      </view>
+      <view class="pay__fee-sub">保险费由平台承担，用户无需支付</view>
+      <view class="pay__fee-row">
+        <text class="pay__fee-label">AA费用</text>
+        <text class="pay__fee-val pay__fee-val--aa">{{aaFeeText}}</text>
+      </view>
+      <view class="pay__fee-sub pay__fee-sub--warn">AA费用由双方线下结算，不进入支付金额</view>
+      <view class="pay__fee-total">
+        <text class="pay__total-label">合计</text>
+        <text class="pay__total-val">¥{{totalFee}}</text>
+      </view>
+    </view>
+
+    <!-- Y3 担保交易说明 -->
+    <view class="pay__card pay__card--info">
+      <view class="pay__info-icon">🔒</view>
+      <view class="pay__info-text">
+        <view class="pay__info-title">担保交易</view>
+        <view class="pay__info-desc">资金由微信支付担保托管，履约确认后T+{{arriveDays}}分账给耍伴</view>
+      </view>
+    </view>
+
+    <!-- Y5 协议 -->
+    <view class="pay__agreements" bindtap="openAgreement">
+      点击支付即同意《用户服务协议》《担保交易规则》
+    </view>
+
+    <!-- Y4 支付按钮 -->
+    <view class="pay__bottom">
+      <button class="pay__btn" loading="{{paying}}" disabled="{{paying}}" bindtap="onPay">
+        微信支付 ¥{{totalFee}}
+      </button>
+    </view>
+  </view>
+  <empty-state wx:else icon="📭" title="订单不存在" desc="该订单可能已被删除" />
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

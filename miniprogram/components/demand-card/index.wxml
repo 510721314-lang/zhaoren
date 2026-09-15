@@ -1,0 +1,42 @@
+<view class="dcard" bindtap="onCard">
+  <view class="dcard__tags">
+    <tag-chip type="gongyi" wx:if="{{demand.project_attr === 'public_welfare'}}" />
+    <tag-chip type="scene" scene-code="{{demand.scene_code}}" />
+    <tag-chip type="aa" wx:if="{{demand.project_attr === 'commercial'}}" />
+  </view>
+
+  <view class="dcard__title">{{demand.title}}</view>
+  <view class="dcard__desc">{{demand.description}}</view>
+
+  <view class="dcard__meta">
+    <text class="dcard__meta-item">📍 {{distanceText}}</text>
+    <text class="dcard__meta-item">🕐 {{demand.service_date}} {{demand.service_time}}</text>
+    <text class="dcard__meta-item">👥 {{demand.headcount}}人</text>
+  </view>
+
+  <view class="dcard__publisher">
+    <text class="dcard__pub-name">{{publisherText}}</text>
+  </view>
+
+  <view class="dcard__bottom">
+    <block wx:if="{{demand.project_attr === 'commercial'}}">
+      <view class="dcard__price">
+        <text class="dcard__price-num">¥{{demand.budget}}</text>
+        <text class="dcard__price-unit">元/小时 · AA线下自理</text>
+      </view>
+    </block>
+    <block wx:else>
+      <view class="dcard__price">
+        <text class="dcard__price-num dcard__price-num--gy">平台补贴</text>
+        <text class="dcard__price-unit">不收用户费用</text>
+      </view>
+    </block>
+
+    <!-- 已被抢/已过期 -->
+    <button class="dcard__btn dcard__btn--gray" disabled wx:if="{{closed}}">已被抢</button>
+    <!-- 耍伴视角：未认证该场景 → 灰态需认证 -->
+    <button class="dcard__btn dcard__btn--gray" disabled wx:elif="{{role === 'partner' && !certified}}">需{{certName}}</button>
+    <!-- 正常可操作 -->
+    <button class="dcard__btn" catchtap="onAction" wx:else>{{role === 'user' ? '帮TA →' : actionText}}</button>
+  </view>
+</view>

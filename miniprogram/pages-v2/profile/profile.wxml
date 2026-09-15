@@ -1,0 +1,97 @@
+<view class="v2 profile">
+  <nav-bar title="我的" show-back="{{false}}"></nav-bar>
+
+  <!-- U1 身份头部 -->
+  <view class="pf__header">
+    <view class="pf__avatar">{{user.avatar}}</view>
+    <view class="pf__head-info">
+      <view class="pf__name-line">
+        <text class="pf__name">{{user.nickname}}</text>
+        <text class="pf__badge">实名✓</text>
+        <text class="pf__badge" wx:if="{{user.face_verified}}">人脸✓</text>
+      </view>
+      <view class="pf__phone">{{user.phone}}</view>
+    </view>
+  </view>
+
+  <!-- 身份切换卡 -->
+  <view class="pf__switch">
+    <view class="pf__switch-item {{identity === 'user' ? 'is-on' : ''}}" data-role="user" bindtap="switchIdentity">
+      <text class="pf__switch-ic">👤</text><text>我是用户</text>
+    </view>
+    <view class="pf__switch-item {{identity === 'partner' ? 'is-on' : ''}}" data-role="partner" bindtap="switchIdentity">
+      <text class="pf__switch-ic">🧭</text><text>我是耍伴</text>
+    </view>
+  </view>
+
+  <!-- U2 双信用分卡（独立两栏） -->
+  <view class="pf__scores">
+    <view class="pf__score" data-role="user" bindtap="onScoreDetail">
+      <view class="pf__score-num">{{user.user_credit_score}}</view>
+      <view class="pf__score-label">用户信用分</view>
+      <view class="pf__score-level">{{userLevel}}</view>
+    </view>
+    <view class="pf__score-divider"></view>
+    <view class="pf__score" data-role="partner" bindtap="onScoreDetail">
+      <view class="pf__score-num">{{user.partner_credit_score || '--'}}</view>
+      <view class="pf__score-label">耍伴信用分</view>
+      <view class="pf__score-level">{{partnerLevel}}</view>
+    </view>
+  </view>
+
+  <!-- U3 订单四宫格 -->
+  <view class="pf__orders">
+    <view class="pf__order" wx:for="{{orderEntries}}" wx:key="key" data-key="{{item.key}}" bindtap="onOrderEntry">
+      <view class="pf__order-ic">{{item.icon}}
+        <text class="pf__order-dot" wx:if="{{item.count}}">{{item.count}}</text>
+      </view>
+      <view class="pf__order-name">{{item.name}}</view>
+    </view>
+  </view>
+
+  <!-- U5 耍伴专区（仅耍伴身份） -->
+  <view class="pf__card" wx:if="{{identity === 'partner'}}">
+    <view class="pf__card-title">耍伴专区</view>
+    <view
+      class="pf__link"
+      wx:for="{{partnerEntries}}"
+      wx:key="key"
+      data-key="{{item.key}}"
+      bindtap="onPartnerEntry"
+    >
+      <text class="pf__link-ic">{{item.icon}}</text>
+      <text class="pf__link-name">{{item.name}}</text>
+      <text class="pf__link-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 用户身份：成为耍伴引导 -->
+  <view class="pf__apply" wx:else bindtap="becomePartner">
+    <view>
+      <view class="pf__apply-title">成为认证耍伴，接单赚收入</view>
+      <view class="pf__apply-sub">完成实名+人脸+场景认证即可接单，享平台流量扶持</view>
+    </view>
+    <view class="pf__apply-btn">去认证</view>
+  </view>
+
+  <!-- U4 功能列表 -->
+  <view class="pf__card">
+    <view
+      class="pf__link"
+      wx:for="{{funcList}}"
+      wx:key="key"
+      data-key="{{item.key}}"
+      bindtap="onFuncTap"
+    >
+      <text class="pf__link-ic">{{item.icon}}</text>
+      <text class="pf__link-name">{{item.name}}</text>
+      <text class="pf__link-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- U6 -->
+  <view class="pf__logout" bindtap="onLogout">注销账号</view>
+  <view class="pf__version">版本号 {{version}}</view>
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

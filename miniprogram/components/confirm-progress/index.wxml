@@ -1,0 +1,11 @@
+<view class="cp">
+  <view class="cp__bar">
+    <view class="cp__seg cp__seg--{{item.state}}" wx:for="{{steps}}" wx:key="key"></view>
+  </view>
+  <view class="cp__steps">
+    <text class="cp__step cp__step--{{item.state}}" wx:for="{{steps}}" wx:key="key">
+      <text wx:if="{{item.done}}">✓</text><text wx:else>●</text> {{item.name}}
+    </text>
+  </view>
+  <view class="cp__count">结构化四确认 {{count}}/{{total}}项已确认</view>
+</view>

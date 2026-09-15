@@ -1,0 +1,104 @@
+<view class="v2 wt">
+  <nav-bar title="收入钱包"></nav-bar>
+
+  <view class="wt__body">
+    <!-- 加载态 -->
+    <view class="wt__loading" wx:if="{{loading}}">
+      <view class="wt__skeleton" wx:for="{{[1,2,3,4]}}" wx:key="*this"></view>
+    </view>
+    <!-- 网络异常态 -->
+    <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+    <!-- 正常态 -->
+    <block wx:else>
+    <!-- V1 余额头 -->
+    <view class="wt__balance-card">
+      <view class="wt__balance-label">可提现余额（元）</view>
+      <view class="wt__balance-num">{{balanceYuan}}</view>
+      <view class="wt__income-row">
+        <view class="wt__income-item">
+          <text class="wt__income-label">本月收入</text>
+          <text class="wt__income-val">¥{{monthIncomeYuan}}</text>
+        </view>
+        <view class="wt__income-divider"></view>
+        <view class="wt__income-item">
+          <text class="wt__income-label">累计收入</text>
+          <text class="wt__income-val">¥{{totalIncomeYuan}}</text>
+        </view>
+      </view>
+      <button class="wt__withdraw-btn" bindtap="openWithdraw">提现</button>
+    </view>
+
+    <!-- V2 极速提现资格 -->
+    <view class="wt__card">
+      <view class="wt__card-title-row">
+        <text class="wt__card-title">⚡ 新耍伴前{{fastMax}}单T+{{fastArriveDays}}极速提现</text>
+      </view>
+      <view class="wt__fast-progress">
+        <view class="wt__fast-bar" style="width:{{fastProgress}}%;"></view>
+      </view>
+      <view class="wt__fast-tip">已用 {{fastUsed}}/{{fastMax}} 次</view>
+    </view>
+
+    <!-- V3 四态tab -->
+    <view class="wt__card">
+      <view class="wt__fund-tabs">
+        <view class="wt__fund-tab {{fundActive === item.key ? 'is-on' : ''}}" wx:for="{{fundTabs}}" wx:key="key" data-key="{{item.key}}" bindtap="onFundTabTap">
+          {{item.name}}
+        </view>
+      </view>
+      <view class="wt__fund-amount">¥{{fundAmount}}</view>
+    </view>
+
+    <!-- V4 收益明细 -->
+    <view class="wt__card">
+      <view class="wt__card-title">收益明细</view>
+      <view class="wt__income-item-row" wx:for="{{incomeList}}" wx:key="_id">
+        <view class="wt__income-row-left">
+          <view class="wt__income-name">
+            {{item.scene_name}}
+            <text class="wt__welfare-tag" wx:if="{{item.is_welfare}}">公益补贴</text>
+          </view>
+          <view class="wt__income-meta">单号 {{item.order_no}} · {{item.partner_name}}</view>
+          <view class="wt__income-time">{{item.created_at}}</view>
+        </view>
+        <view class="wt__income-row-right">
+          <view class="wt__income-gross">¥{{item.grossYuan}}</view>
+          <view class="wt__income-deduct">抽成 ¥{{item.commissionYuan}}<text wx:if="{{item.subsidyYuan}}"> +补贴¥{{item.subsidyYuan}}</text></view>
+          <view class="wt__income-net">实收 ¥{{item.netYuan}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- V6 工具行 -->
+    <view class="wt__tools">
+      <view class="wt__tool" data-name="发票管理" bindtap="onToolTap">发票管理</view>
+      <view class="wt__tool" data-name="完税证明" bindtap="onToolTap">完税证明</view>
+      <view class="wt__tool" data-name="冻结资金" bindtap="onToolTap">冻结资金</view>
+      <view class="wt__tool" data-name="银行卡管理" bindtap="onToolTap">银行卡管理</view>
+    </view>
+    </block>
+  </view>
+
+  <!-- V5 提现弹窗 -->
+  <bottom-sheet visible="{{withdrawSheetVisible}}" title="提现" bind:close="closeWithdraw" has-footer="{{true}}">
+    <view class="wt__withdraw-input-row">
+      <text class="wt__withdraw-symbol">¥</text>
+      <input class="wt__withdraw-input" type="digit" value="{{withdrawAmount}}" placeholder="请输入金额" bindinput="onWithdrawAmountInput" />
+    </view>
+    <view class="wt__withdraw-tip">可提现余额 ¥{{balanceYuan}}</view>
+    <view class="wt__fast-row">
+      <text>⚡ 极速提现（T+{{fastArriveDays}}）</text>
+      <switch checked="{{fastWithdraw}}" color="var(--brand-primary)" bindchange="onFastToggle" />
+    </view>
+    <view class="wt__bank-row">
+      <text class="wt__bank-label">到账银行卡</text>
+      <text class="wt__bank-val">尾号 {{bankTail}}</text>
+    </view>
+    <view slot="footer" class="wt__sheet-btns">
+      <button class="wt__btn wt__btn--ghost" bindtap="closeWithdraw">取消</button>
+      <button class="wt__btn wt__btn--primary" bindtap="confirmWithdraw">确认提现</button>
+    </view>
+  </bottom-sheet>
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

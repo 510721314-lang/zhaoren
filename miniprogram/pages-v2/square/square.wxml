@@ -1,0 +1,62 @@
+<view class="v2 square">
+  <nav-bar title="需求广场" show-back="{{false}}"></nav-bar>
+
+  <!-- S1 筛选 chips：全部 + 5场景 + 公益免费（无W3/W7/W9） -->
+  <scroll-view class="square__chips" scroll-x enhanced show-scrollbar="{{false}}">
+    <view
+      class="square__chip {{activeChip === item.code ? 'is-on' : ''}}"
+      wx:for="{{chips}}"
+      wx:key="code"
+      data-code="{{item.code}}"
+      bindtap="onChipTap"
+    >{{item.name}}</view>
+  </scroll-view>
+
+  <!-- S2 排序 + 统计 -->
+  <view class="square__sortbar">
+    <view class="square__sorts">
+      <text
+        class="square__sort {{activeSort === index ? 'is-on' : ''}}"
+        wx:for="{{sorts}}"
+        wx:key="*this"
+        data-index="{{index}}"
+        bindtap="onSortTap"
+      >{{item}}</text>
+    </view>
+    <text class="square__count">今日需求 {{todayCount}} · 耍伴在线 {{onlinePartners}}</text>
+  </view>
+
+  <!-- S3 需求列表（role=partner，R9双态按钮） -->
+  <view class="square__list">
+    <demand-card
+      wx:for="{{list}}"
+      wx:key="_id"
+      demand="{{item}}"
+      role="partner"
+      grabbed="{{item.grabbed}}"
+      certified="{{item.certified}}"
+      bind:action="onGrab"
+      bind:cardtap="onCardTap"
+    ></demand-card>
+    <empty-state wx:if="{{list.length === 0}}" icon="🧭" title="当前筛选下暂无需求" desc="{{matchExpandMin}}分钟内无匹配时将为你智能扩圈，预约下单还可享{{reserveDiscountText}}"></empty-state>
+  </view>
+
+  <!-- S4 脚注 -->
+  <view class="square__footnote" wx:if="{{list.length > 0}}">广场广播模式 · 先到先得，抢到即进入四确认流程</view>
+
+  <!-- 抢单二次确认 -->
+  <bottom-sheet visible="{{sheetVisible}}" bind:close="closeSheet" has-footer="{{true}}">
+    <view class="grab__title">确认接单？</view>
+    <view class="grab__desc" wx:if="{{selectedDemand}}">
+      <view>{{selectedDemand.title}}</view>
+      <view class="grab__meta">{{selectedDemand.service_date}} {{selectedDemand.service_time}} · {{selectedDemand.location.name}}</view>
+    </view>
+    <view class="grab__tip">抢到后订单进入「待确认(S1)」，请在{{confirmTimeoutMin}}分钟内与对方完成时间/地点/内容/费用四确认。</view>
+    <view slot="footer" class="grab__btns">
+      <button class="grab__btn grab__btn--ghost" bindtap="closeSheet">再想想</button>
+      <button class="grab__btn grab__btn--primary" bindtap="confirmGrab">确认抢单</button>
+    </view>
+  </bottom-sheet>
+
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
+</view>

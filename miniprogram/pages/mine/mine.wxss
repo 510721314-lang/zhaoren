@@ -4,7 +4,7 @@
 
 /* 头部 */
 .header {
-  background: linear-gradient(135deg, #D4875A 0%, #C2754A 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-press) 100%);
   border-radius: 20rpx;
   padding: 40rpx 32rpx;
   display: flex;
@@ -24,33 +24,33 @@
 }
 .avatar::after { border: none; }
 .avatar-img { width: 128rpx; height: 128rpx; }
-.avatar-placeholder { color: #fff; font-size: 24rpx; }
+.avatar-placeholder { color: var(--text-invert); font-size: var(--font-base); }
 
 .user-meta { flex: 1; }
 .nickname-row { margin-bottom: 12rpx; display: flex; align-items: center; flex-wrap: wrap; }
-.nickname { font-size: 36rpx; font-weight: 600; color: #fff; margin-right: 12rpx; }
+.nickname { font-size: var(--font-display); font-weight: 600; color: var(--text-invert); margin-right: 12rpx; }
 /* 当前身份徽标: 切换身份时同步变化 */
 .active-badge {
-  font-size: 20rpx; color: #7A3E1E; font-weight: 600;
-  background: #fff; padding: 4rpx 14rpx; border-radius: 999rpx;
+  font-size: var(--font-xs); color: var(--text-aa); font-weight: 600;
+  background: var(--text-invert); padding: 4rpx 14rpx; border-radius: 999rpx;
 }
 .role-row { display: flex; align-items: center; margin-bottom: 20rpx; }
 .role-tag {
   background: rgba(255,255,255,0.25);
-  color: #fff; font-size: 22rpx;
+  color: var(--text-invert); font-size: var(--font-sm);
   padding: 4rpx 12rpx; border-radius: 6rpx; margin-right: 8rpx;
 }
-.role-tag-partner { background: rgba(255,255,255,0.45); color: #7A3E1E; font-weight: 600; }
+.role-tag-partner { background: rgba(255,255,255,0.45); color: var(--text-aa); font-weight: 600; }
 /* 当前身份对应的角色标签高亮(实心白+描边) */
 .role-tag.role-tag-on {
-  background: #fff; color: #C2703D; font-weight: 700;
+  background: var(--text-invert); color: var(--brand-primary-press); font-weight: 700;
   box-shadow: 0 0 0 2rpx rgba(255,255,255,0.85);
 }
-.role-tag-partner.role-tag-on { color: #7A3E1E; }
+.role-tag-partner.role-tag-on { color: var(--text-aa); }
 /* 信用分色(橙色头部上用浅色): >=800 绿 / 600-799 黄 / <600 红 */
-.credit-num.credit-high { color: #C8F5D2; }
-.credit-num.credit-mid { color: #FFE6A3; }
-.credit-num.credit-low { color: #FFC2C2; }
+.credit-num.credit-high { color: var(--func-success-light); }
+.credit-num.credit-mid { color: var(--banner-grad-end); }
+.credit-num.credit-low { color: var(--func-danger-light); }
 .credit-row {
   display: flex; align-items: center;
   background: rgba(255,255,255,0.15);
@@ -59,10 +59,10 @@
 .credit-item { flex: 1; display: flex; flex-direction: column; align-items: center; transition: all .2s; }
 /* 当前身份对应的信用分区强调, 另一分区弱化 */
 .credit-item-on { transform: scale(1.06); }
-.credit-item-on .credit-label { color: #fff; font-weight: 600; }
+.credit-item-on .credit-label { color: var(--text-invert); font-weight: 600; }
 .credit-item-off { opacity: 0.4; }
-.credit-num { font-size: 40rpx; font-weight: 600; color: #fff; }
-.credit-label { font-size: 22rpx; color: rgba(255,255,255,0.8); margin-top: 4rpx; }
+.credit-num { font-size: var(--font-display-lg); font-weight: 600; color: var(--text-invert); }
+.credit-label { font-size: var(--font-sm); color: rgba(255,255,255,0.8); margin-top: 4rpx; }
 .credit-divider { width: 2rpx; height: 60rpx; background: rgba(255,255,255,0.3); }
 
 /* 表单 */
@@ -79,34 +79,34 @@
 .menu-row:active { background: rgba(0,0,0,0.02); }
 .menu-row:last-child { border-bottom: none; }
 .menu-icon {
-  font-size: 32rpx; margin-right: 20rpx; flex-shrink: 0;
+  font-size: var(--font-xxl); margin-right: 20rpx; flex-shrink: 0;
   width: 64rpx; height: 64rpx; line-height: 64rpx; text-align: center;
   background: var(--bg-page, #F5F5F5); border-radius: 50%;
 }
 .menu-text { flex: 1; }
-.menu-label { flex: 1; font-size: 30rpx; color: var(--text-1); }
-.menu-desc { font-size: 22rpx; color: var(--text-3); margin-top: 4rpx; }
-.menu-arrow { font-size: 36rpx; color: var(--text-3); flex-shrink: 0; }
+.menu-label { flex: 1; font-size: var(--font-xl); color: var(--text-1); }
+.menu-desc { font-size: var(--font-sm); color: var(--text-3); margin-top: 4rpx; }
+.menu-arrow { font-size: var(--font-display); color: var(--text-3); flex-shrink: 0; }
 
 .form-tip {
-  font-size: 24rpx; color: var(--text-2);
+  font-size: var(--font-base); color: var(--text-2);
   margin: 8rpx 0 16rpx; line-height: 1.5;
 }
 .form-row {
   display: flex; align-items: center;
   margin-bottom: 16rpx;
 }
-.form-label { width: 140rpx; font-size: 28rpx; color: var(--text-1); }
+.form-label { width: 140rpx; font-size: var(--font-lg); color: var(--text-1); }
 .form-input {
   flex: 1;
   padding: 16rpx 20rpx;
   background: var(--bg-page);
   border-radius: 8rpx;
-  font-size: 28rpx;
+  font-size: var(--font-lg);
   color: var(--text-1);
 }
 .form-display {
-  font-size: 26rpx; color: var(--success);
+  font-size: var(--font-md); color: var(--success);
   margin: 8rpx 0 16rpx;
 }
 .second-block {
@@ -118,12 +118,12 @@
   text-align: center; margin: 8rpx 0 16rpx;
 }
 .link-add {
-  color: var(--primary); font-size: 26rpx;
+  color: var(--primary); font-size: var(--font-md);
   transition: var(--transition, 0.2s ease);
 }
 .link-add:active { opacity: 0.6; }
 .link-remove {
-  color: var(--danger); font-size: 26rpx;
+  color: var(--danger); font-size: var(--font-md);
   transition: var(--transition, 0.2s ease);
 }
 .link-remove:active { opacity: 0.6; }
@@ -134,11 +134,11 @@ button.btn-block { margin-top: 8rpx; }
 .footer {
   margin-top: 32rpx; text-align: center;
 }
-.version { font-size: 22rpx; color: var(--text-3); padding: 16rpx 0; }
+.version { font-size: var(--font-sm); color: var(--text-3); padding: 16rpx 0; }
 
 /* 身份切换卡 */
 .role-switch-card { padding: 24rpx; }
-.role-switch-title { font-size: 24rpx; color: var(--text-3); margin-bottom: 16rpx; }
+.role-switch-title { font-size: var(--font-base); color: var(--text-3); margin-bottom: 16rpx; }
 .role-switch { display: flex; gap: 16rpx; }
 .role-opt {
   flex: 1; text-align: center;
@@ -151,17 +151,17 @@ button.btn-block { margin-top: 8rpx; }
   border-color: var(--primary);
   background: rgba(212, 135, 90, 0.08);
 }
-.role-opt-icon { font-size: 48rpx; }
-.role-opt-name { font-size: 30rpx; font-weight: 600; color: var(--text-1); margin-top: 8rpx; }
-.role-opt-desc { font-size: 22rpx; color: var(--text-3); margin-top: 6rpx; }
+.role-opt-icon { font-size: var(--font-display-xl); }
+.role-opt-name { font-size: var(--font-xl); font-weight: 600; color: var(--text-1); margin-top: 8rpx; }
+.role-opt-desc { font-size: var(--font-sm); color: var(--text-3); margin-top: 6rpx; }
 
 /* 未登录态 */
 .guest-box { padding: 140rpx 48rpx; text-align: center; }
-.guest-icon { font-size: 110rpx; }
-.guest-title { font-size: 34rpx; font-weight: 600; color: var(--text-1); margin-top: 28rpx; }
-.guest-sub { font-size: 26rpx; color: var(--text-3); line-height: 1.6; margin: 16rpx 0 48rpx; }
+.guest-icon { font-size: var(--font-icon-lg); }
+.guest-title { font-size: var(--font-xxl); font-weight: 600; color: var(--text-1); margin-top: 28rpx; }
+.guest-sub { font-size: var(--font-md); color: var(--text-3); line-height: 1.6; margin: 16rpx 0 48rpx; }
 .guest-btn { margin-bottom: 28rpx; }
-.guest-agree { font-size: 22rpx; color: var(--text-3); line-height: 1.8; }
+.guest-agree { font-size: var(--font-sm); color: var(--text-3); line-height: 1.8; }
 .guest-link {
   color: var(--primary);
   transition: var(--transition, 0.2s ease);

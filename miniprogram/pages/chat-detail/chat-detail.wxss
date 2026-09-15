@@ -6,27 +6,27 @@
 
 /* 顶部订单信息条 */
 .order-bar {
-  background: #fff; padding: 16rpx 24rpx;
+  background: var(--text-invert); padding: 16rpx 24rpx;
   border-bottom: 2rpx solid var(--bg-page);
 }
 .bar-line { display: flex; align-items: center; margin-bottom: 8rpx; }
 .scene-tag {
   background: rgba(212,135,90,0.12); color: var(--primary);
-  font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 16rpx;
+  font-size: var(--font-sm); padding: 4rpx 16rpx; border-radius: 16rpx;
   margin-right: 16rpx;
 }
-.order-no { font-size: 22rpx; color: #bbb; }
-.bar-tip { font-size: 22rpx; padding: 6rpx 0; }
-.bar-tip.lock { color: #A8652A; }
-.bar-tip.free { color: #3E7C4F; }
-.bar-tip.closed { color: #999; }
+.order-no { font-size: var(--font-sm); color: var(--text-4); }
+.bar-tip { font-size: var(--font-sm); padding: 6rpx 0; }
+.bar-tip.lock { color: var(--warning); }
+.bar-tip.free { color: var(--func-success); }
+.bar-tip.closed { color: var(--text-4); }
 
 /* 消息区 */
 .msg-scroll { flex: 1; min-height: 0; }
 .msg-list { padding: 24rpx 24rpx 40rpx; }
 
 .time-divider {
-  text-align: center; font-size: 22rpx; color: #bbb;
+  text-align: center; font-size: var(--font-sm); color: var(--text-4);
   margin: 24rpx 0 16rpx;
 }
 
@@ -36,10 +36,10 @@
 
 .bubble {
   max-width: 72%; padding: 18rpx 24rpx; border-radius: 20rpx;
-  background: #fff; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+  background: var(--text-invert); box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
 }
 .msg-row.mine .bubble {
-  background: var(--primary); color: #fff;
+  background: var(--primary); color: var(--text-invert);
   border-bottom-right-radius: 6rpx;
 }
 .msg-row.peer .bubble { border-bottom-left-radius: 6rpx; }
@@ -47,27 +47,27 @@
 .msg-row.mine .bubble-tpl { border-color: rgba(255,255,255,0.5); }
 
 .tpl-tag {
-  font-size: 18rpx; color: var(--primary);
+  font-size: var(--font-xxs); color: var(--primary);
   margin-bottom: 6rpx;
 }
 .msg-row.mine .tpl-tag { color: rgba(255,255,255,0.85); }
-.bubble-text { font-size: 28rpx; line-height: 1.5; word-break: break-all; }
+.bubble-text { font-size: var(--font-lg); line-height: 1.5; word-break: break-all; }
 
 /* 空态 */
-.empty-chat { text-align: center; padding-top: 120rpx; color: #bbb; }
-.empty-icon { font-size: 72rpx; margin-bottom: 16rpx; }
-.empty-hint { font-size: 24rpx; }
+.empty-chat { text-align: center; padding-top: 120rpx; color: var(--text-4); }
+.empty-icon { font-size: var(--font-display-xxl); margin-bottom: 16rpx; }
+.empty-hint { font-size: var(--font-base); }
 
 /* 底部输入区 */
 .composer {
-  background: #fff; border-top: 2rpx solid var(--bg-page);
+  background: var(--text-invert); border-top: 2rpx solid var(--bg-page);
   padding: 16rpx 24rpx;
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
 }
 .tpl-bar { white-space: nowrap; margin-bottom: 16rpx; }
 .tpl-chip {
   display: inline-block;
-  font-size: 24rpx; color: var(--primary);
+  font-size: var(--font-base); color: var(--primary);
   background: rgba(212,135,90,0.1);
   border: 2rpx solid rgba(212,135,90,0.35);
   border-radius: 32rpx; padding: 10rpx 24rpx;
@@ -79,18 +79,18 @@
 .msg-input {
   flex: 1; background: var(--bg-page);
   border-radius: 36rpx; padding: 16rpx 28rpx;
-  font-size: 28rpx; min-height: 64rpx;
+  font-size: var(--font-lg); min-height: 64rpx;
 }
-.input-ph { color: #bbb; }
+.input-ph { color: var(--text-4); }
 .send-btn {
   margin-left: 16rpx; flex-shrink: 0;
-  background: var(--primary); color: #fff;
-  font-size: 28rpx; border-radius: 36rpx;
+  background: var(--primary); color: var(--text-invert);
+  font-size: var(--font-lg); border-radius: 36rpx;
   padding: 14rpx 40rpx;
 }
 .send-btn.disabled { opacity: 0.5; }
 
 .locked-bar {
-  text-align: center; font-size: 24rpx; color: #999;
+  text-align: center; font-size: var(--font-base); color: var(--text-4);
   padding: 16rpx 0;
 }

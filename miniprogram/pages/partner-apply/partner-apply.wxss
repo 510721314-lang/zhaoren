@@ -3,10 +3,10 @@
 
 .status-banner {
   padding: 20rpx 24rpx; border-radius: 12rpx;
-  font-size: 28rpx; text-align: center; margin-bottom: 24rpx;
+  font-size: var(--font-lg); text-align: center; margin-bottom: 24rpx;
 }
-.status-banner.warn { background: #F5E6D2; color: #A8652A; }
-.status-banner.danger { background: #F5DAD5; color: #B03A2E; }
+.status-banner.warn { background: var(--brand-accent-light); color: var(--warning); }
+.status-banner.danger { background: var(--func-danger-light); color: var(--func-danger); }
 
 /* 场景列表 */
 .scene-list { margin-top: 16rpx; }
@@ -24,11 +24,11 @@
   width: 36rpx; height: 36rpx; border-radius: 8rpx;
   border: 2rpx solid var(--border); margin-right: 16rpx;
   display: flex; align-items: center; justify-content: center;
-  font-size: 24rpx; color: #fff;
+  font-size: var(--font-base); color: var(--text-invert);
 }
 .scene-check.checked { background: var(--primary); border-color: var(--primary); }
-.scene-icon { font-size: 36rpx; margin-right: 12rpx; }
-.scene-name { font-size: 30rpx; color: var(--text-1); }
+.scene-icon { font-size: var(--font-display); margin-right: 12rpx; }
+.scene-name { font-size: var(--font-xl); color: var(--text-1); }
 .option-list {
   padding: 16rpx 24rpx 16rpx 68rpx;
   border-top: 2rpx solid var(--border);
@@ -48,16 +48,16 @@
   margin-top: 16rpx; padding-top: 16rpx;
   border-top: 2rpx dashed var(--border);
 }
-.scene-rate-label { font-size: 26rpx; color: var(--text-2); margin-bottom: 4rpx; }
+.scene-rate-label { font-size: var(--font-md); color: var(--text-2); margin-bottom: 4rpx; }
 .scene-rate-value {
-  font-size: 36rpx; font-weight: 600; color: var(--primary);
+  font-size: var(--font-display); font-weight: 600; color: var(--primary);
   margin: 8rpx 0;
 }
 .scene-rate slider { margin: 8rpx 0 0; }
 
 /* 时薪 */
 .rate-display {
-  font-size: 48rpx; font-weight: 600; color: var(--primary);
+  font-size: var(--font-display-xl); font-weight: 600; color: var(--primary);
   text-align: center; margin: 24rpx 0;
 }
 slider { margin: 16rpx 0; }
@@ -68,7 +68,7 @@ slider { margin: 16rpx 0; }
   width: 36rpx; height: 36rpx; border-radius: 8rpx;
   border: 2rpx solid var(--border); margin-right: 16rpx;
   display: flex; align-items: center; justify-content: center;
-  font-size: 24rpx; color: #fff;
+  font-size: var(--font-base); color: var(--text-invert);
 }
 .agree-check.checked { background: var(--success); border-color: var(--success); }
 .link { color: var(--primary); margin-left: 4rpx; }

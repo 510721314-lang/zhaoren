@@ -1,0 +1,118 @@
+﻿.square {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding-bottom: 160rpx;
+}
+
+/* S1 chips */
+.square__chips {
+  background: var(--bg-card);
+  padding: 16rpx 20rpx;
+  white-space: nowrap;
+}
+.square__chip {
+  display: inline-block;
+  height: 60rpx;
+  line-height: 60rpx;
+  padding: 0 28rpx;
+  margin-right: 16rpx;
+  border-radius: 30rpx;
+  background: var(--bg-segment);
+  color: var(--text-3);
+  font-size: var(--font-sm);
+}
+.square__chip.is-on {
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-weight: 600;
+}
+
+/* S2 */
+.square__sortbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 24rpx 8rpx;
+}
+.square__sorts {
+  display: flex;
+}
+.square__sort {
+  font-size: var(--font-sm);
+  color: var(--text-4);
+  margin-right: 28rpx;
+}
+.square__sort.is-on {
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+.square__count {
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+
+/* S3 */
+.square__list {
+  padding: 12rpx 20rpx 0;
+}
+
+/* S4 */
+.square__footnote {
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  padding: 8rpx 0 16rpx;
+}
+
+/* 抢单弹窗 */
+.grab__title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--text-1);
+  text-align: center;
+}
+.grab__desc {
+  margin-top: 24rpx;
+  font-size: var(--font-md);
+  color: var(--text-1);
+  text-align: center;
+}
+.grab__meta {
+  margin-top: 10rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+.grab__tip {
+  margin-top: 24rpx;
+  background: var(--func-warning-light);
+  color: var(--text-aa);
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  border-radius: var(--r-sm);
+  padding: 20rpx 24rpx;
+}
+.grab__btns {
+  display: flex;
+  gap: 20rpx;
+}
+.grab__btn {
+  flex: 1;
+  height: 80rpx;
+  line-height: 80rpx;
+  border-radius: 40rpx;
+  font-size: var(--font-md);
+  margin: 0;
+}
+.grab__btn::after {
+  border: none;
+}
+.grab__btn--ghost {
+  background: var(--bg-card);
+  color: var(--text-3);
+  border: 1rpx solid var(--border-ghost);
+}
+.grab__btn--primary {
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-weight: 600;
+}

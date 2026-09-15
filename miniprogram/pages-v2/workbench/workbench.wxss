@@ -1,0 +1,73 @@
+.wb { min-height: 100vh; background: var(--bg-page); padding: 0 20rpx 80rpx; }
+.wb__body { padding-top: 20rpx; }
+.wb__card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 28rpx; box-shadow: var(--shadow-card); margin-bottom: 20rpx; }
+.wb__card-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); margin-bottom: 16rpx; }
+.wb__card-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.wb__card-title-row .wb__card-title { margin-bottom: 0; }
+.wb__go-wallet { font-size: var(--font-sm); color: var(--brand-primary); }
+
+/* W1 */
+.wb__header-card { display: flex; justify-content: space-between; align-items: center; }
+.wb__header-card.is-on { background: linear-gradient(135deg, var(--func-success-light), var(--bg-card)); }
+.wb__status { font-size: var(--font-lg); font-weight: 700; color: var(--text-1); }
+.wb__summary { margin-top: 8rpx; font-size: var(--font-sm); color: var(--text-3); }
+
+/* W2 */
+.wb__data-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16rpx; margin-bottom: 20rpx; }
+.wb__data-card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 16rpx; text-align: center; box-shadow: var(--shadow-card); }
+.wb__data-num { font-size: var(--font-lg); font-weight: 700; color: var(--brand-primary); }
+.wb__data-label { margin-top: 8rpx; font-size: var(--font-xs); color: var(--text-3); }
+
+/* W3 */
+.wb__week { white-space: nowrap; padding: 8rpx 0; }
+.wb__week-day { display: inline-block; width: 100rpx; text-align: center; padding: 12rpx 0; margin-right: 12rpx; border-radius: var(--r-md); background: var(--bg-segment); vertical-align: top; }
+.wb__week-day.is-today { background: var(--brand-primary); color: var(--text-invert); }
+.wb__week-day.is-today .wb__week-wd, .wb__week-day.is-today .wb__week-date { color: var(--text-invert); }
+.wb__week-wd { font-size: var(--font-xs); color: var(--text-4); }
+.wb__week-date { margin-top: 4rpx; font-size: var(--font-sm); color: var(--text-2); }
+.wb__week-dot { width: 10rpx; height: 10rpx; border-radius: 50%; background: var(--func-success); margin: 8rpx auto 0; }
+
+.wb__day-timeline { margin-top: 20rpx; }
+.wb__time-block { display: flex; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.wb__time-block:last-child { border-bottom: none; }
+.wb__time-strip { width: 8rpx; border-radius: 4rpx; margin-right: 16rpx; }
+.wb__time-content { flex: 1; }
+.wb__time-row { display: flex; align-items: center; }
+.wb__time { font-size: var(--font-md); font-weight: 600; color: var(--text-1); }
+.wb__time-scene { margin-left: 12rpx; font-size: var(--font-xs); color: var(--text-3); background: var(--bg-segment); padding: 4rpx 12rpx; border-radius: 16rpx; }
+.wb__time-meta { margin-top: 6rpx; font-size: var(--font-sm); color: var(--text-3); }
+.wb__time-btns { margin-top: 12rpx; display: flex; gap: 12rpx; }
+.wb__mini-btn { height: 56rpx; line-height: 56rpx; padding: 0 20rpx; font-size: var(--font-xs); background: var(--bg-segment); color: var(--text-2); border-radius: 28rpx; margin: 0; }
+.wb__mini-btn::after { border: none; }
+.wb__mini-btn--danger { background: var(--func-danger-light); color: var(--func-danger); }
+
+.wb__empty { padding: 24rpx 0; text-align: center; font-size: var(--font-sm); color: var(--text-4); }
+
+/* W4 */
+.wb__fund-tabs { display: flex; gap: 8rpx; margin-bottom: 16rpx; }
+.wb__fund-tab { flex: 1; padding: 12rpx 0; text-align: center; font-size: var(--font-xs); color: var(--text-3); background: var(--bg-segment); border-radius: var(--r-sm); }
+.wb__fund-tab.is-on { background: var(--brand-primary); color: var(--text-invert); }
+.wb__fund-amount { font-size: var(--font-xxl); font-weight: 700; color: var(--brand-primary); text-align: center; }
+
+/* W6 */
+.wb__todo-item { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.wb__todo-item:last-child { border-bottom: none; }
+.wb__todo-title { font-size: var(--font-md); color: var(--text-1); font-weight: 600; }
+.wb__todo-meta { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-3); }
+.wb__todo-btns { display: flex; gap: 12rpx; }
+
+/* W5 */
+.wb__alarm-btn { width: 100%; height: 88rpx; line-height: 88rpx; border-radius: 44rpx; background: var(--func-danger); color: var(--text-invert); font-size: var(--font-lg); font-weight: 600; margin-top: 20rpx; }
+.wb__alarm-btn::after { border: none; }
+
+.wb__alarm-tip { padding: 16rpx 0; font-size: var(--font-sm); color: var(--text-2); line-height: 1.6; }
+.wb__sheet-btns { display: flex; gap: 16rpx; }
+.wb__btn { flex: 1; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; font-size: var(--font-md); }
+.wb__btn::after { border: none; }
+.wb__btn--ghost { background: var(--bg-segment); color: var(--text-2); }
+.wb__btn--danger { background: var(--func-danger); color: var(--text-invert); }
+
+/* 三态UI · 骨架屏 */
+.wb__loading { padding: 16rpx; }
+.wb__skeleton { height: 96rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: wb-skeleton-pulse 1.2s ease-in-out infinite; }
+@keyframes wb-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }

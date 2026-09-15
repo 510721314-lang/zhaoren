@@ -1,0 +1,194 @@
+<view class="v2 pub">
+  <nav-bar title="发布需求" bg="var(--bg-card)">
+    <view slot="right" class="pub__draft-entry" data-count="{{draftCount}}" bindtap="openDraftBox">
+      📋草稿箱{{draftCount > 0 ? '(' + draftCount + ')' : ''}}
+    </view>
+  </nav-bar>
+
+  <view style="height: {{statusBarHeight + 46}}px;"></view>
+
+  <!-- B2 项目属性 -->
+  <view class="pub__block">
+    <view class="pub__label">项目属性</view>
+    <view class="pub__segment">
+      <view class="pub__seg {{form.project_attr === 'commercial' ? 'is-on' : ''}}" data-attr="commercial" bindtap="setAttr">💰 商业付费</view>
+      <view class="pub__seg {{form.project_attr === 'public_welfare' ? 'is-on' : ''}}" data-attr="public_welfare" bindtap="setAttr">💚 公益免费</view>
+    </view>
+    <view class="pub__welfare-tip" wx:if="{{form.project_attr === 'public_welfare'}}">
+      {{welfareText}}
+    </view>
+  </view>
+
+  <!-- B3 场景选择 -->
+  <view class="pub__block">
+    <view class="pub__label">场景选择 <text class="pub__required">*</text></view>
+    <view class="pub__scene-grid">
+      <view class="pub__scene-card {{form.scene_code === item.code ? 'is-on' : ''}}" wx:for="{{scenes}}" wx:key="code" data-code="{{item.code}}" bindtap="setScene">
+        <view class="pub__gb-badge" wx:if="{{item.gb}}">国标</view>
+        <view class="pub__scene-ic" style="background:{{item.color}};">{{item.icon}}</view>
+        <view class="pub__scene-name">{{item.name}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- B4 标题+描述 -->
+  <view class="pub__block">
+    <view class="pub__label">需求标题 <text class="pub__required">*</text></view>
+    <input class="pub__input" value="{{form.title}}" placeholder="一句话描述需求" maxlength="{{titleMax}}" bindinput="onTitleInput" />
+    <view class="pub__count">{{titleCount}}/{{titleMax}}</view>
+  </view>
+  <view class="pub__block">
+    <view class="pub__label">详细描述 <text class="pub__required">*</text></view>
+    <textarea class="pub__textarea" value="{{form.description}}" placeholder="详细说明服务内容、要求等" maxlength="{{descMax}}" bindinput="onDescInput" />
+    <view class="pub__count">{{descCount}}/{{descMax}}</view>
+  </view>
+
+  <!-- B5 时间地点 -->
+  <view class="pub__block">
+    <view class="pub__label">服务时间与地点</view>
+    <picker mode="date" start="{{today}}" end="{{dateMax}}" value="{{form.service_date}}" bindchange="onDateChange">
+      <view class="pub__picker-row">
+        <text class="pub__picker-label">日期</text>
+        <text class="pub__picker-val {{form.service_date ? '' : 'is-empty'}}">{{form.service_date || '请选择'}}</text>
+        <text class="pub__arrow">›</text>
+      </view>
+    </picker>
+    <picker mode="time" start="{{redlineOpen}}" end="{{redlineClose}}" value="{{form.service_time}}" bindchange="onTimeChange">
+      <view class="pub__picker-row">
+        <text class="pub__picker-label">时间</text>
+        <text class="pub__picker-val {{form.service_time ? '' : 'is-empty'}}">{{form.service_time || '请选择'}}</text>
+        <text class="pub__arrow">›</text>
+      </view>
+    </picker>
+    <view class="pub__sub-label">时长</view>
+    <view class="pub__chips">
+      <view class="pub__chip {{form.duration_hours === item ? 'is-on' : ''}}" wx:for="{{durationOptions}}" wx:key="*this" data-val="{{item}}" bindtap="setDuration">{{item}}h</view>
+    </view>
+    <input class="pub__input pub__input--mt" wx:if="{{form.duration_hours === 0}}" placeholder="自定义小时数" type="digit" bindinput="onDurationCustomInput" />
+    <view class="pub__picker-row" bindtap="onLocationPick">
+      <text class="pub__picker-label">地点</text>
+      <input class="pub__picker-input" value="{{form.location_name}}" placeholder="公共场所名称" bindinput="onLocationInput" catchtap="noop" />
+      <text class="pub__arrow">📍</text>
+    </view>
+    <view class="pub__location-tip">⚠ 仅限公共场所，住宅/酒店/私密包间不可</view>
+  </view>
+
+  <!-- B6 人数预算 -->
+  <view class="pub__block">
+    <view class="pub__label">人数与预算</view>
+    <view class="pub__row">
+      <text class="pub__row-label">人数</text>
+      <view class="pub__stepper">
+        <view class="pub__step-btn" bindtap="decHeadcount">-</view>
+        <view class="pub__step-val">{{form.headcount}}</view>
+        <view class="pub__step-btn" bindtap="incHeadcount">+</view>
+      </view>
+    </view>
+    <view class="pub__row" wx:if="{{form.project_attr === 'commercial'}}">
+      <text class="pub__row-label">预算</text>
+      <input class="pub__budget-input" type="digit" value="{{form.budget}}" placeholder="{{budgetPlaceholder}}" bindinput="onBudgetInput" />
+      <text class="pub__row-unit">元/小时</text>
+    </view>
+  </view>
+
+  <!-- B7 AA费用预估 -->
+  <view class="pub__block">
+    <view class="pub__label">AA费用预估 <text class="pub__required">*</text></view>
+    <view class="pub__chips">
+      <view class="pub__chip {{form.aa_estimate === item.value ? 'is-on' : ''}}" wx:for="{{aaOptions}}" wx:key="value" data-val="{{item.value}}" bindtap="setAA">
+        {{item.label}}
+      </view>
+    </view>
+    <input class="pub__input pub__input--mt" wx:if="{{form.aa_estimate === 'custom'}}" placeholder="预估AA费用" type="digit" bindinput="onAACustomInput" />
+  </view>
+
+  <!-- B8 性别偏好 -->
+  <view class="pub__block">
+    <view class="pub__label">性别偏好</view>
+    <view class="pub__chips">
+      <view class="pub__chip {{form.gender_pref === '不限' ? 'is-on' : ''}}" data-val="不限" bindtap="setGender">不限</view>
+      <view class="pub__chip {{form.gender_pref === '男' ? 'is-on' : ''}}" data-val="男" bindtap="setGender">男</view>
+      <view class="pub__chip {{form.gender_pref === '女' ? 'is-on' : ''}}" data-val="女" bindtap="setGender">女</view>
+    </view>
+  </view>
+
+  <!-- B9 撮合模式 -->
+  <view class="pub__block">
+    <view class="pub__label">撮合模式</view>
+    <view class="pub__mode-list">
+      <view class="pub__mode-card {{form.match_mode === item.code ? 'is-on' : ''}} {{item.code === 'smart' && smartLocked ? 'is-locked' : ''}}" wx:for="{{matchModes}}" wx:key="code" data-code="{{item.code}}" bindtap="setMatchMode">
+        <view class="pub__mode-name">
+          {{item.name}}
+          <text class="pub__vip-badge" wx:if="{{item.needVip}}">VIP</text>
+        </view>
+        <view class="pub__mode-desc">{{item.desc}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- B10 自动保存提示 -->
+  <view class="pub__autosave" wx:if="{{autoSaveText}}">✓草稿已自动保存·{{autoSaveText}}（有效期{{draftExpireDays}}天）</view>
+
+  <!-- B11 底部按钮 -->
+  <view class="pub__bottom">
+    <button class="pub__btn pub__btn--ghost" bindtap="saveDraft">存草稿</button>
+    <button class="pub__btn pub__btn--primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">发布需求</button>
+  </view>
+
+  <!-- 免责声明弹窗 -->
+  <bottom-sheet visible="{{disclaimerVisible}}" bind:close="closeDisclaimer" has-footer="{{true}}">
+    <view class="pub__disclaimer-title">《就医陪诊免责声明》</view>
+    <scroll-view scroll-y class="pub__disclaimer-body">
+      <view>本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴（陪诊人员）不具备医疗执业资格，不提供任何诊断、治疗、用药建议。具体免责条款如下：</view>
+      <view class="pub__clause">一、耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。</view>
+      <view class="pub__clause">二、因患者自身疾病原因导致的一切后果，平台与耍伴不承担任何责任。</view>
+      <view class="pub__clause">三、如遇紧急医疗情况，应立即呼叫120或寻求医院专业人员帮助，耍伴可协助联系。</view>
+      <view class="pub__clause">四、用户应如实告知患者病情及特殊需求，隐瞒重要信息导致的后果由用户承担。</view>
+      <view class="pub__clause">五、本声明经用户勾选确认后即视为同意全部条款，与订单一同留存。</view>
+    </scroll-view>
+    <view class="pub__check-row" catchtap="toggleDisclaimer">
+      <view class="pub__check {{disclaimerChecked ? 'is-on' : ''}}">{{disclaimerChecked ? '✓' : ''}}</view>
+      <text class="pub__check-text">我已阅读并同意《就医陪诊免责声明》全部条款</text>
+    </view>
+    <view slot="footer" class="pub__disclaimer-btns">
+      <button class="pub__btn pub__btn--primary" disabled="{{!disclaimerChecked}}" bindtap="closeDisclaimer">确认并继续</button>
+    </view>
+  </bottom-sheet>
+
+  <!-- 草稿箱弹窗 -->
+  <bottom-sheet visible="{{draftBoxVisible}}" title="草稿箱" bind:close="closeDraftBox">
+    <view class="pub__draft-item" wx:for="{{draftList}}" wx:key="_id" data-index="{{index}}" bindtap="restoreDraft">
+      <view class="pub__draft-title">{{item.demand_data.title}}</view>
+      <view class="pub__draft-meta">{{item.demand_data.service_date}} · 保存于 {{item.saved_at}}</view>
+    </view>
+    <view class="pub__draft-empty" wx:if="{{draftList.length === 0}}">暂无草稿</view>
+  </bottom-sheet>
+
+  <!-- AA确认弹窗 -->
+  <bottom-sheet visible="{{aaSheetVisible}}" bind:close="closeAASheet" has-footer="{{true}}">
+    <view class="pub__aa-title">AA费用确认</view>
+    <view class="pub__aa-sub">平台不代收 · 不担保 · 不仲裁AA费用争议</view>
+    <view class="pub__aa-est">
+      <text class="pub__aa-est-label">当前预估：</text>
+      <text>{{form.aa_estimate === 'custom' ? form.aa_custom : form.aa_estimate}}元</text>
+    </view>
+    <scroll-view scroll-y class="pub__aa-commit-body">
+      <view class="pub__aa-commit-title">《线下费用自理承诺书》</view>
+      <view>本人确认：AA（可能产生的额外费用）由双方线下自行协商结算，平台不代收、不担保、不仲裁此类费用争议。本人理解并同意：</view>
+      <view class="pub__clause">1. AA费用指服务过程中产生的第三方费用（如交通费、餐费、门票等），不含服务费。</view>
+      <view class="pub__clause">2. AA费用由用户与耍伴自行协商，平台不参与定价与结算。</view>
+      <view class="pub__clause">3. 因AA费用产生的一切纠纷，平台不承担调解、仲裁、赔偿等任何责任。</view>
+      <view class="pub__clause">4. 本承诺书经勾选确认后与订单一同留存。</view>
+    </scroll-view>
+    <view class="pub__check-row" catchtap="toggleAACommit">
+      <view class="pub__check {{aaCommitChecked ? 'is-on' : ''}}">{{aaCommitChecked ? '✓' : ''}}</view>
+      <text class="pub__check-text">我已阅读并同意《线下费用自理承诺书》</text>
+    </view>
+    <view slot="footer" class="pub__aa-btns">
+      <button class="pub__btn pub__btn--ghost" bindtap="closeAASheet">暂不发布</button>
+      <button class="pub__btn pub__btn--primary" disabled="{{!aaCommitChecked}}" bindtap="confirmPublish">确认并继续发布</button>
+    </view>
+  </bottom-sheet>
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

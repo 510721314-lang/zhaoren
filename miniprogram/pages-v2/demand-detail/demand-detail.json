@@ -1,0 +1,9 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "nav-bar": "/components/nav-bar/index",
+    "tag-chip": "/components/tag-chip/index",
+    "partner-card": "/components/partner-card/index",
+    "bottom-sheet": "/components/bottom-sheet/index"
+  }
+}

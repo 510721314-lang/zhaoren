@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<!--
+═══════════════════════════════════════════════════════════════
+home.html · 风格锚点文件（Style Anchor）
+用途：TRAE生成小程序代码时的唯一视觉风格基准（SSOT）
+引用位置：trae-tasks.md 中每批次 prompt 的【风格基准】条款
+═══════════════════════════════════════════════════════════════
+锚点要点（TRAE必须遵循）：
+1. 主色 #07C160（品牌绿）｜强调橙 #ff6b35｜危险红 #fa5151
+2. 卡片：白底 / 圆角14px / 内边距12px 14px / 轻阴影
+3. 页面底色 #F6F7F9，卡片间距10px，页面左右边距10px
+4. 场景色系：就医#E8F1FF 学习#EDE8FF 生活#FFF3E0 出行#E0F5F4 线上#FFE9EC
+5. 场景宫格：4列，图标44px圆角14px底色块+11px文字
+6. 卖点条：#E8F7EE底 + #0a8f4d字，居中横排
+7. TabBar：白底顶部描边，中央发布钮52px圆形上浮+绿色投影
+8. 标签体系：场景蓝tag / 公益绿tag / AA橙tag，10px圆角5px
+9. 金额：红色加粗13px + 灰色小字单位
+10. 夜间遮罩(R1)：深色82%蒙层 + 中央白卡圆角16px
+-->
+<title>找个人帮忙 · 首页原型 V15（风格锚点）</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+body{background:#e9edf2;padding:40px 20px;display:flex;gap:70px;justify-content:center;flex-wrap:wrap}
+.stage{position:relative}
+.stage h3{text-align:center;margin-bottom:14px;color:#333;font-size:15px}
+.phone{width:375px;height:812px;background:#F6F7F9;border:10px solid #15181c;border-radius:44px;
+ overflow:hidden;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.22)}
+.note{position:absolute;right:-34px;background:#ff6b35;color:#fff;width:20px;height:20px;border-radius:50%;
+ font-size:11px;display:flex;align-items:center;justify-content:center;z-index:99}
+/* 状态栏 */
+.sb{height:44px;background:#fff;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:14px;font-weight:600}
+/* 导航 */
+.nav{height:46px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 14px}
+.city{font-size:15px;font-weight:600;flex-shrink:0}
+.city i{font-style:normal;font-size:10px;color:#999}
+.search{flex:1;height:30px;background:#F1F2F5;border-radius:15px;display:flex;align-items:center;padding:0 12px;font-size:12px;color:#9aa0a6}
+.bell{position:relative;font-size:20px}
+.bell b{position:absolute;top:-4px;right:-8px;background:#fa5151;color:#fff;font-size:9px;border-radius:8px;padding:0 4px}
+/* 卖点条 */
+.safe{height:30px;background:#E8F7EE;display:flex;align-items:center;justify-content:center;gap:4px;font-size:11px;color:#0a8f4d}
+.safe b{font-weight:600}
+/* 场景宫格 */
+.grid{background:#fff;margin:10px 10px 0;border-radius:14px;padding:14px 6px 10px;display:grid;grid-template-columns:repeat(4,1fr);row-gap:14px}
+.cell{text-align:center;font-size:12px;color:#333;position:relative}
+.cell .ic{width:44px;height:44px;border-radius:14px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.cell.gray{color:#b8bdc4}
+.cell.gray .ic{background:#f2f3f5;color:#c0c5cc}
+.badge-gb{position:absolute;top:-6px;right:14px;background:#ff6b35;color:#fff;font-size:8px;padding:1px 4px;border-radius:6px}
+/* 福利 */
+.fuli{margin:10px 10px 0;background:linear-gradient(90deg,#FFF3E0,#FFE0B2);border-radius:12px;
+ padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.fuli .t{font-size:13px;color:#B26A00;font-weight:600}
+.fuli .s{font-size:10px;color:#c68a2e;margin-top:2px}
+.fuli a{font-size:11px;background:#ff8f3c;color:#fff;border-radius:12px;padding:4px 10px;text-decoration:none}
+/* Tab */
+.tabs{display:flex;gap:24px;padding:14px 16px 10px;font-size:15px;color:#8a9099;position:sticky;top:0;background:#F6F7F9}
+.tabs .on{color:#07C160;font-weight:700;position:relative}
+.tabs .on:after{content:"";position:absolute;left:20%;right:20%;bottom:-6px;height:3px;border-radius:2px;background:#07C160}
+/* 卡片 */
+.card{background:#fff;border-radius:14px;margin:0 10px 10px;padding:12px 14px}
+.tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:5px;margin-right:6px}
+.t-scene{background:#E8F1FF;color:#2f6fed}
+.t-gongyi{background:#E8F7EE;color:#0a8f4d;font-weight:600}
+.t-aa{background:#FFF3E0;color:#B26A00}
+.card h4{font-size:14px;color:#222;margin:6px 0 8px;font-weight:600}
+.meta{font-size:11px;color:#8a9099;display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.row-b{display:flex;justify-content:space-between;align-items:center}
+.price{font-size:13px;color:#fa5151;font-weight:700}
+.price span{font-size:10px;color:#8a9099;font-weight:400}
+.btn{font-size:12px;color:#fff;background:#07C160;border:none;border-radius:14px;padding:6px 16px}
+/* 耍伴卡片 */
+.p-top{display:flex;gap:10px}
+.avatar{width:52px;height:52px;border-radius:50%;background:#DCE9E4;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.p-name{font-size:15px;font-weight:700;color:#222}
+.v{font-size:9px;color:#0a8f4d;border:1px solid #7fd7a8;border-radius:4px;padding:0 3px;margin-left:3px}
+.p-score{font-size:11px;color:#8a9099;margin-top:3px}
+.p-score b{color:#ff8f3c}
+.p-medal{background:#fff7e6;color:#c68a2e;font-size:9px;border-radius:4px;padding:1px 4px;margin-left:4px}
+.p-stats{font-size:11px;color:#666;margin:8px 0 4px;display:flex;gap:12px}
+.p-stats b{color:#222}
+.dyn{background:#F6F7F9;border-radius:8px;padding:7px 9px;font-size:11px;color:#666;margin-top:6px;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dyn i{font-style:normal;color:#07C160;margin-right:4px}
+.more{font-size:10px;color:#9aa0a6;text-align:center;margin-top:6px}
+/* TabBar */
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:80px;background:#fff;border-top:1px solid #ececec;
+ display:flex;align-items:flex-start;padding-top:8px}
+.tb{flex:1;text-align:center;font-size:10px;color:#9aa0a6}
+.tb .ic{font-size:20px}
+.tb.on{color:#07C160}
+.pub{flex:1;margin-top:-26px}
+.pub .c{width:52px;height:52px;border-radius:50%;background:#07C160;color:#fff;font-size:26px;margin:0 auto;
+ display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(7,193,96,.4);border:4px solid #fff}
+.pub p{font-size:10px;color:#07C160;text-align:center;margin-top:2px}
+.homebar{position:absolute;bottom:6px;left:34%;width:32%;height:5px;border-radius:3px;background:#111}
+/* 浮层 */
+.toast{position:absolute;top:96px;left:12px;right:12px;background:#fff;border-radius:12px;padding:12px 14px;
+ box-shadow:0 8px 24px rgba(0,0,0,.15);display:flex;justify-content:space-between;align-items:center;z-index:50}
+.toast p{font-size:12px;color:#444}.toast p b{color:#fa8c16}
+.toast a{font-size:12px;color:#07C160;font-weight:600;text-decoration:none;flex-shrink:0;margin-left:8px}
+/* 夜间遮罩 */
+.night{position:absolute;inset:0;background:rgba(15,20,30,.82);z-index:60;display:flex;align-items:center;justify-content:center}
+.night .box{width:280px;background:#fff;border-radius:16px;padding:24px 20px;text-align:center}
+.night .box .moon{font-size:40px}
+.night h5{font-size:16px;margin:10px 0 8px;color:#222}
+.night p{font-size:12px;color:#777;line-height:1.7}
+.night a{display:block;margin-top:16px;background:#07C160;color:#fff;border-radius:20px;padding:10px 0;font-size:14px;text-decoration:none}
+.foot-tip{position:absolute;bottom:92px;left:0;right:0;text-align:center;font-size:10px;color:#b8bdc4;z-index:10}
+</style>
+</head>
+<body>
+
+<!-- ═══ 屏幕1：用户视角首页 · 需求广场Tab ═══ -->
+<div class="stage">
+<h3>屏幕1 · 首页（需求广场Tab）</h3>
+<div class="phone">
+  <span class="note" style="top:60px">①</span><span class="note" style="top:106px">②</span>
+  <span class="note" style="top:180px">③</span><span class="note" style="top:296px">④</span>
+  <span class="note" style="top:352px">⑤</span><span class="note" style="top:420px">⑥</span>
+  <span class="note" style="top:700px">⑦</span><span class="note" style="top:140px">⑨</span>
+
+  <div class="sb"><span>9:41</span><span>◉◉ ᯤ 🔋</span></div>
+
+  <div class="nav">
+    <span class="city">成都 <i>▼</i></span>
+    <div class="search">🔍 搜场景 / 耍伴 / 需求</div>
+    <span class="bell">🔔<b>3</b></span>
+  </div>
+
+  <div class="safe">🛡<b>官方认证</b> ｜ 📋<b>保险兜底</b> ｜ 📍<b>零静默定位</b> ｜ 🔒<b>资金担保</b></div>
+
+  <div class="toast"><p><b>!</b> 您的紧急联系人「王**」尚未完成确认</p><a href="#">去确认 ›</a></div>
+
+  <div class="grid">
+    <div class="cell"><span class="badge-gb">国标</span><div class="ic" style="background:#E8F1FF">🏥</div>就医陪诊</div>
+    <div class="cell"><div class="ic" style="background:#EDE8FF">📚</div>学习陪伴</div>
+    <div class="cell"><div class="ic" style="background:#FFF3E0">🧾</div>生活协助</div>
+    <div class="cell"><div class="ic" style="background:#E0F5F4">🚄</div>出行陪伴</div>
+    <div class="cell"><div class="ic" style="background:#FFE9EC">💬</div>线上陪伴</div>
+    <div class="cell gray"><div class="ic">＋</div>更多场景</div>
+  </div>
+
+  <div class="fuli">
+    <div><div class="t">🎁 新人首单立减20元</div><div class="s">首单免平台服务费 · 每人限1次</div></div>
+    <a href="#">领取</a>
+  </div>
+
+  <div class="tabs"><span class="on">🔥 需求广场</span><span>⭐ 耍伴推荐</span></div>
+
+  <div class="card">
+    <span class="tag t-scene">就医陪诊</span><span class="tag t-aa">AA自理</span>
+    <h4>周三陪父亲华西医院复诊（取号排队+取药）</h4>
+    <div class="meta"><span>📍 武侯区 · 3.8km</span><span>🕐 周三 08:30-12:00</span><span>👤 李**（已实名）</span></div>
+    <div class="row-b"><span class="price">150<span>元/次 · AA线下自理</span></span><button class="btn">帮TA →</button></div>
+  </div>
+
+  <div class="card">
+    <span class="tag t-gongyi">公益免费</span><span class="tag t-scene">出行陪伴</span>
+    <h4>周六上午陪散步散心（天府广场周边）</h4>
+    <div class="meta"><span>📍 锦江区 · 2.5km</span><span>🕐 周六 09:00-12:00</span><span>👤 陈**（已实名）</span></div>
+    <div class="row-b"><span class="price">平台补贴<span> · 不收用户费用</span></span><button class="btn">帮TA →</button></div>
+  </div>
+
+  <div class="foot-tip">—— 全场景 23:00-06:00 暂停预约与履约 ——</div>
+
+  <div class="tabbar">
+    <div class="tb on"><div class="ic">🏠</div>首页</div>
+    <div class="tb"><div class="ic">🧭</div>广场</div>
+    <div class="pub"><div class="c">＋</div><p>发布</p></div>
+    <div class="tb"><div class="ic">💬</div>消息</div>
+    <div class="tb"><div class="ic">👤</div>我的</div>
+  </div>
+  <div class="homebar"></div>
+</div>
+</div>
+
+<!-- ═══ 屏幕2：耍伴推荐Tab + 夜间闭市遮罩 ═══ -->
+<div class="stage">
+<h3>屏幕2 · 耍伴推荐Tab + R1夜间遮罩态</h3>
+<div class="phone">
+  <span class="note" style="top:420px">⑧</span><span class="note" style="top:470px">⑩</span>
+
+  <div class="sb"><span>23:20</span><span>◉◉ ᯤ 🔋</span></div>
+  <div class="nav">
+    <span class="city">成都 <i>▼</i></span>
+    <div class="search">🔍 搜场景 / 耍伴 / 需求</div><span class="bell">🔔</span>
+  </div>
+  <div class="safe">🛡<b>官方认证</b> ｜ 📋<b>保险兜底</b> ｜ 📍<b>零静默定位</b> ｜ 🔒<b>资金担保</b></div>
+
+  <div class="grid">
+    <div class="cell"><span class="badge-gb">国标</span><div class="ic" style="background:#E8F1FF">🏥</div>就医陪诊</div>
+    <div class="cell"><div class="ic" style="background:#EDE8FF">📚</div>学习陪伴</div>
+    <div class="cell"><div class="ic" style="background:#FFF3E0">🧾</div>生活协助</div>
+    <div class="cell"><div class="ic" style="background:#E0F5F4">🚄</div>出行陪伴</div>
+    <div class="cell"><div class="ic" style="background:#FFE9EC">💬</div>线上陪伴</div>
+    <div class="cell gray"><div class="ic">＋</div>更多场景</div>
+  </div>
+
+  <div class="tabs"><span>🔥 需求广场</span><span class="on">⭐ 耍伴推荐</span></div>
+
+  <div class="card">
+    <div class="p-top">
+      <div class="avatar">🧑‍⚕️</div>
+      <div style="flex:1">
+        <div class="p-name">小雅酱<span class="v">实名</span><span class="v">人脸</span><span class="v">陪诊认证</span></div>
+        <div class="p-score">信用分 <b>850</b> · L3优质耍伴<span class="p-medal">🏅 月度之星</span></div>
+      </div>
+    </div>
+    <div style="margin-top:8px"><span class="tag t-scene">就医陪诊</span><span class="tag t-scene">学习陪伴</span></div>
+    <div class="p-stats"><span>⏱ 准时率 <b>98%</b></span><span>❤ 好评率 <b>95%</b></span><span>🧾 <b>128</b> 单</span></div>
+    <div class="row-b"><span class="price">50-80<span> 元/小时 · 距你 2.3km</span></span><button class="btn">邀TA帮忙</button></div>
+    <div class="dyn"><i>📢 最新动态</i>今天陪阿姨去华西复诊，一切顺利，阿姨说下次还找我～</div>
+    <div class="more">— 点击卡片查看完整评价与资质 —</div>
+  </div>
+
+  <div class="foot-tip">下拉加载更多高信用耍伴 · 新耍伴前5单享流量扶持</div>
+
+  <div class="tabbar">
+    <div class="tb on"><div class="ic">🏠</div>首页</div>
+    <div class="tb"><div class="ic">🧭</div>广场</div>
+    <div class="pub"><div class="c">＋</div><p>发布</p></div>
+    <div class="tb"><div class="ic">💬</div>消息</div>
+    <div class="tb"><div class="ic">👤</div>我的</div>
+  </div>
+  <div class="homebar"></div>
+
+  <!-- R1红线遮罩：23:00-06:00系统强制 -->
+  <div class="night">
+    <div class="box">
+      <div class="moon">🌙</div>
+      <h5>夜间服务休息中</h5>
+      <p>为保障人身安全，平台每日 23:00–06:00<br>暂停<b>预约与履约</b>功能（系统强制）</p>
+      <p style="margin-top:8px;color:#aaa">您可继续浏览内容</p>
+      <a href="#">预约明早 6:00 后的服务</a>
+    </div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

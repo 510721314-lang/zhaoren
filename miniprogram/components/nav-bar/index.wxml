@@ -1,0 +1,16 @@
+<view class="navbar {{fixed ? 'is-fixed' : ''}}" style="background: {{bg}};">
+  <view style="height: {{statusBarHeight}}px;"></view>
+  <view class="navbar__bar">
+    <view class="navbar__left" bindtap="onBack" wx:if="{{showBack}}">
+      <text class="navbar__back">‹</text>
+    </view>
+    <view class="navbar__left navbar__left--empty" wx:else></view>
+    <view class="navbar__title ellipsis">{{title}}</view>
+    <view class="navbar__right">
+      <slot name="right"></slot>
+    </view>
+  </view>
+</view>
+<view class="navbar__placeholder" wx:if="{{fixed}}" style="padding-top: {{statusBarHeight}}px;">
+  <view class="navbar__bar navbar__bar--ghost"></view>
+</view>

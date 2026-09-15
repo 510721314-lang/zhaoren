@@ -1,0 +1,165 @@
+.pcard {
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  padding: 24rpx 28rpx;
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--card-gap);
+}
+.pcard__top {
+  display: flex;
+  align-items: flex-start;
+}
+.pcard__avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-display-lg);
+  flex-shrink: 0;
+}
+.pcard__info {
+  flex: 1;
+  margin-left: 20rpx;
+  min-width: 0;
+}
+.pcard__name-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pcard__name {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--text-1);
+  margin-right: 8rpx;
+}
+.pcard__cert {
+  font-size: var(--font-xxs);
+  color: var(--func-success);
+  border: 1rpx solid var(--cert-border);
+  border-radius: 8rpx;
+  padding: 0 6rpx;
+  margin-right: 6rpx;
+  line-height: 1.6;
+}
+.pcard__score-line {
+  margin-top: 8rpx;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pcard__score-label {
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+.pcard__score-num {
+  font-size: var(--font-sm);
+  color: var(--func-warning);
+  font-weight: 700;
+  margin: 0 6rpx 0 4rpx;
+}
+.pcard__level {
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+.pcard__medal {
+  background: var(--brand-accent-light);
+  color: var(--text-banner-sub);
+  font-size: var(--font-xxs);
+  border-radius: 8rpx;
+  padding: 2rpx 8rpx;
+  margin-left: 8rpx;
+}
+.pcard__scenes {
+  margin-top: 16rpx;
+  display: flex;
+  flex-wrap: wrap;
+}
+.pcard__stats {
+  margin-top: 14rpx;
+  display: flex;
+  flex-wrap: wrap;
+}
+.pcard__stat {
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  margin-right: 28rpx;
+}
+.pcard__stat-num {
+  color: var(--text-1);
+  font-weight: 600;
+}
+.pcard__stats--dim {
+  margin-top: 14rpx;
+  font-size: var(--font-sm);
+  color: var(--text-5);
+}
+.pcard__bottom {
+  margin-top: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pcard__price-num {
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--func-danger);
+}
+.pcard__price-unit {
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+.pcard__btn {
+  margin: 0;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 32rpx;
+  border-radius: 28rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+.pcard__btn::after {
+  border: none;
+}
+.pcard__btn.button-hover {
+  background: var(--brand-primary-press);
+}
+.pcard__dyn {
+  margin-top: 16rpx;
+  background: var(--bg-page);
+  border-radius: var(--r-sm);
+  padding: 14rpx 18rpx;
+  display: flex;
+  align-items: center;
+}
+.pcard__dyn-tag {
+  font-size: var(--font-sm);
+  color: var(--brand-primary);
+  margin-right: 8rpx;
+  flex-shrink: 0;
+}
+.pcard__dyn-text {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  margin-right: 12rpx;
+}
+.pcard__dyn-time {
+  font-size: var(--font-xs);
+  color: var(--text-5);
+  flex-shrink: 0;
+}
+.pcard__more {
+  margin-top: 12rpx;
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}

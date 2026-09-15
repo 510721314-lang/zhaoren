@@ -1,0 +1,9 @@
+<view class="section {{padded ? '' : 'section--flush'}}">
+  <view class="section__header" wx:if="{{title}}">
+    <text class="section__title">{{title}}</text>
+    <view class="section__extra">
+      <slot name="extra"></slot>
+    </view>
+  </view>
+  <slot></slot>
+</view>

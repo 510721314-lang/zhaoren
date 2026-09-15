@@ -1,0 +1,17 @@
+<view class="tmc tmc--{{msg.direction}}" wx:if="{{tm}}">
+  <view class="tmc__head" style="background:{{tm.headColor}};">
+    <text class="tmc__tm-id">{{tm.id}}</text>
+    <text class="tmc__tm-name">{{tm.name}}</text>
+    <text class="tmc__status tmc__status--{{statusClass}}">{{statusText}}</text>
+  </view>
+  <view class="tmc__body">
+    <view class="tmc__question">{{msg.question || tm.question}}</view>
+    <view class="tmc__picked" wx:if="{{msg.picked}}">已选：{{msg.picked}}</view>
+    <view class="tmc__options" wx:if="{{tm.options.length > 0 && msg.status !== 'confirmed' && msg.status !== 'replied'}}">
+      <view class="tmc__option" wx:for="{{tm.options}}" wx:key="*this" data-option="{{item}}" bindtap="onOption">{{item}}</view>
+    </view>
+    <view class="tmc__options tmc__options--locked" wx:if="{{msg.status === 'confirmed' || msg.status === 'replied'}}">
+      <view class="tmc__option {{msg.picked === item ? 'is-picked' : ''}}" wx:for="{{tm.options}}" wx:key="*this">{{item}}</view>
+    </view>
+  </view>
+</view>

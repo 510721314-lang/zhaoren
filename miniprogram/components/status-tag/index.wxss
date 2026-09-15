@@ -1,0 +1,9 @@
+﻿.status-tag {
+  display: inline-block;
+  font-size: var(--font-xs);
+  line-height: 1.4;
+  padding: 4rpx 12rpx;
+  border-radius: 10rpx;
+  font-weight: 600;
+  white-space: nowrap;
+}

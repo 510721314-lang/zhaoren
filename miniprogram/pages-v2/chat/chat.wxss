@@ -1,0 +1,263 @@
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-page);
+}
+
+/* C1 */
+.chat__header {
+  display: flex;
+  align-items: center;
+  height: 92rpx;
+  background: var(--bg-card);
+  border-bottom: 1rpx solid var(--border-2);
+  padding: 0 20rpx;
+  flex-shrink: 0;
+}
+.chat__back {
+  width: 64rpx;
+  font-size: var(--font-display-lg);
+  color: var(--text-1);
+  line-height: 1;
+  text-align: center;
+}
+.chat__title {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-xl);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chat__order-entry {
+  width: 64rpx;
+  text-align: center;
+  font-size: var(--font-xxl);
+}
+
+/* C3 */
+.chat__limit {
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-aa);
+  background: var(--func-warning-light);
+  padding: 12rpx 0;
+  flex-shrink: 0;
+}
+.chat__limit.is-ok {
+  color: var(--func-success);
+  background: var(--func-success-light);
+}
+
+/* C4 */
+.chat__flow {
+  flex: 1;
+  padding: 20rpx;
+  overflow-y: auto;
+}
+.chat__msg-wrap {
+  margin-bottom: 20rpx;
+}
+
+/* 系统条 */
+.chat__system {
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+  background: var(--bg-segment);
+  border-radius: var(--r-sm);
+  padding: 10rpx 20rpx;
+  display: inline-block;
+  margin: 0 auto 20rpx;
+  width: 100%;
+  box-sizing: border-box;
+}
+.chat__msg-time {
+  margin-left: 12rpx;
+  font-size: var(--font-xs);
+}
+
+/* 订单卡片消息 */
+.chat__order-card {
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  border: 1rpx solid var(--border-1);
+  padding: 20rpx 24rpx;
+  width: 560rpx;
+  margin: 0 auto 20rpx;
+  box-shadow: var(--shadow-card);
+}
+.chat__order-card-title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.chat__order-card-meta {
+  margin-top: 8rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+}
+.chat__order-card-tip {
+  margin-top: 8rpx;
+  font-size: var(--font-xs);
+  color: var(--func-info);
+}
+
+/* 文字气泡 */
+.chat__bubble {
+  max-width: 560rpx;
+}
+.chat__bubble--out {
+  margin-left: auto;
+}
+.chat__bubble--in {
+  margin-right: auto;
+}
+.chat__bubble-text {
+  padding: 18rpx 24rpx;
+  border-radius: var(--r-md);
+  font-size: var(--font-md);
+  color: var(--text-1);
+  line-height: 1.5;
+  word-break: break-all;
+}
+.chat__bubble--out .chat__bubble-text {
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  border-radius: var(--r-md) 8rpx var(--r-md) var(--r-md);
+}
+.chat__bubble--in .chat__bubble-text {
+  background: var(--bg-card);
+  border-radius: 8rpx var(--r-md) var(--r-md) var(--r-md);
+}
+.chat__bubble-time {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.chat__bubble--out .chat__bubble-time {
+  text-align: right;
+}
+
+/* C5 模板快捷键 */
+.chat__quick {
+  display: flex;
+  background: var(--bg-card);
+  border-top: 1rpx solid var(--border-2);
+  padding: 12rpx 8rpx;
+  flex-shrink: 0;
+}
+.chat__quick-item {
+  flex: 1;
+  text-align: center;
+}
+.chat__quick-ic {
+  font-size: var(--font-xxl);
+}
+.chat__quick-name {
+  margin-top: 2rpx;
+  font-size: var(--font-xs);
+  color: var(--text-3);
+}
+
+/* C6 输入 */
+.chat__input-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border-top: 1rpx solid var(--border-2);
+  padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+}
+.chat__input-locked {
+  flex: 1;
+  height: 68rpx;
+  line-height: 68rpx;
+  background: var(--bg-segment);
+  border-radius: var(--r-sm);
+  font-size: var(--font-sm);
+  color: var(--text-5);
+  padding: 0 20rpx;
+}
+.chat__input {
+  flex: 1;
+  height: 68rpx;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border-1);
+  border-radius: var(--r-sm);
+  padding: 0 20rpx;
+  font-size: var(--font-md);
+}
+.chat__send-btn {
+  margin-left: 16rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  border-radius: var(--r-md);
+  padding: 16rpx 32rpx;
+  flex-shrink: 0;
+}
+
+/* 弹窗内 */
+.chat__other-textarea {
+  width: 100%;
+  min-height: 160rpx;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border-1);
+  border-radius: var(--r-sm);
+  padding: 16rpx 20rpx;
+  font-size: var(--font-md);
+}
+.chat__other-count {
+  text-align: right;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  margin-top: 8rpx;
+}
+.chat__other-btns {
+  display: flex;
+  gap: 20rpx;
+}
+.chat__btn {
+  flex: 1;
+  height: 80rpx;
+  line-height: 80rpx;
+  border-radius: 40rpx;
+  font-size: var(--font-md);
+  margin: 0;
+}
+.chat__btn::after {
+  border: none;
+}
+.chat__btn--ghost {
+  background: var(--bg-card);
+  color: var(--text-3);
+  border: 1rpx solid var(--border-ghost);
+}
+.chat__btn--primary {
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-weight: 600;
+}
+.chat__btn--primary[disabled] {
+  background: var(--btn-disabled-bg);
+}
+.chat__kefu-tip {
+  font-size: var(--font-md);
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.chat__kefu-sub {
+  margin-top: 12rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+
+/* 三态骨架屏 */
+.chat__loading { flex: 1; padding: 16rpx; }
+.chat__skeleton { height: 120rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: chat-skeleton-pulse 1.2s ease-in-out infinite; }
+@keyframes chat-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }

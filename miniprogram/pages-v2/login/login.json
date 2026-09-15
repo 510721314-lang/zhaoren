@@ -1,0 +1,6 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "night-mask": "/components/night-mask/index"
+  }
+}

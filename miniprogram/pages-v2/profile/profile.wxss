@@ -1,0 +1,230 @@
+﻿.profile {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 20rpx 160rpx;
+}
+
+/* U1 */
+.pf__header {
+  margin-top: 12rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 32rpx 28rpx;
+  display: flex;
+  align-items: center;
+}
+.pf__avatar {
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-display-xl);
+}
+.pf__head-info {
+  margin-left: 24rpx;
+}
+.pf__name-line {
+  display: flex;
+  align-items: center;
+}
+.pf__name {
+  font-size: var(--font-xxl);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.pf__badge {
+  font-size: var(--font-xs);
+  color: var(--func-success);
+  border: 1rpx solid var(--cert-border);
+  border-radius: 8rpx;
+  padding: 0 8rpx;
+  margin-left: 10rpx;
+}
+.pf__phone {
+  margin-top: 10rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+
+/* 身份切换 */
+.pf__switch {
+  margin-top: 20rpx;
+  background: var(--bg-segment);
+  border-radius: var(--r-md);
+  padding: 6rpx;
+  display: flex;
+}
+.pf__switch-item {
+  flex: 1;
+  height: 72rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-md);
+  color: var(--text-3);
+}
+.pf__switch-item.is-on {
+  background: var(--bg-card);
+  color: var(--brand-primary);
+  font-weight: 700;
+  box-shadow: var(--shadow-card);
+}
+.pf__switch-ic {
+  margin-right: 8rpx;
+}
+
+/* U2 双信用分 */
+.pf__scores {
+  margin-top: 20rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 32rpx 0;
+  display: flex;
+  align-items: center;
+}
+.pf__score {
+  flex: 1;
+  text-align: center;
+}
+.pf__score-num {
+  font-size: var(--font-display-lg);
+  font-weight: 700;
+  color: var(--func-warning);
+}
+.pf__score-label {
+  margin-top: 6rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+}
+.pf__score-level {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.pf__score-divider {
+  width: 1rpx;
+  height: 88rpx;
+  background: var(--border-2);
+}
+
+/* U3 */
+.pf__orders {
+  margin-top: 20rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28rpx 0;
+  display: flex;
+}
+.pf__order {
+  flex: 1;
+  text-align: center;
+}
+.pf__order-ic {
+  position: relative;
+  font-size: var(--font-display-lg);
+}
+.pf__order-dot {
+  position: absolute;
+  top: -8rpx;
+  right: 24rpx;
+  min-width: 28rpx;
+  height: 28rpx;
+  line-height: 28rpx;
+  padding: 0 6rpx;
+  border-radius: 14rpx;
+  background: var(--func-danger);
+  color: var(--text-invert);
+  font-size: var(--font-xs);
+}
+.pf__order-name {
+  margin-top: 10rpx;
+  font-size: var(--font-sm);
+  color: var(--text-2);
+}
+
+/* 卡片通用 */
+.pf__card {
+  margin-top: 20rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 8rpx 28rpx;
+}
+.pf__card-title {
+  padding: 24rpx 0 8rpx;
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.pf__link {
+  display: flex;
+  align-items: center;
+  height: 96rpx;
+  border-bottom: 1rpx solid var(--border-divider);
+}
+.pf__link:last-child {
+  border-bottom: none;
+}
+.pf__link-ic {
+  font-size: var(--font-xxl);
+  margin-right: 20rpx;
+}
+.pf__link-name {
+  flex: 1;
+  font-size: var(--font-md);
+  color: var(--text-2);
+}
+.pf__link-arrow {
+  font-size: var(--font-xxl);
+  color: var(--text-disabled);
+}
+
+/* 成为耍伴 */
+.pf__apply {
+  margin-top: 20rpx;
+  background: linear-gradient(90deg, var(--brand-primary-light), var(--func-success-light));
+  border-radius: var(--r-lg);
+  padding: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pf__apply-title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--func-success);
+}
+.pf__apply-sub {
+  margin-top: 8rpx;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+.pf__apply-btn {
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-sm);
+  border-radius: 28rpx;
+  padding: 12rpx 28rpx;
+  flex-shrink: 0;
+}
+
+/* U6 */
+.pf__logout {
+  margin-top: 28rpx;
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--func-danger);
+}
+.pf__version {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+}

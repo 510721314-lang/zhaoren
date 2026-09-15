@@ -1,0 +1,162 @@
+<view class="v2 od">
+  <nav-bar title="订单详情"></nav-bar>
+
+  <!-- 加载态 -->
+  <view class="od__loading" wx:if="{{loading}}">
+    <view class="od__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+  <!-- 网络异常态 -->
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <!-- 正常态 -->
+  <block wx:elif="{{order}}">
+  <view class="od__body">
+    <!-- O1 状态头 -->
+    <view class="od__status-head" style="background:{{statusInfo.bgTag}};">
+      <view class="od__status-name" style="color:{{statusInfo.colorTag}};">{{statusInfo.name}}</view>
+      <view class="od__status-count" wx:if="{{countdownText}}">{{countdownText}}</view>
+      <view class="od__order-no">订单号 #{{order.order_no}}</view>
+    </view>
+
+    <!-- O1 13态进度轴 -->
+    <view class="od__card">
+      <order-progress status="{{order.status}}"></order-progress>
+    </view>
+
+    <!-- 订单信息 -->
+    <view class="od__card">
+      <view class="od__card-title">订单信息</view>
+      <view class="od__tags">
+        <tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip>
+        <tag-chip type="gongyi" wx:if="{{order.project_attr === 'public_welfare'}}" />
+      </view>
+      <view class="od__row"><text class="od__label">时间</text><text class="od__val">{{order.service_date}} {{order.service_time}}</text></view>
+      <view class="od__row"><text class="od__label">地点</text><text class="od__val">{{order.location.name}}</text></view>
+      <view class="od__row"><text class="od__label">耍伴</text><text class="od__val">{{order.partner_name}}</text></view>
+      <view class="od__row"><text class="od__label">时长</text><text class="od__val">{{order.duration_hours}}小时</text></view>
+      <view class="od__row"><text class="od__label">金额</text><text class="od__val od__val--strong">¥{{amountYuan}}</text></view>
+    </view>
+
+    <!-- O7 保险卡 -->
+    <view class="od__card" wx:if="{{order.insurance && order.insurance.policy_no}}">
+      <view class="od__card-title">保险保障</view>
+      <view class="od__row"><text class="od__label">保单号</text><text class="od__val">{{order.insurance.policy_no}}</text></view>
+      <view class="od__row"><text class="od__label">保额</text><text class="od__val">{{insuranceWan}}万元</text></view>
+      <view class="od__row"><text class="od__label">状态</text><text class="od__val od__val--success">{{order.insurance.status === 'insured' ? '生效中' : '待生效'}}</text></view>
+    </view>
+
+    <!-- O3 操作区 -->
+    <view class="od__card">
+      <view class="od__card-title">操作</view>
+
+      <!-- S0 待支付 -->
+      <block wx:if="{{order.status === 'S0'}}">
+        <button class="od__btn od__btn--primary" bindtap="goPay">去支付</button>
+        <button class="od__btn od__btn--ghost" bindtap="onCancel">取消订单</button>
+      </block>
+
+      <!-- S1 待确认 -->
+      <block wx:elif="{{order.status === 'S1'}}">
+        <button class="od__btn od__btn--primary" bindtap="goChat">进入聊天完成四确认</button>
+      </block>
+
+      <!-- S2 已支付待履约 -->
+      <block wx:elif="{{order.status === 'S2'}}">
+        <button class="od__btn od__btn--primary" bindtap="onStartService">开始履约</button>
+        <button class="od__btn od__btn--ghost" bindtap="goChat">联系对方</button>
+      </block>
+
+      <!-- S3 履约中 -->
+      <block wx:elif="{{order.status === 'S3'}}">
+        <view class="od__action-grid">
+          <button class="od__action-btn" bindtap="onSafety">🚨 安全报备</button>
+          <button class="od__action-btn" bindtap="onAddTime">⏰ 加时申请</button>
+          <button class="od__action-btn" bindtap="onModify">📅 申请改期</button>
+          <button class="od__action-btn od__action-btn--primary" bindtap="onFinishService">✓ 履约完成</button>
+        </view>
+      </block>
+
+      <!-- S3.5 履约中断（PRD 3.5.2 nextActions: resume/confirm） -->
+      <block wx:elif="{{order.status === 'S3_5'}}">
+        <view class="od__safety-confirm">
+          <view class="od__safety-q">履约中断处理</view>
+          <view class="od__safety-tip">{{s35ResponseMin}}分钟内未响应自动确认 · {{statusInfo.timeoutText}}</view>
+          <view class="od__safety-btns">
+            <button class="od__btn od__btn--ghost" bindtap="onResumeService">恢复履约</button>
+            <button class="od__btn od__btn--primary" bindtap="onToPartial">确认部分完成</button>
+          </view>
+        </view>
+      </block>
+
+      <!-- S4 部分完成 -->
+      <block wx:elif="{{order.status === 'S4'}}">
+        <view class="od__ratio-confirm">
+          <view class="od__safety-q">部分完成比例确认</view>
+          <button class="od__btn od__btn--primary" bindtap="onRatioConfirm">确认比例</button>
+        </view>
+      </block>
+
+      <!-- S5 已完成 -->
+      <block wx:elif="{{order.status === 'S5'}}">
+        <button class="od__btn od__btn--primary" bindtap="onEvaluate">去评价</button>
+      </block>
+
+      <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
+      <block wx:elif="{{order.status === 'S8'}}">
+        <view class="od__after-sale-tip">售后窗口{{afterSaleDays}}天</view>
+        <button class="od__btn od__btn--danger" bindtap="onComplaint">发起投诉</button>
+      </block>
+
+      <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：等待耍伴确认，无操作按钮） -->
+      <block wx:elif="{{order.status === 'S2_5'}}">
+        <view class="od__terminated-tip">{{statusInfo.name}}</view>
+        <view class="od__after-sale-tip">{{statusInfo.timeoutText}}</view>
+      </block>
+
+      <!-- S10.5 争议处理中（PRD 3.5.2 nextActions: arbitration） -->
+      <block wx:elif="{{order.status === 'S10_5'}}">
+        <view class="od__terminated-tip">{{statusInfo.name}}</view>
+        <view class="od__after-sale-tip">{{statusInfo.timeoutText}}</view>
+      </block>
+
+      <!-- S6/S7/S9/S10 已终止态（PRD 3.5.2 nextActions 为空） -->
+      <block wx:else>
+        <view class="od__terminated-tip">{{statusInfo.name}}</view>
+      </block>
+    </view>
+  </view>
+
+  <!-- O4 改期弹窗 -->
+  <bottom-sheet visible="{{modifySheetVisible}}" title="申请改期" bind:close="closeModifySheet" has-footer="{{true}}">
+    <view class="od__modify-tip">{{modifyRuleText}}</view>
+    <picker mode="time" start="{{redlineOpen}}" end="{{redlineClose}}" value="{{newModifyTime}}" bindchange="onModifyTimeChange">
+      <view class="od__picker-row">
+        <text class="od__picker-label">新时间</text>
+        <text class="od__picker-val {{newModifyTime ? '' : 'is-empty'}}">{{newModifyTime || '请选择'}}</text>
+        <text class="od__arrow">›</text>
+      </view>
+    </picker>
+    <view slot="footer" class="od__sheet-btns">
+      <button class="od__btn od__btn--ghost" bindtap="closeModifySheet">取消</button>
+      <button class="od__btn od__btn--primary" bindtap="confirmModify">提交改期</button>
+    </view>
+  </bottom-sheet>
+
+  <!-- O5 取消弹窗 -->
+  <bottom-sheet visible="{{cancelSheetVisible}}" title="取消订单" bind:close="closeCancelSheet" has-footer="{{true}}">
+    <view class="od__cancel-tiers">
+      <view class="od__cancel-tier {{index === currentCancelIdx ? 'is-on' : ''}}" wx:for="{{cancelTiers}}" wx:key="lead">
+        <text class="od__cancel-label">{{item.label}}</text>
+        <text class="od__cancel-rate">退款{{item.rate * 100}}%</text>
+      </view>
+    </view>
+    <view class="od__cancel-tip">当前档位：{{cancelTiers[currentCancelIdx].label}}，退款{{cancelTiers[currentCancelIdx].rate * 100}}%</view>
+    <view slot="footer" class="od__sheet-btns">
+      <button class="od__btn od__btn--ghost" bindtap="closeCancelSheet">再想想</button>
+      <button class="od__btn od__btn--danger" bindtap="confirmCancel">确认取消</button>
+    </view>
+  </bottom-sheet>
+  </block>
+  <!-- 空态 -->
+  <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

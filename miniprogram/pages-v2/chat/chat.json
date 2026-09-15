@@ -1,0 +1,9 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "nav-bar": "/components/nav-bar/index",
+    "confirm-progress": "/components/confirm-progress/index",
+    "tm-template-card": "/components/tm-template-card/index",
+    "bottom-sheet": "/components/bottom-sheet/index"
+  }
+}

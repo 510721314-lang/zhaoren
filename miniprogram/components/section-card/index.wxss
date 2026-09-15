@@ -1,0 +1,26 @@
+.section {
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  padding: 24rpx 28rpx;
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--card-gap);
+}
+.section--flush {
+  padding: 0;
+  overflow: hidden;
+}
+.section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+.section__title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.section__extra {
+  display: flex;
+  align-items: center;
+}

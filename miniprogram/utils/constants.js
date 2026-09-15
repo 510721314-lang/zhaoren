@@ -1,22 +1,23 @@
 // utils/constants.js - 全局常量 · 对应 PRD 附录G 状态机 / 3.2 场景 / 3.4 AA档位 / 3.3 IM模板
 // 严格遵守 .trae/rules.md 红线参数
 
-// 订单 13 态状态机(PRD 附录G SSOT)
-const ORDER_STATUS = {
-  S0:    { code: 'S0',    name: '待支付',     color: 'warn' },
-  S1:    { code: 'S1',    name: '待确认',     color: 'primary' },
-  S2:    { code: 'S2',    name: '已支付待履约', color: 'primary' },
-  S3:    { code: 'S3',    name: '履约中',     color: 'success' },
-  S3_5:  { code: 'S3.5',  name: '履约中断',   color: 'danger' },
-  S4:    { code: 'S4',    name: '部分完成',   color: 'primary' },
-  S5:    { code: 'S5',    name: '已完成',     color: 'success' },
-  S6:    { code: 'S6',    name: '已取消',     color: 'muted' },
-  S7:    { code: 'S7',    name: '已退款',     color: 'muted' },
-  S8:    { code: 'S8',    name: '已评价',     color: 'success' },
-  S9:    { code: 'S9',    name: '评价超时',   color: 'warn' },
-  S10:   { code: 'S10',   name: '已关闭',     color: 'muted' },
-  S10_5: { code: 'S10.5', name: '争议处理中', color: 'danger' }
+// 订单状态机(PRD 3.5.2)：唯一 SSOT 为 config/enums.js 的 ORDER_STATUS（S0-S10 + S2.5/S3.5/S10.5）
+// 此处仅为旧 pages/ 派生兼容视图 {code,name,color}，禁止再手写状态名/颜色；新增状态只改 enums.js
+const { ORDER_STATUS: SSOT_ORDER_STATUS } = require('../config/enums.js');
+// SSOT colorTag(var token) → 旧页五语义 class 键(warn/primary/danger/success/muted)
+const SSOT_COLOR_TO_LEGACY = {
+  'var(--func-warning)': 'warn',
+  'var(--func-purple)': 'primary',
+  'var(--func-info)': 'primary',
+  'var(--func-danger)': 'danger',
+  'var(--func-success)': 'success',
+  'var(--text-4)': 'muted'
 };
+const ORDER_STATUS = Object.keys(SSOT_ORDER_STATUS).reduce((acc, key) => {
+  const s = SSOT_ORDER_STATUS[key];
+  acc[key] = { code: s.code, name: s.name, color: SSOT_COLOR_TO_LEGACY[s.colorTag] || 'muted' };
+  return acc;
+}, {});
 
 // 场景白名单(MVP-V1 一期 · PRD 3.2 / 第11章) · 与 init-db 种子 admin_config.scene_list 一致
 const SCENE_LIST = [

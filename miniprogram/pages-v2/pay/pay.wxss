@@ -1,0 +1,153 @@
+.pay {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 20rpx 180rpx;
+}
+.pay__body {
+  padding-top: 20rpx;
+}
+.pay__card {
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  padding: 24rpx 28rpx;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 20rpx;
+}
+.pay__card-title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 16rpx;
+}
+.pay__summary-row {
+  display: flex;
+  align-items: center;
+  padding: 10rpx 0;
+  border-bottom: 1rpx solid var(--border-divider);
+}
+.pay__summary-row:last-child {
+  border-bottom: none;
+}
+.pay__s-label {
+  width: 120rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.pay__s-val {
+  font-size: var(--font-sm);
+  color: var(--text-1);
+}
+
+/* Y2 费用 */
+.pay__fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12rpx 0;
+}
+.pay__fee-label {
+  font-size: var(--font-md);
+  color: var(--text-2);
+}
+.pay__fee-val {
+  font-size: var(--font-md);
+  color: var(--text-1);
+}
+.pay__fee-val--free {
+  color: var(--func-success);
+}
+.pay__fee-val--aa {
+  color: var(--brand-accent);
+  font-size: var(--font-sm);
+}
+.pay__fee-sub {
+  margin-top: -8rpx;
+  margin-bottom: 8rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.pay__fee-sub--warn {
+  color: var(--brand-accent);
+}
+.pay__fee-total {
+  margin-top: 12rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx solid var(--border-1);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.pay__total-label {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.pay__total-val {
+  font-size: var(--font-xxl);
+  font-weight: 700;
+  color: var(--func-danger);
+}
+
+/* Y3 担保 */
+.pay__card--info {
+  display: flex;
+  align-items: flex-start;
+}
+.pay__info-icon {
+  font-size: var(--font-display);
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+.pay__info-title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.pay__info-desc {
+  margin-top: 6rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+/* Y5 */
+.pay__agreements {
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--func-info);
+  padding: 20rpx 0;
+}
+
+/* Y4 */
+.pay__bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20rpx 28rpx calc(20rpx + env(safe-area-inset-bottom));
+  background: var(--bg-card);
+  border-top: 1rpx solid var(--border-2);
+  z-index: 100;
+}
+.pay__btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-lg);
+  font-weight: 600;
+  margin: 0;
+}
+.pay__btn::after {
+  border: none;
+}
+.pay__btn[disabled] {
+  background: var(--btn-disabled-bg);
+}
+
+.pay__loading { padding: 16rpx; }
+.pay__skeleton { height: 120rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: pay-skeleton-pulse 1.2s ease-in-out infinite; }
+@keyframes pay-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }

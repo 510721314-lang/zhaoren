@@ -1,0 +1,65 @@
+.wt { min-height: 100vh; background: var(--bg-page); padding: 0 20rpx 80rpx; }
+.wt__body { padding-top: 20rpx; }
+.wt__card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 28rpx; box-shadow: var(--shadow-card); margin-bottom: 20rpx; }
+.wt__card-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); }
+.wt__card-title-row { margin-bottom: 16rpx; }
+
+/* V1 余额头 */
+.wt__balance-card { background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-press)); border-radius: var(--r-lg); padding: 40rpx 28rpx; color: var(--text-invert); margin-bottom: 20rpx; }
+.wt__balance-label { font-size: var(--font-sm); opacity: 0.8; }
+.wt__balance-num { font-size: var(--font-display-xxl); font-weight: 700; margin: 8rpx 0; }
+.wt__income-row { display: flex; align-items: center; padding: 16rpx 0; }
+.wt__income-item { flex: 1; }
+.wt__income-label { font-size: var(--font-xs); opacity: 0.8; }
+.wt__income-val { display: block; margin-top: 4rpx; font-size: var(--font-md); font-weight: 600; }
+.wt__income-divider { width: 1rpx; height: 60rpx; background: rgba(255,255,255,0.2); }
+.wt__withdraw-btn { width: 100%; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; background: var(--text-invert); color: var(--brand-primary); font-size: var(--font-md); font-weight: 600; margin-top: 16rpx; }
+.wt__withdraw-btn::after { border: none; }
+
+/* V2 极速提现进度 */
+.wt__fast-progress { height: 12rpx; background: var(--bg-segment); border-radius: 6rpx; overflow: hidden; margin: 12rpx 0 8rpx; }
+.wt__fast-bar { height: 100%; background: var(--brand-primary); transition: width 0.3s; }
+.wt__fast-tip { font-size: var(--font-xs); color: var(--text-4); }
+
+/* V3 四态 */
+.wt__fund-tabs { display: flex; gap: 8rpx; margin-bottom: 16rpx; }
+.wt__fund-tab { flex: 1; padding: 12rpx 0; text-align: center; font-size: var(--font-xs); color: var(--text-3); background: var(--bg-segment); border-radius: var(--r-sm); }
+.wt__fund-tab.is-on { background: var(--brand-primary); color: var(--text-invert); }
+.wt__fund-amount { font-size: var(--font-xxl); font-weight: 700; color: var(--brand-primary); text-align: center; }
+
+/* V4 收益明细 */
+.wt__income-item-row { display: flex; justify-content: space-between; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.wt__income-item-row:last-child { border-bottom: none; }
+.wt__income-row-left { flex: 1; }
+.wt__income-name { font-size: var(--font-sm); color: var(--text-1); font-weight: 600; }
+.wt__welfare-tag { display: inline-block; margin-left: 8rpx; padding: 2rpx 8rpx; background: var(--func-success-light); color: var(--func-success); border-radius: 8rpx; font-size: var(--font-xs); font-weight: 400; }
+.wt__income-meta { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
+.wt__income-time { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-5); }
+.wt__income-row-right { text-align: right; }
+.wt__income-gross { font-size: var(--font-md); color: var(--text-1); font-weight: 600; }
+.wt__income-deduct { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
+.wt__income-net { margin-top: 4rpx; font-size: var(--font-sm); color: var(--func-success); font-weight: 600; }
+
+/* V6 工具行 */
+.wt__tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12rpx; margin-top: 20rpx; }
+.wt__tool { padding: 24rpx 0; text-align: center; font-size: var(--font-xs); color: var(--text-3); background: var(--bg-card); border-radius: var(--r-lg); box-shadow: var(--shadow-card); }
+
+/* V5 提现弹窗 */
+.wt__withdraw-input-row { display: flex; align-items: center; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.wt__withdraw-symbol { font-size: var(--font-xxl); font-weight: 700; color: var(--text-1); margin-right: 12rpx; }
+.wt__withdraw-input { flex: 1; height: 80rpx; font-size: var(--font-xxl); color: var(--text-1); }
+.wt__withdraw-tip { margin-top: 8rpx; font-size: var(--font-xs); color: var(--text-4); }
+.wt__fast-row { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 0; }
+.wt__bank-row { display: flex; justify-content: space-between; padding: 16rpx 0; }
+.wt__bank-label { font-size: var(--font-sm); color: var(--text-3); }
+.wt__bank-val { font-size: var(--font-sm); color: var(--text-1); }
+.wt__sheet-btns { display: flex; gap: 16rpx; }
+.wt__btn { flex: 1; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; font-size: var(--font-md); }
+.wt__btn::after { border: none; }
+.wt__btn--ghost { background: var(--bg-segment); color: var(--text-2); }
+.wt__btn--primary { background: var(--brand-primary); color: var(--text-invert); }
+
+/* 三态UI · 骨架屏 */
+.wt__loading { padding: 16rpx; }
+.wt__skeleton { height: 96rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: wt-skeleton-pulse 1.2s ease-in-out infinite; }
+@keyframes wt-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }

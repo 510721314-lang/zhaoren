@@ -1,0 +1,43 @@
+<view class="v2 login">
+  <view style="height: {{statusBarHeight * 2}}rpx;"></view>
+
+  <!-- L1 品牌区 -->
+  <view class="login__brand">
+    <view class="login__logo">🤝</view>
+    <view class="login__name">找个人帮忙</view>
+    <view class="login__slogan">安全第一 · 合规先行</view>
+  </view>
+
+  <!-- L2 卖点区 -->
+  <view class="login__sells">
+    <view class="login__sell"><text class="login__sell-ic">🛡</text><text>官方认证</text></view>
+    <view class="login__sell"><text class="login__sell-ic">📋</text><text>保险兜底</text></view>
+    <view class="login__sell"><text class="login__sell-ic">📍</text><text>零静默定位</text></view>
+    <view class="login__sell"><text class="login__sell-ic">🔒</text><text>资金担保</text></view>
+  </view>
+
+  <!-- 协议 + 登录 -->
+  <view class="login__panel">
+    <view class="login__agree-row" wx:for="{{agreeItems}}" wx:key="key">
+      <view class="login__check {{agreements[item.key] ? 'is-on' : ''}}" data-key="{{item.key}}" catchtap="toggleAgreement">{{agreements[item.key] ? '✓' : ''}}</view>
+      <text class="login__agree-text" data-key="{{item.key}}" catchtap="openAgreement">{{item.label}}</text>
+    </view>
+
+    <button class="login__btn" loading="{{logging}}" disabled="{{!allChecked || logging}}" bindtap="onLogin">
+      微信一键登录
+    </button>
+    <view class="login__tip">登录即代表同意上述协议，未勾选协议无法登录</view>
+  </view>
+
+  <!-- R5 年龄不足拦截页 -->
+  <view class="login__reject" wx:if="{{rejected}}">
+    <view class="login__reject-card">
+      <view class="login__reject-ic">🚫</view>
+      <view class="login__reject-title">暂无法提供服务</view>
+      <view class="login__reject-desc">{{rejectReason}}</view>
+      <button class="login__reject-btn" bindtap="backReject">返回</button>
+    </view>
+  </view>
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

@@ -1,0 +1,1 @@
+<text class="chip chip--{{type}}" style="{{customStyle}}" wx:if="{{label}}">{{label}}</text>

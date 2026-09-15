@@ -3,18 +3,18 @@
 
 /* 角色切换 */
 .role-tabs {
-  display: flex; background: #fff; border-radius: 16rpx; padding: 8rpx;
+  display: flex; background: var(--text-invert); border-radius: 16rpx; padding: 8rpx;
   margin-bottom: 24rpx;
 }
 .role-tab {
   flex: 1; text-align: center; padding: 20rpx 0;
-  font-size: 28rpx; color: var(--text-2); border-radius: 12rpx;
+  font-size: var(--font-lg); color: var(--text-2); border-radius: 12rpx;
 }
-.role-tab.active { background: var(--primary); color: #fff; font-weight: 600; }
+.role-tab.active { background: var(--primary); color: var(--text-invert); font-weight: 600; }
 
 /* 订单卡片 */
 .order-card {
-  background: #fff; border-radius: 16rpx; padding: 28rpx;
+  background: var(--text-invert); border-radius: 16rpx; padding: 28rpx;
   margin-bottom: 24rpx;
 }
 .card-head {
@@ -23,63 +23,63 @@
 }
 .scene-tag {
   background: rgba(212,135,90,0.12); color: var(--primary);
-  font-size: 24rpx; padding: 6rpx 18rpx; border-radius: 20rpx;
+  font-size: var(--font-base); padding: 6rpx 18rpx; border-radius: 20rpx;
 }
-.status { font-size: 26rpx; font-weight: 600; }
-.status-success { color: #3E7C4F; }
-.status-warn { color: #A8652A; }
-.status-danger { color: #B03A2E; }
+.status { font-size: var(--font-md); font-weight: 600; }
+.status-success { color: var(--func-success); }
+.status-warn { color: var(--warning); }
+.status-danger { color: var(--func-danger); }
 .status-primary { color: var(--primary); }
-.status-muted { color: #999; }
+.status-muted { color: var(--text-4); }
 
 .card-body .row {
-  font-size: 28rpx; color: var(--text-1); padding: 8rpx 0;
+  font-size: var(--font-lg); color: var(--text-1); padding: 8rpx 0;
 }
 .card-foot {
   display: flex; justify-content: space-between; align-items: center;
   margin-top: 16rpx; padding-top: 16rpx; border-top: 2rpx solid var(--bg-page);
 }
-.order-no { font-size: 22rpx; color: #aaa; }
-.price { font-size: 32rpx; color: var(--danger); font-weight: 700; }
+.order-no { font-size: var(--font-sm); color: var(--text-4); }
+.price { font-size: var(--font-xxl); color: var(--danger); font-weight: 700; }
 
 /* 当前位置 → 履约地点 出行提示(耍伴) */
 .to-site {
   margin-top: 20rpx; padding: 20rpx; border-radius: 12rpx;
-  background: rgba(58,104,176,0.08); border-left: 6rpx solid #3A68B0;
+  background: rgba(58,104,176,0.08); border-left: 6rpx solid var(--func-info);
 }
 .to-site-title {
-  font-size: 26rpx; font-weight: 600; color: #3A68B0; margin-bottom: 12rpx;
+  font-size: var(--font-md); font-weight: 600; color: var(--func-info); margin-bottom: 12rpx;
 }
 .to-site .commute-modes { margin-bottom: 8rpx; }
 .to-site-depart {
-  font-size: 24rpx; color: var(--text-2); margin-top: 8rpx;
+  font-size: var(--font-base); color: var(--text-2); margin-top: 8rpx;
 }
-.to-site-depart text { color: #B03A2E; font-weight: 600; }
+.to-site-depart text { color: var(--func-danger); font-weight: 600; }
 
 /* 定位未授权提示条 */
 .loc-tip {
   display: flex; align-items: center; justify-content: space-between;
-  background: #fff; border-radius: 12rpx; padding: 20rpx 24rpx;
-  margin-bottom: 24rpx; font-size: 26rpx; color: var(--text-1);
-  border: 2rpx dashed #ccc;
+  background: var(--text-invert); border-radius: 12rpx; padding: 20rpx 24rpx;
+  margin-bottom: 24rpx; font-size: var(--font-md); color: var(--text-1);
+  border: 2rpx dashed var(--border-1);
 }
 .loc-tip-btn {
-  font-size: 24rpx; color: #fff; background: var(--primary);
+  font-size: var(--font-base); color: var(--text-invert); background: var(--primary);
   padding: 8rpx 24rpx; border-radius: 24rpx;
 }
 
 /* 通勤提示 */
 .commute {
   margin-top: 20rpx; padding: 20rpx; border-radius: 12rpx;
-  background: rgba(62,124,79,0.08); border-left: 6rpx solid #3E7C4F;
+  background: rgba(62,124,79,0.08); border-left: 6rpx solid var(--func-success);
 }
-.commute.tight { background: rgba(176,58,46,0.08); border-left-color: #B03A2E; }
-.commute-title { font-size: 26rpx; font-weight: 600; color: var(--text-1); margin-bottom: 8rpx; }
-.commute.tight .commute-title { color: #B03A2E; }
-.commute-detail { font-size: 24rpx; color: var(--text-2); margin-bottom: 12rpx; }
+.commute.tight { background: rgba(176,58,46,0.08); border-left-color: var(--func-danger); }
+.commute-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); margin-bottom: 8rpx; }
+.commute.tight .commute-title { color: var(--func-danger); }
+.commute-detail { font-size: var(--font-base); color: var(--text-2); margin-bottom: 12rpx; }
 .commute-modes {
   display: flex; flex-wrap: wrap; gap: 8rpx 24rpx;
-  font-size: 24rpx; color: var(--text-1);
+  font-size: var(--font-base); color: var(--text-1);
 }
 
 /* 空状态已提升为全局类(app.wxss .empty-state) */

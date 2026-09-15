@@ -1,0 +1,9 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "nav-bar": "/components/nav-bar/index",
+    "tag-chip": "/components/tag-chip/index",
+    "empty-state": "/components/empty-state/index",
+    "night-mask": "/components/night-mask/index"
+  }
+}

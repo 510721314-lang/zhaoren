@@ -1,0 +1,62 @@
+.od { min-height: 100vh; background: var(--bg-page); padding: 0 20rpx 160rpx; }
+.od__body { padding-top: 20rpx; }
+.od__card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 28rpx; box-shadow: var(--shadow-card); margin-bottom: 20rpx; }
+.od__card-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); margin-bottom: 16rpx; }
+
+/* O1 状态头 */
+.od__status-head { padding: 32rpx 28rpx; border-radius: var(--r-lg); margin-bottom: 20rpx; }
+.od__status-name { font-size: var(--font-display); font-weight: 700; }
+.od__status-count { margin-top: 8rpx; font-size: var(--font-sm); color: var(--text-2); }
+.od__order-no { margin-top: 12rpx; font-size: var(--font-xs); color: var(--text-4); }
+
+.od__tags { display: flex; gap: 12rpx; margin-bottom: 16rpx; }
+.od__row { display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.od__row:last-child { border-bottom: none; }
+.od__label { font-size: var(--font-sm); color: var(--text-3); }
+.od__val { font-size: var(--font-sm); color: var(--text-1); }
+.od__val--strong { font-weight: 600; color: var(--func-danger); }
+.od__val--success { color: var(--func-success); }
+
+/* O3 操作区 */
+.od__btn { width: 100%; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; font-size: var(--font-md); margin-top: 16rpx; }
+.od__btn::after { border: none; }
+.od__btn--primary { background: var(--brand-primary); color: var(--text-invert); }
+.od__btn--ghost { background: var(--bg-segment); color: var(--text-2); }
+.od__btn--danger { background: var(--func-danger); color: var(--text-invert); }
+
+.od__action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16rpx; }
+.od__action-btn { height: 120rpx; line-height: 1.4; padding: 20rpx 0; background: var(--bg-segment); color: var(--text-1); font-size: var(--font-sm); border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.od__action-btn::after { border: none; }
+.od__action-btn--primary { background: var(--brand-primary); color: var(--text-invert); }
+
+.od__safety-confirm, .od__ratio-confirm { padding: 16rpx 0; }
+.od__safety-q { font-size: var(--font-md); color: var(--text-1); margin-bottom: 16rpx; text-align: center; }
+.od__safety-btns { display: flex; gap: 16rpx; }
+.od__safety-btns .od__btn { flex: 1; margin-top: 0; }
+.od__safety-tip { margin-top: 12rpx; font-size: var(--font-xs); color: var(--func-danger); text-align: center; }
+
+.od__after-sale-tip, .od__terminated-tip { padding: 24rpx 0; text-align: center; font-size: var(--font-sm); color: var(--text-3); }
+
+/* O4 改期 */
+.od__modify-tip { font-size: var(--font-xs); color: var(--text-4); padding: 12rpx 0; line-height: 1.6; }
+.od__picker-row { display: flex; align-items: center; padding: 24rpx 0; }
+.od__picker-label { width: 120rpx; font-size: var(--font-sm); color: var(--text-3); }
+.od__picker-val { flex: 1; font-size: var(--font-md); color: var(--text-1); }
+.od__picker-val.is-empty { color: var(--text-5); }
+.od__arrow { color: var(--text-4); }
+
+/* O5 取消 */
+.od__cancel-tiers { padding: 16rpx 0; }
+.od__cancel-tier { display: flex; justify-content: space-between; padding: 16rpx; border-radius: var(--r-md); margin-bottom: 8rpx; background: var(--bg-segment); }
+.od__cancel-tier.is-on { background: var(--func-warning-light); border: 2rpx solid var(--func-warning); }
+.od__cancel-label { font-size: var(--font-sm); color: var(--text-1); }
+.od__cancel-rate { font-size: var(--font-sm); color: var(--func-danger); font-weight: 600; }
+.od__cancel-tip { margin-top: 12rpx; font-size: var(--font-xs); color: var(--text-3); text-align: center; }
+
+.od__sheet-btns { display: flex; gap: 16rpx; }
+.od__sheet-btns .od__btn { flex: 1; margin-top: 0; }
+
+/* 三态骨架屏 */
+.od__loading { padding: 16rpx; }
+.od__skeleton { height: 120rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: od-skeleton-pulse 1.2s ease-in-out infinite; }
+@keyframes od-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }

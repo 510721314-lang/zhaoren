@@ -1,0 +1,12 @@
+{
+  "navigationStyle": "custom",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "nav-bar": "/components/nav-bar/index",
+    "demand-card": "/components/demand-card/index",
+    "bottom-sheet": "/components/bottom-sheet/index",
+    "empty-state": "/components/empty-state/index",
+    "night-mask": "/components/night-mask/index"
+  }
+}

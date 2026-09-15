@@ -1,0 +1,55 @@
+.night {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-night);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 48rpx;
+}
+.night__box {
+  width: 560rpx;
+  background: var(--bg-card);
+  border-radius: 32rpx;
+  padding: 48rpx 40rpx 40rpx;
+  text-align: center;
+}
+.night__moon {
+  font-size: var(--font-icon-md);
+  line-height: 1;
+}
+.night__title {
+  margin-top: 20rpx;
+  font-size: var(--font-xxl);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.night__desc {
+  margin-top: 16rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  line-height: 1.7;
+  white-space: pre-line;
+}
+.night__sub {
+  margin-top: 16rpx;
+  font-size: var(--font-sm);
+  color: var(--text-5);
+}
+.night__btn {
+  margin-top: 32rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  border-radius: 40rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+.night__btn::after {
+  border: none;
+}

@@ -1,0 +1,97 @@
+<view class="v2 chat">
+  <view style="height: {{statusBarHeight}}px;"></view>
+
+  <!-- C1 头部 -->
+  <view class="chat__header">
+    <view class="chat__back" bindtap="goOrderDetail">‹</view>
+    <view class="chat__title"><block wx:if="{{counterpart}}">{{counterpart}} · {{scene.name}}</block><block wx:else>加载中...</block></view>
+    <view class="chat__order-entry" bindtap="goOrderDetail">📋</view>
+  </view>
+
+  <!-- 加载态 -->
+  <view class="chat__loading" wx:if="{{loading}}">
+    <view class="chat__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+  <!-- 网络异常态 -->
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <!-- 正常态 -->
+  <block wx:elif="{{order}}">
+  <!-- C2 四确认进度条 -->
+  <confirm-progress progress="{{progress}}"></confirm-progress>
+
+  <!-- C3 限制提示条 -->
+  <view class="chat__limit {{unlocked ? 'is-ok' : ''}}">
+    <block wx:if="{{!unlocked}}">⚠ 四确认完成前仅可使用模板消息沟通</block>
+    <block wx:else>已解锁自由沟通</block>
+  </view>
+
+  <!-- C4 消息流 -->
+  <scroll-view scroll-y class="chat__flow" scroll-into-view="{{scrollToView}}" scroll-with-animation enhanced>
+    <view class="chat__msg-wrap" wx:for="{{messages}}" wx:key="_id" id="{{item._id}}">
+      <!-- 系统事件条 -->
+      <view class="chat__system" wx:if="{{item.msg_type === 'system'}}">
+        <text>{{item.content}}</text>
+        <text class="chat__msg-time">{{item.created_at}}</text>
+      </view>
+
+      <!-- 订单卡片消息 -->
+      <view class="chat__order-card" wx:if="{{item.msg_type === 'order_card'}}" bindtap="onOrderCardTap">
+        <view class="chat__order-card-title">订单 #{{item.order_no}}</view>
+        <view class="chat__order-card-meta">¥{{item.amount}} · {{item.status_name}}</view>
+        <view class="chat__order-card-tip">点击查看详情 ›</view>
+      </view>
+
+      <!-- 模板消息卡 -->
+      <tm-template-card wx:if="{{item.msg_type === 'template'}}" msg="{{item}}" bind:optiontap="onTmOption"></tm-template-card>
+
+      <!-- 普通文字气泡 -->
+      <view class="chat__bubble chat__bubble--{{item.direction}}" wx:if="{{item.msg_type === 'text'}}">
+        <view class="chat__bubble-text">{{item.content}}</view>
+        <view class="chat__bubble-time">{{item.created_at}} <text wx:if="{{item.is_read}}">✓✓</text></view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- C5 模板快捷键行 -->
+  <view class="chat__quick" wx:if="{{!unlocked}}">
+    <view class="chat__quick-item" wx:for="{{quickKeys}}" wx:key="id" data-id="{{item.id}}" bindtap="onQuickKey">
+      <view class="chat__quick-ic">{{item.icon}}</view>
+      <view class="chat__quick-name">{{item.name}}</view>
+    </view>
+  </view>
+
+  <!-- C6 输入行 -->
+  <view class="chat__input-bar">
+    <block wx:if="{{!unlocked}}">
+      <view class="chat__input-locked">🔒 四确认完成后解锁自由沟通...</view>
+    </block>
+    <block wx:else>
+      <input class="chat__input" value="{{inputText}}" placeholder="输入消息..." bindinput="onTextInput" confirm-type="send" bindconfirm="sendText" />
+      <view class="chat__send-btn" bindtap="sendText">发送</view>
+    </block>
+  </view>
+
+  <!-- C5 「其他」弹窗 -->
+  <bottom-sheet visible="{{otherSheetVisible}}" title="✨ 特殊需求" bind:close="closeOtherSheet" has-footer="{{true}}">
+    <textarea class="chat__other-textarea" value="{{otherText}}" placeholder="请输入特殊需求（≤{{otherLimit}}字）" maxlength="{{otherLimit}}" bindinput="onOtherInput" auto-height />
+    <view class="chat__other-count">{{otherCount}}/{{otherLimit}}</view>
+    <view slot="footer" class="chat__other-btns">
+      <button class="chat__btn chat__btn--ghost" bindtap="closeOtherSheet">取消</button>
+      <button class="chat__btn chat__btn--primary" bindtap="sendOther" disabled="{{!otherText}}">发送</button>
+    </view>
+  </bottom-sheet>
+
+  <!-- 客服介入弹窗 -->
+  <bottom-sheet visible="{{kefuSheetVisible}}" title="申请客服介入" bind:close="closeKefuSheet" has-footer="{{true}}">
+    <view class="chat__kefu-tip">您多次使用「其他」模板消息沟通，系统检测到双方可能需要平台协助。是否申请客服介入？</view>
+    <view class="chat__kefu-sub">客服将在{{kefuResponseMin}}分钟内接入会话，协助双方完成确认。</view>
+    <view slot="footer" class="chat__other-btns">
+      <button class="chat__btn chat__btn--ghost" bindtap="closeKefuSheet">暂不需要</button>
+      <button class="chat__btn chat__btn--primary" bindtap="requestKefu">申请介入</button>
+    </view>
+  </bottom-sheet>
+  </block>
+  <!-- 空态 -->
+  <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

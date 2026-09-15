@@ -1,5 +1,22 @@
 {
+  "entryPagePath": "pages-v2/index/index",
   "pages": [
+    "pages-v2/index/index",
+    "pages-v2/square/square",
+    "pages-v2/message/message",
+    "pages-v2/profile/profile",
+    "pages-v2/login/login",
+    "pages-v2/publish/publish",
+    "pages-v2/demand-detail/demand-detail",
+    "pages-v2/partner-detail/partner-detail",
+    "pages-v2/chat/chat",
+    "pages-v2/pay/pay",
+    "pages-v2/order-detail/order-detail",
+    "pages-v2/safety/safety",
+    "pages-v2/evaluate/evaluate",
+    "pages-v2/workbench/workbench",
+    "pages-v2/accept-config/accept-config",
+    "pages-v2/wallet/wallet",
     "pages/index/index",
     "pages/hall/hall",
     "pages/chat/chat",
@@ -31,16 +48,16 @@
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
-    "color": "#9CA3AF",
-    "selectedColor": "#D4875A",
+    "custom": true,
+    "color": "#9aa0a6",
+    "selectedColor": "#07C160",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/hall/hall", "text": "接单" },
-      { "pagePath": "pages/chat/chat", "text": "消息" },
-      { "pagePath": "pages/order/order", "text": "订单" },
-      { "pagePath": "pages/mine/mine", "text": "我的" }
+      { "pagePath": "pages-v2/index/index", "text": "首页" },
+      { "pagePath": "pages-v2/square/square", "text": "广场" },
+      { "pagePath": "pages-v2/message/message", "text": "消息" },
+      { "pagePath": "pages-v2/profile/profile", "text": "我的" }
     ]
   },
   "permission": {
@@ -55,5 +72,9 @@
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json",
-  "__usePrivacyCheck__": true
+  "__usePrivacyCheck__": true,
+  "usingComponents": {
+    "night-mask": "/components/night-mask/index",
+    "empty-state": "/components/empty-state/index"
+  }
 }

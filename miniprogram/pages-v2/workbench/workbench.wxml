@@ -1,0 +1,112 @@
+<view class="v2 wb">
+  <nav-bar title="耍伴工作台"></nav-bar>
+
+  <view class="wb__body">
+    <!-- 加载态 -->
+    <view class="wb__loading" wx:if="{{loading}}">
+      <view class="wb__skeleton" wx:for="{{[1,2,3,4]}}" wx:key="*this"></view>
+    </view>
+    <!-- 网络异常态 -->
+    <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+    <!-- 正常态 -->
+    <block wx:else>
+    <!-- W1 接单开关 -->
+    <view class="wb__card wb__header-card {{acceptingOrders ? 'is-on' : ''}}">
+      <view class="wb__header-left">
+        <view class="wb__status">{{acceptingOrders ? '🟢 接单中' : '⚪ 休息中'}}</view>
+        <view class="wb__summary">今日 {{todaySummary.count}} 单 · 下一单 {{todaySummary.upcoming}}</view>
+      </view>
+      <switch checked="{{acceptingOrders}}" color="var(--func-success)" bindchange="onToggleAccepting" />
+    </view>
+
+    <!-- W2 数据卡 -->
+    <view class="wb__data-grid">
+      <view class="wb__data-card">
+        <view class="wb__data-num">{{todayCount}}</view>
+        <view class="wb__data-label">今日待履约</view>
+      </view>
+      <view class="wb__data-card">
+        <view class="wb__data-num">¥{{weekIncomeYuan}}</view>
+        <view class="wb__data-label">本周收入</view>
+      </view>
+      <view class="wb__data-card">
+        <view class="wb__data-num">{{user.partner_credit_score}}</view>
+        <view class="wb__data-label">信用分 · {{creditLevel}}</view>
+      </view>
+    </view>
+
+    <!-- W3 周日历 + 当日时间轴 -->
+    <view class="wb__card">
+      <view class="wb__card-title">本周日程</view>
+      <scroll-view scroll-x class="wb__week" enhanced show-scrollbar="{{false}}">
+        <view class="wb__week-day {{item.isToday ? 'is-today' : ''}}" wx:for="{{weekDays}}" wx:key="dateStr" bindtap="onWeekDayTap">
+          <view class="wb__week-wd">周{{item.wd}}</view>
+          <view class="wb__week-date">{{item.dateStr}}</view>
+          <view class="wb__week-dot" wx:if="{{item.hasOrder}}"></view>
+        </view>
+      </scroll-view>
+
+      <view class="wb__day-timeline" wx:if="{{todayOrders.length > 0}}">
+        <view class="wb__time-block" wx:for="{{todayOrders}}" wx:key="_id">
+          <view class="wb__time-strip" style="background:{{item.sceneColor}};"></view>
+          <view class="wb__time-content">
+            <view class="wb__time-row">
+              <text class="wb__time">{{item.time}}</text>
+              <text class="wb__time-scene">{{item.sceneName}}</text>
+            </view>
+            <view class="wb__time-meta">{{item.locationName}} · {{item.partnerName}}</view>
+            <view class="wb__time-btns">
+              <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onNavigate">导航</button>
+              <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onContactUser">联系</button>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="wb__empty" wx:else>今日暂无订单</view>
+    </view>
+
+    <!-- W4 资金四态速览 -->
+    <view class="wb__card">
+      <view class="wb__card-title-row">
+        <text class="wb__card-title">资金速览</text>
+        <view class="wb__go-wallet" bindtap="goWallet">去钱包 ›</view>
+      </view>
+      <view class="wb__fund-tabs">
+        <view class="wb__fund-tab {{fundActive === item.key ? 'is-on' : ''}}" wx:for="{{fundTabs}}" wx:key="key" data-key="{{item.key}}" bindtap="onFundTabTap">
+          {{item.name}}
+        </view>
+      </view>
+      <view class="wb__fund-amount">¥{{fundAmount}}</view>
+    </view>
+
+    <!-- W6 待办卡 -->
+    <view class="wb__card" wx:if="{{pendingOrders.length > 0}}">
+      <view class="wb__card-title">待办 · 待确认订单</view>
+      <view class="wb__todo-item" wx:for="{{pendingOrders}}" wx:key="_id">
+        <view class="wb__todo-info">
+          <view class="wb__todo-title">{{item.partner_name}}</view>
+          <view class="wb__todo-meta">{{item.service_date}} {{item.service_time}} · {{confirmTimeoutMin}}分钟内确认</view>
+        </view>
+        <view class="wb__todo-btns">
+          <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onConfirmOrder">确认</button>
+          <button class="wb__mini-btn wb__mini-btn--danger" data-id="{{item._id}}" bindtap="onRejectOrder">拒绝</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- W5 一键报警 -->
+    <button class="wb__alarm-btn" bindtap="onAlarm">🚨 一键报警</button>
+    </block>
+  </view>
+
+  <!-- 报警二次确认 -->
+  <bottom-sheet visible="{{alarmConfirmVisible}}" title="确认报警？" bind:close="closeAlarmConfirm" has-footer="{{true}}">
+    <view class="wb__alarm-tip">紧急情况下请确认是否拨打110并通知平台客服？</view>
+    <view slot="footer" class="wb__sheet-btns">
+      <button class="wb__btn wb__btn--ghost" bindtap="closeAlarmConfirm">取消</button>
+      <button class="wb__btn wb__btn--danger" bindtap="confirmAlarm">确认报警</button>
+    </view>
+  </bottom-sheet>
+
+  <night-mask visible="{{isRedline}}"></night-mask>
+</view>

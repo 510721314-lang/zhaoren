@@ -1,0 +1,1 @@
+<text class="status-tag" wx:if="{{cfg}}" style="background:{{cfg.bgTag}};color:{{cfg.colorTag}};">{{cfg.name}}</text>

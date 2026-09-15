@@ -58,8 +58,9 @@ exports.main = async (event, context) => {
   const evalH = num(event.eval_window_h, cfg.eval_window_h || 48);
   const defaultStar = num(cfg.default_star, 4);
   const s0Force = !!event.s0_force; // 测试用: 跳过 pay_expire_at 检查
+  const msConfirmMin = num(event.milestone_confirm_min, 15); // 里程碑提交后15分钟自动确认
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], auto_eval: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
   console.log(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} s0Force=${s0Force}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -111,6 +112,26 @@ exports.main = async (event, context) => {
       console.log(`timeout S3.5→S4: ${o.order_no}`);
     }
   } catch (e) { console.log(`s3.5 scan fail: ${e.message}`); }
+
+  // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
+  try {
+    const msCut = now - msConfirmMin * 60 * 1000;
+    const s3s = (await col('order_main').where({ status: 'S3' }).limit(BATCH).get()).data || [];
+    for (const o of s3s) {
+      const ms = o.milestone || {};
+      const submittedAt = ms.submitted_at || 0;
+      if (!submittedAt || submittedAt >= msCut) continue; // 未提交或未到15分钟
+      const confirmed = Array.isArray(ms.confirmed) ? ms.confirmed : [false, false, false];
+      const allConfirmed = confirmed.every(Boolean);
+      if (allConfirmed) continue; // 已全部确认
+      // 自动确认所有未确认的里程碑
+      await col('order_main').doc(o._id).update({
+        data: { 'milestone.confirmed': [true, true, true], updated_at: now }
+      });
+      out.milestone_auto_confirm.push(o.order_no);
+      console.log(`milestone auto-confirm: ${o.order_no}`);
+    }
+  } catch (e) { console.log(`milestone auto-confirm fail: ${e.message}`); }
 
   // ───────── 4. S5 完成超 48 小时未评价 → 系统默认 4 星 → S9 ─────────
   try {
@@ -183,12 +204,14 @@ exports.main = async (event, context) => {
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
+      milestone_auto_confirm: out.milestone_auto_confirm,
       auto_eval: out.auto_eval,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
         s0_close: out.s0_close.length,
         interrupt_partial: out.interrupt_partial.length,
+        milestone_auto_confirm: out.milestone_auto_confirm.length,
         auto_eval: out.auto_eval.length
       }
     }

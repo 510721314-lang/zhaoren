@@ -3,36 +3,36 @@
 
 /* tab 切换 */
 .tab-bar { display: flex; margin-bottom: 60rpx; }
-.tab-item { flex: 1; text-align: center; padding: 24rpx 0; font-size: 30rpx; color: var(--text-3); position: relative; }
+.tab-item { flex: 1; text-align: center; padding: 24rpx 0; font-size: var(--font-xl); color: var(--text-3); position: relative; }
 .tab-on { color: var(--text-1); font-weight: 600; }
 .tab-on::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 48rpx; height: 6rpx; border-radius: 3rpx; background: var(--primary); }
 
 /* 表单卡 */
-.form-card { background: #fff; border-radius: 16rpx; padding: 32rpx; margin-bottom: 48rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04); }
+.form-card { background: var(--text-invert); border-radius: 16rpx; padding: 32rpx; margin-bottom: 48rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04); }
 .form-item { border-bottom: 1rpx solid var(--border); padding: 24rpx 0; }
 .form-item:last-of-type { border-bottom: none; }
-.form-label { font-size: 24rpx; color: var(--text-3); margin-bottom: 12rpx; }
-.form-input { font-size: 30rpx; color: var(--text-1); padding: 8rpx 0; }
-.form-tip { font-size: 22rpx; color: var(--text-3); margin-top: 16rpx; line-height: 1.5; }
+.form-label { font-size: var(--font-base); color: var(--text-3); margin-bottom: 12rpx; }
+.form-input { font-size: var(--font-xl); color: var(--text-1); padding: 8rpx 0; }
+.form-tip { font-size: var(--font-sm); color: var(--text-3); margin-top: 16rpx; line-height: 1.5; }
 
 /* 主按钮 */
-.submit-btn { height: 88rpx; line-height: 88rpx; font-size: 30rpx; border-radius: 44rpx; margin-bottom: 32rpx; }
+.submit-btn { height: 88rpx; line-height: 88rpx; font-size: var(--font-xl); border-radius: 44rpx; margin-bottom: 32rpx; }
 
 /* 切换入口 */
 .alt-entry { text-align: center; margin-bottom: 48rpx; }
-.alt-link { font-size: 26rpx; color: var(--primary); }
+.alt-link { font-size: var(--font-md); color: var(--primary); }
 
 /* 返回 */
-.back-link { text-align: center; font-size: 26rpx; color: var(--text-3); padding: 20rpx 0; }
+.back-link { text-align: center; font-size: var(--font-md); color: var(--text-3); padding: 20rpx 0; }
 
 /* 协议勾选 */
 .agreement-row { display: flex; align-items: flex-start; margin-bottom: 32rpx; }
 .agreement-check {
   width: 34rpx; height: 34rpx; border-radius: 50%;
-  border: 2rpx solid var(--border); background: #fff;
+  border: 2rpx solid var(--border); background: var(--text-invert);
   display: flex; align-items: center; justify-content: center;
-  font-size: 22rpx; color: #fff; flex-shrink: 0; margin-top: 4rpx;
+  font-size: var(--font-sm); color: var(--text-invert); flex-shrink: 0; margin-top: 4rpx;
 }
 .check-on { background: var(--primary); border-color: var(--primary); }
-.agreement-text { font-size: 24rpx; color: var(--text-3); line-height: 1.6; margin-left: 14rpx; }
+.agreement-text { font-size: var(--font-base); color: var(--text-3); line-height: 1.6; margin-left: 14rpx; }
 .agree-link { color: var(--primary); }

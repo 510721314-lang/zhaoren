@@ -1,0 +1,89 @@
+<view class="v2 home">
+  <!-- H1 导航：城市 + 搜索 + 铃铛 -->
+  <view class="home__nav" style="padding-top: {{statusBarHeight + 6}}px;">
+    <view class="home__city" bindtap="onCityTap">{{city}}<text class="home__city-arrow">⌄</text></view>
+    <view class="home__search" bindtap="onSearchTap">
+      <text class="home__search-ic">🔍</text>
+      <text>搜场景 / 耍伴 / 需求</text>
+    </view>
+    <view class="home__bell" bindtap="onBellTap">
+      🔔
+      <text class="home__bell-badge" wx:if="{{user.unread_notice}}">{{user.unread_notice}}</text>
+    </view>
+  </view>
+
+  <!-- H2 卖点条 -->
+  <safe-sell-bar></safe-sell-bar>
+
+  <!-- H3 紧急联系人未确认提醒（可关闭不阻断） -->
+  <view class="home__emergency" wx:if="{{showEmergency && unconfirmedContact}}">
+    <text class="home__emergency-text">您的紧急联系人「{{unconfirmedContact.name}}」尚未完成确认</text>
+    <view class="home__emergency-actions">
+      <text class="home__emergency-go" catchtap="onEmergencyConfirm">去确认 ›</text>
+      <text class="home__emergency-x" catchtap="onEmergencyClose">×</text>
+    </view>
+  </view>
+
+  <!-- H4 场景宫格 -->
+  <view class="home__grid">
+    <view class="home__cell" wx:for="{{scenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
+      <view class="home__gb-badge" wx:if="{{item.gb}}">国标</view>
+      <view class="home__cell-ic" style="background:{{item.color}};">{{item.icon}}</view>
+      <view class="home__cell-name">{{item.name}}</view>
+    </view>
+    <view class="home__cell home__cell--gray" data-more="1" bindtap="onSceneTap">
+      <view class="home__cell-ic">＋</view>
+      <view class="home__cell-name">更多场景</view>
+    </view>
+  </view>
+
+  <!-- H5 新人福利 -->
+  <view class="home__welfare" wx:if="{{showWelfare && user.new_user && !user.first_order_used}}" bindtap="onWelfareReceive">
+    <view>
+      <view class="home__welfare-title">{{welfare.welfareTitle}}</view>
+      <view class="home__welfare-sub">{{welfare.welfareSub}}</view>
+    </view>
+    <view class="home__welfare-btn">领取</view>
+  </view>
+
+  <!-- H6 内容Tab -->
+  <view class="home__tabs">
+    <view class="home__tab {{activeTab === 'demand' ? 'is-on' : ''}}" data-tab="demand" bindtap="switchTab">🔥 需求广场</view>
+    <view class="home__tab {{activeTab === 'partner' ? 'is-on' : ''}}" data-tab="partner" bindtap="switchTab">⭐ 耍伴推荐</view>
+  </view>
+
+  <!-- H7a 需求列表 -->
+  <block wx:if="{{activeTab === 'demand'}}">
+    <view class="home__list">
+      <demand-card
+        wx:for="{{demandList}}"
+        wx:key="_id"
+        demand="{{item}}"
+        role="user"
+        bind:cardtap="onDemandTap"
+        bind:action="onDemandTap"
+      ></demand-card>
+      <empty-state wx:if="{{demandList.length === 0}}" icon="📋" title="当前暂无匹配需求" desc="可试试其他场景，或预约下单享{{reserveDiscountText}}" btnText="去发布"></empty-state>
+    </view>
+  </block>
+
+  <!-- H7b 耍伴列表 -->
+  <block wx:else>
+    <view class="home__list">
+      <partner-card
+        wx:for="{{partnerList}}"
+        wx:key="_id"
+        partner="{{item}}"
+        bind:cardtap="onPartnerTap"
+        bind:invite="onPartnerTap"
+        bind:more="onPartnerTap"
+      ></partner-card>
+      <view class="home__partner-tip">下拉加载更多高信用耍伴 · 新耍伴前{{trafficOrders}}单享流量扶持</view>
+    </view>
+  </block>
+
+  <!-- H8 页脚 -->
+  <view class="home__footer">—— 全场景 {{redlineClose}}-{{redlineOpen}} 暂停预约与履约 ——</view>
+
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
+</view>
