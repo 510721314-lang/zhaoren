@@ -203,3 +203,33 @@ v0.1.1-foundation: 真机发布链路打通 + 免责声明彻底修复
 | 云函数拒「无实名/无紧急联系人」 | 新用户 bootstrap 缺失 | MVP 自动升级 simulated + 自动创建占位 |
 | tag-chip `sceneCode null` warning | 首页 mock 数据缺 scene_code | 后续统一清理 mock |
 | 发布成功但 detail 页显示老 mock 数据 | detail.js 还在读 mock | 后续接云端 |
+| **只有 W1 能发布，W2/W8/W10/W11 全部循环** | **前后端免责声明范围不一致**（见线索七） | **5 场景 disclaimer 全部对象化 + 选中即弹** |
+
+---
+
+## 线索七：多场景免责声明前后端对齐（2026-09-15 追加，已验证）
+
+### 症状
+
+W1 就医陪诊发布正常；其他 4 个场景在 AA 承诺书确认后弹「请先阅读并勾选《场景免责声明》」，反复循环。
+
+### 关键认知：拦截 toast 来自云函数，不是前端！
+
+前端代码全文搜不到该文案时 → 它是 `wx.cloud.callFunction` 返回的 `r.msg`（`wx.showToast({title: r.msg})`）。排查顺序：
+1. `grep -rn "文案片段" miniprogram/` 搜不到 → 立刻去 `cloudfunctions/` 搜
+2. `demand-publish/index.js` 对 **所有场景** 强制校验 `disclaimer_signed`（它有 `DISCLAIMER_TYPE_MAP`：W1 medical / W2·W8·W10 general / W11 online / W3 sports / W7 emotion / W9 pet）
+
+### 根因
+
+前端只给 W1 做了免责弹窗（`disclaimer: true`），其余场景 `setScene` 把 `disclaimerChecked` 置 false → 上送 `disclaimer_signed:false` → 云函数拒绝 → 用户再点 → AA 弹窗 → 再拒绝 = 死循环。
+
+### 根治方案
+
+1. `config/enums.js`：SCENES 每个场景的 `disclaimer` 从布尔改为 `{title, content}` 对象，5 个场景全部配置专属文案
+2. `publish.js` 抽 `_showSceneDisclaimer(scene, onAgree, onReject)`，`setScene` 和 `onPublish` 统一调用，弹窗文案取 `scene.disclaimer.title/content`
+3. 同意后 `disclaimerChecked=true` → 上送 `disclaimer_signed:true`；云函数不动、不重新部署
+4. 判断条件 `if (scene.disclaimer)` 对对象天然 truthy，无免责场景在 helper 内直接 onAgree 兜底
+
+### 教训
+
+**前后端对「哪些场景需要免责」的认知必须以云函数白名单/MAP 为准**；改前端枚举时先 grep 云函数同名映射。凡是 AA 确认后才出现的拦截 toast，优先怀疑云函数返回 msg。

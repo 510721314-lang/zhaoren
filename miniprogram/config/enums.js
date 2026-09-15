@@ -6,12 +6,48 @@
 const CONFIG = require('./index.js');
 
 // 一期场景白名单（PRD 3.3.1，硬编码校验 R9）。code 与云函数 demand-publish SCENE_WHITELIST 对齐
+// disclaimer 与云函数 DISCLAIMER_TYPE_MAP 对齐：每个场景都有对应免责类型，选中即弹（合规双签）
 const SCENES = [
-  { code: 'W1',  name: '就医陪诊', icon: '🏥', color: '#E8F1FF', gb: true,  cert: '陪诊认证', disclaimer: true,  options: ['挂号排队', '取药送药', '陪诊解压'] },
-  { code: 'W2',  name: '学习陪伴', icon: '📚', color: '#EDE8FF', gb: false, cert: '学习认证', disclaimer: false, options: ['自习陪伴', '口语陪练', '作业督促'] },
-  { code: 'W8',  name: '生活协助', icon: '🛠️', color: '#FFF3E0', gb: false, cert: '生活协助认证', disclaimer: false, options: ['排队代办', '搬家帮手', '采买陪同'] },
-  { code: 'W10', name: '出行陪伴', icon: '🚄', color: '#E0F5F4', gb: false, cert: '出行认证', disclaimer: false, options: ['逛街同行', '夜跑陪跑', '活动搭子'] },
-  { code: 'W11', name: '线上陪伴', icon: '💬', color: '#FFE9EC', gb: false, cert: '线上认证', disclaimer: false, options: ['树洞倾听', '游戏陪玩', '打卡监督'] }
+  {
+    code: 'W1', name: '就医陪诊', icon: '🏥', color: '#E8F1FF', gb: true, cert: '陪诊认证',
+    disclaimer: {
+      title: '就医陪诊免责声明',
+      content: '本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴不具备医疗执业资格，不提供诊断、治疗、用药建议。耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。因患者自身疾病原因导致的后果，平台与耍伴不承担责任。遇紧急医疗情况请立即呼叫120或寻求医院专业帮助，耍伴可协助联系。'
+    },
+    options: ['挂号排队', '取药送药', '陪诊解压']
+  },
+  {
+    code: 'W2', name: '学习陪伴', icon: '📚', color: '#EDE8FF', gb: false, cert: '学习认证',
+    disclaimer: {
+      title: '学习陪伴免责声明',
+      content: '学习陪伴服务仅提供自习陪伴、口语陪练、作业督促等学习辅助，耍伴不替代学校教师教学，不提供学科成绩保证，不替写作业、不代考。未成年人使用本服务须在监护人知情并同意的前提下进行，服务安排在图书馆、书店等公开场所。'
+    },
+    options: ['自习陪伴', '口语陪练', '作业督促']
+  },
+  {
+    code: 'W8', name: '生活协助', icon: '🛠️', color: '#FFF3E0', gb: false, cert: '生活协助认证',
+    disclaimer: {
+      title: '生活协助免责声明',
+      content: '生活协助服务仅提供排队代办、搬家帮手、采买陪同等事务性协助，不提供高空作业、危险品搬运、电器维修等需专业资质的服务。服务过程中请自行保管贵重物品，注意人身与财产安全；耍伴仅承担协助义务，因你自身原因造成的损失平台不承担责任。'
+    },
+    options: ['排队代办', '搬家帮手', '采买陪同']
+  },
+  {
+    code: 'W10', name: '出行陪伴', icon: '🚄', color: '#E0F5F4', gb: false, cert: '出行认证',
+    disclaimer: {
+      title: '出行陪伴免责声明',
+      content: '出行陪伴仅提供同行陪同与协助，耍伴不承担交通运输承运人责任，不驾驶营运车辆。请选择公共场所见面与活动，注意出行安全；夜间活动请提前告知亲友或紧急联系人。因交通延误、天气、景区管理等第三方原因导致的损失，平台与耍伴不承担责任。'
+    },
+    options: ['逛街同行', '夜跑陪跑', '活动搭子']
+  },
+  {
+    code: 'W11', name: '线上陪伴', icon: '💬', color: '#FFE9EC', gb: false, cert: '线上认证',
+    disclaimer: {
+      title: '线上陪伴内容协议',
+      content: '线上陪伴服务通过网络提供倾听、陪玩、打卡监督等陪伴沟通，不属于心理咨询、医疗建议或法律援助。沟通中请勿透露银行卡密码、短信验证码等敏感信息，请勿进行转账、借贷等金钱往来。严禁传播违法违规内容，一经发现平台有权立即中止服务并依规处理。'
+    },
+    options: ['树洞倾听', '游戏陪玩', '打卡监督']
+  }
 ];
 
 // 订单13态（PRD 3.5.2 SSOT）

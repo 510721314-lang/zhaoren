@@ -3,7 +3,6 @@ const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../config/enums.js');
 const { drafts: MOCK_DRAFTS } = require('../../mock/drafts.js');
-const { demands: MOCK_DEMANDS } = require('../../mock/demands.js');
 const { CURRENT_USER } = require('../../mock/users.js');
 
 // 智能派单门槛 = L3 优质等级下限（PRD 3.1.2）
@@ -174,27 +173,35 @@ Page({
     if (!scene) return;
     const form = Object.assign({}, this.data.form);
     form.scene_code = code;
-    // 选中带 disclaimer 的场景 → 用 wx.showModal 弹免责声明（绕开 bottom-sheet 真机渲染问题）
-    if (scene.disclaimer) {
-      wx.showModal({
-        title: '就医陪诊免责声明',
-        content: '本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴不具备医疗执业资格，不提供诊断、治疗、用药建议。耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。遇紧急医疗情况请立即呼叫120或寻求医院专业帮助。',
-        confirmText: '同意',
-        cancelText: '不同意',
-        success: (r) => {
-          if (r.confirm) {
-            this.setData({ form, disclaimerChecked: true });
-          } else {
-            // 不同意 → 取消场景选择
-            form.scene_code = '';
-            this.setData({ form, disclaimerChecked: false });
-            wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
-          }
-        }
-      });
-    } else {
-      this.setData({ form, disclaimerChecked: false });
+    // 每个场景都有对应免责声明（与云函数 DISCLAIMER_TYPE_MAP 对齐）→ wx.showModal 弹场景专属文案
+    this._showSceneDisclaimer(scene,
+      () => { this.setData({ form, disclaimerChecked: true }); },
+      () => {
+        // 不同意 → 取消场景选择
+        form.scene_code = '';
+        this.setData({ form, disclaimerChecked: false });
+        wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
+      }
+    );
+  },
+  // 场景免责声明统一弹窗（wx.showModal 真机稳定；onAgree/onReject 回调）
+  _showSceneDisclaimer(scene, onAgree, onReject) {
+    const d = scene && scene.disclaimer;
+    if (!d) {
+      // 无免责声明的场景直接视为通过（理论上一期 5 个场景都有）
+      if (onAgree) onAgree();
+      return;
     }
+    wx.showModal({
+      title: d.title,
+      content: d.content,
+      confirmText: '同意',
+      cancelText: '不同意',
+      success: (r) => {
+        if (r.confirm) { if (onAgree) onAgree(); }
+        else if (onReject) onReject();
+      }
+    });
   },
   toggleDisclaimer() {
     this.setData({ disclaimerChecked: !this.data.disclaimerChecked });
@@ -325,23 +332,18 @@ Page({
   onPublish() {
     if (this.data.publishing) return;
     const f = this.data.form;
-    // 带 disclaimer 的场景 → 强制弹免责声明（统一用 wx.showModal）
+    // 当前场景未签免责声明（如草稿恢复）→ 强制补弹场景专属免责声明
     const curScene = SCENES.find((s) => s.code === f.scene_code);
     if (curScene && curScene.disclaimer && !this.data.disclaimerChecked) {
-      wx.showModal({
-        title: '就医陪诊免责声明',
-        content: '本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴不具备医疗执业资格，不提供诊断、治疗、用药建议。耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。遇紧急医疗情况请立即呼叫120或寻求医院专业帮助。',
-        confirmText: '同意',
-        cancelText: '不同意',
-        success: (r) => {
-          if (r.confirm) {
-            this.setData({ disclaimerChecked: true });
-            this._continuePublish();
-          } else {
-            wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
-          }
+      this._showSceneDisclaimer(curScene,
+        () => {
+          this.setData({ disclaimerChecked: true });
+          this._continuePublish();
+        },
+        () => {
+          wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
         }
-      });
+      );
       return;
     }
     this._continuePublish();
