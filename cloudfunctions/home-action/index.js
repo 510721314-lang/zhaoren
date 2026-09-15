@@ -135,6 +135,78 @@ exports.main = async (event, context) => {
         };
       }
 
+      // ───────── 需求广场列表 ─────────
+      case 'square': {
+        const limit = Math.min(Number(event.limit) || 20, 50);
+        const now = Date.now();
+        const pad = (n) => n < 10 ? '0' + n : '' + n;
+
+        const demandR = await col('demand')
+          .where({ is_deleted: false, status: 'matching', expire_at: _.gt(now) })
+          .orderBy('created_at', 'desc')
+          .limit(limit)
+          .get()
+          .catch(() => ({ data: [] }));
+
+        const list = (demandR.data || []).map((d) => {
+          // 备注拆分: 标题｜描述
+          const remarkParts = String(d.remark || '').split('｜');
+          const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
+          const description = remarkParts[1] ? remarkParts[1].trim() : '';
+
+          // 时间格式化
+          const dt = new Date(d.start_time);
+          const service_date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+          const service_time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+
+          const minutes_ago = Math.max(1, Math.floor((now - (d.created_at || now)) / 60000));
+
+          return {
+            _id: d._id,
+            demand_no: d.demand_no,
+            scene_code: d.scene,
+            project_attr: d.project_attr || 'commercial',
+            title,
+            description,
+            service_date,
+            service_time,
+            duration_hours: d.duration_h,
+            location: d.location || { name: '' },
+            district: (d.location && d.location.city) || '',
+            distance_km: null,
+            headcount: 1,
+            budget: Math.round((d.rate_fen || 0) / 100),
+            aa_estimate: d.aa_tier || '0-50',
+            status: d.status,
+            match_mode: d.match_mode || 'broadcast',
+            publisher: {
+              surname: '匿',
+              real_name_verified: true,
+              minutes_ago,
+              openid: d.creator_openid
+            },
+            created_at: d.created_at
+          };
+        });
+
+        // 批量补发布者姓氏
+        const openids = list.map((d) => d.publisher.openid).filter(Boolean);
+        if (openids.length) {
+          try {
+            const uR = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get();
+            const map = {};
+            (uR.data || []).forEach((u) => { map[u.openid] = u; });
+            list.forEach((d) => {
+              const u = map[d.publisher.openid] || {};
+              const name = u.surname || u.real_name || u.nickname || '';
+              d.publisher.surname = name ? String(name).charAt(0) : '匿';
+            });
+          } catch (e) {}
+        }
+
+        return { ok: true, data: { list } };
+      }
+
       // ───────── 用户公开主页 ─────────
       case 'user_home': {
         const targetOpenid = event.openid || '';

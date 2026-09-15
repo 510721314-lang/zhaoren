@@ -1,4 +1,4 @@
-// mock/demands.js · V15.1 需求广场 mock
+﻿// mock/demands.js · V15.1 需求广场 mock
 // 来源：mock-data.md 第2节 demands 集合（6条：覆盖5场景 + 1公益单）
 // 金额：展示层为元；真实支付链路金额一律用"分"（上线前接服务端）
 
@@ -6,7 +6,7 @@ const demands = [
   {
     _id: 'd0a1b2c3d4e5f60718293a4b5c6d7e8f',
     order_no: 'D20260916001',
-    scene_code: 'medical_escort',
+    scene_code: 'W1',
     project_attr: 'commercial',
     title: '陪父亲华西医院复诊取号',
     description: '老人腿脚不便，需协助挂号排队、取药、记录医嘱，全程约3小时，希望找有陪诊经验的耍伴。',
@@ -29,7 +29,7 @@ const demands = [
   {
     _id: 'd1f2e3d4c5b6a7988776655443322110',
     order_no: 'D20260916002',
-    scene_code: 'study_companion',
+    scene_code: 'W2',
     project_attr: 'commercial',
     title: '周末图书馆自习陪伴（高三数学）',
     description: '孩子周六全天自习，需要耍伴在场督促、答疑数学，家长中午到场轮换。',
@@ -52,7 +52,7 @@ const demands = [
   {
     _id: 'd2a3b4c5d6e7f8091021324354657687',
     order_no: 'D20260917003',
-    scene_code: 'life_assist',
+    scene_code: 'W8',
     project_attr: 'commercial',
     title: '帮忙排队代办政务中心业务',
     description: '需要上午8点到政务中心帮忙取号排队，材料已备齐，本人9点半到场交接即可。',
@@ -75,7 +75,7 @@ const demands = [
   {
     _id: 'd3b4c5d6e7f8091a2b3c4d5e6f708192',
     order_no: 'D20260918004',
-    scene_code: 'travel_companion',
+    scene_code: 'W10',
     project_attr: 'commercial',
     title: '周六上午陪散步散心（天府广场周边）',
     description: '刚做完小手术需要慢走恢复，想找个耐心的耍伴陪着散步聊天，路线约3公里。',
@@ -98,7 +98,7 @@ const demands = [
   {
     _id: 'd4c5d6e7f8091a2b3c4d5e6f7081920a',
     order_no: 'D20260915005',
-    scene_code: 'online_companion',
+    scene_code: 'W11',
     project_attr: 'commercial',
     title: '今晚线上打卡监督（戒断熬夜）',
     description: '希望每晚11点前语音提醒睡觉、早起打卡，连续陪伴一周，每次约30分钟。',
@@ -121,7 +121,7 @@ const demands = [
   {
     _id: 'd5d6e7f8091a2b3c4d5e6f7081920a21',
     order_no: 'D20260919006',
-    scene_code: 'travel_companion',
+    scene_code: 'W10',
     project_attr: 'public_welfare', // 公益单：无预算，平台补贴耍伴
     title: '公益陪伴：陪独居老人逛人民公园',
     description: '社区公益项目，陪78岁李爷爷逛人民公园、喝盖碗茶，平台为耍伴提供公益补贴。',

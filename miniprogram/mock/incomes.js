@@ -1,4 +1,4 @@
-// mock/incomes.js · V15.1 收益流水 mock
+﻿// mock/incomes.js · V15.1 收益流水 mock
 // 供 P14 workbench / P16 wallet 使用
 // 字段：fund_status 对齐 enums.FUND_STATUS 四态
 
@@ -6,7 +6,7 @@ const incomes = [
   {
     _id: 'ic001',
     order_no: '20260912005',
-    scene_code: 'study_companion',
+    scene_code: 'W2',
     scene_name: '学习陪伴',
     partner_name: '小雅酱',
     gross_fen: 24000,           // 总额 240元
@@ -20,7 +20,7 @@ const incomes = [
   {
     _id: 'ic002',
     order_no: '20260914004',
-    scene_code: 'life_assist',
+    scene_code: 'W8',
     scene_name: '生活协助',
     partner_name: '陈叔帮帮忙',
     gross_fen: 12000,
@@ -34,7 +34,7 @@ const incomes = [
   {
     _id: 'ic003',
     order_no: '20260910008',
-    scene_code: 'medical_escort',
+    scene_code: 'W1',
     scene_name: '就医陪诊',
     partner_name: '小雅酱',
     gross_fen: 16000,
@@ -49,7 +49,7 @@ const incomes = [
   {
     _id: 'ic004',
     order_no: '20260908010',
-    scene_code: 'travel_companion',
+    scene_code: 'W10',
     scene_name: '出行陪伴',
     partner_name: '陈叔帮帮忙',
     gross_fen: 18000,
@@ -63,7 +63,7 @@ const incomes = [
   {
     _id: 'ic005',
     order_no: '20260907012',
-    scene_code: 'study_companion',
+    scene_code: 'W2',
     scene_name: '学习陪伴',
     partner_name: '小雅酱',
     gross_fen: 8000,

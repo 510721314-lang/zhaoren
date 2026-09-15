@@ -28,7 +28,7 @@ Component({
     compute() {
       const d = this.properties.demand || {};
       const scene = SCENES.find((s) => s.code === d.scene_code) || null;
-      const online = d.scene_code === 'online_companion';
+      const online = d.scene_code === 'W11';
       const distanceText = online
         ? '线上 · 不限距离'
         : `${d.district || ''} · ${d.distance_km != null ? d.distance_km + 'km' : '--'}`;

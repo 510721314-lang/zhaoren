@@ -4,11 +4,11 @@ const { SCENES, ORDER_STATUS } = require('../../config/enums.js');
 
 // 场景浅底 → 配套深字色（token）
 const SCENE_TEXT_VAR = {
-  medical_escort: 'var(--scene-medical-text)',
-  study_companion: 'var(--scene-study-text)',
-  life_assist: 'var(--scene-life-text)',
-  travel_companion: 'var(--scene-travel-text)',
-  online_companion: 'var(--scene-online-text)'
+  W1:  'var(--scene-medical-text)',
+  W2:  'var(--scene-study-text)',
+  W8:  'var(--scene-life-text)',
+  W10: 'var(--scene-travel-text)',
+  W11: 'var(--scene-online-text)'
 };
 
 Component({

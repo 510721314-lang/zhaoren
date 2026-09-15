@@ -1,4 +1,4 @@
-// mock/orders.js · V15.1 订单 mock
+﻿// mock/orders.js · V15.1 订单 mock
 // 供 P09 chat / P10 pay / P07 demand-detail 使用
 // 金额一律用"分"（PRD硬性规则），展示时 /100 转元
 
@@ -11,7 +11,7 @@ const orders = [
     partner_id: 'mock_partner_xiaoya',
     partner_name: '小雅酱',
     partner_avatar: '🧑‍⚕️',
-    scene_code: 'medical_escort',
+    scene_code: 'W1',
     // 金额：分
     amount_fen: 24000,         // 240元 = 80元/时 × 3时
     unit_price_fen: 8000,     // 80元/时
@@ -51,7 +51,7 @@ const orders = [
     partner_id: 'mock_partner_chenshu',
     partner_name: '陈叔帮帮忙',
     partner_avatar: '🧔',
-    scene_code: 'study_companion',
+    scene_code: 'W2',
     amount_fen: 18000,     // 180元
     unit_price_fen: 6000,  // 60元/时
     duration_hours: 3,
@@ -84,7 +84,7 @@ const orders = [
     partner_id: 'mock_partner_xiaoya',
     partner_name: '小雅酱',
     partner_avatar: '🧑‍⚕️',
-    scene_code: 'medical_escort',
+    scene_code: 'W1',
     amount_fen: 16000,
     unit_price_fen: 8000,
     duration_hours: 2,
@@ -119,7 +119,7 @@ const orders = [
     partner_id: 'mock_partner_chenshu',
     partner_name: '陈叔帮帮忙',
     partner_avatar: '🧔',
-    scene_code: 'life_assist',
+    scene_code: 'W8',
     amount_fen: 12000,
     unit_price_fen: 6000,
     duration_hours: 2,
@@ -154,7 +154,7 @@ const orders = [
     partner_id: 'mock_partner_xiaoya',
     partner_name: '小雅酱',
     partner_avatar: '🧑‍⚕️',
-    scene_code: 'study_companion',
+    scene_code: 'W2',
     amount_fen: 24000,
     unit_price_fen: 8000,
     duration_hours: 3,

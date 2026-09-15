@@ -2,7 +2,6 @@
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
-const { demands } = require('../../mock/demands.js');
 const { partners, CURRENT_USER } = require('../../mock/users.js');
 
 Page({
@@ -33,10 +32,10 @@ Page({
     } catch (e) {}
     const unconfirmed = (CURRENT_USER.emergency_contacts || []).find((c) => !c.verified) || null;
     this.setData({
-      demandList: demands,
       unconfirmedContact: unconfirmed,
       showEmergency: !!unconfirmed
     });
+    this.fetchSquare();
   },
 
   onShow() {
@@ -44,14 +43,43 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 });
     }
+    // 每次显示刷新广场(可能刚发布了新需求)
+    this.fetchSquare();
+  },
+
+  // 拉取需求广场(云端 demand 集合)
+  fetchSquare() {
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'square', limit: 20 },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data) {
+          this.setData({ demandList: r.data.list || [] });
+        }
+      },
+      fail: () => {
+        // 静默失败, 保留上次数据
+      }
+    });
   },
 
   onPullDownRefresh() {
-    setTimeout(() => {
-      this.setData({ demandList: demands.slice() });
-      wx.stopPullDownRefresh();
-      wx.showToast({ title: '已刷新', icon: 'none' });
-    }, 600);
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'square', limit: 20 },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data) {
+          this.setData({ demandList: r.data.list || [] });
+        }
+        wx.stopPullDownRefresh();
+        wx.showToast({ title: '已刷新', icon: 'none' });
+      },
+      fail: () => {
+        wx.stopPullDownRefresh();
+      }
+    });
   },
 
   // H1 城市切换（简化：action-sheet）
@@ -107,11 +135,17 @@ Page({
     this.setData({ activeTab: e.currentTarget.dataset.tab });
   },
 
-  // H7 卡片交互（详情页批次2，保留跳转契约）
-  onDemandTap() {
+  // H7 卡片交互（跳详情页，带真实 demand _id）
+  onDemandTap(e) {
+    const demand = (e.detail && e.detail.demand) || {};
+    const id = demand._id;
+    if (!id) {
+      wx.showToast({ title: '需求数据异常', icon: 'none' });
+      return;
+    }
     wx.navigateTo({
-      url: '/pages-v2/demand-detail/demand-detail',
-      fail: () => wx.showToast({ title: '需求详情将在批次2上线', icon: 'none' })
+      url: `/pages-v2/demand-detail/demand-detail?id=${id}`,
+      fail: () => wx.showToast({ title: '详情页打开失败', icon: 'none' })
     });
   },
   onPartnerTap() {

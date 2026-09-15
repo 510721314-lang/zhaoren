@@ -1,4 +1,4 @@
-// mock/conversations.js · V15.1 消息会话 mock（5条）
+﻿// mock/conversations.js · V15.1 消息会话 mock（5条）
 // 来源：mock-data.md 第2节 conversations + pages-spec P04
 // 含订单会话 S1/S2/S3 各一 + 系统通知 + 平台客服（后两者供M2固定入口渲染）
 
@@ -9,7 +9,7 @@ const conversations = [
     order_id: 'mock_order_s2_001',
     order_no: '20260915001',
     order_status: 'S2',
-    scene_code: 'medical_escort',
+    scene_code: 'W1',
     counterpart: '小雅酱',
     avatar: '🧑‍⚕️',
     last_msg: '[模板] 请确认集合地点：华西医院门诊大楼正门',
@@ -25,7 +25,7 @@ const conversations = [
     order_id: 'mock_order_s3_002',
     order_no: '20260914008',
     order_status: 'S3',
-    scene_code: 'study_companion',
+    scene_code: 'W2',
     counterpart: '陈叔帮帮忙',
     avatar: '🧔',
     last_msg: '我已经到图书馆门口啦，你们慢慢来～',
@@ -41,7 +41,7 @@ const conversations = [
     order_id: 'mock_order_s1_003',
     order_no: '20260914012',
     order_status: 'S1',
-    scene_code: 'life_assist',
+    scene_code: 'W8',
     counterpart: '跑腿阿强',
     avatar: '🧑‍🔧',
     last_msg: '[模板] 以下服务时间是否方便？明天08:00',

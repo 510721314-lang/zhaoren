@@ -1,4 +1,4 @@
-// mock/drafts.js · V15.1 草稿箱 mock（30天有效期）
+﻿// mock/drafts.js · V15.1 草稿箱 mock（30天有效期）
 // 供 P06 publish 页 B1 草稿入口与 B10 自动保存使用
 
 const drafts = [
@@ -7,7 +7,7 @@ const drafts = [
     user_id: 'mock_openid_zhang_ming',
     demand_data: {
       project_attr: 'commercial',
-      scene_code: 'medical_escort',
+      scene_code: 'W1',
       title: '陪母亲去省医院做检查',
       description: '母亲需要做全套体检，包括抽血、B超、心电图，希望有耐心的耍伴陪同。',
       service_date: '2026-09-20',
@@ -28,7 +28,7 @@ const drafts = [
     user_id: 'mock_openid_zhang_ming',
     demand_data: {
       project_attr: 'commercial',
-      scene_code: 'study_companion',
+      scene_code: 'W2',
       title: '周五晚图书馆考研自习陪伴',
       description: '考研冲刺阶段，需要耍伴在场督促专注，偶尔答疑英语阅读。',
       service_date: '2026-09-19',

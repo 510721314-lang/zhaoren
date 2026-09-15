@@ -304,6 +304,7 @@ exports.main = async (event, context) => {
         demand_no,
         creator_openid: openid,
         scene,
+        project_attr: 'commercial',
         start_time,
         duration_h,
         location: { name: location.name, latitude: location.latitude, longitude: location.longitude, city },
@@ -415,6 +416,73 @@ exports.main = async (event, context) => {
     case 'lazy_expire': {
       const n = await lazyExpire();
       return { ok: true, data: { expired_count: n } };
+    }
+
+    // 5. 需求详情(公开, 含发布者姓氏)
+    case 'detail': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'detail_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'detail_bad_id', msg: '需求 ID 格式不正确' };
+
+      try {
+        const r = await col('demand').doc(demand_id).get();
+        const d = r.data;
+        if (!d || d.is_deleted) return { ok: false, code: 'detail_not_found', msg: '需求不存在或已删除' };
+
+        // 发布者姓氏(取 surname / real_name / nickname 首字)
+        let surname = '匿';
+        try {
+          const uR = await col('user_account').where({ openid: d.creator_openid }).limit(1).get();
+          const u = (uR.data && uR.data[0]) || {};
+          const name = u.surname || u.real_name || u.nickname || '';
+          surname = name ? String(name).charAt(0) : '匿';
+        } catch (e) {}
+
+        // 备注拆分: 标题｜描述(full-width ｜)
+        const remarkParts = String(d.remark || '').split('｜');
+        const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
+        const description = remarkParts[1] ? remarkParts[1].trim() : '';
+
+        // 时间格式化
+        const dt = new Date(d.start_time);
+        const pad = (n) => n < 10 ? '0' + n : '' + n;
+        const service_date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+        const service_time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+
+        // 发布于 X 分钟前
+        const minutes_ago = Math.max(1, Math.floor((Date.now() - (d.created_at || Date.now())) / 60000));
+
+        const data = {
+          _id: d._id,
+          demand_no: d.demand_no,
+          scene_code: d.scene,
+          project_attr: d.project_attr || 'commercial',
+          title,
+          description,
+          service_date,
+          service_time,
+          duration_hours: d.duration_h,
+          location: d.location || { name: '', address: '' },
+          district: (d.location && d.location.city) || '',
+          distance_km: null,
+          headcount: 1,
+          budget: Math.round((d.rate_fen || 0) / 100),
+          aa_estimate: d.aa_tier || '0-50',
+          match_mode: d.match_mode || 'broadcast',
+          status: d.status,
+          is_owner: d.creator_openid === openid,
+          publisher: {
+            surname,
+            real_name_verified: true,
+            minutes_ago
+          },
+          created_at: d.created_at
+        };
+        return { ok: true, data };
+      } catch (e) {
+        console.log(`demand detail fail: ${e.message}`);
+        return { ok: false, code: 'detail_fail', msg: '查询需求详情失败' };
+      }
     }
 
     default:

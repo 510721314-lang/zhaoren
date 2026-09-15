@@ -2,7 +2,6 @@
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
-const { demands: ALL_DEMANDS } = require('../../mock/demands.js');
 const { CURRENT_USER } = require('../../mock/users.js');
 
 Page({
@@ -12,6 +11,7 @@ Page({
     sorts: ['综合', '距离', '最新', '单价'],
     activeSort: 0,
     list: [],
+    rawList: [],       // 云端原始需求列表
     todayCount: 0,
     onlinePartners: 8,
     user: CURRENT_USER,
@@ -33,7 +33,8 @@ Page({
     const chips = [{ code: 'all', name: '全部' }]
       .concat(SCENES.map((s) => ({ code: s.code, name: s.name })))
       .concat([{ code: 'public_welfare', name: '💚 公益免费' }]);
-    this.setData({ chips, todayCount: ALL_DEMANDS.length }, () => this.buildList());
+    this.setData({ chips });
+    this.fetchSquare();
   },
 
   onShow() {
@@ -41,13 +42,43 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 });
     }
+    this.fetchSquare();
   },
 
   onPullDownRefresh() {
-    setTimeout(() => {
-      this.buildList();
-      wx.stopPullDownRefresh();
-    }, 500);
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'square', limit: 50 },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data) {
+          this.setData({ rawList: r.data.list || [] });
+          this.buildList();
+        }
+        wx.stopPullDownRefresh();
+      },
+      fail: () => wx.stopPullDownRefresh()
+    });
+  },
+
+  // 拉取云端需求广场
+  fetchSquare() {
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'square', limit: 50 },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data) {
+          const list = r.data.list || [];
+          this.setData({
+            rawList: list,
+            todayCount: list.filter((d) => d.status === 'matching').length
+          });
+          this.buildList();
+        }
+      },
+      fail: () => {}
+    });
   },
 
   onChipTap(e) {
@@ -59,15 +90,15 @@ Page({
   },
 
   buildList() {
-    const { activeChip, activeSort, grabbedIds, certifiedScenes } = this.data;
-    let list = ALL_DEMANDS.filter((d) => d.status === 'matching');
+    const { activeChip, activeSort, grabbedIds, certifiedScenes, rawList } = this.data;
+    let list = (rawList || []).filter((d) => d.status === 'matching');
     if (activeChip === 'public_welfare') {
       list = list.filter((d) => d.project_attr === 'public_welfare');
     } else if (activeChip !== 'all') {
       list = list.filter((d) => d.scene_code === activeChip);
     }
     if (activeSort === 1) {
-      list = list.slice().sort((a, b) => (a.distance_km || 0) - (b.distance_km || 0));
+      list = list.slice().sort((a, b) => (a.distance_km || 9999) - (b.distance_km || 9999));
     } else if (activeSort === 2) {
       list = list.slice().sort((a, b) => (a.publisher.minutes_ago || 0) - (b.publisher.minutes_ago || 0));
     } else if (activeSort === 3) {

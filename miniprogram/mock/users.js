@@ -1,4 +1,4 @@
-// mock/users.js · V15.1 用户/耍伴 mock
+﻿// mock/users.js · V15.1 用户/耍伴 mock
 // 来源：mock-data.md 第2节 users 集合（2条：1双身份耍伴 + 1纯用户18-22岁）
 // 字段名对齐云集合 user_account，后续可直接换真接口
 
@@ -18,7 +18,7 @@ const users = [
     is_partner: true,
     partner_level: 'L2',
     // 已认证场景（R9 抢单按钮依据）：未认证 travel/online
-    certified_scenes: ['medical_escort', 'study_companion', 'life_assist'],
+    certified_scenes: ['W1', 'W2', 'W8'],
     emergency_contacts: [
       { name: '王**', phone: '139****0000', verified: false, relation: '父母' }
     ],
@@ -74,7 +74,7 @@ const partners = [
     partner_credit_score: 850,
     partner_level: 'L3',
     medals: ['🏅 月度之星'],
-    scenes: ['medical_escort', 'study_companion'],
+    scenes: ['W1', 'W2'],
     on_time_rate: 98,
     praise_rate: 95,
     order_count: 128,
@@ -98,7 +98,7 @@ const partners = [
     partner_credit_score: 912,
     partner_level: 'L3',
     medals: ['🛡 安全标兵', '⭐ 百单达人'],
-    scenes: ['life_assist', 'travel_companion'],
+    scenes: ['W8', 'W10'],
     on_time_rate: 99,
     praise_rate: 98,
     order_count: 206,
