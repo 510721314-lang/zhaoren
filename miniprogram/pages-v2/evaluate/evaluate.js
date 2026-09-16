@@ -1,15 +1,18 @@
 // PRD章节: 3.5.5 评价 / 3.5.2 S5→S8 状态流转 / 18-22岁双向匿名
+// P1: 接云端 order-action detail + evaluation-submit, 删 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
 const { SCENES } = require('../../config/enums.js');
-const { findOrder } = require('../../mock/orders.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 Page({
   data: {
     order: null,
     scene: null,
     stars: 0,
-    // 快捷标签三组
     goodTags: ['准时到达', '服务专业', '态度热情', '值得推荐', '沟通顺畅'],
     midTags: ['基本满意', '可再改进'],
     badTags: ['迟到', '态度一般', '服务不佳', '不推荐'],
@@ -20,10 +23,11 @@ Page({
     countdownText: '',
     loading: false,
     loadError: false,
+    loadErrorMsg: '',
     isRedline: false,
-    // C 可运营参数（供 WXML 绑定）
     evalTextMax: CONFIG.ORDER.evalTextMax,
-    evalRewardYuan: CONFIG.ORDER.evalRewardYuan
+    evalRewardYuan: CONFIG.ORDER.evalRewardYuan,
+    submitting: false
   },
 
   onLoad(options) {
@@ -31,22 +35,35 @@ Page({
   },
 
   fetchData(options) {
+    this.__orderId = (options && options.orderId) || '';
     this.__lastOptions = options || {};
+    if (!/^[a-f0-9]{32}$/i.test(this.__orderId)) {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '缺少有效订单 ID' });
+      return;
+    }
     this.setData({ loading: true, loadError: false });
-    setTimeout(() => {
-      try {
-        const order = findOrder(options.orderId) || findOrder('o_s5_004');
-        if (!order) {
-          this.setData({ loading: false, order: null });
-          return;
-        }
-        const scene = SCENES.find((s) => s.code === order.scene_code);
-        this.setData({ order, scene, loading: false });
-        this.startCountdown();
-      } catch (e) {
-        this.setData({ loading: false, loadError: true });
+    callCloud('order-action', { action: 'detail', order_id: this.__orderId }).then((r) => {
+      if (!r.ok) {
+        this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
+        return;
       }
-    }, 300);
+      const d = r.data;
+      const scene = SCENES.find((s) => s.code === d.scene) || null;
+      const order = {
+        _id: d.order_id,
+        order_id: d.order_id,
+        order_no: d.order_no,
+        status: d.status,
+        scene_code: d.scene,
+        start_time: d.start_time,
+        duration_hours: d.duration_h,
+        amount_fen: d.total_fen
+      };
+      this.setData({ order, scene, loading: false });
+      this.startCountdown();
+    }).catch(() => {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
+    });
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },
@@ -82,11 +99,9 @@ Page({
     this._timer = setInterval(update, 1000);
   },
 
-  // 星级选择
   onStarTap(e) {
     const star = Number(e.currentTarget.dataset.star);
     this.setData({ stars: star });
-    // 自动建议标签
     let autoSelected = [];
     if (star >= 4) autoSelected = [this.data.goodTags[0]];
     else if (star === 3) autoSelected = [this.data.midTags[0]];
@@ -94,7 +109,6 @@ Page({
     this.setData({ selectedTags: autoSelected });
   },
 
-  // 标签切换
   onTagTap(e) {
     const tag = e.currentTarget.dataset.tag;
     const selected = this.data.selectedTags.slice();
@@ -110,24 +124,35 @@ Page({
   },
 
   onSubmit() {
+    if (this.data.submitting) return;
     if (this.data.stars === 0) {
       wx.showToast({ title: '请选择星级', icon: 'none' });
       return;
     }
-    // 更新订单 S5→S8
-    const order = this.data.order;
-    order.status = 'S8';
-    order.evaluated = true;
-    order.evaluation = {
-      stars: this.data.stars,
+    this.setData({ submitting: true });
+    wx.showLoading({ title: '提交中…', mask: true });
+    callCloud('evaluation-submit', {
+      action: 'submit',
+      order_id: this.__orderId,
+      star: this.data.stars,
       tags: this.data.selectedTags,
-      content: this.data.content,
-      at: new Date().toISOString()
-    };
-    this.clearTimers();
-    wx.showToast({ title: `评价成功！${CONFIG.ORDER.evalRewardYuan}元优惠券已到账`, icon: 'none', duration: 2000 });
-    setTimeout(() => {
-      wx.navigateBack({ fail: () => wx.redirectTo({ url: '/pages-v2/order-detail/order-detail?orderId=' + order._id }) });
-    }, 1500);
+      content: this.data.content
+    }).then((r) => {
+      wx.hideLoading();
+      this.setData({ submitting: false });
+      if (!r.ok) {
+        wx.showModal({ title: '评价失败', content: r.msg || '请稍后重试', showCancel: false });
+        return;
+      }
+      this.clearTimers();
+      wx.showToast({ title: `评价成功！${CONFIG.ORDER.evalRewardYuan}元优惠券已到账`, icon: 'none', duration: 2000 });
+      setTimeout(() => {
+        wx.redirectTo({ url: '/pages-v2/order-detail/order-detail?orderId=' + this.__orderId, fail: () => wx.navigateBack({ fail: () => {} }) });
+      }, 1500);
+    }).catch(() => {
+      wx.hideLoading();
+      this.setData({ submitting: false });
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
   }
 });

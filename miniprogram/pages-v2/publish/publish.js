@@ -3,7 +3,6 @@ const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../config/enums.js');
 const { drafts: MOCK_DRAFTS } = require('../../mock/drafts.js');
-const { CURRENT_USER } = require('../../mock/users.js');
 
 // 智能派单门槛 = L3 优质等级下限（PRD 3.1.2）
 const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
@@ -26,7 +25,7 @@ Page({
     durationOptions: CONFIG.DURATION_OPTIONS,
     // 档位值取 CONFIG.AA_OPTIONS，展示文案取 enums AA_ESTIMATE_LABEL（PRD 3.5.1 SSOT）
     aaOptions: CONFIG.AA_OPTIONS.map((v) => ({ value: v, label: AA_ESTIMATE_LABEL[v] })),
-    user: CURRENT_USER,
+    user: {},  // peek_login 异步填充
 
     // 表单
     form: {
@@ -93,9 +92,22 @@ Page({
     if (options.sceneCode) {
       this.setScene({ code: options.sceneCode });
     }
-    // 检查用户信用等级是否支持智能派单
-    const score = CURRENT_USER.partner_credit_score;
-    this.setData({ smartLocked: score < L3_MIN });  // 非 L3 优质 → 置灰
+    // 拉用户信息 (peek_login) 替代 CURRENT_USER
+    wx.cloud.callFunction({
+      name: 'user-login',
+      data: { action: 'peek_login' },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data && r.data.found && r.data.user) {
+          const u = r.data.user;
+          this.setData({
+            user: u,
+            smartLocked: (u.partner_credit_score || 0) < L3_MIN
+          });
+        }
+      },
+      fail: () => {}
+    });
     // B5 日期范围
     const now = new Date();
     const todayStr = this.fmtDate(now);

@@ -1,7 +1,11 @@
 // PRD章节: 3.6 安全报备 / V15 SAFETY配置 / 1.7.1 18-22岁保护
+// P1: 接云端 order-action detail, 删 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
-const { findOrder } = require('../../mock/orders.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 Page({
   data: {
@@ -37,32 +41,50 @@ Page({
   },
 
   fetchData(options) {
+    this.__orderId = (options && options.orderId) || '';
     this.__lastOptions = options || {};
+    if (!/^[a-f0-9]{32}$/i.test(this.__orderId)) {
+      this.setData({ loading: false, loadError: true });
+      return;
+    }
     this.setData({ loading: true, loadError: false });
-    setTimeout(() => {
-      try {
-        const order = findOrder(options.orderId) || findOrder('o_s3_003');
-        if (!order || order.status !== 'S3') {
-          // 仅S3状态可进入
-          this.setData({ loading: false, order: order || null, redirect: true });
-          wx.redirectTo({
-            url: '/pages-v2/order-detail/order-detail?orderId=' + (order ? order._id : ''),
-            fail: () => wx.showToast({ title: '订单状态不允许安全报备', icon: 'none' })
-          });
-          return;
-        }
-        this.setData({
-          order,
-          redirect: false,
-          checkinStartedAt: Date.now(),
-          lastCheckin: (order.safety && order.safety.last_checkin) || '--:--',
-          loading: false
-        });
-        this.startTimers();
-      } catch (e) {
+    callCloud('order-action', { action: 'detail', order_id: this.__orderId }).then((r) => {
+      if (!r.ok) {
         this.setData({ loading: false, loadError: true });
+        return;
       }
-    }, 300);
+      const d = r.data;
+      const order = {
+        _id: d.order_id,
+        order_id: d.order_id,
+        order_no: d.order_no,
+        status: d.status,
+        scene_code: d.scene,
+        safety: {
+          last_checkin: (d.safety && d.safety.checkins && d.safety.checkins[0])
+            ? new Date(d.safety.checkins[0].created_at).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })
+            : null
+        }
+      };
+      if (order.status !== 'S3') {
+        this.setData({ loading: false, order, redirect: true });
+        wx.redirectTo({
+          url: '/pages-v2/order-detail/order-detail?orderId=' + order._id,
+          fail: () => wx.showToast({ title: '订单状态不允许安全报备', icon: 'none' })
+        });
+        return;
+      }
+      this.setData({
+        order,
+        redirect: false,
+        checkinStartedAt: Date.now(),
+        lastCheckin: order.safety.last_checkin || '--:--',
+        loading: false
+      });
+      this.startTimers();
+    }).catch(() => {
+      this.setData({ loading: false, loadError: true });
+    });
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },
