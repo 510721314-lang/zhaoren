@@ -1,18 +1,18 @@
 <view class="pcard" bindtap="onCard">
   <view class="pcard__top">
-    <view class="pcard__avatar">{{partner.avatar}}</view>
+    <view class="pcard__avatar">{{normalized.avatar}}</view>
     <view class="pcard__info">
       <view class="pcard__name-line">
-        <text class="pcard__name">{{partner.nickname}}</text>
-        <text class="pcard__cert" wx:if="{{partner.real_name_verified}}">实名</text>
-        <text class="pcard__cert" wx:if="{{partner.face_verified}}">人脸</text>
-        <text class="pcard__cert" wx:for="{{partner.certs}}" wx:key="*this">{{item}}</text>
+        <text class="pcard__name">{{normalized.nickname}}</text>
+        <text class="pcard__cert" wx:if="{{normalized.real_name_verified}}">实名</text>
+        <text class="pcard__cert" wx:if="{{normalized.face_verified}}">人脸</text>
+        <text class="pcard__cert" wx:for="{{normalized.certs}}" wx:key="*this">{{item}}</text>
       </view>
       <view class="pcard__score-line">
         <text class="pcard__score-label">信用分</text>
-        <text class="pcard__score-num">{{partner.partner_credit_score}}</text>
-        <text class="pcard__level">· {{partner.partner_level}}优质耍伴</text>
-        <text class="pcard__medal" wx:for="{{partner.medals}}" wx:key="*this">{{item}}</text>
+        <text class="pcard__score-num">{{normalized.partner_credit_score}}</text>
+        <text class="pcard__level">· {{normalized.partner_level}}优质耍伴</text>
+        <text class="pcard__medal" wx:for="{{normalized.medals}}" wx:key="*this">{{item}}</text>
       </view>
     </view>
   </view>
@@ -26,24 +26,24 @@
   </block>
   <block wx:else>
     <view class="pcard__stats">
-      <text class="pcard__stat">⏱ 准时率 <text class="pcard__stat-num">{{partner.on_time_rate}}%</text></text>
-      <text class="pcard__stat">❤ 好评率 <text class="pcard__stat-num">{{partner.praise_rate}}%</text></text>
-      <text class="pcard__stat">🧾 <text class="pcard__stat-num">{{partner.order_count}}</text> 单</text>
+      <text class="pcard__stat">⏱ 准时率 <text class="pcard__stat-num">{{normalized.on_time_rate}}%</text></text>
+      <text class="pcard__stat">❤ 好评率 <text class="pcard__stat-num">{{normalized.praise_rate}}%</text></text>
+      <text class="pcard__stat">🧾 <text class="pcard__stat-num">{{normalized.order_count}}</text> 单</text>
     </view>
   </block>
 
   <view class="pcard__bottom">
     <view class="pcard__price">
-      <text class="pcard__price-num">{{partner.price_min}}-{{partner.price_max}}</text>
-      <text class="pcard__price-unit"> 元/小时 · 距你 {{partner.distance_km}}km</text>
+      <text class="pcard__price-num">{{normalized.price_min}}-{{normalized.price_max}}</text>
+      <text class="pcard__price-unit"> 元/小时 · 距你 {{normalized.distance_km}}km</text>
     </view>
     <button class="pcard__btn" catchtap="onInvite">邀TA帮忙</button>
   </view>
 
-  <view class="pcard__dyn" wx:if="{{partner.latest_dynamic}}">
+  <view class="pcard__dyn" wx:if="{{normalized.latest_dynamic}}">
     <text class="pcard__dyn-tag">📢 最新动态</text>
-    <text class="pcard__dyn-text">{{partner.latest_dynamic.title}}</text>
-    <text class="pcard__dyn-time">{{partner.latest_dynamic.at}}</text>
+    <text class="pcard__dyn-text">{{normalized.latest_dynamic.title}}</text>
+    <text class="pcard__dyn-time">{{normalized.latest_dynamic.at}}</text>
   </view>
   <view class="pcard__more" catchtap="onMore">— 查看更多动态 —</view>
 </view>
