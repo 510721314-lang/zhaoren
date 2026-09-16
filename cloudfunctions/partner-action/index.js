@@ -194,7 +194,79 @@ exports.main = async (event, context) => {
       return { ok: true, data: { target_openid, status: newStatus } };
     }
 
+    // 5. 耍伴详情（C端公开）
+    case 'detail': {
+      const { partner_openid } = event;
+      if (!partner_openid) return { ok: false, code: 'pa_no_target', msg: '缺少耍伴标识' };
+
+      const r = await col('partner_profile').where({ openid: partner_openid, status: 'approved', is_deleted: false }).limit(1).get();
+      if (!r.data || !r.data[0]) return { ok: false, code: 'pa_not_found', msg: '耍伴不存在或未认证' };
+      const p = r.data[0];
+
+      // 拉 user_account 拿昵称头像
+      let nickname = p.nickname || '微信用户', avatar = '';
+      try {
+        const ua = await col('user_account').where({ openid: partner_openid }).limit(1).get();
+        if (ua.data && ua.data[0]) {
+          nickname = ua.data[0].nickname || nickname;
+          avatar = ua.data[0].avatar || '';
+        }
+      } catch (e) {}
+
+      // 订单统计
+      let totalOrders = 0, completedOrders = 0;
+      try {
+        const tr = await col('order_main').where({ partner_openid, is_deleted: false }).count();
+        totalOrders = tr.total || 0;
+        const cr = await col('order_main').where({ partner_openid, status: _.in(['S5','S8','S9','S10']), is_deleted: false }).count();
+        completedOrders = cr.total || 0;
+      } catch (e) {}
+
+      // 最近 3 条评价
+      let evaluations = [];
+      try {
+        const er = await col('evaluation').where({ partner_openid, is_deleted: false }).orderBy('created_at', 'desc').limit(3).get();
+        evaluations = (er.data || []).map(ev => ({
+          stars: ev.stars || 5,
+          tags: ev.tags || [],
+          content: ev.content || '',
+          at: formatTimeAgo(ev.created_at)
+        }));
+      } catch (e) {}
+
+      return {
+        ok: true,
+        data: {
+          partner: {
+            _id: p._id, openid: p.openid,
+            nickname, avatar,
+            accept_scenes: p.accept_scenes || [],
+            scene_rates: p.scene_rates || {},
+            city: p.city,
+            score: p.score || 0,
+            level: p.level || 'L1',
+            accept_switch: p.accept_switch !== false,
+            real_name_verified: !!p.real_name_verified,
+            face_verified: !!p.face_verified,
+            intro: p.intro || '这个耍伴还没写自我介绍~',
+            certified_scenes: p.accept_scenes || []
+          },
+          stats: { total_orders: totalOrders, completed_orders: completedOrders },
+          evaluations
+        }
+      };
+    }
+
     default:
       return { ok: false, code: 'pa_unknown_action', msg: '未知动作' };
   }
 };
+
+function formatTimeAgo(ts) {
+  if (!ts) return '';
+  const diff = (Date.now() - ts) / 1000;
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  if (diff < 2592000) return Math.floor(diff / 86400) + '天前';
+  return new Date(ts).toLocaleDateString();
+}

@@ -124,9 +124,15 @@ Page({
   },
 
   onPartnerTap(e) {
+    const p = (e.detail && e.detail.partner) || {};
+    const openid = p.openid;
+    if (!openid) {
+      wx.showToast({ title: '耍伴数据异常', icon: 'none' });
+      return;
+    }
     wx.navigateTo({
-      url: '/pages-v2/partner-detail/partner-detail',
-      fail: () => wx.showToast({ title: '耍伴详情已上线', icon: 'none' })
+      url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
+      fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
     });
   }
 });
