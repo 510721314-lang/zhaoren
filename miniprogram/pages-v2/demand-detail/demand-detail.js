@@ -1,8 +1,62 @@
 // PRD章节: 2.2 需求详情 / 3.3 发布流程 / R9 场景认证校验
-const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
-const { takeOrder } = require('../../utils/take-order.js');
+
+// ── 内联: redline.isInRedline() ──
+function isInRedline() {
+  const now = new Date();
+  const h = now.getHours();
+  const close = parseInt((CONFIG.TIME_REDLINE.close || '23:00').split(':')[0], 10);
+  const open = parseInt((CONFIG.TIME_REDLINE.open || '06:00').split(':')[0], 10);
+  // 夜间区间: close(23) → open(6), 跨午夜
+  return h >= close || h < open;
+}
+
+// ── 内联: take-order.js takeOrder() ──
+function takeOrder(demand, callbacks) {
+  const disclaimer = '免责声明: 平台仅提供信息撮合, 实际服务由双方自愿达成。接单后请遵守平台规则, 保障服务质量与安全。';
+  wx.showModal({
+    title: '接单前确认',
+    content: disclaimer,
+    confirmText: '同意并接单',
+    cancelText: '再想想',
+    success: (res) => {
+      if (!res.confirm) return;
+      // 定位
+      wx.getLocation({
+        type: 'gcj02',
+        success: (loc) => {
+          wx.showLoading({ title: '正在建单...', mask: true });
+          wx.cloud.callFunction({
+            name: 'order-action',
+            data: {
+              action: 'create_from_take',
+              demand_id: demand._id,
+              scene_code: demand.scene_code,
+              pickup: { latitude: loc.latitude, longitude: loc.longitude }
+            },
+            success: (r) => {
+              wx.hideLoading();
+              const result = r.result || {};
+              if (result.ok && result.data) {
+                callbacks.onSuccess && callbacks.onSuccess(result.data);
+              } else {
+                callbacks.onError && callbacks.onError({ code: result.code, msg: result.msg });
+              }
+            },
+            fail: (err) => {
+              wx.hideLoading();
+              callbacks.onError && callbacks.onError({ code: 'network', msg: '网络错误' });
+            }
+          });
+        },
+        fail: () => {
+          wx.showToast({ title: '需要定位权限才能接单', icon: 'none' });
+        }
+      });
+    }
+  });
+}
 
 Page({
   data: {
@@ -59,7 +113,7 @@ Page({
   reload() { this.fetchData(this.__lastOptions || {}); },
 
   onShow() {
-    this.setData({ isRedline: redline.isInRedline() });
+    this.setData({ isRedline: isInRedline() });
   },
 
   onGrab(e) {

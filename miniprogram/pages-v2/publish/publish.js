@@ -497,8 +497,9 @@ Page({
             wx.redirectTo({
               url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
               fail: () => {
-                wx.redirectTo({
-                  url: `/pages/match/match?demand_id=${demandId}`,
+                // 降级: 跳广场页让用户自己找到需求
+                wx.switchTab({
+                  url: '/pages-v2/square/square',
                   fail: () => wx.showToast({ title: '发布成功，请在广场查看', icon: 'none' })
                 });
               }
