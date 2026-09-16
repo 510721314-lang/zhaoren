@@ -30,7 +30,6 @@
     <block wx:if="{{chatBlocked}}">⛔ 订单已取消/关闭,会话已停止</block>
     <block wx:elif="{{!unlocked}}">⚠ 四确认完成前仅可使用模板消息沟通</block>
     <block wx:else>已解锁自由沟通</block>
-    <text wx:if="{{orderStatus === 'S1' && !unlocked}}" class="chat__dev-chip" bindtap="onDevConfirmAll">DEV双方确认›</text>
   </view>
 
   <!-- C4 消息流 -->

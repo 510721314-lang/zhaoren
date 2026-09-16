@@ -142,8 +142,6 @@ Page({
   // O3 操作区
   onStartService() {
     const that = this;
-    const isAdmin = true; // DEV模式: 真机A是管理员, 直接走 dev_start_service
-    const actionName = isAdmin ? 'dev_start_service' : 'start_service';
     wx.showModal({
       title: '确认开始履约',
       content: '开始履约后进入安全保障期',
@@ -151,7 +149,7 @@ Page({
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '处理中', mask: true });
-        callCloud('order-action', { action: actionName, order_id: that.data.order._id }).then((r) => {
+        callCloud('order-action', { action: 'start_service', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
             wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
@@ -212,8 +210,6 @@ Page({
 
   onFinishService() {
     const that = this;
-    const isAdmin = true; // DEV模式: 真机A是管理员, 直接走 dev_complete_service
-    const actionName = isAdmin ? 'dev_complete_service' : 'complete_service';
     wx.showModal({
       title: '确认履约完成',
       content: '完成后订单进入评价期',
@@ -221,7 +217,7 @@ Page({
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '处理中', mask: true });
-        callCloud('order-action', { action: actionName, order_id: that.data.order._id }).then((r) => {
+        callCloud('order-action', { action: 'complete_service', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
             wx.showToast({ title: r.msg || '操作失败', icon: 'none' });

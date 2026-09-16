@@ -24,9 +24,7 @@
     </view>
   </view>
 
-  <!-- DEV: 联调跳转入口(上线前删除) -->
-  <view class="pf__dev-entry" bindtap="onDevGoChat">DEV·输入订单ID进聊天</view>
-  <view class="pf__dev-entry" bindtap="onDevGoOrderDetail">DEV·输入订单ID进订单详情</view>
+  </view>
 
   <!-- U2 双信用分卡（独立两栏） -->
   <view class="pf__scores">
