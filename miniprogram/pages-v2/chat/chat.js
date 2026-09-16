@@ -1,19 +1,36 @@
 // PRD章节: 3.4 IM聊天 / 3.4.1.1 模板消息四确认 / 3.4.2 限制规则 / 3.4.4 消息留存
+// P0-2: 全部接云端 —— im-conv(open/messages) + im-send(send_template/send_text)
+//       + order-action(get_confirmation/confirm_item/update_item)
+// 红线: 四确认完成前仅可发送系统模板消息(后端强制); 确认状态为双方8位模型, 双侧确认才算该项完成
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
-const { findOrder } = require('../../mock/orders.js');
-const { SCENES, TM_TEMPLATES, CONFIRM_ITEMS } = require('../../config/enums.js');
+const { SCENES, TM_TEMPLATES } = require('../../config/enums.js');
+
+// 模板 id → 四确认字段(与后端 CONFIRM_FIELDS 一致)
+const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 Page({
   data: {
     statusBarHeight: 20,
-    order: null,
+    orderId: '',
+    orderNo: '',
     scene: null,
+    sceneName: '',
     counterpart: '',
-    messages: [],
+    role: '',
+    // 四确认原始 items {time:{value,user_ok,partner_ok},...}
+    items: null,
     progress: { time: false, location: false, content: false, fee: false },
     confirmedCount: 0,
-    unlocked: false,   // 四确认4/4后解锁
+    unlocked: false,     // 四确认 4/4(双侧)
+    freeChat: false,     // 后端允许自由文本
+    chatBlocked: false,  // S6/S10
+    orderStatus: '',
+    messages: [],
     // C5 模板快捷键
     quickKeys: [
       { id: 'TM1', icon: '🕐', name: '时间' },
@@ -25,19 +42,20 @@ Page({
     otherUsedCount: 0,
     // C6 输入
     inputText: '',
-    // C5 「其他」弹窗
-    otherSheetVisible: false,
-    otherText: '',
-    otherCount: 0,
     // 客服介入弹窗
     kefuSheetVisible: false,
+    // 编辑弹层: '' | 'time' | 'content' | 'fee' (location 走 chooseLocation 无弹层)
+    editSheet: '',
+    editDate: '',
+    editTimeHm: '',
+    editFeeYuan: '',
+    editContentOpts: [],
     // 滚动锚点
     scrollToView: '',
     loading: false,
     loadError: false,
+    loadErrorMsg: '',
     isRedline: false,
-    // C 可运营参数（供 WXML 绑定）
-    otherLimit: TM_TEMPLATES.TM5.otherLimit,
     kefuResponseMin: CONFIG.IM.kefuResponseMin
   },
 
@@ -46,191 +64,447 @@ Page({
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
     } catch (e) {}
-    this.fetchData(options);
+    this.__orderId = (options && options.orderId) || '';
+    this.__convId = '';
+    this.__pollTimer = null;
+    this.fetchData();
   },
-
-  fetchData(options) {
-    this.__lastOptions = options || {};
-    this.setData({ loading: true, loadError: false });
-    setTimeout(() => {
-      try {
-        const order = findOrder(options.orderId || 'o_s1_001') || findOrder('o_s1_001');
-        if (!order) {
-          this.setData({ loading: false, order: null });
-          return;
-        }
-        const scene = SCENES.find((s) => s.code === order.scene_code);
-        this.setData({
-          order,
-          scene,
-          counterpart: order.partner_name,
-          messages: (order.messages || []).map((m) => Object.assign({}, m)),
-          progress: Object.assign({}, order.confirm_progress),
-          loading: false
-        }, () => {
-          this.updateConfirmedCount();
-          this.scrollBottom();
-        });
-      } catch (e) {
-        this.setData({ loading: false, loadError: true });
-      }
-    }, 300);
-  },
-
-  reload() { this.fetchData(this.__lastOptions || {}); },
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    this.startPolling();
   },
+  onHide() { this.stopPolling(); },
+  onUnload() { this.stopPolling(); },
 
-  // ── C2 进度 ──
-  updateConfirmedCount() {
-    const p = this.data.progress;
-    const count = [p.time, p.location, p.content, p.fee].filter(Boolean).length;
-    const unlocked = count >= 4;
-    this.setData({ confirmedCount: count, unlocked });
-  },
-
-  // ── C4 模板卡选项点击 ──
-  onTmOption(e) {
-    const { tm_id, option, msg_id } = e.detail;
-    // 更新消息状态
-    const messages = this.data.messages.map((m) => {
-      if (m._id === msg_id) {
-        return Object.assign({}, m, {
-          picked: option,
-          status: tm_id === 'TM4' ? 'confirmed' : 'replied'
-        });
-      }
-      return m;
-    });
-    // 更新进度
-    const progress = Object.assign({}, this.data.progress);
-    const keyMap = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
-    const key = keyMap[tm_id];
-    if (key) progress[key] = true;
-    this.setData({ messages, progress }, () => {
-      this.updateConfirmedCount();
-      this.scrollBottom();
-      // 四确认完成 → 解锁 toast
-      if (this.data.unlocked && key === 'fee') {
-        wx.showToast({ title: '已解锁自由沟通，请遵守平台规则', icon: 'none', duration: 2000 });
-      }
-    });
-  },
-
-  // ── C5 模板快捷键 ──
-  onQuickKey(e) {
-    const tmId = e.currentTarget.dataset.id;
-    if (tmId === 'TM5') {
-      // 其他 → bottom-sheet textarea
-      this.setData({ otherSheetVisible: true, otherText: '', otherCount: 0 });
+  // ───────── 数据加载 ─────────
+  fetchData() {
+    if (!/^[a-f0-9]{32}$/i.test(this.__orderId)) {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '缺少有效订单 ID,请从正确入口进入' });
       return;
     }
-    // 发送对应 TM 模板消息卡
-    this.sendTmCard(tmId);
+    this.setData({ loading: true, loadError: false });
+    const orderId = this.__orderId;
+    callCloud('im-conv', { action: 'open', order_id: orderId }).then((r) => {
+      if (!r.ok) {
+        this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '会话打开失败' });
+        return;
+      }
+      const d = r.data;
+      this.__convId = d.conv_id;
+      const scene = SCENES.find((s) => s.code === d.scene) || null;
+      this.setData({
+        orderId: d.order_id,
+        orderNo: d.order_no || '',
+        scene,
+        sceneName: d.scene_name || (scene ? scene.name : ''),
+        counterpart: (d.peer && d.peer.nickname) || '',
+        role: d.role || '',
+        freeChat: !!d.free_chat,
+        chatBlocked: !!d.chat_blocked,
+        orderStatus: d.status || '',
+        loading: false
+      }, () => {
+        // 系统事件条(本地展示)
+        const sysMsg = {
+          _id: 'sys_order_created', msg_type: 'system',
+          content: `订单已创建(${d.order_no || ''}),请双方完成结构化四确认`,
+          created_at: this.nowTime()
+        };
+        this.setData({ messages: [sysMsg] });
+        return Promise.all([
+          callCloud('order-action', { action: 'get_confirmation', order_id: orderId }),
+          callCloud('im-conv', { action: 'messages', conv_id: d.conv_id })
+        ]).then(([conf, msgs]) => {
+          if (conf.ok) this.applyConfirmation(conf.data);
+          if (msgs.ok) this.renderMessages(msgs.data.messages);
+          this.scrollBottom();
+        });
+      });
+    }).catch(() => {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请检查网络后重试' });
+    });
   },
 
-  sendTmCard(tmId) {
-    const tm = TM_TEMPLATES[tmId];
-    if (!tm) return;
-    const newMsg = {
-      _id: 'm_' + Date.now(),
-      msg_type: 'template',
-      tm_id: tmId,
-      direction: 'out',
-      question: tm.question,
-      picked: '',
-      status: 'pending',
-      created_at: this.nowTime()
-    };
-    this.setData({ messages: this.data.messages.concat([newMsg]) }, () => this.scrollBottom());
-  },
+  reload() { this.fetchData(); },
 
-  // ── C5 「其他」 ──
-  onOtherInput(e) {
-    const v = (e.detail.value || '').slice(0, TM_TEMPLATES.TM5.otherLimit);
-    this.setData({ otherText: v, otherCount: v.length });
-  },
-  sendOther() {
-    const text = this.data.otherText.trim();
-    if (!text) return;
-    // 发送为 TM5 模板卡
-    const newMsg = {
-      _id: 'm_' + Date.now(),
-      msg_type: 'template',
-      tm_id: 'TM5',
-      direction: 'out',
-      question: text,
-      picked: '',
-      status: 'pending',
-      created_at: this.nowTime()
+  // ───────── 四确认状态 ─────────
+  applyConfirmation(d) {
+    const items = d.items || {};
+    const both = (f) => !!(items[f] && items[f].user_ok && items[f].partner_ok);
+    const progress = {
+      time: both('time'), location: both('location'),
+      content: both('content'), fee: both('fee')
     };
-    const otherUsedCount = this.data.otherUsedCount + 1;
+    const count = [progress.time, progress.location, progress.content, progress.fee].filter(Boolean).length;
+    const wasUnlocked = this.data.unlocked;
+    const unlocked = !!d.all_confirmed;
     this.setData({
-      messages: this.data.messages.concat([newMsg]),
-      otherUsedCount,
-      otherSheetVisible: false
+      items,
+      progress,
+      confirmedCount: count,
+      unlocked,
+      freeChat: unlocked || this.data.freeChat,
+      orderStatus: d.status || this.data.orderStatus
     }, () => {
-      this.scrollBottom();
-      // 达到配置阈值 → 弹客服介入
-      if (otherUsedCount >= CONFIG.IM.otherKefuThreshold) {
-        this.setData({ kefuSheetVisible: true });
+      this.updateMsgStatuses();
+      if (unlocked && !wasUnlocked) {
+        wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
       }
     });
   },
-  closeOtherSheet() {
-    this.setData({ otherSheetVisible: false });
+
+  refreshConfirmation() {
+    return callCloud('order-action', { action: 'get_confirmation', order_id: this.data.orderId })
+      .then((r) => { if (r.ok) this.applyConfirmation(r.data); });
   },
 
-  // ── 客服介入 ──
-  closeKefuSheet() {
-    this.setData({ kefuSheetVisible: false });
-  },
-  requestKefu() {
-    this.setData({ kefuSheetVisible: false });
-    wx.showToast({ title: `已申请客服介入，将在${CONFIG.IM.kefuResponseMin}分钟内接入`, icon: 'none' });
-  },
-
-  // ── C6 自由输入（四确认后） ──
-  onTextInput(e) {
-    this.setData({ inputText: e.detail.value });
-  },
-  sendText() {
-    const text = this.data.inputText.trim();
-    if (!text || !this.data.unlocked) return;
-    const newMsg = {
-      _id: 'm_' + Date.now(),
-      msg_type: 'text',
-      direction: 'out',
-      content: text,
-      is_read: false,
-      created_at: this.nowTime()
-    };
-    this.setData({
-      messages: this.data.messages.concat([newMsg]),
-      inputText: ''
-    }, () => this.scrollBottom());
-  },
-
-  // ── C1 订单卡片入口 ──
-  goOrderDetail() {
-    if (!this.data.order) return;
-    wx.navigateTo({
-      url: `/pages-v2/order-detail/order-detail?orderId=${this.data.order._id}`,
-      fail: () => wx.showToast({ title: '订单详情将在批次3上线', icon: 'none' })
+  // ───────── 消息渲染 ─────────
+  renderMessages(list) {
+    const messages = (list || []).map((m) => this.toUiMsg(m));
+    const sysIdx = this.data.messages.findIndex((x) => x._id === 'sys_order_created');
+    const sys = sysIdx >= 0 ? [this.data.messages[sysIdx]] : [];
+    this.setData({ messages: sys.concat(messages) }, () => {
+      // 用最新确认状态同步模板卡(避免覆盖为 pending)
+      this.updateMsgStatuses();
+      this.scrollBottom();
     });
   },
 
-  // ── C7 订单卡片消息点击 ──
-  onOrderCardTap() {
-    this.goOrderDetail();
+  toUiMsg(m) {
+    const ui = {
+      _id: m.msg_id,
+      direction: m.is_mine ? 'out' : 'in',
+      created_at: this.fmtTime(m.created_at)
+    };
+    if (m.type === 'template') {
+      const field = TM_FIELD[m.template_id];
+      const q = this.enrichedQuestion(m.template_id, field);
+      return Object.assign(ui, {
+        msg_type: 'template', tm_id: m.template_id,
+        question: q, picked: '', status: 'pending'
+      });
+    }
+    return Object.assign(ui, {
+      msg_type: 'text', content: m.text, is_read: false
+    });
   },
 
-  // ── 工具 ──
+  // 把订单真实值注入模板卡问题文案(时间/地点/内容/费用)
+  enrichedQuestion(tmId, field) {
+    const tm = TM_TEMPLATES[tmId];
+    if (!tm) return '';
+    const items = this.data.items;
+    if (!field || !items || !items[field]) return tm.question;
+    const v = items[field].value;
+    try {
+      if (field === 'time' && v) {
+        return `${tm.question}(${this.fmtDateTime(v)})`;
+      }
+      if (field === 'location' && v && v.name) {
+        return `${tm.question}:${v.name}`;
+      }
+      if (field === 'content' && Array.isArray(v) && v.length) {
+        return `${tm.question}:${v.join('、')}`;
+      }
+      if (field === 'fee' && v) {
+        return `${tm.question}:合计 ${(Number(v) / 100).toFixed(0)} 元`;
+      }
+    } catch (e) {}
+    return tm.question;
+  },
+
+  // 确认状态变化后,同步历史模板卡的状态/已选
+  updateMsgStatuses() {
+    const items = this.data.items;
+    const role = this.data.role;
+    if (!items || !role) return;
+    const peerRole = role === 'user' ? 'partner' : 'user';
+    const messages = this.data.messages.map((m) => {
+      if (m.msg_type !== 'template') return m;
+      const field = TM_FIELD[m.tm_id];
+      if (!field || !items[field]) return m;
+      const it = items[field];
+      const myOk = !!it[role + '_ok'];
+      const peerOk = !!it[peerRole + '_ok'];
+      const positive = (TM_TEMPLATES[m.tm_id] && TM_TEMPLATES[m.tm_id].options && TM_TEMPLATES[m.tm_id].options[0]) || '';
+      return Object.assign({}, m, {
+        status: (myOk && peerOk) ? 'confirmed' : (myOk ? 'replied' : 'pending'),
+        picked: myOk ? positive : ''
+      });
+    });
+    this.setData({ messages });
+  },
+
+  refreshMessages() {
+    if (!this.__convId) return Promise.resolve();
+    return callCloud('im-conv', { action: 'messages', conv_id: this.__convId })
+      .then((r) => { if (r.ok) this.renderMessages(r.data.messages); });
+  },
+
+  // ───────── 轮询(5s) ─────────
+  startPolling() {
+    this.stopPolling();
+    if (!this.__orderId) return;
+    this.__pollTimer = setInterval(() => {
+      if (this.data.loading || this.data.loadError) return;
+      this.refreshMessages();
+      this.refreshConfirmation();
+    }, 5000);
+  },
+  stopPolling() {
+    if (this.__pollTimer) { clearInterval(this.__pollTimer); this.__pollTimer = null; }
+  },
+
+  // ───────── C4 模板卡选项点击 ─────────
+  onTmOption(e) {
+    const { tm_id, option } = e.detail;
+    const field = TM_FIELD[tm_id];
+    if (!field) {
+      // TM5 等无确认字段的模板
+      wx.showToast({ title: '该模板无需确认', icon: 'none' });
+      return;
+    }
+    if (this.data.chatBlocked) {
+      wx.showToast({ title: '订单已取消/关闭,无法操作', icon: 'none' });
+      return;
+    }
+    const positive = TM_TEMPLATES[tm_id] && TM_TEMPLATES[tm_id].options && TM_TEMPLATES[tm_id].options[0] === option;
+    if (positive) this.confirmItem(field);
+    else this.startEdit(field);
+  },
+
+  confirmItem(field) {
+    wx.showLoading({ title: '提交中', mask: true });
+    callCloud('order-action', {
+      action: 'confirm_item', order_id: this.data.orderId, item: field
+    }).then((r) => {
+      wx.hideLoading();
+      if (!r.ok) {
+        wx.showModal({ title: '确认失败', content: r.msg || '请稍后重试', showCancel: false });
+        return;
+      }
+      return this.refreshConfirmation();
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
+  },
+
+  // ───────── 调整确认项(update_item, 后端重置全部8位) ─────────
+  startEdit(field) {
+    if (this.data.orderStatus !== 'S1') {
+      wx.showToast({ title: '订单当前状态不可修改', icon: 'none' });
+      return;
+    }
+    if (field === 'location') {
+      wx.chooseLocation({
+        success: (res) => {
+          const value = {
+            name: res.name || res.address || '服务地点',
+            address: res.address || '',
+            latitude: res.latitude,
+            longitude: res.longitude,
+            city: ''
+          };
+          this.updateItem('location', value);
+        }
+      });
+      return;
+    }
+    if (field === 'time') {
+      const d = new Date(Date.now() + 24 * 3600 * 1000);
+      this.setData({
+        editSheet: 'time',
+        editDate: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        editTimeHm: '10:00'
+      });
+      return;
+    }
+    if (field === 'content') {
+      const cur = (this.data.items && this.data.items.content && Array.isArray(this.data.items.content.value))
+        ? this.data.items.content.value : [];
+      const opts = cur.map((name) => ({ name, checked: true }));
+      this.setData({ editSheet: 'content', editContentOpts: opts });
+      return;
+    }
+    if (field === 'fee') {
+      const cur = (this.data.items && this.data.items.fee && this.data.items.fee.value) || 0;
+      this.setData({ editSheet: 'fee', editFeeYuan: cur ? String(cur / 100) : '' });
+    }
+  },
+
+  closeEditSheet() { this.setData({ editSheet: '' }); },
+
+  onEditDate(e) { this.setData({ editDate: e.detail.value }); },
+  onEditTimeHm(e) { this.setData({ editTimeHm: e.detail.value }); },
+  onEditFeeInput(e) { this.setData({ editFeeYuan: e.detail.value }); },
+  onEditContentChange(e) {
+    const selected = e.detail.value || [];
+    this.setData({
+      editContentOpts: this.data.editContentOpts.map((o) =>
+        Object.assign({}, o, { checked: selected.indexOf(o.name) >= 0 }))
+    });
+  },
+
+  confirmEditTime() {
+    const { editDate, editTimeHm } = this.data;
+    if (!editDate || !editTimeHm) {
+      wx.showToast({ title: '请选择日期和时间', icon: 'none' });
+      return;
+    }
+    const [y, mo, d] = editDate.split('-').map(Number);
+    const [h, mi] = editTimeHm.split(':').map(Number);
+    const ts = new Date(y, mo - 1, d, h, mi, 0).getTime();
+    if (!ts || ts <= Date.now()) {
+      wx.showToast({ title: '服务时间必须是未来时间', icon: 'none' });
+      return;
+    }
+    this.updateItem('time', ts);
+  },
+
+  confirmEditContent() {
+    const value = this.data.editContentOpts.filter((o) => o.checked).map((o) => o.name);
+    if (!value.length) {
+      wx.showToast({ title: '请至少保留一项服务内容', icon: 'none' });
+      return;
+    }
+    this.updateItem('content', value);
+  },
+
+  confirmEditFee() {
+    const yuan = Number(this.data.editFeeYuan);
+    if (!yuan || yuan <= 0) {
+      wx.showToast({ title: '请输入有效金额', icon: 'none' });
+      return;
+    }
+    const fen = Math.round(yuan * 100);
+    if (!Number.isInteger(fen) || fen <= 0) {
+      wx.showToast({ title: '金额格式有误', icon: 'none' });
+      return;
+    }
+    this.updateItem('fee', fen);
+  },
+
+  updateItem(item, value) {
+    wx.showLoading({ title: '提交中', mask: true });
+    callCloud('order-action', {
+      action: 'update_item', order_id: this.data.orderId, item, value
+    }).then((r) => {
+      wx.hideLoading();
+      if (!r.ok) {
+        wx.showModal({ title: '修改失败', content: r.msg || '请稍后重试', showCancel: false });
+        return;
+      }
+      this.setData({ editSheet: '' });
+      wx.showToast({ title: '已修改,双方需重新确认', icon: 'none', duration: 2000 });
+      return this.refreshConfirmation();
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
+  },
+
+  // ───────── C5 模板快捷键 ─────────
+  onQuickKey(e) {
+    const tmId = e.currentTarget.dataset.id;
+    if (this.data.chatBlocked) {
+      wx.showToast({ title: '订单已取消/关闭,无法发送', icon: 'none' });
+      return;
+    }
+    this.sendTemplate(tmId);
+  },
+
+  sendTemplate(tmId) {
+    callCloud('im-send', {
+      action: 'send_template', order_id: this.data.orderId, template_id: tmId
+    }).then((r) => {
+      if (!r.ok) {
+        wx.showModal({ title: '发送失败', content: r.msg || '请稍后重试', showCancel: false });
+        return;
+      }
+      const messages = this.data.messages.concat([this.toUiMsg(r.data.msg)]);
+      this.setData({ messages }, () => {
+        this.updateMsgStatuses();
+        this.scrollBottom();
+      });
+      // TM5 使用计数 → 达阈值弹客服介入
+      if (tmId === 'TM5') {
+        const otherUsedCount = this.data.otherUsedCount + 1;
+        this.setData({ otherUsedCount });
+        if (otherUsedCount >= CONFIG.IM.otherKefuThreshold) {
+          this.setData({ kefuSheetVisible: true });
+        }
+      }
+    }).catch(() => {
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
+  },
+
+  // ───────── 客服介入 ─────────
+  closeKefuSheet() { this.setData({ kefuSheetVisible: false }); },
+  requestKefu() {
+    this.setData({ kefuSheetVisible: false });
+    wx.showToast({ title: `已申请客服介入,将在${CONFIG.IM.kefuResponseMin}分钟内接入`, icon: 'none' });
+  },
+
+  // ───────── C6 自由输入(四确认后) ─────────
+  onTextInput(e) { this.setData({ inputText: e.detail.value }); },
+  sendText() {
+    const text = this.data.inputText.trim();
+    if (!text) return;
+    if (!this.data.freeChat) {
+      wx.showToast({ title: '四项确认完成前仅可发送模板消息', icon: 'none' });
+      return;
+    }
+    callCloud('im-send', {
+      action: 'send_text', order_id: this.data.orderId, text
+    }).then((r) => {
+      if (!r.ok) {
+        wx.showToast({ title: r.msg || '发送失败', icon: 'none' });
+        if (r.code === 'im_template_only') this.refreshConfirmation();
+        return;
+      }
+      this.setData({ inputText: '' });
+      const messages = this.data.messages.concat([this.toUiMsg(r.data.msg)]);
+      this.setData({ messages }, () => this.scrollBottom());
+    }).catch(() => {
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
+  },
+
+  // ───────── 待支付横幅 ─────────
+  goPay() {
+    if (this.data.orderStatus !== 'S0') return;
+    wx.navigateTo({
+      url: `/pages-v2/pay/pay?orderId=${this.data.orderId}`,
+      fail: () => wx.showToast({ title: '支付页即将开放', icon: 'none' })
+    });
+  },
+
+  // ───────── C1 订单卡片入口 ─────────
+  goOrderDetail() {
+    if (!this.data.orderId) return;
+    wx.navigateTo({
+      url: `/pages-v2/order-detail/order-detail?orderId=${this.data.orderId}`,
+      fail: () => wx.showToast({ title: '订单详情即将开放', icon: 'none' })
+    });
+  },
+
+  // ───────── 工具 ─────────
   nowTime() {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+  fmtTime(ms) {
+    if (!ms) return '';
+    const d = new Date(Number(ms));
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+  fmtDateTime(ms) {
+    if (!ms) return '';
+    const d = new Date(Number(ms));
+    return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   },
   scrollBottom() {
     setTimeout(() => {
