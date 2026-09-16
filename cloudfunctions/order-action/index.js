@@ -432,6 +432,40 @@ exports.main = async (event, context) => {
     return { ok: true, data: { order_id, order_no: devOrder.order_no, status: 'S0', dev: true } };
   }
 
+  // ───────── 3.10 DEV: 管理员一键开始履约(S2→S3, 跳过权限+里程碑) ─────────
+  if (action === 'dev_start_service') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const devConfig = await getConfig();
+    const admins = devConfig.admin_openids || [];
+    if (admins.indexOf(openid) < 0) return { ok: false, code: 'oa_not_admin', msg: '仅管理员可执行此操作' };
+    const devOrder = await getOrder(order_id);
+    if (!devOrder) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    if (devOrder.status !== 'S2') return { ok: false, code: 'oa_not_startable', msg: `订单当前状态(${devOrder.status})不可开始履约` };
+    const devNow = Date.now();
+    const devWon = await casStatus(order_id, 'S2', { status: 'S3', service_started_at: devNow, updated_at: devNow, milestone: { current: 3, confirmed: [true, true, true], evidence: [] } });
+    if (!devWon) { const latest = await getOrder(order_id); return { ok: false, code: 'oa_status_conflict', msg: `订单状态已变化(当前${latest ? latest.status : '未知'})` }; }
+    await logStatus(order_id, 'S2', 'S3', 'dev_start_service', openid);
+    return { ok: true, data: { order_id, order_no: devOrder.order_no, status: 'S3', dev: true } };
+  }
+
+  // ───────── 3.11 DEV: 管理员一键完成履约(S3→S5, 跳过权限+里程碑) ─────────
+  if (action === 'dev_complete_service') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const devConfig = await getConfig();
+    const admins = devConfig.admin_openids || [];
+    if (admins.indexOf(openid) < 0) return { ok: false, code: 'oa_not_admin', msg: '仅管理员可执行此操作' };
+    const devOrder = await getOrder(order_id);
+    if (!devOrder) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    if (devOrder.status !== 'S3') return { ok: false, code: 'oa_not_completeable', msg: `订单当前状态(${devOrder.status})不可完成履约` };
+    const devNow = Date.now();
+    const devWon = await casStatus(order_id, 'S3', { status: 'S5', service_completed_at: devNow, updated_at: devNow });
+    if (!devWon) { const latest = await getOrder(order_id); return { ok: false, code: 'oa_status_conflict', msg: `订单状态已变化(当前${latest ? latest.status : '未知'})` }; }
+    await logStatus(order_id, 'S3', 'S5', 'dev_complete_service', openid);
+    return { ok: true, data: { order_id, order_no: devOrder.order_no, status: 'S5', dev: true } };
+  }
+
   // ───────── 4. 取消订单(S1/S0 → S6) ─────────
   if (action === 'cancel') {
     const { order_id, reason } = event;
