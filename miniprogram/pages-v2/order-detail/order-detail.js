@@ -274,9 +274,8 @@ Page({
           }
           wx.showToast({ title: `履约完成，${CONFIG.ORDER.evalWindowH}小时内可评价`, icon: 'success' });
           that.fetchData({ orderId: that.data.order._id });
-          setTimeout(() => {
-            wx.navigateTo({ url: `/pages-v2/evaluate/evaluate?orderId=${that.data.order._id}`, fail: () => {} });
-          }, 1000);
+          // 刷新后由 WXML 根据 order.status===S5 渲染"去评价"按钮
+          // partner 完成后不自动跳评价, 只有 user 视角进 S5 才能点评价
         }).catch(() => {
           wx.hideLoading();
           wx.showToast({ title: '网络异常', icon: 'none' });
