@@ -3,14 +3,14 @@
 
   <!-- U1 身份头部 -->
   <view class="pf__header">
-    <view class="pf__avatar">{{user.avatar}}</view>
+    <view class="pf__avatar">{{user.avatar || '👤'}}</view>
     <view class="pf__head-info">
       <view class="pf__name-line">
-        <text class="pf__name">{{user.nickname}}</text>
-        <text class="pf__badge">实名✓</text>
+        <text class="pf__name">{{user.nickname || '微信用户'}}</text>
+        <text class="pf__badge" wx:if="{{user.is_realname_done}}">实名✓</text>
         <text class="pf__badge" wx:if="{{user.face_verified}}">人脸✓</text>
       </view>
-      <view class="pf__phone">{{user.phone}}</view>
+      <view class="pf__phone">{{user.phone || '未绑定手机号'}}</view>
     </view>
   </view>
 

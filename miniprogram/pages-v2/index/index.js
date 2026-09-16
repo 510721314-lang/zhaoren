@@ -1,24 +1,27 @@
 // PRD章节: 3.2.1 首页 / 3.2.3 耍伴推荐 / 1.8.1 新人福利 / 1.7 紧急联系人 / R1 夜间红线
+// P1: 接云端 user-login peek_login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
-const { partners, CURRENT_USER } = require('../../mock/users.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 Page({
   data: {
     statusBarHeight: 20,
     city: '成都',
     scenes: SCENES,
-    activeTab: 'demand',       // demand | partner
+    activeTab: 'demand',
     demandList: [],
-    partnerList: partners,
-    user: CURRENT_USER,
+    partnerList: [],       // P2 接云端 partner-profile 列表
+    user: {},
     unconfirmedContact: null,
-    showEmergency: true,
+    showEmergency: false,
     showWelfare: true,
     welfare: CONFIG.NEWBIE,
     isRedline: false,
-    // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: CONFIG.TIME_REDLINE.close,
     trafficOrders: CONFIG.NEW_PARTNER.trafficSupportOrders,
@@ -30,12 +33,16 @@ Page({
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
     } catch (e) {}
-    const unconfirmed = (CURRENT_USER.emergency_contacts || []).find((c) => !c.verified) || null;
-    this.setData({
-      unconfirmedContact: unconfirmed,
-      showEmergency: !!unconfirmed
-    });
+    this.fetchUser();
     this.fetchSquare();
+  },
+
+  fetchUser() {
+    callCloud('user-login', { action: 'peek_login' }).then((r) => {
+      if (r.ok && r.data && r.data.found && r.data.user) {
+        this.setData({ user: r.data.user });
+      }
+    });
   },
 
   onShow() {

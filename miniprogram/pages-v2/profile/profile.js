@@ -1,17 +1,23 @@
 // PRD章节: 1.6.1 双身份 / 3.1.2 双信用分 / 3.11 账号注销 / 3.10 耍伴专区
+// P1: 接云端 user-login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { CREDIT_LEVEL } = require('../../config/enums.js');
-const { CURRENT_USER } = require('../../mock/users.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 function getLevel(score) {
+  if (!score) return '未开通';
   const lv = CREDIT_LEVEL.find((l) => score >= l.min && score <= l.max);
   return lv ? `${lv.level} ${lv.name}` : '未评级';
 }
 
 Page({
   data: {
-    user: CURRENT_USER,
+    // 初始空壳, onLoad 调云端后覆盖
+    user: { avatar: '', nickname: '', phone: '', roles: [], is_realname_done: false, user_credit_score: 0, partner_credit_score: 0 },
     identity: 'user',       // user | partner
     userLevel: '',
     partnerLevel: '',
@@ -38,10 +44,7 @@ Page({
   },
 
   onLoad() {
-    this.setData({
-      userLevel: getLevel(CURRENT_USER.user_credit_score),
-      partnerLevel: CURRENT_USER.partner_credit_score ? getLevel(CURRENT_USER.partner_credit_score) : '未开通'
-    });
+    this.fetchUser();
   },
 
   onShow() {
@@ -49,6 +52,33 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 3 });
     }
+    // 每次进"我的"刷新一次(昵称/信用分可能变)
+    this.fetchUser();
+  },
+
+  fetchUser() {
+    callCloud('user-login', { action: 'login' }).then((r) => {
+      if (!r.ok || !r.data || !r.data.user) {
+        wx.showToast({ title: r.msg || '登录失败', icon: 'none' });
+        return;
+      }
+      const u = r.data.user;
+      const isPartner = (u.roles || []).indexOf('partner') >= 0;
+      // is_realname_done 后端返回; face_verified MVP 暂未实现, 用 false 兜底
+      const uiUser = Object.assign({}, u, {
+        is_partner: isPartner,
+        face_verified: false,
+        has_active_order: false // 后端后续补
+      });
+      this.setData({
+        user: uiUser,
+        identity: isPartner ? 'partner' : 'user',
+        userLevel: getLevel(u.user_credit_score),
+        partnerLevel: getLevel(u.partner_credit_score)
+      });
+    }).catch(() => {
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
   },
 
   // U1 身份切换
@@ -57,10 +87,6 @@ Page({
     if (target === this.data.identity) return;
     if (target === 'partner' && !this.data.user.is_partner) {
       wx.showToast({ title: '请先完成耍伴认证', icon: 'none' });
-      return;
-    }
-    if (this.data.user.has_active_order) {
-      wx.showToast({ title: '有进行中订单，暂不能切换身份', icon: 'none' });
       return;
     }
     this.setData({ identity: target });
@@ -81,7 +107,7 @@ Page({
     });
   },
 
-  // DEV: 联调跳转入口(上线前删除) —— 粘贴订单 _id 直达聊天页, 绕过待接线的订单列表/详情
+  // DEV: 联调跳转入口(上线前删除)
   onDevGoChat() {
     wx.showModal({
       title: 'DEV进入聊天页',
@@ -101,7 +127,7 @@ Page({
     });
   },
 
-  // DEV: 联调跳转入口(上线前删除) —— 粘贴订单 _id 直达订单详情
+  // DEV: 联调跳转入口(上线前删除)
   onDevGoOrderDetail() {
     wx.showModal({
       title: 'DEV进入订单详情',
@@ -156,7 +182,7 @@ Page({
     });
   },
 
-  // U6 注销：二次确认 + 冷静期（天数取 CONFIG.LOGOUT_COOLDOWN_DAYS）
+  // U6 注销：二次确认 + 冷静期
   onLogout() {
     const days = CONFIG.LOGOUT_COOLDOWN_DAYS;
     wx.showModal({
