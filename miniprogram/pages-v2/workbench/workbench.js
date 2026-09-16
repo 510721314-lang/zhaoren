@@ -36,9 +36,10 @@ Page({
 
   fetchData() {
     this.setData({ loading: true, loadError: false });
+    // 独立 catch: 不让一个接口超时拖死全部
     Promise.all([
-      callCloud('payment-mock', { action: 'balance_info' }),
-      callCloud('payment-mock', { action: 'income_list', limit: 10 })
+      callCloud('payment-mock', { action: 'balance_info' }).catch(() => ({ ok: false })),
+      callCloud('payment-mock', { action: 'income_list', limit: 10 }).catch(() => ({ ok: false }))
     ]).then(([balR, incR]) => {
       const d = {};
       if (balR.ok) {
@@ -56,6 +57,8 @@ Page({
           netYuan: ((i.partner_income_fen || 0) / 100).toFixed(2),
           created_at: i.created_at
         }));
+      } else {
+        d.incomeList = [];
       }
       d.todaySummary = {
         count: d.todayCount,
