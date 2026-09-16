@@ -410,13 +410,23 @@ exports.main = async (event, context) => {
         .end().catch(() => ({ list: [] }));
       const monthIncomeFen = (monthList.list && monthList.list[0] && monthList.list[0].total) || 0;
       const countR = await col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']) }).count();
+      // 从 partner_profile 取信用分/等级
+      let creditLevel = 'L1';
+      try {
+        const pp = await col('partner_profile').where({ openid: partnerOpenid }).limit(1).get();
+        if (pp.data && pp.data[0]) {
+          const score = pp.data[0].score || 0;
+          creditLevel = score >= 800 ? 'L3' : score >= 600 ? 'L2' : 'L1';
+        }
+      } catch (e) {}
       return {
         ok: true,
         data: {
           withdrawable_fen: withdrawableFen,
           splitting_fen: splittingFen,
           month_income_fen: monthIncomeFen,
-          total_completed: countR.total || 0
+          total_completed: countR.total || 0,
+          credit_level: creditLevel
         }
       };
     }

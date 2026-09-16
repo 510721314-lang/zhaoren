@@ -84,6 +84,19 @@ Page({
         userLevel: getLevel(u.user_credit_score),
         partnerLevel: getLevel(u.partner_credit_score)
       });
+      // 并行拉订单计数
+      callCloud('order-action', { action: 'my_counts' }).then((cr) => {
+        if (!cr || !cr.ok || !cr.data) return;
+        const c = cr.data;
+        this.setData({
+          orderEntries: [
+            { key: 'pay', icon: '💳', name: '待支付', count: c.pending_pay || 0 },
+            { key: 'doing', icon: '🧭', name: '进行中', count: c.in_progress || 0 },
+            { key: 'eval', icon: '⭐', name: '待评价', count: c.pending_eval || 0 },
+            { key: 'after', icon: '🛟', name: '售后', count: c.after_sales || 0 }
+          ]
+        });
+      }).catch(() => {});
     }).catch(() => {
       wx.showToast({ title: '网络异常', icon: 'none' });
     });

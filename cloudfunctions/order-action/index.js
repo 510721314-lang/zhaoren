@@ -767,5 +767,37 @@ exports.main = async (event, context) => {
     return { ok: true, data: { role, list } };
   }
 
+  // ───────── my_counts: 订单四宫格计数 ─────────
+  // 按当前 openid 作为 user_openid 或 partner_openid 分别统计 4 种状态
+  if (action === 'my_counts') {
+    const userOpenid = openid;
+    let counts = { pending_pay: 0, in_progress: 0, pending_eval: 0, after_sales: 0 };
+    try {
+      const COL = col('order_main');
+      // user 视角 (作为发单人)
+      const uPendingPay = await COL.where({ user_openid: userOpenid, status: 'S0', is_deleted: false }).count();
+      const uInProgress = await COL.where({ user_openid: userOpenid, status: _.in(['S1','S2','S3','S3.5']), is_deleted: false }).count();
+      const uPendingEval = await COL.where({ user_openid: userOpenid, status: 'S5', is_deleted: false }).count();
+      // partner 视角 (作为耍伴)
+      const pInProgress = await COL.where({ partner_openid: userOpenid, status: _.in(['S1','S2','S3','S3.5']), is_deleted: false }).count();
+      const pPendingEval = await COL.where({ partner_openid: userOpenid, status: 'S5', is_deleted: false }).count();
+
+      counts.pending_pay = uPendingPay.total || 0;
+      counts.in_progress = (uInProgress.total || 0) + (pInProgress.total || 0);
+      counts.pending_eval = (uPendingEval.total || 0) + (pPendingEval.total || 0);
+      // after_sales 简化: S6/S7/S9/S10 暂统一
+      const afterSale = await COL.where({
+        $or: [
+          { user_openid: userOpenid },
+          { partner_openid: userOpenid }
+        ],
+        status: _.in(['S6','S7','S9','S10']),
+        is_deleted: false
+      }).count();
+      counts.after_sales = afterSale.total || 0;
+    } catch (e) {}
+    return { ok: true, data: counts };
+  }
+
   return { ok: false, code: 'oa_unknown_action', msg: '未知动作' };
 };

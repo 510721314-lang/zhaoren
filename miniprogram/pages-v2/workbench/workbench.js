@@ -46,7 +46,7 @@ Page({
         d.fundAmount = ((b.withdrawable_fen || 0) / 100).toFixed(2);
         d.weekIncomeYuan = ((b.month_income_fen || 0) / 100).toFixed(2);
         d.todayCount = b.total_completed || 0;
-        d.creditLevel = 'L2'; // mock: 待接 partner-profile
+        d.creditLevel = b.credit_level || 'L1';
       }
       if (incR.ok) {
         d.incomeList = (incR.data.list || []).slice(0, 5).map((i) => ({
