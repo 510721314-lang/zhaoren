@@ -80,7 +80,7 @@
             </block>
           </view>
           <button class="od__btn od__btn--ghost od__ms-submit" wx:if="{{order.milestone.current < 3}}" bindtap="onMilestoneSubmit">
-            提交{{(order.milestone.current + 1) * 30}}%履约进度
+            提交{{order.nextPercent}}%履约进度
           </button>
         </view>
         <view class="od__action-grid">

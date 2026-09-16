@@ -85,6 +85,8 @@ Page({
       { idx: 2, label: '60%', done: ms.current >= 2 },
       { idx: 3, label: '100%', done: ms.current >= 3 }
     ];
+    // 下一节点百分比: nextIdx 1→30%, 2→60%, 3→100%
+    const nextPercent = ms.current >= 3 ? null : [30, 60, 100][ms.current];
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
@@ -103,6 +105,7 @@ Page({
       pay_expire_at: d.pay_expire_at,
       milestone: ms,
       milestoneSteps,
+      nextPercent,
       canFinishService: ms.current >= 3
     };
     const scene = SCENES.find((s) => s.code === d.scene) || null;
