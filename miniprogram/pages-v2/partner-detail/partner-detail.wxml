@@ -11,89 +11,74 @@
   <block wx:elif="{{partner}}">
   <!-- T1 头部大卡 -->
   <view class="pd__header">
-    <view class="pd__avatar">{{partner.avatar}}</view>
+    <view class="pd__avatar">
+      <image wx:if="{{partner.avatar}}" src="{{partner.avatar}}" mode="aspectFill" class="pd__avatar-img" />
+      <text wx:else class="pd__avatar-emoji">👤</text>
+    </view>
     <view class="pd__head-info">
       <view class="pd__name-line">
         <text class="pd__name">{{partner.nickname}}</text>
         <text class="pd__cert" wx:if="{{partner.real_name_verified}}">实名✓</text>
         <text class="pd__cert" wx:if="{{partner.face_verified}}">人脸✓</text>
-        <text class="pd__cert" wx:for="{{partner.certs}}" wx:key="*this">{{item}}✓</text>
       </view>
       <view class="pd__score-line">
-        <text>信用分 <text class="pd__score-num">{{partner.partner_credit_score}}</text></text>
-        <text class="pd__level"> · {{partner.partner_level}}优质</text>
-        <text class="pd__medal" wx:for="{{partner.medals}}" wx:key="*this">{{item}}</text>
+        <text>信用分 <text class="pd__score-num">{{partner.score || 0}}</text></text>
+        <text class="pd__level"> · {{partner.level || 'L1'}}</text>
       </view>
     </view>
   </view>
 
-  <!-- T2 一级信息 -->
+  <!-- T2 场景标签 + 统计 -->
   <view class="pd__card">
-    <view class="pd__scenes">
+    <view class="pd__scenes" wx:if="{{sceneList.length > 0}}">
       <tag-chip type="scene" scene-code="{{item.code}}" wx:for="{{sceneList}}" wx:key="code" />
     </view>
-    <block wx:if="{{showStats}}">
-      <view class="pd__stats">
-        <view class="pd__stat"><text class="pd__stat-num">⏱ {{partner.on_time_rate}}%</text><text class="pd__stat-label">准时率</text></view>
-        <view class="pd__stat"><text class="pd__stat-num">❤ {{partner.praise_rate}}%</text><text class="pd__stat-label">好评率</text></view>
-        <view class="pd__stat"><text class="pd__stat-num">🧾 {{partner.order_count}}</text><text class="pd__stat-label">累计订单</text></view>
-      </view>
-    </block>
-    <block wx:else>
-      <view class="pd__stats-dim">数据积累中（完成3单后展示完整数据）</view>
-    </block>
+    <view class="pd__stats">
+      <view class="pd__stat"><text class="pd__stat-num">🧾 {{stats.total_orders || 0}}</text><text class="pd__stat-label">累计订单</text></view>
+      <view class="pd__stat"><text class="pd__stat-num">✅ {{stats.completed_orders || 0}}</text><text class="pd__stat-label">已完成</text></view>
+      <view class="pd__stat"><text class="pd__stat-num">📍 {{partner.city || '未设置'}}</text><text class="pd__stat-label">服务城市</text></view>
+    </view>
   </view>
 
-  <!-- T3 二级信息（折叠） -->
+  <!-- T3 自我介绍 -->
   <view class="pd__card">
     <view class="pd__fold-header" bindtap="toggleExpand">
-      <text class="pd__fold-title">详细信息</text>
+      <text class="pd__fold-title">服务介绍</text>
       <text class="pd__fold-arrow {{expanded ? 'is-open' : ''}}">▾</text>
     </view>
-    <block wx:if="{{expanded}}">
-      <view class="pd__detail-row"><text class="pd__detail-label">单价区间</text><text class="pd__detail-val">¥{{partner.price_min}}-{{partner.price_max}}/小时</text></view>
-      <view class="pd__detail-row"><text class="pd__detail-label">距你</text><text class="pd__detail-val">{{partner.distance_km}}km</text></view>
-      <view class="pd__dyn" wx:if="{{partner.latest_dynamic}}">
-        <text class="pd__dyn-tag">📢 最新动态</text>
-        <text class="pd__dyn-text">{{partner.latest_dynamic.title}}</text>
-        <text class="pd__dyn-time">{{partner.latest_dynamic.at}}</text>
-      </view>
-    </block>
+    <view class="pd__intro">{{partner.intro || '这个耍伴还没写自我介绍~'}}</view>
   </view>
 
-  <!-- T4 三级 tab -->
+  <!-- T4 tab -->
   <view class="pd__tabs">
-    <view class="pd__tab {{activeTab === 'intro' ? 'is-on' : ''}}" data-tab="intro" bindtap="switchTab">服务介绍</view>
-    <view class="pd__tab {{activeTab === 'eval' ? 'is-on' : ''}}" data-tab="eval" bindtap="switchTab">评价</view>
-    <view class="pd__tab {{activeTab === 'dynamic' ? 'is-on' : ''}}" data-tab="dynamic" bindtap="switchTab">动态</view>
-    <view class="pd__tab {{activeTab === 'cert' ? 'is-on' : ''}}" data-tab="cert" bindtap="switchTab">资质</view>
+    <view class="pd__tab {{activeTab === 'intro' ? 'is-on' : ''}}" data-tab="intro" bindtap="switchTab">介绍</view>
+    <view class="pd__tab {{activeTab === 'eval' ? 'is-on' : ''}}" data-tab="eval" bindtap="switchTab">评价({{evaluations.length}})</view>
+    <view class="pd__tab {{activeTab === 'cert' ? 'is-on' : ''}}" data-tab="cert" bindtap="switchTab">认证</view>
   </view>
 
   <view class="pd__card pd__tab-content">
     <block wx:if="{{activeTab === 'intro'}}">
-      <view class="pd__intro">{{partner.nickname}}是一位经过平台实名+人脸双重认证的认证耍伴，擅长{{sceneList[0].name}}等场景，服务热情专业，欢迎咨询。</view>
+      <view class="pd__intro">{{partner.intro || '这个耍伴还没写自我介绍~'}}</view>
     </block>
     <block wx:if="{{activeTab === 'eval'}}">
-      <view class="pd__eval-item" wx:for="{{evaluations}}" wx:key="*this">
-        <view class="pd__eval-stars">{{item.stars}}⭐</view>
-        <view class="pd__eval-tags">
-          <text class="pd__eval-tag" wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag">{{tag}}</text>
+      <block wx:if="{{evaluations.length > 0}}">
+        <view class="pd__eval-item" wx:for="{{evaluations}}" wx:key="at">
+          <view class="pd__eval-stars">{{item.stars}}⭐</view>
+          <view class="pd__eval-tags" wx:if="{{item.tags.length > 0}}">
+            <text class="pd__eval-tag" wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag">{{tag}}</text>
+          </view>
+          <view class="pd__eval-content">{{item.content}}</view>
+          <view class="pd__eval-time">{{item.at}}</view>
         </view>
-        <view class="pd__eval-content">{{item.content}}</view>
-        <view class="pd__eval-time">{{item.at}}</view>
-      </view>
-    </block>
-    <block wx:if="{{activeTab === 'dynamic'}}">
-      <view class="pd__dyn-full" wx:if="{{partner.latest_dynamic}}">
-        <view class="pd__dyn-cover">{{partner.latest_dynamic.cover || '🏥'}}</view>
-        <view class="pd__dyn-title">{{partner.latest_dynamic.title}}</view>
-        <view class="pd__dyn-time">{{partner.latest_dynamic.at}}</view>
-      </view>
+      </block>
+      <view wx:else class="pd__empty">暂无评价~</view>
     </block>
     <block wx:if="{{activeTab === 'cert'}}">
-      <view class="pd__cert-row" wx:for="{{certs}}" wx:key="name">
-        <text class="pd__cert-name">{{item.name}}</text>
-        <text class="pd__cert-status">{{item.status}}</text>
+      <view class="pd__cert-row"><text class="pd__cert-name">实名认证</text><text class="pd__cert-status {{partner.real_name_verified ? 'ok' : 'pending'}}">{{partner.real_name_verified ? '已通过' : '未认证'}}</text></view>
+      <view class="pd__cert-row"><text class="pd__cert-name">人脸核验</text><text class="pd__cert-status {{partner.face_verified ? 'ok' : 'pending'}}">{{partner.face_verified ? '已通过' : '未认证'}}</text></view>
+      <view class="pd__cert-row" wx:if="{{sceneList.length > 0}}">
+        <text class="pd__cert-name">场景认证</text>
+        <text class="pd__cert-status ok">{{sceneList.length}}项通过</text>
       </view>
     </block>
   </view>

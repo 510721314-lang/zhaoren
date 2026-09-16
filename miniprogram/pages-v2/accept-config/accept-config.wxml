@@ -15,7 +15,7 @@
       <view class="ac__card-title">接单场景 <text class="ac__required">*</text></view>
       <view class="ac__tip">仅显示已通过认证的场景</view>
       <view class="ac__scene-list">
-        <view class="ac__scene-chip {{form.scenes.indexOf(item.code) > -1 ? 'is-on' : ''}}" wx:for="{{certifiedScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneToggle">
+        <view class="ac__scene-chip {{item.selected ? 'is-on' : ''}}" wx:for="{{certifiedScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneToggle">
           {{item.icon}} {{item.name}}
         </view>
       </view>

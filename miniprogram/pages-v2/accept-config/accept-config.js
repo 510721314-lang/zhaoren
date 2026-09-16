@@ -75,10 +75,11 @@ Page({
       const scenes = p.accept_scenes || [];
       const sceneRates = p.scene_rates || {};
 
-      // 计算展示用的 certifiedScenes（只显示已选场景）
+      // 计算展示用的 certifiedScenes（只显示已选场景）+ 预计算 selected 字段
       const certified = scenes
         .map((code) => SCENES.find((s) => s.code === code))
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((s) => ({ ...s, selected: scenes.indexOf(s.code) > -1 }));
 
       // 本地非核心配置（时段/距离/偏好等）
       let local = {};
@@ -110,9 +111,15 @@ Page({
     const code = e.currentTarget.dataset.code;
     const scenes = this.data.form.scenes.slice();
     const idx = scenes.indexOf(code);
-    if (idx > -1) scenes.splice(idx, 1);
-    else scenes.push(code);
-    this.setData({ 'form.scenes': scenes });
+    let selected = false;
+    if (idx > -1) { scenes.splice(idx, 1); selected = false; }
+    else { scenes.push(code); selected = true; }
+    // 同步更新 certifiedScenes 里的 selected
+    const certifiedScenes = this.data.certifiedScenes.map((s) => {
+      if (s.code === code) return { ...s, selected };
+      return { ...s, selected: scenes.indexOf(s.code) > -1 };
+    });
+    this.setData({ 'form.scenes': scenes, certifiedScenes });
   },
 
   // 时薪输入（分→元 输入, 存分）
