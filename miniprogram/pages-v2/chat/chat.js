@@ -139,13 +139,15 @@ Page({
     const count = [progress.time, progress.location, progress.content, progress.fee].filter(Boolean).length;
     const wasUnlocked = this.data.unlocked;
     const unlocked = !!d.all_confirmed;
+    // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
+    const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
     this.setData({
       items,
       progress,
       confirmedCount: count,
       unlocked,
       freeChat: unlocked || this.data.freeChat,
-      orderStatus: d.status || this.data.orderStatus
+      orderStatus: nextStatus
     }, () => {
       this.updateMsgStatuses();
       if (unlocked && !wasUnlocked) {
@@ -156,7 +158,14 @@ Page({
 
   refreshConfirmation() {
     return callCloud('order-action', { action: 'get_confirmation', order_id: this.data.orderId })
-      .then((r) => { if (r.ok) this.applyConfirmation(r.data); });
+      .then((r) => {
+        if (r.ok) this.applyConfirmation(r.data);
+        // 如果后端返回的 status 和当前不同但没触发 setData(比如 applyConfirmation 里 nextStatus 没变化),
+        // 也强制检查一次 orderStatus 是否需要更新
+        if (r.ok && r.data && r.data.status && r.data.status !== this.data.orderStatus) {
+          this.setData({ orderStatus: r.data.status });
+        }
+      }).catch(() => {});
   },
 
   // ───────── 消息渲染 ─────────
