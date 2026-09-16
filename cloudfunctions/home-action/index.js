@@ -135,18 +135,27 @@ exports.main = async (event, context) => {
         };
       }
 
-      // ───────── 需求广场列表 ─────────
+      // ───────── 需求广场列表 + 耍伴推荐 ─────────
       case 'square': {
         const limit = Math.min(Number(event.limit) || 20, 50);
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
-        const demandR = await col('demand')
-          .where({ is_deleted: false, status: 'matching', expire_at: _.gt(now) })
-          .orderBy('created_at', 'desc')
-          .limit(limit)
-          .get()
-          .catch(() => ({ data: [] }));
+        // 并行拉 demand + partner_profile
+        const [demandR, partnerR] = await Promise.all([
+          col('demand')
+            .where({ is_deleted: false, status: 'matching', expire_at: _.gt(now) })
+            .orderBy('created_at', 'desc')
+            .limit(limit)
+            .get()
+            .catch(() => ({ data: [] })),
+          col('partner_profile')
+            .where({ status: 'approved', is_deleted: _.neq(true) })
+            .orderBy('created_at', 'desc')
+            .limit(10)
+            .get()
+            .catch(() => ({ data: [] }))
+        ]);
 
         const list = (demandR.data || []).map((d) => {
           // 备注拆分: 标题｜描述
@@ -204,7 +213,33 @@ exports.main = async (event, context) => {
           } catch (e) {}
         }
 
-        return { ok: true, data: { list } };
+        // 耍伴推荐: partner_profile + user_account 昵称
+        let partnerList = [];
+        try {
+          const partnerOpenids = (partnerR.data || []).map((p) => p.openid).filter(Boolean);
+          const partnerUserMap = {};
+          if (partnerOpenids.length) {
+            const puR = await col('user_account').where({ openid: _.in(partnerOpenids) }).limit(partnerOpenids.length).get();
+            (puR.data || []).forEach((u) => { partnerUserMap[u.openid] = u; });
+          }
+          partnerList = (partnerR.data || [])
+            .map((p) => {
+              const u = partnerUserMap[p.openid] || {};
+              return {
+                openid: p.openid,
+                nickname: u.nickname || '耍伴',
+                avatar: u.avatar || '',
+                city: (p.city && p.city[0]) || '',
+                accept_scenes: p.accept_scenes || [],
+                partner_credit_score: u.partner_credit_score || 0,
+                certified_scenes: p.certified_scenes || []
+              };
+            })
+            .sort((a, b) => b.partner_credit_score - a.partner_credit_score)
+            .slice(0, 5);
+        } catch (e) {}
+
+        return { ok: true, data: { list, partners: partnerList } };
       }
 
       // ───────── 用户公开主页 ─────────
