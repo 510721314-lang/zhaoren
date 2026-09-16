@@ -36,6 +36,12 @@ exports.main = async (event, context) => {
   const { action } = event;
   console.log(`partner-apply action=${action} openid=${openid}`);
 
+  if (action === 'debug_profile') {
+    const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
+    const profile = (r.data && r.data[0]) || null;
+    return { ok: true, data: { openid, profile } };
+  }
+
   if (action !== 'apply') return { ok: false, code: 'apply_unknown_action', msg: '未知动作' };
 
   const { accept_scenes, scene_rates, exam_scores } = event;

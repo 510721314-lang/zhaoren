@@ -81,6 +81,46 @@ Page({
     });
   },
 
+  // DEV: 联调跳转入口(上线前删除) —— 粘贴订单 _id 直达聊天页, 绕过待接线的订单列表/详情
+  onDevGoChat() {
+    wx.showModal({
+      title: 'DEV进入聊天页',
+      editable: true,
+      placeholderText: '粘贴订单_id(32位十六进制)',
+      confirmText: '进入',
+      success: (res) => {
+        if (!res.confirm || !res.content) return;
+        const id = String(res.content).trim();
+        if (!/^[a-f0-9]{32}$/i.test(id)) {
+          wx.showToast({ title: 'ID格式不正确', icon: 'none' });
+          return;
+        }
+        wx.navigateTo({ url: '/pages-v2/chat/chat?orderId=' + id, fail: () => wx.showToast({ title: '跳转失败', icon: 'none' }) });
+      },
+      fail: () => wx.showToast({ title: '弹窗唤起失败', icon: 'none' })
+    });
+  },
+
+  // DEV: 联调跳转入口(上线前删除) —— 粘贴订单 _id 直达订单详情
+  onDevGoOrderDetail() {
+    wx.showModal({
+      title: 'DEV进入订单详情',
+      editable: true,
+      placeholderText: '粘贴订单_id(32位十六进制)',
+      confirmText: '进入',
+      success: (res) => {
+        if (!res.confirm || !res.content) return;
+        const id = String(res.content).trim();
+        if (!/^[a-f0-9]{32}$/i.test(id)) {
+          wx.showToast({ title: 'ID格式不正确', icon: 'none' });
+          return;
+        }
+        wx.navigateTo({ url: '/pages-v2/order-detail/order-detail?orderId=' + id, fail: () => wx.showToast({ title: '跳转失败', icon: 'none' }) });
+      },
+      fail: () => wx.showToast({ title: '弹窗唤起失败', icon: 'none' })
+    });
+  },
+
   // U4 功能列表
   onFuncTap(e) {
     const key = e.currentTarget.dataset.key;

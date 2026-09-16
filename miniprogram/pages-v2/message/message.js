@@ -1,8 +1,11 @@
 // PRD章节: 3.4 消息体系 / 3.5.2 订单状态 / 3.4.4 留存规则
+// P0-5: 接云端 im-conv my_convs, 删除 mock conversations 依赖
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
-const { SCENES } = require('../../config/enums.js');
-const { conversations } = require('../../mock/conversations.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 Page({
   data: {
@@ -11,24 +14,26 @@ Page({
     entries: { system: null, kefu: null },
     isRedline: false,
     loading: false,
-    loadError: false
+    loadError: false,
+    loadErrorMsg: ''
   },
 
   onLoad() {
     this.fetchData();
   },
 
-  // mock 数据加载（含三态：loading → loaded / error）
   fetchData() {
     this.setData({ loading: true, loadError: false });
-    setTimeout(() => {
-      try {
-        this.buildList(conversations);
-        this.setData({ loading: false });
-      } catch (e) {
-        this.setData({ loading: false, loadError: true });
+    callCloud('im-conv', { action: 'my_convs' }).then((r) => {
+      if (!r.ok) {
+        this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
+        return;
       }
-    }, 300);
+      this.buildList((r.data && r.data.list) || []);
+      this.setData({ loading: false });
+    }).catch(() => {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
+    });
   },
 
   reload() {
@@ -40,23 +45,32 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 2 });
     }
+    // 每次进入消息列表刷新未读数
+    if (!this.data.loading) this.fetchData();
   },
 
-  buildList(source) {
-    const decorated = source.map((c) => {
-      const scene = SCENES.find((s) => s.code === c.scene_code);
+  buildList(list) {
+    const decorated = list.map((c) => {
+      const peer = c.peer || {};
+      const sceneName = c.scene_name || '';
+      const peerName = peer.nickname || '';
+      const lastText = c.last_msg_text || '';
       return Object.assign({}, c, {
-        sceneName: scene ? scene.name : '',
-        displayTitle: scene ? `${c.counterpart} · ${scene.name}` : c.counterpart,
-        summary: c.last_msg_type === 'template' ? c.last_msg.replace(/^\[模板\]\s*/, '[模板] ') : c.last_msg
+        _id: c.conv_id,     // WXML 列表 key
+        counterpart: peerName,
+        avatar: peer.avatar || '',
+        order_status: c.status || '',
+        sceneName,
+        displayTitle: peerName && sceneName ? `${peerName} · ${sceneName}` : (peerName || sceneName || '会话'),
+        summary: lastText,
+        unread_count: c.unread || 0,
+        pinned: false,
+        is_read: !c.unread
       });
     });
     this.setData({
-      orderList: decorated.filter((c) => c.type === 'order').sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)),
-      entries: {
-        system: decorated.find((c) => c.type === 'system'),
-        kefu: decorated.find((c) => c.type === 'kefu')
-      }
+      orderList: decorated,
+      entries: { system: null, kefu: null } // 系统通知/客服入口后续接
     });
   },
 
@@ -66,16 +80,13 @@ Page({
     const target = this.data.orderList.find((c) => c._id === id);
     if (!target) return;
     wx.showActionSheet({
-      itemList: [target.pinned ? '取消置顶' : '置顶', '删除'],
+      itemList: ['置顶', '删除'],
       success: (res) => {
         if (res.tapIndex === 0) {
-          const orderList = this.data.orderList.map((c) => c._id === id ? Object.assign({}, c, { pinned: !c.pinned }) : c)
-            .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-          this.setData({ orderList });
-          wx.showToast({ title: target.pinned ? '已取消置顶' : '已置顶', icon: 'none' });
+          wx.showToast({ title: '置顶功能待后端支持', icon: 'none' });
         } else {
           this.setData({ orderList: this.data.orderList.filter((c) => c._id !== id) });
-          wx.showToast({ title: '已删除', icon: 'none' });
+          wx.showToast({ title: '已删除(本地)', icon: 'none' });
         }
       }
     });
@@ -84,12 +95,13 @@ Page({
   onConvTap(e) {
     const id = e.currentTarget.dataset.id;
     const target = this.data.orderList.find((c) => c._id === id);
-    // 标记已读
+    if (!target) return;
+    // 本地立即清未读数
     const orderList = this.data.orderList.map((c) => c._id === id ? Object.assign({}, c, { unread_count: 0, is_read: true }) : c);
     this.setData({ orderList });
     wx.navigateTo({
-      url: `/pages-v2/chat/chat?convId=${id}&orderId=${target.order_id || ''}`,
-      fail: () => wx.showToast({ title: '聊天页将在批次2上线', icon: 'none' })
+      url: `/pages-v2/chat/chat?orderId=${target.order_id || ''}`,
+      fail: () => wx.showToast({ title: '跳转失败', icon: 'none' })
     });
   },
 

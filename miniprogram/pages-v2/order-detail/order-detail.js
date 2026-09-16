@@ -1,8 +1,14 @@
 // PRD章节: 3.5 订单生命周期 / 3.5.2 13态状态机 / 3.5.3 改期 / 3.5.4 取消梯度退款 / 3.7 保险 / R1时间红线
+// P0-4: 接云端 order-action detail, 删除 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
 const { SCENES, ORDER_STATUS } = require('../../config/enums.js');
-const { findOrder } = require('../../mock/orders.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
+
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
 Page({
   data: {
@@ -19,6 +25,7 @@ Page({
     timeMaxRange: '',
     loading: false,
     loadError: false,
+    loadErrorMsg: '',
     isRedline: false,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
@@ -35,42 +42,67 @@ Page({
   },
 
   fetchData(options) {
+    this.__orderId = (options && options.orderId) || '';
     this.__lastOptions = options || {};
+    if (!/^[a-f0-9]{32}$/i.test(this.__orderId)) {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '缺少有效订单 ID' });
+      return;
+    }
     this.setData({ loading: true, loadError: false });
-    setTimeout(() => {
-      try {
-        const order = findOrder(options.orderId) || findOrder('o_s3_003');
-        if (!order) {
-          this.setData({ loading: false, order: null });
-          return;
-        }
-        this.refreshOrder(order);
-        this.startCountdown();
-        this.setData({ loading: false });
-      } catch (e) {
-        this.setData({ loading: false, loadError: true });
+    callCloud('order-action', { action: 'detail', order_id: this.__orderId }).then((r) => {
+      if (!r.ok) {
+        this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
+        return;
       }
-    }, 300);
+      this.refreshOrder(r.data);
+      this.setData({ loading: false });
+      this.startCountdown();
+    }).catch(() => {
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
+    });
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    if (this.data.order && this.data.order.order_id) {
+      this.fetchData({ orderId: this.data.order.order_id });
+    }
   },
 
   onUnload() { this.clearTimers(); },
   onHide() { this.clearTimers(); },
 
-  refreshOrder(order) {
-    const scene = SCENES.find((s) => s.code === order.scene_code);
+  refreshOrder(d) {
+    // detail 返回字段 → WXML 绑定字段
+    const st = Number(d.start_time) || 0;
+    const dt = st ? new Date(st) : null;
+    const order = {
+      _id: d.order_id,
+      order_id: d.order_id,
+      order_no: d.order_no,
+      status: d.status,
+      scene_code: d.scene,
+      partner_name: d.partner_nickname,
+      location: d.location || {},
+      service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',
+      service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
+      duration_hours: d.duration_h || 0,
+      amount_fen: d.total_fen || 0,
+      insurance: null, // detail 暂未返回保险, 先隐藏保险卡
+      confirm: d.confirm,
+      evaluation: d.evaluation,
+      pay_expire_at: d.pay_expire_at
+    };
+    const scene = SCENES.find((s) => s.code === d.scene) || null;
     const statusInfo = ORDER_STATUS[order.status] || ORDER_STATUS.S1;
-    const modifyUsedUp = (order.modify_count || 0) >= CONFIG.MODIFY.maxTimes;
-    // 计算取消档位
-    const serviceStart = new Date(`${order.service_date}T${order.service_time.split('-')[0]}:00`);
+    const modifyUsedUp = false; // detail 暂未返回 modify_count, 后续补
+    // 取消档位: detail 返回 start_time, 按 CONFIG.CANCEL_LEAD_HOURS 计算
+    const serviceStart = new Date(st);
     const hoursLeft = (serviceStart - new Date()) / 3600000;
     let currentCancelIdx = 0;
-    const [leadH1, leadH2] = CONFIG.CANCEL_LEAD_HOURS;
+    const [leadH1, leadH2] = CONFIG.CANCEL_LEAD_HOURS || [24, 2];
     if (hoursLeft > leadH1) currentCancelIdx = 0;
     else if (hoursLeft > leadH2) currentCancelIdx = 1;
     else currentCancelIdx = 2;
@@ -81,7 +113,6 @@ Page({
       modifyUsedUp,
       currentCancelIdx,
       amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
-      insuranceWan: order.insurance && order.insurance.coverage ? (order.insurance.coverage / 10000) : '',
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000))
     });
   },

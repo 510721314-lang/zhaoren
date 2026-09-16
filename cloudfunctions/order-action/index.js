@@ -390,6 +390,48 @@ exports.main = async (event, context) => {
     return { ok: true, data: { role, confirmed_count: cnt, total_count: 8, all_confirmed: done, status: newStatus } };
   }
 
+  // ───────── 3.9 DEV: 管理员一键双方确认(S1→S0, 仅联调用, 上线前删除) ─────────
+  if (action === 'dev_confirm_both') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const devConfig = await getConfig();
+    const admins = devConfig.admin_openids || [];
+    if (admins.indexOf(openid) < 0) {
+      return { ok: false, code: 'oa_not_admin', msg: '仅管理员可执行此操作' };
+    }
+    const devOrder = await getOrder(order_id);
+    if (!devOrder) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    if (devOrder.status !== 'S1') {
+      return { ok: false, code: 'oa_not_confirmable', msg: `订单当前状态(${devOrder.status})不可确认` };
+    }
+    const devConf = await getConfirmation(order_id);
+    if (!devConf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
+    const devNow = Date.now();
+    const devPatch = { version: _.inc(1), updated_at: devNow };
+    for (const f of CONFIRM_FIELDS) {
+      devPatch['items.' + f + '.user_ok'] = true;
+      devPatch['items.' + f + '.partner_ok'] = true;
+    }
+    try {
+      await col('order_confirmations').doc(devConf._id).update({ data: devPatch });
+    } catch (e) {
+      console.log(`dev_confirm_both fail: ${e.message}`);
+      return { ok: false, code: 'oa_confirm_fail', msg: '确认失败' };
+    }
+    const devWon = await casStatus(order_id, 'S1', {
+      status: 'S0',
+      pay_expire_at: devNow + ((devConfig.s0_timeout_min || 30) * 60 * 1000),
+      updated_at: devNow
+    });
+    if (!devWon) {
+      const latest = await getOrder(order_id);
+      return { ok: false, code: 'oa_status_conflict', msg: `订单状态已变化(当前${latest ? latest.status : '未知'})` };
+    }
+    await logStatus(order_id, 'S1', 'S0', 'dev_confirm_both', openid);
+    console.log(`dev_confirm_both: ${devOrder.order_no} by admin ${openid}`);
+    return { ok: true, data: { order_id, order_no: devOrder.order_no, status: 'S0', dev: true } };
+  }
+
   // ───────── 4. 取消订单(S1/S0 → S6) ─────────
   if (action === 'cancel') {
     const { order_id, reason } = event;

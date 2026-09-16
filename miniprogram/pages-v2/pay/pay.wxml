@@ -4,7 +4,7 @@
   <view class="pay__loading" wx:if="{{loading}}">
     <view class="pay__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
   </view>
-  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="加载失败" desc="{{loadErrorMsg || '请检查网络后重试'}}" btnText="重试" bind:btntap="reload" />
   <view class="pay__body" wx:elif="{{order}}">
     <!-- Y1 订单摘要 -->
     <view class="pay__card">
@@ -12,7 +12,7 @@
       <view class="pay__summary-row"><text class="pay__s-label">场景</text><tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip></view>
       <view class="pay__summary-row"><text class="pay__s-label">时间</text><text class="pay__s-val">{{order.service_date}} {{order.service_time}}</text></view>
       <view class="pay__summary-row"><text class="pay__s-label">地点</text><text class="pay__s-val">{{order.location.name}}</text></view>
-      <view class="pay__summary-row"><text class="pay__s-label">耍伴</text><text class="pay__s-val">{{order.partner_name}}</text></view>
+      <view class="pay__summary-row"><text class="pay__s-label">订单号</text><text class="pay__s-val">{{order.order_no}}</text></view>
       <view class="pay__summary-row"><text class="pay__s-label">时长</text><text class="pay__s-val">{{order.duration_hours}}小时</text></view>
     </view>
 
@@ -46,6 +46,15 @@
       <view class="pay__info-text">
         <view class="pay__info-title">担保交易</view>
         <view class="pay__info-desc">资金由微信支付担保托管，履约确认后T+{{arriveDays}}分账给耍伴</view>
+      </view>
+    </view>
+
+    <!-- Y3.5 AA承诺书勾选(非0-50元档后端强制, mock_pay 由后端校验) -->
+    <view class="pay__card pay__card--info" wx:if="{{needAaPromise}}" bindtap="toggleAa">
+      <view class="pay__info-icon">{{aaChecked ? '✅' : '⬜'}}</view>
+      <view class="pay__info-text">
+        <view class="pay__info-title">AA费用承诺书</view>
+        <view class="pay__info-desc">AA费用由双方线下结算，不进入平台支付；本人承诺履约后如实与耍伴线下结算AA费用。点击本卡片勾选/取消。</view>
       </view>
     </view>
 

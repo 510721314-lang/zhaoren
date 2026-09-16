@@ -482,6 +482,32 @@ Page({
     });
   },
 
+  // ───────── DEV: 管理员一键双方确认(联调用,上线前删除) ─────────
+  onDevConfirmAll() {
+    const that = this;
+    wx.showModal({
+      title: 'DEV 双方确认',
+      content: '一键置双方8个确认位为已确认,订单进入待支付(S0)。仅开发联调用。',
+      confirmText: '执行',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'dev_confirm_both', order_id: that.__orderId }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showModal({ title: '操作失败', content: r.msg || '请稍后重试', showCancel: false });
+            return;
+          }
+          wx.showToast({ title: '已全部确认', icon: 'success' });
+          that.refreshConfirmation();
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+        });
+      }
+    });
+  },
+
   // ───────── C1 订单卡片入口 ─────────
   goOrderDetail() {
     if (!this.data.orderId) return;
