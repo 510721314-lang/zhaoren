@@ -1,0 +1,28 @@
+<view class="pa">
+  <view class="pa__hero">
+    <view class="pa__hero-emoji">🧑‍🤝‍🧑</view>
+    <view class="pa__hero-title">申请成为耍伴</view>
+    <view class="pa__hero-sub">选择你能提供帮助的场景, 入驻后即刻接单</view>
+  </view>
+
+  <view class="pa__card">
+    <view class="pa__card-title">可接场景</view>
+    <view class="pa__scenes">
+      <view wx:for="{{scenes}}" wx:key="code"
+            class="pa__scene {{item.selected ? 'is-on' : ''}}"
+            data-index="{{index}}" bindtap="onToggleScene">
+        <view class="pa__scene-emoji">{{item.emoji}}</view>
+        <view class="pa__scene-name">{{item.name}}</view>
+        <view class="pa__scene-check" wx:if="{{item.selected}}">✓</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="pa__tips">
+    <text>入驻即自动完成实名认证校验, 可立即接单. 更多资质认证后续开放.</text>
+  </view>
+
+  <button class="pa__submit" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">
+    提交申请
+  </button>
+</view>

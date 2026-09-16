@@ -46,6 +46,49 @@ exports.main = async (event, context) => {
 
   switch (action) {
 
+    // 0. 申请成为耍伴 (最简: 直接把 openid 加 roles + upsert partner_profile)
+    case 'apply': {
+      const uaCol = col('user_account');
+      const ua = await uaCol.where({ openid }).limit(1).get();
+      if (!ua.data.length) return { ok: false, code: 'pa_no_user', msg: '请先登录' };
+
+      // 加 partner role
+      const curRoles = ua.data[0].roles || [];
+      if (!curRoles.includes('partner')) {
+        await uaCol.doc(ua.data[0]._id).update({
+          data: { roles: [...curRoles, 'partner'], updated_at: Date.now() }
+        });
+      }
+
+      // upsert partner_profile
+      const ppCol = col('partner_profile');
+      const existing = await ppCol.where({ openid }).limit(1).get();
+      const scenes = Array.isArray(event.accept_scenes) && event.accept_scenes.length
+        ? event.accept_scenes
+        : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : ['W1']);
+
+      if (existing.data.length) {
+        await ppCol.doc(existing.data[0]._id).update({
+          data: { accept_scenes: scenes, status: 'approved', updated_at: Date.now() }
+        });
+      } else {
+        await ppCol.add({ data: {
+          openid,
+          nick_name: ua.data[0].nick_name || '新耍伴',
+          accept_scenes: scenes,
+          status: 'approved',
+          accept_switch: true,
+          credit_score: 800,
+          order_count: 0,
+          income_total_fen: 0,
+          created_at: Date.now(),
+          updated_at: Date.now()
+        }});
+      }
+      console.log(`partner apply OK: ${openid} scenes=${scenes}`);
+      return { ok: true, data: { roles: [...curRoles, 'partner'], accept_scenes: scenes } };
+    }
+
     // 1. 接单开关切换
     case 'set_switch': {
       const profile = await getProfile(openid);
