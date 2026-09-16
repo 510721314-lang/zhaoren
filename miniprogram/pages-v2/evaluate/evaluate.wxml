@@ -35,15 +35,15 @@
       <view class="ev__card-title">快捷标签</view>
       <view class="ev__tag-group-title">好评</view>
       <view class="ev__tags">
-        <view class="ev__tag {{selectedTags.indexOf(item) > -1 ? 'is-on' : ''}}" wx:for="{{goodTags}}" wx:key="*this" data-tag="{{item}}" bindtap="onTagTap">{{item}}</view>
+        <view class="ev__tag {{item.selected ? 'is-on' : ''}}" wx:for="{{goodTags}}" wx:key="name" data-tag="{{item.name}}" bindtap="onTagTap">{{item.name}}</view>
       </view>
       <view class="ev__tag-group-title">中评</view>
       <view class="ev__tags">
-        <view class="ev__tag {{selectedTags.indexOf(item) > -1 ? 'is-on' : ''}}" wx:for="{{midTags}}" wx:key="*this" data-tag="{{item}}" bindtap="onTagTap">{{item}}</view>
+        <view class="ev__tag {{item.selected ? 'is-on' : ''}}" wx:for="{{midTags}}" wx:key="name" data-tag="{{item.name}}" bindtap="onTagTap">{{item.name}}</view>
       </view>
       <view class="ev__tag-group-title">差评</view>
       <view class="ev__tags">
-        <view class="ev__tag {{selectedTags.indexOf(item) > -1 ? 'is-on' : ''}}" wx:for="{{badTags}}" wx:key="*this" data-tag="{{item}}" bindtap="onTagTap">{{item}}</view>
+        <view class="ev__tag {{item.selected ? 'is-on' : ''}}" wx:for="{{badTags}}" wx:key="name" data-tag="{{item.name}}" bindtap="onTagTap">{{item.name}}</view>
       </view>
     </view>
 

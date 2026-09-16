@@ -141,11 +141,28 @@ Page({
 
   // O3 操作区
   onStartService() {
-    const order = this.data.order;
-    order.status = 'S3';
-    order.started_at = new Date().toISOString();
-    this.refreshOrder(order);
-    wx.showToast({ title: '已开始履约', icon: 'success' });
+    const that = this;
+    wx.showModal({
+      title: '确认开始履约',
+      content: '开始履约后进入安全保障期',
+      confirmText: '开始',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'start_service', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: '已开始履约', icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
+        });
+      }
+    });
   },
 
   onSafety() {
@@ -192,14 +209,31 @@ Page({
   closeModifySheet() { this.setData({ modifySheetVisible: false }); },
 
   onFinishService() {
-    const order = this.data.order;
-    order.status = 'S5';
-    order.ended_at = new Date().toISOString();
-    this.refreshOrder(order);
-    wx.showToast({ title: `履约完成，${CONFIG.ORDER.evalWindowH}小时内可评价`, icon: 'success' });
-    setTimeout(() => {
-      wx.navigateTo({ url: `/pages-v2/evaluate/evaluate?orderId=${order._id}`, fail: () => {} });
-    }, 1000);
+    const that = this;
+    wx.showModal({
+      title: '确认履约完成',
+      content: '完成后订单进入评价期',
+      confirmText: '完成',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'complete_service', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: `履约完成，${CONFIG.ORDER.evalWindowH}小时内可评价`, icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+          setTimeout(() => {
+            wx.navigateTo({ url: `/pages-v2/evaluate/evaluate?orderId=${that.data.order._id}`, fail: () => {} });
+          }, 1000);
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
+        });
+      }
+    });
   },
 
   // S3.5 履约中断（PRD 3.5.2 nextActions: resume / confirm）

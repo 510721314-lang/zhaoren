@@ -8,14 +8,20 @@ function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
 }
 
+function buildTagList(arr, selected) {
+  return arr.map(function(t) {
+    return { name: t, selected: selected.indexOf(t) > -1 };
+  });
+}
+
 Page({
   data: {
     order: null,
     scene: null,
     stars: 0,
-    goodTags: ['准时到达', '服务专业', '态度热情', '值得推荐', '沟通顺畅'],
-    midTags: ['基本满意', '可再改进'],
-    badTags: ['迟到', '态度一般', '服务不佳', '不推荐'],
+    goodTags: buildTagList(['准时到达', '服务专业', '态度热情', '值得推荐', '沟通顺畅'], []),
+    midTags: buildTagList(['基本满意', '可再改进'], []),
+    badTags: buildTagList(['迟到', '态度一般', '服务不佳', '不推荐'], []),
     selectedTags: [],
     content: '',
     contentCount: 0,
@@ -101,12 +107,17 @@ Page({
 
   onStarTap(e) {
     const star = Number(e.currentTarget.dataset.star);
-    this.setData({ stars: star });
     let autoSelected = [];
-    if (star >= 4) autoSelected = [this.data.goodTags[0]];
-    else if (star === 3) autoSelected = [this.data.midTags[0]];
-    else autoSelected = [this.data.badTags[0]];
-    this.setData({ selectedTags: autoSelected });
+    if (star >= 4) autoSelected = [this.data.goodTags[0].name];
+    else if (star === 3) autoSelected = [this.data.midTags[0].name];
+    else autoSelected = [this.data.badTags[0].name];
+    this.setData({
+      stars: star,
+      selectedTags: autoSelected,
+      goodTags: buildTagList(['准时到达', '服务专业', '态度热情', '值得推荐', '沟通顺畅'], autoSelected),
+      midTags: buildTagList(['基本满意', '可再改进'], autoSelected),
+      badTags: buildTagList(['迟到', '态度一般', '服务不佳', '不推荐'], autoSelected)
+    });
   },
 
   onTagTap(e) {
@@ -115,7 +126,12 @@ Page({
     const idx = selected.indexOf(tag);
     if (idx > -1) selected.splice(idx, 1);
     else selected.push(tag);
-    this.setData({ selectedTags: selected });
+    this.setData({
+      selectedTags: selected,
+      goodTags: buildTagList(['准时到达', '服务专业', '态度热情', '值得推荐', '沟通顺畅'], selected),
+      midTags: buildTagList(['基本满意', '可再改进'], selected),
+      badTags: buildTagList(['迟到', '态度一般', '服务不佳', '不推荐'], selected)
+    });
   },
 
   onContentInput(e) {
