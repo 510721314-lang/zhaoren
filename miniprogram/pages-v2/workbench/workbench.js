@@ -17,7 +17,15 @@ Page({
     creditLevel: 'L2',
     weekDays: [],
     todayOrders: [],
+    // W4 资金速览 tab
+    fundTabs: [
+      { key: 'withdrawable', name: '可提现' },
+      { key: 'splitting', name: '分账中' },
+      { key: 'processing', name: '处理中' }
+    ],
+    fundActive: 'withdrawable',
     fundAmount: '0.00',
+    fundAmountMap: { withdrawable: '0.00', splitting: '0.00', processing: '0.00' },
     incomeList: [],
     pendingOrders: [],
     alarmConfirmVisible: false,
@@ -44,7 +52,13 @@ Page({
       const d = {};
       if (balR.ok) {
         const b = balR.data;
-        d.fundAmount = ((b.withdrawable_fen || 0) / 100).toFixed(2);
+        const amtMap = {
+          withdrawable: ((b.withdrawable_fen || 0) / 100).toFixed(2),
+          splitting: ((b.splitting_fen || 0) / 100).toFixed(2),
+          processing: ((b.processing_fen || 0) / 100).toFixed(2)
+        };
+        d.fundAmountMap = amtMap;
+        d.fundAmount = amtMap[this.data.fundActive] || amtMap.withdrawable;
         d.weekIncomeYuan = ((b.month_income_fen || 0) / 100).toFixed(2);
         d.todayCount = b.total_completed || 0;
         d.creditLevel = b.credit_level || 'L1';
@@ -66,10 +80,13 @@ Page({
       };
       // 周日历 (静态占位, 后续接真实排期)
       const today = new Date();
+      const wdNames = ['日', '一', '二', '三', '四', '五', '六'];
       const weekDays = [];
       for (let i = 0; i < 7; i++) {
         const dt = new Date(today.getTime() + i * 86400000);
-        weekDays.push({ day: dt.getDate(), isToday: i === 0, hasOrder: false });
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        weekDays.push({ wd: wdNames[dt.getDay()], dateStr: `${mm}/${dd}`, isToday: i === 0, hasOrder: false });
       }
       d.weekDays = weekDays;
       this.setData(Object.assign(d, { loading: false }));
@@ -81,10 +98,45 @@ Page({
   reload() { this.fetchData(); },
 
   onAcceptToggle(e) {
-    this.setData({ acceptingOrders: !this.data.acceptingOrders });
-    wx.showToast({ title: this.data.acceptingOrders ? '已开启接单' : '已暂停接单', icon: 'success' });
+    // switch bindchange: e.detail.value 为切换后状态
+    const on = (e && e.detail && typeof e.detail.value === 'boolean') ? e.detail.value : !this.data.acceptingOrders;
+    this.setData({ acceptingOrders: on });
+    wx.showToast({ title: on ? '已开启接单' : '已暂停接单', icon: 'success' });
   },
 
+  // W3 周日历: 选中某天 (当前仅切换高亮, 真实排期待接)
+  onWeekDayTap(e) {
+    const idx = e.currentTarget.dataset.index;
+    this.setData({ activeDayIndex: idx });
+  },
+
+  // W3 时间轴操作
+  onNavigate() {
+    wx.showToast({ title: '导航功能即将上线', icon: 'none' });
+  },
+  onContactUser() {
+    wx.showToast({ title: '请从消息列表进入沟通', icon: 'none' });
+  },
+
+  // W4 资金
+  goWallet() {
+    wx.navigateTo({ url: '/pages-v2/wallet/wallet', fail: () => wx.switchTab({ url: '/pages-v2/profile/profile' }) });
+  },
+  onFundTabTap(e) {
+    const key = e.currentTarget.dataset.key;
+    if (!key || key === this.data.fundActive) return;
+    this.setData({ fundActive: key, fundAmount: (this.data.fundAmountMap || {})[key] || '0.00' });
+  },
+
+  // W6 待办订单 (pendingOrders 当前无云端数据源, 区块 wx:if 保护; 方法保留兜底)
+  onConfirmOrder() {
+    wx.showToast({ title: '请到订单详情确认', icon: 'none' });
+  },
+  onRejectOrder() {
+    wx.showToast({ title: '请到订单详情处理', icon: 'none' });
+  },
+
+  // W5 一键报警
   onAlarmTap() { this.setData({ alarmConfirmVisible: true }); },
   closeAlarm() { this.setData({ alarmConfirmVisible: false }); },
   confirmAlarm() {

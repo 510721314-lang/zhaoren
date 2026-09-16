@@ -45,6 +45,18 @@
       {
         "value": ".eslintrc.js",
         "type": "file"
+      },
+      {
+        "value": "pages",
+        "type": "folder"
+      },
+      {
+        "value": "mock",
+        "type": "folder"
+      },
+      {
+        "value": "utils/testmode.js",
+        "type": "file"
       }
     ],
     "include": []

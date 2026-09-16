@@ -13,6 +13,15 @@ Page({
     balanceYuan: '0.00',
     monthIncomeYuan: '0.00',
     splittingYuan: '0.00',
+    // V3 四态 tab
+    fundTabs: [
+      { key: 'withdrawable', name: '可提现' },
+      { key: 'splitting', name: '分账中' },
+      { key: 'processing', name: '处理中' }
+    ],
+    fundActive: 'withdrawable',
+    fundAmount: '0.00',
+    fundAmountMap: { withdrawable: '0.00', splitting: '0.00', processing: '0.00' },
     // V2 极速提现进度
     fastUsed: 0,
     fastMax: CONFIG.WITHDRAW.fastOrders,
@@ -51,6 +60,13 @@ Page({
         d.balanceYuan = ((b.withdrawable_fen || 0) / 100).toFixed(2);
         d.monthIncomeYuan = ((b.month_income_fen || 0) / 100).toFixed(2);
         d.splittingYuan = ((b.splitting_fen || 0) / 100).toFixed(2);
+        const amtMap = {
+          withdrawable: d.balanceYuan,
+          splitting: d.splittingYuan,
+          processing: ((b.processing_fen || 0) / 100).toFixed(2)
+        };
+        d.fundAmountMap = amtMap;
+        d.fundAmount = amtMap[this.data.fundActive] || amtMap.withdrawable;
       }
       if (incR.ok) {
         d.incomeList = (incR.data.list || []).map((i) => ({
@@ -71,6 +87,13 @@ Page({
   },
 
   reload() { this.fetchData(); },
+
+  // V3 四态 tab 切换
+  onFundTabTap(e) {
+    const key = e.currentTarget.dataset.key;
+    if (!key || key === this.data.fundActive) return;
+    this.setData({ fundActive: key, fundAmount: (this.data.fundAmountMap || {})[key] || '0.00' });
+  },
 
   // V5 提现弹窗
   openWithdraw() {

@@ -157,9 +157,12 @@ Page({
     });
   },
   becomePartner() {
-    wx.navigateTo({
-      url: '/pages/partner-apply/partner-apply',
-      fail: () => wx.showToast({ title: '耍伴认证页待接入', icon: 'none' })
+    // v1 partner-apply 已下线, v2 认证流程本期未开放
+    wx.showModal({
+      title: '耍伴认证',
+      content: '耍伴入驻通道即将开放，敬请期待。开放后可在此提交实名与场景认证。',
+      showCancel: false,
+      confirmText: '我知道了'
     });
   },
 

@@ -16,7 +16,7 @@
         <view class="wb__status">{{acceptingOrders ? '🟢 接单中' : '⚪ 休息中'}}</view>
         <view class="wb__summary">今日 {{todaySummary.count}} 单 · 下一单 {{todaySummary.upcoming}}</view>
       </view>
-      <switch checked="{{acceptingOrders}}" color="var(--func-success)" bindchange="onToggleAccepting" />
+      <switch checked="{{acceptingOrders}}" color="var(--func-success)" bindchange="onAcceptToggle" />
     </view>
 
     <!-- W2 数据卡 -->
@@ -39,7 +39,7 @@
     <view class="wb__card">
       <view class="wb__card-title">本周日程</view>
       <scroll-view scroll-x class="wb__week" enhanced show-scrollbar="{{false}}">
-        <view class="wb__week-day {{item.isToday ? 'is-today' : ''}}" wx:for="{{weekDays}}" wx:key="dateStr" bindtap="onWeekDayTap">
+        <view class="wb__week-day {{item.isToday ? 'is-today' : ''}} {{activeDayIndex === index ? 'is-active' : ''}}" wx:for="{{weekDays}}" wx:key="dateStr" data-index="{{index}}" bindtap="onWeekDayTap">
           <view class="wb__week-wd">周{{item.wd}}</view>
           <view class="wb__week-date">{{item.dateStr}}</view>
           <view class="wb__week-dot" wx:if="{{item.hasOrder}}"></view>
@@ -95,15 +95,15 @@
     </view>
 
     <!-- W5 一键报警 -->
-    <button class="wb__alarm-btn" bindtap="onAlarm">🚨 一键报警</button>
+    <button class="wb__alarm-btn" bindtap="onAlarmTap">🚨 一键报警</button>
     </block>
   </view>
 
   <!-- 报警二次确认 -->
-  <bottom-sheet visible="{{alarmConfirmVisible}}" title="确认报警？" bind:close="closeAlarmConfirm" has-footer="{{true}}">
+  <bottom-sheet visible="{{alarmConfirmVisible}}" title="确认报警？" bind:close="closeAlarm" has-footer="{{true}}">
     <view class="wb__alarm-tip">紧急情况下请确认是否拨打110并通知平台客服？</view>
     <view slot="footer" class="wb__sheet-btns">
-      <button class="wb__btn wb__btn--ghost" bindtap="closeAlarmConfirm">取消</button>
+      <button class="wb__btn wb__btn--ghost" bindtap="closeAlarm">取消</button>
       <button class="wb__btn wb__btn--danger" bindtap="confirmAlarm">确认报警</button>
     </view>
   </bottom-sheet>
