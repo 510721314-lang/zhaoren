@@ -28,6 +28,21 @@
 .od__action-btn { height: 120rpx; line-height: 1.4; padding: 20rpx 0; background: var(--bg-segment); color: var(--text-1); font-size: var(--font-sm); border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .od__action-btn::after { border: none; }
 .od__action-btn--primary { background: var(--brand-primary); color: var(--text-invert); }
+.od__action-btn--disabled { opacity: 0.4; pointer-events: none; }
+
+/* 里程碑进度条 */
+.od__milestone { padding: 20rpx 0 24rpx; margin-bottom: 16rpx; }
+.od__ms-title { font-size: var(--font-sm); color: var(--text-2); margin-bottom: 20rpx; }
+.od__ms-steps { display: flex; align-items: center; justify-content: space-between; }
+.od__ms-step { display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.od__ms-dot { width: 56rpx; height: 56rpx; border-radius: 50%; background: var(--bg-segment); color: var(--text-disabled); display: flex; align-items: center; justify-content: center; font-size: var(--font-sm); font-weight: 600; }
+.od__ms-step.is-done .od__ms-dot { background: var(--brand-primary); color: var(--text-invert); }
+.od__ms-label { font-size: var(--font-xs); color: var(--text-disabled); }
+.od__ms-step.is-done .od__ms-label { color: var(--brand-primary); font-weight: 500; }
+.od__ms-line { flex: 1; height: 4rpx; background: var(--bg-segment); margin: 0 12rpx; margin-bottom: 28rpx; }
+.od__ms-line.is-done { background: var(--brand-primary); }
+.od__ms-submit { margin-top: 24rpx; }
+.od__ms-hint { font-size: var(--font-xs); color: var(--text-disabled); text-align: center; margin-top: 12rpx; }
 
 .od__safety-confirm, .od__ratio-confirm { padding: 16rpx 0; }
 .od__safety-q { font-size: var(--font-md); color: var(--text-1); margin-bottom: 16rpx; text-align: center; }

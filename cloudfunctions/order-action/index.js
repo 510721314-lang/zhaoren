@@ -663,7 +663,8 @@ exports.main = async (event, context) => {
         evaluation,
         safety,
         user_nickname: userNickname,
-        partner_nickname: partnerNickname
+        partner_nickname: partnerNickname,
+        milestone: order.milestone || null
       }
     };
   }

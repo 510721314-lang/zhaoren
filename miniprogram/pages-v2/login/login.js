@@ -87,16 +87,18 @@ Page({
         return;
       }
       const u = r.data.user;
-      // 步骤2: 若未实名, 走实名引导(本期 mock)
+      // 步骤2: 若未实名, 弹阻断弹窗(本期实名链路未开放, 需实名才能进入)
       if (!u.is_realname_done) {
-        wx.showLoading({ title: '实名人脸核验中…', mask: true });
-        setTimeout(() => {
-          wx.hideLoading();
-          this.afterVerified(u);
-        }, 700);
-      } else {
-        this.afterVerified(u);
+        wx.showModal({
+          title: '需先完成实名认证',
+          content: '本期实名认证链路正在升级，请稍后再试。您也可以联系客服协助开通。',
+          showCancel: false,
+          confirmText: '我知道了',
+          success: () => { this.setData({ logging: false }); }
+        });
+        return;
       }
+      this.afterVerified(u);
     }).catch(() => {
       wx.hideLoading();
       this.setData({ logging: false });
@@ -114,7 +116,7 @@ Page({
       });
       return;
     }
-    wx.setStorageSync('v2_mock_login', true);
+    wx.setStorageSync('v2_login_ok', true);
     this.askUserType();
   },
 

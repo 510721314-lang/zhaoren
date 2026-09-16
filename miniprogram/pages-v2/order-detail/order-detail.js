@@ -78,6 +78,13 @@ Page({
     // detail 返回字段 → WXML 绑定字段
     const st = Number(d.start_time) || 0;
     const dt = st ? new Date(st) : null;
+    // milestone: { current:0-3, confirmed:[bool,bool,bool], evidence:[...] }
+    const ms = d.milestone || { current: 0, confirmed: [false, false, false], evidence: [] };
+    const milestoneSteps = [
+      { idx: 1, label: '30%', done: ms.current >= 1 },
+      { idx: 2, label: '60%', done: ms.current >= 2 },
+      { idx: 3, label: '100%', done: ms.current >= 3 }
+    ];
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
@@ -93,7 +100,10 @@ Page({
       insurance: null, // detail 暂未返回保险, 先隐藏保险卡
       confirm: d.confirm,
       evaluation: d.evaluation,
-      pay_expire_at: d.pay_expire_at
+      pay_expire_at: d.pay_expire_at,
+      milestone: ms,
+      milestoneSteps,
+      canFinishService: ms.current >= 3
     };
     const scene = SCENES.find((s) => s.code === d.scene) || null;
     const statusInfo = ORDER_STATUS[order.status] || ORDER_STATUS.S1;
@@ -169,6 +179,42 @@ Page({
     wx.navigateTo({
       url: `/pages-v2/safety/safety?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '安全报备页待接入', icon: 'none' })
+    });
+  },
+
+  // 里程碑提交: 耍伴在 S3 履约中逐步提交 30%→60%→100%
+  onMilestoneSubmit() {
+    const order = this.data.order;
+    const next = (order.milestone && order.milestone.current || 0) + 1;
+    if (next > 3) {
+      wx.showToast({ title: '已提交到100%', icon: 'none' });
+      return;
+    }
+    const that = this;
+    wx.showModal({
+      title: `提交履约进度 ${next * 30}%`,
+      content: '提交后用户会收到通知，双方可继续履约',
+      confirmText: '提交',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', {
+          action: 'milestone_submit',
+          order_id: that.data.order._id,
+          note: ''
+        }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showToast({ title: r.msg || '提交失败', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: `已提交${r.data.label}`, icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
+        });
+      }
     });
   },
 

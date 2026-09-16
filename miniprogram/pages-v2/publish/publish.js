@@ -2,7 +2,6 @@
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../config/enums.js');
-const { drafts: MOCK_DRAFTS } = require('../../mock/drafts.js');
 
 // 智能派单门槛 = L3 优质等级下限（PRD 3.1.2）
 const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
@@ -58,10 +57,10 @@ Page({
     // B10 自动保存
     autoSaveText: '',
     autoSaveSec: CONFIG.DRAFT.autoSaveSec,
-    // B1 草稿箱
+    // B1 草稿箱(本期未接云端, 空数组; 接云端后接需求草稿集合)
     draftBoxVisible: false,
-    draftList: MOCK_DRAFTS,
-    draftCount: MOCK_DRAFTS.length,
+    draftList: [],
+    draftCount: 0,
     // AA确认弹窗
     aaSheetVisible: false,
     aaCommitChecked: false,

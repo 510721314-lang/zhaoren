@@ -54,7 +54,7 @@ Page({
     this.fetchSquare();
   },
 
-  // 拉取需求广场(云端 demand 集合)
+  // 拉取需求广场(云端 demand 集合) + 耍伴推荐
   fetchSquare() {
     wx.cloud.callFunction({
       name: 'home-action',
@@ -62,7 +62,10 @@ Page({
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
-          this.setData({ demandList: r.data.list || [] });
+          this.setData({
+            demandList: r.data.list || [],
+            partnerList: r.data.partners || []
+          });
         }
       },
       fail: () => {
@@ -78,7 +81,10 @@ Page({
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
-          this.setData({ demandList: r.data.list || [] });
+          this.setData({
+            demandList: r.data.list || [],
+            partnerList: r.data.partners || []
+          });
         }
         wx.stopPullDownRefresh();
         wx.showToast({ title: '已刷新', icon: 'none' });

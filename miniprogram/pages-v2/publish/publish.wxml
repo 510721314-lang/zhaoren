@@ -1,7 +1,7 @@
 <view class="v2 pub">
   <nav-bar title="发布需求" bg="var(--bg-card)">
-    <view slot="right" class="pub__draft-entry" data-count="{{draftCount}}" bindtap="openDraftBox">
-      📋草稿箱{{draftCount > 0 ? '(' + draftCount + ')' : ''}}
+    <view slot="right" class="pub__draft-entry" wx:if="{{draftCount > 0}}" data-count="{{draftCount}}" bindtap="openDraftBox">
+      📋草稿箱({{draftCount}})
     </view>
   </nav-bar>
 

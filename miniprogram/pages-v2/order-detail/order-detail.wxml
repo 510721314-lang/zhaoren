@@ -67,12 +67,29 @@
 
       <!-- S3 履约中 -->
       <block wx:elif="{{order.status === 'S3'}}">
+        <!-- 里程碑进度条 -->
+        <view class="od__milestone">
+          <view class="od__ms-title">履约进度 {{order.milestone.current}}/3</view>
+          <view class="od__ms-steps">
+            <block wx:for="{{order.milestoneSteps}}" wx:key="idx">
+              <view class="od__ms-step {{item.done ? 'is-done' : ''}}">
+                <view class="od__ms-dot">{{item.done ? '✓' : item.idx}}</view>
+                <view class="od__ms-label">{{item.label}}</view>
+              </view>
+              <view class="od__ms-line {{index < order.milestone.current ? 'is-done' : ''}}" wx:if="{{index < 2}}"></view>
+            </block>
+          </view>
+          <button class="od__btn od__btn--ghost od__ms-submit" wx:if="{{order.milestone.current < 3}}" bindtap="onMilestoneSubmit">
+            提交{{(order.milestone.current + 1) * 30}}%履约进度
+          </button>
+        </view>
         <view class="od__action-grid">
           <button class="od__action-btn" bindtap="onSafety">🚨 安全报备</button>
           <button class="od__action-btn" bindtap="onAddTime">⏰ 加时申请</button>
           <button class="od__action-btn" bindtap="onModify">📅 申请改期</button>
-          <button class="od__action-btn od__action-btn--primary" bindtap="onFinishService">✓ 履约完成</button>
+          <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" bindtap="onFinishService">✓ 履约完成</button>
         </view>
+        <view class="od__ms-hint" wx:if="{{!order.canFinishService}}">须先提交到100%才能完成履约</view>
       </block>
 
       <!-- S3.5 履约中断（PRD 3.5.2 nextActions: resume/confirm） -->
