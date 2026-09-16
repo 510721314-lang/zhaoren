@@ -229,5 +229,4 @@
   color: var(--text-disabled);
 }
 
-/* DEV: 联调跳转入口(上线前删除) */
-.pf__dev-entry { margin: 16rpx 32rpx 0; padding: 12rpx 20rpx; font-size: 24rpx; color: #999; background: #f5f5f5; border-radius: 8rpx; text-align: center; }
+

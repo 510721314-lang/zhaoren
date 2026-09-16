@@ -24,8 +24,6 @@
     </view>
   </view>
 
-  </view>
-
   <!-- U2 双信用分卡（独立两栏） -->
   <view class="pf__scores">
     <view class="pf__score" data-role="user" bindtap="onScoreDetail">

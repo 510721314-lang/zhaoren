@@ -64,12 +64,20 @@ Page({
       }
       const u = r.data.user;
       const isPartner = (u.roles || []).indexOf('partner') >= 0;
-      // is_realname_done 后端返回; face_verified MVP 暂未实现, 用 false 兜底
-      const uiUser = Object.assign({}, u, {
+      // 显式映射, 不透传后端敏感字段(openid 等)
+      const uiUser = {
+        _id: u._id,
+        nickname: u.nickname || '微信用户',
+        avatar: (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '', // 只接受 http(s) URL, 否则兜底
+        phone: u.phone || '',
+        roles: u.roles || [],
+        is_realname_done: !!u.is_realname_done,
+        user_credit_score: u.user_credit_score || 0,
+        partner_credit_score: u.partner_credit_score || 0,
         is_partner: isPartner,
         face_verified: false,
-        has_active_order: false // 后端后续补
-      });
+        has_active_order: false
+      };
       this.setData({
         user: uiUser,
         identity: isPartner ? 'partner' : 'user',
