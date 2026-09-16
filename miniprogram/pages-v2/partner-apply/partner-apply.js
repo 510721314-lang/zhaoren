@@ -65,9 +65,9 @@ Page({
       }
     } catch (e) {
       wx.hideLoading();
-      // 真机看不到 console, 直接把真实错误显示出来便于排查
-      const msg = (e && (e.errMsg || e.message)) ? (e.errMsg || e.message) : '网络错误';
-      wx.showToast({ title: msg.length > 20 ? msg.slice(0, 20) : msg, icon: 'none', duration: 3000 });
+      const msg = (e && (e.errMsg || e.message)) || '未知错误';
+      console.error('[partner-apply] submit error:', e);
+      wx.showModal({ title: '申请失败', content: String(msg).slice(0, 120), showCancel: false, confirmText: '我知道了' });
     } finally {
       this.setData({ submitting: false });
     }
