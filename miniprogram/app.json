@@ -16,7 +16,10 @@
     "pages-v2/evaluate/evaluate",
     "pages-v2/workbench/workbench",
     "pages-v2/accept-config/accept-config",
-    "pages-v2/wallet/wallet",
+    "pages-v2/wallet/wallet"
+  ],
+  "_comment_v1_disabled": "以下 v1 旧页面已被 v2 覆盖, 暂时注释保留目录以便回滚回归后物理删除",
+  "_v1_pages_disabled": [
     "pages/index/index",
     "pages/hall/hall",
     "pages/chat/chat",
