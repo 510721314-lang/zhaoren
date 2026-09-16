@@ -385,6 +385,65 @@ exports.main = async (event, context) => {
       return { ok: true, data: { order_id, record_id: record.record_id, amount_fen: amount, paid_by: role } };
     }
 
+    // ───────── 5. 耍伴钱包: 余额+收益汇总 ─────────
+    case 'balance_info': {
+      const partnerOpenid = openid;
+      if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
+      const settled = await col('order_main')
+        .where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']) })
+        .aggregate()
+        .group({ _id: null, total: $.sum('$partner_income_fen') })
+        .end().catch(() => ({ list: [] }));
+      const withdrawableFen = (settled.list && settled.list[0] && settled.list[0].total) || 0;
+      const splitting = await col('order_main')
+        .where({ partner_openid: partnerOpenid, status: _.in(['S2', 'S3', 'S5', 'S6']) })
+        .aggregate()
+        .group({ _id: null, total: $.sum('$partner_income_fen') })
+        .end().catch(() => ({ list: [] }));
+      const splittingFen = (splitting.list && splitting.list[0] && splitting.list[0].total) || 0;
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const monthMs = monthStart.getTime();
+      const monthList = await col('order_main')
+        .where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']), service_completed_at: _.gte(monthMs) })
+        .aggregate()
+        .group({ _id: null, total: $.sum('$partner_income_fen') })
+        .end().catch(() => ({ list: [] }));
+      const monthIncomeFen = (monthList.list && monthList.list[0] && monthList.list[0].total) || 0;
+      const countR = await col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']) }).count();
+      return {
+        ok: true,
+        data: {
+          withdrawable_fen: withdrawableFen,
+          splitting_fen: splittingFen,
+          month_income_fen: monthIncomeFen,
+          total_completed: countR.total || 0
+        }
+      };
+    }
+
+    // ───────── 6. 耍伴钱包: 收益明细列表 ─────────
+    case 'income_list': {
+      const partnerOpenid = openid;
+      if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
+      const limit = Math.min(event.limit || 20, 50);
+      const skip = event.skip || 0;
+      const q = { partner_openid: partnerOpenid, is_deleted: _.neq(true) };
+      if (event.status) q.status = event.status;
+      const r = await col('order_main').where(q).orderBy('created_at', 'desc').skip(skip).limit(limit).get();
+      const list = (r.data || []).map((o) => ({
+        order_id: o._id,
+        order_no: o.order_no,
+        scene: o.scene,
+        status: o.status,
+        partner_income_fen: o.partner_income_fen || 0,
+        fee_fen: o.fee_fen || 0,
+        total_fen: o.total_fen || 0,
+        service_completed_at: o.service_completed_at || null,
+        created_at: o.created_at
+      }));
+      return { ok: true, data: { list } };
+    }
+
     default:
       return { ok: false, code: 'pay_unknown_action', msg: '未知动作' };
   }
