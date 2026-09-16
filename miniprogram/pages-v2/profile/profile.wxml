@@ -90,6 +90,7 @@
   </view>
 
   <!-- U6 -->
+  <view class="pf__logout pf__logout--exit" bindtap="onExitLogin">退出登录</view>
   <view class="pf__logout" bindtap="onLogout">注销账号</view>
   <view class="pf__version">版本号 {{version}}</view>
 

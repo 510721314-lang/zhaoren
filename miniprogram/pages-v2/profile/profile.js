@@ -163,7 +163,28 @@ Page({
     });
   },
 
-  // U6 注销：二次确认 + 冷静期
+  // U6 退出登录 (清本地登录态 + 跳登录页)
+  onExitLogin() {
+    wx.showModal({
+      title: '退出登录',
+      content: '确认退出当前账号？',
+      confirmText: '退出',
+      success: (res) => {
+        if (!res.confirm) return;
+        try {
+          wx.removeStorageSync('v2_login_ok');
+          wx.removeStorageSync('user_info');
+          wx.removeStorageSync('partner_local_cfg');
+        } catch (e) {}
+        wx.showToast({ title: '已退出登录', icon: 'success' });
+        setTimeout(() => {
+          wx.reLaunch({ url: '/pages-v2/login/login', fail: () => {} });
+        }, 800);
+      }
+    });
+  },
+
+  // U6 注销账号
   onLogout() {
     const days = CONFIG.LOGOUT_COOLDOWN_DAYS;
     wx.showModal({
