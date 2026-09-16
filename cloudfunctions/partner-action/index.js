@@ -69,7 +69,7 @@ exports.main = async (event, context) => {
 
       if (existing.data.length) {
         await ppCol.doc(existing.data[0]._id).update({
-          data: { accept_scenes: scenes, status: 'approved', updated_at: Date.now() }
+          data: { accept_scenes: scenes, status: 'approved', is_deleted: false, updated_at: Date.now() }
         });
       } else {
         await ppCol.add({ data: {
@@ -81,6 +81,7 @@ exports.main = async (event, context) => {
           credit_score: 800,
           order_count: 0,
           income_total_fen: 0,
+          is_deleted: false,
           created_at: Date.now(),
           updated_at: Date.now()
         }});
