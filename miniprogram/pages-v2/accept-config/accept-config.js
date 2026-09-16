@@ -2,8 +2,11 @@
 // 接 partner-action 云函数: my_profile(拉) + update_config(存)
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
-const { callCloud } = require('../../utils/cloud.js');
 const redline = require('../../utils/redline.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 const PA = CONFIG.PARTNER_ACCEPT;
 const STORAGE_KEY = 'partner_local_cfg';

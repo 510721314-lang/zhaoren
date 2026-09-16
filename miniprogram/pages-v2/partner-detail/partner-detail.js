@@ -2,7 +2,10 @@
 // 接 partner-action 云函数: detail
 const redline = require('../../utils/redline.js');
 const { SCENES } = require('../../config/enums.js');
-const { callCloud } = require('../../utils/cloud.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
 
 Page({
   data: {
