@@ -77,9 +77,9 @@ exports.main = async (event, context) => {
         ? event.accept_scenes
         : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : ['W1']);
 
-      // dev 环境自动补全场景考核分(让测试账号可以直接接 W1, prod 由管理员审核补)
-      const isDevEnv = getCachedEnv() !== 'prod';
-      const defaultExam = isDevEnv ? DEFAULT_EXAM_SCORES : null;
+      // 补全场景考核分(exam_scores 为空时默认全部 100 分, 让耍伴能直接接所有已开通场景)
+      // W1 真实上线需对接真实考核系统, prod 正式运营前由管理员手动审核维护各场景考核分
+      const defaultExam = DEFAULT_EXAM_SCORES;
 
       if (existing.data.length) {
         for (const p of existing.data) {
