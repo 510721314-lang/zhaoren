@@ -53,7 +53,30 @@
 
   <!-- U5 耍伴专区: 已是耍伴才显示 -->
   <view class="pf__card" wx:if="{{user.is_partner}}">
-    <view class="pf__card-title">耍伴专区</view>
+    <view class="pf__card-title">耍伴工作台</view>
+
+    <!-- 承接订单速览(最多 3 条, 点卡片跳详情) -->
+    <view class="pf__dash" wx:if="{{partnerRecentOrders.length > 0}}">
+      <view class="pf__dash-item"
+        wx:for="{{partnerRecentOrders}}" wx:key="order_id"
+        data-oid="{{item.order_id}}" bindtap="goOrderDetail"
+      >
+        <view class="pf__dash-head">
+          <text class="pf__dash-scene">{{item.scene_name}}</text>
+          <text class="pf__dash-status">{{item.status_name}}</text>
+        </view>
+        <view class="pf__dash-body">
+          <view class="pf__dash-line">🕐 {{item.time_str}}</view>
+          <view class="pf__dash-line">📍 {{item.location_name}}</view>
+          <view class="pf__dash-line">💰 ¥{{item.total_fen / 100}}</view>
+        </view>
+      </view>
+    </view>
+    <view class="pf__dash-empty" wx:else>
+      暂无承接订单，去<a class="pf__dash-go" data-key="myTakeOrders" bindtap="onPartnerEntry">我承接的订单</a>查看或前往广场抢单
+    </view>
+
+    <view class="pf__card-sub-title">快捷入口</view>
     <view
       class="pf__link"
       wx:for="{{partnerEntries}}"

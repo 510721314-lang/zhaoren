@@ -43,6 +43,7 @@ Page({
       { key: 'wallet', icon: '💰', name: '收入钱包' },
       { key: 'myTakeOrders', icon: '📦', name: '我承接的订单' }
     ],
+    partnerRecentOrders: [],
     version: CONFIG.VERSION,
     isRedline: false
   },
@@ -126,6 +127,30 @@ Page({
         ]
       });
     }).catch(() => {});
+    // 耍伴视角: 拉最近 3 条承接订单做 dashboard 预览
+    if (this.data.user && this.data.user.is_partner) {
+      callCloud('order-action', { action: 'my_orders', role: 'partner' }).then((r) => {
+        if (!r || !r.ok || !r.data) return;
+        const list = (r.data.list || [])
+          .filter((o) => o.item_type === 'order')
+          .slice(0, 3)
+          .map((o) => {
+            const d = new Date(o.start_time);
+            const pad = (n) => n < 10 ? '0' + n : '' + n;
+            return {
+              order_id: o.order_id,
+              order_no: o.order_no,
+              scene_name: o.scene_name || o.scene,
+              time_str: `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+              location_name: o.location_name || '地点待确认',
+              status: o.status,
+              status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[o.status] || o.status,
+              total_fen: o.total_fen || 0
+            };
+          });
+        this.setData({ partnerRecentOrders: list });
+      }).catch(() => {});
+    }
   },
 
   // U1 身份切换
@@ -199,6 +224,7 @@ Page({
   // U5 耍伴专区 / 认证引导
   onPartnerEntry(e) {
     const key = e.currentTarget.dataset.key;
+    if (!key) return;
     if (key === 'myTakeOrders') {
       wx.navigateTo({ url: '/pages-v2/orders/orders?role=partner', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
       return;
@@ -207,6 +233,13 @@ Page({
       url: `/pages-v2/${key}/${key}`,
       fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' })
     });
+  },
+
+  // 耍伴工作台 → 订单详情
+  goOrderDetail(e) {
+    const oid = e.currentTarget.dataset.oid;
+    if (!oid) return;
+    wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oid}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
   },
   becomePartner() {
     wx.navigateTo({
