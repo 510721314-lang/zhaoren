@@ -1,0 +1,25 @@
+.nt { padding: 20rpx 28rpx 40rpx; }
+.nt__mark-all {
+  text-align: right; font-size: 24rpx; color: var(--brand-primary, #1890ff);
+  padding: 8rpx 0 16rpx;
+}
+.nt__item {
+  display: flex; gap: 20rpx;
+  padding: 24rpx 20rpx;
+  background: #fff; border-radius: var(--r-md);
+  margin-bottom: 16rpx;
+}
+.nt__item--unread {
+  background: rgba(24, 144, 255, 0.04);
+}
+.nt__ic { font-size: 40rpx; flex-shrink: 0; }
+.nt__body { flex: 1; min-width: 0; }
+.nt__head { display: flex; align-items: center; gap: 12rpx; }
+.nt__title { font-size: 28rpx; font-weight: 600; flex: 1; }
+.nt__dot {
+  width: 14rpx; height: 14rpx; border-radius: 50%;
+  background: var(--func-danger, #fa5151);
+  flex-shrink: 0;
+}
+.nt__sub { font-size: 24rpx; color: var(--text-2); margin-top: 8rpx; }
+.nt__time { font-size: 22rpx; color: var(--text-4); margin-top: 8rpx; }

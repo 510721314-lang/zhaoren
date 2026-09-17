@@ -1,0 +1,25 @@
+<view class="nt">
+  <!-- 空态 -->
+  <empty-state wx:if="{{empty && !loading}}" icon="🔔" title="暂无消息" desc="订单状态变更会在这里通知你" />
+
+  <!-- 列表 -->
+  <view wx:else class="nt__list">
+    <view class="nt__mark-all" wx:if="{{unread > 0}}" bindtap="onMarkAll">全部标记已读</view>
+
+    <view
+      class="nt__item {{item.read ? '' : 'nt__item--unread'}}"
+      wx:for="{{list}}" wx:key="_id"
+      data-notice="{{item}}" bindtap="onTapItem"
+    >
+      <view class="nt__ic">🔔</view>
+      <view class="nt__body">
+        <view class="nt__head">
+          <text class="nt__title">{{item.title}}</text>
+          <view class="nt__dot" wx:if="{{!item.read}}"></view>
+        </view>
+        <view class="nt__sub">{{item.body}}</view>
+        <view class="nt__time">{{item.time_ago}}</view>
+      </view>
+    </view>
+  </view>
+</view>

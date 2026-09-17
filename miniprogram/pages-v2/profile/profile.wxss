@@ -267,6 +267,16 @@
   font-size: var(--font-xxl);
   color: var(--text-disabled);
 }
+.pf__badge {
+  font-size: 20rpx;
+  color: #fff;
+  background: var(--func-danger, #fa5151);
+  border-radius: 20rpx;
+  padding: 2rpx 10rpx;
+  min-width: 28rpx;
+  text-align: center;
+  margin: 0 8rpx;
+}
 
 /* 成为耍伴 */
 .pf__apply {

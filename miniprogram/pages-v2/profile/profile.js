@@ -94,18 +94,21 @@ Page({
         userLevel: getLevel(u.user_credit_score),
         partnerLevel: getLevel(u.partner_credit_score),
         // "我的发布" 仅用户身份有意义(耍伴是接单方)
-        funcList: identity === 'partner'
-          ? [
-              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-              { key: 'help', icon: '🎧', name: '联系客服' },
-              { key: 'about', icon: 'ℹ️', name: '关于我们' }
-            ]
-          : [
-              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-              { key: 'myPublish', icon: '📋', name: '我的发布' },
-              { key: 'help', icon: '🎧', name: '联系客服' },
-              { key: 'about', icon: 'ℹ️', name: '关于我们' }
-            ]
+        funcList: [
+          { key: 'notices', icon: '🔔', name: '消息通知', badge: '' },
+          ...(identity === 'partner'
+            ? [
+                { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+                { key: 'help', icon: '🎧', name: '联系客服' },
+                { key: 'about', icon: 'ℹ️', name: '关于我们' }
+              ]
+            : [
+                { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+                { key: 'myPublish', icon: '📋', name: '我的发布' },
+                { key: 'help', icon: '🎧', name: '联系客服' },
+                { key: 'about', icon: 'ℹ️', name: '关于我们' }
+              ])
+        ]
       });
       // 并行拉订单计数(按当前身份过滤)
       this.loadCounts();
@@ -115,7 +118,7 @@ Page({
   },
 
   loadCounts() {
-    // 四宫格计数
+    // 并行拉: 四宫格计数 + 通知未读数
     callCloud('order-action', { action: 'my_counts', role: this.data.identity }).then((cr) => {
       if (!cr || !cr.ok || !cr.data) return;
       const c = cr.data;
@@ -183,6 +186,13 @@ Page({
         this.setData({ userRecentDemands: [...orderList, ...demandList].slice(0, 3) });
       }).catch(() => {});
     }
+    // 通知未读数(始终拉, 与身份无关)
+    callCloud('order-action', { action: 'notice_list', limit: 1 }).then((nr) => {
+      if (!nr || !nr.ok) return;
+      const unread = nr.data ? nr.data.unread : 0;
+      const funcList = this.data.funcList.map((f) => f.key === 'notices' ? { ...f, badge: unread > 0 ? unread : '' } : f);
+      this.setData({ notice_unread: unread, funcList });
+    }).catch(() => {});
   },
 
   // U1 身份切换
@@ -196,18 +206,21 @@ Page({
     wx.setStorageSync('current_identity', target);
     this.setData({
       identity: target,
-      funcList: target === 'partner'
-        ? [
-            { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-            { key: 'help', icon: '🎧', name: '联系客服' },
-            { key: 'about', icon: 'ℹ️', name: '关于我们' }
-          ]
-        : [
-            { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-            { key: 'myPublish', icon: '📋', name: '我的发布' },
-            { key: 'help', icon: '🎧', name: '联系客服' },
-            { key: 'about', icon: 'ℹ️', name: '关于我们' }
-          ]
+      funcList: [
+        { key: 'notices', icon: '🔔', name: '消息通知', badge: this.data.notice_unread > 0 ? this.data.notice_unread : '' },
+        ...(target === 'partner'
+          ? [
+              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+              { key: 'help', icon: '🎧', name: '联系客服' },
+              { key: 'about', icon: 'ℹ️', name: '关于我们' }
+            ]
+          : [
+              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+              { key: 'myPublish', icon: '📋', name: '我的发布' },
+              { key: 'help', icon: '🎧', name: '联系客服' },
+              { key: 'about', icon: 'ℹ️', name: '关于我们' }
+            ])
+      ]
     });
     this.loadCounts();
     wx.showToast({ title: target === 'partner' ? '已切换为耍伴身份' : '已切换为用户身份', icon: 'none' });
@@ -234,7 +247,9 @@ Page({
   // U4 功能列表(help 项在 wxml 中为 open-type=contact 按钮, 不会进入此处理)
   onFuncTap(e) {
     const key = e.currentTarget.dataset.key;
-    if (key === 'emergency') {
+    if (key === 'notices') {
+      wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+    } else if (key === 'emergency') {
       wx.navigateTo({ url: '/pages-v2/contacts/contacts', fail: modalFail });
     } else if (key === 'myPublish') {
       wx.navigateTo({ url: '/pages-v2/my-demands/my-demands', fail: modalFail });

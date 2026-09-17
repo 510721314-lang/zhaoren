@@ -162,6 +162,7 @@
       >
         <text class="pf__link-ic">{{item.icon}}</text>
         <text class="pf__link-name">{{item.name}}</text>
+        <view class="pf__badge" wx:if="{{item.badge}}">{{item.badge}}</view>
         <text class="pf__link-arrow">›</text>
       </button>
     </block>
