@@ -305,9 +305,17 @@ exports.main = async (event, context) => {
       if (demand.creator_openid === openid) {
         return { ok: false, code: 'apply_own', msg: '不能报名自己发布的需求' };
       }
-      // 耍伴身份校验
-      const profile = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get()
+      // 耍伴身份校验(is_deleted 缺省的历史坏文档视为有效并惰性治愈, 仅显式 true 拒绝)
+      let profile = await col('partner_profile').where({ openid, is_deleted: _.neq(true) }).limit(1).get()
         .then(r => (r.data && r.data[0]) || null).catch(() => null);
+      if (profile && profile.is_deleted === undefined) {
+        const patch = { is_deleted: false, updated_at: Date.now() };
+        if (profile.accept_switch === undefined) patch.accept_switch = true;
+        await col('partner_profile').doc(profile._id).update({ data: patch })
+          .catch((e) => console.log(`[legacy heal] fail: ${e.message}`));
+        profile = Object.assign(profile, { is_deleted: false });
+        if (profile.accept_switch === undefined) profile.accept_switch = true;
+      }
       if (!profile || profile.status !== 'approved') {
         return { ok: false, code: 'apply_not_partner', msg: '耍伴资料未审核通过' };
       }

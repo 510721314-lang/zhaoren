@@ -23,9 +23,22 @@ async function getConfig() {
   };
 }
 
+// 容错读取: is_deleted 缺省(历史坏文档)视为有效并惰性治愈, 仅显式 true 拒绝
 async function getProfile(openid) {
-  const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
-  return (r.data && r.data[0]) || null;
+  const r = await col('partner_profile')
+    .where({ openid, is_deleted: _.neq(true) })
+    .limit(1).get().catch(() => ({ data: [] }));
+  const profile = (r.data && r.data[0]) || null;
+  if (profile && profile.is_deleted === undefined) {
+    const patch = { is_deleted: false, updated_at: Date.now() };
+    if (profile.accept_switch === undefined) patch.accept_switch = true;
+    await col('partner_profile').doc(profile._id).update({ data: patch })
+      .then(() => console.log(`[legacy heal] partner_profile ${profile._id} patched for ${openid}`))
+      .catch((e) => console.log(`[legacy heal] fail: ${e.message}`));
+    Object.assign(profile, { is_deleted: false });
+    if (profile.accept_switch === undefined) profile.accept_switch = true;
+  }
+  return profile;
 }
 
 // 检查是否有进行中订单
@@ -61,16 +74,28 @@ exports.main = async (event, context) => {
       }
 
       // upsert partner_profile
+      // 注意: 早期版本 add 漏写 is_deleted 且重复提交可能产生多条文档,
+      // 这里宽查(不带 is_deleted)并治愈该 openid 下全部文档, 避免严格守卫 limit(1) 漏读
       const ppCol = col('partner_profile');
-      const existing = await ppCol.where({ openid }).limit(1).get();
+      const now = Date.now();
+      const existing = await ppCol.where({ openid }).limit(100).get();
       const scenes = Array.isArray(event.accept_scenes) && event.accept_scenes.length
         ? event.accept_scenes
         : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : ['W1']);
 
       if (existing.data.length) {
-        await ppCol.doc(existing.data[0]._id).update({
-          data: { accept_scenes: scenes, status: 'approved', is_deleted: false, updated_at: Date.now() }
-        });
+        for (const p of existing.data) {
+          // 重走申请=重新开通: 补全所有守卫依赖字段(status/is_deleted/accept_switch)
+          const patch = {
+            accept_scenes: scenes,
+            status: 'approved',
+            is_deleted: false,
+            updated_at: now
+          };
+          if (p.accept_switch === undefined) patch.accept_switch = true;
+          if (p.credit_score === undefined) patch.credit_score = 800;
+          await ppCol.doc(p._id).update({ data: patch });
+        }
       } else {
         await ppCol.add({ data: {
           openid,
@@ -82,11 +107,11 @@ exports.main = async (event, context) => {
           order_count: 0,
           income_total_fen: 0,
           is_deleted: false,
-          created_at: Date.now(),
-          updated_at: Date.now()
+          created_at: now,
+          updated_at: now
         }});
       }
-      console.log(`partner apply OK: ${openid} scenes=${scenes}`);
+      console.log(`partner apply OK: ${openid} scenes=${scenes} docs=${existing.data.length}`);
       return { ok: true, data: { roles: [...curRoles, 'partner'], accept_scenes: scenes } };
     }
 
