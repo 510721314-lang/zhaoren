@@ -962,7 +962,7 @@ Page({
   onReportHandle(e) {
     const id = e.currentTarget.dataset.id;
     this.confirm('处理安全求助', '确认将该求助/报备标记为「已解决」吗？', {
-      editable: true, placeholder: '处理说明（必填，留档）', confirmText: '标记已解决'
+      editable: true, placeholder: '处理说明（必填，留档）', confirmText: '已解决'
     }, (text) => {
       const note = (text || '').trim();
       if (!note) { this.toast('请填写处理说明'); return; }

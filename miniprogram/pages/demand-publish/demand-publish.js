@@ -385,7 +385,7 @@ Page({
       wx.showModal({
         title: '请先确认 AA 费用承诺书',
         content: AA_PROMISE_TEXT,
-        confirmText: '我已阅读并同意',
+        confirmText: '我同意',
         success: (r) => { if (r.confirm) this.setData({ aaPromiseChecked: true }); }
       });
       return;
