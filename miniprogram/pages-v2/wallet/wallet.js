@@ -4,6 +4,8 @@ const CONFIG = require('../../config/index.js');
 const { FUND_STATUS } = require('../../config/enums.js');
 const redline = require('../../utils/redline.js');
 
+const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
 }
@@ -72,10 +74,15 @@ Page({
         d.incomeList = (incR.data.list || []).map((i) => ({
           order_no: i.order_no,
           scene: i.scene,
+          scene_name: SCENE_NAMES[i.scene] || i.scene || '其他',
           status: i.status,
           netYuan: ((i.partner_income_fen || 0) / 100).toFixed(2),
           grossYuan: ((i.total_fen || 0) / 100).toFixed(2),
           feeYuan: ((i.fee_fen || 0) / 100).toFixed(2),
+          commissionYuan: ((i.fee_fen || 0) / 100).toFixed(2),
+          subsidyYuan: i.subsidy_fen ? (i.subsidy_fen / 100).toFixed(2) : null,
+          is_welfare: !!i.is_welfare,
+          partner_name: i.user_nickname || i.partner_name || '',
           created_at: i.created_at,
           service_completed_at: i.service_completed_at
         }));

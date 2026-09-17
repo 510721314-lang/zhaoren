@@ -308,7 +308,7 @@ Page({
                 wx.showToast({ title: rr.ok ? '已通知耍伴' : (rr.msg || '发送失败'), icon: rr.ok ? 'success' : 'none' });
               }).catch(() => {
                 wx.hideLoading();
-                wx.showToast({ title: '催促消息已发送', icon: 'success' });
+                wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' });
               });
             }
           }

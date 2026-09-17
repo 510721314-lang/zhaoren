@@ -62,7 +62,7 @@ Page({
   },
 
   fetchUser() {
-    callCloud('user-login', { action: 'login' }).then((r) => {
+    callCloud('user-login', { action: 'peek_login' }).then((r) => {
       if (!r.ok || !r.data || !r.data.user) {
         wx.showToast({ title: r.msg || '登录失败', icon: 'none' });
         return;
