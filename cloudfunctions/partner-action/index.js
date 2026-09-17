@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
+﻿// 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
 // partner-action 耍伴配置与接单动作 · 身份取自 getWXContext().OPENID
 // 4 个 action: set_switch / update_config / my_profile / review
 const cloud = require('wx-server-sdk');
@@ -51,7 +51,7 @@ async function hasBusyOrder(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
+  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'pa_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

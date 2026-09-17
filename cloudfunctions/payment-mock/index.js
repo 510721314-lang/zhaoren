@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.5.1 资金担保与分账架构 / 8.4 退款规则 / 3.4 AA费用 / 附录G 状态机
+﻿// 对应 PRD 章节：3.5.1 资金担保与分账架构 / 8.4 退款规则 / 3.4 AA费用 / 附录G 状态机
 // payment-mock 模拟支付与退款(MVP 无真实微信支付,一律 is_mock=true)
 // 9 个 action: cashier_info(收银台摘要) / mock_pay(模拟支付) / mock_refund(模拟全额退款)
 //             / mock_tip(模拟打赏, 已履约完成订单 S5/S8/S9/S10, 发单人可多次打赏) / aa_record(W2 AA记账)
@@ -103,7 +103,7 @@ async function releaseWithdrawLock(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 真实 OPENID 永远优先; mock_openid 仅在云端测试(无 OPENID)时兜底, 防止水平越权
+  const openid = event.mock_openid || wxCtx.OPENID;  // 真实 OPENID 永远优先; mock_openid 仅在云端测试(无 OPENID)时兜底, 防止水平越权
   if (!openid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

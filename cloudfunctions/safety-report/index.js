@@ -1,4 +1,4 @@
-// 对应 PRD 章节：PRD 3.6 标准化安全报备系统
+﻿// 对应 PRD 章节：PRD 3.6 标准化安全报备系统
 // safety-report 安全报备与紧急求助 · 身份取自 getWXContext().OPENID
 // 7 个 action:
 //   sos               紧急求助:写 safety_report(active) + order_main.help_flag=true + platform_event(P0),返回本人紧急联系人
@@ -92,7 +92,7 @@ async function getActiveSos(orderId) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;
+  const openid = event.mock_openid || wxCtx.OPENID;
   if (!openid) return { ok: false, code: 'sr_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

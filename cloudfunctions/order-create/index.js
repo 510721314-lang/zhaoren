@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
+﻿// 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
 // order-create 订单创建 · 耍伴接单(create_from_take) · 免责声明签署(sign_disclaimer)
 // 2 个 action: create_from_take / sign_disclaimer · 订单初始状态 S1(待确认/四确认阶段)
 const cloud = require('wx-server-sdk');
@@ -99,7 +99,7 @@ const TAKE_MAX_DISTANCE_KM = 50;
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
+  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'order_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

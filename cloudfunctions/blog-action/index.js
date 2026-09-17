@@ -1,4 +1,4 @@
-// blog-action 耍伴服务动态(图文信息流) · 身份取自 getWXContext().OPENID
+﻿// blog-action 耍伴服务动态(图文信息流) · 身份取自 getWXContext().OPENID
 // action: feed_list / detail / publish / delete_my / like / unlike /
 //         comment_list / comment_add / comment_delete / my_list
 // 集合: blog_post(帖子) / blog_comment(评论) / blog_like(点赞, 幂等)
@@ -102,7 +102,7 @@ async function getAuthorSnapshot(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 真实 OPENID 优先, mock 仅云端测试兜底
+  const openid = event.mock_openid || wxCtx.OPENID;  // 真实 OPENID 优先, mock 仅云端测试兜底
   const action = event.action;
   const now = Date.now();
 

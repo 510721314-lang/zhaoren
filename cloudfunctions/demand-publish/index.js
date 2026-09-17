@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.3 需求发布功能 / 8.4.1 需求超时与梯度退款 / 11 业务场景白名单
+﻿// 对应 PRD 章节：3.3 需求发布功能 / 8.4.1 需求超时与梯度退款 / 11 业务场景白名单
 // demand-publish 需求发布 · 身份取自 getWXContext().OPENID
 // 8 个 action: publish / cancel / my_demands / lazy_expire / detail
 //             / save_draft(新增或更新草稿) / list_drafts(草稿列表,过滤过期) / delete_draft(软删)
@@ -124,7 +124,7 @@ async function addWithColl(name, doc) {
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
+  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'publish_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

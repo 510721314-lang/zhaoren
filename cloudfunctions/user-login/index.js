@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
+﻿// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
 // user-login 登录与实名注册 · 身份取自 getWXContext().OPENID,禁止信任前端字段
 // action 列表: login / peek_login / phone_login / phone_register / password_register / password_login /
 //             update_profile / bind_phone / bind_idcard / set_emergency_contact / get_my_credit / close_account
@@ -160,7 +160,7 @@ async function resolvePhone(event) {
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
+  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'login_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

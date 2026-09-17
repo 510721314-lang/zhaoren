@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
+﻿// 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
 // demand-match 需求匹配 · 身份取自 getWXContext().OPENID
 // 6 个 action: top5 / invite / broadcast / hall_list / apply / confirm_apply
 const cloud = require('wx-server-sdk');
@@ -31,7 +31,7 @@ async function getConfig() {
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
+  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'match_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

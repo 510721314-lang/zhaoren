@@ -1,4 +1,4 @@
-// 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
+﻿// 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
 // im-send 发消息 · 身份取自 getWXContext().OPENID
 // 2 个 action:
 //   send_template  发送系统模板消息(四确认前唯一允许的消息类型)
@@ -158,7 +158,7 @@ async function appendMessage(conv, order, role, openid, type, text, templateId) 
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;
+  const openid = event.mock_openid || wxCtx.OPENID;
   if (!openid) return { ok: false, code: 'im_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

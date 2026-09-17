@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.10 耍伴工作台 / 5.1 B端后台RBAC / 9.1 信用分扣除与冻结规则
+﻿// 对应 PRD 章节：3.10 耍伴工作台 / 5.1 B端后台RBAC / 9.1 信用分扣除与冻结规则
 // partner-apply 耍伴入驻 · 身份取自 getWXContext().OPENID
 // 1 个 action: apply
 const cloud = require('wx-server-sdk');
@@ -30,7 +30,7 @@ async function hasEmergencyContact(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid;  // 测试用:云端测试可传 mock_openid 模拟身份
+  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
   if (!openid) return { ok: false, code: 'apply_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
