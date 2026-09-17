@@ -40,10 +40,10 @@ Page({
     ],
     partnerEntries: [
       { key: 'accept-config', icon: '⚙️', name: '接单配置' },
-      { key: 'wallet', icon: '💰', name: '收入钱包' },
-      { key: 'myTakeOrders', icon: '📦', name: '我承接的订单' }
+      { key: 'wallet', icon: '💰', name: '收入钱包' }
     ],
     partnerRecentOrders: [],
+    userRecentDemands: [],
     version: CONFIG.VERSION,
     isRedline: false
   },
@@ -115,6 +115,7 @@ Page({
   },
 
   loadCounts() {
+    // 四宫格计数
     callCloud('order-action', { action: 'my_counts', role: this.data.identity }).then((cr) => {
       if (!cr || !cr.ok || !cr.data) return;
       const c = cr.data;
@@ -127,28 +128,59 @@ Page({
         ]
       });
     }).catch(() => {});
-    // 耍伴视角: 拉最近 3 条承接订单做 dashboard 预览
-    if (this.data.user && this.data.user.is_partner) {
+
+    // 工作台概览: 耍伴拉承接订单, 用户拉发布需求
+    const pad = (n) => n < 10 ? '0' + n : '' + n;
+    const fmtDate = (ts) => {
+      if (!ts) return '时间待定';
+      const d = new Date(ts);
+      return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    if (this.data.identity === 'partner') {
       callCloud('order-action', { action: 'my_orders', role: 'partner' }).then((r) => {
         if (!r || !r.ok || !r.data) return;
         const list = (r.data.list || [])
           .filter((o) => o.item_type === 'order')
           .slice(0, 3)
-          .map((o) => {
-            const d = new Date(o.start_time);
-            const pad = (n) => n < 10 ? '0' + n : '' + n;
-            return {
-              order_id: o.order_id,
-              order_no: o.order_no,
-              scene_name: o.scene_name || o.scene,
-              time_str: `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
-              location_name: o.location_name || '地点待确认',
-              status: o.status,
-              status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[o.status] || o.status,
-              total_fen: o.total_fen || 0
-            };
-          });
+          .map((o) => ({
+            order_id: o.order_id,
+            scene_name: o.scene_name || o.scene,
+            time_str: fmtDate(o.start_time),
+            location_name: o.location_name || '地点待确认',
+            status: o.status,
+            status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[o.status] || o.status,
+            total_fen: o.total_fen || 0
+          }));
         this.setData({ partnerRecentOrders: list });
+      }).catch(() => {});
+    } else {
+      // 用户视角: 合并 my_orders 里的已接单订单 + demand-publish my_demands
+      Promise.all([
+        callCloud('order-action', { action: 'my_orders', role: 'user' }),
+        callCloud('demand-publish', { action: 'my_demands' })
+      ]).then(([ordersR, demandsR]) => {
+        const orderList = (ordersR && ordersR.ok && ordersR.data && ordersR.data.list || [])
+          .filter((o) => o.item_type === 'order').slice(0, 3)
+          .map((o) => ({
+            demand_id: o.order_id,
+            scene_name: o.scene_name || o.scene,
+            time_str: fmtDate(o.start_time),
+            location_name: o.location_name || '地点待确认',
+            status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S5: '待评价' })[o.status] || o.status,
+            price_str: Math.round((o.total_fen || 0) / 100)
+          }));
+        const demandList = (demandsR && demandsR.ok && demandsR.data && demandsR.data.list || [])
+          .slice(0, 3 - orderList.length)
+          .map((d) => ({
+            demand_id: d._id || d.demand_id,
+            scene_name: d.scene_name || d.scene,
+            time_str: fmtDate(d.start_time),
+            location_name: (d.location && d.location.name) || '地点待确认',
+            status_name: ({ matching: '等待接单', matched: '已接单' })[d.status] || d.status,
+            price_str: d.duration_h ? Math.round(((d.total_fen || 0) / 100) / d.duration_h) : Math.round((d.total_fen || 0) / 100)
+          }));
+        this.setData({ userRecentDemands: [...orderList, ...demandList].slice(0, 3) });
       }).catch(() => {});
     }
   },
@@ -240,6 +272,18 @@ Page({
     const oid = e.currentTarget.dataset.oid;
     if (!oid) return;
     wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oid}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+  },
+
+  // 用户工作台 → 需求详情
+  goDemandDetail(e) {
+    const did = e.currentTarget.dataset.did;
+    if (!did) return;
+    wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${did}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+  },
+
+  // 用户工作台空态 → 去发布
+  goPublish() {
+    wx.switchTab({ url: '/pages-v2/publish/publish', fail: () => wx.switchTab({ url: '/pages-v2/index/index', fail: () => {} }) });
   },
   becomePartner() {
     wx.navigateTo({

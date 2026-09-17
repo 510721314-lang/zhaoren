@@ -51,11 +51,13 @@
     </view>
   </view>
 
-  <!-- U5 耍伴专区: 已是耍伴才显示 -->
-  <view class="pf__card" wx:if="{{user.is_partner}}">
+  <!-- U5 工作台: 按当前 identity 显示不同视角 -->
+
+  <!-- 耍伴工作台 -->
+  <view class="pf__card" wx:if="{{identity === 'partner'}}">
     <view class="pf__card-title">耍伴工作台</view>
 
-    <!-- 承接订单速览(最多 3 条, 点卡片跳详情) -->
+    <!-- 承接订单概览 -->
     <view class="pf__dash" wx:if="{{partnerRecentOrders.length > 0}}">
       <view class="pf__dash-item"
         wx:for="{{partnerRecentOrders}}" wx:key="order_id"
@@ -73,16 +75,22 @@
       </view>
     </view>
     <view class="pf__dash-empty" wx:else>
-      暂无承接订单，去<a class="pf__dash-go" data-key="myTakeOrders" bindtap="onPartnerEntry">我承接的订单</a>查看或前往广场抢单
+      暂无承接订单，去广场抢单吧
+    </view>
+
+    <!-- 栏目入口 -->
+    <view class="pf__card-sub-title">我的承接</view>
+    <view class="pf__link" data-key="myTakeOrders" bindtap="onPartnerEntry">
+      <text class="pf__link-ic">📦</text>
+      <text class="pf__link-name">我承接的订单</text>
+      <text class="pf__link-arrow">›</text>
     </view>
 
     <view class="pf__card-sub-title">快捷入口</view>
     <view
       class="pf__link"
-      wx:for="{{partnerEntries}}"
-      wx:key="key"
-      data-key="{{item.key}}"
-      bindtap="onPartnerEntry"
+      wx:for="{{partnerEntries}}" wx:key="key"
+      data-key="{{item.key}}" bindtap="onPartnerEntry"
     >
       <text class="pf__link-ic">{{item.icon}}</text>
       <text class="pf__link-name">{{item.name}}</text>
@@ -90,13 +98,45 @@
     </view>
   </view>
 
-  <!-- 非耍伴: 成为耍伴引导 -->
-  <view class="pf__apply" wx:else bindtap="becomePartner">
-    <view>
-      <view class="pf__apply-title">成为认证耍伴，接单赚收入</view>
-      <view class="pf__apply-sub">完成实名+人脸+场景认证即可接单，享平台流量扶持</view>
+  <!-- 用户工作台 -->
+  <view class="pf__card" wx:else>
+    <view class="pf__card-title">用户工作台</view>
+
+    <!-- 发布需求概览 -->
+    <view class="pf__dash" wx:if="{{userRecentDemands.length > 0}}">
+      <view class="pf__dash-item"
+        wx:for="{{userRecentDemands}}" wx:key="demand_id"
+        data-did="{{item.demand_id}}" bindtap="goDemandDetail"
+      >
+        <view class="pf__dash-head">
+          <text class="pf__dash-scene">{{item.scene_name}}</text>
+          <text class="pf__dash-status">{{item.status_name}}</text>
+        </view>
+        <view class="pf__dash-body">
+          <view class="pf__dash-line">🕐 {{item.time_str}}</view>
+          <view class="pf__dash-line">📍 {{item.location_name}}</view>
+          <view class="pf__dash-line">💰 ¥{{item.price_str}}/小时</view>
+        </view>
+      </view>
     </view>
-    <view class="pf__apply-btn">去认证</view>
+    <view class="pf__dash-empty" wx:elif="{{user.is_partner}}">
+      暂无发布需求，去<a class="pf__dash-go" bindtap="goPublish">发布</a>一个需求吧
+    </view>
+    <view class="pf__apply" wx:else bindtap="becomePartner">
+      <view>
+        <view class="pf__apply-title">成为认证耍伴，接单赚收入</view>
+        <view class="pf__apply-sub">完成实名+人脸+场景认证即可接单，享平台流量扶持</view>
+      </view>
+      <view class="pf__apply-btn">去认证</view>
+    </view>
+
+    <!-- 栏目入口 -->
+    <view class="pf__card-sub-title">我的发布</view>
+    <view class="pf__link" data-key="myPublish" bindtap="onFuncTap">
+      <text class="pf__link-ic">📋</text>
+      <text class="pf__link-name">我发布的需求</text>
+      <text class="pf__link-arrow">›</text>
+    </view>
   </view>
 
   <!-- U4 功能列表(联系客服用微信官方客服会话 open-type=contact) -->
