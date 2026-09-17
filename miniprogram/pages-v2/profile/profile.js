@@ -69,9 +69,12 @@ Page({
       const u = r.data.user;
       const isPartner = (u.roles || []).indexOf('partner') >= 0;
       // 身份粘性: 优先读 storage, 否则按角色默认
+      // 如果刚被开通 partner 角色(storage 还是空或 user), 默认切 partner 让用户看到新身份权益
       let identity = wx.getStorageSync('current_identity');
       if (identity === 'partner' && !isPartner) identity = 'user';
-      if (identity !== 'partner' && identity !== 'user') identity = isPartner ? 'partner' : 'user';
+      if (identity !== 'partner' && identity !== 'user') {
+        identity = isPartner ? 'partner' : 'user';
+      }
       // 显式映射, 不透传后端敏感字段(openid 等)
       const uiUser = {
         _id: u._id,

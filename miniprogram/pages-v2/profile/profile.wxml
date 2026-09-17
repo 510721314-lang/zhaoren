@@ -51,8 +51,8 @@
     </view>
   </view>
 
-  <!-- U5 耍伴专区（仅耍伴身份） -->
-  <view class="pf__card" wx:if="{{identity === 'partner'}}">
+  <!-- U5 耍伴专区: 已是耍伴才显示 -->
+  <view class="pf__card" wx:if="{{user.is_partner}}">
     <view class="pf__card-title">耍伴专区</view>
     <view
       class="pf__link"
@@ -67,7 +67,7 @@
     </view>
   </view>
 
-  <!-- 用户身份：成为耍伴引导 -->
+  <!-- 非耍伴: 成为耍伴引导 -->
   <view class="pf__apply" wx:else bindtap="becomePartner">
     <view>
       <view class="pf__apply-title">成为认证耍伴，接单赚收入</view>
