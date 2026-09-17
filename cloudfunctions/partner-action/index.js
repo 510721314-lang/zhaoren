@@ -206,7 +206,7 @@ exports.main = async (event, context) => {
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
 
       // 统计:总单数、完成单数、好评率(占位)
-      let totalOrders = 0, completedOrders = 0;
+      let totalOrders = 0, completedOrders = 0, goodRate = 0;
       try {
         const tr = await col('order_main').where({
           partner_openid: openid, is_deleted: false
@@ -216,6 +216,10 @@ exports.main = async (event, context) => {
           partner_openid: openid, status: _.in(['S5', 'S8', 'S9', 'S10']), is_deleted: false
         }).count();
         completedOrders = cr.total || 0;
+        // 好评率: evaluation 表 star>=4 占比
+        const er = await col('evaluation').where({ partner_openid: openid, is_deleted: false }).count();
+        const ec = await col('evaluation').where({ partner_openid: openid, star: _.gte(4), is_deleted: false }).count();
+        if (er.total > 0) goodRate = Math.round((ec.total / er.total) * 100);
       } catch (e) {}
 
       return {
@@ -232,7 +236,7 @@ exports.main = async (event, context) => {
           stats: {
             total_orders: totalOrders,
             completed_orders: completedOrders,
-            good_rate: 0   // 占位,阶段评价模块完成后接入
+            good_rate: goodRate
           }
         }
       };

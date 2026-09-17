@@ -1,4 +1,4 @@
-﻿// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
 // 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
 // 否则拒绝并写 platform_event(P1, admin_probe)。
 // 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
@@ -18,7 +18,7 @@ async function getConfig() {
     const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
     if (r.data && r.data[0]) return r.data[0];
   } catch (e) {}
-  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: true, block_words: [], payment_visible: true };
+  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true };
 }
 
 // 平台事件(P0 紧急 / P1 安全/越权 / P2 运营 / P3 业务异常)

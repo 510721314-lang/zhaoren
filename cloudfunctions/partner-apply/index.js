@@ -15,7 +15,7 @@ async function getConfig() {
     const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
     if (r.data && r.data[0]) return r.data[0];
   } catch (e) {}
-  return { rate_min_fen: 3000, rate_max_fen: 10000, min_credit_take_order: 600, auto_approve_partner: true };
+  return { rate_min_fen: 3000, rate_max_fen: 10000, min_credit_take_order: 600, auto_approve_partner: false };
 }
 
 async function getUser(openid) {

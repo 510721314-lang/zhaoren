@@ -82,8 +82,10 @@ const SEED_CONFIG = {
   ],
   // 本地兜底词库(msgSecCheck 不可用时使用)
   block_words: ['加微信', '加V', '转账', '私聊我'],
-  // 测试期自动通过耍伴申请;提审前改 false
-  auto_approve_partner: true,
+  // 环境开关: dev(测试期,允许 mock_openid 模拟身份) / prod(上线,强制忽略 mock_openid)
+  env: 'dev',
+  // 上线前必须改为 false(当前是 true 方便 MVP bootstrap)
+  auto_approve_partner: false,
   // 管理员 openid 白名单(阶段 5 由产品经理填入自己的 openid)
   admin_openids: [],
   // 四确认前仅允许模板消息(PRD 3.3.2)
