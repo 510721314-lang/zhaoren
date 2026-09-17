@@ -252,6 +252,13 @@ exports.main = async (event, context) => {
       }
 
       log.d(`mock_pay success: ${order.order_no} pay_no=${payNo}`);
+      // 支付成功通知双方
+      col('system_notice').add({ data: {
+        to_openid: order.partner_openid, order_id, type: 'paid',
+        title: '订单已支付', body: '请按时履约',
+        action_key: 'jump_order', action_payload: { order_id },
+        created_at: now, read: false
+      }}).catch(e => log.d('[notice] paid->partner fail:', e.message));
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, pay_no: payNo, status: 'S2', is_mock: true }
@@ -339,6 +346,19 @@ exports.main = async (event, context) => {
       }
 
       log.d(`mock_refund success: ${order.order_no} refund_no=${refundNo}`);
+      // 退款成功通知双方
+      col('system_notice').add({ data: {
+        to_openid: order.user_openid, order_id, type: 'refund',
+        title: '退款成功', body: '金额将原路返回',
+        action_key: 'jump_order', action_payload: { order_id },
+        created_at: now, read: false
+      }}).catch(e => log.d('[notice] refund->user fail:', e.message));
+      col('system_notice').add({ data: {
+        to_openid: order.partner_openid, order_id, type: 'refund',
+        title: '订单已退款', body: '该订单已取消并退款',
+        action_key: 'jump_order', action_payload: { order_id },
+        created_at: now, read: false
+      }}).catch(e => log.d('[notice] refund->partner fail:', e.message));
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }

@@ -859,6 +859,17 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S3.5', 'S4', role === 'user' ? 'user_partial_confirm' : 'partner_partial_confirm', openid);
+    // 通知对方
+    const other = role === 'user' ? order.partner_openid : order.user_openid;
+    writeNotice({
+      to_openid: other,
+      order_id,
+      type: 'partial_confirm',
+      title: role === 'user' ? '耍伴已确认部分完成' : '发单人已确认部分完成',
+      body: '请双方协商确认比例',
+      action_key: 'jump_order',
+      action_payload: { order_id }
+    });
     log.d(`order partial confirm: ${order.order_no} S3.5→S4`);
     return { ok: true, data: { order_id, status: 'S4' } };
   }
@@ -899,6 +910,17 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S4', 'S5', role === 'user' ? 'user_ratio_confirm' : 'partner_ratio_confirm', openid);
+    // 通知对方
+    const other2 = role === 'user' ? order.partner_openid : order.user_openid;
+    writeNotice({
+      to_openid: other2,
+      order_id,
+      type: 'ratio_confirm',
+      title: role === 'user' ? '耍伴已确认结算比例' : '发单人已确认结算比例',
+      body: `比例 ${ratioFen}% · 订单进入待评价`,
+      action_key: 'jump_order',
+      action_payload: { order_id }
+    });
     log.d(`order ratio confirm: ${order.order_no} S4→S5 ratio=${ratioFen}%`);
     return { ok: true, data: { order_id, status: 'S5', ratio_fen: ratioFen } };
   }

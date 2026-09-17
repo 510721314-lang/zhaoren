@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.3.4 评价与默认4星规则 / 附录G 状态机 / 8.1 信用分
+// 对应 PRD 章节：3.3.4 评价与默认4星规则 / 附录G 状态机 / 8.1 信用分
 // evaluation-submit 评价提交 · 身份取自 getWXContext().OPENID
 // 2 个 action: submit(用户评价耍伴, S5→S8) / get_default_star(获取默认星数)
 // 规则:S5 完成后 48h 内用户可评价;超时系统默认 4 星转 S9;评价内容过 msgSecCheck。
@@ -185,6 +185,15 @@ exports.main = async (event, context) => {
     }
 
     log.d(`evaluation submitted: ${order.order_no} star=${star} S5→S8`);
+    // 通知 B 被评价了
+    const db2 = cloud.database();
+    db2.collection('system_notice').add({ data: {
+      to_openid: order.partner_openid, order_id, type: 'evaluated',
+      title: '你已被评价',
+      body: `用户给你 ${star} 星好评`,
+      action_key: 'jump_order', action_payload: { order_id },
+      created_at: now, read: false
+    }}).catch(e => log.d('[notice] evaluated fail:', e.message));
     return { ok: true, data: { order_id, status: 'S8', star, credit_delta: delta } };
   }
 
