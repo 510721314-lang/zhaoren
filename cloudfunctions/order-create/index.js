@@ -99,7 +99,7 @@ const TAKE_MAX_DISTANCE_KM = 50;
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-    const { resolveOpenid } = require('../_shared/openid');
+    const { resolveOpenid } = require('./openid');
   const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'order_no_openid', msg: '未获取到登录身份' };
 

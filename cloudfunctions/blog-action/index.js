@@ -102,7 +102,7 @@ async function getAuthorSnapshot(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-    const { resolveOpenid } = require('../_shared/openid');
+    const { resolveOpenid } = require('./openid');
   const openid = await resolveOpenid(cloud, event);
   const action = event.action;
   const now = Date.now();

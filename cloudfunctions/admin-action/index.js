@@ -1,4 +1,4 @@
-// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+﻿// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
 // 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
 // 否则拒绝并写 platform_event(P1, admin_probe)。
 // 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
@@ -112,7 +112,7 @@ async function sumTx(type) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const { resolveOpenid } = require('../_shared/openid');
+  const { resolveOpenid } = require('./openid');
   const openid = await resolveOpenid(cloud, event);
   const action = event.action;
   console.log(`admin-action action=${action} openid=${openid || 'none'}`);
