@@ -113,7 +113,7 @@ exports.main = async (event, context) => {
         await ppCol.add({ data: doc });
       }
       log.d(`partner apply OK: ${openid} scenes=${scenes} docs=${existing.data.length}`);
-      return { ok: true, data: { roles: [...curRoles, 'partner'], accept_scenes: scenes } };
+      return { ok: true, data: { roles: [...new Set([...curRoles, 'partner'])], accept_scenes: scenes } };
     }
 
     // 1. 接单开关切换
