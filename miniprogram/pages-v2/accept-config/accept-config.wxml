@@ -10,13 +10,15 @@
   <!-- 正常态 -->
   <block wx:else>
   <view class="ac__body">
-    <!-- 1. 场景多选（仅已认证） -->
+    <!-- 1. 场景多选 -->
     <view class="ac__card">
       <view class="ac__card-title">接单场景 <text class="ac__required">*</text></view>
-      <view class="ac__tip">仅显示已通过认证的场景</view>
+      <view class="ac__tip">选择你要接的场景，点击保存后生效</view>
       <view class="ac__scene-list">
         <view class="ac__scene-chip {{item.selected ? 'is-on' : ''}}" wx:for="{{certifiedScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneToggle">
           {{item.icon}} {{item.name}}
+          <text class="ac__exam-tag ac__exam--pass" wx:if="{{item.examNeeded && item.examPassed}}">✓已通过</text>
+          <text class="ac__exam-tag ac__exam--fail" wx:elif="{{item.examNeeded && !item.examPassed}}">需考核</text>
         </view>
       </view>
     </view>

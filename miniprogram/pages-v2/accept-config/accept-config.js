@@ -77,19 +77,35 @@ Page({
       const p = r.data.profile;
       const scenes = p.accept_scenes || [];
       const sceneRates = p.scene_rates || {};
+      const examScores = p.exam_scores || {};
 
-      // 计算展示用的 certifiedScenes（只显示已选场景）+ 预计算 selected 字段
-      const certified = scenes
-        .map((code) => SCENES.find((s) => s.code === code))
-        .filter(Boolean)
-        .map((s) => ({ ...s, selected: scenes.indexOf(s.code) > -1 }));
+      // 遍历全部 SCENES，每个都展示（选中状态由 accept_scenes 标记）
+      // W1/W2 等有 exam_scores 的场景显示考核状态标签
+      const certifiedScenes = SCENES.map((s) => {
+        const selected = scenes.indexOf(s.code) > -1;
+        const hasExam = !!examScores[s.code];
+        const examScore = Number(examScores[s.code]) || 0;
+        return {
+          ...s,
+          selected,
+          hasExam,
+          examScore,
+          examPassed: hasExam && examScore >= 80,
+          examNeeded: hasExam  // 有考核门槛的场景都显示标签(W1=gb=true 时需考核)
+        };
+      });
+
+      // 为已选场景补默认时薪（如果没有 scene_rates）
+      for (const s of scenes) {
+        if (!sceneRates[s]) sceneRates[s] = 5000; // 默认 50 元/小时
+      }
 
       // 本地非核心配置（时段/距离/偏好等）
       let local = {};
       try { local = wx.getStorageSync(STORAGE_KEY) || {}; } catch (e) {}
 
       this.setData({
-        certifiedScenes: certified,
+        certifiedScenes: certifiedScenes,
         sceneRates: sceneRates,
         'form.scenes': scenes,
         'form.weeklySlots': local.weeklySlots || this.data.form.weeklySlots,

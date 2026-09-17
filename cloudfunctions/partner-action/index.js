@@ -26,9 +26,13 @@ async function getConfig() {
 
 // 容错读取耍伴资料: is_deleted 缺省(历史坏文档)视为有效并惰性治愈(见 ./heal)
 const { getHealedPartnerProfile } = require('./heal');
+const { getCachedEnv } = require('./openid');
 async function getProfile(openid) {
   return getHealedPartnerProfile(col, _, openid);
 }
+
+// 默认考核分模板: 所有场景默认 100 (dev 环境耍伴能直接测 W1), prod 空值由管理员审核补
+const DEFAULT_EXAM_SCORES = { W1: 100, W2: 100, W8: 100, W10: 100, W11: 100 };
 
 // 检查是否有进行中订单
 async function hasBusyOrder(openid) {
@@ -73,6 +77,10 @@ exports.main = async (event, context) => {
         ? event.accept_scenes
         : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : ['W1']);
 
+      // dev 环境自动补全场景考核分(让测试账号可以直接接 W1, prod 由管理员审核补)
+      const isDevEnv = getCachedEnv() !== 'prod';
+      const defaultExam = isDevEnv ? DEFAULT_EXAM_SCORES : null;
+
       if (existing.data.length) {
         for (const p of existing.data) {
           // 重走申请=重新开通: 补全所有守卫依赖字段(status/is_deleted/accept_switch)
@@ -84,10 +92,11 @@ exports.main = async (event, context) => {
           };
           if (p.accept_switch === undefined) patch.accept_switch = true;
           if (p.credit_score === undefined) patch.credit_score = 800;
+          if (defaultExam && !p.exam_scores) patch.exam_scores = defaultExam;
           await ppCol.doc(p._id).update({ data: patch });
         }
       } else {
-        await ppCol.add({ data: {
+        const doc = {
           openid,
           nick_name: ua.data[0].nick_name || '新耍伴',
           accept_scenes: scenes,
@@ -99,7 +108,9 @@ exports.main = async (event, context) => {
           is_deleted: false,
           created_at: now,
           updated_at: now
-        }});
+        };
+        if (defaultExam) doc.exam_scores = defaultExam;
+        await ppCol.add({ data: doc });
       }
       log.d(`partner apply OK: ${openid} scenes=${scenes} docs=${existing.data.length}`);
       return { ok: true, data: { roles: [...curRoles, 'partner'], accept_scenes: scenes } };
@@ -220,6 +231,7 @@ exports.main = async (event, context) => {
             nickname: profile.nickname, avatar: profile.avatar,
             accept_scenes: profile.accept_scenes || [],
             scene_rates: profile.scene_rates || {},
+            exam_scores: profile.exam_scores || {},
             city: profile.city, accept_switch: profile.accept_switch,
             status: profile.status, applied_at: profile.applied_at
           },
