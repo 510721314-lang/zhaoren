@@ -2,7 +2,7 @@
 // props: status 取 ORDER_STATUS 的 14 个键（S0-S10 + S2.5 + S3.5 + S10.5）
 // 主轴：S0→S1→S2→S3→S5→S8→S10；分支态：S2.5/S3.5/S4/S6/S7/S9/S10.5
 // 节点名/颜色一律取 config/enums.js ORDER_STATUS，组件内禁止再写映射
-const { ORDER_STATUS } = require('../../config/enums.js');
+const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 // 主轴节点
 const MAIN_CODES = ['S0', 'S1', 'S2', 'S3', 'S5', 'S8', 'S10'];
@@ -33,7 +33,7 @@ Component({
   },
   methods: {
     normalize(s) {
-      return ORDER_STATUS[s] ? s : String(s).replace('.', '_');
+      return normalizeStatus(s);
     },
     compute(raw) {
       const s = this.normalize(raw);
