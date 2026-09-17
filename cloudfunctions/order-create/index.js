@@ -434,6 +434,18 @@ exports.main = async (event, context) => {
   }
 
   log.d(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
+  // 抢单成功通知发单人 A: 有人接单了, 可进入聊天开始四确认
+  col('system_notice').add({ data: {
+    to_openid: demand.creator_openid,
+    order_id: orderId,
+    type: 'accept',
+    title: '有人接单了',
+    body: `耍伴 ${demand.partner_nickname || ''} 已承接你的需求, 请进入聊天完成四确认`,
+    action_key: 'jump_order',
+    action_payload: { order_id: orderId },
+    created_at: Date.now(),
+    read: false
+  }}).catch((e) => log.d('[notice] accept write fail:', e.message));
   return {
     ok: true,
     data: {
