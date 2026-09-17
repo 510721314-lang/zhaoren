@@ -28,9 +28,23 @@ async function getUser(openid) {
   return (r.data && r.data[0]) || null;
 }
 
+// 容错读取耍伴资料: is_deleted 缺省(历史坏文档)视为有效, 仅显式 true 拒绝;
+// 读到历史文档时惰性补写 is_deleted:false 治愈(早期 apply 漏写该字段导致所有严格守卫漏人)
 async function getPartnerProfile(openid) {
-  const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
-  return (r.data && r.data[0]) || null;
+  const r = await col('partner_profile')
+    .where({ openid, is_deleted: _.neq(true) })
+    .limit(1).get().catch(() => ({ data: [] }));
+  const profile = (r.data && r.data[0]) || null;
+  if (profile && profile.is_deleted === undefined) {
+    const patch = { is_deleted: false, updated_at: Date.now() };
+    if (profile.accept_switch === undefined) patch.accept_switch = true;
+    await col('partner_profile').doc(profile._id).update({ data: patch })
+      .then(() => console.log(`[legacy heal] partner_profile ${profile._id} patched for ${openid}`))
+      .catch((e) => console.log(`[legacy heal] fail: ${e.message}`));
+    Object.assign(profile, { is_deleted: false });
+    if (profile.accept_switch === undefined) profile.accept_switch = true;
+  }
+  return profile;
 }
 
 async function getDemand(demandId) {
@@ -149,6 +163,7 @@ exports.main = async (event, context) => {
   }
 
   // ── 耍伴资料:审核通过 + 接单开关 ──
+  console.log(`[take guard] openid=${openid} profile=${profile ? JSON.stringify({ id: profile._id, status: profile.status, is_deleted: profile.is_deleted, accept_switch: profile.accept_switch }) : 'null'}`);
   if (!profile || profile.status !== 'approved') {
     await logReject(openid, demand_id, 'partner_not_approved');
     return { ok: false, code: 'order_not_approved', msg: '耍伴资料未审核通过' };
