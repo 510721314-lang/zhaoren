@@ -60,8 +60,13 @@
 
       <!-- S0 待支付 -->
       <block wx:if="{{order.status === 'S0'}}">
-        <button class="od__btn od__btn--primary" bindtap="goPay">去支付</button>
-        <button class="od__btn od__btn--ghost" bindtap="onCancel">取消订单</button>
+        <block wx:if="{{role === 'user'}}">
+          <button class="od__btn od__btn--primary" bindtap="goPay">去支付</button>
+          <button class="od__btn od__btn--ghost" bindtap="onCancel">取消订单</button>
+        </block>
+        <block wx:else>
+          <button class="od__btn od__btn--disabled" disabled>⏳ 等待用户支付</button>
+        </block>
       </block>
 
       <!-- S1 待确认 -->
@@ -71,7 +76,8 @@
 
       <!-- S2 已支付待履约 -->
       <block wx:elif="{{order.status === 'S2'}}">
-        <button class="od__btn od__btn--primary" bindtap="onStartService">开始履约</button>
+        <button class="od__btn od__btn--primary" wx:if="{{role === 'partner'}}" bindtap="onStartService">开始履约</button>
+        <button class="od__btn od__btn--ghost" wx:if="{{role === 'user'}}" disabled>⏳ 等待耍伴开始履约</button>
         <button class="od__btn od__btn--ghost" bindtap="goChat">联系对方</button>
       </block>
 
@@ -89,7 +95,7 @@
               <view class="od__ms-line {{index < order.milestone.current ? 'is-done' : ''}}" wx:if="{{index < 2}}"></view>
             </block>
           </view>
-          <button class="od__btn od__btn--ghost od__ms-submit" wx:if="{{order.milestone.current < 3}}" bindtap="onMilestoneSubmit">
+          <button class="od__btn od__btn--ghost od__ms-submit" wx:if="{{order.milestone.current < 3 && role === 'partner'}}" bindtap="onMilestoneSubmit">
             提交{{order.nextPercent}}%履约进度
           </button>
         </view>
@@ -97,9 +103,9 @@
           <button class="od__action-btn" bindtap="onSafety">🚨 安全报备</button>
           <button class="od__action-btn" bindtap="onAddTime">⏰ 加时申请</button>
           <button class="od__action-btn" bindtap="onModify">📅 申请改期</button>
-          <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" bindtap="onFinishService">✓ 履约完成</button>
+          <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" wx:if="{{role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
         </view>
-        <view class="od__ms-hint" wx:if="{{!order.canFinishService}}">须先提交到100%才能完成履约</view>
+        <view class="od__ms-hint" wx:if="{{role === 'partner' && !order.canFinishService}}">须先提交到100%才能完成履约</view>
       </block>
 
       <!-- S3.5 履约中断（PRD 3.5.2 nextActions: resume/confirm） -->
@@ -124,7 +130,8 @@
 
       <!-- S5 已完成 -->
       <block wx:elif="{{order.status === 'S5'}}">
-        <button class="od__btn od__btn--primary" bindtap="onEvaluate">去评价</button>
+        <button class="od__btn od__btn--primary" wx:if="{{role === 'user'}}" bindtap="onEvaluate">去评价</button>
+        <button class="od__btn od__btn--ghost" wx:else disabled>⏳ 等待用户评价</button>
       </block>
 
       <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
