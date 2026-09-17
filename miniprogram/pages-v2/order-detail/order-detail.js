@@ -10,6 +10,92 @@ function callCloud(name, data) {
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
+/**
+ * 根据订单状态 + 当前视角角色, 计算下一步引导横幅
+ * @param {object} order - refreshOrder 组装后的订单对象
+ * @returns {{icon:string, title:string, subtitle:string, tone:'primary'|'info'|'warn'|'mute', action?:{key:string,text:string}}|null}
+ */
+function computeNextStep(order) {
+  const status = order.status;
+  const role = order.my_role; // 'user' | 'partner' | ''
+  const pm = order.pending_modify;
+
+  // 改期在途: 优先级最高
+  if (pm) {
+    if (pm.can_respond) {
+      return {
+        icon: '📅',
+        title: '对方发起改期',
+        subtitle: `新时间: ${pm.new_date} ${pm.new_time} · ${pm.expire_at ? `${Math.round((pm.expire_at - Date.now()) / 3600000)}小时内` : '请'}确认`,
+        tone: 'primary',
+        action: { key: 'modify_respond', text: '去确认' }
+      };
+    }
+    return {
+      icon: '⏳',
+      title: '你发起了改期',
+      subtitle: `等待${role === 'user' ? '耍伴' : '发单人'}确认 · 新时间: ${pm.new_date} ${pm.new_time}`,
+      tone: 'info'
+    };
+  }
+
+  // 按状态分支
+  switch (status) {
+    case 'S0':
+      return role === 'user'
+        ? { icon: '💳', title: '请立即支付', subtitle: '30 分钟内未支付订单自动取消', tone: 'warn', action: { key: 'pay', text: '去支付' } }
+        : { icon: '⏳', title: '等待发单人支付', subtitle: '支付后订单自动进入待履约', tone: 'mute' };
+
+    case 'S1':
+      return {
+        icon: '✅', title: '四确认未完成',
+        subtitle: role === 'user' ? '进入聊天与耍伴一起确认时间/地点/内容/费用' : '进入聊天与发单人一起确认时间/地点/内容/费用',
+        tone: 'primary', action: { key: 'chat', text: '进入聊天' }
+      };
+
+    case 'S2':
+      return role === 'partner'
+        ? { icon: '🚀', title: '准备履约', subtitle: '服务时间到达后点"开始履约"', tone: 'info' }
+        : { icon: '🕐', title: '等待服务开始', subtitle: `服务时间 ${order.service_date} ${order.service_time}`, tone: 'mute' };
+
+    case 'S3': {
+      const partnerNext = order.nextPercent;
+      if (role === 'partner') {
+        return partnerNext
+          ? { icon: '📍', title: '提交里程碑', subtitle: `下一节点 ${partnerNext}%, 需先提交 30% 再提 60% 再到 100%`, tone: 'primary', action: { key: 'milestone', text: `提交 ${partnerNext}%` } }
+          : { icon: '✅', title: '里程碑 100%', subtitle: '点"履约完成"等待发单人评价', tone: 'primary', action: { key: 'finish', text: '履约完成' } };
+      }
+      return { icon: '🛡️', title: '履约进行中', subtitle: '如有异常可随时发起安全报备', tone: 'info', action: { key: 'safety', text: '安全报备' } };
+    }
+
+    case 'S3_5':
+      return role === 'partner'
+        ? { icon: '🛟', title: '履约中断', subtitle: '可点"恢复履约"或等发单人确认部分完成', tone: 'warn', action: { key: 'resume', text: '恢复履约' } }
+        : { icon: '🛟', title: '履约中断', subtitle: '可确认部分完成等待耍伴补做, 或等待恢复', tone: 'warn' };
+
+    case 'S5':
+      return role === 'user'
+        ? { icon: '⭐', title: '请评价耍伴', subtitle: '评价影响耍伴信用分, 请客观真实', tone: 'primary', action: { key: 'eval', text: '去评价' } }
+        : { icon: '⏳', title: '等待发单人评价', subtitle: '评价完成后分成自动到账', tone: 'mute' };
+
+    case 'S6':
+      return { icon: '🎉', title: '服务已完成', subtitle: role === 'partner' ? '分成已结算到钱包' : '可打赏耍伴或分享体验', tone: 'info' };
+
+    case 'S7':
+      return { icon: '📭', title: '订单已取消', subtitle: '退款已退回账户, 可去发布新需求', tone: 'mute' };
+
+    case 'S9':
+      return { icon: '⚠️', title: '投诉处理中', subtitle: '客服介入后 24 小时内反馈结果', tone: 'warn' };
+
+    case 'S10':
+    case 'S10_5':
+      return { icon: '🛟', title: '售后处理中', subtitle: '等待客服介入, 请保持沟通畅通', tone: 'warn' };
+
+    default:
+      return null;
+  }
+}
+
 Page({
   data: {
     order: null,
@@ -127,6 +213,10 @@ Page({
       nextPercent,
       canFinishService: ms.current >= 3
     };
+
+    // 引导横幅: 根据 status + my_role + 特殊条件计算下一步
+    const nextStep = computeNextStep(order);
+
     const scene = SCENES.find((s) => s.code === d.scene) || null;
     const statusInfo = ORDER_STATUS[order.status] || ORDER_STATUS.S1;
     // 改期次数以 detail 返回的 modify_count 为准
@@ -147,7 +237,8 @@ Page({
       currentCancelIdx,
       amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
       modifyDateMin: this.fmtDate(new Date()),
-      timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000))
+      timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),
+      nextStep
     });
   },
 
@@ -521,6 +612,26 @@ Page({
   },
 
   // 跳支付
+  // 引导横幅主操作: 把 computeNextStep 返回的 action.key 路由到已有 handler
+  onNextStepTap() {
+    const step = this.data.nextStep;
+    if (!step || !step.action) return;
+    const key = step.action.key;
+    switch (key) {
+      case 'pay': return this.goPay();
+      case 'chat': return this.goChat();
+      case 'milestone': return this.onMilestoneSubmit();
+      case 'finish': return this.onFinishService();
+      case 'safety': return this.onGoSafety();
+      case 'resume': return this.onResumeService();
+      case 'eval': return this.onGoEvaluate();
+      case 'modify_respond':
+        // 改期在途时同意/拒绝按钮在操作区已单独渲染, 这里滚到操作区提示
+        wx.showToast({ title: '请在下方操作区确认', icon: 'none' });
+        return;
+    }
+  },
+
   goPay() {
     wx.navigateTo({
       url: `/pages-v2/pay/pay?orderId=${this.data.order._id}`,

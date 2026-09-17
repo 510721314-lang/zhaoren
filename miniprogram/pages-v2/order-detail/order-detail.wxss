@@ -9,6 +9,61 @@
 .od__status-count { margin-top: 8rpx; font-size: var(--font-sm); color: var(--text-2); }
 .od__order-no { margin-top: 12rpx; font-size: var(--font-xs); color: var(--text-4); }
 
+/* 引导横幅: 下一步做什么 */
+.od__next-step {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 24rpx;
+  border-radius: var(--r-md);
+  margin-bottom: 20rpx;
+  border: 1rpx solid;
+}
+.od__next-ic { font-size: 36rpx; flex-shrink: 0; }
+.od__next-text { flex: 1; min-width: 0; }
+.od__next-title { font-size: var(--font-sm); font-weight: 600; }
+.od__next-sub { font-size: var(--font-xs); margin-top: 4rpx; opacity: 0.75; }
+.od__next-btn {
+  flex-shrink: 0;
+  font-size: var(--font-xs);
+  padding: 8rpx 16rpx;
+  border-radius: 24rpx;
+  font-weight: 600;
+}
+/* tone 主题: primary=主行动, warn=需注意, info=提示, mute=等待 */
+.od__next-step--primary {
+  background: rgba(76, 175, 80, 0.1);
+  border-color: var(--func-success, #4caf50);
+}
+.od__next-step--primary .od__next-btn {
+  background: var(--func-success, #4caf50);
+  color: #fff;
+}
+.od__next-step--warn {
+  background: rgba(250, 81, 81, 0.1);
+  border-color: var(--func-danger, #fa5151);
+}
+.od__next-step--warn .od__next-btn {
+  background: var(--func-danger, #fa5151);
+  color: #fff;
+}
+.od__next-step--info {
+  background: rgba(24, 144, 255, 0.1);
+  border-color: var(--brand-primary, #1890ff);
+}
+.od__next-step--info .od__next-btn {
+  background: var(--brand-primary, #1890ff);
+  color: #fff;
+}
+.od__next-step--mute {
+  background: var(--bg-segment);
+  border-color: var(--border-divider);
+}
+.od__next-step--mute .od__next-btn {
+  background: var(--text-3);
+  color: #fff;
+}
+
 .od__tags { display: flex; gap: 12rpx; margin-bottom: 16rpx; }
 .od__row { display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid var(--border-divider); }
 .od__row:last-child { border-bottom: none; }

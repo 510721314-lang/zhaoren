@@ -17,6 +17,16 @@
       <view class="od__order-no">订单号 #{{order.order_no}}</view>
     </view>
 
+    <!-- 引导横幅: 下一步做什么 -->
+    <view class="od__next-step od__next-step--{{nextStep.tone}}" wx:if="{{nextStep}}">
+      <view class="od__next-ic">{{nextStep.icon}}</view>
+      <view class="od__next-text">
+        <view class="od__next-title">{{nextStep.title}}</view>
+        <view class="od__next-sub">{{nextStep.subtitle}}</view>
+      </view>
+      <view class="od__next-btn" wx:if="{{nextStep.action}}" bindtap="onNextStepTap">{{nextStep.action.text}} ›</view>
+    </view>
+
     <!-- O1 13态进度轴 -->
     <view class="od__card">
       <order-progress status="{{order.status}}"></order-progress>
