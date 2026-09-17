@@ -31,6 +31,37 @@ async function getOrder(orderId) {
   }
 }
 
+/**
+ * 写一条系统通知到 system_notice 集合(不阻塞主流程, try-catch 吞掉)
+ * @param {object} opt
+ * @param {string} opt.to_openid - 收件人
+ * @param {string} opt.order_id - 关联订单(可选)
+ * @param {string} opt.type - 通知类型枚举: accept/pay/start/modify/modify_confirm/modify_reject/cancel/milestone/finish/evaluate/settle/pause/resume/custom
+ * @param {string} opt.title - 标题
+ * @param {string} opt.body - 正文
+ * @param {string} opt.action_key - 点击后续动作: jump_order/jump_chat/jump_pay/jump_accept_modify/jump_wallet/jump_evaluate
+ * @param {object} opt.action_payload - 动作参数(如 {order_id})
+ */
+async function writeNotice(opt) {
+  try {
+    await col('system_notice').add({
+      data: {
+        to_openid: opt.to_openid,
+        order_id: opt.order_id || '',
+        type: opt.type || 'custom',
+        title: opt.title,
+        body: opt.body || '',
+        action_key: opt.action_key || '',
+        action_payload: opt.action_payload || {},
+        created_at: Date.now(),
+        read: false
+      }
+    });
+  } catch (e) {
+    log.d('[notice] write failed:', opt.to_openid, opt.type, e.message);
+  }
+}
+
 // 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制
 // 拦截订单号(ORD 开头)、<ORDER_ID> 占位符、含空格/截断的非法 ID,避免 doc() 抛错被吞成"订单不存在"
 function isValidDocId(id) {
@@ -461,6 +492,13 @@ exports.main = async (event, context) => {
     }
 
     log.d(`order cancelled: ${order.order_no} ${fromStatus}→S6 by=${role}`);
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'cancel',
+      title: '订单已取消',
+      body: `${role === 'user' ? '发单人' : '耍伴'}取消了订单, 请查看详情`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, status: 'S6', demand_released: demandReleased } };
   }
 
@@ -490,6 +528,11 @@ exports.main = async (event, context) => {
     }
     await logStatus(order_id, 'S2', 'S3', 'start_service', openid);
     log.d(`service started: ${order.order_no} S2→S3`);
+    writeNotice({
+      to_openid: order.user_openid, order_id, type: 'start',
+      title: '耍伴已开始履约', body: `${order.partner_nickname || '耍伴'} 已到达服务地点, 履约开始`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
   }
 
@@ -524,6 +567,11 @@ exports.main = async (event, context) => {
     }
     await logStatus(order_id, 'S3', 'S5', 'complete_service', openid);
     log.d(`service completed: ${order.order_no} S3→S5`);
+    writeNotice({
+      to_openid: order.user_openid, order_id, type: 'finish',
+      title: '履约已完成', body: '耍伴已完成全部履约, 请对服务进行评价',
+      action_key: 'jump_evaluate', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
   }
 
@@ -563,6 +611,11 @@ exports.main = async (event, context) => {
       }
     });
     log.d(`milestone ${next}/3 submitted: ${order.order_no}`);
+    writeNotice({
+      to_openid: order.user_openid, order_id, type: 'milestone',
+      title: `履约进度 ${MS_LABEL[next]}`, body: `耍伴提交了履约进度 ${MS_LABEL[next]}, 可在订单详情查看`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, milestone: next, label: MS_LABEL[next] } };
   }
 
@@ -666,6 +719,12 @@ exports.main = async (event, context) => {
     }
     await logStatus(order_id, fromStatus, 'S2_5', role === 'user' ? 'user_modify' : 'partner_modify', openid);
     log.d(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmHours}h`);
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'modify',
+      title: `${role === 'user' ? '发单人' : '耍伴'}发起改期`, body: `请在 ${modifyConfig.confirmHours} 小时内确认或拒绝`,
+      action_key: 'jump_accept_modify', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, status: 'S2_5', new_start_time: newTs } };
   }
 
@@ -705,6 +764,11 @@ exports.main = async (event, context) => {
       if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
       await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_reject' : 'partner_modify_reject', openid);
       log.d(`modify rejected: ${order.order_no} S2_5→${toStatus} by=${role}`);
+      writeNotice({
+        to_openid: pending.by_openid, order_id, type: 'modify_reject',
+        title: '改期已被拒绝', body: `${role === 'user' ? '发单人' : '耍伴'}拒绝了你的改期申请`,
+        action_key: 'jump_order', action_payload: { order_id }
+      });
       return { ok: true, data: { order_id, status: toStatus, modify_rejected: true } };
     }
 
@@ -730,6 +794,11 @@ exports.main = async (event, context) => {
     if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_confirm' : 'partner_modify_confirm', openid);
     log.d(`modify confirmed: ${order.order_no} S2_5→${toStatus} newStart=${pending.new_start_time} by=${role}`);
+    writeNotice({
+      to_openid: pending.by_openid, order_id, type: 'modify_confirm',
+      title: '改期已确认', body: `新时间已生效, 订单状态回到${toStatus === 'S3' ? '履约中' : '待履约'}`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, status: toStatus, start_time: pending.new_start_time, modify_confirmed: true } };
   }
 
@@ -758,6 +827,12 @@ exports.main = async (event, context) => {
     }
     await logStatus(order_id, 'S3.5', 'S3', role === 'user' ? 'user_resume' : 'partner_resume', openid);
     log.d(`order resume: ${order.order_no} S3.5→S3`);
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'resume',
+      title: '履约已恢复', body: `${role === 'user' ? '发单人' : '耍伴'}恢复了履约, 可继续服务`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     return { ok: true, data: { order_id, status: 'S3' } };
   }
 
@@ -1093,6 +1168,33 @@ exports.main = async (event, context) => {
       pending_eval: eval.total || 0,
       after_sales: afterSale.total || 0
     }};
+  }
+
+  // ───────── 通知:列表 ─────────
+  if (action === 'notice_list') {
+    const limit = Math.min(Number(event.limit) || 50, 100);
+    const skip = Number(event.skip) || 0;
+    const list = await col('system_notice')
+      .where({ to_openid: openid })
+      .orderBy('created_at', 'desc')
+      .skip(skip)
+      .limit(limit)
+      .get();
+    // 未读数
+    const unread = await col('system_notice').where({ to_openid: openid, read: false }).count();
+    return { ok: true, data: { list: list.data, unread: unread.total } };
+  }
+
+  // ───────── 通知:标记已读(单条或全部) ─────────
+  if (action === 'notice_read') {
+    if (event.notice_id) {
+      await col('system_notice').doc(event.notice_id).update({ data: { read: true, read_at: Date.now() } });
+      return { ok: true };
+    }
+    // 批量标记: not_empty
+    await col('system_notice').where({ to_openid: openid, read: false })
+      .update({ data: { read: true, read_at: Date.now() } });
+    return { ok: true };
   }
 
   return { ok: false, code: 'oa_unknown_action', msg: '未知动作' };

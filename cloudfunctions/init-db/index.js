@@ -10,7 +10,8 @@ const COLLECTIONS = [
   'user_account', 'partner_profile', 'demand', 'order_main', 'order_confirmations',
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
   'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
-  'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock'
+  'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock',
+  'system_notice'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -37,7 +38,11 @@ const INDEXES = [
   // safety_report 查询: SOS 进行中单(order_id+type+status orderBy created_at) / 报备列表(order_id+type)
   { coll: 'safety_report', name: 'idx_order_type_status_created', keys: { order_id: 1, type: 1, status: 1, created_at: -1 } },
   // checkin 频控: 同订单同人报备最新一条(order_id+reporter_openid+type orderBy created_at)
-  { coll: 'safety_report', name: 'idx_order_reporter_type_created', keys: { order_id: 1, reporter_openid: 1, type: 1, created_at: -1 } }
+  { coll: 'safety_report', name: 'idx_order_reporter_type_created', keys: { order_id: 1, reporter_openid: 1, type: 1, created_at: -1 } },
+  // system_notice: 消息中心按收件人查, 未读过滤, 点击后标记已读
+  { coll: 'system_notice', name: 'idx_to_read_created', keys: { to_openid: 1, read: 1, created_at: -1 } },
+  { coll: 'system_notice', name: 'idx_order_created', keys: { order_id: 1, created_at: -1 } },
+  { coll: 'system_notice', name: 'idx_to_created', keys: { to_openid: 1, created_at: -1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)
