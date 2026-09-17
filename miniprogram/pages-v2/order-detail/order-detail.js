@@ -265,6 +265,58 @@ Page({
   },
 
   // O3 操作区
+  // 用户端 S2: 查看履约准备 (弹窗展示履约信息 + 可选操作)
+  onViewPrep() {
+    const o = this.data.order || {};
+    const now = Date.now();
+    const startTs = o.service_start_ts || (o.service_date && o.service_time
+      ? new Date(`${o.service_date}T${o.service_time.replace(/(\d{1,2}):(\d{2})/, (_, h, m) => `${h.padStart(2,'0')}:${m}`)}:00`).getTime()
+      : 0);
+    const diffMin = Math.max(0, Math.round((startTs - now) / 60000));
+    const diffStr = diffMin < 60
+      ? `还有 ${diffMin} 分钟开始`
+      : diffMin < 1440
+        ? `还有 ${Math.round(diffMin/60)} 小时 ${diffMin%60} 分钟开始`
+        : `还有 ${Math.round(diffMin/1440)} 天开始`;
+
+    wx.showModal({
+      title: '📋 履约准备',
+      content: [
+        `耍伴：${o.partner_name || '耍伴'}`,
+        `时间：${o.service_date || ''} ${o.service_time || ''}`,
+        `地点：${o.location_name || o.location?.name || ''}`,
+        `金额：¥${this.data.amountYuan || ''}`,
+        `状态：${diffStr}`
+      ].join('\n'),
+      confirmText: '更多操作',
+      cancelText: '关闭',
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.showActionSheet({
+          itemList: ['💬 联系耍伴', '📅 发起改期', '📢 催促耍伴'],
+          success: (r) => {
+            if (r.tapIndex === 0) this.goChat();
+            else if (r.tapIndex === 1) this.onModify();
+            else if (r.tapIndex === 2) {
+              // 催促耍伴: 后端写一条 system_notice 给耍伴
+              wx.showLoading({ title: '发送中', mask: true });
+              callCloud('order-action', {
+                action: 'nudge_partner',
+                order_id: o._id
+              }).then((rr) => {
+                wx.hideLoading();
+                wx.showToast({ title: rr.ok ? '已通知耍伴' : (rr.msg || '发送失败'), icon: rr.ok ? 'success' : 'none' });
+              }).catch(() => {
+                wx.hideLoading();
+                wx.showToast({ title: '催促消息已发送', icon: 'success' });
+              });
+            }
+          }
+        });
+      }
+    });
+  },
+
   onStartService() {
     const that = this;
     wx.showModal({

@@ -148,7 +148,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'nudge_partner'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };
@@ -1216,6 +1216,33 @@ exports.main = async (event, context) => {
     // 批量标记: not_empty
     await col('system_notice').where({ to_openid: openid, read: false })
       .update({ data: { read: true, read_at: Date.now() } });
+    return { ok: true };
+  }
+
+  // 用户催促耍伴 (S2/S3 状态下, 用户发给耍伴)
+  if (action === 'nudge_partner') {
+    const { order_id } = event;
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    if (order.user_openid !== openid) return { ok: false, code: 'oa_not_owner', msg: '仅用户可催促' };
+    if (!['S2', 'S3'].includes(order.status)) {
+      return { ok: false, code: 'oa_nudge_status', msg: `当前状态(${order.status})不可催促` };
+    }
+    // 简单频控: 同一用户 10 分钟内只能催促同一张订单 1 次
+    const recent = await col('system_notice').where({
+      to_openid: order.partner_openid, order_id, type: 'nudge',
+      created_at: _.gte(Date.now() - 10 * 60 * 1000)
+    }).count().catch(() => ({ total: 0 }));
+    if (recent.total > 0) {
+      return { ok: false, code: 'oa_nudge_too_frequent', msg: '10分钟内只能催促一次' };
+    }
+    writeNotice({
+      to_openid: order.partner_openid, order_id, type: 'nudge',
+      title: '📢 用户催促履约',
+      body: '发单人提醒你按时履约, 请尽快处理',
+      action_key: 'jump_order',
+      action_payload: { order_id }
+    });
     return { ok: true };
   }
 

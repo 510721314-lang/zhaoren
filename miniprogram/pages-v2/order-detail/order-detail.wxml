@@ -76,9 +76,14 @@
 
       <!-- S2 已支付待履约 -->
       <block wx:elif="{{order.status === 'S2'}}">
-        <button class="od__btn od__btn--primary" wx:if="{{role === 'partner'}}" bindtap="onStartService">开始履约</button>
-        <button class="od__btn od__btn--ghost" wx:if="{{role === 'user'}}" disabled>⏳ 等待耍伴开始履约</button>
-        <button class="od__btn od__btn--ghost" bindtap="goChat">联系对方</button>
+        <block wx:if="{{role === 'partner'}}">
+          <button class="od__btn od__btn--primary" bindtap="onStartService">开始履约</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat">联系用户</button>
+        </block>
+        <block wx:else>
+          <button class="od__btn od__btn--primary" bindtap="onViewPrep">📋 查看履约准备</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat">联系耍伴</button>
+        </block>
       </block>
 
       <!-- S3 履约中 -->
