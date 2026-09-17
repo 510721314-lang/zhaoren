@@ -102,7 +102,8 @@ async function getAuthorSnapshot(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = event.mock_openid || wxCtx.OPENID;  // 真实 OPENID 优先, mock 仅云端测试兜底
+    const { resolveOpenid } = require('../_shared/openid');
+  const openid = await resolveOpenid(cloud, event);
   const action = event.action;
   const now = Date.now();
 

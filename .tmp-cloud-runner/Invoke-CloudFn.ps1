@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$Fn,
   [Parameter(Mandatory=$true)][string]$EvFile,
   [int]$TimeoutMs = 25000
@@ -8,8 +8,13 @@ $ENV_ID = 'cloud1-d9gkefwcp5c777088'
 $PROJECT = 'c:\Users\DC\Desktop\zhaoren'
 $APPID = 'wxbc4a4afacdf234f5'
 
-# 1) upgrade handshake
-$up = Invoke-WebRequest -Uri "http://127.0.0.1:11841/upgrade" -TimeoutSec 5 -UseBasicParsing
+# 1) upgrade handshake(2026-09-16: 端口动态读取 .ide 文件, 新机服务端口=45353, 不再硬编码 11841)
+$ideFile = Get-ChildItem "$env:LOCALAPPDATA\微信开发者工具\User Data\*\Default\.ide" -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $ideFile) { throw '未找到 .ide 服务端口文件, 请确认微信开发者工具已启动并开启服务端口' }
+$httpPort = (Get-Content $ideFile.FullName -Raw).Trim()
+"HTTP_PORT=$httpPort"
+$up = Invoke-WebRequest -Uri "http://127.0.0.1:$httpPort/upgrade" -TimeoutSec 5 -UseBasicParsing
 $raw = $up.Content
 if ($raw -is [byte[]]) { $raw = [System.Text.Encoding]::UTF8.GetString($raw) }
 if ($raw -is [string] -and $raw.TrimStart().StartsWith('[')) {
@@ -21,8 +26,9 @@ $port = $hand.port
 $projectId = '' + $hand.projectId
 
 $nonce = -join ((1..40) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
-# 2026-09-13 实测：子协议必须是 projectId + "_CLI"（来自 cli/index.js: d=u+"_CLI"）；加 nonce 或只给 projectId 都会被服务端丢弃/关闭
-$proto = $projectId + '_CLI'
+# 2026-09-16 新版 IDE 协议(逆向 cli/index.js)：子协议 = projectId[_#token#]_CLI_<随机40位hex>，
+# 且消息体 clientId 必须等于这个随机 hex（服务端按其绑定连接）；旧版 projectId+_CLI 会被直接断开
+$proto = $projectId + '_CLI_' + $nonce
 
 $evText = [System.IO.File]::ReadAllText($EvFile, [System.Text.Encoding]::UTF8)
 # substitute {{VARS}}

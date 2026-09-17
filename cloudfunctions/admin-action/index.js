@@ -112,7 +112,8 @@ async function sumTx(type) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = event.mock_openid || wxCtx.OPENID;
+  const { resolveOpenid } = require('../_shared/openid');
+  const openid = await resolveOpenid(cloud, event);
   const action = event.action;
   console.log(`admin-action action=${action} openid=${openid || 'none'}`);
 

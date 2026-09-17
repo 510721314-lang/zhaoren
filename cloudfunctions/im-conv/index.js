@@ -119,7 +119,8 @@ function peerOf(order, role) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = event.mock_openid || wxCtx.OPENID;  // 测试用:云端测试可传 mock_openid 模拟身份
+    const { resolveOpenid } = require('../_shared/openid');
+  const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'im_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;

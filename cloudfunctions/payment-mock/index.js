@@ -103,7 +103,8 @@ async function releaseWithdrawLock(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const openid = event.mock_openid || wxCtx.OPENID;  // 真实 OPENID 永远优先; mock_openid 仅在云端测试(无 OPENID)时兜底, 防止水平越权
+    const { resolveOpenid } = require('../_shared/openid');
+  const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
