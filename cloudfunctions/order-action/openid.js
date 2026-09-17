@@ -44,14 +44,13 @@ async function resolveOpenid(cloud, event) {
   // 没有 mock_openid: 直接用真实 OPENID(小程序前端永远走这条)
   if (!mockOpenid) return realOpenid || null;
 
-  // 有 mock_openid: 读环境开关决定是否放行
-  if (env === 'prod') {
-    // 生产环境强制忽略 mock_openid
-    if (!realOpenid) return null;
-    return realOpenid;
+  // 有 mock_openid + 有真实 OPENID: prod 强制用真实 OPENID 防冒充, dev 允许 mock
+  if (realOpenid) {
+    if (env === 'prod') return realOpenid;
+    return mockOpenid;
   }
 
-  // dev 环境: 测试面板传什么就用什么
+  // 有 mock_openid + 无真实 OPENID: 云端测试面板场景, 无冒充对象, 一律放行
   return mockOpenid;
 }
 
