@@ -1009,6 +1009,8 @@ exports.main = async (event, context) => {
         end_time: o.start_time + (o.duration_h || 1) * 3600 * 1000,
         total_fen: o.total_fen,
         status: o.status,
+        // 改期待确认红点: 订单处于 S2_5 且改期发起人不是当前查看者
+        need_confirm: o.status === 'S2_5' && !!(o.pending_modify && o.pending_modify.by_openid !== openid),
         commute: null
       };
 

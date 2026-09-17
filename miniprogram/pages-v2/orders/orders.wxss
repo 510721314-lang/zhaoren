@@ -77,6 +77,18 @@
   align-items: center;
   justify-content: space-between;
 }
+.ol__head-left {
+  display: flex;
+  align-items: center;
+}
+/* 改期待确认红点 */
+.ol__dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: var(--func-danger, #e64340);
+  margin-right: 12rpx;
+}
 .ol__scene {
   font-size: var(--font-md);
   font-weight: 700;

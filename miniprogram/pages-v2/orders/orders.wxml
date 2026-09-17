@@ -35,7 +35,10 @@
       hover-class="ol__card--hover"
     >
       <view class="ol__card-head">
-        <text class="ol__scene">{{item.scene_name}}</text>
+        <view class="ol__head-left">
+          <view class="ol__dot" wx:if="{{item.need_confirm}}"></view>
+          <text class="ol__scene">{{item.scene_name}}</text>
+        </view>
         <text class="ol__status" style="color:{{item.status_color}};background:{{item.status_bg}};">{{item.status_name}}</text>
       </view>
       <view class="ol__card-body">
