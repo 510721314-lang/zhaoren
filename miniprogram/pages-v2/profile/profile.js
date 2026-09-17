@@ -41,7 +41,7 @@ Page({
     partnerEntries: [
       { key: 'accept-config', icon: '⚙️', name: '接单配置' },
       { key: 'wallet', icon: '💰', name: '收入钱包' },
-      { key: 'workbench', icon: '🧰', name: '耍伴工作台' }
+      { key: 'myTakeOrders', icon: '📦', name: '我承接的订单' }
     ],
     version: CONFIG.VERSION,
     isRedline: false
@@ -196,6 +196,10 @@ Page({
   // U5 耍伴专区 / 认证引导
   onPartnerEntry(e) {
     const key = e.currentTarget.dataset.key;
+    if (key === 'myTakeOrders') {
+      wx.navigateTo({ url: '/pages-v2/orders/orders?role=partner', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      return;
+    }
     wx.navigateTo({
       url: `/pages-v2/${key}/${key}`,
       fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' })
