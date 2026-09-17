@@ -163,24 +163,32 @@ Page({
         callCloud('order-action', { action: 'my_orders', role: 'user' }),
         callCloud('demand-publish', { action: 'my_demands' })
       ]).then(([ordersR, demandsR]) => {
+        // 活跃订单: 排除已取消(S6)/已完成(S7)/售后(S10/S10.5)终态
+        const ACTIVE_ORDER_STATUSES = ['S0', 'S1', 'S2', 'S2_5', 'S3', 'S3_5', 'S4', 'S5'];
         const orderList = (ordersR && ordersR.ok && ordersR.data && ordersR.data.list || [])
-          .filter((o) => o.item_type === 'order').slice(0, 3)
+          .filter((o) => o.item_type === 'order' && ACTIVE_ORDER_STATUSES.indexOf(o.status) >= 0)
+          .slice(0, 3)
           .map((o) => ({
+            item_type: 'order',
+            order_id: o.order_id,
             demand_id: o.order_id,
             scene_name: o.scene_name || o.scene,
             time_str: fmtDate(o.start_time),
             location_name: o.location_name || '地点待确认',
-            status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S5: '待评价' })[o.status] || o.status,
+            status_name: ({ S0: '待支付', S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[o.status] || o.status,
             price_str: Math.round((o.total_fen || 0) / 100)
           }));
+        // 活跃需求: 只显示 matching(等待接单) 状态
         const demandList = (demandsR && demandsR.ok && demandsR.data && demandsR.data.list || [])
+          .filter((d) => d.status === 'matching')
           .slice(0, 3 - orderList.length)
           .map((d) => ({
+            item_type: 'demand',
             demand_id: d._id || d.demand_id,
             scene_name: d.scene_name || d.scene,
             time_str: fmtDate(d.start_time),
             location_name: (d.location && d.location.name) || '地点待确认',
-            status_name: ({ matching: '等待接单', matched: '已接单' })[d.status] || d.status,
+            status_name: '等待接单',
             price_str: d.duration_h ? Math.round(((d.total_fen || 0) / 100) / d.duration_h) : Math.round((d.total_fen || 0) / 100)
           }));
         this.setData({ userRecentDemands: [...orderList, ...demandList].slice(0, 3) });
@@ -289,11 +297,15 @@ Page({
     wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oid}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
   },
 
-  // 用户工作台 → 需求详情
+  // 用户工作台 → 需求/订单详情(按 item_type 区分跳转)
   goDemandDetail(e) {
-    const did = e.currentTarget.dataset.did;
-    if (!did) return;
-    wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${did}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+    const it = e.currentTarget.dataset.item;
+    if (!it) return;
+    if (it.item_type === 'order' || it.order_id) {
+      wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${it.order_id || it.demand_id}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+    } else {
+      wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${it.demand_id}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+    }
   },
 
   // 用户工作台空态 → 去发布

@@ -106,7 +106,7 @@
     <view class="pf__dash" wx:if="{{userRecentDemands.length > 0}}">
       <view class="pf__dash-item"
         wx:for="{{userRecentDemands}}" wx:key="demand_id"
-        data-did="{{item.demand_id}}" bindtap="goDemandDetail"
+        data-item="{{item}}" bindtap="goDemandDetail"
       >
         <view class="pf__dash-head">
           <text class="pf__dash-scene">{{item.scene_name}}</text>
