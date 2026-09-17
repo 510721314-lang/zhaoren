@@ -115,9 +115,29 @@ exports.main = async (event, context) => {
   log.d(`order-action action=${action} openid=${openid}`);
 
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
+  // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
+  let order_id = event.order_id;
   const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint'];
-  if (ORDER_ID_ACTIONS.indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
-    return { ok: false, code: 'oa_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头),也不要保留 <ORDER_ID> 占位符' };
+  if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
+    if (!order_id) {
+      return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };
+    }
+    if (isValidDocId(order_id)) {
+      // 32 位 hex, 直接当 _id 用
+    } else if (typeof order_id === 'string' && /^ORD[0-9]+$/.test(order_id)) {
+      // ORD 订单号, 反查 _id
+      try {
+        const lookup = await col('order_main').where({ order_no: order_id }).limit(1).get();
+        if (!lookup.data || !lookup.data[0]) {
+          return { ok: false, code: 'oa_bad_order_id', msg: '订单号 ' + order_id + ' 未找到对应订单' };
+        }
+        order_id = lookup.data[0]._id;
+      } catch (e) {
+        return { ok: false, code: 'oa_bad_order_id', msg: '反查订单号失败: ' + e.message };
+      }
+    } else {
+      return { ok: false, code: 'oa_bad_order_id', msg: '订单 ID 格式不正确:请传入 32 位十六进制 _id 或 ORD 开头订单号' };
+    }
   }
 
   // ───────── 1. 查询四确认状态 ─────────
