@@ -399,6 +399,10 @@ Page({
       modifyDate: this.data.order.service_date || '',
       modifyTime: this.data.order.service_time || ''
     });
+    // 上拉页面让改期操作面板进入显著位置
+    setTimeout(() => {
+      wx.pageScrollTo({ scrollTop: 999999, duration: 300 });
+    }, 50);
   },
 
   closeModifyPanel() { this.setData({ modifyPanelVisible: false }); },
@@ -685,9 +689,22 @@ Page({
   },
 
   goPay() {
-    wx.navigateTo({
-      url: `/pages-v2/pay/pay?orderId=${this.data.order._id}`,
-      fail: () => wx.showToast({ title: '支付页待接入', icon: 'none' })
+    const that = this;
+    const amt = this.data.amountYuan || '0.00';
+    wx.showModal({
+      title: '💳 订单支付',
+      content: `订单金额：¥${amt}\n请在 30 分钟内完成支付，超时订单将自动取消`,
+      confirmText: '确认支付',
+      cancelText: '放弃支付',
+      confirmColor: '#07C160',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return; // 放弃支付 → 留在当前页
+        wx.navigateTo({
+          url: `/pages-v2/pay/pay?orderId=${that.data.order._id}`,
+          fail: () => wx.showToast({ title: '支付页待接入', icon: 'none' })
+        });
+      }
     });
   },
 
