@@ -14,6 +14,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
 const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
@@ -78,7 +79,7 @@ async function logEvent(level, type, openid, payload) {
       created_at: now, updated_at: now, is_deleted: false
     }});
   } catch (e) {
-    console.log(`platform_event write fail: ${e.message}`);
+    log.d(`platform_event write fail: ${e.message}`);
   }
 }
 
@@ -97,7 +98,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'sr_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`safety-report action=${action} openid=${openid}`);
+  log.d(`safety-report action=${action} openid=${openid}`);
 
   if (['sos', 'silent_sos', 'cancel_silent_sos', 'resolve_sos', 'resolve', 'checkin', 'status'].indexOf(action) < 0) {
     return { ok: false, code: 'sr_unknown_action', msg: '未知动作' };
@@ -167,9 +168,9 @@ exports.main = async (event, context) => {
         order_id, order_no: order.order_no, role, sub_type: subType, location, note
       });
 
-      console.log(`SOS triggered(${subType || 'normal'}): order=${order.order_no} by=${role} loc=${location ? 'yes' : 'no'}`);
+      log.d(`SOS triggered(${subType || 'normal'}): order=${order.order_no} by=${role} loc=${location ? 'yes' : 'no'}`);
     } catch (e) {
-      console.log(`sos fail: ${e.message}`);
+      log.d(`sos fail: ${e.message}`);
       return { ok: false, code: 'sr_sos_fail', msg: '求助提交失败,请直接拨打 110' };
     }
 
@@ -206,10 +207,10 @@ exports.main = async (event, context) => {
       await logEvent('P1', 'safety_sos_cancelled', openid, {
         order_id, order_no: order.order_no, role, sos_report_id: active._id
       });
-      console.log(`silent SOS cancelled: order=${order.order_no} by=${role}`);
+      log.d(`silent SOS cancelled: order=${order.order_no} by=${role}`);
       return { ok: true, data: { order_id, help_flag: false } };
     } catch (e) {
-      console.log(`cancel_silent_sos fail: ${e.message}`);
+      log.d(`cancel_silent_sos fail: ${e.message}`);
       return { ok: false, code: 'sr_cancel_fail', msg: '撤销失败,请稍后重试' };
     }
   }
@@ -233,10 +234,10 @@ exports.main = async (event, context) => {
         order_id, order_no: order.order_no, by_admin: true,
         sos_reporter: active.reporter_openid
       });
-      console.log(`SOS resolved by admin: order=${order.order_no}`);
+      log.d(`SOS resolved by admin: order=${order.order_no}`);
       return { ok: true, data: { order_id, help_flag: false, resolved_by: 'admin' } };
     } catch (e) {
-      console.log(`resolve_sos fail: ${e.message}`);
+      log.d(`resolve_sos fail: ${e.message}`);
       return { ok: false, code: 'sr_resolve_fail', msg: '解除失败,请稍后重试' };
     }
   }
@@ -262,10 +263,10 @@ exports.main = async (event, context) => {
         order_id, order_no: order.order_no, role,
         sos_reporter: active.reporter_openid
       });
-      console.log(`SOS resolved: order=${order.order_no} by=${role}`);
+      log.d(`SOS resolved: order=${order.order_no} by=${role}`);
       return { ok: true, data: { order_id, help_flag: false } };
     } catch (e) {
-      console.log(`resolve fail: ${e.message}`);
+      log.d(`resolve fail: ${e.message}`);
       return { ok: false, code: 'sr_resolve_fail', msg: '解除失败,请稍后重试' };
     }
   }
@@ -275,6 +276,15 @@ exports.main = async (event, context) => {
     if (!role) return { ok: false, code: 'sr_not_participant', msg: '你不是该订单参与方' };
     if (ACTIVE_ORDER_STATUS.indexOf(order.status) < 0) {
       return { ok: false, code: 'sr_status_not_allowed', msg: '订单当前状态不可报备' };
+    }
+    // 频控: 同一订单同一人 60s 内仅可报备一次, 防刷屏(W1 30 分钟节奏不受影响)
+    const CHECKIN_COOLDOWN_MS = 60 * 1000;
+    const lastR = await col('safety_report')
+      .where({ order_id, reporter_openid: openid, type: 'checkin', is_deleted: false })
+      .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
+    const last = lastR.data && lastR.data[0];
+    if (last && now - last.created_at < CHECKIN_COOLDOWN_MS) {
+      return { ok: false, code: 'sr_checkin_too_frequent', msg: '操作太频繁,请稍后再报备' };
     }
     const location = validLocation(event.location);
     const note = String(event.note || '').slice(0, 200);
@@ -308,7 +318,7 @@ exports.main = async (event, context) => {
         }
       };
     } catch (e) {
-      console.log(`checkin fail: ${e.message}`);
+      log.d(`checkin fail: ${e.message}`);
       return { ok: false, code: 'sr_checkin_fail', msg: '报备失败,请稍后重试' };
     }
   }

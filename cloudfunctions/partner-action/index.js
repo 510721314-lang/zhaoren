@@ -6,6 +6,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
@@ -23,22 +24,10 @@ async function getConfig() {
   };
 }
 
-// 容错读取: is_deleted 缺省(历史坏文档)视为有效并惰性治愈, 仅显式 true 拒绝
+// 容错读取耍伴资料: is_deleted 缺省(历史坏文档)视为有效并惰性治愈(见 ./heal)
+const { getHealedPartnerProfile } = require('./heal');
 async function getProfile(openid) {
-  const r = await col('partner_profile')
-    .where({ openid, is_deleted: _.neq(true) })
-    .limit(1).get().catch(() => ({ data: [] }));
-  const profile = (r.data && r.data[0]) || null;
-  if (profile && profile.is_deleted === undefined) {
-    const patch = { is_deleted: false, updated_at: Date.now() };
-    if (profile.accept_switch === undefined) patch.accept_switch = true;
-    await col('partner_profile').doc(profile._id).update({ data: patch })
-      .then(() => console.log(`[legacy heal] partner_profile ${profile._id} patched for ${openid}`))
-      .catch((e) => console.log(`[legacy heal] fail: ${e.message}`));
-    Object.assign(profile, { is_deleted: false });
-    if (profile.accept_switch === undefined) profile.accept_switch = true;
-  }
-  return profile;
+  return getHealedPartnerProfile(col, _, openid);
 }
 
 // 检查是否有进行中订单
@@ -56,7 +45,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'pa_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`partner-action action=${action} openid=${openid}`);
+  log.d(`partner-action action=${action} openid=${openid}`);
 
   switch (action) {
 
@@ -112,7 +101,7 @@ exports.main = async (event, context) => {
           updated_at: now
         }});
       }
-      console.log(`partner apply OK: ${openid} scenes=${scenes} docs=${existing.data.length}`);
+      log.d(`partner apply OK: ${openid} scenes=${scenes} docs=${existing.data.length}`);
       return { ok: true, data: { roles: [...curRoles, 'partner'], accept_scenes: scenes } };
     }
 
@@ -134,7 +123,7 @@ exports.main = async (event, context) => {
       await col('partner_profile').doc(profile._id).update({ data: {
         accept_switch: newSwitch, updated_at: Date.now()
       }});
-      console.log(`partner switch -> ${newSwitch}: ${openid}`);
+      log.d(`partner switch -> ${newSwitch}: ${openid}`);
       return { ok: true, data: { accept_switch: newSwitch } };
     }
 
@@ -197,7 +186,7 @@ exports.main = async (event, context) => {
       }
 
       await col('partner_profile').doc(profile._id).update({ data: update });
-      console.log(`partner config updated: ${openid}`);
+      log.d(`partner config updated: ${openid}`);
       return { ok: true, data: { updated: Object.keys(update).filter(k => k !== 'updated_at') } };
     }
 
@@ -264,7 +253,7 @@ exports.main = async (event, context) => {
       await col('partner_profile').doc(profile._id).update({ data: {
         status: newStatus, updated_at: Date.now()
       }});
-      console.log(`partner reviewed: ${target_openid} -> ${newStatus}`);
+      log.d(`partner reviewed: ${target_openid} -> ${newStatus}`);
       return { ok: true, data: { target_openid, status: newStatus } };
     }
 

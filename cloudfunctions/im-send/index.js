@@ -11,6 +11,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 const CHAT_BLOCKED = ['S6', 'S10'];
@@ -163,7 +164,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'im_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`im-send action=${action} openid=${openid}`);
+  log.d(`im-send action=${action} openid=${openid}`);
 
   if (action !== 'send_template' && action !== 'send_text') {
     return { ok: false, code: 'im_unknown_action', msg: '未知动作' };
@@ -194,10 +195,10 @@ exports.main = async (event, context) => {
     }
     try {
       const msg = await appendMessage(conv, order, role, openid, 'template', tpl.text, tpl.id);
-      console.log(`im template sent: order=${order.order_no} ${tpl.id} by=${role}`);
+      log.d(`im template sent: order=${order.order_no} ${tpl.id} by=${role}`);
       return { ok: true, data: { msg, free_chat: FREE_CHAT_STATUS.indexOf(order.status) >= 0 } };
     } catch (e) {
-      console.log(`send_template fail: ${e.message}`);
+      log.d(`send_template fail: ${e.message}`);
       return { ok: false, code: 'im_send_fail', msg: '发送失败,请稍后重试' };
     }
   }
@@ -217,7 +218,7 @@ exports.main = async (event, context) => {
 
     const chk = await checkText(openid, text, config.block_words);
     if (!chk.pass) {
-      console.log(`im text blocked: order=${order.order_no} by=${role} reason=${chk.reason}`);
+      log.d(`im text blocked: order=${order.order_no} by=${role} reason=${chk.reason}`);
       return { ok: false, code: 'im_text_blocked', msg: chk.reason };
     }
 
@@ -232,7 +233,7 @@ exports.main = async (event, context) => {
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
             }});
           } catch (e) {}
-          console.log(`W11 R3 hit: order=${order.order_no} by=${role} type=${rtype}`);
+          log.d(`W11 R3 hit: order=${order.order_no} by=${role} type=${rtype}`);
           return { ok: false, code: 'im_r3_blocked', msg: `消息触发W11红线(${rtype}),已记录并上报` };
         }
       }
@@ -240,10 +241,10 @@ exports.main = async (event, context) => {
 
     try {
       const msg = await appendMessage(conv, order, role, openid, 'text', text, '');
-      console.log(`im text sent: order=${order.order_no} by=${role} len=${text.length} degraded=${!!chk.degraded}`);
+      log.d(`im text sent: order=${order.order_no} by=${role} len=${text.length} degraded=${!!chk.degraded}`);
       return { ok: true, data: { msg, free_chat: true } };
     } catch (e) {
-      console.log(`send_text fail: ${e.message}`);
+      log.d(`send_text fail: ${e.message}`);
       return { ok: false, code: 'im_send_fail', msg: '发送失败,请稍后重试' };
     }
   }

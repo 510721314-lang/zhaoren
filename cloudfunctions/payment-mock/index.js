@@ -10,6 +10,7 @@ const db = cloud.database();
 const _ = db.command;
 const $ = db.command.aggregate;  // 聚合操作符(balance_info 历史上漏定义导致 ReferenceError,已修复)
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
@@ -108,7 +109,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`payment-mock action=${action} openid=${openid}`);
+  log.d(`payment-mock action=${action} openid=${openid}`);
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
@@ -174,7 +175,7 @@ exports.main = async (event, context) => {
           order_id, type: 'pay', status: 'success', is_deleted: false
         }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
-          console.log(`mock_pay idempotent hit: ${order.order_no}`);
+          log.d(`mock_pay idempotent hit: ${order.order_no}`);
           return { ok: true, data: { order_id, order_no: order.order_no, status: order.status, idempotent: true } };
         }
       } catch (e) {}
@@ -200,7 +201,7 @@ exports.main = async (event, context) => {
           data: { status: 'S2', updated_at: now }
         });
       } catch (e) {
-        console.log(`mock_pay cas fail: ${e.message}`);
+        log.d(`mock_pay cas fail: ${e.message}`);
         return { ok: false, code: 'pay_db_fail', msg: '支付失败,请稍后重试' };
       }
       if (!casRes.stats || casRes.stats.updated !== 1) {
@@ -210,7 +211,7 @@ exports.main = async (event, context) => {
         }).limit(1).get().catch(() => ({ data: [] }));
         if (dup.data && dup.data[0]) {
           const latest = await getOrder(order_id);
-          console.log(`mock_pay idempotent after cas miss: ${order.order_no}`);
+          log.d(`mock_pay idempotent after cas miss: ${order.order_no}`);
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S2', idempotent: true } };
         }
         const latest = await getOrder(order_id);
@@ -243,14 +244,14 @@ exports.main = async (event, context) => {
           }});
         });
       } catch (e) {
-        console.log(`mock_pay txn fail: ${e.message}; compensating order ${order_id} → S0`);
+        log.d(`mock_pay txn fail: ${e.message}; compensating order ${order_id} → S0`);
         await col('order_main').where({ _id: order_id, status: 'S2' }).update({
           data: { status: 'S0', updated_at: Date.now() }
         }).catch(() => {});
         return { ok: false, code: 'pay_db_fail', msg: '支付失败,请稍后重试' };
       }
 
-      console.log(`mock_pay success: ${order.order_no} pay_no=${payNo}`);
+      log.d(`mock_pay success: ${order.order_no} pay_no=${payNo}`);
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, pay_no: payNo, status: 'S2', is_mock: true }
@@ -278,7 +279,7 @@ exports.main = async (event, context) => {
         }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
           const latest = await getOrder(order_id);
-          console.log(`mock_refund idempotent hit: ${order.order_no}`);
+          log.d(`mock_refund idempotent hit: ${order.order_no}`);
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
         }
       } catch (e) {}
@@ -294,7 +295,7 @@ exports.main = async (event, context) => {
           _id: order_id, status: _.in(['S2', 'S3'])
         }).update({ data: { status: 'S7', refunded_at: now, updated_at: now } });
       } catch (e) {
-        console.log(`mock_refund cas fail: ${e.message}`);
+        log.d(`mock_refund cas fail: ${e.message}`);
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
       }
       if (!casRes.stats || casRes.stats.updated !== 1) {
@@ -330,14 +331,14 @@ exports.main = async (event, context) => {
           }});
         });
       } catch (e) {
-        console.log(`mock_refund txn fail: ${e.message}; compensating order ${order_id} → ${fromStatus}`);
+        log.d(`mock_refund txn fail: ${e.message}; compensating order ${order_id} → ${fromStatus}`);
         await col('order_main').where({ _id: order_id, status: 'S7' }).update({
           data: { status: fromStatus, updated_at: Date.now() }
         }).catch(() => {});
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
       }
 
-      console.log(`mock_refund success: ${order.order_no} refund_no=${refundNo}`);
+      log.d(`mock_refund success: ${order.order_no} refund_no=${refundNo}`);
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }
@@ -387,13 +388,13 @@ exports.main = async (event, context) => {
         const after = await getOrder(order_id);
         const tipTotal = after ? (after.tip_total_fen || 0) : amount;
 
-        console.log(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
+        log.d(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
         return {
           ok: true,
           data: { order_id, order_no: order.order_no, tip_no: tipNo, amount_fen: amount, tip_total_fen: tipTotal, is_mock: true }
         };
       } catch (e) {
-        console.log(`mock_tip fail: ${e.message}`);
+        log.d(`mock_tip fail: ${e.message}`);
         return { ok: false, code: 'tip_db_fail', msg: '打赏失败,请稍后重试' };
       }
     }
@@ -436,7 +437,7 @@ exports.main = async (event, context) => {
           updated_at: now
         }
       });
-      console.log(`aa_record: ${order.order_no} amount=${amount} by=${role}`);
+      log.d(`aa_record: ${order.order_no} amount=${amount} by=${role}`);
       return { ok: true, data: { order_id, record_id: record.record_id, amount_fen: amount, paid_by: role } };
     }
 
@@ -574,7 +575,7 @@ exports.main = async (event, context) => {
       };
       try {
         await addWithColl('withdraw_record', record);
-        console.log(`${action} success: openid=${openid} no=${wdNo} amount=${amount}`);
+        log.d(`${action} success: openid=${openid} no=${wdNo} amount=${amount}`);
         return {
           ok: true,
           data: {
@@ -583,7 +584,7 @@ exports.main = async (event, context) => {
           }
         };
       } catch (e) {
-        console.log(`${action} fail: ${e.message}`);
+        log.d(`${action} fail: ${e.message}`);
         return { ok: false, code: 'wd_db_fail', msg: '提现失败,请稍后重试' };
       }
       } finally {

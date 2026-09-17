@@ -8,6 +8,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const PAGE_SIZE = 15;
 const MAX_IMAGES = 9;
@@ -387,7 +388,7 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'blog_unknown_action', msg: '未知动作' };
     }
   } catch (e) {
-    console.log('blog-action unhandled action=' + action + ':', e && e.message);
+    log.d('blog-action unhandled action=' + action + ':', e && e.message);
     return { ok: false, code: 'blog_server_error', msg: '服务繁忙,请稍后重试' };
   }
 };

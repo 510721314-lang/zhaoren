@@ -6,6 +6,8 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
+const { getHealedPartnerProfile } = require('./heal');
 
 // 进行中订单状态集合(S1/S0/S2/S3/S3.5)
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
@@ -36,7 +38,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'match_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`demand-match action=${action} openid=${openid}`);
+  log.d(`demand-match action=${action} openid=${openid}`);
 
   switch (action) {
 
@@ -81,7 +83,7 @@ exports.main = async (event, context) => {
           .get();
         partners = pr.data || [];
       } catch (e) {
-        console.log(`match query partners fail: ${e.message}`);
+        log.d(`match query partners fail: ${e.message}`);
         return { ok: false, code: 'match_query_fail', msg: '查询候选失败' };
       }
 
@@ -139,7 +141,7 @@ exports.main = async (event, context) => {
           match_candidates: candidates, updated_at: Date.now()
         }});
       } catch (e) {
-        console.log(`match write candidates fail: ${e.message}`);
+        log.d(`match write candidates fail: ${e.message}`);
       }
 
       // 需求摘要(供匹配页展示上下文)
@@ -203,7 +205,7 @@ exports.main = async (event, context) => {
             out.order_status = or.data[0].status;
           }
         } catch (e) {
-          console.log(`status query order fail: ${e.message}`);
+          log.d(`status query order fail: ${e.message}`);
         }
       }
 
@@ -252,7 +254,7 @@ exports.main = async (event, context) => {
       await col('demand').doc(demand_id).update({ data: {
         invited, updated_at: Date.now()
       }});
-      console.log(`demand invite: ${demand.demand_no} -> ${partner_openids.join(',')}`);
+      log.d(`demand invite: ${demand.demand_no} -> ${partner_openids.join(',')}`);
       return { ok: true, data: { invited } };
     }
 
@@ -279,7 +281,7 @@ exports.main = async (event, context) => {
       await col('demand').doc(demand_id).update({ data: {
         broadcast: true, match_mode: 'broadcast', updated_at: Date.now()
       }});
-      console.log(`demand broadcast: ${demand.demand_no}`);
+      log.d(`demand broadcast: ${demand.demand_no}`);
       return { ok: true, data: { broadcast: true } };
     }
 
@@ -307,16 +309,7 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'apply_own', msg: '不能报名自己发布的需求' };
       }
       // 耍伴身份校验(is_deleted 缺省的历史坏文档视为有效并惰性治愈, 仅显式 true 拒绝)
-      let profile = await col('partner_profile').where({ openid, is_deleted: _.neq(true) }).limit(1).get()
-        .then(r => (r.data && r.data[0]) || null).catch(() => null);
-      if (profile && profile.is_deleted === undefined) {
-        const patch = { is_deleted: false, updated_at: Date.now() };
-        if (profile.accept_switch === undefined) patch.accept_switch = true;
-        await col('partner_profile').doc(profile._id).update({ data: patch })
-          .catch((e) => console.log(`[legacy heal] fail: ${e.message}`));
-        profile = Object.assign(profile, { is_deleted: false });
-        if (profile.accept_switch === undefined) profile.accept_switch = true;
-      }
+      const profile = await getHealedPartnerProfile(col, _, openid);
       if (!profile || profile.status !== 'approved') {
         return { ok: false, code: 'apply_not_partner', msg: '耍伴资料未审核通过' };
       }
@@ -338,7 +331,7 @@ exports.main = async (event, context) => {
       await col('demand').doc(demand_id).update({ data: {
         applicants, updated_at: Date.now()
       }});
-      console.log(`apply success: demand=${demand_id} partner=${openid}`);
+      log.d(`apply success: demand=${demand_id} partner=${openid}`);
       return { ok: true, data: { demand_id, applied: true, applicant_count: applicants.length } };
     }
 
@@ -379,7 +372,7 @@ exports.main = async (event, context) => {
       if (!cr.stats || cr.stats.updated !== 1) {
         return { ok: false, code: 'confirm_conflict', msg: '该需求已确认其他耍伴' };
       }
-      console.log(`confirm_apply: demand=${demand_id} partner=${partner_openid}`);
+      log.d(`confirm_apply: demand=${demand_id} partner=${partner_openid}`);
       return { ok: true, data: { demand_id, confirmed_partner: partner_openid } };
     }
 
@@ -401,9 +394,9 @@ exports.main = async (event, context) => {
               });
             } catch (e) {}
           }
-          console.log(`hall lazy_expire: ${expiredRes.data.length} demands expired`);
+          log.d(`hall lazy_expire: ${expiredRes.data.length} demands expired`);
         }
-      } catch (e) { console.log(`hall lazy_expire fail: ${e.message}`); }
+      } catch (e) { log.d(`hall lazy_expire fail: ${e.message}`); }
 
       let list;
       try {
@@ -415,7 +408,7 @@ exports.main = async (event, context) => {
         }).orderBy('created_at', 'desc').limit(50).get();
         list = r.data || [];
       } catch (e) {
-        console.log(`hall_list query fail: ${e.message}`);
+        log.d(`hall_list query fail: ${e.message}`);
         return { ok: false, code: 'hall_query_fail', msg: '加载接单列表失败' };
       }
 

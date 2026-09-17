@@ -6,6 +6,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // 进行中订单状态集合(用于"无进行中订单"校验)
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
@@ -28,23 +29,10 @@ async function getUser(openid) {
   return (r.data && r.data[0]) || null;
 }
 
-// 容错读取耍伴资料: is_deleted 缺省(历史坏文档)视为有效, 仅显式 true 拒绝;
-// 读到历史文档时惰性补写 is_deleted:false 治愈(早期 apply 漏写该字段导致所有严格守卫漏人)
+// 容错读取耍伴资料: is_deleted 缺省(历史坏文档)视为有效并惰性治愈(见 ./heal)
+const { getHealedPartnerProfile } = require('./heal');
 async function getPartnerProfile(openid) {
-  const r = await col('partner_profile')
-    .where({ openid, is_deleted: _.neq(true) })
-    .limit(1).get().catch(() => ({ data: [] }));
-  const profile = (r.data && r.data[0]) || null;
-  if (profile && profile.is_deleted === undefined) {
-    const patch = { is_deleted: false, updated_at: Date.now() };
-    if (profile.accept_switch === undefined) patch.accept_switch = true;
-    await col('partner_profile').doc(profile._id).update({ data: patch })
-      .then(() => console.log(`[legacy heal] partner_profile ${profile._id} patched for ${openid}`))
-      .catch((e) => console.log(`[legacy heal] fail: ${e.message}`));
-    Object.assign(profile, { is_deleted: false });
-    if (profile.accept_switch === undefined) profile.accept_switch = true;
-  }
-  return profile;
+  return getHealedPartnerProfile(col, _, openid);
 }
 
 async function getDemand(demandId) {
@@ -63,9 +51,9 @@ async function logReject(openid, demand_id, reason) {
       payload: { demand_id, reason },
       created_at: Date.now(), updated_at: Date.now(), is_deleted: false
     }});
-    console.log(`take_rejected: openid=${openid} demand=${demand_id} reason=${reason}`);
+    log.d(`take_rejected: openid=${openid} demand=${demand_id} reason=${reason}`);
   } catch (e) {
-    console.log(`logReject fail: ${e.message}`);
+    log.d(`logReject fail: ${e.message}`);
   }
 }
 
@@ -104,7 +92,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'order_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`order-create action=${action} openid=${openid}`);
+  log.d(`order-create action=${action} openid=${openid}`);
 
   // ── 耍伴签署场景免责声明(code.html 第一道防线·接单前置) ──
   if (action === 'sign_disclaimer') {
@@ -129,7 +117,7 @@ exports.main = async (event, context) => {
       signed_at: now, signature_hash: `sig_${openid}_${scene}_${now}`,
       created_at: now, updated_at: now, is_deleted: false
     }});
-    console.log(`partner signed disclaimer: openid=${openid} scene=${scene}`);
+    log.d(`partner signed disclaimer: openid=${openid} scene=${scene}`);
     return { ok: true, data: { scene, signed: true } };
   }
 
@@ -270,7 +258,7 @@ exports.main = async (event, context) => {
     }).limit(50).get().catch(() => null)
   ]);
   if (myOrdersRes === null) {
-    console.log('time overlap query fail');
+    log.d('time overlap query fail');
     return { ok: false, code: 'order_busy_check_fail', msg: '系统繁忙,请稍后重试' };
   }
 
@@ -289,7 +277,7 @@ exports.main = async (event, context) => {
   // ── 场景须在耍伴接受范围内 ──
   const acceptScenes = Array.isArray(profile.accept_scenes) ? profile.accept_scenes : [];
   const sceneHit = acceptScenes.includes(demandScene);
-  console.log(`[ORDER_DEBUG] demand.scene=${JSON.stringify(demandScene)} profile.accept_scenes=${JSON.stringify(acceptScenes)} hit=${sceneHit}`);
+  log.d(`[ORDER_DEBUG] demand.scene=${JSON.stringify(demandScene)} profile.accept_scenes=${JSON.stringify(acceptScenes)} hit=${sceneHit}`);
   if (!sceneHit) {
     await logReject(openid, demand_id, 'scene_not_accepted');
     return { ok: false, code: 'order_scene_not_accepted', msg: `你未开通该场景的接单(需求场景:${demandScene},你已开通:${acceptScenes.join(',')})` };
@@ -391,7 +379,7 @@ exports.main = async (event, context) => {
       });
     }
   } catch (e) {
-    console.log(`order create cas fail: ${e.message}`);
+    log.d(`order create cas fail: ${e.message}`);
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
   }
   if (!casRes.stats || casRes.stats.updated !== 1) {
@@ -438,14 +426,14 @@ exports.main = async (event, context) => {
     });
   } catch (e) {
     // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接
-    console.log(`order txn fail: ${e.message}; compensating demand ${demand_id} → matching`);
+    log.d(`order txn fail: ${e.message}; compensating demand ${demand_id} → matching`);
     await col('demand').where({ _id: demand_id, status: 'matched' }).update({
       data: { status: 'matching', updated_at: Date.now() }
-    }).catch((ce) => console.log(`demand compensate fail: ${ce.message}`));
+    }).catch((ce) => log.d(`demand compensate fail: ${ce.message}`));
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
   }
 
-  console.log(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
+  log.d(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
   return {
     ok: true,
     data: {

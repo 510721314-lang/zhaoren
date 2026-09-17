@@ -8,6 +8,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // ─────────────────── 账号密码辅助 ───────────────────
 // 生成 16 字节随机 salt (hex 32 字符)
@@ -124,7 +125,7 @@ async function resolvePhone(event) {
       if (p && PHONE_RE.test(p)) return { ok: true, phone: p };
       return { ok: false, code: 'phone_decrypt_fail', msg: '手机号获取失败' };
     } catch (e) {
-      console.log('resolvePhone getPhoneNumber fail:', e.errCode, e.errMsg);
+      log.d('resolvePhone getPhoneNumber fail:', e.errCode, e.errMsg);
       return { ok: false, code: 'phone_decrypt_fail', msg: '手机号获取失败:' + (e.errMsg || '请重试') };
     }
   }
@@ -150,7 +151,7 @@ async function resolvePhone(event) {
       });
       return { ok: true, phone };
     } catch (e) {
-      console.log('resolvePhone sms verify fail:', e && e.message);
+      log.d('resolvePhone sms verify fail:', e && e.message);
       return { ok: false, code: 'sms_verify_fail', msg: '验证码校验失败,请稍后重试' };
     }
   }
@@ -165,7 +166,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'login_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`user-login action=${action} openid=${openid}`);
+  log.d(`user-login action=${action} openid=${openid}`);
 
   // 总保险: 任何未预期异常都转成 JSON 业务错误, 避免云函数崩溃让客户端收到"网络异常"
   try {
@@ -201,10 +202,10 @@ exports.main = async (event, context) => {
         const addRes = await col('user_account').add({ data: newUser });
         await logCredit(openid, 'init', 0, 800, 'register init credit');
         newUser._id = addRes._id;
-        console.log(`new user created: ${openid}`);
+        log.d(`new user created: ${openid}`);
         return { ok: true, data: { user: safeUserDoc(newUser), is_new: true } };
       } catch (e) {
-        console.log(`login error: ${e.message}`);
+        log.d(`login error: ${e.message}`);
         return { ok: false, code: 'login_fail', msg: '登录失败,请稍后重试' };
       }
     }
@@ -367,7 +368,7 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'close_has_active_orders', msg: `还有 ${activeR.total} 笔进行中订单,请完结后再注销` };
         }
       } catch (e) {
-        console.log(`close precheck fail: ${e.message}`);
+        log.d(`close precheck fail: ${e.message}`);
         return { ok: false, code: 'close_precheck_fail', msg: '注销校验失败,请稍后重试' };
       }
 
@@ -401,7 +402,7 @@ exports.main = async (event, context) => {
         }});
         return { ok: true, data: { msg: '账号已注销' } };
       } catch (e) {
-        console.log(`close account fail: ${e.message}`);
+        log.d(`close account fail: ${e.message}`);
         return { ok: false, code: 'close_fail', msg: '注销失败,请稍后重试或联系客服' };
       }
     }
@@ -456,10 +457,10 @@ exports.main = async (event, context) => {
         }
         // 模拟发送: console.log 输出, 真机调试时可看云函数日志
         // TODO: 生产期替换为 await cloud.openapi.sms.send({...}) 或腾讯云 SMS SDK
-        console.log(`[SMS-SEND] phone=${phone} code=${code} expire_at=${expireAt}`);
+        log.d(`[SMS-SEND] phone=${phone} code=${code} expire_at=${expireAt}`);
         return { ok: true, data: { msg: '验证码已发送(开发模式请查看云函数日志)' } };
       } catch (e) {
-        console.log(`send_sms_code error: ${e.message}`);
+        log.d(`send_sms_code error: ${e.message}`);
         return { ok: false, code: 'sms_send_fail', msg: '验证码发送失败,请稍后重试' };
       }
     }
@@ -505,7 +506,7 @@ exports.main = async (event, context) => {
         // 3. 既无 openid 正式账号也无手机号正式账号: 引导去注册
         return { ok: false, code: 'phone_no_account', msg: '该手机号暂无账号,请先注册' };
       } catch (e) {
-        console.log(`phone_login db error: ${e.message}`);
+        log.d(`phone_login db error: ${e.message}`);
         return { ok: false, code: 'login_fail', msg: '登录失败,请稍后重试' };
       }
     }
@@ -542,7 +543,7 @@ exports.main = async (event, context) => {
             }});
             await logCredit(openid, 'init', 0, 800, 'phone register init credit');
             const updated = Object.assign({}, u, { nickname: '微信用户', roles: ['user'], user_credit_score: 800, partner_credit_score: 800, register_source: 'phone', phone, status: 'normal' });
-            console.log(`phone register filled pending shell: ${openid}`);
+            log.d(`phone register filled pending shell: ${openid}`);
             return { ok: true, data: { user: safeUserDoc(updated), is_new: true } };
           }
           // 已有正常账号
@@ -562,10 +563,10 @@ exports.main = async (event, context) => {
         const addRes = await col('user_account').add({ data: newUser });
         await logCredit(openid, 'init', 0, 800, 'phone register init credit');
         newUser._id = addRes._id;
-        console.log(`phone register new user: ${openid}`);
+        log.d(`phone register new user: ${openid}`);
         return { ok: true, data: { user: safeUserDoc(newUser), is_new: true } };
       } catch (e) {
-        console.log(`phone_register db error: ${e.message}`);
+        log.d(`phone_register db error: ${e.message}`);
         return { ok: false, code: 'register_fail', msg: '注册失败,请稍后重试' };
       }
     }
@@ -597,7 +598,7 @@ exports.main = async (event, context) => {
         }});
         return { ok: true, data: { msg: '注册成功' } };
       } catch (e) {
-        console.log(`password_register error: ${e.message}`);
+        log.d(`password_register error: ${e.message}`);
         return { ok: false, code: 'register_fail', msg: '注册失败,请稍后重试' };
       }
     }
@@ -639,7 +640,7 @@ exports.main = async (event, context) => {
         }
         return { ok: true, data: { user: safeUserDoc(u) } };
       } catch (e) {
-        console.log(`password_login error: ${e.message}`);
+        log.d(`password_login error: ${e.message}`);
         return { ok: false, code: 'login_fail', msg: '登录失败,请稍后重试' };
       }
     }
@@ -658,7 +659,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'login_unknown_action', msg: '未知动作' };
   }
   } catch (e) {
-    console.log(`user-login unhandled action=${action}:`, e && e.message);
+    log.d(`user-login unhandled action=${action}:`, e && e.message);
     return { ok: false, code: 'login_server_error', msg: '服务繁忙,请稍后重试' };
   }
 };

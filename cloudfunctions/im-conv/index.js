@@ -12,6 +12,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 // 可聊天状态:S6 已取消 / S10 已关闭 禁止收发
@@ -78,7 +79,7 @@ async function getOrCreateConv(order, role) {
   try {
     const r = await col('im_conversation').add({ data: doc });
     doc._id = r._id;
-    console.log(`im conv created: order=${order.order_no} conv=${r._id}`);
+    log.d(`im conv created: order=${order.order_no} conv=${r._id}`);
     return doc;
   } catch (e) {
     // 唯一索引冲突(对方刚创建)→ 重查
@@ -124,7 +125,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'im_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`im-conv action=${action} openid=${openid}`);
+  log.d(`im-conv action=${action} openid=${openid}`);
 
   // ───────── 1. 打开会话(懒创建) ─────────
   if (action === 'open') {

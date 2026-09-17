@@ -8,6 +8,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // 场景白名单(MVP-V1 · rules.md 三.11)
 const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
@@ -129,7 +130,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'publish_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`demand-publish action=${action} openid=${openid}`);
+  log.d(`demand-publish action=${action} openid=${openid}`);
 
   switch (action) {
 
@@ -357,7 +358,7 @@ exports.main = async (event, context) => {
 
       try {
         const addRes = await col('demand').add({ data: doc });
-        console.log(`demand created: ${demand_no}`);
+        log.d(`demand created: ${demand_no}`);
         // 发布成功后清理来源草稿(若本次发布由草稿发起), 避免残留草稿导致重复发布
         let draftCleared = false;
         const srcDraftId = event.draft_id;
@@ -381,7 +382,7 @@ exports.main = async (event, context) => {
           }
         };
       } catch (e) {
-        console.log(`demand publish fail: ${e.message}`);
+        log.d(`demand publish fail: ${e.message}`);
         return { ok: false, code: 'publish_db_fail', msg: '需求发布失败' };
       }
     }
@@ -412,7 +413,7 @@ exports.main = async (event, context) => {
         if (!cr.stats || cr.stats.updated !== 1) {
           return { ok: false, code: 'cancel_status', msg: '需求状态已变化,请刷新后重试' };
         }
-        console.log(`demand cancelled: ${d.demand_no}`);
+        log.d(`demand cancelled: ${d.demand_no}`);
         return { ok: true, data: { demand_id, status: 'cancelled' } };
       } catch (e) {
         return { ok: false, code: 'cancel_fail', msg: '取消失败' };
@@ -511,7 +512,7 @@ exports.main = async (event, context) => {
         };
         return { ok: true, data };
       } catch (e) {
-        console.log(`demand detail fail: ${e.message}`);
+        log.d(`demand detail fail: ${e.message}`);
         return { ok: false, code: 'detail_fail', msg: '查询需求详情失败' };
       }
     }
@@ -625,13 +626,13 @@ async function lazyExpire() {
         }});
         if (cr.stats && cr.stats.updated === 1) {
           n++;
-          console.log(`demand expired: ${d.demand_no}`);
+          log.d(`demand expired: ${d.demand_no}`);
         }
       } catch (e) {}
     }
     return n;
   } catch (e) {
-    console.log(`lazy_expire error: ${e.message}`);
+    log.d(`lazy_expire error: ${e.message}`);
     return 0;
   }
 }

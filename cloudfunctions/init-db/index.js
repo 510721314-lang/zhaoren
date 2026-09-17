@@ -33,7 +33,11 @@ const INDEXES = [
   { coll: 'evaluation', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'settlement', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'withdraw_record', name: 'idx_openid_created', keys: { openid: 1, created_at: -1 } },
-  { coll: 'demand_draft', name: 'idx_openid_updated', keys: { openid: 1, updated_at: -1 } }
+  { coll: 'demand_draft', name: 'idx_openid_updated', keys: { openid: 1, updated_at: -1 } },
+  // safety_report 查询: SOS 进行中单(order_id+type+status orderBy created_at) / 报备列表(order_id+type)
+  { coll: 'safety_report', name: 'idx_order_type_status_created', keys: { order_id: 1, type: 1, status: 1, created_at: -1 } },
+  // checkin 频控: 同订单同人报备最新一条(order_id+reporter_openid+type orderBy created_at)
+  { coll: 'safety_report', name: 'idx_order_reporter_type_created', keys: { order_id: 1, reporter_openid: 1, type: 1, created_at: -1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)

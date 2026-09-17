@@ -11,6 +11,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 
@@ -83,7 +84,7 @@ async function casStatus(orderId, expect, patch) {
     const r = await col('order_main').where({ _id: orderId, status: cond }).update({ data: patch });
     return !!(r.stats && r.stats.updated === 1);
   } catch (e) {
-    console.log(`casStatus fail: ${e.message}`);
+    log.d(`casStatus fail: ${e.message}`);
     return false;
   }
 }
@@ -111,7 +112,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'oa_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`order-action action=${action} openid=${openid}`);
+  log.d(`order-action action=${action} openid=${openid}`);
 
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint'];
@@ -231,7 +232,7 @@ exports.main = async (event, context) => {
         updated_at: now
       }});
     } catch (e) {
-      console.log(`update_item occ fail: ${e.message}`);
+      log.d(`update_item occ fail: ${e.message}`);
       return { ok: false, code: 'oa_update_fail', msg: '修改失败,请稍后重试' };
     }
     if (!occRes.stats || occRes.stats.updated !== 1) {
@@ -249,7 +250,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
 
-    console.log(`confirm item updated: order=${order.order_no} item=${item} by=${role}, all reset`);
+    log.d(`confirm item updated: order=${order.order_no} item=${item} by=${role}, all reset`);
     return {
       ok: true,
       data: { item, reset: true, version: v + 1, confirmed_count: 0, total_count: 8 }
@@ -294,7 +295,7 @@ exports.main = async (event, context) => {
         updated_at: now
       }});
     } catch (e) {
-      console.log(`confirm_item fail: ${e.message}`);
+      log.d(`confirm_item fail: ${e.message}`);
       return { ok: false, code: 'oa_confirm_fail', msg: '确认失败,请稍后重试' };
     }
 
@@ -319,7 +320,7 @@ exports.main = async (event, context) => {
       if (won) {
         await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
         newStatus = 'S0';
-        console.log(`four confirm done: order=${order.order_no} → S0, pay_expire=${payExpire}`);
+        log.d(`four confirm done: order=${order.order_no} → S0, pay_expire=${payExpire}`);
       } else {
         // 未抢到: 多为并发确认/定时器取消; S0 视为幂等成功, 其余报冲突
         const latest = await getOrder(order_id);
@@ -362,7 +363,7 @@ exports.main = async (event, context) => {
     try {
       await col('order_confirmations').doc(conf._id).update({ data: bitPatch });
     } catch (e) {
-      console.log(`confirm_all fail: ${e.message}`);
+      log.d(`confirm_all fail: ${e.message}`);
       return { ok: false, code: 'oa_confirm_fail', msg: '确认失败' };
     }
 
@@ -435,11 +436,11 @@ exports.main = async (event, context) => {
           data: { status: 'matching', updated_at: now }
         });
         demandReleased = !!(dr.stats && dr.stats.updated === 1);
-        console.log(`demand released: ${order.demand_id} → matching (released=${demandReleased})`);
+        log.d(`demand released: ${order.demand_id} → matching (released=${demandReleased})`);
       } catch (e) {}
     }
 
-    console.log(`order cancelled: ${order.order_no} ${fromStatus}→S6 by=${role}`);
+    log.d(`order cancelled: ${order.order_no} ${fromStatus}→S6 by=${role}`);
     return { ok: true, data: { order_id, status: 'S6', demand_released: demandReleased } };
   }
 
@@ -468,7 +469,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S2', 'S3', 'start_service', openid);
-    console.log(`service started: ${order.order_no} S2→S3`);
+    log.d(`service started: ${order.order_no} S2→S3`);
     return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
   }
 
@@ -502,7 +503,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S3', 'S5', 'complete_service', openid);
-    console.log(`service completed: ${order.order_no} S3→S5`);
+    log.d(`service completed: ${order.order_no} S3→S5`);
     return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
   }
 
@@ -541,7 +542,7 @@ exports.main = async (event, context) => {
         updated_at: Date.now()
       }
     });
-    console.log(`milestone ${next}/3 submitted: ${order.order_no}`);
+    log.d(`milestone ${next}/3 submitted: ${order.order_no}`);
     return { ok: true, data: { order_id, milestone: next, label: MS_LABEL[next] } };
   }
 
@@ -564,7 +565,7 @@ exports.main = async (event, context) => {
     await col('order_main').doc(order_id).update({
       data: { 'milestone.confirmed': confirmed, updated_at: Date.now() }
     });
-    console.log(`milestone ${milestone} confirmed by user: ${order.order_no}`);
+    log.d(`milestone ${milestone} confirmed by user: ${order.order_no}`);
     return { ok: true, data: { order_id, milestone, confirmed: true } };
   }
 
@@ -644,7 +645,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, fromStatus, 'S2_5', role === 'user' ? 'user_modify' : 'partner_modify', openid);
-    console.log(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmHours}h`);
+    log.d(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmHours}h`);
     return { ok: true, data: { order_id, status: 'S2_5', new_start_time: newTs } };
   }
 
@@ -683,7 +684,7 @@ exports.main = async (event, context) => {
       });
       if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
       await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_reject' : 'partner_modify_reject', openid);
-      console.log(`modify rejected: ${order.order_no} S2_5→${toStatus} by=${role}`);
+      log.d(`modify rejected: ${order.order_no} S2_5→${toStatus} by=${role}`);
       return { ok: true, data: { order_id, status: toStatus, modify_rejected: true } };
     }
 
@@ -708,7 +709,7 @@ exports.main = async (event, context) => {
     });
     if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_confirm' : 'partner_modify_confirm', openid);
-    console.log(`modify confirmed: ${order.order_no} S2_5→${toStatus} newStart=${pending.new_start_time} by=${role}`);
+    log.d(`modify confirmed: ${order.order_no} S2_5→${toStatus} newStart=${pending.new_start_time} by=${role}`);
     return { ok: true, data: { order_id, status: toStatus, start_time: pending.new_start_time, modify_confirmed: true } };
   }
 
@@ -736,7 +737,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S3.5', 'S3', role === 'user' ? 'user_resume' : 'partner_resume', openid);
-    console.log(`order resume: ${order.order_no} S3.5→S3`);
+    log.d(`order resume: ${order.order_no} S3.5→S3`);
     return { ok: true, data: { order_id, status: 'S3' } };
   }
 
@@ -763,7 +764,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S3.5', 'S4', role === 'user' ? 'user_partial_confirm' : 'partner_partial_confirm', openid);
-    console.log(`order partial confirm: ${order.order_no} S3.5→S4`);
+    log.d(`order partial confirm: ${order.order_no} S3.5→S4`);
     return { ok: true, data: { order_id, status: 'S4' } };
   }
 
@@ -778,15 +779,14 @@ exports.main = async (event, context) => {
     if (order.status !== 'S4') {
       return { ok: false, code: 'oa_ratio_status', msg: `订单当前状态(${order.status})不可确认比例` };
     }
-    // ratio 校验:0-100 或 0.0-1.0
-    let ratioFen = 100;   // 默认 100% 全额
+    // ratio 口径: 仅收 0-100 的整数百分比(如 50=50%), 消除 1 被误解释为 100% 的歧义
+    let ratioFen = 100;   // 不传默认 100% 全额
     if (ratio !== undefined && ratio !== null && ratio !== '') {
       const r = Number(ratio);
-      if (isNaN(r)) return { ok: false, code: 'oa_ratio_invalid', msg: '比例格式有误' };
-      ratioFen = r <= 1 ? Math.round(r * 100) : r;   // 0.5 → 50, 50 → 50
-      if (ratioFen < 0 || ratioFen > 100) {
-        return { ok: false, code: 'oa_ratio_range', msg: '比例须在 0-100% 之间' };
+      if (!Number.isInteger(r) || r < 0 || r > 100) {
+        return { ok: false, code: 'oa_ratio_invalid', msg: '比例须为 0-100 的整数(百分比, 如 50 表示 50%)' };
       }
+      ratioFen = r;
     }
     const now = Date.now();
     const won = await casStatus(order_id, 'S4', {
@@ -804,7 +804,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     }
     await logStatus(order_id, 'S4', 'S5', role === 'user' ? 'user_ratio_confirm' : 'partner_ratio_confirm', openid);
-    console.log(`order ratio confirm: ${order.order_no} S4→S5 ratio=${ratioFen}%`);
+    log.d(`order ratio confirm: ${order.order_no} S4→S5 ratio=${ratioFen}%`);
     return { ok: true, data: { order_id, status: 'S5', ratio_fen: ratioFen } };
   }
 
@@ -849,10 +849,10 @@ exports.main = async (event, context) => {
         created_at: now, updated_at: now, is_deleted: false
       }});
     } catch (e) {
-      console.log(`complaint record fail: ${e.message}`);   // 不阻断状态流转
+      log.d(`complaint record fail: ${e.message}`);   // 不阻断状态流转
     }
 
-    console.log(`complaint filed: ${order.order_no} ${fromStatus}→S10.5 by=${role}`);
+    log.d(`complaint filed: ${order.order_no} ${fromStatus}→S10.5 by=${role}`);
     return { ok: true, data: { order_id, status: 'S10.5' } };
   }
 
@@ -958,7 +958,7 @@ exports.main = async (event, context) => {
       }).orderBy('start_time', 'asc').limit(50).get();
       orders = r.data || [];
     } catch (e) {
-      console.log(`my_orders query fail: ${e.message}`);
+      log.d(`my_orders query fail: ${e.message}`);
       return { ok: false, code: 'oa_list_fail', msg: '订单查询失败' };
     }
 
@@ -987,7 +987,7 @@ exports.main = async (event, context) => {
           commute: null
         }));
       } catch (e) {
-        console.log(`my_orders pending demands query fail: ${e.message}`);
+        log.d(`my_orders pending demands query fail: ${e.message}`);
       }
     }
 

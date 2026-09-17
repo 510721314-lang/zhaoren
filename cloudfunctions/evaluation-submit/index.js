@@ -7,6 +7,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我'];
 
@@ -67,7 +68,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'ev_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`evaluation-submit action=${action} openid=${openid}`);
+  log.d(`evaluation-submit action=${action} openid=${openid}`);
 
   // 获取默认星数(用于超时默认评价)
   if (action === 'get_default_star') {
@@ -117,7 +118,7 @@ exports.main = async (event, context) => {
         data: { status: 'S8', evaluated_at: now, updated_at: now }
       });
     } catch (e) {
-      console.log(`evaluation cas fail: ${e.message}`);
+      log.d(`evaluation cas fail: ${e.message}`);
       return { ok: false, code: 'ev_submit_fail', msg: '评价提交失败' };
     }
     if (!casRes.stats || casRes.stats.updated !== 1) {
@@ -139,7 +140,7 @@ exports.main = async (event, context) => {
       const pR = await col('user_account').where({ openid: order.partner_openid }).limit(1).get();
       partnerDocId = (pR.data && pR.data[0] && pR.data[0]._id) || '';
     } catch (e) {
-      console.log(`evaluation partner lookup fail: ${e.message}`);
+      log.d(`evaluation partner lookup fail: ${e.message}`);
     }
 
     try {
@@ -176,14 +177,14 @@ exports.main = async (event, context) => {
       });
     } catch (e) {
       // 补偿: 事务失败则订单回 S5, 让用户可重试(极小窗口, 定时器最多再做一次默认评价)
-      console.log(`evaluation txn fail: ${e.message}; compensating order ${order_id} → S5`);
+      log.d(`evaluation txn fail: ${e.message}; compensating order ${order_id} → S5`);
       await col('order_main').where({ _id: order_id, status: 'S8' }).update({
         data: { status: 'S5', evaluated_at: null, updated_at: Date.now() }
       }).catch(() => {});
       return { ok: false, code: 'ev_submit_fail', msg: '评价提交失败' };
     }
 
-    console.log(`evaluation submitted: ${order.order_no} star=${star} S5→S8`);
+    log.d(`evaluation submitted: ${order.order_no} star=${star} S5→S8`);
     return { ok: true, data: { order_id, status: 'S8', star, credit_delta: delta } };
   }
 

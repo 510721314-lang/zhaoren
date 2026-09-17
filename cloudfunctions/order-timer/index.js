@@ -1,4 +1,4 @@
-// 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
+﻿// 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
 // order-timer 超时自动流转 · 定时触发器(每5分钟) + 云端测试(action=run)
 // 规则(rules.md §14):
 //   S1 待确认 15 分钟未完成四确认 → 自动 S6 并释放需求回 matching
@@ -11,6 +11,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const BATCH = 50; // 单次每类状态最多处理笔数, 防止超时
 
@@ -46,6 +47,7 @@ async function casStatus(orderId, expectStatus, patch) {
 }
 
 exports.main = async (event, context) => {
+  await require('./openid').warmEnv(cloud); // 环境门控日志预热
   // 定时触发器调用无 action; 云端测试面板传 {"action":"run"}
   if (event.action && event.action !== 'run') {
     return { ok: false, code: 'ot_unknown_action', msg: '未知动作, 定时器或传 action=run' };
@@ -63,7 +65,7 @@ exports.main = async (event, context) => {
   const modifyConfirmH = num(event.modify_confirm_h, 2); // 改期申请确认时限(小时), 超时自动拒绝
 
   const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
-  console.log(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} s0Force=${s0Force}`);
+  log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} s0Force=${s0Force}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
   try {
@@ -81,8 +83,8 @@ exports.main = async (event, context) => {
       s1OK.push(o);
     }));
     await Promise.allSettled(s1OK.map(o => logStatus(o._id, 'S1', 'S6', 'timeout_s1_cancel', 'system')));
-    s1OK.forEach(o => { out.s1_cancel.push(o.order_no); console.log(`timeout S1→S6: ${o.order_no}`); });
-  } catch (e) { console.log(`s1 scan fail: ${e.message}`); }
+    s1OK.forEach(o => { out.s1_cancel.push(o.order_no); log.d(`timeout S1→S6: ${o.order_no}`); });
+  } catch (e) { log.d(`s1 scan fail: ${e.message}`); }
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 ─────────
   try {
@@ -96,8 +98,8 @@ exports.main = async (event, context) => {
       s0OK.push(o);
     }));
     await Promise.allSettled(s0OK.map(o => logStatus(o._id, 'S0', 'S6', 'timeout_s0_close', 'system')));
-    s0OK.forEach(o => { out.s0_close.push(o.order_no); console.log(`timeout S0→S6: ${o.order_no}`); });
-  } catch (e) { console.log(`s0 scan fail: ${e.message}`); }
+    s0OK.forEach(o => { out.s0_close.push(o.order_no); log.d(`timeout S0→S6: ${o.order_no}`); });
+  } catch (e) { log.d(`s0 scan fail: ${e.message}`); }
 
   // ───────── 3. S3.5 中断超 24 小时 → S4(部分完成) ─────────
   try {
@@ -112,8 +114,8 @@ exports.main = async (event, context) => {
       s35OK.push(o);
     }));
     await Promise.allSettled(s35OK.map(o => logStatus(o._id, 'S3.5', 'S4', 'timeout_interrupt_partial', 'system')));
-    s35OK.forEach(o => { out.interrupt_partial.push(o.order_no); console.log(`timeout S3.5→S4: ${o.order_no}`); });
-  } catch (e) { console.log(`s3.5 scan fail: ${e.message}`); }
+    s35OK.forEach(o => { out.interrupt_partial.push(o.order_no); log.d(`timeout S3.5→S4: ${o.order_no}`); });
+  } catch (e) { log.d(`s3.5 scan fail: ${e.message}`); }
 
   // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
   try {
@@ -134,8 +136,8 @@ exports.main = async (event, context) => {
       mOK.push({ o, toStatus });
     }));
     await Promise.allSettled(mOK.map(x => logStatus(x.o._id, 'S2_5', x.toStatus, 'timeout_modify_auto_reject', 'system')));
-    mOK.forEach(x => { out.modify_auto_reject.push(x.o.order_no); console.log(`timeout S2_5→${x.toStatus} modify auto-reject: ${x.o.order_no}`); });
-  } catch (e) { console.log(`s2.5 scan fail: ${e.message}`); }
+    mOK.forEach(x => { out.modify_auto_reject.push(x.o.order_no); log.d(`timeout S2_5→${x.toStatus} modify auto-reject: ${x.o.order_no}`); });
+  } catch (e) { log.d(`s2.5 scan fail: ${e.message}`); }
 
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
@@ -153,8 +155,8 @@ exports.main = async (event, context) => {
       });
       msOK.push(o);
     }));
-    msOK.forEach(o => { out.milestone_auto_confirm.push(o.order_no); console.log(`milestone auto-confirm: ${o.order_no}`); });
-  } catch (e) { console.log(`milestone auto-confirm fail: ${e.message}`); }
+    msOK.forEach(o => { out.milestone_auto_confirm.push(o.order_no); log.d(`milestone auto-confirm: ${o.order_no}`); });
+  } catch (e) { log.d(`milestone auto-confirm fail: ${e.message}`); }
 
   // ───────── 4. S5 完成超 48 小时未评价 → 系统默认 4 星 → S9 ─────────
   try {
@@ -175,7 +177,7 @@ exports.main = async (event, context) => {
         const won = await casStatus(o._id, 'S5', { status: 'S8', evaluated_at: evR.data[0].created_at || now, updated_at: now });
         if (won) {
           evalResults.push({ o, from: 'S5', to: 'S8', action: 'timeout_eval_backfill' });
-          console.log(`backfill S5→S8: ${o.order_no}`);
+          log.d(`backfill S5→S8: ${o.order_no}`);
         }
         return;
       }
@@ -202,7 +204,7 @@ exports.main = async (event, context) => {
 
       evalResults.push({ o, from: 'S5', to: 'S9', action: 'timeout_auto_eval' });
       out.auto_eval.push(o.order_no);
-      console.log(`timeout S5→S9 auto-eval: ${o.order_no} star=${defaultStar}`);
+      log.d(`timeout S5→S9 auto-eval: ${o.order_no} star=${defaultStar}`);
     }));
     await Promise.allSettled(evalResults.map(x => logStatus(x.o._id, x.from, x.to, x.action, 'system')));
 
@@ -223,10 +225,10 @@ exports.main = async (event, context) => {
             openid: pOpenid, type: 'evaluation', is_system: true, delta: e.delta,
             order_id: e.order_id, created_at: now, updated_at: now, is_deleted: false
           }})));
-        } catch (e) { console.log(`auto eval credit fail (${pOpenid}): ${e.message}`); }
+        } catch (e) { log.d(`auto eval credit fail (${pOpenid}): ${e.message}`); }
       }));
     }
-  } catch (e) { console.log(`s5 scan fail: ${e.message}`); }
+  } catch (e) { log.d(`s5 scan fail: ${e.message}`); }
 
   return {
     ok: true,

@@ -1,10 +1,11 @@
-// home-action 首页概览 · 最新 BLOG / 最新需求 / 活跃注册用户 / 活跃耍伴
+﻿// home-action 首页概览 · 最新 BLOG / 最新需求 / 活跃注册用户 / 活跃耍伴
 // 公开接口(不要求登录, 不返回隐私字段), 首页单次调用取全部四块数据
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 const CONTENT_TRUNC = 60;
@@ -35,6 +36,7 @@ function sceneLabel(code) {
 
 exports.main = async (event, context) => {
   try {
+    await require('./openid').warmEnv(cloud); // 环境门控日志预热
     await ensureCollections();
     const action = event.action || 'overview';
 
@@ -309,7 +311,7 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'home_unknown_action', msg: '未知动作' };
     }
   } catch (e) {
-    console.log('home-action unhandled:', e && e.message);
+    log.d('home-action unhandled:', e && e.message);
     return { ok: false, code: 'home_server_error', msg: '服务繁忙,请稍后重试' };
   }
 };

@@ -6,6 +6,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // 场景白名单(MVP-V1)
 const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
@@ -35,7 +36,7 @@ exports.main = async (event, context) => {
   if (!openid) return { ok: false, code: 'apply_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  console.log(`partner-apply action=${action} openid=${openid}`);
+  log.d(`partner-apply action=${action} openid=${openid}`);
 
   if (action === 'debug_profile') {
     const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
@@ -140,10 +141,10 @@ exports.main = async (event, context) => {
         accept_scenes, scene_rates, exam_scores: exam_scores || {}, city: ['成都'], status,
         updated_at: now
       }});
-      console.log(`partner profile updated: ${openid}`);
+      log.d(`partner profile updated: ${openid}`);
     } else {
       await col('partner_profile').add({ data: profileData });
-      console.log(`partner profile created: ${openid}`);
+      log.d(`partner profile created: ${openid}`);
     }
 
     // 用户 roles 增加 partner
@@ -158,7 +159,7 @@ exports.main = async (event, context) => {
         payload: { accept_scenes, scene_rates },
         created_at: now, updated_at: now, is_deleted: false
       }});
-      console.log(`partner review event created: ${openid}`);
+      log.d(`partner review event created: ${openid}`);
     }
 
     return {
@@ -170,7 +171,7 @@ exports.main = async (event, context) => {
       }
     };
   } catch (e) {
-    console.log(`partner apply fail: ${e.message}`);
+    log.d(`partner apply fail: ${e.message}`);
     return { ok: false, code: 'apply_db_fail', msg: '申请提交失败' };
   }
 };

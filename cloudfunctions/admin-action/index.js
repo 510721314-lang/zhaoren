@@ -8,6 +8,7 @@ const db = cloud.database();
 const _ = db.command;
 const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命名空间下)
 const col = (n) => db.collection(n);
+const log = require('./logger');
 
 // 进行中订单(数据看板口径)
 const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
@@ -30,7 +31,7 @@ async function logEvent(level, type, openid, payload) {
       created_at: now, updated_at: now, is_deleted: false
     }});
   } catch (e) {
-    console.log(`platform_event write fail: ${e.message}`);
+    log.d(`platform_event write fail: ${e.message}`);
   }
 }
 
@@ -115,7 +116,7 @@ exports.main = async (event, context) => {
   const { resolveOpenid } = require('./openid');
   const openid = await resolveOpenid(cloud, event);
   const action = event.action;
-  console.log(`admin-action action=${action} openid=${openid || 'none'}`);
+  log.d(`admin-action action=${action} openid=${openid || 'none'}`);
 
   const config = await getConfig();
   const adminOpenids = config.admin_openids || [];
