@@ -510,8 +510,13 @@ Page({
     const scene = SCENES.find((s) => s.code === f.scene_code);
     const contentOptions = scene && scene.options ? scene.options : [];
 
-    // 服务开始时间 → 时间戳
-    const startTs = new Date(`${f.service_date}T${f.service_time}:00`).getTime();
+    // 服务开始时间 → 时间戳(本地时区组时间, 兼容 iOS; iOS 不支持 new Date('YYYY-MM-DDTHH:mm:ss'))
+    const dateParts = String(f.service_date).split('-');
+    const timeParts = String(f.service_time).split(':');
+    const startTs = new Date(
+      Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]),
+      Number(timeParts[0]), Number(timeParts[1]) || 0, 0
+    ).getTime();
 
     // 时薪 → 分（云函数 rate_fen 要求分单位）
     const rateFen = f.project_attr === 'public_welfare' ? 3000 : Math.round(Number(f.budget) * 100);
@@ -538,7 +543,8 @@ Page({
       aa_tier: f.aa_estimate,
       aa_promise_checked: true,  // 走到这里说明 AA wx.showModal 已点"确认发布"
       disclaimer_signed: this.data.disclaimerChecked,
-      match_mode: f.match_mode
+      match_mode: f.match_mode,
+      draft_id: this.__draftId || ''  // 由草稿发起时, 发布成功后服务端软删该草稿
     };
 
     console.log('[confirmPublish] → demand-publish:', { action: 'publish', scene: params.scene });
@@ -550,6 +556,7 @@ Page({
         const r = res.result || {};
         if (r.ok && r.data) {
           const demandId = r.data._id;
+          this.__draftId = null;  // 已发布, 释放草稿绑定, 防止自动保存复活旧草稿
           wx.showToast({ title: '发布成功', icon: 'success' });
           setTimeout(() => {
             wx.redirectTo({

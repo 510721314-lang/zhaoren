@@ -241,11 +241,15 @@ exports.main = async (event, context) => {
     }
   }
 
-  // ───────── 4. 解除求助(订单参与方) ─────────
+  // ───────── 4. 解除求助(仅求助发起人本人; 对方若为加害方不得自行消警,
+  //               发起人失去行为能力时由客服走 resolve_sos 白名单通道兜底) ─────────
   if (action === 'resolve') {
     if (!role) return { ok: false, code: 'sr_not_participant', msg: '你不是该订单参与方' };
     const active = await getActiveSos(order_id);
     if (!active) return { ok: false, code: 'sr_no_active_sos', msg: '该订单没有进行中的求助' };
+    if (active.reporter_openid !== openid) {
+      return { ok: false, code: 'sr_resolve_not_reporter', msg: '仅求助发起人本人可解除, 如有异常请联系客服' };
+    }
 
     try {
       await col('safety_report').doc(active._id).update({ data: {

@@ -164,7 +164,6 @@ exports.main = async (event, context) => {
   }
 
   // ── 耍伴资料:审核通过 + 接单开关 ──
-  console.log(`[take guard] openid=${openid} profile=${profile ? JSON.stringify({ id: profile._id, status: profile.status, is_deleted: profile.is_deleted, accept_switch: profile.accept_switch }) : 'null'}`);
   if (!profile || profile.status !== 'approved') {
     await logReject(openid, demand_id, 'partner_not_approved');
     return { ok: false, code: 'order_not_approved', msg: '耍伴资料未审核通过' };

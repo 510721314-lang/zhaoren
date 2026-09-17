@@ -283,15 +283,27 @@ exports.main = async (event, context) => {
         }
       }
       try {
-        // 删除旧联系人(逻辑删除),再插入新的
-        await col('emergency_contact').where({ openid, is_deleted: false }).update({ data: {
-          is_deleted: true, updated_at: Date.now()
-        }});
         const now = Date.now();
-        for (const c of contacts) {
-          await col('emergency_contact').add({ data: {
+        // 槽位复用: 取现有未删联系人(按创建顺序, 最多2), 逐槽覆盖更新; 不足才新增, 多余软删。
+        // 不采用"先全删再逐条插", 避免中途插入失败导致联系人被清空。
+        const existR = await col('emergency_contact')
+          .where({ openid, is_deleted: false }).orderBy('created_at', 'asc').limit(2).get();
+        const existDocs = existR.data || [];
+        await Promise.all(contacts.map((c, i) => {
+          if (existDocs[i]) {
+            return col('emergency_contact').doc(existDocs[i]._id).update({ data: {
+              name: c.name, phone: c.phone, relation: c.relation, updated_at: now
+            }});
+          }
+          return col('emergency_contact').add({ data: {
             openid, name: c.name, phone: c.phone, relation: c.relation,
             created_at: now, updated_at: now, is_deleted: false
+          }});
+        }));
+        // 新数据少于旧数据(如 2 名减为 1 名): 多余旧槽位软删
+        for (let i = contacts.length; i < existDocs.length; i++) {
+          await col('emergency_contact').doc(existDocs[i]._id).update({ data: {
+            is_deleted: true, updated_at: now
           }});
         }
         const safe = contacts.map(c => ({ name: c.name, phone: maskPhone(c.phone), relation: c.relation }));

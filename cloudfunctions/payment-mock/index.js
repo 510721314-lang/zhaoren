@@ -420,7 +420,7 @@ exports.main = async (event, context) => {
 
       const now = Date.now();
       const record = {
-        record_id: 'AA' + now,
+        record_id: genPayNo('AA'),  // 日期+6位随机, 避免同毫秒并发 AA 记录 ID 碰撞
         amount_fen: amount,
         note: String(note || '').slice(0, 200),
         evidence_url: evidence_url || '',
@@ -448,11 +448,11 @@ exports.main = async (event, context) => {
       const monthMs = monthStart.getTime();
       // 6 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级, 冷启动压到 2s 内
       const [settled, wR, splitting, monthList, countR, pp] = await Promise.all([
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid: partnerOpenid, is_deleted: false }).group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
-        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']) }).count().catch(() => ({ total: 0 })),
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
         col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] }))
       ]);
       const settledFen = (settled.list && settled.list[0] && settled.list[0].total) || 0;
@@ -533,7 +533,7 @@ exports.main = async (event, context) => {
       // 极速提现当日限额查询也合并进同一批(非 fast 时仍执行一次轻量聚合, 无妨)
       const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
       const [settledR, wUsedR, dayR] = await Promise.all([
-        col('order_main').aggregate().match({ partner_openid: openid, status: _.in(['S8', 'S9', 'S10']) })
+        col('order_main').aggregate().match({ partner_openid: openid, status: _.in(['S8', 'S9', 'S10']), is_deleted: _.neq(true) })
           .group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid, is_deleted: false })
           .group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),

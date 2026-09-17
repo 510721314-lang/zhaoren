@@ -358,10 +358,26 @@ exports.main = async (event, context) => {
       try {
         const addRes = await col('demand').add({ data: doc });
         console.log(`demand created: ${demand_no}`);
+        // 发布成功后清理来源草稿(若本次发布由草稿发起), 避免残留草稿导致重复发布
+        let draftCleared = false;
+        const srcDraftId = event.draft_id;
+        if (srcDraftId && isValidDocId(srcDraftId)) {
+          try {
+            const dRes = await col('demand_draft').doc(srcDraftId).get();
+            const d = dRes.data;
+            if (d && d.openid === openid && !d.is_deleted) {
+              await col('demand_draft').doc(srcDraftId).update({
+                data: { is_deleted: true, updated_at: now }
+              });
+              draftCleared = true;
+            }
+          } catch (e) { /* 草稿清理失败不阻断发布 */ }
+        }
         return {
           ok: true,
           data: {
-            _id: addRes._id, demand_no, total_fen, status: 'matching', expire_at: doc.expire_at
+            _id: addRes._id, demand_no, total_fen, status: 'matching',
+            expire_at: doc.expire_at, draft_cleared: draftCleared
           }
         };
       } catch (e) {
@@ -530,7 +546,11 @@ exports.main = async (event, context) => {
 
       // 新增草稿: 数量上限 20 条(DRAFT.maxCount=20)
       try {
-        const c = await col('demand_draft').where({ openid, is_deleted: false }).count()
+        // 新增草稿: 数量上限 20 条(DRAFT.maxCount=20); 计数只算未过期未删除,
+        // 否则过期草稿在列表不可见/不可删却占名额, 会永久无法保存新草稿
+        const c = await col('demand_draft').where({
+          openid, is_deleted: false, expire_at: _.gt(now)
+        }).count()
           .catch(() => ({ total: 0 }));  // 集合尚未创建时按 0 处理
         if ((c.total || 0) >= 20) {
           return { ok: false, code: 'draft_limit', msg: '草稿最多保存 20 条,请先清理草稿箱' };
