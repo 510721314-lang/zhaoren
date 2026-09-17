@@ -56,7 +56,7 @@ const ORDER_STATUS = {
   S0:    { code: 'S0', name: '待支付', colorTag: 'var(--func-warning)', bgTag: 'var(--func-warning-light)', timeoutText: `${CONFIG.ORDER.payTimeoutMin}分钟内未支付自动取消`, nextActions: ['pay', 'cancel'] },
   S1:    { code: 'S1', name: '待确认', colorTag: 'var(--func-purple)', bgTag: 'var(--func-purple-light)', timeoutText: `${CONFIG.ORDER.confirmTimeoutMin}分钟内待双方确认`, nextActions: ['confirm', 'reject'] },
   S2:    { code: 'S2', name: '已支付待履约', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: '', nextActions: ['start'] },
-  S2_5:  { code: 'S2.5', name: '改期处理中', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: `耍伴需${CONFIG.MODIFY.confirmHours}小时内确认`, nextActions: [] },
+  S2_5:  { code: 'S2.5', name: '改期处理中', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: `对方需${CONFIG.MODIFY.confirmHours}小时内确认，超时自动拒绝`, nextActions: [] },
   S3:    { code: 'S3', name: '履约中', colorTag: 'var(--func-warning)', bgTag: 'var(--func-warning-light)', timeoutText: '', nextActions: ['safety', 'overtime', 'modify', 'finish'] },
   S3_5:  { code: 'S3.5', name: '履约中断', colorTag: 'var(--func-danger)', bgTag: 'var(--func-danger-light)', timeoutText: `${CONFIG.SAFETY.s35TimeoutH}小时未处理自动转部分完成`, nextActions: ['resume', 'confirm'] },
   S4:    { code: 'S4', name: '部分完成', colorTag: 'var(--func-warning)', bgTag: 'var(--func-warning-light)', timeoutText: `${CONFIG.ORDER.partialJudgeDays}天裁定期`, nextActions: ['confirm_ratio'] },
@@ -135,6 +135,12 @@ const TM_TEMPLATES = {
   TM8: { id: 'TM8', name: '改期申请', icon: '📅', headColor: 'var(--func-warning)', question: '申请改期', options: ['同意改期', '不同意'], hasOther: true }
 };
 
+// 云端状态字面量用点(S3.5/S10.5/S2.5), 本文件 key 与 wxml 比较统一用下划线;
+// 所有读取云端 order.status 的入口必须先经此归一化, 禁止各处自行 replace
+function normalizeStatus(code) {
+  return typeof code === 'string' ? code.replace(/\./g, '_') : code;
+}
+
 module.exports = {
   SCENES,
   ORDER_STATUS,
@@ -146,5 +152,6 @@ module.exports = {
   CREDIT_LEVEL,
   FUND_STATUS,
   CONFIRM_ITEMS,
-  TM_TEMPLATES
+  TM_TEMPLATES,
+  normalizeStatus
 };

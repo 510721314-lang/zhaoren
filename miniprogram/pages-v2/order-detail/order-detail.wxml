@@ -123,10 +123,20 @@
         <button class="od__btn od__btn--danger" bindtap="onComplaint">发起投诉</button>
       </block>
 
-      <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：等待耍伴确认，无操作按钮） -->
+      <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方2小时内确认，超时自动拒绝） -->
       <block wx:elif="{{order.status === 'S2_5'}}">
         <view class="od__terminated-tip">{{statusInfo.name}}</view>
-        <view class="od__after-sale-tip">{{statusInfo.timeoutText}}</view>
+        <view class="od__modify-pending" wx:if="{{order.pending_modify}}">
+          <view class="od__modify-pending-title">申请改至 {{order.pending_modify.new_date}} {{order.pending_modify.new_time}}</view>
+          <view class="od__after-sale-tip">{{statusInfo.timeoutText}}，超时自动拒绝</view>
+          <view class="od__after-sale-tip" wx:if="{{order.pending_modify.by_role === 'user'}}">发单人发起的改期</view>
+          <view class="od__after-sale-tip" wx:else>耍伴发起的改期</view>
+        </view>
+        <view class="od__safety-btns" wx:if="{{order.pending_modify.can_respond}}">
+          <button class="od__btn od__btn--ghost" bindtap="onModifyReject">拒绝改期</button>
+          <button class="od__btn od__btn--primary" bindtap="onModifyConfirm">同意改期</button>
+        </view>
+        <view class="od__after-sale-tip" wx:elif="{{order.pending_modify}}">等待对方确认…</view>
       </block>
 
       <!-- S10.5 争议处理中（PRD 3.5.2 nextActions: arbitration） -->
@@ -142,36 +152,28 @@
     </view>
   </view>
 
-  <!-- O4 改期弹窗 -->
-  <bottom-sheet visible="{{modifySheetVisible}}" title="申请改期" bind:close="closeModifySheet" has-footer="{{true}}">
+  <!-- O4 改期内联卡(原生 date/time picker + 提交时 wx.showModal 二次确认, 替代 bottom-sheet) -->
+  <view class="od__modify-panel" wx:if="{{modifyPanelVisible}}">
     <view class="od__modify-tip">{{modifyRuleText}}</view>
-    <picker mode="time" start="{{redlineOpen}}" end="{{redlineClose}}" value="{{newModifyTime}}" bindchange="onModifyTimeChange">
+    <picker mode="date" start="{{modifyDateMin}}" end="{{timeMaxRange}}" value="{{modifyDate}}" bindchange="onModifyDateChange">
       <view class="od__picker-row">
-        <text class="od__picker-label">新时间</text>
-        <text class="od__picker-val {{newModifyTime ? '' : 'is-empty'}}">{{newModifyTime || '请选择'}}</text>
+        <text class="od__picker-label">新日期</text>
+        <text class="od__picker-val {{modifyDate ? '' : 'is-empty'}}">{{modifyDate || '请选择'}}</text>
         <text class="od__arrow">›</text>
       </view>
     </picker>
-    <view slot="footer" class="od__sheet-btns">
-      <button class="od__btn od__btn--ghost" bindtap="closeModifySheet">取消</button>
-      <button class="od__btn od__btn--primary" bindtap="confirmModify">提交改期</button>
-    </view>
-  </bottom-sheet>
-
-  <!-- O5 取消弹窗 -->
-  <bottom-sheet visible="{{cancelSheetVisible}}" title="取消订单" bind:close="closeCancelSheet" has-footer="{{true}}">
-    <view class="od__cancel-tiers">
-      <view class="od__cancel-tier {{index === currentCancelIdx ? 'is-on' : ''}}" wx:for="{{cancelTiers}}" wx:key="lead">
-        <text class="od__cancel-label">{{item.label}}</text>
-        <text class="od__cancel-rate">退款{{item.rate * 100}}%</text>
+    <picker mode="time" start="{{redlineOpen}}" end="{{redlineClose}}" value="{{modifyTime}}" bindchange="onModifyTimeChange">
+      <view class="od__picker-row">
+        <text class="od__picker-label">新时间</text>
+        <text class="od__picker-val {{modifyTime ? '' : 'is-empty'}}">{{modifyTime || '请选择'}}</text>
+        <text class="od__arrow">›</text>
       </view>
+    </picker>
+    <view class="od__panel-btns">
+      <button class="od__btn od__btn--ghost" bindtap="closeModifyPanel">取消</button>
+      <button class="od__btn od__btn--primary" bindtap="submitModify">提交改期</button>
     </view>
-    <view class="od__cancel-tip">当前档位：{{cancelTiers[currentCancelIdx].label}}，退款{{cancelTiers[currentCancelIdx].rate * 100}}%</view>
-    <view slot="footer" class="od__sheet-btns">
-      <button class="od__btn od__btn--ghost" bindtap="closeCancelSheet">再想想</button>
-      <button class="od__btn od__btn--danger" bindtap="confirmCancel">确认取消</button>
-    </view>
-  </bottom-sheet>
+  </view>
   </block>
   <!-- 空态 -->
   <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />

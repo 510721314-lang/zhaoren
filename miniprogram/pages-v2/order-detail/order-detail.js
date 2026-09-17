@@ -2,7 +2,7 @@
 // P0-4: 接云端 order-action detail, 删除 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
-const { SCENES, ORDER_STATUS } = require('../../config/enums.js');
+const { SCENES, ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
@@ -16,12 +16,13 @@ Page({
     scene: null,
     statusInfo: null,
     countdownText: '',
-    modifySheetVisible: false,
-    cancelSheetVisible: false,
+    modifyPanelVisible: false,
     modifyUsedUp: false,
     cancelTiers: CONFIG.CANCEL_REFUND,
     currentCancelIdx: 0,
-    newModifyTime: '',
+    modifyDate: '',
+    modifyTime: '',
+    modifyDateMin: '',
     timeMaxRange: '',
     loading: false,
     loadError: false,
@@ -87,11 +88,29 @@ Page({
     ];
     // 下一节点百分比: nextIdx 1→30%, 2→60%, 3→100%
     const nextPercent = ms.current >= 3 ? null : [30, 60, 100][ms.current];
+    // C1 改期在途申请(云端点号状态经 normalizeStatus 归一化为下划线)
+    const pm = d.pending_modify || null;
+    let pendingModify = null;
+    if (pm && pm.new_start_time) {
+      const pdt = new Date(pm.new_start_time);
+      pendingModify = {
+        new_date: `${pdt.getFullYear()}-${pad(pdt.getMonth() + 1)}-${pad(pdt.getDate())}`,
+        new_time: `${pad(pdt.getHours())}:${pad(pdt.getMinutes())}`,
+        by_role: pm.by_role || '',
+        reason: pm.reason || '',
+        expire_at: pm.expire_at || 0,
+        // 仅对方(非发起人)显示同意/拒绝按钮
+        can_respond: !!d.role && !!pm.by_role && d.role !== pm.by_role
+      };
+    }
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
       order_no: d.order_no,
-      status: d.status,
+      status: normalizeStatus(d.status),
+      my_role: d.role || '',
+      modify_count: d.modify_count || 0,
+      pending_modify: pendingModify,
       scene_code: d.scene,
       partner_name: d.partner_nickname,
       location: d.location || {},
@@ -110,7 +129,8 @@ Page({
     };
     const scene = SCENES.find((s) => s.code === d.scene) || null;
     const statusInfo = ORDER_STATUS[order.status] || ORDER_STATUS.S1;
-    const modifyUsedUp = false; // detail 暂未返回 modify_count, 后续补
+    // 改期次数以 detail 返回的 modify_count 为准
+    const modifyUsedUp = (d.modify_count || 0) >= CONFIG.MODIFY.maxTimes;
     // 取消档位: detail 返回 start_time, 按 CONFIG.CANCEL_LEAD_HOURS 计算
     const serviceStart = new Date(st);
     const hoursLeft = (serviceStart - new Date()) / 3600000;
@@ -126,6 +146,7 @@ Page({
       modifyUsedUp,
       currentCancelIdx,
       amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
+      modifyDateMin: this.fmtDate(new Date()),
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000))
     });
   },
@@ -223,12 +244,24 @@ Page({
 
   onAddTime() { wx.showToast({ title: '加时申请功能建设中', icon: 'none' }); },
 
+  // O4 改期: 内联卡(原生 date/time picker) + showModal 二次确认, 替代 bottom-sheet
   onModify() {
     if (this.data.modifyUsedUp) {
       wx.showToast({ title: '修改次数已用完', icon: 'none' });
       return;
     }
-    this.setData({ modifySheetVisible: true, newModifyTime: '' });
+    // 默认带出订单原服务日期与时间
+    this.setData({
+      modifyPanelVisible: true,
+      modifyDate: this.data.order.service_date || '',
+      modifyTime: this.data.order.service_time || ''
+    });
+  },
+
+  closeModifyPanel() { this.setData({ modifyPanelVisible: false }); },
+
+  onModifyDateChange(e) {
+    this.setData({ modifyDate: e.detail.value });
   },
 
   onModifyTimeChange(e) {
@@ -238,24 +271,108 @@ Page({
       wx.showToast({ title: `须满足时间红线${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}`, icon: 'none' });
       return;
     }
-    this.setData({ newModifyTime: time });
+    this.setData({ modifyTime: time });
   },
 
-  confirmModify() {
-    if (!this.data.newModifyTime) {
-      wx.showToast({ title: '请选择新时间', icon: 'none' });
+  // 组合 picker 的日期+时分 → 本地时间戳
+  buildModifyTs() {
+    const { modifyDate, modifyTime } = this.data;
+    if (!modifyDate || !modifyTime) return 0;
+    const dy = modifyDate.split('-').map(Number);
+    const hm = modifyTime.split(':').map(Number);
+    if (dy.length !== 3 || dy.some(isNaN) || hm.length !== 2 || hm.some(isNaN)) return 0;
+    return new Date(dy[0], dy[1] - 1, dy[2], hm[0], hm[1], 0, 0).getTime();
+  },
+
+  submitModify() {
+    const that = this;
+    const { modifyDate, modifyTime } = this.data;
+    if (!modifyDate || !modifyTime) {
+      wx.showToast({ title: '请选择新的日期和时间', icon: 'none' });
       return;
     }
-    const order = this.data.order;
-    order.modify_count = (order.modify_count || 0) + 1;
-    order.service_time = this.data.newModifyTime;
-    order.status = 'S2_5'; // 改期处理中
-    this.setData({ modifySheetVisible: false });
-    this.refreshOrder(order);
-    wx.showToast({ title: '改期申请已提交', icon: 'success' });
+    const ts = this.buildModifyTs();
+    if (!ts || isNaN(ts) || ts <= Date.now()) {
+      wx.showToast({ title: '新时间无效', icon: 'none' });
+      return;
+    }
+    if (ts - Date.now() < CONFIG.MODIFY.minLeadHours * 3600000) {
+      wx.showToast({ title: `须提前${CONFIG.MODIFY.minLeadHours}小时申请改期`, icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '确认提交改期',
+      content: `新服务时间：${modifyDate} ${modifyTime}\n提交后需耍伴${CONFIG.MODIFY.confirmHours}小时内确认`,
+      confirmText: '确认',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        that.setData({ modifyPanelVisible: false });
+        wx.showLoading({ title: '提交改期', mask: true });
+        callCloud('order-action', {
+          action: 'modify',
+          order_id: that.data.order._id,
+          new_start_time: ts,
+          reason: ''
+        }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showToast({ title: r.msg || '改期失败', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: '改期申请已提交', icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
+        });
+      }
+    });
   },
 
-  closeModifySheet() { this.setData({ modifySheetVisible: false }); },
+  // S2_5 对方同意改期(云端校验仅非发起人可调)
+  onModifyConfirm() {
+    const that = this;
+    const pm = this.data.order && this.data.order.pending_modify;
+    wx.showModal({
+      title: '同意改期',
+      content: pm ? `确认将服务时间改为 ${pm.new_date} ${pm.new_time}？` : '确认同意本次改期？',
+      confirmText: '同意',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'modify_confirm', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: '已同意改期', icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
+  },
+
+  // S2_5 对方拒绝改期 → 回原状态, 服务时间不变
+  onModifyReject() {
+    const that = this;
+    wx.showModal({
+      title: '拒绝改期',
+      content: '拒绝后服务时间保持不变',
+      confirmText: '拒绝',
+      confirmColor: '#fa5151',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'modify_reject', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: '已拒绝改期', icon: 'none' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
+  },
 
   onFinishService() {
     const that = this;
@@ -286,24 +403,52 @@ Page({
 
   // S3.5 履约中断（PRD 3.5.2 nextActions: resume / confirm）
   onResumeService() {
-    const order = this.data.order;
-    order.status = 'S3'; // resume：恢复履约
-    this.refreshOrder(order);
-    wx.showToast({ title: '已恢复履约', icon: 'success' });
+    const that = this;
+    wx.showLoading({ title: '处理中', mask: true });
+    callCloud('order-action', { action: 'resume_service', order_id: this.data.order._id }).then((r) => {
+      wx.hideLoading();
+      if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+      wx.showToast({ title: '已恢复履约', icon: 'success' });
+      that.fetchData({ orderId: that.data.order._id });
+    }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
   },
   onToPartial() {
-    const order = this.data.order;
-    order.status = 'S4'; // confirm：转部分完成裁定
-    this.refreshOrder(order);
-    wx.showToast({ title: '已转部分完成裁定', icon: 'none' });
+    const that = this;
+    wx.showModal({
+      title: '确认转部分完成',
+      content: '转部分完成后将按实际比例结算',
+      confirmText: '确认',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'partial_confirm', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: '已转部分完成裁定', icon: 'none' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
   },
 
   // S4 比例确认
   onRatioConfirm() {
-    const order = this.data.order;
-    order.status = 'S5';
-    this.refreshOrder(order);
-    wx.showToast({ title: '比例已确认', icon: 'success' });
+    const that = this;
+    wx.showModal({
+      title: '确认费用比例',
+      content: '确认后订单进入评价期',
+      confirmText: '确认',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('order-action', { action: 'ratio_confirm', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: '比例已确认', icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
   },
 
   // S5 评价
@@ -316,27 +461,63 @@ Page({
 
   // S8 售后
   onComplaint() {
-    const order = this.data.order;
-    order.status = 'S10_5';
-    this.refreshOrder(order);
-    wx.showToast({ title: '已进入争议处理', icon: 'none' });
+    const that = this;
+    wx.showModal({
+      title: '发起争议',
+      content: '争议将提交管理员仲裁',
+      confirmText: '提交',
+      editable: true,
+      placeholderText: '请简要说明争议原因',
+      success(res) {
+        if (!res.confirm) return;
+        const reason = (res.content || '').trim();
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', {
+          action: 'complaint',
+          order_id: that.data.order._id,
+          reason
+        }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '提交失败', icon: 'none' }); return; }
+          wx.showToast({ title: '已进入争议处理', icon: 'none' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
   },
 
-  // O5 取消
+  // O5 取消(wx.showModal 展示梯度退款规则, 替代 bottom-sheet)
   onCancel() {
-    this.setData({ cancelSheetVisible: true });
-  },
-  closeCancelSheet() { this.setData({ cancelSheetVisible: false }); },
-
-  confirmCancel() {
-    const order = this.data.order;
+    const that = this;
     const tier = this.data.cancelTiers[this.data.currentCancelIdx];
-    order.status = 'S7';
-    order.refund_rate = tier.rate;
-    this.setData({ cancelSheetVisible: false });
-    this.refreshOrder(order);
-    wx.showToast({ title: `已取消·退款${tier.label}`, icon: 'none', duration: 2000 });
-    setTimeout(() => wx.navigateBack({ fail: () => {} }), 1500);
+    const ruleLines = this.data.cancelTiers.map((t) => `· ${t.label}：退款${t.rate * 100}%`).join('\n');
+    wx.showModal({
+      title: '取消订单',
+      content: `退款规则：\n${ruleLines}\n\n当前适用：${tier.label}，退款${tier.rate * 100}%`,
+      confirmText: '确认取消',
+      confirmColor: '#fa5151',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '取消中', mask: true });
+        callCloud('order-action', {
+          action: 'cancel',
+          order_id: that.data.order._id,
+          reason: tier ? `按${tier.label}梯度退款` : ''
+        }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showToast({ title: r.msg || '取消失败', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: tier ? `已取消·退款${tier.label}` : '已取消', icon: 'none', duration: 2000 });
+          setTimeout(() => wx.navigateBack({ fail: () => {} }), 1500);
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
+        });
+      }
+    });
   },
 
   // 跳支付

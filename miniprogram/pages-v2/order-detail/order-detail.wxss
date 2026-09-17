@@ -52,24 +52,27 @@
 
 .od__after-sale-tip, .od__terminated-tip { padding: 24rpx 0; text-align: center; font-size: var(--font-sm); color: var(--text-3); }
 
-/* O4 改期 */
+/* S2.5 改期待确认 */
+.od__modify-pending { padding: 12rpx 0; }
+.od__modify-pending-title { text-align: center; font-size: var(--font-md); font-weight: 600; color: var(--text-1); padding: 12rpx 0; }
+.od__modify-pending .od__after-sale-tip { padding: 6rpx 0; }
+
+/* O4 改期内联卡 */
+.od__modify-panel {
+  margin-top: 20rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 8rpx 28rpx 24rpx;
+}
 .od__modify-tip { font-size: var(--font-xs); color: var(--text-4); padding: 12rpx 0; line-height: 1.6; }
-.od__picker-row { display: flex; align-items: center; padding: 24rpx 0; }
+.od__picker-row { display: flex; align-items: center; padding: 24rpx 0; border-bottom: 1rpx solid var(--border-divider); }
 .od__picker-label { width: 120rpx; font-size: var(--font-sm); color: var(--text-3); }
 .od__picker-val { flex: 1; font-size: var(--font-md); color: var(--text-1); }
 .od__picker-val.is-empty { color: var(--text-5); }
 .od__arrow { color: var(--text-4); }
-
-/* O5 取消 */
-.od__cancel-tiers { padding: 16rpx 0; }
-.od__cancel-tier { display: flex; justify-content: space-between; padding: 16rpx; border-radius: var(--r-md); margin-bottom: 8rpx; background: var(--bg-segment); }
-.od__cancel-tier.is-on { background: var(--func-warning-light); border: 2rpx solid var(--func-warning); }
-.od__cancel-label { font-size: var(--font-sm); color: var(--text-1); }
-.od__cancel-rate { font-size: var(--font-sm); color: var(--func-danger); font-weight: 600; }
-.od__cancel-tip { margin-top: 12rpx; font-size: var(--font-xs); color: var(--text-3); text-align: center; }
-
-.od__sheet-btns { display: flex; gap: 16rpx; }
-.od__sheet-btns .od__btn { flex: 1; margin-top: 0; }
+.od__panel-btns { display: flex; gap: 16rpx; margin-top: 20rpx; }
+.od__panel-btns .od__btn { flex: 1; margin-top: 0; }
 
 /* 三态骨架屏 */
 .od__loading { padding: 16rpx; }

@@ -1,6 +1,9 @@
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
-// order-action 订单动作(四确认 + 取消) · 身份取自 getWXContext().OPENID
-// 4 个 action: get_confirmation / update_item / confirm_item / cancel
+// order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
+// 14 个 action: get_confirmation / update_item / confirm_item / confirm_all /
+//              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
+//              modify / modify_confirm / modify_reject / resume_service / partial_confirm / ratio_confirm / complaint /
+//              detail / my_orders / my_counts
 // 四确认 SSOT:时间/地点/内容/费用四项,用户与耍伴双方各确认一次共 8 位;
 //   8 位全完成 → S1→S0(待支付,30 分钟支付时限);任一方修改任一项 → 8 位全部重置。
 const cloud = require('wx-server-sdk');
@@ -110,7 +113,7 @@ exports.main = async (event, context) => {
   console.log(`order-action action=${action} openid=${openid}`);
 
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
     return { ok: false, code: 'oa_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头),也不要保留 <ORDER_ID> 占位符' };
   }
@@ -564,6 +567,294 @@ exports.main = async (event, context) => {
     return { ok: true, data: { order_id, milestone, confirmed: true } };
   }
 
+  // ───────── P0 扩展:状态机补齐 ─────────
+
+  // 改期业务常量(与小程序 config/index.js MODIFY/TIME_REDLINE 对齐; admin_config.modify_config 可覆盖)
+  const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 2 };
+  const REDLINE_CLOSE_MIN = 23 * 60;   // 23:00 起不可服务
+  const REDLINE_OPEN_MIN = 6 * 60;     // 06:00 恢复
+
+  // 时间红线: 服务开始时间(本地时区 HH:mm)不得落在 23:00-06:00
+  function isModifyTimeAllowed(ts) {
+    const d = new Date(ts);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    return mins >= REDLINE_OPEN_MIN && mins < REDLINE_CLOSE_MIN;
+  }
+
+  // 改期发起:S2/S3 → S2_5(改期处理中, 等待对方确认; 超时由 order-timer 自动拒绝)
+  // 注意: 确认前不改写 start_time, 新时间暂存 pending_modify; modify_count 在确认通过时才消耗
+  if (action === 'modify') {
+    const { order_id, new_start_time, reason } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const newTs = Number(new_start_time);
+    if (!newTs || newTs <= Date.now()) {
+      return { ok: false, code: 'oa_modify_time_invalid', msg: '新时间必须是未来时间' };
+    }
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    // 改期前置:已支付(S2)或履约中(S3), 且不能已有在途改期
+    if (order.status !== 'S2' && order.status !== 'S3') {
+      return { ok: false, code: 'oa_modify_status', msg: `订单当前状态(${order.status})不可改期` };
+    }
+    const config = await getConfig();
+    const modifyConfig = Object.assign({}, MODIFY_DEFAULTS);
+    try { Object.assign(modifyConfig, config.modify_config || {}); } catch (e) {}
+    const currentModifyCount = Number(order.modify_count) || 0;
+    if (currentModifyCount >= modifyConfig.maxTimes) {
+      return { ok: false, code: 'oa_modify_exhausted', msg: `改期次数已用完(${modifyConfig.maxTimes}次)` };
+    }
+    // 提前量: 至少提前 4 小时
+    if (newTs - Date.now() < modifyConfig.minLeadHours * 3600000) {
+      return { ok: false, code: 'oa_modify_lead', msg: `须提前${modifyConfig.minLeadHours}小时申请改期` };
+    }
+    // 时间红线: 23:00-06:00 不可约
+    if (!isModifyTimeAllowed(newTs)) {
+      return { ok: false, code: 'oa_modify_redline', msg: '服务时间须在 06:00-23:00 之间' };
+    }
+    // 幅度上限 72h(相对原服务时间)
+    const span = Math.abs(newTs - Number(order.start_time)) / 3600000;
+    if (span > modifyConfig.maxSpanH) {
+      return { ok: false, code: 'oa_modify_span', msg: `改期幅度超过上限(${modifyConfig.maxSpanH}小时)` };
+    }
+
+    const now = Date.now();
+    const fromStatus = order.status;
+    const won = await casStatus(order_id, ['S2', 'S3'], {
+      status: 'S2_5',
+      pending_modify: {
+        from_status: fromStatus,
+        new_start_time: newTs,
+        reason: String(reason || '').slice(0, 200),
+        by_openid: openid,
+        by_role: role,
+        created_at: now,
+        expire_at: now + modifyConfig.confirmHours * 3600000
+      },
+      modify_at: now,
+      updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S2_5' && latest.pending_modify && latest.pending_modify.by_openid === openid) {
+        return { ok: true, data: { order_id, status: 'S2_5', idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+    await logStatus(order_id, fromStatus, 'S2_5', role === 'user' ? 'user_modify' : 'partner_modify', openid);
+    console.log(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmHours}h`);
+    return { ok: true, data: { order_id, status: 'S2_5', new_start_time: newTs } };
+  }
+
+  // 改期确认: 仅对方(非发起人)可操作, S2_5 → pending.from_status, 通过才改写 start_time/消耗次数
+  if (action === 'modify_confirm' || action === 'modify_reject') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+
+    // 幂等: pending_modify 已消失且订单回到 S2/S3 → 按结果返回成功
+    if (order.status === 'S2' || order.status === 'S3') {
+      if (!order.pending_modify) {
+        return { ok: true, data: { order_id, status: order.status, idempotent: true } };
+      }
+    }
+    if (order.status !== 'S2_5' || !order.pending_modify) {
+      return { ok: false, code: 'oa_modify_status', msg: '订单当前没有待确认的改期申请' };
+    }
+    const pending = order.pending_modify;
+    if (pending.by_openid === openid) {
+      return { ok: false, code: 'oa_modify_self', msg: '只能由对方确认或拒绝改期' };
+    }
+    const toStatus = pending.from_status === 'S3' ? 'S3' : 'S2';
+    const now = Date.now();
+
+    if (action === 'modify_reject') {
+      const won = await casStatus(order_id, 'S2_5', {
+        status: toStatus,
+        pending_modify: _.remove(),
+        modify_rejected_at: now,
+        modify_rejected_by: openid,
+        updated_at: now
+      });
+      if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+      await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_reject' : 'partner_modify_reject', openid);
+      console.log(`modify rejected: ${order.order_no} S2_5→${toStatus} by=${role}`);
+      return { ok: true, data: { order_id, status: toStatus, modify_rejected: true } };
+    }
+
+    // 确认前再兜底校验: 新时间仍合法(未来/提前量/红线)
+    const config = await getConfig();
+    const modifyConfig = Object.assign({}, MODIFY_DEFAULTS);
+    try { Object.assign(modifyConfig, config.modify_config || {}); } catch (e) {}
+    if (!pending.new_start_time || pending.new_start_time <= now) {
+      return { ok: false, code: 'oa_modify_expired', msg: '改期时间已过期,请重新发起' };
+    }
+    if (!isModifyTimeAllowed(pending.new_start_time)) {
+      return { ok: false, code: 'oa_modify_redline', msg: '服务时间不在 06:00-23:00 之间' };
+    }
+    const won = await casStatus(order_id, 'S2_5', {
+      status: toStatus,
+      start_time: pending.new_start_time,
+      modify_count: (Number(order.modify_count) || 0) + 1,
+      pending_modify: _.remove(),
+      modify_confirmed_at: now,
+      modify_confirmed_by: openid,
+      updated_at: now
+    });
+    if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_confirm' : 'partner_modify_confirm', openid);
+    console.log(`modify confirmed: ${order.order_no} S2_5→${toStatus} newStart=${pending.new_start_time} by=${role}`);
+    return { ok: true, data: { order_id, status: toStatus, start_time: pending.new_start_time, modify_confirmed: true } };
+  }
+
+
+  // 恢复履约:S3.5 → S3(双向确认, 任一方发起即可)
+  if (action === 'resume_service') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (order.status !== 'S3.5') {
+      return { ok: false, code: 'oa_resume_status', msg: `订单当前状态(${order.status})不可恢复履约` };
+    }
+    const now = Date.now();
+    const won = await casStatus(order_id, 'S3.5', {
+      status: 'S3', resumed_at: now, resumed_by: openid, updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S3') {
+        return { ok: true, data: { order_id, status: 'S3', idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+    await logStatus(order_id, 'S3.5', 'S3', role === 'user' ? 'user_resume' : 'partner_resume', openid);
+    console.log(`order resume: ${order.order_no} S3.5→S3`);
+    return { ok: true, data: { order_id, status: 'S3' } };
+  }
+
+  // 转部分完成:S3.5 → S4(双向确认, 任一方发起即可)
+  if (action === 'partial_confirm') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (order.status !== 'S3.5') {
+      return { ok: false, code: 'oa_partial_status', msg: `订单当前状态(${order.status})不可转部分完成` };
+    }
+    const now = Date.now();
+    const won = await casStatus(order_id, 'S3.5', {
+      status: 'S4', partial_confirmed_at: now, partial_confirmed_by: openid, updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S4') {
+        return { ok: true, data: { order_id, status: 'S4', idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+    await logStatus(order_id, 'S3.5', 'S4', role === 'user' ? 'user_partial_confirm' : 'partner_partial_confirm', openid);
+    console.log(`order partial confirm: ${order.order_no} S3.5→S4`);
+    return { ok: true, data: { order_id, status: 'S4' } };
+  }
+
+  // 比例确认:S4 → S5(一般用户确认, 也允许耍伴确认)
+  if (action === 'ratio_confirm') {
+    const { order_id, ratio } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (order.status !== 'S4') {
+      return { ok: false, code: 'oa_ratio_status', msg: `订单当前状态(${order.status})不可确认比例` };
+    }
+    // ratio 校验:0-100 或 0.0-1.0
+    let ratioFen = 100;   // 默认 100% 全额
+    if (ratio !== undefined && ratio !== null && ratio !== '') {
+      const r = Number(ratio);
+      if (isNaN(r)) return { ok: false, code: 'oa_ratio_invalid', msg: '比例格式有误' };
+      ratioFen = r <= 1 ? Math.round(r * 100) : r;   // 0.5 → 50, 50 → 50
+      if (ratioFen < 0 || ratioFen > 100) {
+        return { ok: false, code: 'oa_ratio_range', msg: '比例须在 0-100% 之间' };
+      }
+    }
+    const now = Date.now();
+    const won = await casStatus(order_id, 'S4', {
+      status: 'S5',
+      ratio_confirmed_at: now,
+      ratio_confirmed_by: openid,
+      ratio_fen: ratioFen,
+      updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S5') {
+        return { ok: true, data: { order_id, status: 'S5', ratio_fen: latest.ratio_fen || ratioFen, idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+    await logStatus(order_id, 'S4', 'S5', role === 'user' ? 'user_ratio_confirm' : 'partner_ratio_confirm', openid);
+    console.log(`order ratio confirm: ${order.order_no} S4→S5 ratio=${ratioFen}%`);
+    return { ok: true, data: { order_id, status: 'S5', ratio_fen: ratioFen } };
+  }
+
+  // 发起争议:S5/S8/S9 → S10.5(售后窗口内, 双方可发起)
+  if (action === 'complaint') {
+    const { order_id, reason } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (!['S5', 'S8', 'S9'].includes(order.status)) {
+      return { ok: false, code: 'oa_complaint_status', msg: `订单当前状态(${order.status})不可发起争议` };
+    }
+    const now = Date.now();
+    const fromStatus = order.status;
+    const won = await casStatus(order_id, ['S5', 'S8', 'S9'], {
+      status: 'S10.5',
+      help_flag: true,
+      complaint_at: now,
+      complaint_by: openid,
+      complaint_reason: reason || '',
+      updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.status === 'S10.5') {
+        return { ok: true, data: { order_id, status: 'S10.5', idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+    await logStatus(order_id, fromStatus, 'S10.5', role === 'user' ? 'user_complaint' : 'partner_complaint', openid);
+
+    // 写 complaint 集合(仲裁跟踪用)
+    try {
+      await col('complaint').add({ data: {
+        order_id, order_no: order.order_no,
+        initiator_openid: openid, initiator_role: role,
+        target_openid: role === 'user' ? order.partner_openid : order.user_openid,
+        reason: reason || '',
+        status: 'pending',   // pending → processing → resolved/rejected
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+    } catch (e) {
+      console.log(`complaint record fail: ${e.message}`);   // 不阻断状态流转
+    }
+
+    console.log(`complaint filed: ${order.order_no} ${fromStatus}→S10.5 by=${role}`);
+    return { ok: true, data: { order_id, status: 'S10.5' } };
+  }
+
   // ───────── 订单详情(全字段 + 四确认状态 + 评价, 仅参与方可读) ─────────
   if (action === 'detail') {
     const { order_id } = event;
@@ -664,7 +955,9 @@ exports.main = async (event, context) => {
         safety,
         user_nickname: userNickname,
         partner_nickname: partnerNickname,
-        milestone: order.milestone || null
+        milestone: order.milestone || null,
+        modify_count: Number(order.modify_count) || 0,
+        pending_modify: order.pending_modify || null
       }
     };
   }
@@ -776,22 +1069,22 @@ exports.main = async (event, context) => {
       const COL = col('order_main');
       // user 视角 (作为发单人)
       const uPendingPay = await COL.where({ user_openid: userOpenid, status: 'S0', is_deleted: false }).count();
-      const uInProgress = await COL.where({ user_openid: userOpenid, status: _.in(['S1','S2','S3','S3.5']), is_deleted: false }).count();
+      const uInProgress = await COL.where({ user_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count();
       const uPendingEval = await COL.where({ user_openid: userOpenid, status: 'S5', is_deleted: false }).count();
       // partner 视角 (作为耍伴)
-      const pInProgress = await COL.where({ partner_openid: userOpenid, status: _.in(['S1','S2','S3','S3.5']), is_deleted: false }).count();
+      const pInProgress = await COL.where({ partner_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count();
       const pPendingEval = await COL.where({ partner_openid: userOpenid, status: 'S5', is_deleted: false }).count();
 
       counts.pending_pay = uPendingPay.total || 0;
       counts.in_progress = (uInProgress.total || 0) + (pInProgress.total || 0);
       counts.pending_eval = (uPendingEval.total || 0) + (pPendingEval.total || 0);
-      // after_sales 简化: S6/S7/S9/S10 暂统一
+      // after_sales: S6/S7/S9/S10/S10.5 统一
       const afterSale = await COL.where({
         $or: [
           { user_openid: userOpenid },
           { partner_openid: userOpenid }
         ],
-        status: _.in(['S6','S7','S9','S10']),
+        status: _.in(['S6','S7','S9','S10','S10.5']),
         is_deleted: false
       }).count();
       counts.after_sales = afterSale.total || 0;

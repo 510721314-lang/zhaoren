@@ -4,6 +4,7 @@
 //   S1 待确认 15 分钟未完成四确认 → 自动 S6 并释放需求回 matching
 //   S0 待支付 30 分钟未支付(pay_expire_at) → 自动 S6
 //   S3.5 中断超过 24 小时 → 默认转 S4(部分完成)
+//   S2.5 改期申请超过确认时限(默认2小时)未确认 → 自动拒绝, 回原状态 S2/S3, 不改服务时间
 //   S5 完成后 48 小时未评价 → 系统默认 4 星评价转 S9, 耍伴信用分 +1
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -59,8 +60,9 @@ exports.main = async (event, context) => {
   const defaultStar = num(cfg.default_star, 4);
   const s0Force = !!event.s0_force; // 测试用: 跳过 pay_expire_at 检查
   const msConfirmMin = num(event.milestone_confirm_min, 15); // 里程碑提交后15分钟自动确认
+  const modifyConfirmH = num(event.modify_confirm_h, 2); // 改期申请确认时限(小时), 超时自动拒绝
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
   console.log(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} s0Force=${s0Force}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -112,6 +114,28 @@ exports.main = async (event, context) => {
       console.log(`timeout S3.5→S4: ${o.order_no}`);
     }
   } catch (e) { console.log(`s3.5 scan fail: ${e.message}`); }
+
+  // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
+  try {
+    const m25s = (await col('order_main').where({ status: 'S2_5' }).limit(BATCH).get()).data || [];
+    for (const o of m25s) {
+      const pm = o.pending_modify || {};
+      // 优先 pending_modify.expire_at; 历史文档兜底 modify_at + 时限
+      const deadline = pm.expire_at || ((o.modify_at || 0) + modifyConfirmH * 3600000);
+      if (!deadline || deadline >= now) continue;
+      const toStatus = pm.from_status === 'S3' ? 'S3' : 'S2';
+      const won = await casStatus(o._id, 'S2_5', {
+        status: toStatus,
+        pending_modify: _.remove(),
+        modify_auto_rejected_at: now,
+        updated_at: now
+      });
+      if (!won) { out.skipped.push(o.order_no + ':S2_5竞态'); continue; }
+      await logStatus(o._id, 'S2_5', toStatus, 'timeout_modify_auto_reject', 'system');
+      out.modify_auto_reject.push(o.order_no);
+      console.log(`timeout S2_5→${toStatus} modify auto-reject: ${o.order_no}`);
+    }
+  } catch (e) { console.log(`s2.5 scan fail: ${e.message}`); }
 
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
@@ -200,10 +224,11 @@ exports.main = async (event, context) => {
     ok: true,
     data: {
       ran_at: now,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, s0_force: s0Force },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, s0_force: s0Force, modify_confirm_h: modifyConfirmH },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
+      modify_auto_reject: out.modify_auto_reject,
       milestone_auto_confirm: out.milestone_auto_confirm,
       auto_eval: out.auto_eval,
       skipped: out.skipped,
@@ -211,6 +236,7 @@ exports.main = async (event, context) => {
         s1_cancel: out.s1_cancel.length,
         s0_close: out.s0_close.length,
         interrupt_partial: out.interrupt_partial.length,
+        modify_auto_reject: out.modify_auto_reject.length,
         milestone_auto_confirm: out.milestone_auto_confirm.length,
         auto_eval: out.auto_eval.length
       }
