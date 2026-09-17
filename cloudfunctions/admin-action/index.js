@@ -824,6 +824,12 @@ exports.main = async (event, context) => {
     }
     if (event.auto_approve_partner !== undefined) touch('auto_approve_partner', !!event.auto_approve_partner);
     if (event.payment_visible !== undefined) touch('payment_visible', !!event.payment_visible);
+    // 环境开关: dev(允许 mock_openid 测试身份) / prod(强制忽略, 见各函数 openid.js)
+    if (event.env !== undefined) {
+      const envVal = String(event.env);
+      if (envVal !== 'dev' && envVal !== 'prod') return fail('config_bad_env', 'env 仅支持 dev 或 prod');
+      touch('env', envVal);
+    }
 
     // 屏蔽词增删
     let words = (config.block_words || []).slice();
