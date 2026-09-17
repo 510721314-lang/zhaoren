@@ -1,8 +1,15 @@
-node_modules/
-miniprogram_npm/
+# 临时云端测试工具与 smoke 入参
+.tmp-cloud-runner/
+sm*.json
+
+# Trae skills 缓存
+.trae/skills/
+
+# IDE 临时文件
+.idea/
+.vscode/
 .DS_Store
-*.log
-.env
-project.private.config.json
-.backup-*/
-_db_tmp/
+
+# 系统临时文件
+Thumbs.db
+desktop.ini
