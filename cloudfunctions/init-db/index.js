@@ -5,12 +5,12 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
-// 16 个业务集合(rules.md 第五节第7条)
+// 19 个业务集合(rules.md 第五节第7条; 2026-09-16 +withdraw_record/+demand_draft; 2026-09-17 +withdraw_lock)
 const COLLECTIONS = [
   'user_account', 'partner_profile', 'demand', 'order_main', 'order_confirmations',
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
   'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
-  'disclaimer_signature'
+  'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -31,7 +31,9 @@ const INDEXES = [
   { coll: 'im_conversation', name: 'uk_order_id', keys: { order_id: 1 }, unique: true },
   { coll: 'im_message', name: 'idx_conv_created', keys: { conv_id: 1, created_at: -1 } },
   { coll: 'evaluation', name: 'idx_order_id', keys: { order_id: 1 } },
-  { coll: 'settlement', name: 'idx_order_id', keys: { order_id: 1 } }
+  { coll: 'settlement', name: 'idx_order_id', keys: { order_id: 1 } },
+  { coll: 'withdraw_record', name: 'idx_openid_created', keys: { openid: 1, created_at: -1 } },
+  { coll: 'demand_draft', name: 'idx_openid_updated', keys: { openid: 1, updated_at: -1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)

@@ -1,11 +1,14 @@
 // 对应 PRD 章节：3.5.1 资金担保与分账架构 / 8.4 退款规则 / 3.4 AA费用 / 附录G 状态机
 // payment-mock 模拟支付与退款(MVP 无真实微信支付,一律 is_mock=true)
-// 4 个 action: cashier_info(收银台摘要) / mock_pay(模拟支付) / mock_refund(模拟全额退款)
-//             / mock_tip(模拟打赏, 已履约完成订单 S5/S8/S9/S10, 发单人可多次打赏)
+// 9 个 action: cashier_info(收银台摘要) / mock_pay(模拟支付) / mock_refund(模拟全额退款)
+//             / mock_tip(模拟打赏, 已履约完成订单 S5/S8/S9/S10, 发单人可多次打赏) / aa_record(W2 AA记账)
+//             / balance_info(钱包汇总) / income_list(收益明细)
+//             / withdraw(普通提现 T+1) / fast_withdraw(极速提现 T+0) / withdraw_list(提现记录)
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
+const $ = db.command.aggregate;  // 聚合操作符(balance_info 历史上漏定义导致 ReferenceError,已修复)
 const col = (n) => db.collection(n);
 
 const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
@@ -47,6 +50,55 @@ async function logStatus(orderId, from, to, action, operator) {
     action, operator,
     created_at: Date.now(), updated_at: Date.now(), is_deleted: false
   }});
+}
+
+// 写入自愈:集合不存在(-502005)时建集合并重试一次(withdraw_record 首次落库兜底)
+async function addWithColl(name, doc) {
+  try {
+    return await col(name).add({ data: doc });
+  } catch (e) {
+    const sig = `${e && e.errCode || ''} ${e && e.message || ''}`;
+    if (!/502005|not exist|不存在/i.test(sig)) throw e;
+    await db.createCollection(name);
+    return await col(name).add({ data: doc });
+  }
+}
+
+// 提现串行锁(防 TOCTOU 双花): 每 openid 一把, _id=openid; TTL 30s 防异常死锁
+const WD_LOCK_TTL_MS = 30000;
+async function acquireWithdrawLock(openid) {
+  const now = Date.now();
+  const lockCol = col('withdraw_lock');
+  // 快路径: 锁文档存在且当前未锁定(含 locked 字段缺省) → 抢锁
+  try {
+    const u = await lockCol.where({ _id: openid, locked: _.neq(true) }).update({
+      data: { locked: true, locked_at: now, updated_at: now }
+    });
+    if (u.stats && u.stats.updated === 1) return true;
+  } catch (e) {}
+  // 30s 内的活跃锁 → 拒绝并发
+  try {
+    const active = await lockCol.where({ _id: openid, locked: true, locked_at: _.gt(now - WD_LOCK_TTL_MS) }).count();
+    if (active.total > 0) return false;
+  } catch (e) {}
+  // 锁文档不存在(集合首次使用自愈) → 新增
+  try {
+    await addWithColl('withdraw_lock', { _id: openid, locked: true, locked_at: now, updated_at: now, is_deleted: false });
+    return true;
+  } catch (e) {
+    // 并发新增落败或存在陈旧锁 → 仅当锁超过 TTL 时抢占
+    try {
+      const u2 = await lockCol.where({ _id: openid, locked: true, locked_at: _.lte(now - WD_LOCK_TTL_MS) }).update({
+        data: { locked: true, locked_at: now, updated_at: now }
+      });
+      return !!(u2.stats && u2.stats.updated === 1);
+    } catch (e2) { return false; }
+  }
+}
+async function releaseWithdrawLock(openid) {
+  try {
+    await col('withdraw_lock').doc(openid).update({ data: { locked: false, updated_at: Date.now() } });
+  } catch (e) {}
 }
 
 exports.main = async (event, context) => {
@@ -394,7 +446,19 @@ exports.main = async (event, context) => {
         .aggregate()
         .group({ _id: null, total: $.sum('$partner_income_fen') })
         .end().catch(() => ({ list: [] }));
-      const withdrawableFen = (settled.list && settled.list[0] && settled.list[0].total) || 0;
+      const settledFen = (settled.list && settled.list[0] && settled.list[0].total) || 0;
+      // 提现占用: processing(在途)+success(已到账) 都从可提现余额中扣除
+      const wR = await col('withdraw_record')
+        .where({ openid: partnerOpenid, is_deleted: false })
+        .aggregate()
+        .group({ _id: '$status', total: $.sum('$amount_fen') })
+        .end().catch(() => ({ list: [] }));
+      let processingW = 0, withdrawnW = 0;
+      ((wR && wR.list) || []).forEach((g) => {
+        if (g._id === 'processing') processingW = g.total || 0;
+        else if (g._id === 'success') withdrawnW = g.total || 0;
+      });
+      const withdrawableFen = Math.max(0, settledFen - processingW - withdrawnW);
       const splitting = await col('order_main')
         .where({ partner_openid: partnerOpenid, status: _.in(['S2', 'S3', 'S5', 'S6']) })
         .aggregate()
@@ -424,6 +488,7 @@ exports.main = async (event, context) => {
         data: {
           withdrawable_fen: withdrawableFen,
           splitting_fen: splittingFen,
+          processing_fen: processingW,
           month_income_fen: monthIncomeFen,
           total_completed: countR.total || 0,
           credit_level: creditLevel
@@ -450,6 +515,112 @@ exports.main = async (event, context) => {
         total_fen: o.total_fen || 0,
         service_completed_at: o.service_completed_at || null,
         created_at: o.created_at
+      }));
+      return { ok: true, data: { list } };
+    }
+
+    // ───────── 7. 提现申请(普通 T+1, mock 落 withdraw_record status=processing) ─────────
+    // ───────── 8. 极速提现(T+0 即时到账; 单笔≤200元/当日累计≤2000元, 与小程序 config WITHDRAW 对齐) ─────────
+    case 'withdraw':
+    case 'fast_withdraw': {
+      const isFast = action === 'fast_withdraw';
+      const amount = Number(event.amount_fen);
+      if (!Number.isInteger(amount) || amount <= 0) {
+        return { ok: false, code: 'wd_amount', msg: '提现金额格式有误' };
+      }
+      // 单次最低 10 元(config/index.js WITHDRAW.minAmount=10)
+      if (amount < 1000) {
+        return { ok: false, code: 'wd_too_small', msg: '单次最低提现 10 元' };
+      }
+      // 极速提现单笔上限 200 元(WITHDRAW.fastPerOrderMax=200)
+      if (isFast && amount > 20000) {
+        return { ok: false, code: 'wd_fast_cap', msg: '极速提现单笔上限 200 元' };
+      }
+
+      // 串行锁: 余额校验→落库期间禁止同 openid 并发, 防双击/并发双花
+      const locked = await acquireWithdrawLock(openid);
+      if (!locked) {
+        return { ok: false, code: 'wd_busy', msg: '上一笔提现正在处理,请勿重复操作' };
+      }
+      try {
+      // 可提现余额 = 已结算收入(S8/S9/S10) - 提现占用(processing+success)
+      const [settledR, wUsedR] = await Promise.all([
+        col('order_main').where({ partner_openid: openid, status: _.in(['S8', 'S9', 'S10']) })
+          .aggregate().group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('withdraw_record').where({ openid, is_deleted: false })
+          .aggregate().group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }))
+      ]);
+      const settledFen = (settledR.list && settledR.list[0] && settledR.list[0].total) || 0;
+      let usedFen = 0;
+      ((wUsedR && wUsedR.list) || []).forEach((g) => {
+        if (g._id === 'processing' || g._id === 'success') usedFen += g.total || 0;
+      });
+      const available = Math.max(0, settledFen - usedFen);
+      if (amount > available) {
+        return { ok: false, code: 'wd_insufficient', msg: '可提现余额不足' };
+      }
+
+      // 极速提现当日累计上限 2000 元(WITHDRAW.fastPerDayMax=2000)
+      if (isFast) {
+        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+        const dayR = await col('withdraw_record').where({
+          openid, type: 'fast', created_at: _.gte(dayStart.getTime()), is_deleted: false
+        }).aggregate().group({ _id: null, total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }));
+        const todayFast = (dayR.list && dayR.list[0] && dayR.list[0].total) || 0;
+        if (todayFast + amount > 200000) {
+          return { ok: false, code: 'wd_fast_daily', msg: '极速提现当日累计上限 2000 元' };
+        }
+      }
+
+      const now = Date.now();
+      const wdNo = genPayNo('WD');
+      // 普通 T+1 在途(无定时器回写,保持 processing); 极速 T+0 即时到账(mock)
+      const record = {
+        withdraw_no: wdNo,
+        openid,
+        type: isFast ? 'fast' : 'normal',
+        amount_fen: amount,
+        status: isFast ? 'success' : 'processing',
+        is_mock: true,
+        expect_arrive_at: isFast ? now : now + 24 * 3600 * 1000,
+        arrived_at: isFast ? now : null,
+        created_at: now, updated_at: now, is_deleted: false
+      };
+      try {
+        await addWithColl('withdraw_record', record);
+        console.log(`${action} success: openid=${openid} no=${wdNo} amount=${amount}`);
+        return {
+          ok: true,
+          data: {
+            withdraw_no: wdNo, amount_fen: amount, type: record.type, status: record.status,
+            balance_after_fen: Math.max(0, available - amount), is_mock: true
+          }
+        };
+      } catch (e) {
+        console.log(`${action} fail: ${e.message}`);
+        return { ok: false, code: 'wd_db_fail', msg: '提现失败,请稍后重试' };
+      }
+      } finally {
+        await releaseWithdrawLock(openid);
+      }
+    }
+
+    // ───────── 9. 提现记录列表 ─────────
+    case 'withdraw_list': {
+      const limit = Math.min(event.limit || 20, 50);
+      const skip = event.skip || 0;
+      // 集合尚未创建时返回空列表(不报错)
+      const r = await col('withdraw_record').where({ openid, is_deleted: false })
+        .orderBy('created_at', 'desc').skip(skip).limit(limit).get()
+        .catch(() => ({ data: [] }));
+      const list = (r.data || []).map((w) => ({
+        withdraw_no: w.withdraw_no,
+        type: w.type,
+        amount_fen: w.amount_fen,
+        status: w.status,
+        expect_arrive_at: w.expect_arrive_at || null,
+        arrived_at: w.arrived_at || null,
+        created_at: w.created_at
       }));
       return { ok: true, data: { list } };
     }

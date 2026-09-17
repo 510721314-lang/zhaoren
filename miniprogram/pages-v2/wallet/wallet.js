@@ -104,18 +104,36 @@ Page({
   onFastToggle(e) { this.setData({ fastWithdraw: e.detail.value }); },
 
   confirmWithdraw() {
+    if (this._withdrawing) return;  // 提交锁: 防双击并发
     const amt = Number(this.data.withdrawAmount);
+    const isFast = this.data.fastWithdraw;
     if (!amt || isNaN(amt)) {
       wx.showToast({ title: '请输入金额', icon: 'none' }); return;
     }
     if (amt < CONFIG.WITHDRAW.minAmount) {
       wx.showToast({ title: `单次最低${CONFIG.WITHDRAW.minAmount}元`, icon: 'none' }); return;
     }
-    if (this.data.fastWithdraw && amt > CONFIG.WITHDRAW.fastPerOrderMax) {
+    if (isFast && amt > CONFIG.WITHDRAW.fastPerOrderMax) {
       wx.showToast({ title: `极速提现单笔上限${CONFIG.WITHDRAW.fastPerOrderMax}元`, icon: 'none' }); return;
     }
-    this.setData({ withdrawSheetVisible: false });
-    wx.showToast({ title: `提现申请成功，T+${CONFIG.WITHDRAW.arriveDays}到账`, icon: 'success', duration: 2000 });
+    this._withdrawing = true;
+    // 云端提现:普通 withdraw(T+1 在途) / fast_withdraw(T+0 即时到账),金额一律转分
+    callCloud('payment-mock', {
+      action: isFast ? 'fast_withdraw' : 'withdraw',
+      amount_fen: Math.round(amt * 100)
+    }).then((r) => {
+      if (!r.ok) {
+        wx.showToast({ title: r.msg || '提现失败', icon: 'none', duration: 2500 });
+        return;
+      }
+      this.setData({ withdrawSheetVisible: false, withdrawAmount: '', fastWithdraw: false });
+      wx.showToast({
+        title: isFast ? '极速提现已到账' : `提现申请成功，T+${CONFIG.WITHDRAW.arriveDays}到账`,
+        icon: 'success', duration: 2000
+      });
+      this.fetchData();
+    }).catch(() => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' }))
+      .then(() => { this._withdrawing = false; });
   },
 
   onToolTap(e) {
