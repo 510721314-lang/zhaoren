@@ -200,6 +200,11 @@ Page({
       const unread = nr.data ? nr.data.unread : 0;
       const funcList = this.data.funcList.map((f) => f.key === 'notices' ? { ...f, badge: unread > 0 ? unread : '' } : f);
       this.setData({ notice_unread: unread, funcList });
+      // 轻量弹窗提示有新通知 (仅首次从 tabBar 进入"我的"时触发)
+      if (unread > 0 && !this._toastNotified) {
+        this._toastNotified = true;
+        setTimeout(() => wx.showToast({ title: `您有 ${unread} 条新通知`, icon: 'none', duration: 2000 }), 300);
+      }
     }).catch(() => {});
   },
 
