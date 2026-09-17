@@ -1046,27 +1046,31 @@ exports.main = async (event, context) => {
   }
 
   // ───────── my_counts: 订单四宫格计数 ─────────
-  // 按当前 openid 作为 user_openid 或 partner_openid 分别统计 4 种状态
+  // 按 role(user/partner) 返回对应视角计数
   if (action === 'my_counts') {
+    const role = event.role === 'partner' ? 'partner' : 'user';
+    const openidField = role === 'partner' ? 'partner_openid' : 'user_openid';
     const COL = col('order_main');
-    const userOpenid = openid;
     // 6 次独立 count 合并为 1 批, 冷启动压到 1s 内
-    const [uPay, uDoing, uEval, pDoing, pEval, afterSale] = await Promise.all([
-      COL.where({ user_openid: userOpenid, status: 'S0', is_deleted: false }).count().catch(() => ({ total: 0 })),
-      COL.where({ user_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count().catch(() => ({ total: 0 })),
-      COL.where({ user_openid: userOpenid, status: 'S5', is_deleted: false }).count().catch(() => ({ total: 0 })),
-      COL.where({ partner_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count().catch(() => ({ total: 0 })),
-      COL.where({ partner_openid: userOpenid, status: 'S5', is_deleted: false }).count().catch(() => ({ total: 0 })),
+    const [pay, doing, eval, afterSale] = await Promise.all([
+      // 待支付 S0 只属于 user 视角(partner 看不到)
+      COL.where({ user_openid: openid, status: 'S0', is_deleted: false }).count().catch(() => ({ total: 0 })),
+      // 进行中
+      COL.where({ [openidField]: openid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count().catch(() => ({ total: 0 })),
+      // 待评价
+      COL.where({ [openidField]: openid, status: 'S5', is_deleted: false }).count().catch(() => ({ total: 0 })),
+      // 售后(双方都能看)
       COL.where({
-        $or: [{ user_openid: userOpenid }, { partner_openid: userOpenid }],
+        $or: [{ user_openid: openid }, { partner_openid: openid }],
         status: _.in(['S6','S7','S9','S10','S10.5']),
         is_deleted: false
       }).count().catch(() => ({ total: 0 }))
     ]);
     return { ok: true, data: {
-      pending_pay: uPay.total || 0,
-      in_progress: (uDoing.total || 0) + (pDoing.total || 0),
-      pending_eval: (uEval.total || 0) + (pEval.total || 0),
+      role,
+      pending_pay: pay.total || 0,
+      in_progress: doing.total || 0,
+      pending_eval: eval.total || 0,
       after_sales: afterSale.total || 0
     }};
   }

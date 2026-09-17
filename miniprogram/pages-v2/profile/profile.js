@@ -68,6 +68,10 @@ Page({
       }
       const u = r.data.user;
       const isPartner = (u.roles || []).indexOf('partner') >= 0;
+      // 身份粘性: 优先读 storage, 否则按角色默认
+      let identity = wx.getStorageSync('current_identity');
+      if (identity === 'partner' && !isPartner) identity = 'user';
+      if (identity !== 'partner' && identity !== 'user') identity = isPartner ? 'partner' : 'user';
       // 显式映射, 不透传后端敏感字段(openid 等)
       const uiUser = {
         _id: u._id,
@@ -82,26 +86,43 @@ Page({
       };
       this.setData({
         user: uiUser,
-        identity: isPartner ? 'partner' : 'user',
+        identity,
         userLevel: getLevel(u.user_credit_score),
-        partnerLevel: getLevel(u.partner_credit_score)
+        partnerLevel: getLevel(u.partner_credit_score),
+        // "我的发布" 仅用户身份有意义(耍伴是接单方)
+        funcList: identity === 'partner'
+          ? [
+              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+              { key: 'help', icon: '🎧', name: '联系客服' },
+              { key: 'about', icon: 'ℹ️', name: '关于我们' }
+            ]
+          : [
+              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+              { key: 'myPublish', icon: '📋', name: '我的发布' },
+              { key: 'help', icon: '🎧', name: '联系客服' },
+              { key: 'about', icon: 'ℹ️', name: '关于我们' }
+            ]
       });
-      // 并行拉订单计数
-      callCloud('order-action', { action: 'my_counts' }).then((cr) => {
-        if (!cr || !cr.ok || !cr.data) return;
-        const c = cr.data;
-        this.setData({
-          orderEntries: [
-            { key: 'pay', icon: '💳', name: '待支付', count: c.pending_pay || 0 },
-            { key: 'doing', icon: '🧭', name: '进行中', count: c.in_progress || 0 },
-            { key: 'eval', icon: '⭐', name: '待评价', count: c.pending_eval || 0 },
-            { key: 'after', icon: '🛟', name: '售后', count: c.after_sales || 0 }
-          ]
-        });
-      }).catch(() => {});
+      // 并行拉订单计数(按当前身份过滤)
+      this.loadCounts();
     }).catch(() => {
       wx.showToast({ title: '网络异常', icon: 'none' });
     });
+  },
+
+  loadCounts() {
+    callCloud('order-action', { action: 'my_counts', role: this.data.identity }).then((cr) => {
+      if (!cr || !cr.ok || !cr.data) return;
+      const c = cr.data;
+      this.setData({
+        orderEntries: [
+          { key: 'pay', icon: '💳', name: '待支付', count: c.pending_pay || 0 },
+          { key: 'doing', icon: '🧭', name: '进行中', count: c.in_progress || 0 },
+          { key: 'eval', icon: '⭐', name: '待评价', count: c.pending_eval || 0 },
+          { key: 'after', icon: '🛟', name: '售后', count: c.after_sales || 0 }
+        ]
+      });
+    }).catch(() => {});
   },
 
   // U1 身份切换
@@ -112,7 +133,23 @@ Page({
       wx.showToast({ title: '请先完成耍伴认证', icon: 'none' });
       return;
     }
-    this.setData({ identity: target });
+    wx.setStorageSync('current_identity', target);
+    this.setData({
+      identity: target,
+      funcList: target === 'partner'
+        ? [
+            { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+            { key: 'help', icon: '🎧', name: '联系客服' },
+            { key: 'about', icon: 'ℹ️', name: '关于我们' }
+          ]
+        : [
+            { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+            { key: 'myPublish', icon: '📋', name: '我的发布' },
+            { key: 'help', icon: '🎧', name: '联系客服' },
+            { key: 'about', icon: 'ℹ️', name: '关于我们' }
+          ]
+    });
+    this.loadCounts();
     wx.showToast({ title: target === 'partner' ? '已切换为耍伴身份' : '已切换为用户身份', icon: 'none' });
   },
 
@@ -184,6 +221,7 @@ Page({
           wx.removeStorageSync('v2_login_ok');
           wx.removeStorageSync('user_info');
           wx.removeStorageSync('partner_local_cfg');
+          wx.removeStorageSync('current_identity');
         } catch (e) {}
         wx.showToast({ title: '已退出登录', icon: 'success' });
         setTimeout(() => {
@@ -211,6 +249,7 @@ Page({
               wx.removeStorageSync('v2_login_ok');
               wx.removeStorageSync('user_info');
               wx.removeStorageSync('partner_local_cfg');
+              wx.removeStorageSync('current_identity');
             } catch (e) {}
             wx.showToast({ title: '账号已注销', icon: 'success' });
             setTimeout(() => {
