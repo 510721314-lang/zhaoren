@@ -99,14 +99,5 @@
     </block>
   </view>
 
-  <!-- 报警二次确认 -->
-  <bottom-sheet visible="{{alarmConfirmVisible}}" title="确认报警？" bind:close="closeAlarm" has-footer="{{true}}">
-    <view class="wb__alarm-tip">紧急情况下请确认是否拨打110并通知平台客服？</view>
-    <view slot="footer" class="wb__sheet-btns">
-      <button class="wb__btn wb__btn--ghost" bindtap="closeAlarm">取消</button>
-      <button class="wb__btn wb__btn--danger" bindtap="confirmAlarm">确认报警</button>
-    </view>
-  </bottom-sheet>
-
   <night-mask visible="{{isRedline}}"></night-mask>
 </view>

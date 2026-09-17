@@ -246,16 +246,6 @@
 .chat__btn--primary[disabled] {
   background: var(--btn-disabled-bg);
 }
-.chat__kefu-tip {
-  font-size: var(--font-md);
-  color: var(--text-2);
-  line-height: 1.7;
-}
-.chat__kefu-sub {
-  margin-top: 12rpx;
-  font-size: var(--font-sm);
-  color: var(--text-4);
-}
 
 /* 三态骨架屏 */
 .chat__loading { flex: 1; padding: 16rpx; }

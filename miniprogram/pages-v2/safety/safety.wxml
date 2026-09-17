@@ -81,14 +81,6 @@
     <view class="sf__footer-tip">履约结束后报备自动关闭，不可手动关闭</view>
   </view>
 
-  <!-- 撤销二次确认 -->
-  <bottom-sheet visible="{{cancelConfirmVisible}}" title="确认撤销？" bind:close="closeCancelConfirm" has-footer="{{true}}">
-    <view class="sf__cancel-tip">确认撤销？紧急情况下请保持求助状态</view>
-    <view slot="footer" class="sf__sheet-btns">
-      <button class="sf__btn sf__btn--ghost" bindtap="closeCancelConfirm">取消</button>
-      <button class="sf__btn sf__btn--danger" bindtap="confirmCancelSilent">确认撤销</button>
-    </view>
-  </bottom-sheet>
   </block>
   <!-- 订单存在但状态不允许（redirect） -->
   <empty-state wx:elif="{{order}}" icon="⚠️" title="状态不允许" desc="仅履约中状态可进入安全报备，即将跳转" />

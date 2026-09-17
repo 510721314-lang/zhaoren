@@ -333,59 +333,6 @@
   color: var(--text-invert);
 }
 
-/* 弹窗内 */
-.pub__disclaimer-title {
-  font-size: var(--font-xl);
-  font-weight: 700;
-  color: var(--text-1);
-  text-align: center;
-  margin-bottom: 20rpx;
-}
-.pub__disclaimer-body {
-  max-height: 400rpx;
-  font-size: var(--font-sm);
-  color: var(--text-3);
-  line-height: 1.8;
-}
-.pub__clause {
-  margin-top: 12rpx;
-  font-size: var(--font-sm);
-  color: var(--text-3);
-}
-.pub__check-row {
-  display: flex;
-  align-items: flex-start;
-  margin-top: 24rpx;
-}
-.pub__check {
-  width: 36rpx;
-  height: 36rpx;
-  border-radius: 50%;
-  border: 2rpx solid var(--border-1);
-  color: var(--text-invert);
-  font-size: var(--font-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16rpx;
-  flex-shrink: 0;
-}
-.pub__check.is-on {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
-}
-.pub__check-text {
-  font-size: var(--font-sm);
-  color: var(--text-2);
-  line-height: 1.6;
-}
-.pub__disclaimer-btns {
-  display: flex;
-}
-.pub__disclaimer-btns .pub__btn {
-  flex: 1;
-}
-
 /* 草稿项 */
 .pub__draft-item {
   padding: 20rpx 0;
@@ -408,42 +355,4 @@
   padding: 60rpx 0;
   font-size: var(--font-sm);
   color: var(--text-5);
-}
-
-/* AA 弹窗 */
-.pub__aa-title {
-  font-size: var(--font-xl);
-  font-weight: 700;
-  color: var(--text-1);
-  text-align: center;
-}
-.pub__aa-sub {
-  margin-top: 8rpx;
-  font-size: var(--font-sm);
-  color: var(--func-danger);
-  text-align: center;
-}
-.pub__aa-est {
-  margin-top: 16rpx;
-  text-align: center;
-}
-.pub__aa-est-label {
-  font-size: var(--font-sm);
-  color: var(--text-3);
-}
-.pub__aa-commit-body {
-  margin-top: 16rpx;
-  max-height: 400rpx;
-  font-size: var(--font-sm);
-  color: var(--text-3);
-  line-height: 1.8;
-}
-.pub__aa-commit-title {
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 8rpx;
-}
-.pub__aa-btns {
-  display: flex;
-  gap: 20rpx;
 }

@@ -117,15 +117,6 @@
     </view>
   </bottom-sheet>
 
-  <!-- 客服介入弹窗 -->
-  <bottom-sheet visible="{{kefuSheetVisible}}" title="申请客服介入" bind:close="closeKefuSheet" has-footer="{{true}}">
-    <view class="chat__kefu-tip">您多次使用「其他」模板消息沟通，系统检测到双方可能需要平台协助。是否申请客服介入？</view>
-    <view class="chat__kefu-sub">客服将在{{kefuResponseMin}}分钟内接入会话，协助双方完成确认。</view>
-    <view slot="footer" class="chat__other-btns">
-      <button class="chat__btn chat__btn--ghost" bindtap="closeKefuSheet">暂不需要</button>
-      <button class="chat__btn chat__btn--primary" bindtap="requestKefu">申请介入</button>
-    </view>
-  </bottom-sheet>
   </block>
   <!-- 空态 -->
   <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />

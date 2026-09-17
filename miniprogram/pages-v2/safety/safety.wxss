@@ -43,10 +43,6 @@
 
 .sf__footer-tip { padding: 40rpx 0; text-align: center; font-size: var(--font-xs); color: var(--text-5); }
 
-.sf__cancel-tip { padding: 16rpx 0; font-size: var(--font-sm); color: var(--text-2); line-height: 1.6; }
-.sf__sheet-btns { display: flex; gap: 16rpx; }
-.sf__sheet-btns .sf__btn { flex: 1; margin-top: 0; }
-
 /* 三态骨架屏 */
 .sf__loading { padding: 16rpx; }
 .sf__skeleton { height: 120rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: sf-skeleton-pulse 1.2s ease-in-out infinite; }

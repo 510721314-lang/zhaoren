@@ -135,59 +135,13 @@
     <button class="pub__btn pub__btn--primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">发布需求</button>
   </view>
 
-  <!-- 免责声明弹窗 -->
-  <bottom-sheet visible="{{disclaimerVisible}}" bind:close="closeDisclaimer" has-footer="{{true}}">
-    <view class="pub__disclaimer-title">《就医陪诊免责声明》</view>
-    <scroll-view scroll-y class="pub__disclaimer-body">
-      <view>本平台提供的就医陪诊服务仅为生活协助性质，非医疗服务。耍伴（陪诊人员）不具备医疗执业资格，不提供任何诊断、治疗、用药建议。具体免责条款如下：</view>
-      <view class="pub__clause">一、耍伴仅协助挂号、排队、取药、记录医嘱等辅助性事务，不参与任何医疗决策。</view>
-      <view class="pub__clause">二、因患者自身疾病原因导致的一切后果，平台与耍伴不承担任何责任。</view>
-      <view class="pub__clause">三、如遇紧急医疗情况，应立即呼叫120或寻求医院专业人员帮助，耍伴可协助联系。</view>
-      <view class="pub__clause">四、用户应如实告知患者病情及特殊需求，隐瞒重要信息导致的后果由用户承担。</view>
-      <view class="pub__clause">五、本声明经用户勾选确认后即视为同意全部条款，与订单一同留存。</view>
-    </scroll-view>
-    <view class="pub__check-row" catchtap="toggleDisclaimer">
-      <view class="pub__check {{disclaimerChecked ? 'is-on' : ''}}">{{disclaimerChecked ? '✓' : ''}}</view>
-      <text class="pub__check-text">我已阅读并同意《就医陪诊免责声明》全部条款</text>
-    </view>
-    <view slot="footer" class="pub__disclaimer-btns">
-      <button class="pub__btn pub__btn--primary" disabled="{{!disclaimerChecked}}" bindtap="closeDisclaimer">确认并继续</button>
-    </view>
-  </bottom-sheet>
-
-  <!-- 草稿箱弹窗 -->
+  <!-- 草稿箱弹窗(列表选择类弹层, bottom-sheet 保留) -->
   <bottom-sheet visible="{{draftBoxVisible}}" title="草稿箱" bind:close="closeDraftBox">
     <view class="pub__draft-item" wx:for="{{draftList}}" wx:key="_id" data-index="{{index}}" bindtap="restoreDraft">
       <view class="pub__draft-title">{{item.demand_data.title}}</view>
       <view class="pub__draft-meta">{{item.demand_data.service_date}} · 保存于 {{item.saved_at}}</view>
     </view>
     <view class="pub__draft-empty" wx:if="{{draftList.length === 0}}">暂无草稿</view>
-  </bottom-sheet>
-
-  <!-- AA确认弹窗 -->
-  <bottom-sheet visible="{{aaSheetVisible}}" bind:close="closeAASheet" has-footer="{{true}}">
-    <view class="pub__aa-title">AA费用确认</view>
-    <view class="pub__aa-sub">平台不代收 · 不担保 · 不仲裁AA费用争议</view>
-    <view class="pub__aa-est">
-      <text class="pub__aa-est-label">当前预估：</text>
-      <text>{{form.aa_estimate === 'custom' ? form.aa_custom : form.aa_estimate}}元</text>
-    </view>
-    <scroll-view scroll-y class="pub__aa-commit-body">
-      <view class="pub__aa-commit-title">《线下费用自理承诺书》</view>
-      <view>本人确认：AA（可能产生的额外费用）由双方线下自行协商结算，平台不代收、不担保、不仲裁此类费用争议。本人理解并同意：</view>
-      <view class="pub__clause">1. AA费用指服务过程中产生的第三方费用（如交通费、餐费、门票等），不含服务费。</view>
-      <view class="pub__clause">2. AA费用由用户与耍伴自行协商，平台不参与定价与结算。</view>
-      <view class="pub__clause">3. 因AA费用产生的一切纠纷，平台不承担调解、仲裁、赔偿等任何责任。</view>
-      <view class="pub__clause">4. 本承诺书经勾选确认后与订单一同留存。</view>
-    </scroll-view>
-    <view class="pub__check-row" catchtap="toggleAACommit">
-      <view class="pub__check {{aaCommitChecked ? 'is-on' : ''}}">{{aaCommitChecked ? '✓' : ''}}</view>
-      <text class="pub__check-text">我已阅读并同意《线下费用自理承诺书》</text>
-    </view>
-    <view slot="footer" class="pub__aa-btns">
-      <button class="pub__btn pub__btn--ghost" bindtap="closeAASheet">暂不发布</button>
-      <button class="pub__btn pub__btn--primary" disabled="{{!aaCommitChecked}}" bindtap="confirmPublish">确认并继续发布</button>
-    </view>
   </bottom-sheet>
 
   <night-mask visible="{{isRedline}}"></night-mask>

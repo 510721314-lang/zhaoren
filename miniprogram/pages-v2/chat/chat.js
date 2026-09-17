@@ -42,8 +42,6 @@ Page({
     otherUsedCount: 0,
     // C6 输入
     inputText: '',
-    // 客服介入弹窗
-    kefuSheetVisible: false,
     // 编辑弹层: '' | 'time' | 'content' | 'fee' (location 走 chooseLocation 无弹层)
     editSheet: '',
     editDate: '',
@@ -437,12 +435,12 @@ Page({
         this.updateMsgStatuses();
         this.scrollBottom();
       });
-      // TM5 使用计数 → 达阈值弹客服介入
+      // TM5 使用计数 → 达阈值弹客服介入(wx.showModal 原生弹窗)
       if (tmId === 'TM5') {
         const otherUsedCount = this.data.otherUsedCount + 1;
         this.setData({ otherUsedCount });
         if (otherUsedCount >= CONFIG.IM.otherKefuThreshold) {
-          this.setData({ kefuSheetVisible: true });
+          this.askKefu();
         }
       }
     }).catch(() => {
@@ -451,10 +449,18 @@ Page({
   },
 
   // ───────── 客服介入 ─────────
-  closeKefuSheet() { this.setData({ kefuSheetVisible: false }); },
-  requestKefu() {
-    this.setData({ kefuSheetVisible: false });
-    wx.showToast({ title: `已申请客服介入,将在${CONFIG.IM.kefuResponseMin}分钟内接入`, icon: 'none' });
+  askKefu() {
+    wx.showModal({
+      title: '申请客服介入',
+      content: `您多次使用「其他」模板消息沟通，系统检测到双方可能需要平台协助。客服将在${CONFIG.IM.kefuResponseMin}分钟内接入会话，协助双方完成确认。`,
+      confirmText: '申请介入',
+      cancelText: '暂不需要',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.showToast({ title: `已申请,客服将在${CONFIG.IM.kefuResponseMin}分钟内接入`, icon: 'none' });
+      }
+    });
   },
 
   // ───────── C6 自由输入(四确认后) ─────────

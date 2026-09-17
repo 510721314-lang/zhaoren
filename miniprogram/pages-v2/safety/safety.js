@@ -24,8 +24,6 @@ Page({
     // A4 静默求助
     silentCountdownSec: 0,
     silentActive: false,
-    // 撤销二次确认
-    cancelConfirmVisible: false,
     loading: false,
     loadError: false,
     isRedline: false,
@@ -118,16 +116,26 @@ Page({
     }, 1000);
   },
 
-  // A3 手动打卡
+  // A3 手动打卡(云端落库 safety_report type=checkin; 定位失败不阻塞打卡)
   onManualCheckin() {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    this.setData({
-      lastCheckin: `${h}:${m}`,
-      nextCheckinSec: CONFIG.SAFETY.checkinMin * 60
+    const doCheckin = (loc) => {
+      callCloud('safety-report', { action: 'checkin', order_id: this.__orderId, location: loc }).then((r) => {
+        if (!r.ok) {
+          wx.showToast({ title: r.msg || '打卡失败', icon: 'none' });
+          return;
+        }
+        const at = (r.data && r.data.created_at) ? new Date(r.data.created_at) : new Date();
+        const h = String(at.getHours()).padStart(2, '0');
+        const m = String(at.getMinutes()).padStart(2, '0');
+        this.setData({ lastCheckin: `${h}:${m}`, nextCheckinSec: CONFIG.SAFETY.checkinMin * 60 });
+        wx.showToast({ title: '打卡成功', icon: 'success' });
+      }).catch(() => wx.showToast({ title: '网络异常，打卡失败', icon: 'none' }));
+    };
+    wx.getLocation({
+      type: 'gcj02',
+      success: (res) => doCheckin({ latitude: res.latitude, longitude: res.longitude }),
+      fail: () => doCheckin(null)  // 无定位权限/用户拒绝 → 无位置打卡,不阻塞
     });
-    wx.showToast({ title: '打卡成功', icon: 'success' });
   },
 
   // A4 一键求助：长按
@@ -148,7 +156,7 @@ Page({
       if (progress >= 360) {
         progress = 360;
         clearInterval(this._sosTimer);
-        this.triggerSos();
+        this.triggerSos('sos');
         return;
       }
       this.setData({ sosProgress: progress });
@@ -168,10 +176,41 @@ Page({
     }
   },
 
-  triggerSos() {
-    this.setData({ sosActive: true, sosLongPressing: false, sosProgress: 360 });
-    try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-    wx.showToast({ title: '求助已发出', icon: 'none' });
+  // A4 求助触发(kind: 'sos'=长按一键 / 'silent'=静默倒计时结束) → 云端写 active 求助记录
+  triggerSos(kind) {
+    const action = kind === 'silent' ? 'silent_sos' : 'sos';
+    const isSilent = kind === 'silent';
+    callCloud('safety-report', { action, order_id: this.__orderId }).then((r) => {
+      if (!r.ok) {
+        this.setData({
+          sosActive: false, sosLongPressing: false, sosProgress: 0,
+          silentActive: false, silentCountdownSec: 0
+        });
+        wx.showToast({ title: r.msg || '求助发送失败，请直接拨打110', icon: 'none', duration: 2500 });
+        return;
+      }
+      this.setData({
+        sosActive: true, sosLongPressing: false, sosProgress: 360,
+        silentActive: isSilent, silentCountdownSec: 0
+      });
+      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+      const contacts = (r.data && r.data.my_contacts) || [];
+      wx.showModal({
+        title: '求助已发出',
+        content: contacts.length
+          ? `已通知平台，请尽快联系紧急联系人${contacts[0].name || ''}，或拨打110/120`
+          : '已通知平台，请立即拨打110/120',
+        showCancel: false,
+        confirmText: '知道了',
+        fail: () => wx.showToast({ title: '求助已发出，请拨打110/120', icon: 'none', duration: 2500 })
+      });
+    }).catch(() => {
+      this.setData({
+        sosActive: false, sosLongPressing: false, sosProgress: 0,
+        silentActive: false, silentCountdownSec: 0
+      });
+      wx.showToast({ title: '网络异常，请直接拨打110', icon: 'none', duration: 2500 });
+    });
   },
 
   // A4 静默求助
@@ -183,34 +222,60 @@ Page({
       let s = this.data.silentCountdownSec - 1;
       if (s <= 0) {
         clearInterval(this._silentTimer);
-        this.setData({ silentCountdownSec: 0, silentActive: true });
-        this.triggerSos();
+        this.setData({ silentCountdownSec: 0 });
+        this.triggerSos('silent');
         return;
       }
       this.setData({ silentCountdownSec: s });
     }, 1000);
   },
 
-  // 撤销静默求助
+  // 撤销静默求助(wx.showModal 原生二次确认, 真机稳定)
   onSilentCancel() {
-    this.setData({ cancelConfirmVisible: true });
+    wx.showModal({
+      title: '确认撤销？',
+      content: '紧急情况下请保持求助状态',
+      confirmText: '撤销',
+      confirmColor: '#fa5151',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        this._doCancelSilent();
+      }
+    });
   },
 
-  confirmCancelSilent() {
+  _doCancelSilent() {
     clearInterval(this._silentTimer);
-    this.setData({
-      silentCountdownSec: 0,
-      cancelConfirmVisible: false
-    });
+    // 已发出(静默求助已触发) → 云端撤销 active 求助记录
+    if (this.data.silentActive || this.data.sosActive) {
+      callCloud('safety-report', { action: 'cancel_silent_sos', order_id: this.__orderId }).then((r) => {
+        if (r.ok) {
+          this.setData({ silentCountdownSec: 0, silentActive: false, sosActive: false });
+          wx.showToast({ title: '已撤销求助', icon: 'none' });
+        } else {
+          wx.showToast({ title: r.msg || '撤销失败', icon: 'none' });
+        }
+      }).catch(() => {
+        wx.showToast({ title: '网络异常，撤销失败', icon: 'none' });
+      });
+      return;
+    }
+    // 倒计时中 → 尚未上报云端,仅本地撤销
+    this.setData({ silentCountdownSec: 0 });
     wx.showToast({ title: '已撤销静默求助', icon: 'none' });
   },
 
-  closeCancelConfirm() { this.setData({ cancelConfirmVisible: false }); },
-
-  // 客服模拟解除
+  // 客服模拟解除(admin 白名单; 云端测试用管理员 mock_openid)
   onKefuResolve() {
-    this.setData({ sosActive: false, silentActive: false });
-    wx.showToast({ title: '客服已介入并解除', icon: 'none' });
+    callCloud('safety-report', { action: 'resolve_sos', order_id: this.__orderId }).then((r) => {
+      if (r.ok) {
+        this.setData({ sosActive: false, silentActive: false });
+        wx.showToast({ title: '客服已介入并解除', icon: 'none' });
+      } else {
+        wx.showToast({ title: r.msg || '解除失败', icon: 'none' });
+      }
+    }).catch(() => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' }));
   },
 
   noop() {}

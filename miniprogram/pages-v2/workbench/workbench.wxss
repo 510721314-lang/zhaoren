@@ -60,13 +60,6 @@
 .wb__alarm-btn { width: 100%; height: 88rpx; line-height: 88rpx; border-radius: 44rpx; background: var(--func-danger); color: var(--text-invert); font-size: var(--font-lg); font-weight: 600; margin-top: 20rpx; }
 .wb__alarm-btn::after { border: none; }
 
-.wb__alarm-tip { padding: 16rpx 0; font-size: var(--font-sm); color: var(--text-2); line-height: 1.6; }
-.wb__sheet-btns { display: flex; gap: 16rpx; }
-.wb__btn { flex: 1; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; font-size: var(--font-md); }
-.wb__btn::after { border: none; }
-.wb__btn--ghost { background: var(--bg-segment); color: var(--text-2); }
-.wb__btn--danger { background: var(--func-danger); color: var(--text-invert); }
-
 /* 三态UI · 骨架屏 */
 .wb__loading { padding: 16rpx; }
 .wb__skeleton { height: 96rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: wb-skeleton-pulse 1.2s ease-in-out infinite; }

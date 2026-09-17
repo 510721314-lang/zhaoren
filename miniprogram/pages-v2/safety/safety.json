@@ -1,7 +1,6 @@
 {
   "navigationStyle": "custom",
   "usingComponents": {
-    "nav-bar": "/components/nav-bar/index",
-    "bottom-sheet": "/components/bottom-sheet/index"
+    "nav-bar": "/components/nav-bar/index"
   }
 }

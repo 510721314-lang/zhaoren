@@ -28,7 +28,6 @@ Page({
     fundAmountMap: { withdrawable: '0.00', splitting: '0.00', processing: '0.00' },
     incomeList: [],
     pendingOrders: [],
-    alarmConfirmVisible: false,
     loading: false,
     loadError: false,
     isRedline: false,
@@ -47,9 +46,14 @@ Page({
     // 独立 catch: 不让一个接口超时拖死全部
     Promise.all([
       callCloud('payment-mock', { action: 'balance_info' }).catch(() => ({ ok: false })),
-      callCloud('payment-mock', { action: 'income_list', limit: 10 }).catch(() => ({ ok: false }))
-    ]).then(([balR, incR]) => {
+      callCloud('payment-mock', { action: 'income_list', limit: 10 }).catch(() => ({ ok: false })),
+      callCloud('partner-action', { action: 'my_profile' }).catch(() => ({ ok: false }))
+    ]).then(([balR, incR, prfR]) => {
       const d = {};
+      if (prfR.ok && prfR.data && prfR.data.profile) {
+        // 接单开关初始值:从云端拿真实状态
+        d.acceptingOrders = !!prfR.data.profile.accept_switch;
+      }
       if (balR.ok) {
         const b = balR.data;
         const amtMap = {
@@ -100,8 +104,20 @@ Page({
   onAcceptToggle(e) {
     // switch bindchange: e.detail.value 为切换后状态
     const on = (e && e.detail && typeof e.detail.value === 'boolean') ? e.detail.value : !this.data.acceptingOrders;
+    const prev = this.data.acceptingOrders;
+    // 乐观更新本地 UI, 云端校验后若失败再回滚
     this.setData({ acceptingOrders: on });
-    wx.showToast({ title: on ? '已开启接单' : '已暂停接单', icon: 'success' });
+    callCloud('partner-action', { action: 'set_switch', accept_switch: on }).then((r) => {
+      if (!r.ok) {
+        this.setData({ acceptingOrders: prev });
+        wx.showToast({ title: r.msg || '设置失败', icon: 'none' });
+        return;
+      }
+      wx.showToast({ title: on ? '已开启接单' : '已暂停接单', icon: 'success' });
+    }).catch(() => {
+      this.setData({ acceptingOrders: prev });
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
   },
 
   // W3 周日历: 选中某天 (当前仅切换高亮, 真实排期待接)
@@ -136,11 +152,18 @@ Page({
     wx.showToast({ title: '请到订单详情处理', icon: 'none' });
   },
 
-  // W5 一键报警
-  onAlarmTap() { this.setData({ alarmConfirmVisible: true }); },
-  closeAlarm() { this.setData({ alarmConfirmVisible: false }); },
-  confirmAlarm() {
-    this.setData({ alarmConfirmVisible: false });
-    wx.showToast({ title: '已通知客服介入', icon: 'success' });
+  // W5 一键报警(wx.showModal 原生二次确认, 真机稳定)
+  onAlarmTap() {
+    wx.showModal({
+      title: '确认报警？',
+      content: '紧急情况下请确认是否拨打110并通知平台客服？',
+      confirmText: '报警',
+      confirmColor: '#fa5151',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.showToast({ title: '已通知客服介入', icon: 'success' });
+      }
+    });
   }
 });

@@ -6,6 +6,10 @@ const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../c
 // 智能派单门槛 = L3 优质等级下限（PRD 3.1.2）
 const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
 
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+}
+
 // 敏感词检测：手机号/微信号
 function detectSensitive(text) {
   if (!text) return null;
@@ -49,21 +53,17 @@ Page({
     titleCount: 0,
     descCount: 0,
 
-    // B3 免责声明
-    disclaimerVisible: false,
+    // B3 免责声明(选场景时 wx.showModal 签署后置 true; 草稿恢复场景 onPublish 会补弹)
     disclaimerChecked: false,
     // B9 智能派单
     smartLocked: true,  // mock用户非L3且非会员 → 置灰
     // B10 自动保存
     autoSaveText: '',
     autoSaveSec: CONFIG.DRAFT.autoSaveSec,
-    // B1 草稿箱(本期未接云端, 空数组; 接云端后接需求草稿集合)
+    // B1 草稿箱
     draftBoxVisible: false,
     draftList: [],
     draftCount: 0,
-    // AA确认弹窗
-    aaSheetVisible: false,
-    aaCommitChecked: false,
     // 发布中
     publishing: false,
     today: '',
@@ -113,6 +113,10 @@ Page({
     const max = new Date(now.getTime() + CONFIG.DATE_RANGE_DAYS * 86400000);
     this.setData({ today: todayStr, dateMax: this.fmtDate(max) });
     this.startAutoSave();
+    // 草稿数量角标(静默拉取,失败不打扰)
+    callCloud('demand-publish', { action: 'list_drafts' }).then((r) => {
+      if (r.ok && r.data) this.setData({ draftCount: (r.data.list || []).length });
+    }).catch(() => {});
   },
 
   onUnload() {
@@ -129,8 +133,66 @@ Page({
   },
 
   // ── B1 草稿箱 ──
+  fmtTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+  // 表单 → 草稿存储结构(与 restoreDraft 读取字段一一对应)
+  _buildDraftData() {
+    const f = this.data.form;
+    return {
+      project_attr: f.project_attr,
+      scene_code: f.scene_code,
+      title: f.title,
+      description: f.description,
+      service_date: f.service_date,
+      service_time: f.service_time,
+      duration_hours: f.duration_hours || Number(f.duration_custom) || 3,
+      location: { name: f.location_name, latitude: f.latitude || 0, longitude: f.longitude || 0 },
+      headcount: f.headcount,
+      budget: Number(f.budget) || 0,
+      aa_estimate: f.aa_estimate,
+      gender_pref: f.gender_pref,
+      match_mode: f.match_mode
+    };
+  },
+  // 云端保存草稿(手动存草稿与自动保存共用; draft_id 存在则更新)
+  _saveDraftCloud(silent) {
+    return callCloud('demand-publish', {
+      action: 'save_draft',
+      draft_id: this.__draftId || '',
+      demand_data: this._buildDraftData()
+    }).then((r) => {
+      if (!r.ok) {
+        if (!silent) wx.showToast({ title: r.msg || '草稿保存失败', icon: 'none' });
+        return null;
+      }
+      if (r.data && r.data.draft_id) this.__draftId = r.data.draft_id;
+      this.setData({
+        autoSaveText: silent ? `${CONFIG.DRAFT.autoSaveSec}秒前` : '刚刚',
+        draftCount: Math.max(this.data.draftCount, 1)
+      });
+      return r.data;
+    }).catch(() => {
+      if (!silent) wx.showToast({ title: '网络异常，保存失败', icon: 'none' });
+      return null;
+    });
+  },
   openDraftBox() {
     this.setData({ draftBoxVisible: true });
+    callCloud('demand-publish', { action: 'list_drafts' }).then((r) => {
+      if (!r.ok) {
+        wx.showToast({ title: r.msg || '草稿拉取失败', icon: 'none' });
+        return;
+      }
+      const list = (r.data.list || []).map((d) => ({
+        _id: d._id,
+        demand_data: d.demand_data || {},
+        saved_at: d.updated_at ? this.fmtTime(d.updated_at) : ''
+      }));
+      this.setData({ draftList: list, draftCount: list.length });
+    }).catch(() => wx.showToast({ title: '网络异常', icon: 'none' }));
   },
   closeDraftBox() {
     this.setData({ draftBoxVisible: false });
@@ -140,6 +202,7 @@ Page({
     const draft = this.data.draftList[idx];
     if (!draft) return;
     const d = draft.demand_data;
+    this.__draftId = draft._id;  // 后续保存/自动保存更新同一条草稿
     this.setData({
       form: {
         project_attr: d.project_attr || 'commercial',
@@ -151,6 +214,8 @@ Page({
         duration_hours: d.duration_hours || 3,
         duration_custom: '',
         location_name: d.location ? d.location.name : '',
+        latitude: (d.location && d.location.latitude) || 0,
+        longitude: (d.location && d.location.longitude) || 0,
         headcount: d.headcount || 1,
         budget: String(d.budget || ''),
         aa_estimate: d.aa_estimate || '',
@@ -214,19 +279,6 @@ Page({
       }
     });
   },
-  toggleDisclaimer() {
-    this.setData({ disclaimerChecked: !this.data.disclaimerChecked });
-  },
-  closeDisclaimer() {
-    if (!this.data.disclaimerChecked) {
-      const form = Object.assign({}, this.data.form);
-      form.scene_code = '';
-      this.setData({ form, disclaimerVisible: false });
-    } else {
-      this.setData({ disclaimerVisible: false });
-    }
-  },
-
   // ── B4 标题/描述 ──
   onTitleInput(e) {
     let v = (e.detail.value || '').slice(0, CONFIG.TITLE_MAX);
@@ -322,12 +374,12 @@ Page({
     this.setData({ 'form.match_mode': code });
   },
 
-  // ── B10 自动保存 ──
+  // ── B10 自动保存(云端 upsert 草稿; 静默失败不打扰用户) ──
   startAutoSave() {
     this._saveTimer = setInterval(() => {
       const f = this.data.form;
       if (!f.title && !f.description) return;
-      this.setData({ autoSaveText: `${CONFIG.DRAFT.autoSaveSec}秒前` });
+      this._saveDraftCloud(true);
     }, CONFIG.DRAFT.autoSaveSec * 1000);
   },
   saveDraft() {
@@ -336,7 +388,9 @@ Page({
       wx.showToast({ title: '请先填写内容', icon: 'none' });
       return;
     }
-    wx.showToast({ title: `草稿已保存（有效期${CONFIG.DRAFT.expireDays}天）`, icon: 'success' });
+    this._saveDraftCloud(false).then((d) => {
+      if (d) wx.showToast({ title: `草稿已保存（有效期${CONFIG.DRAFT.expireDays}天）`, icon: 'success' });
+    });
   },
 
   // ── B11 发布 ──
@@ -359,7 +413,7 @@ Page({
     }
     this._continuePublish();
   },
-  // 实际执行 validate + AA 弹窗
+  // 实际执行 validate + AA 承诺书 wx.showModal(替代 bottom-sheet)
   _continuePublish() {
     const f = this.data.form;
     const errs = this.validatePublish(f);
@@ -367,7 +421,18 @@ Page({
       wx.showToast({ title: errs[0], icon: 'none' });
       return;
     }
-    this.setData({ aaSheetVisible: true });
+    const est = f.aa_estimate === 'custom' ? f.aa_custom : f.aa_estimate;
+    wx.showModal({
+      title: 'AA费用确认',
+      content: `当前预估：${est}元\nAA（可能产生的额外费用）由双方线下自行协商结算，平台不代收、不担保、不仲裁：\n1. AA指交通费、餐费、门票等第三方费用，不含服务费；\n2. 平台不参与定价与结算；\n3. 因AA产生的纠纷，平台不承担调解、仲裁、赔偿责任。`,
+      confirmText: '确认发布',
+      cancelText: '暂不发布',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        this.confirmPublish();
+      }
+    });
   },
 
   validatePublish(f) {
@@ -401,16 +466,9 @@ Page({
     return errs;
   },
 
-  // AA 弹窗
-  toggleAACommit() {
-    this.setData({ aaCommitChecked: !this.data.aaCommitChecked });
-  },
-  closeAASheet() {
-    this.setData({ aaSheetVisible: false });
-  },
+  // 用户在 AA wx.showModal 确认后执行实际发布
   confirmPublish() {
-    if (!this.data.aaCommitChecked) return;
-    this.setData({ aaSheetVisible: false, publishing: true });
+    this.setData({ publishing: true });
     const f = this.data.form;
     const durationH = f.duration_hours || Number(f.duration_custom) || 0;
 
@@ -478,7 +536,7 @@ Page({
       remark: `${f.title}｜${f.description}`,
       rate_fen: rateFen,
       aa_tier: f.aa_estimate,
-      aa_promise_checked: this.data.aaCommitChecked,
+      aa_promise_checked: true,  // 走到这里说明 AA wx.showModal 已点"确认发布"
       disclaimer_signed: this.data.disclaimerChecked,
       match_mode: f.match_mode
     };
