@@ -1,0 +1,50 @@
+<view class="v2 md">
+  <nav-bar title="我的发布"></nav-bar>
+
+  <view class="md__loading" wx:if="{{loading}}">
+    <view class="md__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+
+  <block wx:elif="{{loaded}}">
+    <view
+      wx:for="{{list}}"
+      wx:key="_id"
+      class="md__card"
+      data-id="{{item._id}}"
+      bindtap="goDetail"
+      hover-class="md__card--hover"
+    >
+      <view class="md__card-head">
+        <text class="md__scene">{{item.scene_icon}} {{item.scene_name}}</text>
+        <text class="md__status" style="color:{{item.status_color}};background:{{item.status_bg}};">{{item.status_name}}</text>
+      </view>
+      <view class="md__card-body">
+        <view class="md__row">🕐 {{item.time_str}}<text wx:if="{{item.duration_h}}"> · {{item.duration_h}}小时</text></view>
+        <view class="md__row">📄 {{item.demand_no}}</view>
+      </view>
+      <view class="md__card-foot">
+        <text class="md__tip" wx:if="{{item.status === 'matching'}}">⏳ 等待耍伴接单，点击查看匹配进展</text>
+        <text class="md__tip" wx:else>点击查看详情</text>
+        <text class="md__price">¥{{item.total_yuan}}</text>
+      </view>
+    </view>
+
+    <empty-state
+      wx:if="{{list.length === 0}}"
+      icon="📋"
+      title="还没有发布需求"
+      desc="发布需求后，可在这里跟踪接单进展"
+      btnText="去发布"
+      bind:btntap="goPublish"
+    />
+  </block>
+
+  <empty-state
+    wx:if="{{!loading && !loaded}}"
+    icon="📡"
+    title="网络异常"
+    desc="请检查网络后重试"
+    btnText="重试"
+    bind:btntap="reload"
+  />
+</view>

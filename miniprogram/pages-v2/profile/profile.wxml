@@ -3,12 +3,14 @@
 
   <!-- U1 身份头部 -->
   <view class="pf__header">
-    <view class="pf__avatar">{{user.avatar || '👤'}}</view>
+    <view class="pf__avatar">
+      <image wx:if="{{user.avatar}}" class="pf__avatar-img" src="{{user.avatar}}" mode="aspectFill" />
+      <text wx:else>👤</text>
+    </view>
     <view class="pf__head-info">
       <view class="pf__name-line">
         <text class="pf__name">{{user.nickname || '微信用户'}}</text>
         <text class="pf__badge" wx:if="{{user.is_realname_done}}">实名✓</text>
-        <text class="pf__badge" wx:if="{{user.face_verified}}">人脸✓</text>
       </view>
       <view class="pf__phone">{{user.phone || '未绑定手机号'}}</view>
     </view>
@@ -74,19 +76,32 @@
     <view class="pf__apply-btn">去认证</view>
   </view>
 
-  <!-- U4 功能列表 -->
+  <!-- U4 功能列表(联系客服用微信官方客服会话 open-type=contact) -->
   <view class="pf__card">
-    <view
-      class="pf__link"
-      wx:for="{{funcList}}"
-      wx:key="key"
-      data-key="{{item.key}}"
-      bindtap="onFuncTap"
-    >
-      <text class="pf__link-ic">{{item.icon}}</text>
-      <text class="pf__link-name">{{item.name}}</text>
-      <text class="pf__link-arrow">›</text>
-    </view>
+    <block wx:for="{{funcList}}" wx:key="key">
+      <button
+        wx:if="{{item.key === 'help'}}"
+        class="pf__link pf__link--btn"
+        open-type="contact"
+        binderror="onContactError"
+        hover-class="pf__link--hover"
+      >
+        <text class="pf__link-ic">{{item.icon}}</text>
+        <text class="pf__link-name">{{item.name}}</text>
+        <text class="pf__link-arrow">›</text>
+      </button>
+      <button
+        wx:else
+        class="pf__link pf__link--btn"
+        data-key="{{item.key}}"
+        bindtap="onFuncTap"
+        hover-class="pf__link--hover"
+      >
+        <text class="pf__link-ic">{{item.icon}}</text>
+        <text class="pf__link-name">{{item.name}}</text>
+        <text class="pf__link-arrow">›</text>
+      </button>
+    </block>
   </view>
 
   <!-- U6 -->

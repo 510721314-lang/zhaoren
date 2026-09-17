@@ -1,0 +1,55 @@
+<view class="v2 cr">
+  <nav-bar title="信用明细"></nav-bar>
+
+  <!-- 双信用分卡 -->
+  <view class="cr__scores">
+    <view class="cr__score">
+      <view class="cr__score-num">{{userScore}}</view>
+      <view class="cr__score-label">用户信用分</view>
+      <view class="cr__score-level">{{userLevel}}</view>
+    </view>
+    <view class="cr__score-divider"></view>
+    <view class="cr__score">
+      <view class="cr__score-num">{{partnerScore}}</view>
+      <view class="cr__score-label">耍伴信用分</view>
+      <view class="cr__score-level">{{partnerLevel}}</view>
+    </view>
+  </view>
+
+  <!-- 流水 -->
+  <view class="cr__log-title">信用流水（最近20条）</view>
+
+  <view class="cr__loading" wx:if="{{loading}}">
+    <view class="cr__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+
+  <block wx:elif="{{loaded}}">
+    <view class="cr__card" wx:for="{{logs}}" wx:key="index">
+      <view class="cr__log-main">
+        <view class="cr__log-type">{{item.type_name}}</view>
+        <view class="cr__log-reason" wx:if="{{item.reason}}">{{item.reason}}</view>
+        <view class="cr__log-time">{{item.time_str}}</view>
+      </view>
+      <view class="cr__log-right">
+        <view class="cr__log-delta {{item.is_up ? 'is-up' : 'is-down'}}">{{item.delta_text}}</view>
+        <view class="cr__log-score">当前 {{item.score}}</view>
+      </view>
+    </view>
+
+    <empty-state
+      wx:if="{{logs.length === 0}}"
+      icon="⭐"
+      title="暂无信用流水"
+      desc="完成订单并获得评价后，信用变动会显示在这里"
+    />
+  </block>
+
+  <empty-state
+    wx:if="{{!loading && !loaded}}"
+    icon="📡"
+    title="网络异常"
+    desc="请检查网络后重试"
+    btnText="重试"
+    bind:btntap="reload"
+  />
+</view>

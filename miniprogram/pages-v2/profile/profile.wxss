@@ -23,6 +23,12 @@
   align-items: center;
   justify-content: center;
   font-size: var(--font-display-xl);
+  overflow: hidden;
+}
+.pf__avatar-img {
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 50%;
 }
 .pf__head-info {
   margin-left: 24rpx;
@@ -171,6 +177,24 @@
 }
 .pf__link:last-child {
   border-bottom: none;
+}
+/* button 元素复用列表行样式: 重置微信按钮默认外观 */
+.pf__link--btn {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: inherit;
+  font-weight: normal;
+  line-height: normal;
+  text-align: left;
+}
+.pf__link--btn::after {
+  border: none;
+}
+.pf__link--hover {
+  background: var(--bg-segment);
 }
 .pf__link-ic {
   font-size: var(--font-xxl);

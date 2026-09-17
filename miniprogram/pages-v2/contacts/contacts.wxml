@@ -1,0 +1,46 @@
+<view class="v2 ct">
+  <nav-bar title="紧急联系人"></nav-bar>
+
+  <view class="ct__tip">紧急联系人用于安全求助与发布需求校验，请填写真实可联系的亲友信息（1~2名）</view>
+
+  <!-- 第一联系人 -->
+  <view class="ct__card">
+    <view class="ct__card-title">第一联系人<text class="ct__req">*</text></view>
+    <view class="ct__field">
+      <text class="ct__label">姓名</text>
+      <input class="ct__input" placeholder="请输入姓名" value="{{c1.name}}" data-path="c1.name" bindinput="onInput" />
+    </view>
+    <view class="ct__field">
+      <text class="ct__label">手机号</text>
+      <input class="ct__input" type="number" maxlength="11" placeholder="请输入11位手机号" value="{{c1.phone}}" data-path="c1.phone" bindinput="onInput" />
+    </view>
+    <view class="ct__field">
+      <text class="ct__label">关系</text>
+      <input class="ct__input" placeholder="如：父母/配偶/朋友" value="{{c1.relation}}" data-path="c1.relation" bindinput="onInput" />
+    </view>
+  </view>
+
+  <!-- 第二联系人 -->
+  <view class="ct__card" wx:if="{{hasSecond}}">
+    <view class="ct__card-title">
+      第二联系人
+      <text class="ct__remove" bindtap="toggleSecond">移除</text>
+    </view>
+    <view class="ct__field">
+      <text class="ct__label">姓名</text>
+      <input class="ct__input" placeholder="请输入姓名" value="{{c2.name}}" data-path="c2.name" bindinput="onInput" />
+    </view>
+    <view class="ct__field">
+      <text class="ct__label">手机号</text>
+      <input class="ct__input" type="number" maxlength="11" placeholder="请输入11位手机号" value="{{c2.phone}}" data-path="c2.phone" bindinput="onInput" />
+    </view>
+    <view class="ct__field">
+      <text class="ct__label">关系</text>
+      <input class="ct__input" placeholder="如：父母/配偶/朋友" value="{{c2.relation}}" data-path="c2.relation" bindinput="onInput" />
+    </view>
+  </view>
+
+  <button class="ct__add" wx:else bindtap="toggleSecond">＋ 添加第二联系人</button>
+
+  <button class="ct__save" loading="{{saving}}" bindtap="save">保存</button>
+</view>

@@ -8,6 +8,11 @@ function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
 }
 
+// showModal fail 兜底(部分真机弹窗静默失败时给反馈)
+function modalFail() {
+  wx.showToast({ title: '弹窗调用失败', icon: 'none' });
+}
+
 function getLevel(score) {
   if (!score) return '未开通';
   const lv = CREDIT_LEVEL.find((l) => score >= l.min && score <= l.max);
@@ -28,10 +33,9 @@ Page({
       { key: 'after', icon: '🛟', name: '售后', count: 0 }
     ],
     funcList: [
-      { key: 'emergency', icon: '🆘', name: '紧急联系人管理' },
+      { key: 'emergency', icon: '🆘', name: '紧急联系人' },
       { key: 'myPublish', icon: '📋', name: '我的发布' },
-      { key: 'privacy', icon: '🔏', name: '隐私设置' },
-      { key: 'help', icon: '🎧', name: '帮助中心' },
+      { key: 'help', icon: '🎧', name: '联系客服' },
       { key: 'about', icon: 'ℹ️', name: '关于我们' }
     ],
     partnerEntries: [
@@ -74,9 +78,7 @@ Page({
         is_realname_done: !!u.is_realname_done,
         user_credit_score: u.user_credit_score || 0,
         partner_credit_score: u.partner_credit_score || 0,
-        is_partner: isPartner,
-        face_verified: false,
-        has_active_order: false
+        is_partner: isPartner
       };
       this.setData({
         user: uiUser,
@@ -114,38 +116,44 @@ Page({
     wx.showToast({ title: target === 'partner' ? '已切换为耍伴身份' : '已切换为用户身份', icon: 'none' });
   },
 
-  // U2 信用明细（简化：占位）
-  onScoreDetail(e) {
-    const role = e.currentTarget.dataset.role;
-    wx.showToast({ title: `${role === 'user' ? '用户' : '耍伴'}信用明细页待接入`, icon: 'none' });
-  },
-
-  // U3 订单入口
-  onOrderEntry() {
+  // U2 信用明细
+  onScoreDetail() {
     wx.navigateTo({
-      url: '/pages/order/order',
-      fail: () => wx.showToast({ title: '订单列表待接入', icon: 'none' })
+      url: '/pages-v2/credit/credit',
+      fail: modalFail
     });
   },
 
-  // U4 功能列表
+  // U3 订单入口(四宫格 → v2 订单列表, 带 tab 过滤与当前身份)
+  onOrderEntry(e) {
+    const tab = e.currentTarget.dataset.key || 'all';
+    const role = this.data.identity === 'partner' ? 'partner' : 'user';
+    wx.navigateTo({
+      url: `/pages-v2/orders/orders?tab=${tab}&role=${role}`,
+      fail: modalFail
+    });
+  },
+
+  // U4 功能列表(help 项在 wxml 中为 open-type=contact 按钮, 不会进入此处理)
   onFuncTap(e) {
     const key = e.currentTarget.dataset.key;
     if (key === 'emergency') {
-      wx.showToast({ title: '紧急联系人管理页待接入', icon: 'none' });
+      wx.navigateTo({ url: '/pages-v2/contacts/contacts', fail: modalFail });
     } else if (key === 'myPublish') {
-      wx.showToast({ title: '我的发布页待接入', icon: 'none' });
-    } else if (key === 'privacy') {
-      wx.showActionSheet({
-        itemList: ['输入状态展示：开', '消息通知：开', '免打扰：关', '位置权限说明'],
-        success: () => {},
-        fail: () => {}
-      });
-    } else if (key === 'help') {
-      wx.showToast({ title: '帮助中心待接入', icon: 'none' });
+      wx.navigateTo({ url: '/pages-v2/my-demands/my-demands', fail: modalFail });
     } else if (key === 'about') {
-      wx.showModal({ title: '关于找个人帮忙', content: `版本 ${this.data.version}\n安全第一 · 合规先行`, showCancel: false });
+      wx.showModal({
+        title: '关于找个人帮忙',
+        content: `版本 ${this.data.version}\n安全第一 · 合规先行`,
+        showCancel: false,
+        fail: modalFail
+      });
     }
+  },
+
+  // 微信客服会话不可用时的兜底
+  onContactError() {
+    wx.showToast({ title: '客服会话暂不可用', icon: 'none' });
   },
 
   // U5 耍伴专区 / 认证引导
@@ -153,7 +161,7 @@ Page({
     const key = e.currentTarget.dataset.key;
     wx.navigateTo({
       url: `/pages-v2/${key}/${key}`,
-      fail: () => wx.showToast({ title: '该页面将在批次3上线', icon: 'none' })
+      fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' })
     });
   },
   becomePartner() {
@@ -169,6 +177,7 @@ Page({
       title: '退出登录',
       content: '确认退出当前账号？',
       confirmText: '退出',
+      fail: modalFail,
       success: (res) => {
         if (!res.confirm) return;
         try {
@@ -184,18 +193,37 @@ Page({
     });
   },
 
-  // U6 注销账号
+  // U6 注销账号(接 user-login close_account: 有进行中订单拒绝; 通过后匿名化+置 closed)
   onLogout() {
-    const days = CONFIG.LOGOUT_COOLDOWN_DAYS;
     wx.showModal({
       title: '账号注销',
-      content: `注销后进入${days}天冷静期，期间登录可撤回申请；冷静期满后账号数据将被删除且不可恢复。确认注销吗？`,
+      content: '注销后昵称、头像、手机号等个人信息将被匿名化清除且不可恢复；有进行中订单时需先完结。确认注销吗？',
       confirmText: '确认注销',
       confirmColor: '#fa5151',
+      fail: modalFail,
       success: (res) => {
-        if (res.confirm) {
-          wx.showToast({ title: `注销申请已提交，${days}天冷静期生效`, icon: 'none', duration: 2500 });
-        }
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        callCloud('user-login', { action: 'close_account' }).then((r) => {
+          wx.hideLoading();
+          if (r.ok) {
+            try {
+              wx.removeStorageSync('v2_login_ok');
+              wx.removeStorageSync('user_info');
+              wx.removeStorageSync('partner_local_cfg');
+            } catch (e) {}
+            wx.showToast({ title: '账号已注销', icon: 'success' });
+            setTimeout(() => {
+              wx.reLaunch({ url: '/pages-v2/login/login', fail: () => {} });
+            }, 800);
+          } else {
+            // 典型: close_has_active_orders(还有 N 笔进行中订单)
+            wx.showToast({ title: r.msg || '注销失败', icon: 'none', duration: 2500 });
+          }
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
+        });
       }
     });
   }

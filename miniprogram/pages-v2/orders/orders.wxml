@@ -1,0 +1,72 @@
+<view class="v2 ol">
+  <nav-bar title="我的订单"></nav-bar>
+
+  <!-- 视角切换 -->
+  <view class="ol__role-switch">
+    <view class="ol__role-item {{role === 'user' ? 'is-on' : ''}}" data-role="user" bindtap="switchRole">我发的单</view>
+    <view class="ol__role-item {{role === 'partner' ? 'is-on' : ''}}" data-role="partner" bindtap="switchRole">我接的单</view>
+  </view>
+
+  <!-- 状态过滤 tab -->
+  <scroll-view class="ol__tabs" scroll-x enhanced show-scrollbar="{{false}}">
+    <view
+      wx:for="{{tabs}}"
+      wx:key="key"
+      class="ol__tab {{activeTab === item.key ? 'is-on' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="switchTab"
+    >{{item.name}}</view>
+  </scroll-view>
+
+  <!-- 加载态 -->
+  <view class="ol__loading" wx:if="{{loading}}">
+    <view class="ol__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+  </view>
+
+  <block wx:elif="{{loaded}}">
+    <!-- 订单卡片 -->
+    <view
+      wx:for="{{orders}}"
+      wx:key="order_id"
+      class="ol__card"
+      data-id="{{item.order_id}}"
+      data-type="{{item.item_type}}"
+      bindtap="goItem"
+      hover-class="ol__card--hover"
+    >
+      <view class="ol__card-head">
+        <text class="ol__scene">{{item.scene_name}}</text>
+        <text class="ol__status" style="color:{{item.status_color}};background:{{item.status_bg}};">{{item.status_name}}</text>
+      </view>
+      <view class="ol__card-body">
+        <view class="ol__row">📋 {{item.content_str}}</view>
+        <view class="ol__row">📍 {{item.location_name || '地点待确认'}}</view>
+        <view class="ol__row">🕐 {{item.time_str}}<text wx:if="{{item.duration_h}}"> · {{item.duration_h}}小时</text></view>
+      </view>
+      <view class="ol__card-foot">
+        <text class="ol__no">{{item.item_type === 'demand' ? '⏳ 等待耍伴接单，点击查看进展' : item.order_no}}</text>
+        <text class="ol__price">¥{{item.total_yuan}}</text>
+      </view>
+    </view>
+
+    <!-- 空态 -->
+    <empty-state
+      wx:if="{{orders.length === 0}}"
+      icon="📭"
+      title="暂无相关订单"
+      desc="{{role === 'partner' ? '接单后订单会显示在这里' : '发布需求后，接单进度会显示在这里'}}"
+      btnText="{{role === 'user' ? '去发布需求' : ''}}"
+      bind:btntap="goPublish"
+    />
+  </block>
+
+  <!-- 初始网络异常态 -->
+  <empty-state
+    wx:if="{{!loading && !loaded}}"
+    icon="📡"
+    title="网络异常"
+    desc="请检查网络后重试"
+    btnText="重试"
+    bind:btntap="reload"
+  />
+</view>

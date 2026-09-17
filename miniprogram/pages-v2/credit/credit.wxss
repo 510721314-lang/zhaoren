@@ -1,0 +1,106 @@
+.cr {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 20rpx 160rpx;
+}
+
+/* 双信用分 */
+.cr__scores {
+  margin-top: 12rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 36rpx 0;
+  display: flex;
+  align-items: center;
+}
+.cr__score {
+  flex: 1;
+  text-align: center;
+}
+.cr__score-num {
+  font-size: var(--font-display-lg);
+  font-weight: 700;
+  color: var(--func-warning);
+}
+.cr__score-label {
+  margin-top: 6rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+}
+.cr__score-level {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.cr__score-divider {
+  width: 1rpx;
+  height: 100rpx;
+  background: var(--border-2);
+}
+
+.cr__log-title {
+  margin: 28rpx 8rpx 4rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+
+.cr__loading {
+  margin-top: 12rpx;
+}
+.cr__skeleton {
+  height: 140rpx;
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  margin-bottom: 16rpx;
+  opacity: 0.6;
+}
+
+/* 流水卡片 */
+.cr__card {
+  margin-top: 16rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 24rpx 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cr__log-main {
+  flex: 1;
+  margin-right: 20rpx;
+}
+.cr__log-type {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.cr__log-reason {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+.cr__log-time {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+}
+.cr__log-right {
+  text-align: right;
+}
+.cr__log-delta {
+  font-size: var(--font-lg);
+  font-weight: 700;
+}
+.cr__log-delta.is-up {
+  color: var(--func-success);
+}
+.cr__log-delta.is-down {
+  color: var(--func-danger);
+}
+.cr__log-score {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}

@@ -1,0 +1,88 @@
+.ct {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 20rpx 160rpx;
+}
+
+.ct__tip {
+  margin-top: 16rpx;
+  padding: 0 8rpx;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+  line-height: 1.7;
+}
+
+.ct__card {
+  margin-top: 20rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 8rpx 28rpx 24rpx;
+}
+.ct__card-title {
+  padding: 24rpx 0 8rpx;
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ct__req {
+  color: var(--func-danger);
+  margin-left: 6rpx;
+}
+.ct__remove {
+  font-size: var(--font-xs);
+  font-weight: 400;
+  color: var(--func-danger);
+}
+.ct__field {
+  display: flex;
+  align-items: center;
+  min-height: 96rpx;
+  border-bottom: 1rpx solid var(--border-divider);
+}
+.ct__field:last-child {
+  border-bottom: none;
+}
+.ct__label {
+  width: 120rpx;
+  font-size: var(--font-md);
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.ct__input {
+  flex: 1;
+  font-size: var(--font-md);
+  color: var(--text-1);
+}
+
+.ct__add {
+  margin-top: 20rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  color: var(--brand-primary);
+  font-size: var(--font-md);
+}
+.ct__add::after {
+  border: none;
+}
+
+.ct__save {
+  margin-top: 40rpx;
+  height: 92rpx;
+  line-height: 92rpx;
+  border-radius: 46rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-lg);
+  font-weight: 600;
+  box-shadow: 0 8rpx 20rpx rgba(7, 193, 96, 0.28);
+}
+.ct__save::after {
+  border: none;
+}

@@ -300,6 +300,19 @@ exports.main = async (event, context) => {
       }
     }
 
+    // 5b. 查询我的紧急联系人(本人管理页回显, 返回完整手机号; 最多 2 名)
+    case 'get_emergency_contact': {
+      try {
+        const r = await col('emergency_contact').where({ openid, is_deleted: false }).limit(2).get();
+        const contacts = (r.data || []).map(c => ({
+          name: c.name || '', phone: c.phone || '', relation: c.relation || ''
+        }));
+        return { ok: true, data: { contacts } };
+      } catch (e) {
+        return { ok: false, code: 'emergency_query_fail', msg: '紧急联系人查询失败' };
+      }
+    }
+
     // 6. 查询双信用分与最近 20 条流水
     case 'get_my_credit': {
       try {
