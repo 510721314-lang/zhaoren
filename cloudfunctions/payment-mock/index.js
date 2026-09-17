@@ -120,13 +120,15 @@ exports.main = async (event, context) => {
     case 'cashier_info': {
       const { order_id } = event;
       if (!order_id) return { ok: false, code: 'cashier_no_order', msg: '缺少订单 ID' };
-      const order = await getOrder(order_id);
+      // getOrder + getConfig 并行
+      const [order, config] = await Promise.all([
+        getOrder(order_id),
+        getConfig()
+      ]);
       if (!order) return { ok: false, code: 'cashier_not_found', msg: '订单不存在' };
       if (order.user_openid !== openid) {
         return { ok: false, code: 'cashier_not_owner', msg: '只能查看自己的订单' };
       }
-
-      const config = await getConfig();
       const sceneList = config.scene_list || [];
       const sceneConf = sceneList.find(s => s.code === order.scene) || {};
       // 0-50 元档免 AA 承诺书(兼容新旧档位取值:'0-50' / '0-50元')
@@ -441,48 +443,31 @@ exports.main = async (event, context) => {
     case 'balance_info': {
       const partnerOpenid = openid;
       if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
-      const settled = await col('order_main')
-        .where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']) })
-        .aggregate()
-        .group({ _id: null, total: $.sum('$partner_income_fen') })
-        .end().catch(() => ({ list: [] }));
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const monthMs = monthStart.getTime();
+      // 6 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级, 冷启动压到 2s 内
+      const [settled, wR, splitting, monthList, countR, pp] = await Promise.all([
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']) }).aggregate().group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('withdraw_record').where({ openid: partnerOpenid, is_deleted: false }).aggregate().group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']) }).aggregate().group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs) }).aggregate().group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']) }).count().catch(() => ({ total: 0 })),
+        col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] }))
+      ]);
       const settledFen = (settled.list && settled.list[0] && settled.list[0].total) || 0;
-      // 提现占用: processing(在途)+success(已到账) 都从可提现余额中扣除
-      const wR = await col('withdraw_record')
-        .where({ openid: partnerOpenid, is_deleted: false })
-        .aggregate()
-        .group({ _id: '$status', total: $.sum('$amount_fen') })
-        .end().catch(() => ({ list: [] }));
       let processingW = 0, withdrawnW = 0;
       ((wR && wR.list) || []).forEach((g) => {
         if (g._id === 'processing') processingW = g.total || 0;
         else if (g._id === 'success') withdrawnW = g.total || 0;
       });
       const withdrawableFen = Math.max(0, settledFen - processingW - withdrawnW);
-      const splitting = await col('order_main')
-        .where({ partner_openid: partnerOpenid, status: _.in(['S2', 'S3', 'S5', 'S6']) })
-        .aggregate()
-        .group({ _id: null, total: $.sum('$partner_income_fen') })
-        .end().catch(() => ({ list: [] }));
       const splittingFen = (splitting.list && splitting.list[0] && splitting.list[0].total) || 0;
-      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-      const monthMs = monthStart.getTime();
-      const monthList = await col('order_main')
-        .where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']), service_completed_at: _.gte(monthMs) })
-        .aggregate()
-        .group({ _id: null, total: $.sum('$partner_income_fen') })
-        .end().catch(() => ({ list: [] }));
       const monthIncomeFen = (monthList.list && monthList.list[0] && monthList.list[0].total) || 0;
-      const countR = await col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8', 'S9', 'S10']) }).count();
-      // 从 partner_profile 取信用分/等级
       let creditLevel = 'L1';
-      try {
-        const pp = await col('partner_profile').where({ openid: partnerOpenid }).limit(1).get();
-        if (pp.data && pp.data[0]) {
-          const score = pp.data[0].score || 0;
-          creditLevel = score >= 800 ? 'L3' : score >= 600 ? 'L2' : 'L1';
-        }
-      } catch (e) {}
+      if (pp.data && pp.data[0]) {
+        const score = pp.data[0].score || 0;
+        creditLevel = score >= 800 ? 'L3' : score >= 600 ? 'L2' : 'L1';
+      }
       return {
         ok: true,
         data: {
@@ -544,11 +529,15 @@ exports.main = async (event, context) => {
       }
       try {
       // 可提现余额 = 已结算收入(S8/S9/S10) - 提现占用(processing+success)
-      const [settledR, wUsedR] = await Promise.all([
+      // 极速提现当日限额查询也合并进同一批(非 fast 时仍执行一次轻量聚合, 无妨)
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      const [settledR, wUsedR, dayR] = await Promise.all([
         col('order_main').where({ partner_openid: openid, status: _.in(['S8', 'S9', 'S10']) })
           .aggregate().group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').where({ openid, is_deleted: false })
-          .aggregate().group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }))
+          .aggregate().group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
+        col('withdraw_record').where({ openid, type: 'fast', created_at: _.gte(dayStart.getTime()), is_deleted: false })
+          .aggregate().group({ _id: null, total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }))
       ]);
       const settledFen = (settledR.list && settledR.list[0] && settledR.list[0].total) || 0;
       let usedFen = 0;
@@ -562,10 +551,6 @@ exports.main = async (event, context) => {
 
       // 极速提现当日累计上限 2000 元(WITHDRAW.fastPerDayMax=2000)
       if (isFast) {
-        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-        const dayR = await col('withdraw_record').where({
-          openid, type: 'fast', created_at: _.gte(dayStart.getTime()), is_deleted: false
-        }).aggregate().group({ _id: null, total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }));
         const todayFast = (dayR.list && dayR.list[0] && dayR.list[0].total) || 0;
         if (todayFast + amount > 200000) {
           return { ok: false, code: 'wd_fast_daily', msg: '极速提现当日累计上限 2000 元' };

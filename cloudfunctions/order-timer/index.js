@@ -69,60 +69,60 @@ exports.main = async (event, context) => {
   try {
     const s1Cut = now - s1Min * 60 * 1000;
     const s1s = (await col('order_main').where({ status: 'S1', created_at: _.lt(s1Cut) }).limit(BATCH).get()).data || [];
-    for (const o of s1s) {
+    const s1OK = [];
+    await Promise.allSettled(s1s.map(async (o) => {
       const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now });
-      if (!won) { out.skipped.push(o.order_no + ':S1竞态'); continue; }
-      // 释放需求回 matching, 可被其他耍伴接; 条件更新仅 matched→matching, 不覆盖已过期/取消需求
+      if (!won) { out.skipped.push(o.order_no + ':S1竞态'); return; }
       if (o.demand_id) {
-        try {
-          await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
-            data: { status: 'matching', updated_at: now }
-          });
-        } catch (e) {}
+        await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
+          data: { status: 'matching', updated_at: now }
+        }).catch(() => {});
       }
-      await logStatus(o._id, 'S1', 'S6', 'timeout_s1_cancel', 'system');
-      out.s1_cancel.push(o.order_no);
-      console.log(`timeout S1→S6: ${o.order_no} (demand released: ${o.demand_id || 'none'})`);
-    }
+      s1OK.push(o);
+    }));
+    await Promise.allSettled(s1OK.map(o => logStatus(o._id, 'S1', 'S6', 'timeout_s1_cancel', 'system')));
+    s1OK.forEach(o => { out.s1_cancel.push(o.order_no); console.log(`timeout S1→S6: ${o.order_no}`); });
   } catch (e) { console.log(`s1 scan fail: ${e.message}`); }
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 ─────────
   try {
     const q = s0Force ? { status: 'S0' } : { status: 'S0', pay_expire_at: _.lt(now) };
     const s0s = (await col('order_main').where(q).limit(BATCH).get()).data || [];
-    for (const o of s0s) {
-      if (!s0Force && !(o.pay_expire_at && o.pay_expire_at < now)) continue;
+    const s0OK = [];
+    await Promise.allSettled(s0s.map(async (o) => {
+      if (!s0Force && !(o.pay_expire_at && o.pay_expire_at < now)) return;
       const won = await casStatus(o._id, 'S0', { status: 'S6', updated_at: now });
-      if (!won) { out.skipped.push(o.order_no + ':S0竞态'); continue; }
-      await logStatus(o._id, 'S0', 'S6', 'timeout_s0_close', 'system');
-      out.s0_close.push(o.order_no);
-      console.log(`timeout S0→S6: ${o.order_no}`);
-    }
+      if (!won) { out.skipped.push(o.order_no + ':S0竞态'); return; }
+      s0OK.push(o);
+    }));
+    await Promise.allSettled(s0OK.map(o => logStatus(o._id, 'S0', 'S6', 'timeout_s0_close', 'system')));
+    s0OK.forEach(o => { out.s0_close.push(o.order_no); console.log(`timeout S0→S6: ${o.order_no}`); });
   } catch (e) { console.log(`s0 scan fail: ${e.message}`); }
 
   // ───────── 3. S3.5 中断超 24 小时 → S4(部分完成) ─────────
   try {
     const iCut = now - interruptH * 3600 * 1000;
     const s35s = (await col('order_main').where({ status: 'S3.5' }).limit(BATCH).get()).data || [];
-    for (const o of s35s) {
+    const s35OK = [];
+    await Promise.allSettled(s35s.map(async (o) => {
       const anchor = o.interrupted_at || o.updated_at || 0;
-      if (anchor >= iCut) continue;
+      if (anchor >= iCut) return;
       const won = await casStatus(o._id, 'S3.5', { status: 'S4', updated_at: now });
-      if (!won) { out.skipped.push(o.order_no + ':S3.5竞态'); continue; }
-      await logStatus(o._id, 'S3.5', 'S4', 'timeout_interrupt_partial', 'system');
-      out.interrupt_partial.push(o.order_no);
-      console.log(`timeout S3.5→S4: ${o.order_no}`);
-    }
+      if (!won) { out.skipped.push(o.order_no + ':S3.5竞态'); return; }
+      s35OK.push(o);
+    }));
+    await Promise.allSettled(s35OK.map(o => logStatus(o._id, 'S3.5', 'S4', 'timeout_interrupt_partial', 'system')));
+    s35OK.forEach(o => { out.interrupt_partial.push(o.order_no); console.log(`timeout S3.5→S4: ${o.order_no}`); });
   } catch (e) { console.log(`s3.5 scan fail: ${e.message}`); }
 
   // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
   try {
     const m25s = (await col('order_main').where({ status: 'S2_5' }).limit(BATCH).get()).data || [];
-    for (const o of m25s) {
+    const mOK = [];
+    await Promise.allSettled(m25s.map(async (o) => {
       const pm = o.pending_modify || {};
-      // 优先 pending_modify.expire_at; 历史文档兜底 modify_at + 时限
       const deadline = pm.expire_at || ((o.modify_at || 0) + modifyConfirmH * 3600000);
-      if (!deadline || deadline >= now) continue;
+      if (!deadline || deadline >= now) return;
       const toStatus = pm.from_status === 'S3' ? 'S3' : 'S2';
       const won = await casStatus(o._id, 'S2_5', {
         status: toStatus,
@@ -130,54 +130,58 @@ exports.main = async (event, context) => {
         modify_auto_rejected_at: now,
         updated_at: now
       });
-      if (!won) { out.skipped.push(o.order_no + ':S2_5竞态'); continue; }
-      await logStatus(o._id, 'S2_5', toStatus, 'timeout_modify_auto_reject', 'system');
-      out.modify_auto_reject.push(o.order_no);
-      console.log(`timeout S2_5→${toStatus} modify auto-reject: ${o.order_no}`);
-    }
+      if (!won) { out.skipped.push(o.order_no + ':S2_5竞态'); return; }
+      mOK.push({ o, toStatus });
+    }));
+    await Promise.allSettled(mOK.map(x => logStatus(x.o._id, 'S2_5', x.toStatus, 'timeout_modify_auto_reject', 'system')));
+    mOK.forEach(x => { out.modify_auto_reject.push(x.o.order_no); console.log(`timeout S2_5→${x.toStatus} modify auto-reject: ${x.o.order_no}`); });
   } catch (e) { console.log(`s2.5 scan fail: ${e.message}`); }
 
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
     const msCut = now - msConfirmMin * 60 * 1000;
     const s3s = (await col('order_main').where({ status: 'S3' }).limit(BATCH).get()).data || [];
-    for (const o of s3s) {
+    const msOK = [];
+    await Promise.allSettled(s3s.map(async (o) => {
       const ms = o.milestone || {};
       const submittedAt = ms.submitted_at || 0;
-      if (!submittedAt || submittedAt >= msCut) continue; // 未提交或未到15分钟
+      if (!submittedAt || submittedAt >= msCut) return;
       const confirmed = Array.isArray(ms.confirmed) ? ms.confirmed : [false, false, false];
-      const allConfirmed = confirmed.every(Boolean);
-      if (allConfirmed) continue; // 已全部确认
-      // 自动确认所有未确认的里程碑
+      if (confirmed.every(Boolean)) return;
       await col('order_main').doc(o._id).update({
         data: { 'milestone.confirmed': [true, true, true], updated_at: now }
       });
-      out.milestone_auto_confirm.push(o.order_no);
-      console.log(`milestone auto-confirm: ${o.order_no}`);
-    }
+      msOK.push(o);
+    }));
+    msOK.forEach(o => { out.milestone_auto_confirm.push(o.order_no); console.log(`milestone auto-confirm: ${o.order_no}`); });
   } catch (e) { console.log(`milestone auto-confirm fail: ${e.message}`); }
 
   // ───────── 4. S5 完成超 48 小时未评价 → 系统默认 4 星 → S9 ─────────
   try {
     const eCut = now - evalH * 3600 * 1000;
     const s5s = (await col('order_main').where({ status: 'S5' }).limit(BATCH).get()).data || [];
-    for (const o of s5s) {
+    const evalResults = [];  // 收集需要写 status_log 的结果
+    // creditDeltas: { partner_openid: [{ delta, order_id, order_no }] } 收集后聚合原子 inc
+    const creditDeltas = {};
+    const starDelta = defaultStar >= 5 ? 2 : defaultStar === 4 ? 1 : defaultStar === 3 ? 0 : defaultStar === 2 ? -2 : -5;
+
+    await Promise.allSettled(s5s.map(async (o) => {
       const anchor = o.service_completed_at || o.updated_at || 0;
-      if (anchor >= eCut) continue;
+      if (anchor >= eCut) return;
 
       // 幂等: 已有评价记录但订单仍停在 S5(异常兜底) → 直接补转 S8
       const evR = await col('evaluation').where({ order_id: o._id, is_deleted: false }).limit(1).get();
       if (evR.data && evR.data[0]) {
         const won = await casStatus(o._id, 'S5', { status: 'S8', evaluated_at: evR.data[0].created_at || now, updated_at: now });
         if (won) {
-          await logStatus(o._id, 'S5', 'S8', 'timeout_eval_backfill', 'system');
+          evalResults.push({ o, from: 'S5', to: 'S8', action: 'timeout_eval_backfill' });
           console.log(`backfill S5→S8: ${o.order_no}`);
         }
-        continue;
+        return;
       }
 
       const won = await casStatus(o._id, 'S5', { status: 'S9', evaluated_at: now, updated_at: now });
-      if (!won) { out.skipped.push(o.order_no + ':S5竞态'); continue; }
+      if (!won) { out.skipped.push(o.order_no + ':S5竞态'); return; }
 
       // 写系统默认评价(文案固定「系统默认评价」)
       await col('evaluation').add({ data: {
@@ -190,33 +194,37 @@ exports.main = async (event, context) => {
         created_at: now, updated_at: now, is_deleted: false
       }});
 
-      // 耍伴信用分: 4 星 +1(与 evaluation-submit 同规则, 0-1000 截断)
-      // 事务内读改写, 避免与同耍伴其他订单评价并发时丢失更新
-      try {
-        const delta = defaultStar >= 5 ? 2 : defaultStar === 4 ? 1 : defaultStar === 3 ? 0 : defaultStar === 2 ? -2 : -5;
-        if (delta !== 0) {
-          const pR = await col('user_account').where({ openid: o.partner_openid }).limit(1).get();
-          if (pR.data && pR.data[0]) {
-            const pId = pR.data[0]._id;
-            await db.runTransaction(async (t) => {
-              const u = await t.collection('user_account').doc(pId).get();
-              const cur = (u.data && u.data.partner_credit_score) || 800;
-              const next = Math.max(0, Math.min(1000, cur + delta));
-              await t.collection('user_account').doc(pId).update({ data: {
-                partner_credit_score: next, updated_at: now
-              }});
-              await t.collection('credit_score_log').add({ data: {
-                openid: o.partner_openid, type: 'evaluation', is_system: true, score: next, delta,
-                order_id: o._id, created_at: now, updated_at: now, is_deleted: false
-              }});
-            });
-          }
-        }
-      } catch (e) { console.log(`auto eval credit fail: ${e.message}`); }
+      // 信用分 delta 收集(不在单笔内部写, 避免同 partner 多订单并发事务冲突)
+      if (starDelta !== 0 && o.partner_openid) {
+        if (!creditDeltas[o.partner_openid]) creditDeltas[o.partner_openid] = [];
+        creditDeltas[o.partner_openid].push({ delta: starDelta, order_id: o._id });
+      }
 
-      await logStatus(o._id, 'S5', 'S9', 'timeout_auto_eval', 'system');
+      evalResults.push({ o, from: 'S5', to: 'S9', action: 'timeout_auto_eval' });
       out.auto_eval.push(o.order_no);
       console.log(`timeout S5→S9 auto-eval: ${o.order_no} star=${defaultStar}`);
+    }));
+    await Promise.allSettled(evalResults.map(x => logStatus(x.o._id, x.from, x.to, x.action, 'system')));
+
+    // 按 partner 聚合后原子 inc, 避免同 partner 多订单并发事务冲突
+    const partnerKeys = Object.keys(creditDeltas);
+    if (partnerKeys.length > 0) {
+      await Promise.allSettled(partnerKeys.map(async (pOpenid) => {
+        const entries = creditDeltas[pOpenid];
+        const totalDelta = entries.reduce((s, e) => s + e.delta, 0);
+        if (totalDelta === 0) return;
+        try {
+          // _.inc 原子更新, 同 partner 只发 1 次请求
+          await col('user_account').where({ openid: pOpenid }).update({
+            data: { partner_credit_score: _.inc(totalDelta), updated_at: now }
+          });
+          // 批量写信用分 log(每笔一条, 保留审计链)
+          await Promise.allSettled(entries.map(e => col('credit_score_log').add({ data: {
+            openid: pOpenid, type: 'evaluation', is_system: true, delta: e.delta,
+            order_id: e.order_id, created_at: now, updated_at: now, is_deleted: false
+          }})));
+        } catch (e) { console.log(`auto eval credit fail (${pOpenid}): ${e.message}`); }
+      }));
     }
   } catch (e) { console.log(`s5 scan fail: ${e.message}`); }
 

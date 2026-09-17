@@ -865,9 +865,18 @@ exports.main = async (event, context) => {
 
     const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
-    // 四确认状态
+    // 并行:6 个独立查询(确认单 + 评价 + 双昵称 + sos + checkin)合并为 1 批, 冷启动压到 2s 内
+    const [conf, evR, uR, pR, sosR, ckR] = await Promise.all([
+      getConfirmation(order_id),
+      col('evaluation').where({ order_id, is_deleted: false }).limit(1).get().catch(() => ({ data: [] })),
+      col('user_account').where({ openid: order.user_openid }).limit(1).get().catch(() => ({ data: [] })),
+      col('user_account').where({ openid: order.partner_openid }).limit(1).get().catch(() => ({ data: [] })),
+      col('safety_report').where({ order_id, type: 'sos', status: 'active', is_deleted: false }).orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] })),
+      col('safety_report').where({ order_id, type: 'checkin', is_deleted: false }).orderBy('created_at', 'desc').limit(3).get().catch(() => ({ data: [] }))
+    ]);
+
+    // 确认单
     let confirm = null;
-    const conf = await getConfirmation(order_id);
     if (conf) {
       const fields = {};
       let confirmedCount = 0;
@@ -877,54 +886,27 @@ exports.main = async (event, context) => {
         if (it.partner_ok) confirmedCount++;
         fields[f] = { value: it.value, user_ok: !!it.user_ok, partner_ok: !!it.partner_ok };
       }
-      confirm = {
-        items: fields,
-        confirmed_count: confirmedCount,
-        total_count: 8,
-        all_confirmed: allConfirmed(conf.items),
-        version: conf.version || 1
-      };
+      confirm = { items: fields, confirmed_count: confirmedCount, total_count: 8, all_confirmed: allConfirmed(conf.items), version: conf.version || 1 };
     }
 
-    // 评价(S8/S9 后存在)
+    // 评价
     let evaluation = null;
-    try {
-      const evR = await col('evaluation').where({ order_id, is_deleted: false }).limit(1).get();
-      if (evR.data && evR.data[0]) {
-        evaluation = { star: evR.data[0].star, content: evR.data[0].content || '' };
-      }
-    } catch (e) {}
+    if (evR.data && evR.data[0]) {
+      evaluation = { star: evR.data[0].star, content: evR.data[0].content || '' };
+    }
 
-    // 双方注册昵称(前端以名称替代"发单人/耍伴"角色标签, 查不到回退角色名)
+    // 昵称
     let userNickname = '发单人', partnerNickname = '耍伴';
-    try {
-      const [uR, pR] = await Promise.all([
-        col('user_account').where({ openid: order.user_openid }).limit(1).get(),
-        col('user_account').where({ openid: order.partner_openid }).limit(1).get()
-      ]);
-      if (uR.data && uR.data[0] && uR.data[0].nickname) userNickname = uR.data[0].nickname;
-      if (pR.data && pR.data[0] && pR.data[0].nickname) partnerNickname = pR.data[0].nickname;
-    } catch (e) {}
+    if (uR.data && uR.data[0] && uR.data[0].nickname) userNickname = uR.data[0].nickname;
+    if (pR.data && pR.data[0] && pR.data[0].nickname) partnerNickname = pR.data[0].nickname;
 
-    // 安全状态(紧急求助/安全报备, 时间戳原样返回由前端格式化); 有界查询避免全表拉取
+    // safety
     const safety = { help_flag: !!order.help_flag, active_sos: null, checkins: [] };
-    try {
-      const [sosR, ckR] = await Promise.all([
-        col('safety_report')
-          .where({ order_id, type: 'sos', status: 'active', is_deleted: false })
-          .orderBy('created_at', 'desc').limit(1).get(),
-        col('safety_report')
-          .where({ order_id, type: 'checkin', is_deleted: false })
-          .orderBy('created_at', 'desc').limit(3).get()
-      ]);
-      const activeSos = sosR.data && sosR.data[0];
-      if (activeSos) {
-        safety.active_sos = { reporter_role: activeSos.reporter_role || '', created_at: activeSos.created_at || null };
-      }
-      safety.checkins = (ckR.data || []).map(r => ({
-        reporter_role: r.reporter_role || '', created_at: r.created_at || null, location: r.location || null
-      }));
-    } catch (e) {}
+    const activeSos = sosR.data && sosR.data[0];
+    if (activeSos) safety.active_sos = { reporter_role: activeSos.reporter_role || '', created_at: activeSos.created_at || null };
+    safety.checkins = (ckR.data || []).map(r => ({
+      reporter_role: r.reporter_role || '', created_at: r.created_at || null, location: r.location || null
+    }));
 
     return {
       ok: true,
@@ -1063,33 +1045,27 @@ exports.main = async (event, context) => {
   // ───────── my_counts: 订单四宫格计数 ─────────
   // 按当前 openid 作为 user_openid 或 partner_openid 分别统计 4 种状态
   if (action === 'my_counts') {
+    const COL = col('order_main');
     const userOpenid = openid;
-    let counts = { pending_pay: 0, in_progress: 0, pending_eval: 0, after_sales: 0 };
-    try {
-      const COL = col('order_main');
-      // user 视角 (作为发单人)
-      const uPendingPay = await COL.where({ user_openid: userOpenid, status: 'S0', is_deleted: false }).count();
-      const uInProgress = await COL.where({ user_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count();
-      const uPendingEval = await COL.where({ user_openid: userOpenid, status: 'S5', is_deleted: false }).count();
-      // partner 视角 (作为耍伴)
-      const pInProgress = await COL.where({ partner_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count();
-      const pPendingEval = await COL.where({ partner_openid: userOpenid, status: 'S5', is_deleted: false }).count();
-
-      counts.pending_pay = uPendingPay.total || 0;
-      counts.in_progress = (uInProgress.total || 0) + (pInProgress.total || 0);
-      counts.pending_eval = (uPendingEval.total || 0) + (pPendingEval.total || 0);
-      // after_sales: S6/S7/S9/S10/S10.5 统一
-      const afterSale = await COL.where({
-        $or: [
-          { user_openid: userOpenid },
-          { partner_openid: userOpenid }
-        ],
+    // 6 次独立 count 合并为 1 批, 冷启动压到 1s 内
+    const [uPay, uDoing, uEval, pDoing, pEval, afterSale] = await Promise.all([
+      COL.where({ user_openid: userOpenid, status: 'S0', is_deleted: false }).count().catch(() => ({ total: 0 })),
+      COL.where({ user_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count().catch(() => ({ total: 0 })),
+      COL.where({ user_openid: userOpenid, status: 'S5', is_deleted: false }).count().catch(() => ({ total: 0 })),
+      COL.where({ partner_openid: userOpenid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count().catch(() => ({ total: 0 })),
+      COL.where({ partner_openid: userOpenid, status: 'S5', is_deleted: false }).count().catch(() => ({ total: 0 })),
+      COL.where({
+        $or: [{ user_openid: userOpenid }, { partner_openid: userOpenid }],
         status: _.in(['S6','S7','S9','S10','S10.5']),
         is_deleted: false
-      }).count();
-      counts.after_sales = afterSale.total || 0;
-    } catch (e) {}
-    return { ok: true, data: counts };
+      }).count().catch(() => ({ total: 0 }))
+    ]);
+    return { ok: true, data: {
+      pending_pay: uPay.total || 0,
+      in_progress: (uDoing.total || 0) + (pDoing.total || 0),
+      pending_eval: (uEval.total || 0) + (pEval.total || 0),
+      after_sales: afterSale.total || 0
+    }};
   }
 
   return { ok: false, code: 'oa_unknown_action', msg: '未知动作' };

@@ -312,13 +312,15 @@ exports.main = async (event, context) => {
   if (action === 'status') {
     // 仅订单参与方可读(含进行中求助的精确位置, 防 IDOR)
     if (!role) return { ok: false, code: 'sr_not_participant', msg: '你不是该订单参与方' };
-    const [sosR, checkinR] = await Promise.all([
+    // sos + checkin + 紧急联系人 3 个独立查询合并为 1 批
+    const [sosR, checkinR, contacts] = await Promise.all([
       col('safety_report')
         .where({ order_id, type: 'sos', status: 'active', is_deleted: false })
         .orderBy('created_at', 'desc').limit(1).get(),
       col('safety_report')
         .where({ order_id, type: 'checkin', is_deleted: false })
-        .orderBy('created_at', 'desc').limit(5).get()
+        .orderBy('created_at', 'desc').limit(5).get(),
+      getMyContacts(openid)
     ]);
 
     let activeSos = null;
@@ -340,8 +342,6 @@ exports.main = async (event, context) => {
       has_location: !!c.location,
       note: c.note || ''
     }));
-
-    const contacts = await getMyContacts(openid);
 
     return {
       ok: true,
