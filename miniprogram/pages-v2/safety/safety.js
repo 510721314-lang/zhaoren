@@ -14,6 +14,18 @@ Page({
     // A1 报备状态
     checkinStartedAt: 0,
     elapsedSec: 0,
+    // A2 实时定位（安全报警核心）
+    locating: false,
+    locStatus: 'idle',        // idle|locating|success|fail
+    currentLat: 0,
+    currentLng: 0,
+    accuracy: 0,              // 精度半径(米), 越小越准
+    accuracyText: '',         // 人类可读: "12 米" / "> 1000 米(低精度)"
+    address: '',              // 逆地理编码后可读地址, 如"成都市双流区xxx"
+    locUpdateAt: '',           // 上次定位时间 HH:mm:ss
+    mapMarkers: [],            // <map> 组件 markers
+    mapLat: 0,
+    mapLng: 0,
     // A3 打卡
     lastCheckin: '',
     nextCheckinSec: CONFIG.SAFETY.checkinMin * 60,
@@ -28,10 +40,11 @@ Page({
     loadError: false,
     isRedline: false,
     // C 可运营参数（供 WXML 绑定）
-    gpsPrecisionText: CONFIG.SAFETY.gpsPrecisionText,
     checkinMin: CONFIG.SAFETY.checkinMin,
     oneKeyPressSec: CONFIG.SAFETY.oneKeyPressSec,
-    sosCountdownSec: CONFIG.SAFETY.sosCountdownSec
+    sosCountdownSec: CONFIG.SAFETY.sosCountdownSec,
+    locationRefreshSec: CONFIG.SAFETY.locationRefreshSec,
+    hasMapKey: !!CONFIG.TENCENT_MAP_KEY
   },
 
   onLoad(options) {
@@ -80,6 +93,7 @@ Page({
         loading: false
       });
       this.startTimers();
+      this.startLocationTracking();  // 安全场景立即开始高精度定位
     }).catch(() => {
       this.setData({ loading: false, loadError: true });
     });
@@ -91,14 +105,118 @@ Page({
     this.setData({ isRedline: redline.isInRedline() });
   },
 
-  onUnload() { this.clearTimers(); },
-  onHide() { this.clearTimers(); },
+  onUnload() { this.clearTimers(); this.stopLocationTracking(); },
+  onHide() { this.clearTimers(); this.stopLocationTracking(); },
 
   clearTimers() {
     if (this._elapsedTimer) { clearInterval(this._elapsedTimer); this._elapsedTimer = null; }
     if (this._checkinTimer) { clearInterval(this._checkinTimer); this._checkinTimer = null; }
     if (this._sosTimer) { clearInterval(this._sosTimer); this._sosTimer = null; }
     if (this._silentTimer) { clearInterval(this._silentTimer); this._silentTimer = null; }
+  },
+
+  // —— A2 高精度定位跟踪（安全报警核心）——
+  stopLocationTracking() {
+    if (this._locTimer) { clearInterval(this._locTimer); this._locTimer = null; }
+  },
+
+  startLocationTracking() {
+    this.stopLocationTracking();
+    // 立即第一次定位
+    this.getHighAccuracyLocation();
+    // 定时刷新（人在移动时持续更新位置）
+    const interval = (CONFIG.SAFETY.locationRefreshSec || 15) * 1000;
+    this._locTimer = setInterval(() => this.getHighAccuracyLocation(), interval);
+  },
+
+  // 高精度 GPS: isHighAccuracy=true + highAccuracyExpireTime=4s
+  // 安全报警场景必须尽可能准, accuracy 越小越好
+  getHighAccuracyLocation() {
+    if (this.data.locating) return;
+    this.setData({ locating: true, locStatus: 'locating' });
+    wx.getLocation({
+      type: 'gcj02',
+      isHighAccuracy: true,
+      highAccuracyExpireTime: 4000,
+      success: (res) => this._applyLocation(res),
+      fail: (err) => {
+        console.error('[safety] getLocation fail:', err);
+        this.setData({ locating: false, locStatus: 'fail' });
+      }
+    });
+  },
+
+  _applyLocation(res) {
+    const lat = res.latitude;
+    const lng = res.longitude;
+    const acc = Math.round(res.accuracy || 0); // 米
+    const accuracyText = acc > 0
+      ? (acc < 100 ? `${acc} 米` : acc < 1000 ? `${acc} 米(一般)` : `> 1000 米(低精度)`)
+      : '未知';
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    // 地图 markers（蓝点 + 精度半径圆圈）
+    const markers = [{
+      id: 1,
+      latitude: lat,
+      longitude: lng,
+      width: 24,
+      height: 24,
+      iconPath: '',  // 微信默认蓝点
+      callout: {
+        content: `精度 ${acc > 0 ? acc + 'm' : '未知'}`,
+        color: '#ffffff',
+        fontSize: 11,
+        borderRadius: 4,
+        bgColor: '#07C160',
+        padding: 4,
+        display: 'ALWAYS',
+        textAlign: 'center'
+      }
+    }];
+    this.setData({
+      locating: false,
+      locStatus: 'success',
+      currentLat: lat,
+      currentLng: lng,
+      accuracy: acc,
+      accuracyText,
+      locUpdateAt: `${hh}:${mm}:${ss}`,
+      mapLat: lat,
+      mapLng: lng,
+      mapMarkers: markers
+    });
+    // 有腾讯地图 key → 逆地理编码转可读地址
+    if (CONFIG.TENCENT_MAP_KEY) {
+      this.reverseGeocode(lat, lng);
+    } else {
+      // 无 key → 降级显示坐标
+      this.setData({ address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+    }
+  },
+
+  reverseGeocode(lat, lng) {
+    wx.request({
+      url: `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${CONFIG.TENCENT_MAP_KEY}`,
+      timeout: 5000,
+      success: (r) => {
+        const res = r.data && r.data.result;
+        if (!res) {
+          this.setData({ address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+          return;
+        }
+        // 优先用 recommend 地址, 回退 address, 最后坐标
+        const addr = (res.formatted_addresses && res.formatted_addresses.recommend)
+          || res.address
+          || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        this.setData({ address: addr });
+      },
+      fail: () => {
+        this.setData({ address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+      }
+    });
   },
 
   startTimers() {

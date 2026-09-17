@@ -52,7 +52,10 @@ module.exports = {
   NO_SHOW: { scoreDeduct: 20, maxTimes: 3, suspendDays: 7 },
 
   // 安全报备（PRD 3.6）
-  SAFETY: { checkinMin: 30, gpsPrecision: 'block', gpsPrecisionText: '街区级（约100米）', sosCountdownSec: 10, oneKeyPressSec: 3, s35TimeoutH: 24, s35ResponseMin: 10 },
+  SAFETY: { checkinMin: 30, gpsPrecision: 'block', gpsPrecisionText: '街区级（约100米）', sosCountdownSec: 10, oneKeyPressSec: 3, s35TimeoutH: 24, s35ResponseMin: 10, locationRefreshSec: 15 },
+
+  // 腾讯地图 WebService Key（逆地理编码用）— 留空时降级为仅显示 GPS 坐标
+  TENCENT_MAP_KEY: '',
 
   // R5 成年年龄门槛（PRD 1.7.1）
   ADULT_AGE: 18,
