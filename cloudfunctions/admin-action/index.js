@@ -144,8 +144,8 @@ exports.main = async (event, context) => {
     await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
     return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
   }
-  // mock 测试环境:传了 mock_openid 视为测试管理员(上线前需删除此分支)
-  const isMockAdmin = !!event.mock_openid;
+  // mock 测试环境:dev 下传了 mock_openid 视为测试管理员;prod 强制关闭此旁路
+  const isMockAdmin = !!event.mock_openid && (config.env || 'dev') !== 'prod';
   if (adminOpenids.indexOf(openid) < 0 && !isMockAdmin) {
     await logEvent('P1', 'admin_probe', openid, { action, reason: 'not_in_whitelist' });
     if (adminOpenids.length === 0) {
