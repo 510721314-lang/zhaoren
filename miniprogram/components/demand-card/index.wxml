@@ -1,7 +1,7 @@
 <view class="dcard" bindtap="onCard">
   <view class="dcard__tags">
     <tag-chip type="gongyi" wx:if="{{demand.project_attr === 'public_welfare'}}" />
-    <tag-chip type="scene" scene-code="{{demand.scene_code}}" />
+    <tag-chip type="scene" scene-code="{{demand.scene_code || ''}}" />
     <tag-chip type="aa" wx:if="{{demand.project_attr === 'commercial'}}" />
   </view>
 
