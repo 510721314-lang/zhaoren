@@ -7,7 +7,20 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 
-const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 运营配置兜底: admin_config.scene_list 优先, 硬编码兜底(与 init-db 种子对齐)
+const SCENE_FALLBACK = [
+  { code: 'W1',  name: '就医陪诊' },
+  { code: 'W2',  name: '学习陪伴' },
+  { code: 'W8',  name: '生活协助' },
+  { code: 'W10', name: '出行陪伴' },
+  { code: 'W11', name: '线上陪伴' }
+];
+
+// 旧版 8 场景映射(兜底显示名, 不再作为首页分组依据)
+const SCENE_NAMES_LEGACY = {
+  W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴',
+  W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴'
+};
 const CONTENT_TRUNC = 60;
 
 // 集合自愈: 新环境首次调用自动建 blog 相关集合(demand/user_account/partner_profile 属已有核心集合, 不自动建)
@@ -30,14 +43,23 @@ function truncate(s, n) {
   return str.length > n ? str.slice(0, n) + '…' : str;
 }
 
-function sceneLabel(code) {
-  return SCENE_NAMES[code] || '';
-}
-
-// 场景固定顺序(与前端 config/enums.js SCENES 一致)
-const SCENE_ORDER = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
+// 每页条数常量(与场景配置无关)
 const HOME_GROUP_SIZE = 8;     // 首页每场景展示条数
 const SCENE_PAGE_SIZE = 50;    // 场景更多列表每页条数
+
+// 从 admin_config.scene_list 动态获取场景列表(运营后台可随时增删, 首页自动同步)
+async function loadSceneList() {
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    const cfg = r.data && r.data[0];
+    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list.filter((s) => s && s.code).map((s) => ({ code: s.code, name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code }))
+      : SCENE_FALLBACK;
+    return list;
+  } catch (e) {
+    return SCENE_FALLBACK;
+  }
+}
 
 // demand 文档 → 广场卡片视图模型(与原 square 内联映射保持一致)
 function mapDemand(d, now, pad) {
@@ -190,7 +212,7 @@ exports.main = async (event, context) => {
               _id: d._id,
               demand_no: d.demand_no,
               scene: d.scene,
-              scene_name: sceneLabel(d.scene),
+              scene_name: SCENE_NAMES_LEGACY[d.scene] || d.scene || '',
               content_options: d.content_options || (d.content_option ? [d.content_option] : []),
               location_name: (d.location && d.location.name) || '',
               rate_fen: d.rate_fen || 0,
@@ -214,9 +236,13 @@ exports.main = async (event, context) => {
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
-        // 并行拉 demand + partner_profile + 活跃用户 + 8 个场景分组(每场景取 9 条判定 has_more)
+        // 动态场景列表: 从 admin_config.scene_list 读取, 与前端 enum 同步
+        const scenes = await loadSceneList();
+        const sceneCodes = scenes.map((s) => s.code);
+
+        // 并行拉 demand + partner_profile + 活跃用户 + N 个场景分组(每场景取 9 条判定 has_more)
         // broadcast:true 硬过滤: 定向邀约(direct)/选单(select)需求不得泄漏进公共大厅/首页
-        const sceneQueries = SCENE_ORDER.map((code) =>
+        const sceneQueries = sceneCodes.map((code) =>
           col('demand')
             .where(hallWhere({ scene: code }))
             .orderBy('created_at', 'desc')
@@ -258,15 +284,16 @@ exports.main = async (event, context) => {
         const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
         await fillPublisherSurname(list);
 
-        // 按场景分组(首页): 固定 8 槽位全返回, 空场景 list=[] 由前端渲染占位引导
+        // 按场景分组(首页): 数量由 admin_config.scene_list 决定, 空场景 list=[] 由前端渲染占位引导
         const sceneGroups = [];
         sceneRs.forEach((r, i) => {
-          const code = SCENE_ORDER[i];
+          const sceneDef = scenes[i];
+          if (!sceneDef) return;
           const docs = r.data || [];
           const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
           sceneGroups.push({
-            scene_code: code,
-            scene_name: SCENE_NAMES[code] || '',
+            scene_code: sceneDef.code,
+            scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
             list: items,
             has_more: docs.length > HOME_GROUP_SIZE
           });
@@ -310,8 +337,11 @@ exports.main = async (event, context) => {
       // ───────── 单场景需求分页(更多列表, 每页 50) ─────────
       case 'scene_list': {
         const sceneCode = String(event.scene_code || '').trim();
-        if (!SCENE_NAMES[sceneCode]) {
-          return { ok: false, code: 'home_bad_scene', msg: '场景参数错误' };
+        // 动态校验: 必须在 admin_config.scene_list 里(首页分组同源)
+        const scenes = await loadSceneList();
+        const sceneDef = scenes.find((s) => s.code === sceneCode);
+        if (!sceneDef) {
+          return { ok: false, code: 'home_bad_scene', msg: '场景不存在或已隐藏' };
         }
         const skip = Math.max(0, parseInt(event.skip, 10) || 0);
         const now = Date.now();
@@ -335,7 +365,7 @@ exports.main = async (event, context) => {
           ok: true,
           data: {
             scene_code: sceneCode,
-            scene_name: SCENE_NAMES[sceneCode],
+            scene_name: sceneDef.name,
             list,
             has_more: hasMore,
             next_skip: skip + list.length,

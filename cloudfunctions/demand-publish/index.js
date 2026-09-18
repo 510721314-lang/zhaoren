@@ -10,8 +10,27 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 
-// 场景白名单(MVP-V1 · rules.md 三.11)
-const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
+// 场景白名单: 动态从 admin_config.scene_list 读取(SSOT), 兜底与 init-db 种子对齐
+const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
+let _sceneCodesCache = null;
+async function getSceneCodes() {
+  if (_sceneCodesCache) return _sceneCodesCache;
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    const cfg = r.data && r.data[0];
+    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list.map((s) => s.code).filter(Boolean)
+      : SCENE_CODES_FALLBACK;
+    _sceneCodesCache = list;
+    return list;
+  } catch (e) {
+    _sceneCodesCache = SCENE_CODES_FALLBACK;
+    return SCENE_CODES_FALLBACK;
+  }
+}
+
+// 旧版硬编码(仅用于 SCENE_OPTIONS_FALLBACK / DISCLAIMER_TYPE_MAP 映射, 不再作为发布准入校验)
+const SCENE_WHITELIST_LEGACY = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
 
 // 接单模式白名单: direct=定向邀约(指定耍伴,不入大厅) · broadcast=抢单(先到先得) · select=选单(耍伴报名→需求者确认)
 const MATCH_MODE_WHITELIST = ['direct', 'broadcast', 'select'];
@@ -162,8 +181,9 @@ exports.main = async (event, context) => {
       } = event;
 
       // ── 基础校验 ──
-      if (!scene || SCENE_WHITELIST.indexOf(scene) < 0) {
-        return { ok: false, code: 'publish_scene_invalid', msg: '场景不在白名单(仅 W1/W2/W8/W10/W11)' };
+      const sceneCodes = await getSceneCodes();
+      if (!scene || sceneCodes.indexOf(scene) < 0) {
+        return { ok: false, code: 'publish_scene_invalid', msg: '场景不在白名单' };
       }
       // 接单模式(默认抢单 broadcast; 选单 select 需耍伴报名→需求者确认)
       const mode = MATCH_MODE_WHITELIST.indexOf(match_mode) >= 0 ? match_mode : 'broadcast';
@@ -733,8 +753,9 @@ exports.main = async (event, context) => {
       if (user.status === 'banned') return { ok: false, code: 'update_banned', msg: '账号已封禁' };
       if (user.status === 'closed') return { ok: false, code: 'update_closed', msg: '账号已注销' };
 
-      // ── 场景白名单 ──
-      if (!scene || SCENE_WHITELIST.indexOf(scene) < 0) {
+      // ── 场景白名单(动态从 admin_config.scene_list 读取) ──
+      const sceneCodes2 = await getSceneCodes();
+      if (!scene || sceneCodes2.indexOf(scene) < 0) {
         return { ok: false, code: 'update_scene_invalid', msg: '场景不在白名单' };
       }
       const mode = MATCH_MODE_WHITELIST.indexOf(match_mode) >= 0 ? match_mode : d.match_mode;
