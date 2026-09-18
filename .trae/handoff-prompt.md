@@ -299,15 +299,22 @@ type(scope): description
 ```
 你好，我接手 zhaoren 找人帮忙微信小程序项目的开发。以下是完整上下文——请先读完再行动：
 
+【项目定位】同城功能性陪伴服务撮合小程序（非社交非交友），首发成都，测试名「找人帮忙」，MVP 核心闭环: 注册认证→需求发布→匹配(广场广播+定向邀约)→IM沟通→四确认下单→模拟支付→履约确认→安全报备→评价结算→基础风控→最小管理后台
+
+【技术栈（不可更换）】
+- 微信原生小程序 JavaScript（不用 TypeScript/uni-app/任何 npm 构建）
+- 后端: 微信云开发 CloudBase——云函数 Node.js 18(wx-server-sdk) + 云数据库 + 云存储
+- 环境 ID 唯一入口: miniprogram/envList.js 中的 CLOUD_ENV 常量
+- 禁止: 第三方 UI 库、云函数之外的 npm 依赖、非 wx-server-sdk 依赖
+
 【身份与环境】
-- 技术栈: 微信原生小程序 + 微信云开发(CloudBase)
 - 云环境: cloud1-d9gkefwcp5c777088
 - AppID: wxbc4a4afacdf234f5
 - Git: https://github.com/510721314-lang/zhaoren.git
-- 最新 commit: 619871c，全部已推送，全部云函数已部署
+- 最新 commit: 5a8b2f4，全部已推送，全部云函数已部署
 
-【启动前必读文件】
-1. .trae/rules.md — 红线约束
+【启动前必读文件（按顺序）】
+1. .trae/rules.md — 12 条不可变红线 + 代码规范 + 数据库集合命名
 2. .trae/skills/zhaoren-config-sync/SKILL.md — SSOT 同步规范
 3. miniprogram/config/enums.js — 前端枚举 SSOT（SCENES 5场景 / ORDER_STATUS 13态 / normalizeStatus 点转下划线）
 4. miniprogram/config/index.js — CONFIG 常量（WITHDRAW / ORDER / TENCENT_MAP_KEY）
@@ -335,14 +342,30 @@ admin_config.scene_list 是唯一可信源，当前 5 个活跃场景: W1就医�
 demand-publish 和 order-create sign_disclaimer 现在: 优先读 admin_config.scene_list[].disclaimer_type，fallback 本地硬编码，最终 fallback 'general_disclaimer'。W1→medical / W2,W8,W10→general / W11→online。
 ⚠️ 云端 admin_config.scene_list 可能还未带 disclaimer_type 字段，需手动跑一次 init-db（init-db 已升级字段级比对迁移逻辑）
 
-【红线铁律】
+【业务红线速查】
+- 订单状态机 13 态: S0待支付 / S1待确认 / S2已支付待履约 / S3履约中 / S3.5履约中断 / S4部分完成 / S5已完成 / S6已取消 / S7已退款 / S8已评价 / S9评价超时 / S10已关闭 / S10.5争议处理中（enums.js 是 SSOT，normalizeStatus 点转下划线）
+- 超时规则: S1 15min→S6 / S0 30min→S6 / S3.5 24h→S4 / S5 48h未评价→S9默认4星
+- 信用分: 初始800/满分1000/及格600/冻结400，<600禁下单接单，<400冻结
+- 四确认: 时间/地点/内容/费用四项，双方各确认一次共8位，任一项修改全重置
+- IM 前置限制: 四确认前仅系统模板消息，禁止自由文本+联系方式交换；四确认后开放，每条安全检测
+- AA 费用: 平台不代收，必须弹窗+勾《线下费用自理承诺书》，4档位 0-50/50-200/200+/自定义
+- 青少年保护: 18-22岁单笔≤200元，服务端校验
+- 模拟支付: 无真实微信支付，走 payment-mock，is_mock=true，收银台须显著提示
+- 紧急求助 MVP: 写 platform_event(P0) + wx.makePhoneCall 一键拨号 + 标记订单，不做真实报警
+- 需求发布: 必须含不可篡改实时精确定位 + publish_distance_max_km（默认50km）距离校验；定向邀约不入广场
+- 订单详情履约阶段(S2/S3/S3.5/S4)必须显示 Safety Center（紧急求助+安全报备按钮）
+
+【数据库集合（跨用户一律走云函数，前端禁止直查）】
+user_account / partner_profile / demand / order_main / order_confirmations / order_status_log / pay_transaction / im_conversation / im_message / safety_report / credit_score_log / emergency_contact / evaluation / settlement / platform_event / admin_config（所有文档含 created_at/updated_at 毫秒时间戳 + is_deleted）
+
+【代码规范红线】
 - resolveOpenid: 所有云函数开头必须 const openid = await resolveOpenid(cloud, event)
+- openid.js 复制到每个云函数目录
 - mock_openid 守卫: 必须 admin_config.env === 'dev' 才允许
 - admin_openids: 从 admin_config 读，禁止硬编码兜底（fail-closed）
 - auto_approve_partner: prod 必须 false
 - 金额: 整数分存储，total_fen 服务端重算，前端禁止直接写金额
 - order_id: 接受 32 位 hex _id 和 ORD 开头 order_no
-- order-status: 云端 S3.5 → 前端 S3_5，所有读取先经 normalizeStatus()
 - cloudbase aggregate: 必须 .aggregate().match(cond) 不是 .where().aggregate()
 - 登录态: Storage key v2_login_ok，不是 openid
 - packOptions.ignore: 之前误配 pages 目录导致 v1 旧页面无法注册 app.json，已删除勿复加
@@ -350,25 +373,44 @@ demand-publish 和 order-create sign_disclaimer 现在: 优先读 admin_config.s
 - wx.showModal confirmText/cancelText 超 4 字符真机静默失败
 - WXML 不能 wx:for+wx:elif 同一元素，用 block wx:elif 嵌套
 - WXSS 禁止 UTF-8 BOM(EF BB BF)
-- 云函数超时: order-action/order-create/demand-publish/demand-match 20s；payment-mock 10s；其余 8s；order-timer 60s
+- koa-connect wrapper 有 ctx leak，用原生 Koa middleware
+- 敏感信息脱敏: phone/idcard 掩码(138****1234 / 5101**********1234)，只存不回传
+- msgSecCheck 强制: 所有自由文本入库前校验，不可用时降级本地词库（config.block_words）
+- 云函数统一返回 {ok:true, data} / {ok:false, code:'模块_原因', msg:'中文提示'}；写操作幂等
+- UI 常量: 主色 #07C160 / 卡片圆角 14px / 绿色阴影发布按钮；所有业务参数从 config/index.js 读，禁止硬编码
+- 内容安全: 所有写操作（发布/IM/评价）的自由文本入库前必须 msgSecCheck，不可用时降级本地词库
+
+【云函数超时配置】
+order-action/order-create/demand-publish/demand-match 20s；payment-mock 10s；user-login/partner-action/safety-report/evaluation-submit/home-action/admin-action/im-send/im-conv/blog-action 8s；order-timer 60s
+
+【MVP 禁做清单（遇到需求一律做占位，不许真做）】
+真实微信支付/分账、人脸核验、TRTC 音视频、AI 心理危机预警、保险真实投保理赔、短信验证码、真实退款打款、机构/B端全套、智能派单算法、代收 AA 费用。占位规范: 入口按钮可点，点击 toast「功能升级中，敬请期待」，云函数返回 ok:false code:PLACEHOLDER
 
 【部署命令模板（单函数，不支持逗号分隔）】
 & "<微信开发者工具cli.bat路径>" cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <函数名> --project "<项目根>" --remote-npm-install
 
 【测试账号】
-- Admin: oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c
+- Admin: oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c（需 admin_config.admin_openids 中有）
 - Partner: test_partner_001 (exam_scores 100)
 
 【备份铁律（重大改动前后必须三重备份 + 完整性检查）】
 1. GitHub push → git log origin/master..HEAD 确认无未推送
-2. Git Bundle → git bundle create zhaoren_v<版本>_<YYYYMMDD>.bundle --all → git bundle verify + 临时 clone + hash 比对
-3. robocopy 热备份 → robocopy <src> <dst> /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 → SHA256 逐文件比对
+2. Git Bundle → git bundle create zhaoren_v<版本>_<YYYYMMDD>.bundle --all → git bundle verify + 临时 clone + commit/tag hash 比对
+3. robocopy 热备份 → robocopy <src> <dst> /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 → SHA256 逐文件比对，核心文件 0 差异 0 缺失
 
 【剩余可选优化（低优先级，不阻塞）】
 - P2: 跑一次 init-db 让云端 admin_config.scene_list 带上 disclaimer_type
 - P3: blog-action TOPIC_WHITELIST 与 constants.js BLOG_TOPICS 双写
 - P3: v1 旧页面 user-home.js SCENE_MAP 硬编码
 - P3: 前端 publish 页场景选项动态读 admin_config（前端 enums.js 作为前端侧 SSOT 已足够）
+
+【新电脑初始化检查】
+- 安装微信开发者工具 + 获取 cli.bat 路径
+- Git 配置 user.name / user.email
+- git clone https://github.com/510721314-lang/zhaoren.git
+- 微信开发者工具登录 + 设置 AppID + 绑定云环境 cloud1-d9gkefwcp5c777088
+- 添加 https://apis.map.qq.com 到 request 合法域名
+- 跑一次 init-db（GUI 云函数测试面板）确保 admin_config 种子完整
 
 请确认你已理解，然后告诉我接下来要做什么。
 ```
