@@ -1,4 +1,4 @@
-﻿// blog-action 耍伴服务动态(图文信息流) · 身份取自 getWXContext().OPENID
+// blog-action 耍伴服务动态(图文信息流) · 身份取自 getWXContext().OPENID
 // action: feed_list / detail / publish / delete_my / like / unlike /
 //         comment_list / comment_add / comment_delete / my_list
 // 集合: blog_post(帖子) / blog_comment(评论) / blog_like(点赞, 幂等)
@@ -15,7 +15,23 @@ const MAX_IMAGES = 9;
 const CONTENT_MIN = 2;
 const CONTENT_MAX = 1000;
 const COMMENT_MAX = 200;
-const SCENE_CODES = ['W1', 'W2', 'W8', 'W10', 'W11'];
+const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
+let _sceneCodesCache = null;
+async function getSceneCodes() {
+  if (_sceneCodesCache) return _sceneCodesCache;
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    const cfg = r.data && r.data[0];
+    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list.map((s) => s.code).filter(Boolean)
+      : SCENE_CODES_FALLBACK;
+    _sceneCodesCache = list;
+    return list;
+  } catch (e) {
+    _sceneCodesCache = SCENE_CODES_FALLBACK;
+    return SCENE_CODES_FALLBACK;
+  }
+}
 // 话题白名单(与 miniprogram/utils/constants.js 的 BLOG_TOPICS 保持一致, 不接受自由输入)
 const TOPIC_WHITELIST = ['陪诊日常', '学习陪伴', '生活协助', '出行陪伴', '线上陪伴', '服务心得', '暖心瞬间'];
 const MAX_TAGS = 3;
@@ -115,7 +131,8 @@ exports.main = async (event, context) => {
       // ───────── 信息流(首页/广场) ─────────
       case 'feed_list': {
         const page = Number.isInteger(event.page) && event.page > 0 ? event.page : 1;
-        const scene = SCENE_CODES.indexOf(event.scene) >= 0 ? event.scene : '';
+        const sceneCodes = await getSceneCodes();
+        const scene = sceneCodes.indexOf(event.scene) >= 0 ? event.scene : '';
         const where = { status: 'normal', is_deleted: false };
         if (scene) where.scene = scene;
         // 话题筛选: tags 为数组字段, 等值匹配即"数组包含该元素"
@@ -196,7 +213,8 @@ exports.main = async (event, context) => {
         if (images.length !== (Array.isArray(event.images) ? event.images.length : 0)) {
           return { ok: false, code: 'bad_image', msg: '图片来源非法,请重新选择' };
         }
-        const scene = SCENE_CODES.indexOf(event.scene) >= 0 ? event.scene : '';
+        const sceneCodes = await getSceneCodes();
+        const scene = sceneCodes.indexOf(event.scene) >= 0 ? event.scene : '';
         const tags = sanitizeTags(event.tags);
         const cfg = await getConfig();
         const check = await safeCheckText(content, cfg.block_words);
