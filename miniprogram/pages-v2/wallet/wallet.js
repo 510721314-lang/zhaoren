@@ -1,10 +1,12 @@
 // PRD章节: 3.10 资金钱包 / 3.10.2 提现 / 3.10.3 极速提现 / 3.10.4 收益明细
 // P2: 接云端 payment-mock balance_info + income_list, 删 mock 依赖
 const CONFIG = require('../../config/index.js');
-const { FUND_STATUS } = require('../../config/enums.js');
+const { FUND_STATUS, SCENES } = require('../../config/enums.js');
 const redline = require('../../utils/redline.js');
 
-const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 从 config/enums.js SCENES 构建 scene code → 显示名映射, 与 admin_config.scene_list 对齐
+const SCENE_NAMES = {};
+SCENES.forEach((s) => { SCENE_NAMES[s.code] = s.name; });
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
