@@ -401,8 +401,7 @@ exports.main = async (event, context) => {
       // ── 写入 ──
       const now = Date.now();
       const demand_no = genDemandNo();
-      // 免责声明类型: 优先从 admin_config.scene_list 动态读(SSOT), 兜底 LEGACY 映射
-      const sceneCfg = (config.scene_list || []).find((s) => s && s.code === scene);
+      // 免责声明类型: 优先从 admin_config.scene_list 动态读(SSOT, 复用上方 L358 sceneCfg), 兜底 LEGACY 映射
       const disclaimerType = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
       const doc = {
         demand_no,
