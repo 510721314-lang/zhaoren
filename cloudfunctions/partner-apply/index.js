@@ -117,7 +117,8 @@ exports.main = async (event, context) => {
 
   // ── upsert partner_profile ──
   const now = Date.now();
-  const status = config.auto_approve_partner ? 'approved' : 'pending_review';
+  // 审核红线: 仅 auto_approve_partner === true 自动通过; 已 approved 的档案重提交保留资格
+  let status = config.auto_approve_partner === true ? 'approved' : 'pending_review';
   const profileData = {
     openid,
     nickname: user.nickname || '微信用户',
@@ -136,7 +137,9 @@ exports.main = async (event, context) => {
   try {
     const exist = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
     if (exist.data && exist.data.length > 0) {
-      // 已是耍伴:仅更新可改字段(状态按当前 config 决定)
+      // 已审核通过的耍伴保留 approved; 其余状态按自动开关决定
+      if (exist.data[0].status === 'approved') status = 'approved';
+      // 已是耍伴:仅更新可改字段
       await col('partner_profile').doc(exist.data[0]._id).update({ data: {
         accept_scenes, scene_rates, exam_scores: exam_scores || {}, city: ['成都'], status,
         updated_at: now
@@ -147,10 +150,12 @@ exports.main = async (event, context) => {
       log.d(`partner profile created: ${openid}`);
     }
 
-    // 用户 roles 增加 partner
-    const roles = Array.isArray(user.roles) ? user.roles.slice() : ['user'];
-    if (roles.indexOf('partner') < 0) roles.push('partner');
-    await col('user_account').where({ openid }).update({ data: { roles, updated_at: now } });
+    // 仅审核通过才给用户 roles 增加 partner(pending_review 不授予, 防身份分流越权)
+    if (status === 'approved') {
+      const roles = Array.isArray(user.roles) ? user.roles.slice() : ['user'];
+      if (roles.indexOf('partner') < 0) roles.push('partner');
+      await col('user_account').where({ openid }).update({ data: { roles, updated_at: now } });
+    }
 
     // pending 时写 platform_event(P2)
     if (status === 'pending_review') {

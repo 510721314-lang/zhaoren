@@ -136,6 +136,32 @@ exports.main = async (event, context) => {
       mOK.push({ o, toStatus });
     }));
     await Promise.allSettled(mOK.map(x => logStatus(x.o._id, 'S2_5', x.toStatus, 'timeout_modify_auto_reject', 'system')));
+    // 通知双方: 改期超时自动拒绝, 服务时间不变(发起人/接收人文案区分)
+    await Promise.allSettled(mOK.flatMap(x => {
+      const o = x.o;
+      const pm = o.pending_modify || {};
+      const notices = [];
+      const receivers = [
+        { openid: o.user_openid, role: 'user' },
+        { openid: o.partner_openid, role: 'partner' }
+      ].filter(r => r.openid);
+      receivers.forEach(r => {
+        const isProposer = pm.by_openid && r.openid === pm.by_openid;
+        notices.push(col('system_notice').add({ data: {
+          to_openid: r.openid,
+          order_id: o._id,
+          type: 'modify_reject',
+          title: '改期申请已超时拒绝',
+          body: isProposer
+            ? '你的改期申请因对方超时未确认,已自动拒绝,服务时间不变'
+            : '对方发起的改期申请已超时自动拒绝,服务时间不变',
+          action_key: 'jump_order',
+          action_payload: { order_id: o._id },
+          created_at: now, read: false
+        }}));
+      });
+      return notices;
+    }));
     mOK.forEach(x => { out.modify_auto_reject.push(x.o.order_no); log.d(`timeout S2_5→${x.toStatus} modify auto-reject: ${x.o.order_no}`); });
   } catch (e) { log.d(`s2.5 scan fail: ${e.message}`); }
 

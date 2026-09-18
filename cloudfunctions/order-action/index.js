@@ -602,7 +602,10 @@ exports.main = async (event, context) => {
       submitted_at: Date.now()
     });
 
-    await col('order_main').doc(order_id).update({
+    // CAS: 仅当 milestone.current 仍是读取时的值才推进, 防并发双提/重复写证据
+    const casRes = await col('order_main').where({
+      _id: order_id, status: 'S3', 'milestone.current': ms.current
+    }).update({
       data: {
         'milestone.current': next,
         'milestone.evidence': evidence,
@@ -610,6 +613,9 @@ exports.main = async (event, context) => {
         updated_at: Date.now()
       }
     });
+    if (!casRes.stats || casRes.stats.updated !== 1) {
+      return { ok: false, code: 'oa_ms_conflict', msg: '进度状态已变化,请刷新后重试' };
+    }
     log.d(`milestone ${next}/3 submitted: ${order.order_no}`);
     writeNotice({
       to_openid: order.user_openid, order_id, type: 'milestone',
@@ -632,12 +638,17 @@ exports.main = async (event, context) => {
 
     const ms = order.milestone || { current: 0, confirmed: [false, false, false] };
     if (ms.current < milestone) return { ok: false, code: 'oa_ms_not_submitted', msg: '该进度尚未提交' };
-    const confirmed = Array.isArray(ms.confirmed) ? [...ms.confirmed] : [false, false, false];
-    confirmed[milestone - 1] = true;
 
-    await col('order_main').doc(order_id).update({
-      data: { 'milestone.confirmed': confirmed, updated_at: Date.now() }
-    });
+    // CAS: 数组对应位置原子置 true, 仅当当前值非 true(false/缺省)时命中, 防并发双确认且不同里程碑互不覆盖
+    const idx = milestone - 1;
+    const casCond = { _id: order_id };
+    casCond[`milestone.confirmed.${idx}`] = _.neq(true);
+    const casData = { updated_at: Date.now() };
+    casData[`milestone.confirmed.${idx}`] = true;
+    const casRes = await col('order_main').where(casCond).update({ data: casData });
+    if (!casRes.stats || casRes.stats.updated !== 1) {
+      return { ok: false, code: 'oa_ms_already_confirmed', msg: '该进度已确认,无需重复操作' };
+    }
     log.d(`milestone ${milestone} confirmed by user: ${order.order_no}`);
     return { ok: true, data: { order_id, milestone, confirmed: true } };
   }

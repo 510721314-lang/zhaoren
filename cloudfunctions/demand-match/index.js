@@ -321,18 +321,27 @@ exports.main = async (event, context) => {
       if (!signed.data || !signed.data[0]) {
         return { ok: false, code: 'apply_disclaimer_required', msg: '请先签署该场景免责声明后再报名' };
       }
-      // 防重复报名
+      // 防重复报名(友好前置校验; 并发兜底由下面的 CAS 完成)
       const applicants = Array.isArray(demand.applicants) ? demand.applicants : [];
       if (applicants.some(a => a.openid === openid)) {
         return { ok: false, code: 'apply_duplicate', msg: '你已报名该需求' };
       }
-      // 追加报名者
-      applicants.push({ openid, applied_at: Date.now(), status: 'pending' });
-      await col('demand').doc(demand_id).update({ data: {
-        applicants, updated_at: Date.now()
+      // 原子 push + CAS: 需求仍 matching 且 applicants 中无本人(字段缺省的历史文档也视为未报名)才命中,
+      // 杜绝读-改-写并发丢报名/重复报名
+      const appliedAt = Date.now();
+      const addRes = await col('demand').where({
+        _id: demand_id,
+        status: 'matching',
+        'applicants.openid': _.neq(openid)
+      }).update({ data: {
+        applicants: _.push({ each: [{ openid, applied_at: appliedAt, status: 'pending' }] }),
+        updated_at: appliedAt
       }});
+      if (!addRes.stats || addRes.stats.updated !== 1) {
+        return { ok: false, code: 'apply_conflict', msg: '报名失败,该需求可能已关闭或你已报名' };
+      }
       log.d(`apply success: demand=${demand_id} partner=${openid}`);
-      return { ok: true, data: { demand_id, applied: true, applicant_count: applicants.length } };
+      return { ok: true, data: { demand_id, applied: true, applicant_count: applicants.length + 1 } };
     }
 
     // 6. 需求者确认报名(选单模式)

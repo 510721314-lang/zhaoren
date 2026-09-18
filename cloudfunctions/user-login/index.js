@@ -62,6 +62,34 @@ function maskIdCard(id) {
   return id.slice(0, 4) + '**********' + id.slice(14);
 }
 
+// ─────────────── 身份证号加密(AES-256-GCM, 禁止明文落库) ───────────────
+// 密钥存 admin_config.idcard_aes_key(64 hex); 首次实名时 lazy 生成并写回
+// 密文格式 hex(iv12 + tag16 + ciphertext); 业务只展示 idcard_mask, 不提供解密接口
+async function ensureIdcardKey() {
+  const cfg = await getConfig();
+  if (cfg.idcard_aes_key && /^[0-9a-f]{64}$/i.test(cfg.idcard_aes_key)) return cfg.idcard_aes_key;
+  const key = crypto.randomBytes(32).toString('hex');
+  try {
+    await col('admin_config').where({ _id: 'global' }).update({
+      data: { idcard_aes_key: key, updated_at: Date.now() }
+    });
+    return key;
+  } catch (e) {
+    // 并发首次绑定落败: 重读拿到另一方写入的 key
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get().catch(() => ({ data: [] }));
+    const k = r.data && r.data[0] && r.data[0].idcard_aes_key;
+    if (k && /^[0-9a-f]{64}$/i.test(k)) return k;
+    throw new Error('idcard_key_unavailable');
+  }
+}
+function encryptIdCard(plain, keyHex) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(keyHex, 'hex'), iv);
+  const ct = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, ct]).toString('hex');
+}
+
 // 内容安全(msgSecCheck 不可用时降级本地词库)
 async function safeCheckText(text, blockWords) {
   if (!text) return { pass: true };
@@ -102,7 +130,7 @@ function safeUserDoc(u) {
     is_realname_done: u.is_realname_done,
     is_realname_simulated: u.is_realname_simulated,
     age: u.age, status: u.status, phone: u.phone ? maskPhone(u.phone) : '',
-    idcard_masked: u.idcard ? maskIdCard(u.idcard) : '',
+    idcard_masked: u.idcard_mask || (u.idcard ? maskIdCard(u.idcard) : ''),
     register_source: u.register_source,
     created_at: u.created_at, updated_at: u.updated_at
   };
@@ -116,7 +144,8 @@ function genSmsCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 // 从前端入参拿到真实手机号: 路径A phone_code(getPhoneNumber 授权) / 路径B phone+sms_code(短信验证码)
-async function resolvePhone(event) {
+// callerOpenid 必须传 resolveOpenid 解析后的身份(不能内部取 wxCtx.OPENID, 否则 dev mock 链路断裂)
+async function resolvePhone(event, callerOpenid) {
   const { phone_code, phone, sms_code } = event;
   if (phone_code) {
     try {
@@ -132,7 +161,6 @@ async function resolvePhone(event) {
   if (phone && sms_code) {
     if (!PHONE_RE.test(phone)) return { ok: false, code: 'phone_format', msg: '手机号格式有误' };
     try {
-      const callerOpenid = cloud.getWXContext().OPENID;
       const r = await col('user_account').where({ openid: callerOpenid }).limit(1).get();
       const u = r.data && r.data.length > 0 ? r.data[0] : null;
       if (!u) return { ok: false, code: 'sms_no_user', msg: '请先获取验证码' };
@@ -233,23 +261,22 @@ exports.main = async (event, context) => {
       }
     }
 
-    // 3. 绑定手机号(11 位 1 开头 · 仅校验,存明文仅供紧急联系)
+    // 3. 绑定手机号: 只接受 getPhoneNumber 授权(phone_code) 或短信验证码(phone+sms_code),
+    //    禁止直接信任前端明文 phone(防伪造)
     case 'bind_phone': {
-      const { phone } = event;
-      if (!phone || !/^1\d{10}$/.test(phone)) {
-        return { ok: false, code: 'phone_format', msg: '手机号格式有误(需 11 位 1 开头)' };
-      }
+      const rp = await resolvePhone(event, openid);
+      if (!rp.ok) return { ok: false, code: rp.code, msg: rp.msg };
       try {
         await col('user_account').where({ openid }).update({ data: {
-          phone, updated_at: Date.now()
+          phone: rp.phone, updated_at: Date.now()
         }});
-        return { ok: true, data: { phone: maskPhone(phone) } };
+        return { ok: true, data: { phone: maskPhone(rp.phone) } };
       } catch (e) {
         return { ok: false, code: 'phone_save_fail', msg: '手机号保存失败' };
       }
     }
 
-    // 4. 绑定身份证(18 位校验位 + 计算年龄 + <18 拒绝)
+    // 4. 绑定身份证(18 位校验位 + 计算年龄 + <18 拒绝; AES-256-GCM 加密落库)
     case 'bind_idcard': {
       const { idcard } = event;
       if (!isValidIdCard(idcard)) {
@@ -259,9 +286,18 @@ exports.main = async (event, context) => {
       if (age === null || age < 18) {
         return { ok: false, code: 'idcard_minor', msg: '未成年人禁止使用本服务' };
       }
+      let idcardEnc;
+      try {
+        const key = await ensureIdcardKey();
+        idcardEnc = encryptIdCard(idcard, key);
+      } catch (e) {
+        return { ok: false, code: 'idcard_key_fail', msg: '实名服务暂不可用,请稍后重试' };
+      }
       try {
         await col('user_account').where({ openid }).update({ data: {
-          idcard, age, is_realname_done: true, updated_at: Date.now()
+          idcard_enc: idcardEnc, idcard_mask: maskIdCard(idcard),
+          idcard: '', // 清理历史明文(老数据重绑时)
+          age, is_realname_done: true, updated_at: Date.now()
         }});
         return { ok: true, data: { age, idcard_masked: maskIdCard(idcard) } };
       } catch (e) {
@@ -390,7 +426,8 @@ exports.main = async (event, context) => {
         await col('user_account').doc(uid).update({
           data: {
             status: 'closed', roles: [],
-            nickname: '已注销用户', avatar: '', phone: '', idcard: '', age: null,
+            nickname: '已注销用户', avatar: '', phone: '', idcard: '',
+            idcard_enc: '', idcard_mask: '', age: null,
             is_realname_done: false,
             closed_at: now, is_deleted: true, updated_at: now
           }
@@ -455,10 +492,15 @@ exports.main = async (event, context) => {
           const addRes = await col('user_account').add({ data: newUser });
           docId = addRes._id;
         }
-        // 模拟发送: console.log 输出, 真机调试时可看云函数日志
+        // 模拟发送: 验证码禁止写日志(防日志泄露被冒充)
         // TODO: 生产期替换为 await cloud.openapi.sms.send({...}) 或腾讯云 SMS SDK
-        log.d(`[SMS-SEND] phone=${phone} code=${code} expire_at=${expireAt}`);
-        return { ok: true, data: { msg: '验证码已发送(开发模式请查看云函数日志)' } };
+        const env = require('./openid').getCachedEnv();
+        log.d(`[SMS-SEND] phone=${phone} expire_at=${expireAt} (code hidden)`);
+        if (env === 'dev') {
+          // dev 云端测试/真机调试: 走响应回传验证码, 不进日志
+          return { ok: true, data: { msg: '验证码已发送(dev 模式)', dev_code: code } };
+        }
+        return { ok: true, data: { msg: '验证码已发送' } };
       } catch (e) {
         log.d(`send_sms_code error: ${e.message}`);
         return { ok: false, code: 'sms_send_fail', msg: '验证码发送失败,请稍后重试' };
@@ -468,7 +510,7 @@ exports.main = async (event, context) => {
     // 手机号登录: 支持 getPhoneNumber 授权或手机号+短信验证码
     case 'phone_login': {
       // 注意: 手机号变量统一用 rp.phone, 切勿在此再解构 event.phone, 否则同作用域 const 重复声明导致整文件加载崩溃
-      const rp = await resolvePhone(event);
+      const rp = await resolvePhone(event, openid);
       if (!rp.ok) return { ok: false, code: rp.code, msg: rp.msg };
       const phone = rp.phone;
       try {
@@ -513,7 +555,7 @@ exports.main = async (event, context) => {
 
     // 手机号快捷注册: 只建新账号, 不允许已有账号再走这个入口
     case 'phone_register': {
-      const rp = await resolvePhone(event);
+      const rp = await resolvePhone(event, openid);
       if (!rp.ok) return { ok: false, code: rp.code, msg: rp.msg };
       const phone = rp.phone;
       try {

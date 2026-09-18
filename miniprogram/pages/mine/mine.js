@@ -15,6 +15,9 @@ Page({
     avatarUrl: '',
     inputPhone: '',
     inputIdcard: '',
+    smsCode: '',            // 手机号绑定短信验证码
+    smsSent: false,         // 是否已发送验证码(显示验证码输入行)
+    smsCountdown: 0,        // 重发倒计时(秒)
     contactName: '',
     contactPhone: '',
     contactRelation: '',
@@ -241,21 +244,77 @@ Page({
 
   // 手机号输入
   onPhoneInput(e) { this.setData({ inputPhone: e.detail.value }); },
+  onSmsCodeInput(e) { this.setData({ smsCode: e.detail.value }); },
 
-  // 保存手机号
-  savePhone() {
+  // 发送绑定用短信验证码
+  onSendSmsCode() {
     const phone = this.data.inputPhone.trim();
     if (!/^1\d{10}$/.test(phone)) {
       wx.showToast({ title: '手机号需 11 位 1 开头', icon: 'none' });
       return;
     }
+    wx.showLoading({ title: '发送中', mask: true });
     wx.cloud.callFunction({
       name: 'user-login',
-      data: { action: 'bind_phone', phone },
+      data: { action: 'send_sms_code', phone },
+      success: (res) => {
+        wx.hideLoading();
+        const r = res.result;
+        if (r && r.ok) {
+          // dev 模式云函数把验证码放在响应里(不进日志), 自动填入方便真机/云端测试
+          const devCode = r.data && r.data.dev_code;
+          this.setData({
+            smsSent: true,
+            smsCode: devCode ? String(devCode) : ''
+          });
+          wx.showToast({ title: devCode ? '验证码已自动填入(dev)' : '验证码已发送', icon: 'none' });
+          this.startSmsCountdown();
+        } else {
+          wx.showToast({ title: (r && r.msg) || '发送失败', icon: 'none' });
+        }
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常', icon: 'none' });
+      }
+    });
+  },
+
+  startSmsCountdown() {
+    if (this._smsTimer) clearInterval(this._smsTimer);
+    let left = 60;
+    this.setData({ smsCountdown: left });
+    this._smsTimer = setInterval(() => {
+      left--;
+      if (left <= 0) {
+        clearInterval(this._smsTimer);
+        this._smsTimer = null;
+        this.setData({ smsCountdown: 0 });
+      } else {
+        this.setData({ smsCountdown: left });
+      }
+    }, 1000);
+  },
+
+  // 保存手机号(必须带短信验证码, 服务端校验通过才落库)
+  savePhone() {
+    const phone = this.data.inputPhone.trim();
+    const smsCode = this.data.smsCode.trim();
+    if (!/^1\d{10}$/.test(phone)) {
+      wx.showToast({ title: '手机号需 11 位 1 开头', icon: 'none' });
+      return;
+    }
+    if (!/^\d{4,6}$/.test(smsCode)) {
+      wx.showToast({ title: '请先获取并输入验证码', icon: 'none' });
+      return;
+    }
+    wx.cloud.callFunction({
+      name: 'user-login',
+      data: { action: 'bind_phone', phone, sms_code: smsCode },
       success: (res) => {
         if (res.result && res.result.ok) {
           wx.showToast({ title: '手机号已保存', icon: 'success' });
-          this.setData({ inputPhone: '' });
+          this.setData({ inputPhone: '', smsCode: '', smsSent: false });
           this.refreshUser();
         } else {
           wx.showToast({ title: (res.result && res.result.msg) || '保存失败', icon: 'none' });
@@ -263,6 +322,10 @@ Page({
       },
       fail: () => wx.showToast({ title: '网络异常', icon: 'none' })
     });
+  },
+
+  onUnload() {
+    if (this._smsTimer) { clearInterval(this._smsTimer); this._smsTimer = null; }
   },
 
   // 身份证输入

@@ -121,23 +121,35 @@ exports.main = async (event, context) => {
   const config = await getConfig();
   const adminOpenids = config.admin_openids || [];
 
-  // ───────── 例外: 白名单为空时首个管理员自助声明(仅一次) ─────────
+  // ───────── 例外: 白名单为空时首个管理员自助声明(仅一次, 事务 CAS 防并发刷空) ─────────
   if (action === 'claim_admin') {
-    if (adminOpenids.length > 0) {
-      await logEvent('P1', 'admin_probe', openid, { action, reason: 'claim_after_init' });
-      return { ok: false, code: 'admin_forbidden', msg: '无权限' };
-    }
     if (!openid) return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
-    const now = Date.now();
+    let now = Date.now();
     try {
-      await col('admin_config').where({ _id: 'global' }).update({
-        data: { admin_openids: [openid], updated_at: now }
+      const txRes = await db.runTransaction(async (t) => {
+        // 事务内重读: 两个并发 claim 只有一方看到空名单
+        const docR = await t.collection('admin_config').doc('global').get();
+        const list = (docR.data && docR.data.admin_openids) || [];
+        if (list.length > 0) {
+          const err = new Error('admin already initialized');
+          err.bizCode = 'admin_forbidden';
+          throw err;
+        }
+        now = Date.now();
+        await t.collection('admin_config').doc('global').update({
+          data: { admin_openids: [openid], updated_at: now }
+        });
+        return { at: now };
       });
+      await logEvent('P2', 'admin_bootstrap', openid, { at: txRes.at });
+      return { ok: true, data: { admin_openids: [openid], msg: '管理员初始化成功' } };
     } catch (e) {
+      if (e && e.bizCode === 'admin_forbidden') {
+        await logEvent('P1', 'admin_probe', openid, { action, reason: 'claim_after_init' });
+        return { ok: false, code: 'admin_forbidden', msg: '无权限' };
+      }
       return { ok: false, code: 'admin_claim_fail', msg: '初始化失败' };
     }
-    await logEvent('P2', 'admin_bootstrap', openid, { at: now });
-    return { ok: true, data: { admin_openids: [openid], msg: '管理员初始化成功' } };
   }
 
   // ───────── 统一鉴权 ─────────
@@ -145,8 +157,9 @@ exports.main = async (event, context) => {
     await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
     return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
   }
-  // mock 测试环境:dev 下传了 mock_openid 视为测试管理员;prod 强制关闭此旁路
-  const isMockAdmin = !!event.mock_openid && (config.env || 'dev') !== 'prod';
+  // mock 测试环境:仅 dev 且 resolveOpenid 已确认 dev 时, mock_openid 视为测试管理员; prod/读不到配置一律关闭
+  const { getCachedEnv } = require('./openid');
+  const isMockAdmin = !!event.mock_openid && getCachedEnv() === 'dev';
   if (adminOpenids.indexOf(openid) < 0 && !isMockAdmin) {
     await logEvent('P1', 'admin_probe', openid, { action, reason: 'not_in_whitelist' });
     if (adminOpenids.length === 0) {

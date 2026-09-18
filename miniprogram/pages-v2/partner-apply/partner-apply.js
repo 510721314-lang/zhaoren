@@ -51,15 +51,26 @@ Page({
       const r = await callCloud('partner-action', { action: 'apply', accept_scenes: selected });
       wx.hideLoading();
       if (r.ok) {
+        const d = r.data || {};
         // 刷新用户态
         try {
           await callCloud('user-login', { action: 'peek_login' });
         } catch (_) {}
         wx.removeStorageSync('v2_login_ok');
-        wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' });
-        setTimeout(() => {
-          wx.switchTab({ url: '/pages-v2/profile/profile' });
-        }, 800);
+        if (d.pending_review) {
+          wx.showModal({
+            title: '申请已提交',
+            content: '耍伴入驻需管理员审核,审核通过后将自动开通接单权限,请耐心等待。',
+            showCancel: false,
+            confirmText: '我知道了',
+            success: () => { wx.switchTab({ url: '/pages-v2/profile/profile' }); }
+          });
+        } else {
+          wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' });
+          setTimeout(() => {
+            wx.switchTab({ url: '/pages-v2/profile/profile' });
+          }, 800);
+        }
       } else {
         wx.showToast({ title: r.msg || '申请失败', icon: 'none' });
       }

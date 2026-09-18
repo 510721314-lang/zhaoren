@@ -2,6 +2,7 @@
 // order-create 订单创建 · 耍伴接单(create_from_take) · 免责声明签署(sign_disclaimer)
 // 2 个 action: create_from_take / sign_disclaimer · 订单初始状态 S1(待确认/四确认阶段)
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
@@ -57,12 +58,12 @@ async function logReject(openid, demand_id, reason) {
   }
 }
 
-// 生成订单编号 ORD + yyyymmdd + 6位随机
+// 生成订单编号 ORD + yyyymmdd + 8字节密码学随机(16 hex, 防高并发碰撞, 兼容 /^ORD\d+$/ 反查)
 function genOrderNo() {
   const d = new Date();
   const pad = (n) => n < 10 ? '0' + n : '' + n;
   const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-  const r = Math.floor(100000 + Math.random() * 900000);
+  const r = crypto.randomBytes(8).toString('hex');
   return `ORD${ymd}${r}`;
 }
 

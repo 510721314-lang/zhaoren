@@ -5,6 +5,7 @@
 //             / balance_info(钱包汇总) / income_list(收益明细)
 //             / withdraw(普通提现 T+1) / fast_withdraw(极速提现 T+0) / withdraw_list(提现记录)
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
@@ -26,7 +27,8 @@ function genPayNo(prefix) {
   const d = new Date();
   const pad = (n) => n < 10 ? '0' + n : '' + n;
   const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-  const r = Math.floor(100000 + Math.random() * 900000);
+  // 8 字节密码学随机(16 hex), 防高并发碰撞(Math.random 6 位约 100 万分之一)
+  const r = crypto.randomBytes(8).toString('hex');
   return `${prefix}${ymd}${r}`;
 }
 
@@ -252,13 +254,15 @@ exports.main = async (event, context) => {
       }
 
       log.d(`mock_pay success: ${order.order_no} pay_no=${payNo}`);
-      // 支付成功通知双方
-      col('system_notice').add({ data: {
-        to_openid: order.partner_openid, order_id, type: 'paid',
-        title: '订单已支付', body: '请按时履约',
-        action_key: 'jump_order', action_payload: { order_id },
-        created_at: now, read: false
-      }}).catch(e => log.d('[notice] paid->partner fail:', e.message));
+      // 支付成功通知耍伴(await 落库, 防函数 return 后异步写被回收; 失败不阻断资金链路)
+      await Promise.allSettled([
+        col('system_notice').add({ data: {
+          to_openid: order.partner_openid, order_id, type: 'paid',
+          title: '订单已支付', body: '请按时履约',
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }})
+      ]);
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, pay_no: payNo, status: 'S2', is_mock: true }
@@ -346,19 +350,21 @@ exports.main = async (event, context) => {
       }
 
       log.d(`mock_refund success: ${order.order_no} refund_no=${refundNo}`);
-      // 退款成功通知双方
-      col('system_notice').add({ data: {
-        to_openid: order.user_openid, order_id, type: 'refund',
-        title: '退款成功', body: '金额将原路返回',
-        action_key: 'jump_order', action_payload: { order_id },
-        created_at: now, read: false
-      }}).catch(e => log.d('[notice] refund->user fail:', e.message));
-      col('system_notice').add({ data: {
-        to_openid: order.partner_openid, order_id, type: 'refund',
-        title: '订单已退款', body: '该订单已取消并退款',
-        action_key: 'jump_order', action_payload: { order_id },
-        created_at: now, read: false
-      }}).catch(e => log.d('[notice] refund->partner fail:', e.message));
+      // 退款成功通知双方(await 落库, 防函数 return 后异步写被回收; 失败不阻断资金链路)
+      await Promise.allSettled([
+        col('system_notice').add({ data: {
+          to_openid: order.user_openid, order_id, type: 'refund',
+          title: '退款成功', body: '金额将原路返回',
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }}),
+        col('system_notice').add({ data: {
+          to_openid: order.partner_openid, order_id, type: 'refund',
+          title: '订单已退款', body: '该订单已取消并退款',
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }})
+      ]);
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }

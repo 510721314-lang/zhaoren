@@ -19,8 +19,15 @@ const log = require('./logger');
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
 const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
 
-// 管理员白名单兜底(与 partner-action review 同源 admin_config.admin_openids)
-const FALLBACK_ADMIN_OPENIDS = ['oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c'];
+// 管理员白名单只认 admin_config.admin_openids; 读不到/为空一律返回空列表(fail-closed, 禁止硬编码兜底)
+async function getAdminOpenids() {
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    const list = r.data && r.data[0] && r.data[0].admin_openids;
+    if (Array.isArray(list)) return list;
+  } catch (e) {}
+  return [];
+}
 
 async function getOrder(orderId) {
   try {
@@ -38,15 +45,6 @@ function roleOf(order, openid) {
   if (order.user_openid === openid) return 'user';
   if (order.partner_openid === openid) return 'partner';
   return null;
-}
-
-async function getAdminOpenids() {
-  try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const list = r.data && r.data[0] && r.data[0].admin_openids;
-    if (Array.isArray(list) && list.length > 0) return list;
-  } catch (e) {}
-  return FALLBACK_ADMIN_OPENIDS;
 }
 
 // 取本人紧急联系人(真实号码,仅本人可读,用于 SOS 一键拨号)

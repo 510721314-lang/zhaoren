@@ -53,19 +53,18 @@ exports.main = async (event, context) => {
 
   switch (action) {
 
-    // 0. 申请成为耍伴 (最简: 直接把 openid 加 roles + upsert partner_profile)
+    // 0. 申请成为耍伴 (upsert partner_profile)
+    //    审核红线: 仅 admin_config.auto_approve_partner === true 时自动开通;
+    //    否则新申请/被拒记录一律 pending_review, 且不授予 partner role, 由管理员 review 放行
     case 'apply': {
+      const config = await getConfig();
+      const autoApprove = config.auto_approve_partner === true;
       const uaCol = col('user_account');
       const ua = await uaCol.where({ openid }).limit(1).get();
       if (!ua.data.length) return { ok: false, code: 'pa_no_user', msg: '请先登录' };
 
-      // 加 partner role
+      // 加 partner role(仅审核通过后; pending_review 不授予)
       const curRoles = ua.data[0].roles || [];
-      if (!curRoles.includes('partner')) {
-        await uaCol.doc(ua.data[0]._id).update({
-          data: { roles: [...curRoles, 'partner'], updated_at: Date.now() }
-        });
-      }
 
       // upsert partner_profile
       // 注意: 早期版本 add 漏写 is_deleted 且重复提交可能产生多条文档,
@@ -81,12 +80,17 @@ exports.main = async (event, context) => {
       // W1 真实上线需对接真实考核系统, prod 正式运营前由管理员手动审核维护各场景考核分
       const defaultExam = DEFAULT_EXAM_SCORES;
 
+      // 已是 approved 的历史档案重走申请时保留资格(只更新场景); 其余一律按自动开关决定
+      const wasApproved = existing.data.some(p => p.status === 'approved');
+      const finalApproved = wasApproved || autoApprove;
+      const finalStatus = finalApproved ? 'approved' : 'pending_review';
+
       if (existing.data.length) {
         for (const p of existing.data) {
           // 重走申请=重新开通: 补全所有守卫依赖字段(status/is_deleted/accept_switch)
           const patch = {
             accept_scenes: scenes,
-            status: 'approved',
+            status: p.status === 'approved' ? 'approved' : finalStatus,
             is_deleted: false,
             updated_at: now
           };
@@ -100,7 +104,7 @@ exports.main = async (event, context) => {
           openid,
           nick_name: ua.data[0].nick_name || '新耍伴',
           accept_scenes: scenes,
-          status: 'approved',
+          status: finalStatus,
           accept_switch: true,
           credit_score: 800,
           order_count: 0,
@@ -112,8 +116,24 @@ exports.main = async (event, context) => {
         if (defaultExam) doc.exam_scores = defaultExam;
         await ppCol.add({ data: doc });
       }
-      log.d(`partner apply OK: ${openid} scenes=${scenes} docs=${existing.data.length}`);
-      return { ok: true, data: { roles: [...new Set([...curRoles, 'partner'])], accept_scenes: scenes } };
+
+      // 仅最终审核通过才授予 partner role; 待审核不污染身份分流
+      let roles = curRoles;
+      if (finalApproved && !curRoles.includes('partner')) {
+        roles = [...curRoles, 'partner'];
+        await uaCol.doc(ua.data[0]._id).update({ data: { roles, updated_at: now } });
+      }
+
+      log.d(`partner apply: ${openid} scenes=${scenes} docs=${existing.data.length} status=${finalStatus}`);
+      return {
+        ok: true,
+        data: {
+          roles: [...new Set(roles)],
+          accept_scenes: scenes,
+          status: finalStatus,
+          pending_review: !finalApproved
+        }
+      };
     }
 
     // 1. 接单开关切换
@@ -265,6 +285,20 @@ exports.main = async (event, context) => {
       await col('partner_profile').doc(profile._id).update({ data: {
         status: newStatus, updated_at: Date.now()
       }});
+      // 审核通过: 同步授予 user_account 的 partner role(申请时 pending_review 不授)
+      if (pass) {
+        try {
+          const uaR = await col('user_account').where({ openid: target_openid }).limit(1).get();
+          if (uaR.data && uaR.data.length) {
+            const roles = uaR.data[0].roles || [];
+            if (roles.indexOf('partner') < 0) {
+              await col('user_account').doc(uaR.data[0]._id).update({
+                data: { roles: [...roles, 'partner'], updated_at: Date.now() }
+              });
+            }
+          }
+        } catch (e) { log.d(`review grant role fail: ${e.message}`); }
+      }
       log.d(`partner reviewed: ${target_openid} -> ${newStatus}`);
       return { ok: true, data: { target_openid, status: newStatus } };
     }

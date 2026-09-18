@@ -124,19 +124,24 @@
   <!-- 手机号 -->
   <view class="card">
     <view class="title-md">手机号</view>
-    <view class="form-tip">测试阶段手动填写,仅用于紧急联系与紧急求助,不发送短信验证码。</view>
+    <view class="form-tip">需短信验证码核验,仅用于紧急联系与紧急求助。</view>
     <view class="form-row">
       <text class="form-label">手机号</text>
       <input type="number" maxlength="11" class="form-input" placeholder="11 位手机号" value="{{inputPhone}}" bindinput="onPhoneInput" />
     </view>
+    <view class="form-row" wx:if="{{smsSent}}">
+      <text class="form-label">验证码</text>
+      <input type="number" maxlength="6" class="form-input" placeholder="6 位短信验证码" value="{{smsCode}}" bindinput="onSmsCodeInput" />
+    </view>
     <view wx:if="{{user.phone}}" class="form-display">已绑定:{{user.phone}}</view>
-    <button class="btn-ghost btn-block" bindtap="savePhone">保存手机号</button>
+    <button class="btn-ghost btn-block" bindtap="onSendSmsCode" disabled="{{smsCountdown > 0}}">{{smsCountdown > 0 ? smsCountdown + 's 后重发' : '获取验证码'}}</button>
+    <button class="btn-primary btn-block" bindtap="savePhone" style="margin-top:16rpx;">保存手机号</button>
   </view>
 
   <!-- 身份证 -->
   <view class="card">
     <view class="title-md">身份证号</view>
-    <view class="form-tip">测试阶段仅做格式与年龄校验,正式版将接入官方核验。未成年人禁止使用。</view>
+    <view class="form-tip">18 位校验位 + 成年校验,信息加密存储。未成年人禁止使用。</view>
     <view class="form-row">
       <text class="form-label">身份证</text>
       <input type="idcard" class="form-input" placeholder="18 位身份证号" value="{{inputIdcard}}" bindinput="onIdcardInput" />
