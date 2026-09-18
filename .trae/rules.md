@@ -42,3 +42,44 @@
 
 ## 七、给我（产品经理）的可读性承诺
 每次完成生成后，用不超过 5 句话告诉我：新建/修改了哪些文件、我怎么在微信开发者工具里验证、验证成功的标志是什么。
+
+## 八、备份与恢复（铁律）
+
+### 三重备份策略（每次备份必须同时执行）
+1. **GitHub 远程**：master 分支 + 全部 tags 必须推送到 origin（最后一道防线，不可跳过）
+2. **Git Bundle**：`git bundle create <桌面路径>/zhaoren_v<版本>_<日期>.bundle master --tags` — 克隆后可完全还原项目历史
+3. **robocopy 热备份**：`robocopy <源> <桌面备份目录> /MIR /XD .git node_modules .trae .tmp-cloud-runner` — 文件级快照，排除无关目录
+
+### 备份后**必须**做完整性检查（不可跳过，不能靠文件大小判断）
+1. **Git Bundle 验证**：
+   - `git bundle verify <bundle文件>` — exit code 0 且输出 "bundle is okay"
+   - 临时克隆：`git clone <bundle文件> <临时目录>` — 900+ 文件应全部还原
+   - commit hash 对比：bundle 克隆后的 master HEAD 与本地 `git rev-parse master` 完全一致
+   - tag 完整性：bundle 内 refs 数量 = 本地 `git tag` 数量（含 v0.x.x + backup-*）
+
+2. **热备份验证**：
+   - 源目录 vs 热备份文件级 SHA256 哈希对比
+   - 核心指标：
+     - `仅在源目录(备份缺失) = 0` ✅ — 所有项目文件必须被备份
+     - `内容不一致(SHA256不匹配) = 0` ✅ — 备份文件内容必须与源目录完全一致
+     - 热备份可包含额外的 IDE 运行时文件（.trae/ 下），但**不能缺失任何项目文件**
+
+3. **GitHub 同步验证**：
+   - `git log origin/master..HEAD` — 空输出表示所有 commit 已推送
+   - tag 推送：`git push origin <tag>` 后输出 `[new tag]` 或已是最新
+
+### 备份命名规范
+- Bundle：`zhaoren_v<版本>_<YYYYMMDD>.bundle`（如 `zhaoren_v0.10.0_20260918.bundle`）
+- 热备份：`zhaoren_backup_<YYYYMMDD>`
+- 存放位置：桌面（`C:\Users\DC\Desktop\`），方便快速访问
+
+### 恢复优先级
+1. GitHub 重新 clone → `git clone https://github.com/510721314-lang/zhaoren`
+2. Git Bundle 克隆 → `git clone <bundle文件> restore-dir`
+3. 热备份直接复制 → `robocopy <热备份目录> restore-dir /MIR`
+
+### 经验教训（从之前的备份事故中提炼）
+- **文件大小 ≠ 完整性**：大小接近不代表内容一致，必须用 SHA256 逐文件比对
+- **robocopy 不能排除 `.trae/`**：IDE 运行时文件会在 robocopy 后新增到备份目录外，导致下次备份可能丢失——核心项目文件（miniprogram/ + cloudfunctions/）才是检查重点
+- **Bundle verify 必须 clone 验证**：`git bundle verify` 通过说明 bundle 格式正确，但必须实际 clone 成功 + commit hash 匹配才能证明数据完整
+- **先备份后 commit 不行**：必须等所有改动 commit + push 到 GitHub 后再开始备份，否则 bundle 会漏最新 commit
