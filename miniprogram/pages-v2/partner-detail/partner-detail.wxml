@@ -40,6 +40,27 @@
     </view>
   </view>
 
+  <!-- T2.5 日常位置 + 距浏览者距离/多方式耗时 -->
+  <view class="pd__card" wx:if="{{partner.home_location}}">
+    <view class="pd__loc-title">📍 TA的日常位置</view>
+    <view class="pd__loc-name">{{partner.home_location.name || '已设置日常位置'}}</view>
+    <view class="pd__loc-addr" wx:if="{{partner.home_location.address}}">{{partner.home_location.address}}</view>
+
+    <view wx:if="{{route}}">
+      <view class="pd__route-dist">距你 <text class="pd__route-dist-num">{{route.distanceText}}</text></view>
+      <view class="pd__route-modes">
+        <view class="pd__mode" wx:for="{{route.modes}}" wx:key="key">
+          <view class="pd__mode-icon">{{item.icon}}</view>
+          <view class="pd__mode-text">{{item.text}}<text class="pd__mode-est" wx:if="{{item.est}}">≈</text></view>
+          <view class="pd__mode-label">{{item.label}}</view>
+        </view>
+      </view>
+      <view class="pd__route-note">到达耗时为路线规划估算，实际以实时路况为准</view>
+    </view>
+    <view class="pd__route-hint" wx:elif="{{routeLoading}}">正在计算距你的距离与到达耗时…</view>
+    <view class="pd__route-hint" wx:elif="{{locDenied}}">开启定位授权后，可查看距你的距离与到达耗时</view>
+  </view>
+
   <!-- T3 自我介绍 -->
   <view class="pd__card">
     <view class="pd__fold-header" bindtap="toggleExpand">

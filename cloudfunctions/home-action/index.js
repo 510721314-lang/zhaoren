@@ -34,6 +34,77 @@ function sceneLabel(code) {
   return SCENE_NAMES[code] || '';
 }
 
+// 场景固定顺序(与前端 config/enums.js SCENES 一致)
+const SCENE_ORDER = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
+const HOME_GROUP_SIZE = 8;     // 首页每场景展示条数
+const SCENE_PAGE_SIZE = 50;    // 场景更多列表每页条数
+
+// demand 文档 → 广场卡片视图模型(与原 square 内联映射保持一致)
+function mapDemand(d, now, pad) {
+  const remarkParts = String(d.remark || '').split('｜');
+  const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
+  const description = remarkParts[1] ? remarkParts[1].trim() : '';
+
+  const dt = new Date(d.start_time);
+  const service_date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const service_time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+
+  const minutes_ago = Math.max(1, Math.floor((now - (d.created_at || now)) / 60000));
+
+  return {
+    _id: d._id,
+    demand_no: d.demand_no,
+    scene_code: d.scene,
+    project_attr: d.project_attr || 'commercial',
+    title,
+    description,
+    service_date,
+    service_time,
+    duration_hours: d.duration_h,
+    location: d.location || { name: '' },
+    district: (d.location && d.location.city) || '',
+    distance_km: null,
+    headcount: 1,
+    budget: Math.round((d.rate_fen || 0) / 100),
+    aa_estimate: d.aa_tier || '0-50',
+    status: d.status,
+    match_mode: d.match_mode || 'broadcast',
+    publisher: {
+      surname: '匿',
+      real_name_verified: true,
+      minutes_ago,
+      openid: d.creator_openid
+    },
+    created_at: d.created_at
+  };
+}
+
+// 批量补发布者姓氏(就地修改)
+async function fillPublisherSurname(list) {
+  const openids = list.map((d) => d.publisher.openid).filter(Boolean);
+  if (!openids.length) return;
+  try {
+    const uR = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get();
+    const map = {};
+    (uR.data || []).forEach((u) => { map[u.openid] = u; });
+    list.forEach((d) => {
+      const u = map[d.publisher.openid] || {};
+      const name = u.surname || u.real_name || u.nickname || '';
+      d.publisher.surname = name ? String(name).charAt(0) : '匿';
+    });
+  } catch (e) {}
+}
+
+// 公共大厅可接单需求过滤条件
+function hallWhere(extra) {
+  return Object.assign({
+    is_deleted: false,
+    status: 'matching',
+    expire_at: _.gt(Date.now()),
+    broadcast: true
+  }, extra || {});
+}
+
 exports.main = async (event, context) => {
   try {
     await require('./openid').warmEnv(cloud); // 环境门控日志预热
@@ -143,11 +214,19 @@ exports.main = async (event, context) => {
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
-        // 并行拉 demand + partner_profile + 活跃用户
+        // 并行拉 demand + partner_profile + 活跃用户 + 8 个场景分组(每场景取 9 条判定 has_more)
         // broadcast:true 硬过滤: 定向邀约(direct)/选单(select)需求不得泄漏进公共大厅/首页
-        const [demandR, partnerR, activeUserR] = await Promise.all([
+        const sceneQueries = SCENE_ORDER.map((code) =>
           col('demand')
-            .where({ is_deleted: false, status: 'matching', expire_at: _.gt(now), broadcast: true })
+            .where(hallWhere({ scene: code }))
+            .orderBy('created_at', 'desc')
+            .limit(HOME_GROUP_SIZE + 1)
+            .get()
+            .catch(() => ({ data: [] }))
+        );
+        const [demandR, partnerR, activeUserR, ...sceneRs] = await Promise.all([
+          col('demand')
+            .where(hallWhere())
             .orderBy('created_at', 'desc')
             .limit(limit)
             .get()
@@ -164,7 +243,8 @@ exports.main = async (event, context) => {
             .orderBy('created_at', 'desc')
             .limit(20)
             .get()
-            .catch(() => ({ data: [] }))
+            .catch(() => ({ data: [] })),
+          ...sceneQueries
         ]);
 
         // 活跃用户横滑栏(图4): 头像+昵称, 不泄露手机号/openid 以外敏感信息
@@ -175,61 +255,24 @@ exports.main = async (event, context) => {
           created_at: u.created_at || 0
         })).filter((u) => !!u.openid).slice(0, 10);
 
-        const list = (demandR.data || []).map((d) => {
-          // 备注拆分: 标题｜描述
-          const remarkParts = String(d.remark || '').split('｜');
-          const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
-          const description = remarkParts[1] ? remarkParts[1].trim() : '';
+        const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
+        await fillPublisherSurname(list);
 
-          // 时间格式化
-          const dt = new Date(d.start_time);
-          const service_date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-          const service_time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-
-          const minutes_ago = Math.max(1, Math.floor((now - (d.created_at || now)) / 60000));
-
-          return {
-            _id: d._id,
-            demand_no: d.demand_no,
-            scene_code: d.scene,
-            project_attr: d.project_attr || 'commercial',
-            title,
-            description,
-            service_date,
-            service_time,
-            duration_hours: d.duration_h,
-            location: d.location || { name: '' },
-            district: (d.location && d.location.city) || '',
-            distance_km: null,
-            headcount: 1,
-            budget: Math.round((d.rate_fen || 0) / 100),
-            aa_estimate: d.aa_tier || '0-50',
-            status: d.status,
-            match_mode: d.match_mode || 'broadcast',
-            publisher: {
-              surname: '匿',
-              real_name_verified: true,
-              minutes_ago,
-              openid: d.creator_openid
-            },
-            created_at: d.created_at
-          };
+        // 按场景分组(首页): 每场景 8 条 + has_more, 空场景不返回
+        const sceneGroups = [];
+        sceneRs.forEach((r, i) => {
+          const code = SCENE_ORDER[i];
+          const docs = r.data || [];
+          if (!docs.length) return;
+          const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
+          sceneGroups.push({
+            scene_code: code,
+            scene_name: SCENE_NAMES[code] || '',
+            list: items,
+            has_more: docs.length > HOME_GROUP_SIZE
+          });
         });
-
-        // 批量补发布者姓氏
-        const openids = list.map((d) => d.publisher.openid).filter(Boolean);
-        if (openids.length) {
-          try {
-            const uR = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get();
-            const map = {};
-            (uR.data || []).forEach((u) => { map[u.openid] = u; });
-            list.forEach((d) => {
-              const u = map[d.publisher.openid] || {};
-              const name = u.surname || u.real_name || u.nickname || '';
-              d.publisher.surname = name ? String(name).charAt(0) : '匿';
-            });
-          } catch (e) {}
-        }
+        await fillPublisherSurname(sceneGroups.reduce((acc, g) => acc.concat(g.list), []));
 
         // 耍伴推荐: partner_profile + user_account 昵称
         let partnerList = [];
@@ -262,7 +305,44 @@ exports.main = async (event, context) => {
         const activePartners = partnerList.slice(0, 10);
         const partners = partnerList.slice(0, 5);
 
-        return { ok: true, data: { list, partners, active_partners: activePartners, active_users: activeUsers } };
+        return { ok: true, data: { list, scene_groups: sceneGroups, partners, active_partners: activePartners, active_users: activeUsers } };
+      }
+
+      // ───────── 单场景需求分页(更多列表, 每页 50) ─────────
+      case 'scene_list': {
+        const sceneCode = String(event.scene_code || '').trim();
+        if (!SCENE_NAMES[sceneCode]) {
+          return { ok: false, code: 'home_bad_scene', msg: '场景参数错误' };
+        }
+        const skip = Math.max(0, parseInt(event.skip, 10) || 0);
+        const now = Date.now();
+        const pad = (n) => n < 10 ? '0' + n : '' + n;
+
+        // 取 51 条判定是否还有下一页
+        const demandR = await col('demand')
+          .where(hallWhere({ scene: sceneCode }))
+          .orderBy('created_at', 'desc')
+          .skip(skip)
+          .limit(SCENE_PAGE_SIZE + 1)
+          .get()
+          .catch(() => ({ data: [] }));
+
+        const docs = demandR.data || [];
+        const hasMore = docs.length > SCENE_PAGE_SIZE;
+        const list = docs.slice(0, SCENE_PAGE_SIZE).map((d) => mapDemand(d, now, pad));
+        await fillPublisherSurname(list);
+
+        return {
+          ok: true,
+          data: {
+            scene_code: sceneCode,
+            scene_name: SCENE_NAMES[sceneCode],
+            list,
+            has_more: hasMore,
+            next_skip: skip + list.length,
+            page_size: SCENE_PAGE_SIZE
+          }
+        };
       }
 
       // ───────── 用户公开主页 ─────────

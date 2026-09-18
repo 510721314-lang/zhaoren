@@ -83,14 +83,14 @@ const SEED_CONFIG = {
   aa_tiers: ['0-50元', '50-200元', '200元以上', '自定义'],
   // IM 系统模板消息(PRD 3.3.2 四确认前仅允许这些)
   system_templates: [
-    { id: 'T1', text: '你好' },
-    { id: 'T2', text: '我准备好了' },
-    { id: 'T3', text: '请确认服务时间' },
-    { id: 'T4', text: '请确认服务地点' },
-    { id: 'T5', text: '请确认服务内容' },
-    { id: 'T6', text: '请确认费用明细' },
-    { id: 'T7', text: '我发起四确认了' },
-    { id: 'T8', text: '好的马上到' }
+    { id: 'TM1', text: '时间确认' },
+    { id: 'TM2', text: '地点确认' },
+    { id: 'TM3', text: '内容确认' },
+    { id: 'TM4', text: '费用确认' },
+    { id: 'TM5', text: '特殊需求' },
+    { id: 'TM6', text: '到达提醒' },
+    { id: 'TM7', text: '取消申请' },
+    { id: 'TM8', text: '改期申请' }
   ],
   // 本地兜底词库(msgSecCheck 不可用时使用)
   block_words: ['加微信', '加V', '转账', '私聊我'],
@@ -228,6 +228,17 @@ exports.main = async (event, context) => {
           patch[k] = SEED_CONFIG[k];
           hasPatch = true;
         }
+      }
+      // 旧版 system_templates id 为 T1-T8, 前端/im-send 约定为 TM1-TM8;
+      // 检测到任一 TM id 缺失即整组迁移覆盖(幂等: 已是 TM1-TM8 时不动)
+      const tplIds = Array.isArray(doc.system_templates)
+        ? doc.system_templates.map((t) => String(t && t.id).toUpperCase())
+        : [];
+      const seedTplIds = SEED_CONFIG.system_templates.map((t) => t.id);
+      const needMigrate = seedTplIds.some((id) => tplIds.indexOf(id) < 0);
+      if (needMigrate) {
+        patch.system_templates = SEED_CONFIG.system_templates;
+        hasPatch = true;
       }
       if (hasPatch) {
         patch.updated_at = Date.now();

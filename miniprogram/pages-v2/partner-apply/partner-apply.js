@@ -11,6 +11,7 @@ function callCloud(name, data) {
 Page({
   data: {
     scenes: [],        // [{ code, name, emoji, selected }]
+    homeLocation: null, // { name, address, latitude, longitude } gcj02
     submitting: false,
     alreadyPartner: false
   },
@@ -36,6 +37,27 @@ Page({
     this.setData({ scenes });
   },
 
+  // 选择日常位置(注册时确定, 详情页据此展示距离与到达耗时)
+  onChooseLocation() {
+    wx.chooseLocation({
+      success: (res) => {
+        this.setData({
+          homeLocation: {
+            name: res.name || res.address || '所选位置',
+            address: res.address || '',
+            latitude: res.latitude,
+            longitude: res.longitude
+          }
+        });
+      },
+      fail: (err) => {
+        const msg = (err && err.errMsg) || '';
+        if (msg.indexOf('cancel') > -1) return;
+        wx.showToast({ title: '选点失败,请检查定位权限', icon: 'none' });
+      }
+    });
+  },
+
   async onSubmit() {
     if (this.data.submitting) return;
     const selected = this.data.scenes.filter((s) => s.selected).map((s) => s.code);
@@ -43,12 +65,20 @@ Page({
       wx.showToast({ title: '请至少选择一个场景', icon: 'none' });
       return;
     }
+    if (!this.data.homeLocation) {
+      wx.showToast({ title: '请选择日常位置', icon: 'none' });
+      return;
+    }
 
     this.setData({ submitting: true });
     wx.showLoading({ title: '申请中...', mask: true });
 
     try {
-      const r = await callCloud('partner-action', { action: 'apply', accept_scenes: selected });
+      const r = await callCloud('partner-action', {
+        action: 'apply',
+        accept_scenes: selected,
+        home_location: this.data.homeLocation
+      });
       wx.hideLoading();
       if (r.ok) {
         const d = r.data || {};

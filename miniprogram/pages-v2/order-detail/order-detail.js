@@ -373,9 +373,15 @@ Page({
   },
 
   onSafety() {
+    // 安全报备(打卡报平安/定位追踪)仅在履约中开放; S2 待履约阶段引导先开始履约
+    const st = this.data.order && this.data.order.status;
+    if (st !== 'S3' && st !== 'S3_5' && st !== 'S4') {
+      wx.showToast({ title: '开始履约后可安全报备', icon: 'none' });
+      return;
+    }
     wx.navigateTo({
       url: `/pages-v2/safety/safety?orderId=${this.data.order._id}`,
-      fail: () => wx.showToast({ title: '安全报备页待接入', icon: 'none' })
+      fail: () => wx.showToast({ title: '安全报备页打开失败', icon: 'none' })
     });
   },
 

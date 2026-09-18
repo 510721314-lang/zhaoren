@@ -2,6 +2,10 @@
 // P1: 接云端 order-action detail, 删 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
+const { normalizeStatus } = require('../../config/enums.js');
+
+// 安全报备开放的履约阶段: 履约中/里程碑间/待确认完成
+const SAFETY_ALLOWED_STATUS = ['S3', 'S3_5', 'S4'];
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
@@ -69,7 +73,7 @@ Page({
         _id: d.order_id,
         order_id: d.order_id,
         order_no: d.order_no,
-        status: d.status,
+        status: normalizeStatus(d.status),
         scene_code: d.scene,
         safety: {
           last_checkin: (d.safety && d.safety.checkins && d.safety.checkins[0])
@@ -77,7 +81,7 @@ Page({
             : null
         }
       };
-      if (order.status !== 'S3') {
+      if (SAFETY_ALLOWED_STATUS.indexOf(order.status) < 0) {
         this.setData({ loading: false, order, redirect: true });
         wx.redirectTo({
           url: '/pages-v2/order-detail/order-detail?orderId=' + order._id,

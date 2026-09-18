@@ -33,6 +33,36 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
+// 距离格式化: <1km 显示米, ≥1km 显示公里(1位小数)
+function fmtDist(km) {
+  if (!km || km <= 0) return '';
+  if (km < 1) return `${Math.round(km * 1000)} 米`;
+  return `${km.toFixed(1)} 公里`;
+}
+
+// 逆地理编码: 经纬度 → 中文可读地址(腾讯地图 WebService; key 空则降级返回坐标字符串)
+function reverseGeocode(lat, lng) {
+  return new Promise((resolve) => {
+    const key = CONFIG.TENCENT_MAP_KEY;
+    if (!key) { resolve(''); return; }
+    wx.request({
+      url: `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${key}`,
+      timeout: 5000,
+      success: (r) => {
+        const data = r.data || {};
+        if (data.status !== 0 || !data.result) {
+          console.warn('[reverseGeocode] bad status:', data.status, data.message);
+          resolve(''); return;
+        }
+        const addr = (data.result.formatted_addresses && data.result.formatted_addresses.recommend)
+          || data.result.address || '';
+        resolve(addr);
+      },
+      fail: (err) => { console.error('[reverseGeocode] wx.request fail:', err && err.errMsg); resolve(''); }
+    });
+  });
+}
+
 Page({
   data: {
     statusBarHeight: 20,
@@ -80,6 +110,9 @@ Page({
     // 发布地址: 进入发布页即自动高精度定位, 只读不可手改(图3)
     publishLocation: null,   // {latitude, longitude, name, updatedAt:'HH:mm'}
     locating: false,
+    // 两地址距离(km): 发布地址 ↔ 履约地址, 实时计算
+    distanceKm: 0,
+    distanceText: '',
     // 定向邀约(从耍伴详情"咨询/邀TA"进入): 锁定 direct 模式, 仅该耍伴可见可接
     directInvite: false,
     invitePartnerName: '',
@@ -348,10 +381,16 @@ Page({
   onLocationPick() {
     wx.chooseLocation({
       success: (res) => {
+        const pub = this.data.publishLocation;
+        const dist = (pub && Number(res.latitude) && Number(res.longitude))
+          ? haversineKm(pub.latitude, pub.longitude, Number(res.latitude), Number(res.longitude))
+          : 0;
         this.setData({
           'form.location_name': res.name || res.address,
           'form.latitude': res.latitude,
-          'form.longitude': res.longitude
+          'form.longitude': res.longitude,
+          distanceKm: dist,
+          distanceText: fmtDist(dist)
         });
       },
       fail: (err) => {
@@ -429,17 +468,30 @@ Page({
       type: 'gcj02',
       isHighAccuracy: true,
       highAccuracyExpireTime: 4000,
-      success: (res) => {
+      success: async (res) => {
         const now = new Date();
+        const pub = {
+          latitude: res.latitude,
+          longitude: res.longitude,
+          name: '当前位置',
+          address: '',  // 逆地理编码回填, key 空则保持空
+          updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+        };
+        const f = this.data.form;
+        const dist = (Number(f.latitude) && Number(f.longitude))
+          ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude))
+          : 0;
         this.setData({
           locating: false,
-          publishLocation: {
-            latitude: res.latitude,
-            longitude: res.longitude,
-            name: '当前位置',
-            updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-          }
+          publishLocation: pub,
+          distanceKm: dist,
+          distanceText: fmtDist(dist)
         });
+        // 逆地理编码(异步, 不阻塞页面; key 空则静默跳过)
+        const addr = await reverseGeocode(pub.latitude, pub.longitude);
+        if (addr) {
+          this.setData({ 'publishLocation.address': addr });
+        }
         if (showToast) wx.showToast({ title: '已重新定位', icon: 'success' });
       },
       fail: (err) => {

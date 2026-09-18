@@ -10,6 +10,22 @@
   <!-- 正常态 -->
   <block wx:else>
   <view class="ac__body">
+    <!-- 0. 日常位置 -->
+    <view class="ac__card">
+      <view class="ac__card-title">日常位置</view>
+      <view class="ac__tip">你的常驻位置，需求方可在耍伴详情查看距离与到达耗时</view>
+      <view class="ac__loc" bindtap="onChooseLocation">
+        <block wx:if="{{homeLocation}}">
+          <view class="ac__loc-main">
+            <view class="ac__loc-name">📍 {{homeLocation.name}}</view>
+            <view class="ac__loc-addr">{{homeLocation.address}}</view>
+          </view>
+          <text class="ac__loc-change">重选</text>
+        </block>
+        <view wx:else class="ac__loc-empty">📍 点击选择日常位置（小区 / 商圈 / 地标）</view>
+      </view>
+    </view>
+
     <!-- 1. 场景多选 -->
     <view class="ac__card">
       <view class="ac__card-title">接单场景 <text class="ac__required">*</text></view>

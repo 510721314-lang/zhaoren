@@ -19,7 +19,10 @@ Page({
     activeTab: 'intro',
     loading: false,
     loadError: false,
-    isRedline: false
+    isRedline: false,
+    route: null,          // { distanceText, modes:[{icon,label,text,est}] }
+    routeLoading: false,
+    locDenied: false
   },
 
   onLoad(options) {
@@ -63,6 +66,11 @@ Page({
         showStats: (stats.completed_orders || 0) >= 3,
         loading: false
       });
+
+      // 耍伴设置了日常位置: 取浏览者定位 → 云端路线规划
+      if (partner.home_location && partner.home_location.latitude) {
+        this.fetchRoute();
+      }
     } catch (e) {
       this.setData({ loading: false, loadError: true });
       wx.showToast({ title: '网络异常', icon: 'none' });
@@ -70,6 +78,68 @@ Page({
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },
+
+  // 取浏览者当前位置(gcj02) → 云端算路（耍伴日常位置 → 浏览者）
+  fetchRoute() {
+    const partner = this.data.partner;
+    if (!partner || !partner.openid) return;
+    this.setData({ routeLoading: true, locDenied: false, route: null });
+    wx.getLocation({
+      type: 'gcj02',
+      success: async (loc) => {
+        try {
+          const r = await callCloud('partner-action', {
+            action: 'route_plan',
+            partner_openid: partner.openid,
+            latitude: loc.latitude,
+            longitude: loc.longitude
+          });
+          if (r.ok) {
+            this.setData({ route: this.buildRouteView(r.data), routeLoading: false });
+          } else {
+            this.setData({ routeLoading: false });
+            console.warn('[partner-detail] route_plan fail:', r.code, r.msg);
+          }
+        } catch (e) {
+          this.setData({ routeLoading: false });
+          console.error('[partner-detail] route_plan error:', e);
+        }
+      },
+      fail: (err) => {
+        this.setData({ routeLoading: false, locDenied: true });
+        console.warn('[partner-detail] getLocation fail:', err);
+      }
+    });
+  },
+
+  // 云端数值 → 页面展示文案（WXML 不能做复杂运算，全部预算好）
+  buildRouteView(d) {
+    const fmtDist = (m) => {
+      if (m < 1000) return m + '米';
+      return (Math.round(m / 100) / 10) + '公里';
+    };
+    const fmtMin = (min) => {
+      if (min < 60) return min + '分钟';
+      const h = Math.floor(min / 60);
+      const rest = min % 60;
+      return h + '小时' + (rest ? rest + '分' : '');
+    };
+    const defs = [
+      { key: 'drive', icon: '🚗', label: '驾车' },
+      { key: 'transit', icon: '🚇', label: '公交/地铁' },
+      { key: 'bike', icon: '🚴', label: '骑行' }
+    ];
+    const modes = defs
+      .filter((def) => d.modes && d.modes[def.key] && d.modes[def.key].minutes)
+      .map((def) => ({
+        key: def.key,
+        icon: def.icon,
+        label: def.label,
+        text: fmtMin(d.modes[def.key].minutes),
+        est: d.modes[def.key].source === 'estimate'
+      }));
+    return { distanceText: fmtDist(d.distance_m || d.straight_m || 0), modes };
+  },
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });

@@ -18,6 +18,34 @@ const CHAT_BLOCKED = ['S6', 'S10'];
 const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
 
+// 权威 IM 模板表(与前端 config/enums.js TM_TEMPLATES、init-db 种子一致)
+// 历史数据曾误用 T1-T8, 这里做运行时规范化并自愈回写 admin_config
+const CANONICAL_TEMPLATES = [
+  { id: 'TM1', text: '时间确认' },
+  { id: 'TM2', text: '地点确认' },
+  { id: 'TM3', text: '内容确认' },
+  { id: 'TM4', text: '费用确认' },
+  { id: 'TM5', text: '特殊需求' },
+  { id: 'TM6', text: '到达提醒' },
+  { id: 'TM7', text: '取消申请' },
+  { id: 'TM8', text: '改期申请' }
+];
+
+// 返回 { templates, needHeal }: 已是 TM1-TM8 则原样; 否则返回权威表并标记需回写
+function resolveTemplates(raw) {
+  const ids = Array.isArray(raw) ? raw.map((t) => String(t && t.id).toUpperCase()) : [];
+  const healthy = CANONICAL_TEMPLATES.every((t) => ids.indexOf(t.id) >= 0);
+  if (healthy) return { templates: raw, needHeal: false };
+  return { templates: CANONICAL_TEMPLATES, needHeal: true };
+}
+
+// best-effort 自愈: 把权威模板回写 admin_config(不阻断主流程, 不抛错)
+function healTemplates() {
+  col('admin_config').where({ _id: 'global' }).update({
+    data: { system_templates: CANONICAL_TEMPLATES, updated_at: Date.now() }
+  }).then(() => log.d('im templates self-healed to TM1-TM8')).catch(() => {});
+}
+
 // W11 线上陪伴 R3 红线词库(6类:引流/虚拟币/赌博/色情/政治/暴力)
 const W11_R3_WORDS = {
   '引流站外': ['加微信', '加V', 'QQ', '联系方式', '站外', '私聊我', '加我vx'],
@@ -188,7 +216,8 @@ exports.main = async (event, context) => {
   // ───────── 1. 发送系统模板消息 ─────────
   if (action === 'send_template') {
     const tplId = String(event.template_id || '').toUpperCase();
-    const templates = config.system_templates || [];
+    const { templates, needHeal } = resolveTemplates(config.system_templates);
+    if (needHeal) healTemplates();  // 旧 T1-T8 格式: 本次用权威表放行, 异步修库
     const tpl = templates.find((t) => String(t.id).toUpperCase() === tplId);
     if (!tpl) {
       return { ok: false, code: 'im_bad_template', msg: '模板消息不存在,四确认前仅可发送指定模板' };

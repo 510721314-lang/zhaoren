@@ -310,6 +310,48 @@
 .home__list {
   padding: 12rpx 20rpx 0;
 }
+
+/* H7a 需求广场按场景分组 */
+.home__scene-group {
+  padding: 16rpx 20rpx 0;
+}
+.home__scene-head {
+  display: flex;
+  align-items: center;
+  padding: 8rpx 4rpx 16rpx;
+}
+.home__scene-bar {
+  width: 8rpx;
+  height: 32rpx;
+  border-radius: 4rpx;
+  background: var(--brand-primary);
+  margin-right: 14rpx;
+}
+.home__scene-title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.home__scene-count {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+.home__scene-more-btn {
+  margin: 20rpx 0 8rpx;
+  height: 80rpx;
+  line-height: 76rpx;
+  text-align: center;
+  border-radius: 40rpx;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  font-size: var(--font-md);
+  font-weight: 600;
+  border: 2rpx solid var(--brand-primary);
+}
+.home__scene-more-btn:active {
+  opacity: 0.75;
+}
 .home__partner-tip {
   text-align: center;
   font-size: var(--font-xs);

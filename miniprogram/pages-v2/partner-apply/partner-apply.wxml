@@ -6,6 +6,21 @@
   </view>
 
   <view class="pa__card">
+    <view class="pa__card-title">日常位置 <text class="pa__required">*</text></view>
+    <view class="pa__tip">注册时确定的常驻位置，用于向需求方展示你们之间的距离与到达耗时</view>
+    <view class="pa__loc" bindtap="onChooseLocation">
+      <block wx:if="{{homeLocation}}">
+        <view class="pa__loc-main">
+          <view class="pa__loc-name">📍 {{homeLocation.name}}</view>
+          <view class="pa__loc-addr">{{homeLocation.address}}</view>
+        </view>
+        <text class="pa__loc-change">重选</text>
+      </block>
+      <view wx:else class="pa__loc-empty">📍 点击选择日常位置（小区 / 商圈 / 地标）</view>
+    </view>
+  </view>
+
+  <view class="pa__card">
     <view class="pa__card-title">可接场景</view>
     <view class="pa__scenes">
       <view wx:for="{{scenes}}" wx:key="code"

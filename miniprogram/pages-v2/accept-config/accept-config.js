@@ -14,6 +14,7 @@ const STORAGE_KEY = 'partner_local_cfg';
 Page({
   data: {
     certifiedScenes: [],
+    homeLocation: null,       // 耍伴日常位置 { name, address, latitude, longitude }
     sceneRates: {},           // { W1: 5000, ... } 元/分
     distanceRange: PA.distanceRange,
     dailyLimitRange: PA.dailyLimitRange,
@@ -106,6 +107,7 @@ Page({
 
       this.setData({
         certifiedScenes: certifiedScenes,
+        homeLocation: p.home_location || null,
         sceneRates: sceneRates,
         'form.scenes': scenes,
         'form.weeklySlots': local.weeklySlots || this.data.form.weeklySlots,
@@ -125,6 +127,27 @@ Page({
   },
 
   reload() { this.fetchData(); },
+
+  // 日常位置选点(chooseLocation gcj02, 保存时随 update_config 上传)
+  onChooseLocation() {
+    wx.chooseLocation({
+      success: (res) => {
+        this.setData({
+          homeLocation: {
+            name: res.name || res.address || '所选位置',
+            address: res.address || '',
+            latitude: res.latitude,
+            longitude: res.longitude
+          }
+        });
+      },
+      fail: (err) => {
+        const msg = (err && err.errMsg) || '';
+        if (msg.indexOf('cancel') > -1) return;
+        wx.showToast({ title: '选点失败,请检查定位权限', icon: 'none' });
+      }
+    });
+  },
 
   onSceneToggle(e) {
     const code = e.currentTarget.dataset.code;
@@ -206,7 +229,8 @@ Page({
       const r = await callCloud('partner-action', {
         action: 'update_config',
         accept_scenes: form.scenes,
-        scene_rates: rates
+        scene_rates: rates,
+        home_location: this.data.homeLocation
       });
       wx.hideLoading();
 

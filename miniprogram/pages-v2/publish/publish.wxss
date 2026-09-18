@@ -198,6 +198,25 @@
   font-size: var(--font-xs);
   color: var(--brand-accent);
 }
+/* 经纬度显示(灰色小字, 紧贴地址行下方) */
+.pub__coord {
+  margin-top: 6rpx;
+  padding: 0 120rpx;  /* 与 picker-label 对齐 */
+  font-size: 22rpx;
+  color: var(--text-4);
+  line-height: 1.4;
+}
+/* 距离提示(蓝色强调, 在两地址经纬度之间) */
+.pub__distance {
+  margin-top: 8rpx;
+  padding: 0 120rpx;
+  font-size: 24rpx;
+  color: var(--text-3);
+}
+.pub__dist-val {
+  color: var(--brand-primary);
+  font-weight: 600;
+}
 
 /* B6 行 */
 .pub__row {

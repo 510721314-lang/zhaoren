@@ -1,0 +1,97 @@
+.dl {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 20rpx 60rpx;
+}
+
+/* 场景头部 */
+.dl__head {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 8rpx 12rpx;
+}
+.dl__head-icon {
+  font-size: 40rpx;
+  margin-right: 12rpx;
+}
+.dl__head-title {
+  font-size: var(--font-xl, 36rpx);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.dl__head-sub {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+
+.dl__list {
+  padding-top: 8rpx;
+}
+
+/* 空态 */
+.dl__empty {
+  padding: 140rpx 40rpx;
+  text-align: center;
+}
+.dl__empty-icon {
+  font-size: 96rpx;
+}
+.dl__empty-title {
+  margin-top: 24rpx;
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.dl__empty-desc {
+  margin-top: 12rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+.dl__empty-btn {
+  margin: 40rpx auto 0;
+  width: 320rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  border-radius: 40rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+.dl__empty-btn::after {
+  border: none;
+}
+
+/* 底部加载区 */
+.dl__footer {
+  padding: 28rpx 0 20rpx;
+}
+.dl__more {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-md);
+  font-weight: 700;
+  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.28);
+}
+.dl__more::after {
+  border: none;
+}
+.dl__more:active {
+  opacity: 0.85;
+}
+.dl__more--loading {
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  box-shadow: none;
+}
+.dl__nomore {
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-disabled);
+  padding: 20rpx 0;
+}

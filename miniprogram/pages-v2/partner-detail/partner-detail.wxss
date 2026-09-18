@@ -107,6 +107,80 @@
   font-size: var(--font-sm);
   color: var(--text-5);
 }
+/* T2.5 日常位置 + 路线耗时 */
+.pd__loc-title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.pd__loc-name {
+  margin-top: 12rpx;
+  font-size: var(--font-md);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.pd__loc-addr {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+  line-height: 1.5;
+}
+.pd__route-dist {
+  margin-top: 18rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--border-divider);
+  font-size: var(--font-sm);
+  color: var(--text-3);
+}
+.pd__route-dist-num {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--brand-primary);
+}
+.pd__route-modes {
+  margin-top: 18rpx;
+  display: flex;
+  justify-content: space-around;
+}
+.pd__mode {
+  flex: 1;
+  text-align: center;
+}
+.pd__mode-icon {
+  font-size: 44rpx;
+  line-height: 1;
+}
+.pd__mode-text {
+  margin-top: 10rpx;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.pd__mode-est {
+  color: var(--text-5);
+  font-weight: 400;
+  margin-left: 2rpx;
+}
+.pd__mode-label {
+  margin-top: 4rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.pd__route-note {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.pd__route-hint {
+  margin-top: 18rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--border-divider);
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-5);
+}
+
 .pd__fold-header {
   display: flex;
   justify-content: space-between;

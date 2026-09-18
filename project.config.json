@@ -47,10 +47,6 @@
         "type": "file"
       },
       {
-        "value": "pages",
-        "type": "folder"
-      },
-      {
         "value": "mock",
         "type": "folder"
       },

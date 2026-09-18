@@ -1,6 +1,6 @@
 ﻿// 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
 // partner-action 耍伴配置与接单动作 · 身份取自 getWXContext().OPENID
-// 4 个 action: set_switch / update_config / my_profile / review
+// 7 个 action: apply / set_switch / update_config / my_profile / review / detail / route_plan
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -12,6 +12,75 @@ const log = require('./logger');
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 // 场景白名单
 const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
+
+// 腾讯地图 WebService Key（服务端路线规划调用；失败时降级直线估算）
+const TENCENT_MAP_KEY = 'I2DBZ-2RJCC-7RC2K-ACPMG-35LBF-LUB3D';
+const ROUTE_TIMEOUT_MS = 3500;
+
+// 耍伴日常位置清洗(wx.chooseLocation gcj02 坐标; 中国范围粗校验防脏数据)
+function sanitizeHomeLocation(loc) {
+  if (!loc || typeof loc !== 'object') return null;
+  const lat = Number(loc.latitude);
+  const lng = Number(loc.longitude);
+  if (!isFinite(lat) || !isFinite(lng) || lat < 3 || lat > 54 || lng < 73 || lng > 136) return null;
+  return {
+    name: String(loc.name || '').slice(0, 40),
+    address: String(loc.address || '').slice(0, 120),
+    latitude: Math.round(lat * 1e6) / 1e6,
+    longitude: Math.round(lng * 1e6) / 1e6,
+    updated_at: Date.now()
+  };
+}
+
+// Haversine 直线距离(米)
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 直线距离降级耗时估算(分钟): 驾车30km/h 公交20km/h(含等车) 骑行15km/h
+function estimateMinutes(mode, meters) {
+  const speed = mode === 'drive' ? 30 : mode === 'transit' ? 20 : 15;
+  return Math.max(1, Math.round(meters / 1000 / speed * 60));
+}
+
+// 原生 https GET JSON（云函数不受小程序 request 域名白名单限制）
+function httpsGetJson(url) {
+  return new Promise((resolve, reject) => {
+    const req = require('https').get(url, (res) => {
+      let raw = '';
+      res.on('data', (c) => { raw += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(raw)); } catch (e) { reject(e); }
+      });
+    });
+    req.setTimeout(ROUTE_TIMEOUT_MS, () => req.destroy(new Error('map_timeout')));
+    req.on('error', reject);
+  });
+}
+
+// 腾讯路线规划: mode=driving/transit/bicycling, 坐标 lat,lng(gcj02); 返回 {distance_m, minutes}
+async function fetchTencentRoute(mode, from, to) {
+  const url = 'https://apis.map.qq.com/ws/direction/v1/' + mode +
+    '/?from=' + from.lat + ',' + from.lng +
+    '&to=' + to.lat + ',' + to.lng +
+    '&key=' + encodeURIComponent(TENCENT_MAP_KEY);
+  const j = await httpsGetJson(url);
+  const route = j && j.result && j.result.routes && j.result.routes[0];
+  if (j.status !== 0 || !route) throw new Error('map_status_' + (j && j.status));
+  const distanceM = Math.round(Number(route.distance));
+  const minutes = Math.round(Number(route.duration));
+  if (!isFinite(distanceM) || distanceM <= 0 || !isFinite(minutes) || minutes <= 0) {
+    throw new Error('map_bad_route');
+  }
+  return { distance_m: distanceM, minutes };
+}
 
 async function getConfig() {
   try {
@@ -76,6 +145,9 @@ exports.main = async (event, context) => {
         ? event.accept_scenes
         : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : ['W1']);
 
+      // 日常位置(注册时 chooseLocation 选点); 未传/非法则保留旧值, 不强制阻断老客户端
+      const homeLocation = sanitizeHomeLocation(event.home_location);
+
       // 补全场景考核分(exam_scores 为空时默认全部 100 分, 让耍伴能直接接所有已开通场景)
       // W1 真实上线需对接真实考核系统, prod 正式运营前由管理员手动审核维护各场景考核分
       const defaultExam = DEFAULT_EXAM_SCORES;
@@ -97,6 +169,7 @@ exports.main = async (event, context) => {
           if (p.accept_switch === undefined) patch.accept_switch = true;
           if (p.credit_score === undefined) patch.credit_score = 800;
           if (defaultExam && !p.exam_scores) patch.exam_scores = defaultExam;
+          if (homeLocation) patch.home_location = homeLocation;
           await ppCol.doc(p._id).update({ data: patch });
         }
       } else {
@@ -114,6 +187,7 @@ exports.main = async (event, context) => {
           updated_at: now
         };
         if (defaultExam) doc.exam_scores = defaultExam;
+        if (homeLocation) doc.home_location = homeLocation;
         await ppCol.add({ data: doc });
       }
 
@@ -170,6 +244,17 @@ exports.main = async (event, context) => {
       const update = { updated_at: Date.now() };
       const rateMin = config.rate_min_fen || 3000;
       const rateMax = config.rate_max_fen || 10000;
+
+      // 日常位置更新: 显式 null 清除, 传对象则校验后覆盖
+      if (event.home_location !== undefined) {
+        if (event.home_location === null) {
+          update.home_location = _.remove();
+        } else {
+          const hl = sanitizeHomeLocation(event.home_location);
+          if (!hl) return { ok: false, code: 'pa_bad_location', msg: '日常位置无效' };
+          update.home_location = hl;
+        }
+      }
 
       // 场景校验
       let newScenes = profile.accept_scenes || [];
@@ -253,6 +338,7 @@ exports.main = async (event, context) => {
             scene_rates: profile.scene_rates || {},
             exam_scores: profile.exam_scores || {},
             city: profile.city, accept_switch: profile.accept_switch,
+            home_location: profile.home_location || null,
             status: profile.status, applied_at: profile.applied_at
           },
           stats: {
@@ -352,6 +438,7 @@ exports.main = async (event, context) => {
             accept_scenes: p.accept_scenes || [],
             scene_rates: p.scene_rates || {},
             city: p.city,
+            home_location: p.home_location || null,
             score: p.score || 0,
             level: p.level || 'L1',
             accept_switch: p.accept_switch !== false,
@@ -362,6 +449,60 @@ exports.main = async (event, context) => {
           },
           stats: { total_orders: totalOrders, completed_orders: completedOrders },
           evaluations
+        }
+      };
+    }
+
+    // 6. 路线规划（C端公开）: 耍伴日常位置 → 浏览者当前位置的距离与驾车/公交/骑行耗时
+    //    腾讯 Direction API 并行查询, 任一方式失败独立降级为直线估算
+    case 'route_plan': {
+      const myLat = Number(event.latitude);
+      const myLng = Number(event.longitude);
+      if (!event.partner_openid) return { ok: false, code: 'pa_no_target', msg: '缺少耍伴标识' };
+      if (!isFinite(myLat) || !isFinite(myLng) || myLat < 3 || myLat > 54 || myLng < 73 || myLng > 136) {
+        return { ok: false, code: 'pa_bad_coord', msg: '当前坐标无效' };
+      }
+
+      const r = await col('partner_profile').where({
+        openid: event.partner_openid, status: 'approved', is_deleted: false
+      }).limit(1).get();
+      const p = r.data && r.data[0];
+      if (!p) return { ok: false, code: 'pa_not_found', msg: '耍伴不存在或未认证' };
+      const h = sanitizeHomeLocation(p.home_location);
+      if (!h) return { ok: false, code: 'pa_no_home', msg: '该耍伴未设置日常位置' };
+
+      const from = { lat: h.latitude, lng: h.longitude }; // 从耍伴日常位置出发
+      const to = { lat: myLat, lng: myLng };
+      const straightM = Math.round(haversineMeters(h.latitude, h.longitude, myLat, myLng));
+
+      const modeDefs = [['drive', 'driving'], ['transit', 'transit'], ['bike', 'bicycling']];
+      const results = await Promise.all(modeDefs.map(async ([key, mode]) => {
+        if (!TENCENT_MAP_KEY) {
+          return { key, minutes: estimateMinutes(key, straightM), source: 'estimate', distance_m: null };
+        }
+        try {
+          const rr = await fetchTencentRoute(mode, from, to);
+          return { key, minutes: rr.minutes, source: 'tencent', distance_m: rr.distance_m };
+        } catch (e) {
+          log.d(`route_plan ${mode} fail: ${e.message}`);
+          return { key, minutes: estimateMinutes(key, straightM), source: 'estimate', distance_m: null };
+        }
+      }));
+
+      const modes = {};
+      results.forEach((t) => {
+        modes[t.key] = { minutes: t.minutes, source: t.source, distance_m: t.distance_m };
+      });
+      // 展示距离: 优先驾车路线里程, 无则直线距离
+      const distanceM = (modes.drive && modes.drive.distance_m) || straightM;
+
+      return {
+        ok: true,
+        data: {
+          home: { name: h.name, address: h.address },
+          straight_m: straightM,
+          distance_m: distanceM,
+          modes
         }
       };
     }

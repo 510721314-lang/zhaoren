@@ -20,6 +20,7 @@ Page({
     activePartners: [],       // 活跃耍伴(头像横滑+信用分)
     activeTab: 'demand',
     demandList: [],
+    sceneGroups: [],        // 需求广场按场景分组(每场景8条)
     partnerList: [],       // P2 接云端 partner-profile 列表
     user: {},
     unconfirmedContact: null,
@@ -79,6 +80,7 @@ Page({
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
+            sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
             activePartners: r.data.active_partners || []
@@ -100,6 +102,7 @@ Page({
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
+            sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
             activePartners: r.data.active_partners || []
@@ -197,6 +200,19 @@ Page({
     this.setData({ activeTab: e.currentTarget.dataset.tab });
   },
 
+  // 场景分组「更多」→ 该场景需求列表(每页50)
+  onSceneMoreTap(e) {
+    const { code, name } = e.currentTarget.dataset;
+    if (!code) {
+      wx.showToast({ title: '场景参数异常', icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages-v2/demand-list/demand-list?scene=${code}&name=${encodeURIComponent(name || '')}`,
+      fail: () => wx.showToast({ title: '列表页打开失败', icon: 'none' })
+    });
+  },
+
   // H7 卡片交互（跳详情页，带真实 demand _id）
   onDemandTap(e) {
     const demand = (e.detail && e.detail.demand) || {};
@@ -232,7 +248,7 @@ Page({
     }
     wx.navigateTo({
       url: `/pages/user-home/user-home?openid=${openid}`,
-      fail: () => wx.showToast({ title: '用户主页打开失败', icon: 'none' })
+      fail: (err) => { console.error('[index] onActiveUserTap fail:', err); wx.showToast({ title: '用户主页打开失败', icon: 'none' }); }
     });
   },
 
