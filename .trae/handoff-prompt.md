@@ -291,3 +291,84 @@ type(scope): description
 - [ ] 云开发控制台绑定 env cloud1-d9gkefwcp5c777088
 - [ ] 微信开发者工具添加 `https://apis.map.qq.com` 到 request 合法域名（腾讯地图 API）
 - [ ] 跑一次 init-db 确保 admin_config 种子完整
+
+---
+
+## 📋 单条提示词（直接复制粘贴版）
+
+```
+你好，我接手 zhaoren 找人帮忙微信小程序项目的开发。以下是完整上下文——请先读完再行动：
+
+【身份与环境】
+- 技术栈: 微信原生小程序 + 微信云开发(CloudBase)
+- 云环境: cloud1-d9gkefwcp5c777088
+- AppID: wxbc4a4afacdf234f5
+- Git: https://github.com/510721314-lang/zhaoren.git
+- 最新 commit: 619871c，全部已推送，全部云函数已部署
+
+【启动前必读文件】
+1. .trae/rules.md — 红线约束
+2. .trae/skills/zhaoren-config-sync/SKILL.md — SSOT 同步规范
+3. miniprogram/config/enums.js — 前端枚举 SSOT（SCENES 5场景 / ORDER_STATUS 13态 / normalizeStatus 点转下划线）
+4. miniprogram/config/index.js — CONFIG 常量（WITHDRAW / ORDER / TENCENT_MAP_KEY）
+
+【场景白名单 SSOT 链路】
+admin_config.scene_list 是唯一可信源，当前 5 个活跃场景: W1就医陪诊 / W2学习陪伴 / W8生活协助 / W10出行陪伴 / W11线上陪伴，每个 scene 对象含 code/name/options/disclaimer_type/aa_default。
+动态读取者: home-action / demand-publish / partner-apply / partner-action / blog-action（均用 getSceneCodes() 带缓存 + SCENE_CODES_FALLBACK=['W1','W2','W8','W10','W11'] 兜底）
+前端侧 SSOT: miniprogram/config/enums.js SCENES[5] + miniprogram/utils/constants.js SCENE_LIST[5]
+
+【已完成的硬编码修复（不要重复审查）】
+- partner-apply/partner-action: SCENE_WHITELIST 8→动态读 admin_config（commit 18f2791）
+- wallet.js: SCENE_NAMES 从 SCENES 动态构建（commit 3c39e0d）
+- blog-action: 补全 getSceneCodes() 调用点，修复运行时 bug（commit aab1de8）
+- partner-action: DEFAULT_EXAM_SCORES + ['W1'] 兜底 → 动态构建（commit ae8bfca）
+- init-db: 种子加 disclaimer_type + 字段级迁移比对升级（commit ae8bfca）
+- demand-publish/order-create: 免责声明类型优先读 admin_config.scene_list[].disclaimer_type，fallback 硬编码（commit ae8bfca）
+
+【LEGACY 硬编码可接受约定（带 _LEGACY 后缀或注释说明仅用于旧数据兼容）】
+- demand-publish: SCENE_WHITELIST_LEGACY / DISCLAIMER_TYPE_MAP / SCENE_OPTIONS_FALLBACK（8场景，兜底映射）
+- home-action: SCENE_NAMES_LEGACY（8场景，历史订单显示名）
+- order-action 局部 / im-send / im-conv / payment-mock: SCENE_NAME 局部变量（8场景显示名兜底）
+- 腾讯地图 Key 两处（partner-action L33 + config/index.js L61）: 密钥分发可接受
+
+【免责声明类型映射（已动态化）】
+demand-publish 和 order-create sign_disclaimer 现在: 优先读 admin_config.scene_list[].disclaimer_type，fallback 本地硬编码，最终 fallback 'general_disclaimer'。W1→medical / W2,W8,W10→general / W11→online。
+⚠️ 云端 admin_config.scene_list 可能还未带 disclaimer_type 字段，需手动跑一次 init-db（init-db 已升级字段级比对迁移逻辑）
+
+【红线铁律】
+- resolveOpenid: 所有云函数开头必须 const openid = await resolveOpenid(cloud, event)
+- mock_openid 守卫: 必须 admin_config.env === 'dev' 才允许
+- admin_openids: 从 admin_config 读，禁止硬编码兜底（fail-closed）
+- auto_approve_partner: prod 必须 false
+- 金额: 整数分存储，total_fen 服务端重算，前端禁止直接写金额
+- order_id: 接受 32 位 hex _id 和 ORD 开头 order_no
+- order-status: 云端 S3.5 → 前端 S3_5，所有读取先经 normalizeStatus()
+- cloudbase aggregate: 必须 .aggregate().match(cond) 不是 .where().aggregate()
+- 登录态: Storage key v2_login_ok，不是 openid
+- packOptions.ignore: 之前误配 pages 目录导致 v1 旧页面无法注册 app.json，已删除勿复加
+- wx.requirePrivacyAuthorize 不存在，用官方隐私弹窗
+- wx.showModal confirmText/cancelText 超 4 字符真机静默失败
+- WXML 不能 wx:for+wx:elif 同一元素，用 block wx:elif 嵌套
+- WXSS 禁止 UTF-8 BOM(EF BB BF)
+- 云函数超时: order-action/order-create/demand-publish/demand-match 20s；payment-mock 10s；其余 8s；order-timer 60s
+
+【部署命令模板（单函数，不支持逗号分隔）】
+& "<微信开发者工具cli.bat路径>" cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <函数名> --project "<项目根>" --remote-npm-install
+
+【测试账号】
+- Admin: oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c
+- Partner: test_partner_001 (exam_scores 100)
+
+【备份铁律（重大改动前后必须三重备份 + 完整性检查）】
+1. GitHub push → git log origin/master..HEAD 确认无未推送
+2. Git Bundle → git bundle create zhaoren_v<版本>_<YYYYMMDD>.bundle --all → git bundle verify + 临时 clone + hash 比对
+3. robocopy 热备份 → robocopy <src> <dst> /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 → SHA256 逐文件比对
+
+【剩余可选优化（低优先级，不阻塞）】
+- P2: 跑一次 init-db 让云端 admin_config.scene_list 带上 disclaimer_type
+- P3: blog-action TOPIC_WHITELIST 与 constants.js BLOG_TOPICS 双写
+- P3: v1 旧页面 user-home.js SCENE_MAP 硬编码
+- P3: 前端 publish 页场景选项动态读 admin_config（前端 enums.js 作为前端侧 SSOT 已足够）
+
+请确认你已理解，然后告诉我接下来要做什么。
+```
