@@ -33,15 +33,27 @@
 
 ## 2. 部署命令模板（所有云函数部署通用）
 
+**铁律：部署任何云函数前必须先过预检门（全量 node --check，拦截 SyntaxError）：**
+
 ```powershell
-# 单云函数部署 + 远端 npm install
-& "<CLI路径>" cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <函数名> --project "<项目根>" --remote-npm-install
+# 推荐：预检 + 部署一条龙（任一函数有语法错误则整体中止，不会带坏代码上线）
+powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Deploy <函数名>
+
+# 仅预检不部署（17 个云函数全量 node --check + openid.js 约定检查 + 未提交提醒）
+powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1
 
 # 例
-& "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names partner-action --project "C:\Users\DC\Desktop\zhaoren" --remote-npm-install
+powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Deploy partner-action
 ```
 
-**注意**：CLI 不支持逗号分隔的多函数部署，需要逐个部署。
+退出码：0 成功 / 1 语法错误（部署已拦截）/ 2 未装 Node / 3 函数名不存在 / 4 部署失败 / 5 未找到 CLI。
+脚本自动定位 node.exe 与 cli.bat（通配搜索，不依赖中文路径编码）。
+
+**仅在预检不可用时才用裸命令**（CLI 不支持逗号分隔，需逐个部署）：
+
+```powershell
+& "<CLI路径>" cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <函数名> --project "<项目根>" --remote-npm-install
+```
 
 ---
 
@@ -386,8 +398,11 @@ order-action/order-create/demand-publish/demand-match 20s；payment-mock 10s；u
 【MVP 禁做清单（遇到需求一律做占位，不许真做）】
 真实微信支付/分账、人脸核验、TRTC 音视频、AI 心理危机预警、保险真实投保理赔、短信验证码、真实退款打款、机构/B端全套、智能派单算法、代收 AA 费用。占位规范: 入口按钮可点，点击 toast「功能升级中，敬请期待」，云函数返回 ok:false code:PLACEHOLDER
 
-【部署命令模板（单函数，不支持逗号分隔）】
-& "<微信开发者工具cli.bat路径>" cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <函数名> --project "<项目根>" --remote-npm-install
+【部署铁律：先过预检门再部署，拦截 SyntaxError】
+推荐一条龙（预检 17 个函数全量 node --check，不过则中止）:
+powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Deploy <函数名>
+仅预检: powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1
+退出码: 0成功/1语法错误已拦截/2无Node/3函数名错/4部署失败/5无CLI。CLI 不支持逗号分隔多函数。
 
 【测试账号】
 - Admin: oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c（需 admin_config.admin_openids 中有）
