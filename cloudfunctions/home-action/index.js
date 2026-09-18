@@ -1,4 +1,4 @@
-﻿// home-action 首页概览 · 最新 BLOG / 最新需求 / 活跃注册用户 / 活跃耍伴
+// home-action 首页概览 · 最新 BLOG / 最新需求 / 活跃注册用户 / 活跃耍伴
 // 公开接口(不要求登录, 不返回隐私字段), 首页单次调用取全部四块数据
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -427,6 +427,7 @@ exports.main = async (event, context) => {
               _id: p._id,
               content: truncate(p.content, CONTENT_TRUNC),
               cover: (p.images && p.images[0]) || '',
+              images: ((p.images || []).filter((u) => typeof u === 'string' && u.indexOf('cloud://') === 0)).slice(0, 4),
               tags: p.tags || [],
               scene: p.scene || '',
               like_count: p.like_count || 0,

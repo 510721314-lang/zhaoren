@@ -38,9 +38,13 @@ Page({
         const profile = d.profile || {};
         const stats = d.stats || { post_count: 0 };
         const posts = (d.posts || []).map((p) => {
+          const imgs = (p.images || []).filter((u) => typeof u === 'string' && u.indexOf('cloud://') === 0).slice(0, 4);
           return Object.assign(p, {
             scene_name: SCENE_MAP[p.scene] || '',
-            hasCover: !!(p.cover && typeof p.cover === 'string' && p.cover.indexOf('cloud://') === 0),
+            images: imgs,
+            hasCover: imgs.length === 1,
+            cover: imgs[0] || '',
+            hasGrid: imgs.length > 1,
             hasTags: !!(p.tags && p.tags.length > 0),
             likeText: p.like_count > 0 ? p.like_count + '' : '',
             commentText: p.comment_count > 0 ? p.comment_count + '' : ''

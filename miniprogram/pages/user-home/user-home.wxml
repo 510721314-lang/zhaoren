@@ -56,6 +56,9 @@
         </view>
         <view class="post-content">{{item.content}}</view>
         <image wx:if="{{item.hasCover}}" class="post-cover" src="{{item.cover}}" mode="aspectFill" />
+        <view wx:elif="{{item.hasGrid}}" class="post-img-grid">
+          <image wx:for="{{item.images}}" wx:for-item="img" wx:key="*this" class="post-img" src="{{img}}" mode="aspectFill" />
+        </view>
         <view wx:if="{{item.hasTags}}" class="topic-row">
           <text wx:for="{{item.tags}}" wx:for-item="tg" wx:key="*this" class="topic-tag">#{{tg}}</text>
         </view>

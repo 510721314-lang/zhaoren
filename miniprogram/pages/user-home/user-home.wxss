@@ -55,6 +55,8 @@
 .post-time { font-size: var(--font-sm); color: var(--primary, #D4875A); }
 .post-content { font-size: var(--font-lg); color: var(--text-1); line-height: 1.6; margin-top: 12rpx; }
 .post-cover { width: 100%; height: 320rpx; border-radius: 12rpx; margin-top: 16rpx; }
+.post-img-grid { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 16rpx; }
+.post-img { width: calc((100% - 12rpx) / 2); height: 220rpx; border-radius: 12rpx; }
 .topic-row { display: flex; flex-wrap: wrap; margin: 12rpx 0; }
 .topic-tag {
   font-size: var(--font-sm); color: var(--primary, #D4875A);
