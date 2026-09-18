@@ -38,12 +38,15 @@ Page({
         const profile = d.profile || {};
         const stats = d.stats || { post_count: 0 };
         const posts = (d.posts || []).map((p) => {
-          const imgs = (p.images || []).filter((u) => typeof u === 'string' && u.indexOf('cloud://') === 0).slice(0, 4);
+          const rawImgs = Array.isArray(p.images) ? p.images : (p.cover ? [p.cover] : []);
+          const imgs = rawImgs.filter((u) => typeof u === 'string' && u.indexOf('cloud://') === 0).slice(0, 4);
+          const fallbackCover = p.cover && p.cover.indexOf('cloud://') === 0 ? p.cover : '';
+          const single = imgs.length === 1 ? imgs[0] : (imgs.length === 0 ? fallbackCover : '');
           return Object.assign(p, {
             scene_name: SCENE_MAP[p.scene] || '',
             images: imgs,
-            hasCover: imgs.length === 1,
-            cover: imgs[0] || '',
+            hasCover: !!single,
+            cover: single,
             hasGrid: imgs.length > 1,
             hasTags: !!(p.tags && p.tags.length > 0),
             likeText: p.like_count > 0 ? p.like_count + '' : '',
