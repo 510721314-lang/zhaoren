@@ -8,8 +8,24 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 
-// 场景白名单(MVP-V1)
-const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
+// 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
+const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
+let _sceneCodesCache = null;
+async function getSceneCodes() {
+  if (_sceneCodesCache) return _sceneCodesCache;
+  try {
+    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    const cfg = r.data && r.data[0];
+    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list.map((s) => s.code).filter(Boolean)
+      : SCENE_CODES_FALLBACK;
+    _sceneCodesCache = list;
+    return list;
+  } catch (e) {
+    _sceneCodesCache = SCENE_CODES_FALLBACK;
+    return SCENE_CODES_FALLBACK;
+  }
+}
 
 async function getConfig() {
   try {
@@ -48,12 +64,13 @@ exports.main = async (event, context) => {
 
   const { accept_scenes, scene_rates, exam_scores } = event;
 
-  // ── 校验场景:非空 + 白名单 ──
+  // ── 校验场景:非空 + 白名单(动态从 admin_config.scene_list 读取) ──
   if (!Array.isArray(accept_scenes) || accept_scenes.length === 0) {
     return { ok: false, code: 'apply_scenes_empty', msg: '请至少选择一个接单场景' };
   }
+  const sceneCodes = await getSceneCodes();
   for (const s of accept_scenes) {
-    if (SCENE_WHITELIST.indexOf(s) < 0) {
+    if (sceneCodes.indexOf(s) < 0) {
       return { ok: false, code: 'apply_scene_invalid', msg: `场景 ${s} 不在白名单` };
     }
   }

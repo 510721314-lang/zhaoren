@@ -10,8 +10,24 @@ const log = require('./logger');
 
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
-// 场景白名单
-const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
+// 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
+const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
+let _sceneCodesCache = null;
+async function getSceneCodes() {
+  if (_sceneCodesCache) return _sceneCodesCache;
+  try {
+    const r = await db.collection('admin_config').where({ _id: 'global' }).limit(1).get();
+    const cfg = r.data && r.data[0];
+    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list.map((s) => s.code).filter(Boolean)
+      : SCENE_CODES_FALLBACK;
+    _sceneCodesCache = list;
+    return list;
+  } catch (e) {
+    _sceneCodesCache = SCENE_CODES_FALLBACK;
+    return SCENE_CODES_FALLBACK;
+  }
+}
 
 // 腾讯地图 WebService Key（服务端路线规划调用；失败时降级直线估算）
 const TENCENT_MAP_KEY = 'I2DBZ-2RJCC-7RC2K-ACPMG-35LBF-LUB3D';
@@ -262,8 +278,9 @@ exports.main = async (event, context) => {
         if (event.accept_scenes.length === 0) {
           return { ok: false, code: 'pa_scenes_empty', msg: '请至少选择一个接单场景' };
         }
+        const sceneCodes = await getSceneCodes();
         for (const s of event.accept_scenes) {
-          if (SCENE_WHITELIST.indexOf(s) < 0) {
+          if (sceneCodes.indexOf(s) < 0) {
             return { ok: false, code: 'pa_scene_invalid', msg: `场景 ${s} 不在白名单` };
           }
         }
