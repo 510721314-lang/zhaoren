@@ -1,6 +1,14 @@
 <view class="v2 square">
   <nav-bar title="需求广场" show-back="{{false}}"></nav-bar>
 
+  <!-- S0 发布需求引导卡 -->
+  <view class="sq-hero">
+    <view class="sq-hero__title">👏 需要人帮忙？发个需求</view>
+    <view class="sq-hero__sub">描述时间地点与预算，系统为你匹配附近合适耍伴，也可广播到接单大厅</view>
+    <button class="sq-hero__btn" bindtap="onHeroPublish">＋ 发布需求</button>
+    <view class="sq-hero__switch" bindtap="onSwitchPartner">想接单赚钱？去「我的」切换为耍伴身份 ›</view>
+  </view>
+
   <!-- S1 筛选 chips：全部 + 5场景 + 公益免费（无W3/W7/W9） -->
   <scroll-view class="square__chips" scroll-x enhanced show-scrollbar="{{false}}">
     <view

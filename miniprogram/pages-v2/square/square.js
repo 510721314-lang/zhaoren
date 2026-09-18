@@ -79,6 +79,25 @@ Page({
     this.setData({ activeChip: e.currentTarget.dataset.code }, () => this.buildList());
   },
 
+  // S0 引导卡: 发布需求 / 切换耍伴身份
+  onHeroPublish() {
+    const gate = redline.checkEntryLocked();
+    if (gate.locked) {
+      wx.showToast({ title: gate.msg, icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: '/pages-v2/publish/publish',
+      fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' })
+    });
+  },
+  onSwitchPartner() {
+    wx.switchTab({
+      url: '/pages-v2/profile/profile',
+      fail: () => wx.showToast({ title: '请在「我的」切换身份', icon: 'none' })
+    });
+  },
+
   onSortTap(e) {
     this.setData({ activeSort: Number(e.currentTarget.dataset.index) }, () => this.buildList());
   },

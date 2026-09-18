@@ -18,6 +18,8 @@
         <tag-chip type="aa" wx:if="{{demand.project_attr === 'commercial'}}" />
       </view>
       <view class="dd__title">{{demand.title}}</view>
+      <!-- 定向邀约标识: 仅发布者本人可见 -->
+      <view class="dd__direct-tag" wx:if="{{isOwner && demand.match_mode === 'direct'}}">🎯 定向邀约中 · 仅受邀耍伴可见可接</view>
       <view class="dd__desc">{{demand.description}}</view>
       <view class="dd__info-grid">
         <view class="dd__info-item"><text class="dd__info-label">日期</text><text class="dd__info-val">{{demand.service_date}}</text></view>
@@ -61,7 +63,9 @@
         <view class="dd__grab-price" wx:if="{{demand.project_attr === 'commercial'}}">¥{{demand.budget}}<text class="dd__grab-unit">/小时</text></view>
         <view class="dd__grab-price" wx:else>公益免费</view>
       </view>
-      <button class="dd__btn dd__btn--primary" bindtap="onGrab">{{certified ? '⚡ 接单' : '需' + scene.cert}}</button>
+      <!-- 定向需求: 非受邀耍伴不可接单(can_take 由服务端按 invited/broadcast 计算) -->
+      <button class="dd__btn dd__btn--primary" wx:if="{{demand.can_take}}" bindtap="onGrab">{{certified ? '⚡ 接单' : '需' + scene.cert}}</button>
+      <button class="dd__btn dd__btn--disabled" wx:else disabled>🔒 仅指定耍伴可接</button>
     </block>
   </view>
 

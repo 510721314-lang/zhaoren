@@ -20,6 +20,19 @@ function detectSensitive(text) {
   return null;
 }
 
+// Haversine 球面距离(公里) · 与云函数口径一致, 用于发布前前置提示(服务端为准)
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
 Page({
   data: {
     statusBarHeight: 20,
@@ -64,11 +77,18 @@ Page({
     draftBoxVisible: false,
     draftList: [],
     draftCount: 0,
+    // 发布地址: 进入发布页即自动高精度定位, 只读不可手改(图3)
+    publishLocation: null,   // {latitude, longitude, name, updatedAt:'HH:mm'}
+    locating: false,
+    // 定向邀约(从耍伴详情"咨询/邀TA"进入): 锁定 direct 模式, 仅该耍伴可见可接
+    directInvite: false,
+    invitePartnerName: '',
     // 发布中
     publishing: false,
     today: '',
     dateMax: '',
     isRedline: false,
+    distanceMaxKm: CONFIG.PUBLISH.distanceMaxKm,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: CONFIG.TIME_REDLINE.close,
@@ -91,6 +111,18 @@ Page({
     if (options.sceneCode) {
       this.setScene({ code: options.sceneCode });
     }
+    // 定向邀约: 从耍伴详情"咨询/邀TA"携带 invitePartnerOpenid 进入
+    if (options.invitePartnerOpenid) {
+      this.invitePartnerOpenid = options.invitePartnerOpenid;
+      this.setData({
+        directInvite: true,
+        invitePartnerName: options.invitePartnerName ? decodeURIComponent(options.invitePartnerName) : '',
+        'form.match_mode': 'direct'
+      });
+      this._fetchInvitePartner(this.invitePartnerOpenid);
+    }
+    // 进入页面立即获取发布地址(真实GPS, 只读留痕)
+    this._locatePublish(false);
     // 拉用户信息 (peek_login) 替代 CURRENT_USER
     wx.cloud.callFunction({
       name: 'user-login',
@@ -367,11 +399,72 @@ Page({
   // ── B9 撮合模式 ──
   setMatchMode(e) {
     const code = e.currentTarget.dataset.code;
+    // 从耍伴详情定向进入时锁定 direct, 不允许切换为其他模式
+    if (this.invitePartnerOpenid) {
+      wx.showToast({ title: '当前为定向邀约，仅该耍伴可接单', icon: 'none' });
+      return;
+    }
     if (code === 'smart' && this.data.smartLocked) {
       wx.showToast({ title: '智能派单为高信用耍伴/VIP会员专属', icon: 'none' });
       return;
     }
     this.setData({ 'form.match_mode': code });
+  },
+
+  // 定向邀约: 拉取受邀耍伴昵称用于横幅展示
+  _fetchInvitePartner(openid) {
+    callCloud('partner-action', { action: 'detail', partner_openid: openid }).then((r) => {
+      if (r.ok && r.data && r.data.partner) {
+        const p = r.data.partner;
+        this.setData({ invitePartnerName: p.nickname || p.real_name || '指定耍伴' });
+      }
+    }).catch(() => {});
+  },
+
+  // ── 发布地址: 高精度GPS自动记录, 用户不可手改, 仅可点击重新定位 ──
+  _locatePublish(showToast) {
+    if (this.data.locating) return;
+    this.setData({ locating: true });
+    wx.getLocation({
+      type: 'gcj02',
+      isHighAccuracy: true,
+      highAccuracyExpireTime: 4000,
+      success: (res) => {
+        const now = new Date();
+        this.setData({
+          locating: false,
+          publishLocation: {
+            latitude: res.latitude,
+            longitude: res.longitude,
+            name: '当前位置',
+            updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+          }
+        });
+        if (showToast) wx.showToast({ title: '已重新定位', icon: 'success' });
+      },
+      fail: (err) => {
+        this.setData({ locating: false });
+        // 用户在弹窗内主动取消不算失败
+        if (err && /cancel/i.test(err.errMsg || '')) return;
+        console.warn('[_locatePublish] getLocation fail:', err);
+        wx.showModal({
+          title: '定位失败',
+          content: '发布需求必须获取你的当前位置（自动记录不可修改）。请授权位置信息并开启系统定位后重试。',
+          confirmText: '重试',
+          cancelText: '去设置',
+          success: (r) => {
+            if (r.confirm) {
+              this._locatePublish(showToast);
+            } else {
+              wx.openSetting({ fail: () => {} });
+            }
+          }
+        });
+      }
+    });
+  },
+  onRelocatePublish() {
+    this._locatePublish(true);
   },
 
   // ── B10 自动保存(云端 upsert 草稿; 静默失败不打扰用户) ──
@@ -468,41 +561,44 @@ Page({
 
   // 用户在 AA wx.showModal 确认后执行实际发布
   confirmPublish() {
-    this.setData({ publishing: true });
     const f = this.data.form;
     const durationH = f.duration_hours || Number(f.duration_custom) || 0;
 
-    // 1. 先取发布地址 GPS（publish_location）
-    wx.getLocation({
-      type: 'gcj02',
-      success: (loc) => {
-        this._doPublish(f, durationH, {
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-          name: '当前位置',
-          city: '成都'
-        });
-      },
-      fail: (err) => {
-        // 真机定位失败 → 提示用户但不阻塞（部分用户没开定位权限）
-        console.warn('[confirmPublish] getLocation fail:', err);
-        wx.showModal({
-          title: '发布地址获取失败',
-          content: '发布地址将使用履约地点代替，建议开启定位权限',
-          confirmText: '继续发布',
-          success: (r) => {
-            if (r.confirm) {
-              this._doPublish(f, durationH, null);
-            } else {
-              this.setData({ publishing: false });
-            }
-          },
-          fail: () => {
-            this.setData({ publishing: false });
+    // 1. 发布地址必须为真实GPS(进入页面已自动定位); 未定位则现场补取, 失败只给"重试/去设置"
+    const pub = this.data.publishLocation;
+    if (!pub) {
+      wx.showModal({
+        title: '需要发布地址',
+        content: '发布需求必须获取你的当前位置（自动记录不可修改），请授权定位后再发布。',
+        confirmText: '重试定位',
+        cancelText: '去设置',
+        success: (r) => {
+          if (r.confirm) {
+            this._locatePublish(true);
+          } else {
+            wx.openSetting({ fail: () => {} });
           }
+        }
+      });
+      return;
+    }
+
+    // 2. 前置距离校验: 发布位置 ↔ 履约地(有地图选点坐标时) ≤ 后台阈值, 服务端为最终准
+    if (Number(f.latitude) && Number(f.longitude)) {
+      const distKm = haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude));
+      if (distKm > CONFIG.PUBLISH.distanceMaxKm) {
+        wx.showModal({
+          title: '距离超出允许范围',
+          content: `你当前位置距履约地点约 ${Math.round(distKm)} 公里，超过 ${CONFIG.PUBLISH.distanceMaxKm} 公里。请确认履约地点，或到达当地后再发布。`,
+          showCancel: false,
+          confirmText: '知道了'
         });
+        return;
       }
-    });
+    }
+
+    this.setData({ publishing: true });
+    this._doPublish(f, durationH, pub);
   },
 
   _doPublish(f, durationH, pubLoc) {
@@ -537,13 +633,15 @@ Page({
       start_time: startTs,
       duration_h: durationH,
       location,
-      publish_location: pubLoc || location,
+      // 发布地址只传真实GPS, 禁止用履约地兜底(云函数同样强校验)
+      publish_location: pubLoc,
       remark: `${f.title}｜${f.description}`,
       rate_fen: rateFen,
       aa_tier: f.aa_estimate,
       aa_promise_checked: true,  // 走到这里说明 AA wx.showModal 已点"确认发布"
       disclaimer_signed: this.data.disclaimerChecked,
       match_mode: f.match_mode,
+      target_openid: this.invitePartnerOpenid || '',  // 定向邀约目标耍伴
       draft_id: this.__draftId || ''  // 由草稿发起时, 发布成功后服务端软删该草稿
     };
 
@@ -557,7 +655,11 @@ Page({
         if (r.ok && r.data) {
           const demandId = r.data._id;
           this.__draftId = null;  // 已发布, 释放草稿绑定, 防止自动保存复活旧草稿
-          wx.showToast({ title: '发布成功', icon: 'success' });
+          this.invitePartnerOpenid = '';  // 定向邀约一次性消费
+          wx.showToast({
+            title: f.match_mode === 'direct' ? '定向发布成功' : '发布成功',
+            icon: 'success'
+          });
           setTimeout(() => {
             wx.redirectTo({
               url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,

@@ -55,6 +55,8 @@ Page({
       wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
     } else if (key === 'jump_wallet') {
       wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });
+    } else if (key === 'jump_demand') {
+      wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${payload.demand_id || ''}`, fail: () => {} });
     }
   },
 

@@ -21,7 +21,8 @@ async function getConfig() {
     platform_fee_rate_fen: 1000,
     min_credit_take_order: 600,
     min_credit_place_order: 600,
-    youth_limit_fen: 20000
+    youth_limit_fen: 20000,
+    take_distance_max_km: TAKE_MAX_DISTANCE_KM
   };
 }
 
@@ -236,13 +237,15 @@ exports.main = async (event, context) => {
     }
     const site = demand.location;
     if (site && site.latitude && site.longitude) {
+      // 阈值后台可配(admin_config.take_distance_max_km), 缺省 50km
+      const maxTakeKm = Number(config.take_distance_max_km) || TAKE_MAX_DISTANCE_KM;
       takeDistanceKm = haversineKm(partnerLoc.lat, partnerLoc.lng, site.latitude, site.longitude);
-      if (takeDistanceKm > TAKE_MAX_DISTANCE_KM) {
+      if (takeDistanceKm > maxTakeKm) {
         await logReject(openid, demand_id, `too_far_${Math.round(takeDistanceKm)}km`);
         return {
           ok: false,
           code: 'order_too_far',
-          msg: `你当前位置距履约地点约 ${Math.round(takeDistanceKm)} 公里，超过 ${TAKE_MAX_DISTANCE_KM} 公里，无法接单`
+          msg: `你当前位置距履约地点约 ${Math.round(takeDistanceKm)} 公里，超过 ${maxTakeKm} 公里，无法接单`
         };
       }
       takeDistanceKm = Math.round(takeDistanceKm * 10) / 10;

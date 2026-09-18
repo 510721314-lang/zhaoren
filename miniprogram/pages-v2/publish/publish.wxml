@@ -7,6 +7,11 @@
 
   <view style="height: {{statusBarHeight + 46}}px;"></view>
 
+  <!-- 定向邀约横幅(从耍伴详情"咨询/邀TA"进入) -->
+  <view class="pub__direct" wx:if="{{directInvite}}">
+    🎯 定向邀约：{{invitePartnerName || '指定耍伴'}} · 发布后仅TA可见可接单
+  </view>
+
   <!-- B2 项目属性 -->
   <view class="pub__block">
     <view class="pub__label">项目属性</view>
@@ -65,12 +70,22 @@
       <view class="pub__chip {{form.duration_hours === item ? 'is-on' : ''}}" wx:for="{{durationOptions}}" wx:key="*this" data-val="{{item}}" bindtap="setDuration">{{item}}h</view>
     </view>
     <input class="pub__input pub__input--mt" wx:if="{{form.duration_hours === 0}}" placeholder="自定义小时数" type="digit" bindinput="onDurationCustomInput" />
-    <view class="pub__picker-row" bindtap="onLocationPick">
-      <text class="pub__picker-label">地点</text>
-      <input class="pub__picker-input" value="{{form.location_name}}" placeholder="公共场所名称" bindinput="onLocationInput" catchtap="noop" />
+    <!-- 地址信息(图3): 发布地址=当前GPS自动记录不可改; 履约地址=地图选点 -->
+    <view class="pub__sub-title">地址信息</view>
+    <view class="pub__picker-row" bindtap="onRelocatePublish">
+      <text class="pub__picker-label">发布地址</text>
+      <text class="pub__picker-val {{publishLocation ? '' : 'is-empty'}} pub__pub-loc">
+        {{locating ? '定位中…' : (publishLocation ? '当前位置' + (publishLocation.updatedAt ? ' · ' + publishLocation.updatedAt : '') : '点击获取当前位置')}}
+      </text>
       <text class="pub__arrow">📍</text>
     </view>
-    <view class="pub__location-tip">⚠ 仅限公共场所，住宅/酒店/私密包间不可</view>
+    <view class="pub__location-tip">📌 发布地址为您发布时的实际定位，自动记录不可修改；点击可重新定位</view>
+    <view class="pub__picker-row" bindtap="onLocationPick">
+      <text class="pub__picker-label">履约地址</text>
+      <input class="pub__picker-input" value="{{form.location_name}}" placeholder="点击在地图上选择履约地点" bindinput="onLocationInput" catchtap="noop" />
+      <text class="pub__arrow">📍</text>
+    </view>
+    <view class="pub__location-tip">📍 耍伴将在此地点与您碰面，请准确选择；接单时校验耍伴与此地距离不超过 {{distanceMaxKm}} 公里</view>
   </view>
 
   <!-- B6 人数预算 -->
@@ -112,8 +127,8 @@
     </view>
   </view>
 
-  <!-- B9 撮合模式 -->
-  <view class="pub__block">
+  <!-- B9 撮合模式(定向邀约进入时锁定, 不再展示选择) -->
+  <view class="pub__block" wx:if="{{!directInvite}}">
     <view class="pub__label">撮合模式</view>
     <view class="pub__mode-list">
       <view class="pub__mode-card {{form.match_mode === item.code ? 'is-on' : ''}} {{item.code === 'smart' && smartLocked ? 'is-locked' : ''}}" wx:for="{{matchModes}}" wx:key="code" data-code="{{item.code}}" bindtap="setMatchMode">

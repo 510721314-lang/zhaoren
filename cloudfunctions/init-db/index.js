@@ -66,6 +66,9 @@ const SEED_CONFIG = {
   // 耍伴时薪区间 30-100 元/小时
   rate_min_fen: 3000,
   rate_max_fen: 10000,
+  // 距离校验(公里, 可运营): 发布位置↔履约地 / 耍伴接单位置↔履约地
+  publish_distance_max_km: 50,
+  take_distance_max_km: 50,
   // 默认评价:超时未评价记 4 星(非 5 星)
   default_star: 4,
   // 场景白名单(MVP-V1 一期 · PRD 3.2/11章)

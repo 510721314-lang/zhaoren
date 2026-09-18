@@ -13,8 +13,8 @@ const log = require('./logger');
 // 场景白名单(MVP-V1 · rules.md 三.11)
 const SCENE_WHITELIST = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
 
-// 接单模式白名单: broadcast=抢单(先到先得) · select=选单(耍伴报名→需求者确认)
-const MATCH_MODE_WHITELIST = ['broadcast', 'select'];
+// 接单模式白名单: direct=定向邀约(指定耍伴,不入大厅) · broadcast=抢单(先到先得) · select=选单(耍伴报名→需求者确认)
+const MATCH_MODE_WHITELIST = ['direct', 'broadcast', 'select'];
 
 // 场景→免责声明类型映射(code.html 第一道防线·双签)
 const DISCLAIMER_TYPE_MAP = {
@@ -70,13 +70,30 @@ async function checkText(openid, text, blockWords) {
   }
 }
 
-// 生成需求编号 DR + yyyymmdd + 6位随机
+// 生成需求编号 DR + yyyymmdd + 8字节密码学随机
 function genDemandNo() {
   const d = new Date();
   const pad = (n) => n < 10 ? '0' + n : '' + n;
   const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-  const r = Math.floor(100000 + Math.random() * 900000);
+  const r = require('crypto').randomBytes(8).toString('hex');
   return `DR${ymd}${r}`;
+}
+
+// Haversine 球面距离(公里) · 两经纬度间直线距离
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function validLngLat(lat, lng) {
+  return typeof lat === 'number' && typeof lng === 'number'
+    && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    && !(lat === 0 && lng === 0);
 }
 
 // 取运营参数(失败用兜底)
@@ -89,7 +106,9 @@ async function getConfig() {
     rate_min_fen: 3000, rate_max_fen: 10000,
     youth_limit_fen: 20000,
     min_credit_place_order: 600,
-    city_enabled: ['成都']
+    city_enabled: ['成都'],
+    publish_distance_max_km: 50,
+    take_distance_max_km: 50
   };
 }
 
@@ -139,7 +158,7 @@ exports.main = async (event, context) => {
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
-        match_mode, disclaimer_signed
+        match_mode, disclaimer_signed, target_openid
       } = event;
 
       // ── 基础校验 ──
@@ -166,10 +185,19 @@ exports.main = async (event, context) => {
       if (!location || !location.name) {
         return { ok: false, code: 'publish_location', msg: '请填写履约地点名称' };
       }
-      // 发布地址(发布时实际GPS, 只读留痕): 缺省时用履约地址兜底, MVP 阶段放宽校验
-      let pubLoc = (publish_location && publish_location.latitude && publish_location.longitude)
-        ? publish_location
-        : { name: location.name, latitude: location.latitude || 0, longitude: location.longitude || 0, city: location.city };
+      // 发布地址(发布者当前精确 GPS, 只读留痕且不可手改):
+      // 这里只解析, 强校验(必须真实坐标/与履约地距离)在 config 读取后执行; 禁止再用履约地兜底
+      const pubLoc = (publish_location
+        && validLngLat(Number(publish_location.latitude), Number(publish_location.longitude)))
+        ? {
+            name: publish_location.name || '当前位置',
+            latitude: Number(publish_location.latitude),
+            longitude: Number(publish_location.longitude),
+            city: publish_location.city
+          }
+        : null;
+      // 服务端自测链路(mock_openid 且无真实 OPENID)无定位, 沿用旧兜底以免阻断自动化回归
+      const isMockCall = !wxCtx.OPENID && !!event.mock_openid;
       if (!aa_tier) {
         return { ok: false, code: 'publish_aa_tier', msg: '请选择 AA 档位' };
       }
@@ -225,6 +253,43 @@ exports.main = async (event, context) => {
       // ── 信用分 ──
       if ((user.user_credit_score || 800) < (config.min_credit_place_order || 600)) {
         return { ok: false, code: 'publish_credit_low', msg: '信用分低于下单门槛,暂不能发布需求' };
+      }
+
+      // ── 发布地址强校验(发布者当前精确GPS, 只读不可手改, 防恶意虚拟定位) ──
+      // mock 自测链路无 GPS 跳过; 真实客户端必须携带真实坐标
+      if (!isMockCall && !pubLoc) {
+        return { ok: false, code: 'publish_location_required', msg: '发布需求需要获取你的当前位置,请授权定位后重试' };
+      }
+      // 发布位置 ↔ 履约地直线距离 ≤ 后台阈值(默认50km); 履约地无坐标时跳过(隐私审核期允许手填地点)
+      if (!isMockCall && validLngLat(Number(location.latitude), Number(location.longitude))) {
+        const pubDistKm = haversineKm(
+          pubLoc.latitude, pubLoc.longitude,
+          Number(location.latitude), Number(location.longitude)
+        );
+        const maxPubKm = Number(config.publish_distance_max_km) || 50;
+        if (pubDistKm > maxPubKm) {
+          return {
+            ok: false,
+            code: 'publish_too_far',
+            msg: `你当前位置距履约地点约 ${Math.round(pubDistKm)} 公里,超过 ${maxPubKm} 公里,请确认履约地点或到达当地后发布`
+          };
+        }
+      }
+
+      // ── 定向邀约: 必须指定一个已审核通过的耍伴, 需求不入大厅仅TA可接 ──
+      if (mode === 'direct') {
+        if (!target_openid || typeof target_openid !== 'string') {
+          return { ok: false, code: 'publish_target_required', msg: '定向邀约缺少指定耍伴' };
+        }
+        if (target_openid === openid) {
+          return { ok: false, code: 'publish_target_self', msg: '不能定向邀约自己' };
+        }
+        const tpR = await col('partner_profile')
+          .where({ openid: target_openid, status: 'approved', is_deleted: _.neq(true) })
+          .limit(1).get().catch(() => ({ data: [] }));
+        if (!(tpR.data && tpR.data[0])) {
+          return { ok: false, code: 'publish_target_invalid', msg: '指定耍伴不存在或未通过审核' };
+        }
       }
 
       // ── 金额校验(分单位 · rules.md 三.7) ──
@@ -325,12 +390,15 @@ exports.main = async (event, context) => {
         duration_h,
         location: { name: location.name, latitude: location.latitude, longitude: location.longitude, city },
         // 发布地址: 发布时实际GPS定位(只读留痕, 不参与接单距离/通勤计算)
-        publish_location: {
-          name: pubLoc.name || '当前位置',
-          latitude: pubLoc.latitude,
-          longitude: pubLoc.longitude,
-          city: normCity(pubLoc.city) || city
-        },
+        // 真实调用 pubLoc 已强校验非空; mock 自测链路无GPS, 沿用履约地兜底以免阻断自动化回归
+        publish_location: isMockCall
+          ? { name: location.name || '当前位置', latitude: Number(location.latitude) || 0, longitude: Number(location.longitude) || 0, city }
+          : {
+              name: pubLoc.name || '当前位置',
+              latitude: pubLoc.latitude,
+              longitude: pubLoc.longitude,
+              city: normCity(pubLoc.city) || city
+            },
         content_option: opts[0],  // 兼容旧字段:取首项
         content_options: opts,    // 多选全量
         remark: remarkStr,
@@ -348,8 +416,8 @@ exports.main = async (event, context) => {
         matched_openid: null,                        // 选单模式:已确认的耍伴
         status: 'matching',
         match_candidates: [],
-        invited: [],
-        broadcast: mode === 'broadcast',  // 抢单模式入厅可接;选单模式需报名→确认
+        invited: mode === 'direct' ? [target_openid] : [],  // 定向: 仅受邀耍伴可接
+        broadcast: mode === 'broadcast',  // 仅抢单模式入厅; 定向/选单不入公共大厅
         expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
         created_at: now,
         updated_at: now,
@@ -359,6 +427,30 @@ exports.main = async (event, context) => {
       try {
         const addRes = await col('demand').add({ data: doc });
         log.d(`demand created: ${demand_no}`);
+
+        // 定向邀约: 给受邀耍伴写系统通知(不阻断主流程), 通知点击直达需求详情
+        if (mode === 'direct') {
+          try {
+            const callerName = user.nickname || user.surname || '发单人';
+            await col('system_notice').add({
+              data: {
+                to_openid: target_openid,
+                order_id: '',
+                demand_id: addRes._id,
+                type: 'direct_invite',
+                title: '你收到一条定向需求邀约',
+                body: `${callerName}定向向你发布了一条需求,请在24小时内查看并接单`,
+                action_key: 'jump_demand',
+                action_payload: { demand_id: addRes._id },
+                created_at: now,
+                read: false
+              }
+            });
+          } catch (ne) {
+            log.d(`direct invite notice fail: ${ne.message}`);
+          }
+        }
+
         // 发布成功后清理来源草稿(若本次发布由草稿发起), 避免残留草稿导致重复发布
         let draftCleared = false;
         const srcDraftId = event.draft_id;
@@ -501,8 +593,16 @@ exports.main = async (event, context) => {
           budget: Math.round((d.rate_fen || 0) / 100),
           aa_estimate: d.aa_tier || '0-50',
           match_mode: d.match_mode || 'broadcast',
+          // 是否入公共大厅(定向需求不在大厅/首页出现)
+          broadcast: !!d.broadcast,
           status: d.status,
           is_owner: d.creator_openid === openid,
+          // 非发布者是否可接单: 选单走报名流程放行; 抢单需 broadcast; 定向需在受邀名单
+          can_take: d.creator_openid === openid
+            ? false
+            : ((d.match_mode || 'broadcast') === 'select'
+              || !!d.broadcast
+              || ((d.invited || []).indexOf(openid) >= 0)),
           publisher: {
             surname,
             real_name_verified: true,

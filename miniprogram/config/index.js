@@ -15,6 +15,9 @@ module.exports = {
   DATE_RANGE_DAYS: 30,
   DURATION_OPTIONS: [1, 2, 3, 4, 6, 8],
 
+  // 距离校验（公里，与后台 admin_config 同名键一致；前端仅用于提示与前置拦截，服务端为准）
+  PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50 },
+
   AA_OPTIONS: ['0-50', '50-200', '200+', 'custom'],
 
   // 草稿（拍板项1）

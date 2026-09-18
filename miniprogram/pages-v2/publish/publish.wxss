@@ -26,6 +26,32 @@
   margin-left: 4rpx;
 }
 
+/* 定向邀约横幅 */
+.pub__direct {
+  margin-top: 20rpx;
+  background: #fff6ec;
+  color: #c87a2c;
+  border: 1rpx solid #f3d4ad;
+  border-radius: var(--r-lg);
+  padding: 18rpx 24rpx;
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+/* 地址信息小标题 */
+.pub__sub-title {
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--border-divider);
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--text-1);
+}
+/* 发布地址(只读GPS) */
+.pub__pub-loc {
+  flex: 1;
+}
+
 /* B2 segment */
 .pub__segment {
   display: flex;

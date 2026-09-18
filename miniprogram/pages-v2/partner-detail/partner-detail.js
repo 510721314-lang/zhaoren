@@ -83,16 +83,36 @@ Page({
     this.setData({ activeTab: e.currentTarget.dataset.tab });
   },
 
+  // 咨询: 成单前 IM 仅对订单参与方开放, 复用定向发布链路
+  // (说明后跳发布页, TA 会收到定向邀约通知 = "咨询/邀TA接单")
   onConsult() {
-    // 跳到发单页预填对方
-    wx.showToast({ title: '定向咨询开发中', icon: 'none' });
+    const openid = this.data.partner && this.data.partner.openid;
+    if (!openid) {
+      wx.showToast({ title: '耍伴信息加载中，请稍后', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '咨询TA',
+      content: '成单前暂不支持私聊。你可以定向发布一条需求，TA 会立即收到邀约通知并可直接接单。',
+      confirmText: '去发布',
+      cancelText: '再看看',
+      success: (res) => {
+        if (!res.confirm) return;
+        const name = encodeURIComponent(this.data.partner.nickname || '');
+        wx.navigateTo({
+          url: `/pages-v2/publish/publish?invitePartnerOpenid=${openid}&invitePartnerName=${name}`,
+          fail: () => wx.showToast({ title: '跳转失败', icon: 'none' })
+        });
+      }
+    });
   },
 
   onInvite() {
     const openid = this.data.partner && this.data.partner.openid;
     if (!openid) return;
+    const name = encodeURIComponent(this.data.partner.nickname || '');
     wx.navigateTo({
-      url: `/pages-v2/publish/publish?invitePartnerOpenid=${openid}`,
+      url: `/pages-v2/publish/publish?invitePartnerOpenid=${openid}&invitePartnerName=${name}`,
       fail: () => wx.showToast({ title: '跳转失败', icon: 'none' })
     });
   },

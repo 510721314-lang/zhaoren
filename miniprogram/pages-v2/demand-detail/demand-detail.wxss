@@ -24,6 +24,17 @@
   color: var(--text-1);
   line-height: 1.4;
 }
+.dd__direct-tag {
+  margin-top: 12rpx;
+  display: inline-block;
+  background: #fff6ec;
+  color: #c87a2c;
+  border: 1rpx solid #f3d4ad;
+  border-radius: var(--r-sm);
+  padding: 8rpx 16rpx;
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
 .dd__desc {
   margin-top: 12rpx;
   font-size: var(--font-md);
@@ -149,6 +160,11 @@
   background: var(--func-danger);
   color: var(--text-invert);
   font-weight: 600;
+}
+.dd__btn--disabled {
+  background: var(--bg-segment);
+  color: var(--text-4);
+  font-size: var(--font-sm);
 }
 .dd__grab-title {
   font-size: var(--font-xl);
