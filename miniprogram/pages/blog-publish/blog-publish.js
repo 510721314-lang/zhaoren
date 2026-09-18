@@ -20,6 +20,22 @@ Page({
     submitting: false
   },
 
+  onLoad() {
+    // 双保险: 直接被 navigateTo 进来也拦住
+    const openid = wx.getStorageSync('openid');
+    if (!openid) {
+      wx.showModal({
+        title: '需要先登录',
+        content: '发布动态前请先授权登录',
+        showCancel: false,
+        confirmText: '去登录',
+        success: () => {
+          wx.redirectTo({ url: '/pages-v2/login/login' });
+        }
+      });
+    }
+  },
+
   onContentInput(e) {
     const v = e.detail.value || '';
     this.setData({ content: v, contentLen: v.length });

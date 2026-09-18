@@ -159,8 +159,19 @@ Page({
   },
 
   goPublish() {
-    if (!app.globalData.userInfo) {
-      wx.showToast({ title: '请先登录后再发布', icon: 'none' });
+    // v2 登录态检查: storage 里有 openid 即视为已登录(与 profile.js 一致)
+    const openid = wx.getStorageSync('openid');
+    if (!openid) {
+      wx.showModal({
+        title: '需要先登录',
+        content: '发布动态前请先授权登录',
+        confirmText: '去登录',
+        success: (res) => {
+          if (res.confirm) {
+            wx.navigateTo({ url: '/pages-v2/login/login' });
+          }
+        }
+      });
       return;
     }
     wx.navigateTo({ url: '/pages/blog-publish/blog-publish' });

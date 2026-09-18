@@ -258,12 +258,11 @@ exports.main = async (event, context) => {
         const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
         await fillPublisherSurname(list);
 
-        // 按场景分组(首页): 每场景 8 条 + has_more, 空场景不返回
+        // 按场景分组(首页): 固定 8 槽位全返回, 空场景 list=[] 由前端渲染占位引导
         const sceneGroups = [];
         sceneRs.forEach((r, i) => {
           const code = SCENE_ORDER[i];
           const docs = r.data || [];
-          if (!docs.length) return;
           const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
           sceneGroups.push({
             scene_code: code,

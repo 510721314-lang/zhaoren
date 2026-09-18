@@ -352,6 +352,15 @@
 .home__scene-more-btn:active {
   opacity: 0.75;
 }
+.home__scene-empty {
+  padding: 16rpx 20rpx;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  text-align: center;
+  background: var(--bg-empty);
+  border-radius: var(--r-md);
+  margin-bottom: 12rpx;
+}
 .home__partner-tip {
   text-align: center;
   font-size: var(--font-xs);

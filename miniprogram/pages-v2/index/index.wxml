@@ -103,15 +103,18 @@
         <text class="home__scene-title">{{group.scene_name}}</text>
         <text class="home__scene-count">{{group.list.length}} 条</text>
       </view>
-      <demand-card
-        wx:for="{{group.list}}"
-        wx:for-item="demand"
-        wx:key="_id"
-        demand="{{demand}}"
-        role="user"
-        bind:cardtap="onDemandTap"
-        bind:action="onDemandTap"
-      ></demand-card>
+      <block wx:if="{{group.list.length > 0}}">
+        <demand-card
+          wx:for="{{group.list}}"
+          wx:for-item="demand"
+          wx:key="_id"
+          demand="{{demand}}"
+          role="user"
+          bind:cardtap="onDemandTap"
+          bind:action="onDemandTap"
+        ></demand-card>
+      </block>
+      <view wx:else class="home__scene-empty">暂无匹配需求 · 点我去发布</view>
       <view
         wx:if="{{group.has_more}}"
         class="home__scene-more-btn"
