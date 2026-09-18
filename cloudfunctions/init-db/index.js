@@ -240,6 +240,17 @@ exports.main = async (event, context) => {
         patch.system_templates = SEED_CONFIG.system_templates;
         hasPatch = true;
       }
+
+      // 旧版 scene_list 包含 W3/W7/W9 三个已隐藏场景; 需与 SEED_CONFIG.scene_list 对齐
+      // 检测方式: 云端 scene_list 包含种子没有的 code → 迁移覆盖
+      const seedCodes = SEED_CONFIG.scene_list.map((s) => s.code);
+      const docCodes = (Array.isArray(doc.scene_list) ? doc.scene_list : []).map((s) => s && s.code).filter(Boolean);
+      const extraInDoc = docCodes.filter((c) => seedCodes.indexOf(c) < 0);
+      const missingInDoc = seedCodes.filter((c) => docCodes.indexOf(c) < 0);
+      if (extraInDoc.length > 0 || missingInDoc.length > 0) {
+        patch.scene_list = SEED_CONFIG.scene_list;
+        hasPatch = true;
+      }
       if (hasPatch) {
         patch.updated_at = Date.now();
         await db.collection('admin_config').doc(exist.data[0]._id).update({ data: patch });
