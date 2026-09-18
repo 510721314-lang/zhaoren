@@ -77,7 +77,8 @@ Page({
 
   goDetail(e) {
     const id = e.currentTarget.dataset.id;
-    if (id) wx.navigateTo({ url: '/pages/blog-detail/blog-detail?id=' + id });
+    // 与 partner-home / pages/blog / pages/index 保持一致: blog-detail 读 opts.post_id
+    if (id) wx.navigateTo({ url: '/pages/blog-detail/blog-detail?post_id=' + id });
   },
 
   previewImage(e) {
