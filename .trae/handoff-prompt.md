@@ -46,8 +46,10 @@ powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1
 powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Deploy partner-action
 ```
 
-退出码：0 成功 / 1 语法错误（部署已拦截）/ 2 未装 Node / 3 函数名不存在 / 4 部署失败 / 5 未找到 CLI。
+退出码：0 成功 / 1 语法错误（部署已拦截）/ 2 未装 Node / 3 函数名不存在 / 4 部署失败 / 5 未找到 CLI / 6 目标函数有未提交改动。
 脚本自动定位 node.exe 与 cli.bat（通配搜索，不依赖中文路径编码）。
+
+**工作流顺序铁律：先改代码 → git commit → 再过预检门部署。** 预检门会检查目标云函数目录工作区是否干净，有未提交改动直接 exit 6 拒绝部署（保证线上函数永远对应一个可恢复的 git commit；已 commit 未 push 不阻断，因为网络可能抖动，事后补 push 即可）。
 
 **仅在预检不可用时才用裸命令**（CLI 不支持逗号分隔，需逐个部署）：
 
@@ -402,7 +404,7 @@ order-action/order-create/demand-publish/demand-match 20s；payment-mock 10s；u
 推荐一条龙（预检 17 个函数全量 node --check，不过则中止）:
 powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Deploy <函数名>
 仅预检: powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1
-退出码: 0成功/1语法错误已拦截/2无Node/3函数名错/4部署失败/5无CLI。CLI 不支持逗号分隔多函数。
+退出码: 0成功/1语法错误已拦截/2无Node/3函数名错/4部署失败/5无CLI/6目标函数有未提交改动。顺序铁律: 先 git commit 再部署(预检门强制, 未提交拒绝; 已commit未push不阻断)。CLI 不支持逗号分隔多函数。
 
 【测试账号】
 - Admin: oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c（需 admin_config.admin_openids 中有）

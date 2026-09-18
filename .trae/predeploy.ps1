@@ -11,6 +11,7 @@
 #
 # Exit codes: 0 = ok / 1 = syntax failed / 2 = node not found
 #             3 = function name invalid / 4 = deploy failed / 5 = cli not found
+#             6 = uncommitted changes in target function (commit before deploy)
 # ============================================================
 param(
     [string]$Deploy = "",
@@ -113,6 +114,26 @@ if ($Deploy) {
         Write-Host "        Valid names: $(($deployable.Name) -join ', ')" -ForegroundColor Yellow
         exit 3
     }
+
+    # ── Commit-before-deploy gate: the target function MUST be fully committed ──
+    # Rule (per user workflow): never deploy uncommitted code, so the running cloud
+    # function always maps to a recoverable git commit. Unpushed commits are allowed
+    # (network may be down); only UNCOMMITTED working-tree changes block deploy.
+    Push-Location $root
+    $fnChanges = @(git status --porcelain -- "cloudfunctions/$Deploy" 2>$null)
+    Pop-Location
+    if ($fnChanges.Count -gt 0) {
+        Write-Host ""
+        Write-Host "##################################################" -ForegroundColor Red
+        Write-Host " UNCOMMITTED CHANGES in cloudfunctions/$Deploy" -ForegroundColor Red
+        $fnChanges | ForEach-Object { Write-Host "   $_" -ForegroundColor Yellow }
+        Write-Host " DEPLOY BLOCKED. Commit first (rule: commit before deploy), e.g.:" -ForegroundColor Red
+        Write-Host "   git add cloudfunctions/$Deploy ; git commit -m `"fix($Deploy): ...`"" -ForegroundColor Gray
+        Write-Host "##################################################" -ForegroundColor Red
+        exit 6
+    }
+    Write-Host "commit gate: cloudfunctions/$Deploy clean (all changes committed)" -ForegroundColor Green
+
     $cli = $null
     # NOTE: search by wildcard instead of typing the Chinese folder name,
     # so this script works regardless of file encoding / PS 5.1 codepage.
