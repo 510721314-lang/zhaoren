@@ -116,8 +116,7 @@ async function getProfile(openid) {
   return getHealedPartnerProfile(col, _, openid);
 }
 
-// 默认考核分模板: 所有场景默认 100 (dev 环境耍伴能直接测 W1), prod 空值由管理员审核补
-const DEFAULT_EXAM_SCORES = { W1: 100, W2: 100, W8: 100, W10: 100, W11: 100 };
+// 默认考核分模板由 getSceneCodes() 动态构建(每个活跃场景默认 100 分), 见 apply case
 
 // 检查是否有进行中订单
 async function hasBusyOrder(openid) {
@@ -157,16 +156,18 @@ exports.main = async (event, context) => {
       const ppCol = col('partner_profile');
       const now = Date.now();
       const existing = await ppCol.where({ openid }).limit(100).get();
+      // 动态拿活跃场景列表(SSOT: admin_config.scene_list)
+      const sceneCodes = await getSceneCodes();
       const scenes = Array.isArray(event.accept_scenes) && event.accept_scenes.length
         ? event.accept_scenes
-        : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : ['W1']);
+        : (curRoles.includes('partner') && existing.data.length ? existing.data[0].accept_scenes || [] : [sceneCodes[0] || 'W1']);
 
       // 日常位置(注册时 chooseLocation 选点); 未传/非法则保留旧值, 不强制阻断老客户端
       const homeLocation = sanitizeHomeLocation(event.home_location);
 
       // 补全场景考核分(exam_scores 为空时默认全部 100 分, 让耍伴能直接接所有已开通场景)
       // W1 真实上线需对接真实考核系统, prod 正式运营前由管理员手动审核维护各场景考核分
-      const defaultExam = DEFAULT_EXAM_SCORES;
+      const defaultExam = sceneCodes.reduce((a, c) => { a[c] = 100; return a; }, {});
 
       // 已是 approved 的历史档案重走申请时保留资格(只更新场景); 其余一律按自动开关决定
       const wasApproved = existing.data.some(p => p.status === 'approved');

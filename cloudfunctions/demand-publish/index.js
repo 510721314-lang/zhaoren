@@ -401,6 +401,9 @@ exports.main = async (event, context) => {
       // ── 写入 ──
       const now = Date.now();
       const demand_no = genDemandNo();
+      // 免责声明类型: 优先从 admin_config.scene_list 动态读(SSOT), 兜底 LEGACY 映射
+      const sceneCfg = (config.scene_list || []).find((s) => s && s.code === scene);
+      const disclaimerType = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
       const doc = {
         demand_no,
         creator_openid: openid,
@@ -427,7 +430,7 @@ exports.main = async (event, context) => {
         aa_tier,
         aa_promise_signed: !!aa_promise_checked,   // rules.md 三.6 AA承诺书(服务端已兜底校验)
         // ── 合规双签(code.html 第一道防线) ──
-        disclaimer_type: DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer',
+        disclaimer_type: disclaimerType,
         disclaimer_signed: true,
         disclaimer_signed_at: now,
         // ── 接单模式 ──

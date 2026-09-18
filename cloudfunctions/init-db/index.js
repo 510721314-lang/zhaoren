@@ -71,13 +71,13 @@ const SEED_CONFIG = {
   take_distance_max_km: 50,
   // 默认评价:超时未评价记 4 星(非 5 星)
   default_star: 4,
-  // 场景白名单(MVP-V1 一期 · PRD 3.2/11章)
+  // 场景白名单(MVP-V1 一期 · PRD 3.2/11章) · 每个场景含 disclaimer_type(与 demand-publish/order-create 统一)
   scene_list: [
-    { code: 'W1',  name: '就医陪诊', options: ['挂号排队', '取药送药', '陪诊解压'], aa_default: true },
-    { code: 'W2',  name: '学习陪伴', options: ['自习陪伴', '口语陪练', '作业督促'] },
-    { code: 'W8',  name: '生活协助', options: ['排队代办', '搬家帮手', '采买陪同'] },
-    { code: 'W10', name: '出行陪伴', options: ['逛街同行', '夜跑陪跑', '活动搭子'] },
-    { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'] }
+    { code: 'W1',  name: '就医陪诊', options: ['挂号排队', '取药送药', '陪诊解压'], aa_default: true, disclaimer_type: 'medical_disclaimer' },
+    { code: 'W2',  name: '学习陪伴', options: ['自习陪伴', '口语陪练', '作业督促'], disclaimer_type: 'general_disclaimer' },
+    { code: 'W8',  name: '生活协助', options: ['排队代办', '搬家帮手', '采买陪同'], disclaimer_type: 'general_disclaimer' },
+    { code: 'W10', name: '出行陪伴', options: ['逛街同行', '夜跑陪跑', '活动搭子'], disclaimer_type: 'general_disclaimer' },
+    { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'], disclaimer_type: 'online_disclaimer' }
   ],
   // AA 费用档位(PRD 3.4 · 平台不代收)
   aa_tiers: ['0-50元', '50-200元', '200元以上', '自定义'],
@@ -258,13 +258,23 @@ exports.main = async (event, context) => {
         hasPatch = true;
       }
 
-      // 旧版 scene_list 包含 W3/W7/W9 三个已隐藏场景; 需与 SEED_CONFIG.scene_list 对齐
-      // 检测方式: 云端 scene_list 包含种子没有的 code → 迁移覆盖
+      // 旧版 scene_list 可能含 W3/W7/W9 隐藏场景; 需与 SEED_CONFIG.scene_list 全量对齐
+      // 检测维度: ① scene code 有无增减 ② 每个 scene 对象的完整字段有无差异
       const seedCodes = SEED_CONFIG.scene_list.map((s) => s.code);
       const docCodes = (Array.isArray(doc.scene_list) ? doc.scene_list : []).map((s) => s && s.code).filter(Boolean);
       const extraInDoc = docCodes.filter((c) => seedCodes.indexOf(c) < 0);
       const missingInDoc = seedCodes.filter((c) => docCodes.indexOf(c) < 0);
-      if (extraInDoc.length > 0 || missingInDoc.length > 0) {
+      // 字段级比对: 同 code 的 scene 对象 JSON 序列化后必须完全一致
+      let sceneFieldChanged = false;
+      if (extraInDoc.length === 0 && missingInDoc.length === 0) {
+        for (let i = 0; i < SEED_CONFIG.scene_list.length; i++) {
+          const seedS = SEED_CONFIG.scene_list[i];
+          const docS = doc.scene_list.find((d) => d.code === seedS.code);
+          if (!docS) { sceneFieldChanged = true; break; }
+          if (JSON.stringify(docS) !== JSON.stringify(seedS)) { sceneFieldChanged = true; break; }
+        }
+      }
+      if (extraInDoc.length > 0 || missingInDoc.length > 0 || sceneFieldChanged) {
         patch.scene_list = SEED_CONFIG.scene_list;
         hasPatch = true;
       }

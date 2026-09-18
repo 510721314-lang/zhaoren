@@ -100,7 +100,10 @@ exports.main = async (event, context) => {
   if (action === 'sign_disclaimer') {
     const { scene } = event;
     if (!scene) return { ok: false, code: 'sign_no_scene', msg: '缺少场景' };
-    const disclaimerType = {
+    // 免责声明类型: 优先从 admin_config.scene_list 动态读(SSOT), 兜底硬编码映射
+    const cfg = await getConfig();
+    const sceneCfg = (cfg.scene_list || []).find((s) => s && s.code === scene);
+    const disclaimerType = (sceneCfg && sceneCfg.disclaimer_type) || {
       W1: 'medical_disclaimer', W2: 'general_disclaimer', W8: 'general_disclaimer',
       W10: 'general_disclaimer', W11: 'online_disclaimer'
     }[scene] || 'general_disclaimer';
