@@ -91,9 +91,19 @@ Page({
   },
 
   onEdit() {
+    // 只有 matching(待匹配) 状态可编辑, 进入 publish 页 edit 模式
+    const s = this.data.demand && this.data.demand.status;
+    if (s !== 'matching') {
+      wx.showModal({
+        title: '当前状态不可编辑',
+        content: '仅待匹配状态的需求可编辑',
+        showCancel: false
+      });
+      return;
+    }
     wx.navigateTo({
-      url: `/pages-v2/publish/publish?sceneCode=${this.data.demand.scene_code}`,
-      fail: () => wx.showToast({ title: '编辑功能待接入', icon: 'none' })
+      url: `/pages-v2/publish/publish?mode=edit&demand_id=${this.data.demand._id}`,
+      fail: () => wx.showToast({ title: '编辑功能暂不可用', icon: 'none' })
     });
   },
 

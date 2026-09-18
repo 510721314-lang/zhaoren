@@ -141,6 +141,67 @@ Page({
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
     } catch (e) {}
+
+    // 编辑模式: 从需求详情携带 mode=edit & demand_id 进来
+    if (options.mode === 'edit' && options.demand_id) {
+      this.__editMode = true;
+      this.__editDemandId = options.demand_id;
+      wx.setNavigationBarTitle({ title: '编辑需求' });
+      // 拉需求详情回填表单
+      wx.cloud.callFunction({
+        name: 'demand-publish',
+        data: { action: 'detail', demand_id: options.demand_id },
+        success: (res) => {
+          const r = res.result || {};
+          if (!r.ok || !r.data) {
+            wx.showToast({ title: '需求不存在', icon: 'none' });
+            setTimeout(() => wx.navigateBack(), 1200);
+            return;
+          }
+          const d = r.data;
+          // 场景 + 标题 + 描述
+          this.setScene({ code: d.scene_code });
+          // 日期 + 时间 → duration_hours + service_date + service_time
+          const dt = new Date(d.service_date + 'T' + (d.service_time || '00:00'));
+          const pad = (n) => n < 10 ? '0' + n : '' + n;
+          const h = dt.getHours(), m = dt.getMinutes();
+          // 时长预设映射 + date/time 回填
+          const durationPresets = [1, 2, 3, 4, 6, 8];
+          const dur = durationPresets.includes(d.duration_hours) ? d.duration_hours : d.duration_hours;
+          this.setData({
+            'form.title': d.title || '',
+            'form.description': d.description || '',
+            'form.service_date': d.service_date,
+            'form.service_time': pad(h) + ':' + pad(m),
+            'form.duration_hours': dur,
+            'form.duration_custom': d.duration_hours,
+            'form.headcount': d.headcount || 1,
+            'form.budget': d.budget ? String(d.budget) : '',
+            'form.aa_estimate': d.aa_estimate || '0-50',
+            'form.match_mode': d.match_mode || 'broadcast',
+            'form.gender_pref': d.gender_pref || '不限',
+            // 履约地点
+            'form.location_name': (d.location && d.location.name) || '',
+            'form.latitude': (d.location && d.location.latitude) || 0,
+            'form.longitude': (d.location && d.location.longitude) || 0,
+            titleCount: (d.title || '').length,
+            descCount: (d.description || '').length,
+            // 已发布需求不能改发布地址(只读留痕)
+            publishLocation: d.publish_location ? {
+              latitude: d.publish_location.latitude,
+              longitude: d.publish_location.longitude,
+              name: d.publish_location.name || '原发布位置',
+              updatedAt: ''
+            } : null
+          });
+        },
+        fail: () => {
+          wx.showToast({ title: '加载需求失败', icon: 'none' });
+          setTimeout(() => wx.navigateBack(), 1200);
+        }
+      });
+    }
+
     if (options.sceneCode) {
       this.setScene({ code: options.sceneCode });
     }
@@ -154,8 +215,10 @@ Page({
       });
       this._fetchInvitePartner(this.invitePartnerOpenid);
     }
-    // 进入页面立即获取发布地址(真实GPS, 只读留痕)
-    this._locatePublish(false);
+    // 进入页面立即获取发布地址(真实GPS, 只读留痕) — 编辑模式跳过(原发布地址不可变)
+    if (!this.__editMode) {
+      this._locatePublish(false);
+    }
     // 拉用户信息 (peek_login) 替代 CURRENT_USER
     wx.cloud.callFunction({
       name: 'user-login',
@@ -178,10 +241,12 @@ Page({
     const max = new Date(now.getTime() + CONFIG.DATE_RANGE_DAYS * 86400000);
     this.setData({ today: todayStr, dateMax: this.fmtDate(max) });
     this.startAutoSave();
-    // 草稿数量角标(静默拉取,失败不打扰)
-    callCloud('demand-publish', { action: 'list_drafts' }).then((r) => {
-      if (r.ok && r.data) this.setData({ draftCount: (r.data.list || []).length });
-    }).catch(() => {});
+    // 草稿数量角标(静默拉取,失败不打扰) — 编辑模式不需要草稿
+    if (!this.__editMode) {
+      callCloud('demand-publish', { action: 'list_drafts' }).then((r) => {
+        if (r.ok && r.data) this.setData({ draftCount: (r.data.list || []).length });
+      }).catch(() => {});
+    }
   },
 
   onUnload() {
@@ -679,25 +744,26 @@ Page({
     };
 
     const params = {
-      action: 'publish',
+      action: this.__editMode ? 'update' : 'publish',
+      ...(this.__editMode ? { demand_id: this.__editDemandId } : {}),
       scene: f.scene_code,
       content_options: contentOptions,
       start_time: startTs,
       duration_h: durationH,
       location,
-      // 发布地址只传真实GPS, 禁止用履约地兜底(云函数同样强校验)
-      publish_location: pubLoc,
+      // 发布地址: 新建时传真实GPS, 编辑模式传原发布地址(只读留痕不可改)
+      publish_location: this.__editMode ? null : pubLoc,
       remark: `${f.title}｜${f.description}`,
       rate_fen: rateFen,
       aa_tier: f.aa_estimate,
-      aa_promise_checked: true,  // 走到这里说明 AA wx.showModal 已点"确认发布"
+      aa_promise_checked: true,
       disclaimer_signed: this.data.disclaimerChecked,
       match_mode: f.match_mode,
-      target_openid: this.invitePartnerOpenid || '',  // 定向邀约目标耍伴
-      draft_id: this.__draftId || ''  // 由草稿发起时, 发布成功后服务端软删该草稿
+      target_openid: this.invitePartnerOpenid || '',
+      draft_id: this.__draftId || ''
     };
 
-    console.log('[confirmPublish] → demand-publish:', { action: 'publish', scene: params.scene });
+    console.log('[confirmPublish] → demand-publish:', { action: params.action, scene: params.scene });
 
     wx.cloud.callFunction({
       name: 'demand-publish',
@@ -706,26 +772,34 @@ Page({
         const r = res.result || {};
         if (r.ok && r.data) {
           const demandId = r.data._id;
-          this.__draftId = null;  // 已发布, 释放草稿绑定, 防止自动保存复活旧草稿
-          this.invitePartnerOpenid = '';  // 定向邀约一次性消费
+          this.__draftId = null;
+          this.invitePartnerOpenid = '';
           wx.showToast({
-            title: f.match_mode === 'direct' ? '定向发布成功' : '发布成功',
+            title: this.__editMode
+              ? '更新成功'
+              : (f.match_mode === 'direct' ? '定向发布成功' : '发布成功'),
             icon: 'success'
           });
           setTimeout(() => {
-            wx.redirectTo({
-              url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
-              fail: () => {
-                // 降级: 跳广场页让用户自己找到需求
-                wx.switchTab({
-                  url: '/pages-v2/square/square',
-                  fail: () => wx.showToast({ title: '发布成功，请在广场查看', icon: 'none' })
-                });
-              }
-            });
+            if (this.__editMode) {
+              // 编辑成功 → 返回详情页(会自动 onShow 刷新)
+              wx.navigateBack({ fail: () => {
+                wx.redirectTo({ url: `/pages-v2/demand-detail/demand-detail?id=${demandId}` });
+              }});
+            } else {
+              wx.redirectTo({
+                url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
+                fail: () => {
+                  wx.switchTab({
+                    url: '/pages-v2/square/square',
+                    fail: () => wx.showToast({ title: '发布成功，请在广场查看', icon: 'none' })
+                  });
+                }
+              });
+            }
           }, 800);
         } else {
-          wx.showToast({ title: r.msg || '发布失败', icon: 'none', duration: 2500 });
+          wx.showToast({ title: r.msg || '操作失败', icon: 'none', duration: 2500 });
           this.setData({ publishing: false });
         }
       },

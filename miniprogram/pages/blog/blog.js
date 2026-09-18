@@ -159,9 +159,8 @@ Page({
   },
 
   goPublish() {
-    // v2 登录态检查: storage 里有 openid 即视为已登录(与 profile.js 一致)
-    const openid = wx.getStorageSync('openid');
-    if (!openid) {
+    // v2 登录态检查: login.js 登录成功后写 v2_login_ok=true, profile.js 退出登录时删除
+    if (!wx.getStorageSync('v2_login_ok')) {
       wx.showModal({
         title: '需要先登录',
         content: '发布动态前请先授权登录',

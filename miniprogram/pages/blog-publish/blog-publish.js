@@ -22,8 +22,7 @@ Page({
 
   onLoad() {
     // 双保险: 直接被 navigateTo 进来也拦住
-    const openid = wx.getStorageSync('openid');
-    if (!openid) {
+    if (!wx.getStorageSync('v2_login_ok')) {
       wx.showModal({
         title: '需要先登录',
         content: '发布动态前请先授权登录',
