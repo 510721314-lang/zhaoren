@@ -161,9 +161,26 @@ exports.main = async (event, context) => {
     try {
       const cr = await db.collection('admin_config').doc('global').get();
       const c = cr.data || {};
-      cfg = { env: c.env, enabled_cities: c.enabled_cities || c.city, scene_list: (c.scene_list || []).map(s => s.code) };
+      cfg = {
+        env: c.env,
+        enabled_cities: c.enabled_cities || c.city,
+        scene_list: (c.scene_list || []).map(s => ({ code: s.code, name: s.name })),
+        scene_count: (c.scene_list || []).length,
+        seed_expected_codes: SEED_CONFIG.scene_list.map(s => s.code)
+      };
     } catch (e) { cfg = { error: e.message }; }
     return { ok: true, mode: 'quick_check', demands, config: cfg };
+  }
+
+  // ── 强制迁移 scene_list / system_templates ──
+  if (event && event.action === 'force_migrate_scenes') {
+    const patch = { scene_list: SEED_CONFIG.scene_list, updated_at: Date.now() };
+    try {
+      await db.collection('admin_config').doc('global').update({ data: patch });
+      return { ok: true, mode: 'force_migrate_scenes', scene_count: SEED_CONFIG.scene_list.length, codes: SEED_CONFIG.scene_list.map(s => s.code) };
+    } catch (e) {
+      return { ok: false, msg: e.message };
+    }
   }
 
   // ── 临时: 按 openid 查 partner_profile 全部文档 ──
