@@ -16,8 +16,8 @@
   <empty-state wx:elif="{{loadError}}" icon="📡" title="无法打开会话" desc="{{loadErrorMsg || '请检查网络后重试'}}" btnText="重试" bind:btntap="reload" />
   <!-- 正常态 -->
   <block wx:elif="{{orderId}}">
-  <!-- 待支付横幅 -->
-  <view class="chat__pay-banner" wx:if="{{orderStatus === 'S0'}}" bindtap="goPay">
+  <!-- 待支付横幅(仅付款方可见; 放弃支付后由此再次进入支付) -->
+  <view class="chat__pay-banner" wx:if="{{orderStatus === 'S0' && role === 'user'}}" bindtap="goPay">
     <text>✅ 四项确认完成,订单待支付(30分钟内有效)</text>
     <text class="chat__pay-go">去支付 ›</text>
   </view>

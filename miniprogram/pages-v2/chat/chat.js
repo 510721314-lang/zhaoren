@@ -137,6 +137,8 @@ Page({
     const count = [progress.time, progress.location, progress.content, progress.fee].filter(Boolean).length;
     const wasUnlocked = this.data.unlocked;
     const unlocked = !!d.all_confirmed;
+    const firstLoad = !this.__confLoaded;
+    this.__confLoaded = true;
     // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
     const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
     this.setData({
@@ -150,6 +152,21 @@ Page({
       this.updateMsgStatuses();
       if (unlocked && !wasUnlocked) {
         wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
+        // 四确认完成瞬间(非重进会话)且当前用户是付款方 → 自动弹出支付窗口;
+        // 放弃支付则留在本页, 顶部待支付横幅可再次进入支付
+        if (!firstLoad && this.data.role === 'user' && nextStatus === 'S0') {
+          wx.showModal({
+            title: '💳 订单支付',
+            content: '四项确认已全部完成,订单进入待支付\n请在 30 分钟内完成支付,超时订单将自动取消',
+            confirmText: '支付',
+            cancelText: '放弃支付',
+            confirmColor: '#07C160',
+            fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+            success: (res) => {
+              if (res.confirm) this.goPay(); // 放弃支付 → 留在四确认完成窗口
+            }
+          });
+        }
       }
     });
   },
