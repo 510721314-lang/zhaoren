@@ -9,33 +9,83 @@
   background: var(--bg-card);
   display: flex;
   align-items: center;
-  padding: 6rpx 20rpx 16rpx;
+  justify-content: space-between;
+  padding: 6rpx 24rpx 14rpx;
   gap: 16rpx;
 }
-.home__city {
-  font-size: var(--font-xl);
-  font-weight: 600;
+.home__hello {
+  font-size: 40rpx;
+  font-weight: 700;
   color: var(--text-1);
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.home__nav-right {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
   flex-shrink: 0;
+}
+.home__city {
+  font-size: var(--font-md);
+  color: var(--text-3);
 }
 .home__city-arrow {
   font-size: var(--font-xs);
   color: var(--text-5);
   margin-left: 2rpx;
 }
-.home__search {
-  flex: 1;
-  height: 60rpx;
-  background: var(--bg-segment);
-  border-radius: 30rpx;
+
+/* H1b 搜索栏 */
+.home__searchbar {
+  background: var(--bg-card);
+  margin: 0 20rpx;
+  height: 84rpx;
+  border-radius: 42rpx;
   display: flex;
   align-items: center;
-  padding: 0 24rpx;
-  font-size: var(--font-sm);
-  color: var(--text-5);
+  padding: 0 28rpx;
+  background: var(--bg-segment);
+}
+.home__search-input {
+  flex: 1;
+  height: 84rpx;
+  margin-left: 12rpx;
+  font-size: var(--font-md);
+  color: var(--text-1);
 }
 .home__search-ic {
-  margin-right: 8rpx;
+  flex-shrink: 0;
+}
+.home__search-ph {
+  color: var(--text-5);
+}
+.home__search-x {
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 40rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--text-disabled);
+  color: #fff;
+  font-size: var(--font-lg);
+  flex-shrink: 0;
+}
+.home__search-empty {
+  margin: 20rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  padding: 48rpx 24rpx;
+  text-align: center;
+  color: var(--text-4);
+  font-size: var(--font-md);
+}
+.home__search-empty-sub {
+  margin-top: 14rpx;
+  font-size: var(--font-sm);
+  color: var(--text-disabled);
 }
 .home__bell {
   position: relative;
@@ -162,6 +212,75 @@
 }
 
 /* H6 */
+/* H5b/H5c 活跃用户 / 活跃耍伴(图4) */
+.home__active-card {
+  margin: 20rpx 20rpx 0;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  padding: 24rpx 24rpx 26rpx;
+  box-shadow: var(--shadow-card);
+}
+.home__active-title {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 20rpx;
+}
+.home__title-bar {
+  display: inline-block;
+  width: 8rpx;
+  height: 32rpx;
+  border-radius: 4rpx;
+  background: var(--brand-primary);
+  margin-right: 12rpx;
+}
+.home__active-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+.home__active-item {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  width: 132rpx;
+  margin-right: 8rpx;
+  vertical-align: top;
+}
+.home__active-avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: var(--bg-segment);
+  border: 4rpx solid #f1f3f5;
+}
+.home__active-avatar--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  line-height: 1;
+}
+.home__active-name {
+  margin-top: 12rpx;
+  max-width: 124rpx;
+  font-size: var(--font-xs);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home__active-score {
+  margin-top: 8rpx;
+  padding: 2rpx 14rpx;
+  border-radius: 20rpx;
+  background: #fff3e6;
+  color: #e08a1e;
+  font-size: var(--font-xs);
+  line-height: 1.6;
+}
+
 .home__tabs {
   display: flex;
   padding: 28rpx 32rpx 16rpx;

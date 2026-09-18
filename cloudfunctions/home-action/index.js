@@ -143,10 +143,11 @@ exports.main = async (event, context) => {
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
-        // 并行拉 demand + partner_profile
-        const [demandR, partnerR] = await Promise.all([
+        // 并行拉 demand + partner_profile + 活跃用户
+        // broadcast:true 硬过滤: 定向邀约(direct)/选单(select)需求不得泄漏进公共大厅/首页
+        const [demandR, partnerR, activeUserR] = await Promise.all([
           col('demand')
-            .where({ is_deleted: false, status: 'matching', expire_at: _.gt(now) })
+            .where({ is_deleted: false, status: 'matching', expire_at: _.gt(now), broadcast: true })
             .orderBy('created_at', 'desc')
             .limit(limit)
             .get()
@@ -154,10 +155,25 @@ exports.main = async (event, context) => {
           col('partner_profile')
             .where({ status: 'approved', is_deleted: _.neq(true) })
             .orderBy('created_at', 'desc')
-            .limit(10)
+            .limit(20)
+            .get()
+            .catch(() => ({ data: [] })),
+          // 活跃用户: 最近注册/登录的正常账号(排除冻结/封禁/注销)
+          col('user_account')
+            .where({ is_deleted: _.neq(true), status: _.nin(['frozen', 'banned', 'closed']) })
+            .orderBy('created_at', 'desc')
+            .limit(20)
             .get()
             .catch(() => ({ data: [] }))
         ]);
+
+        // 活跃用户横滑栏(图4): 头像+昵称, 不泄露手机号/openid 以外敏感信息
+        const activeUsers = (activeUserR.data || []).map((u) => ({
+          openid: u.openid || '',
+          nickname: u.nickname || '微信用户',
+          avatar: (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '',
+          created_at: u.created_at || 0
+        })).filter((u) => !!u.openid).slice(0, 10);
 
         const list = (demandR.data || []).map((d) => {
           // 备注拆分: 标题｜描述
@@ -227,21 +243,26 @@ exports.main = async (event, context) => {
           partnerList = (partnerR.data || [])
             .map((p) => {
               const u = partnerUserMap[p.openid] || {};
+              const avatar = (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '';
               return {
                 openid: p.openid,
                 nickname: u.nickname || '耍伴',
-                avatar: u.avatar || '',
+                avatar,
                 city: (p.city && p.city[0]) || '',
                 accept_scenes: p.accept_scenes || [],
                 partner_credit_score: u.partner_credit_score || 0,
                 certified_scenes: p.certified_scenes || []
               };
             })
-            .sort((a, b) => b.partner_credit_score - a.partner_credit_score)
-            .slice(0, 5);
+            .filter((p) => !!p.openid)
+            .sort((a, b) => b.partner_credit_score - a.partner_credit_score);
         } catch (e) {}
 
-        return { ok: true, data: { list, partners: partnerList } };
+        // partners: Tab「⭐耍伴推荐」前5; active_partners: 首页「活跃耍伴」横滑栏前10(图4)
+        const activePartners = partnerList.slice(0, 10);
+        const partners = partnerList.slice(0, 5);
+
+        return { ok: true, data: { list, partners, active_partners: activePartners, active_users: activeUsers } };
       }
 
       // ───────── 用户公开主页 ─────────

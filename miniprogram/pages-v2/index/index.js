@@ -12,7 +12,12 @@ Page({
   data: {
     statusBarHeight: 20,
     city: '成都',
+    greeting: '你好',
     scenes: SCENES,
+    filteredScenes: SCENES,   // 搜索关键词实时过滤后的场景
+    searchKey: '',
+    activeUsers: [],          // 活跃用户(头像横滑)
+    activePartners: [],       // 活跃耍伴(头像横滑+信用分)
     activeTab: 'demand',
     demandList: [],
     partnerList: [],       // P2 接云端 partner-profile 列表
@@ -31,10 +36,20 @@ Page({
   onLoad() {
     try {
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
-      this.setData({ statusBarHeight: info.statusBarHeight || 20 });
+      this.setData({ statusBarHeight: info.statusBarHeight || 20, greeting: this.computeGreeting() });
     } catch (e) {}
     this.fetchUser();
     this.fetchSquare();
+  },
+
+  // 按时段生成问候语(图2: 夜深了，需要什么帮忙？)
+  computeGreeting() {
+    const h = new Date().getHours();
+    if (h >= 23 || h < 5) return '夜深了';
+    if (h < 11) return '早上好';
+    if (h < 13) return '中午好';
+    if (h < 18) return '下午好';
+    return '晚上好';
   },
 
   fetchUser() {
@@ -54,7 +69,7 @@ Page({
     this.fetchSquare();
   },
 
-  // 拉取需求广场(云端 demand 集合) + 耍伴推荐
+  // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
   fetchSquare() {
     wx.cloud.callFunction({
       name: 'home-action',
@@ -64,7 +79,9 @@ Page({
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
-            partnerList: r.data.partners || []
+            partnerList: r.data.partners || [],
+            activeUsers: r.data.active_users || [],
+            activePartners: r.data.active_partners || []
           });
         }
       },
@@ -83,7 +100,9 @@ Page({
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
-            partnerList: r.data.partners || []
+            partnerList: r.data.partners || [],
+            activeUsers: r.data.active_users || [],
+            activePartners: r.data.active_partners || []
           });
         }
         wx.stopPullDownRefresh();
@@ -104,8 +123,35 @@ Page({
       }
     });
   },
-  onSearchTap() {
-    wx.showToast({ title: '搜索页将在后续版本上线', icon: 'none' });
+  // H1b 场景搜索: 实时按场景名/子服务过滤宫格
+  onSearchInput(e) {
+    const key = (e.detail.value || '').trim();
+    this.setData({ searchKey: key }, () => this.filterScenes(key));
+  },
+  onSearchClear() {
+    this.setData({ searchKey: '', filteredScenes: SCENES });
+  },
+  onSearchConfirm() {
+    // 键盘搜索: 唯一匹配场景直接进发布, 否则保留过滤结果供点选
+    const list = this.data.filteredScenes;
+    if (list.length === 1) {
+      this.enterScene(list[0].code);
+    } else if (list.length === 0) {
+      wx.showToast({ title: '未找到相关场景', icon: 'none' });
+    }
+  },
+  filterScenes(key) {
+    if (!key) {
+      this.setData({ filteredScenes: SCENES });
+      return;
+    }
+    const kw = key.toLowerCase();
+    const hit = SCENES.filter((s) => {
+      const inName = s.name.toLowerCase().indexOf(kw) >= 0;
+      const inOptions = (s.options || []).some((o) => o.toLowerCase().indexOf(kw) >= 0);
+      return inName || inOptions;
+    });
+    this.setData({ filteredScenes: hit });
   },
   onBellTap() {
     wx.showToast({ title: '系统通知列表待接入', icon: 'none' });
@@ -126,6 +172,9 @@ Page({
       wx.showToast({ title: '健身/情绪/宠物陪伴即将上线', icon: 'none' });
       return;
     }
+    this.enterScene(code);
+  },
+  enterScene(code) {
     const gate = redline.checkEntryLocked();
     if (gate.locked) {
       wx.showToast({ title: gate.msg, icon: 'none' });
@@ -133,7 +182,7 @@ Page({
     }
     wx.navigateTo({
       url: `/pages-v2/publish/publish?sceneCode=${code}`,
-      fail: () => wx.showToast({ title: '发布页将在批次2上线（已预选' + (redline.getScene(code) || {}).name + '）', icon: 'none' })
+      fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' })
     });
   },
 
@@ -164,6 +213,32 @@ Page({
   onPartnerTap(e) {
     const p = (e.detail && e.detail.partner) || {};
     const openid = p.openid;
+    if (!openid) {
+      wx.showToast({ title: '耍伴数据异常', icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
+      fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
+    });
+  },
+
+  // 活跃用户头像 → 用户公开主页
+  onActiveUserTap(e) {
+    const openid = e.currentTarget.dataset.openid;
+    if (!openid) {
+      wx.showToast({ title: '用户数据异常', icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages/user-home/user-home?openid=${openid}`,
+      fail: () => wx.showToast({ title: '用户主页打开失败', icon: 'none' })
+    });
+  },
+
+  // 活跃耍伴头像 → 耍伴详情
+  onActivePartnerTap(e) {
+    const openid = e.currentTarget.dataset.openid;
     if (!openid) {
       wx.showToast({ title: '耍伴数据异常', icon: 'none' });
       return;

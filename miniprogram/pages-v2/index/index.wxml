@@ -1,15 +1,29 @@
 <view class="v2 home">
-  <!-- H1 导航：城市 + 搜索 + 铃铛 -->
+  <!-- H1 导航：问候语 + 城市 + 铃铛 -->
   <view class="home__nav" style="padding-top: {{statusBarHeight + 6}}px;">
-    <view class="home__city" bindtap="onCityTap">{{city}}<text class="home__city-arrow">⌄</text></view>
-    <view class="home__search" bindtap="onSearchTap">
-      <text class="home__search-ic">🔍</text>
-      <text>搜场景 / 耍伴 / 需求</text>
+    <view class="home__hello">{{greeting}}，需要什么帮忙？</view>
+    <view class="home__nav-right">
+      <view class="home__city" bindtap="onCityTap">📍 {{city}}<text class="home__city-arrow">⌄</text></view>
+      <view class="home__bell" bindtap="onBellTap">
+        🔔
+        <text class="home__bell-badge" wx:if="{{user.unread_notice}}">{{user.unread_notice}}</text>
+      </view>
     </view>
-    <view class="home__bell" bindtap="onBellTap">
-      🔔
-      <text class="home__bell-badge" wx:if="{{user.unread_notice}}">{{user.unread_notice}}</text>
-    </view>
+  </view>
+
+  <!-- H1b 场景/服务搜索 -->
+  <view class="home__searchbar">
+    <text class="home__search-ic">🔍</text>
+    <input
+      class="home__search-input"
+      value="{{searchKey}}"
+      placeholder="搜索服务 / 场景"
+      placeholder-class="home__search-ph"
+      confirm-type="search"
+      bindinput="onSearchInput"
+      bindconfirm="onSearchConfirm"
+    />
+    <text class="home__search-x" wx:if="{{searchKey}}" bindtap="onSearchClear">×</text>
   </view>
 
   <!-- H2 卖点条 -->
@@ -24,17 +38,21 @@
     </view>
   </view>
 
-  <!-- H4 场景宫格 -->
-  <view class="home__grid">
-    <view class="home__cell" wx:for="{{scenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
+  <!-- H4 场景宫格（搜索实时过滤） -->
+  <view class="home__grid" wx:if="{{filteredScenes.length > 0}}">
+    <view class="home__cell" wx:for="{{filteredScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
       <view class="home__gb-badge" wx:if="{{item.gb}}">国标</view>
       <view class="home__cell-ic" style="background:{{item.color}};">{{item.icon}}</view>
       <view class="home__cell-name">{{item.name}}</view>
     </view>
-    <view class="home__cell home__cell--gray" data-more="1" bindtap="onSceneTap">
+    <view class="home__cell home__cell--gray" wx:if="{{!searchKey}}" data-more="1" bindtap="onSceneTap">
       <view class="home__cell-ic">＋</view>
       <view class="home__cell-name">更多场景</view>
     </view>
+  </view>
+  <view class="home__search-empty" wx:else>
+    <view>未找到与「{{searchKey}}」相关的场景</view>
+    <view class="home__search-empty-sub">试试：陪诊 / 学习 / 生活协助 / 出行 / 线上</view>
   </view>
 
   <!-- H5 新人福利 -->
@@ -44,6 +62,31 @@
       <view class="home__welfare-sub">{{welfare.welfareSub}}</view>
     </view>
     <view class="home__welfare-btn">领取</view>
+  </view>
+
+  <!-- H5b 活跃用户(图4): 横滑头像+昵称 -->
+  <view class="home__active-card" wx:if="{{activeUsers.length > 0}}">
+    <view class="home__active-title"><text class="home__title-bar"></text>👥 活跃用户</view>
+    <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
+      <view class="home__active-item" wx:for="{{activeUsers}}" wx:key="openid" data-openid="{{item.openid}}" bindtap="onActiveUserTap">
+        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+        <view wx:else class="home__active-avatar home__active-avatar--ph">👤</view>
+        <view class="home__active-name">{{item.nickname}}</view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- H5c 活跃耍伴(图4): 横滑头像+昵称+信用分胶囊 -->
+  <view class="home__active-card" wx:if="{{activePartners.length > 0}}">
+    <view class="home__active-title"><text class="home__title-bar"></text>⭐ 活跃耍伴</view>
+    <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
+      <view class="home__active-item" wx:for="{{activePartners}}" wx:key="openid" data-openid="{{item.openid}}" bindtap="onActivePartnerTap">
+        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+        <view wx:else class="home__active-avatar home__active-avatar--ph">👤</view>
+        <view class="home__active-name">{{item.nickname}}</view>
+        <view class="home__active-score" wx:if="{{item.partner_credit_score > 0}}">{{item.partner_credit_score}}分</view>
+      </view>
+    </scroll-view>
   </view>
 
   <!-- H6 内容Tab -->

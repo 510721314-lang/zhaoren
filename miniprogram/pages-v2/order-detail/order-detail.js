@@ -121,7 +121,9 @@ Page({
     s35ResponseMin: CONFIG.SAFETY.s35ResponseMin,
     modifyConfirmH: CONFIG.MODIFY.confirmHours,
     insuranceWan: '',
-    afterSaleDays: CONFIG.ORDER.afterSaleDays
+    afterSaleDays: CONFIG.ORDER.afterSaleDays,
+    // 安全中心: 进行中求助/最近报备/我的紧急联系人(由 safety-report status 填充)
+    safety: { help_flag: false, active_sos: null, checkins: [], contacts: [] }
   },
 
   onLoad(options) {
@@ -144,9 +146,37 @@ Page({
       this.refreshOrder(r.data);
       this.setData({ loading: false });
       this.startCountdown();
+      // 履约活跃状态拉取安全中心(求助/报备/紧急联系人), 其余状态不查
+      const st = normalizeStatus(r.data.status);
+      if (['S2', 'S3', 'S3_5', 'S4'].indexOf(st) >= 0) {
+        this.fetchSafety();
+      }
     }).catch(() => {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
+  },
+
+  // 拉取安全中心状态(safety-report status: 仅订单参与方可读)
+  fetchSafety() {
+    callCloud('safety-report', { action: 'status', order_id: this.__orderId }).then((r) => {
+      if (!r.ok || !r.data) return;
+      const checkins = (r.data.checkins || []).map((c, i) => {
+        const d = c.created_at ? new Date(c.created_at) : new Date();
+        return {
+          key: `${i}-${c.created_at || 0}`,
+          text: (c.reporter_role === 'partner' ? '耍伴' : '发单人') + '已报备',
+          time: `${pad(d.getHours())}:${pad(d.getMinutes())}`
+        };
+      });
+      this.setData({
+        safety: {
+          help_flag: !!r.data.help_flag,
+          active_sos: r.data.active_sos || null,
+          checkins,
+          contacts: r.data.my_contacts || []
+        }
+      });
+    }).catch(() => {});
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },
@@ -346,6 +376,115 @@ Page({
     wx.navigateTo({
       url: `/pages-v2/safety/safety?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '安全报备页待接入', icon: 'none' })
+    });
+  },
+
+  // 🆘 紧急求助(图5): 二次确认 → 高精度定位 → 云端记录并通知平台 → 弹联系人/110/120 直接拨打
+  onSos() {
+    const that = this;
+    const alreadyActive = this.data.safety && this.data.safety.active_sos;
+    wx.showModal({
+      title: '🆘 紧急求助',
+      content: alreadyActive
+        ? '你已有进行中的求助。可直接拨打紧急联系人或 110/120，无需重复求助。'
+        : '将记录你的实时位置并通知平台，随后可一键拨打紧急联系人或 110/120。确认发起？',
+      confirmText: alreadyActive ? '去拨打' : '发起求助',
+      cancelText: '取消',
+      confirmColor: '#fa5151',
+      success: (res) => {
+        if (!res.confirm) return;
+        if (alreadyActive) {
+          that._showCallSheet(that.data.safety.contacts || []);
+          return;
+        }
+        wx.showLoading({ title: '提交中', mask: true });
+        // 定位失败不阻断求助(云端允许无位置 SOS), 保证紧急场景可用
+        wx.getLocation({
+          type: 'gcj02',
+          isHighAccuracy: true,
+          highAccuracyExpireTime: 4000,
+          success: (loc) => that._submitSos({ latitude: loc.latitude, longitude: loc.longitude }),
+          fail: () => that._submitSos(null)
+        });
+      }
+    });
+  },
+
+  _submitSos(loc) {
+    const that = this;
+    callCloud('safety-report', {
+      action: 'sos',
+      order_id: this.data.order._id,
+      location: loc
+    }).then((r) => {
+      wx.hideLoading();
+      if (!r.ok) {
+        wx.showModal({
+          title: '求助提交失败',
+          content: (r.msg || '网络异常') + '，如遇紧急情况请直接拨打 110。',
+          showCancel: false,
+          confirmText: '知道了'
+        });
+        return;
+      }
+      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+      this.fetchSafety();
+      that._showCallSheet((r.data && r.data.my_contacts) || []);
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showModal({
+        title: '网络异常',
+        content: '求助信息未送达，如遇紧急情况请直接拨打 110。',
+        showCancel: false,
+        confirmText: '知道了'
+      });
+    });
+  },
+
+  // 弹出可拨打清单: 我的紧急联系人 + 报警110 + 急救120
+  _showCallSheet(contacts) {
+    const list = (contacts || []).map((c) => `📞 ${c.name}${c.relation ? '(' + c.relation + ')' : ''}`);
+    list.push('🚓 报警 110');
+    list.push('🚑 急救 120');
+    if (!(contacts && contacts.length)) {
+      wx.showToast({ title: '未设置紧急联系人，可拨打110/120', icon: 'none', duration: 2200 });
+    }
+    wx.showActionSheet({
+      itemList: list,
+      success: (res) => {
+        let phone = '';
+        if (res.tapIndex < (contacts ? contacts.length : 0)) {
+          phone = contacts[res.tapIndex].phone;
+        } else if (res.tapIndex === (contacts ? contacts.length : 0)) {
+          phone = '110';
+        } else {
+          phone = '120';
+        }
+        if (!phone) return;
+        wx.makePhoneCall({
+          phoneNumber: String(phone),
+          fail: () => {}
+        });
+      },
+      fail: () => {
+        // 用户未选择拨打时, 若无联系人引导去添加
+        if (!(contacts && contacts.length)) {
+          wx.showModal({
+            title: '添加紧急联系人',
+            content: '建议提前设置 1-2 位紧急联系人，求助时可一键拨打。',
+            confirmText: '去设置',
+            cancelText: '稍后',
+            success: (m) => {
+              if (m.confirm) {
+                wx.navigateTo({
+                  url: '/pages-v2/contacts/contacts',
+                  fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' })
+                });
+              }
+            }
+          });
+        }
+      }
     });
   },
 

@@ -46,6 +46,23 @@
       <view class="od__row"><text class="od__label">金额</text><text class="od__val od__val--strong">¥{{amountYuan}}</text></view>
     </view>
 
+    <!-- O2 安全中心(图5): 履约活跃状态双方可见, 紧急求助+安全报备+最近报备记录 -->
+    <view class="od__card" wx:if="{{order.status === 'S2' || order.status === 'S3' || order.status === 'S3_5' || order.status === 'S4'}}">
+      <view class="od__card-title">🛡️ 安全中心</view>
+      <view class="od__safety-grid">
+        <button class="od__sos-btn" bindtap="onSos">🆘 紧急求助</button>
+        <button class="od__report-btn" bindtap="onSafety">📍 安全报备</button>
+      </view>
+      <view class="od__safety-desc">紧急求助将记录位置并通知平台；安全报备可向对方报平安</view>
+      <view class="od__checkin-list" wx:if="{{safety.checkins.length > 0}}">
+        <view class="od__checkin-item" wx:for="{{safety.checkins}}" wx:key="key">
+          <text class="od__checkin-ic">✅</text>
+          <text class="od__checkin-text">{{item.text}}</text>
+          <text class="od__checkin-time">{{item.time}}</text>
+        </view>
+      </view>
+    </view>
+
     <!-- O7 保险卡 -->
     <view class="od__card" wx:if="{{order.insurance && order.insurance.policy_no}}">
       <view class="od__card-title">保险保障</view>
@@ -105,7 +122,6 @@
           </button>
         </view>
         <view class="od__action-grid">
-          <button class="od__action-btn" bindtap="onSafety">🚨 安全报备</button>
           <button class="od__action-btn" bindtap="onAddTime">⏰ 加时申请</button>
           <button class="od__action-btn" bindtap="onModify">📅 申请改期</button>
           <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
