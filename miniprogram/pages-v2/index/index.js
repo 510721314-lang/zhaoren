@@ -93,7 +93,8 @@ Page({
             sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
-            activePartners: r.data.active_partners || []
+            activePartners: r.data.active_partners || [],
+            _diag: r.data._diag || null
           });
         }
       },
@@ -115,7 +116,8 @@ Page({
             sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
-            activePartners: r.data.active_partners || []
+            activePartners: r.data.active_partners || [],
+            _diag: r.data._diag || null
           });
         }
         wx.stopPullDownRefresh();

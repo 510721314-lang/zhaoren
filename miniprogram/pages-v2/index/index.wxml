@@ -1,4 +1,8 @@
 <view class="v2 home">
+  <!-- 临时诊断横幅 -->
+  <view wx:if="{{_diag}}" style="background:#fff3cd;color:#856404;padding:16rpx 24rpx;font-size:22rpx;word-break:break-all;">
+    DIAG: total={{_diag.total}} hall={{_diag.hall_count}} stats={{_diag.stats}}
+  </view>
   <!-- H1 导航：问候语 + 城市 + 铃铛 -->
   <view class="home__nav" style="padding-top: {{statusBarHeight + 6}}px;">
     <view class="home__hello">{{greeting}}，需要什么帮忙？</view>
