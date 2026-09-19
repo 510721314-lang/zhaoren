@@ -69,12 +69,10 @@ Page({
       }, 600);
       return;
     }
-    // 登录成功: 写 globalData, syncTabBar, 返回
+    // 登录成功: 写 globalData+storage, syncTabBar, 返回
     const user = d.user;
-    app.globalData.userInfo = user;
-    app.globalData.role = (user.roles && user.roles[0]) || 'user';
+    app.setLoginUser(user);
     app.setActiveRole('user');
-    app.syncTabBar();
     wx.showToast({ title: '登录成功', icon: 'success' });
     setTimeout(() => {
       wx.navigateBack({ delta: 1 });

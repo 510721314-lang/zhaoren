@@ -20,6 +20,32 @@ App({
     if (saved === 'partner' || saved === 'user') {
       this.globalData.activeRole = saved;
     }
+    // ── 恢复登录态: 从 storage 读 userInfo + role, 防止冷启动后 userInfo 恒 null ──
+    try {
+      const cached = wx.getStorageSync('userInfo');
+      if (cached && cached.openid) {
+        this.globalData.userInfo = cached;
+        this.globalData.role = (cached.roles && cached.roles[0]) || 'user';
+        this.syncTabBar();
+      }
+    } catch (e) {}
+  },
+
+  // 登录成功统一调用: 写 globalData + storage
+  setLoginUser(user) {
+    if (!user || !user.openid) return;
+    this.globalData.userInfo = user;
+    this.globalData.role = (user.roles && user.roles[0]) || 'user';
+    wx.setStorageSync('userInfo', user);
+    this.syncTabBar();
+  },
+
+  // 登出统一调用: 清 globalData + storage
+  clearLoginUser() {
+    this.globalData.userInfo = null;
+    this.globalData.role = 'guest';
+    try { wx.removeStorageSync('userInfo'); } catch (e) {}
+    this.setActiveRole('user');
   },
 
   // 当前界面身份

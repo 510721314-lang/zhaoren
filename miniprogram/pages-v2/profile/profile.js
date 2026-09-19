@@ -2,7 +2,7 @@
 // P1: 接云端 user-login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
-const { CREDIT_LEVEL } = require('../../config/enums.js');
+const { CREDIT_LEVEL, normalizeStatus } = require('../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
@@ -154,7 +154,7 @@ Page({
             time_str: fmtDate(o.start_time),
             location_name: o.location_name || '地点待确认',
             status: o.status,
-            status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[o.status] || o.status,
+            status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[normalizeStatus(o.status)] || o.status,
             total_fen: o.total_fen || 0
           }));
         this.setData({ partnerRecentOrders: list });
@@ -168,7 +168,7 @@ Page({
         // 活跃订单: 排除已取消(S6)/已完成(S7)/售后(S10/S10.5)终态
         const ACTIVE_ORDER_STATUSES = ['S0', 'S1', 'S2', 'S2_5', 'S3', 'S3_5', 'S4', 'S5'];
         const orderList = (ordersR && ordersR.ok && ordersR.data && ordersR.data.list || [])
-          .filter((o) => o.item_type === 'order' && ACTIVE_ORDER_STATUSES.indexOf(o.status) >= 0)
+          .filter((o) => o.item_type === 'order' && ACTIVE_ORDER_STATUSES.indexOf(normalizeStatus(o.status)) >= 0)
           .slice(0, 3)
           .map((o) => ({
             item_type: 'order',

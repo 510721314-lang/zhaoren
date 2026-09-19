@@ -157,8 +157,7 @@ Page({
       userCreditCls: this.creditCls(user.user_credit_score || 800),
       partnerCreditCls: this.creditCls(user.partner_credit_score || 800)
     });
-    app.globalData.userInfo = user;
-    app.globalData.role = (user.roles && user.roles[0]) || 'user';
+    app.setLoginUser(user);
     let activeRole = app.getActiveRole();
     if (activeRole === 'partner' && (user.roles || []).indexOf('partner') < 0) {
       activeRole = 'user';
@@ -419,7 +418,7 @@ Page({
             patch.activeRole = 'user';
           }
           this.setData(patch);
-          app.globalData.userInfo = user;
+          app.setLoginUser(user);
         }
       }
     });
@@ -501,9 +500,7 @@ Page({
 
   // 清空本地登录态(微信 openid 由云端环境隐式提供, 退出仅清除本端展示)
   resetAuthState() {
-    app.globalData.userInfo = null;
-    app.globalData.role = 'guest';
-    app.setActiveRole('user');
+    app.clearLoginUser();
     this.setData({
       user: null,
       isLoggedIn: false,

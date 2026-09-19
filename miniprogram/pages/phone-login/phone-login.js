@@ -113,10 +113,8 @@ Page({
   applyResult(result) {
     const d = result.data;
     const user = d.user;
-    app.globalData.userInfo = user;
-    app.globalData.role = (user.roles && user.roles[0]) || 'user';
+    app.setLoginUser(user);
     app.setActiveRole('user');
-    app.syncTabBar();
     const tip = this.data.mode === 'login' ? '登录成功' : '注册成功';
     wx.showToast({ title: tip, icon: 'success' });
     // 新号弹身份选择

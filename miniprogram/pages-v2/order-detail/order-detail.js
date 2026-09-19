@@ -79,13 +79,16 @@ function computeNextStep(order) {
         : { icon: '⏳', title: '等待发单人评价', subtitle: '评价完成后分成自动到账', tone: 'mute' };
 
     case 'S6':
-      return { icon: '🎉', title: '服务已完成', subtitle: role === 'partner' ? '分成已结算到钱包' : '可打赏耍伴或分享体验', tone: 'info' };
+      return { icon: '❌', title: '订单已取消', subtitle: '订单已取消(超时/主动取消), 可重新发布', tone: 'mute' };
 
     case 'S7':
-      return { icon: '📭', title: '订单已取消', subtitle: '退款已退回账户, 可去发布新需求', tone: 'mute' };
+      return { icon: '💰', title: '订单已退款', subtitle: '退款已退回原账户, 可重新下单', tone: 'info' };
+
+    case 'S8':
+      return { icon: '✅', title: '评价已完成', subtitle: '分成已结算, 售后窗口内可发起投诉', tone: 'success' };
 
     case 'S9':
-      return { icon: '⚠️', title: '投诉处理中', subtitle: '客服介入后 24 小时内反馈结果', tone: 'warn' };
+      return { icon: '⏰', title: '评价超时', subtitle: '系统已默认 4 星评价, 分成已结算', tone: 'mute' };
 
     case 'S10':
     case 'S10_5':
@@ -823,9 +826,9 @@ Page({
       case 'chat': return this.goChat();
       case 'milestone': return this.onMilestoneSubmit();
       case 'finish': return this.onFinishService();
-      case 'safety': return this.onGoSafety();
+      case 'safety': return this.onSafety();
       case 'resume': return this.onResumeService();
-      case 'eval': return this.onGoEvaluate();
+      case 'eval': return this.onEvaluate();
       case 'modify_respond':
         // 改期在途时同意/拒绝按钮在操作区已单独渲染, 这里滚到操作区提示
         wx.showToast({ title: '请在下方操作区确认', icon: 'none' });
