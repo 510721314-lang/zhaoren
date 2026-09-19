@@ -82,11 +82,13 @@ Page({
 
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
   fetchSquare() {
+    console.log('[fetchSquare] start');
     wx.cloud.callFunction({
       name: 'home-action',
       data: { action: 'square', limit: 20 },
       success: (res) => {
         const r = res.result || {};
+        console.log('[fetchSquare] result:', JSON.stringify(r));
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
@@ -96,17 +98,19 @@ Page({
             activePartners: r.data.active_partners || [],
             _diag: r.data._diag || null
           });
-          // 临时诊断弹窗: 把 demand 分布打出来
           const d = r.data._diag || {};
           wx.showModal({
             title: 'DIAG demand',
             content: `total=${d.total||0} hall=${d.hall_count||0}\nstats=${JSON.stringify(d.stats||{})}`,
             showCancel: false
           });
+        } else {
+          wx.showModal({ title: 'home-action FAIL', content: JSON.stringify(r).slice(0, 200), showCancel: false });
         }
       },
-      fail: () => {
-        // 静默失败, 保留上次数据
+      fail: (e) => {
+        console.error('[fetchSquare] fail:', e);
+        wx.showModal({ title: 'home-action ERROR', content: JSON.stringify(e).slice(0, 200), showCancel: false });
       }
     });
   },
