@@ -28,6 +28,13 @@ Page({
     loadingMore: false,
     showEmpty: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙 · 广场',
+      path: '/pages/blog/blog'
+    };
+  },
+
 
   onLoad(opts) {
     const scope = opts && opts.scope === 'my' ? 'my' : 'feed';

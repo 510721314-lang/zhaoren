@@ -14,6 +14,13 @@ Page({
     hasMore: true,
     loadingMore: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(opts) {
     const oid = opts.openid || '';
