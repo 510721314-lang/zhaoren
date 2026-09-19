@@ -31,10 +31,6 @@
   "packOptions": {
     "ignore": [
       {
-        "value": "node_modules",
-        "type": "folder"
-      },
-      {
         "value": ".git",
         "type": "folder"
       },
