@@ -95,7 +95,7 @@ const SEED_CONFIG = {
   // 本地兜底词库(msgSecCheck 不可用时使用)
   block_words: ['加微信', '加V', '转账', '私聊我'],
   // 环境开关: dev(测试期,允许 mock_openid 模拟身份) / prod(上线,强制忽略 mock_openid)
-  env: 'dev',
+  env: 'prod',
   // 上线前必须改为 false(当前是 true 方便 MVP bootstrap)
   auto_approve_partner: false,
   // 管理员 openid 白名单(阶段 5 由产品经理填入自己的 openid)
@@ -110,6 +110,24 @@ const SEED_CONFIG = {
 };
 
 exports.main = async (event, context) => {
+  const { resolveOpenid, warmEnv } = require('./openid');
+  await warmEnv(cloud);
+
+  // ── 鉴权: lookup/check_pp/force_migrate_scenes 需管理员; quick_check + 默认幂等种子补齐放行 ──
+  const action = event && event.action;
+  const openid = await resolveOpenid(cloud, event);
+  const ADMIN_ACTIONS = ['lookup', 'force_migrate_scenes', 'check_pp'];
+  if (ADMIN_ACTIONS.indexOf(action) >= 0) {
+    let cfg = null;
+    try { cfg = (await db.collection('admin_config').where({ _id: 'global' }).limit(1).get()).data[0]; } catch (e) {}
+    const adminOpenids = (cfg && cfg.admin_openids) || [];
+    const isAdmin = !!openid && adminOpenids.indexOf(openid) >= 0;
+    // 鸡生蛋兼容: admin_openids 为空时首次部署放行(等 init-db 建好 admin_config 后 admin-action claim_admin 初始化)
+    if (adminOpenids.length > 0 && !isAdmin) {
+      return { ok: false, code: 'idb_forbidden', msg: '无权限,仅管理员可调用此动作' };
+    }
+  }
+
   // ── 运维查询模式 ──
   if (event && event.action === 'lookup') {
     const _ = db.command;
