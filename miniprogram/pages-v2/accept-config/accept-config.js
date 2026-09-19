@@ -98,7 +98,7 @@ Page({
 
       // 为已选场景补默认时薪（如果没有 scene_rates）
       for (const s of scenes) {
-        if (!sceneRates[s]) sceneRates[s] = 5000; // 默认 50 元/小时
+        if (!sceneRates[s]) sceneRates[s] = PA.defaultSceneRateFen; // 默认时薪来自 CONFIG, SSOT 可覆盖
       }
 
       // 本地非核心配置（时段/距离/偏好等）

@@ -118,14 +118,14 @@ exports.main = async (event, context) => {
   // ── prod 环境阻断 mock 资金动作 ──
   // 5 个 mock 资金入口(mock_pay/refund/tip/withdraw/fast_withdraw)仅 dev 放行
   // 5 个查询/账本入口(cashier_info/aa_record/balance_info/income_list/withdraw_list) prod 保留
-  const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'withdraw', 'fast_withdraw'];
+  const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'withdraw', 'fast_withdraw'];
   if (env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
     log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
     return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
   }
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
-  if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
+  if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
     return { ok: false, code: 'pay_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)或支付流水号(PAY 开头)' };
   }
 
@@ -433,6 +433,42 @@ exports.main = async (event, context) => {
       } catch (e) {
         log.d(`mock_tip fail: ${e.message}`);
         return { ok: false, code: 'tip_db_fail', msg: '打赏失败,请稍后重试' };
+      }
+    }
+
+    // ───────── mock_ins: 模拟购买保险(保险费由平台承担, 用户零成本) ─────────
+    case 'mock_ins': {
+      const { order_id } = event;
+      if (!order_id) return { ok: false, code: 'ins_no_order', msg: '缺少订单 ID' };
+      const order = await getOrder(order_id);
+      if (!order) return { ok: false, code: 'ins_not_found', msg: '订单不存在' };
+      // 幂等: 已买过直接返回
+      const exist = await col('insurance_record').where({ order_id }).limit(1).get().catch(() => ({ data: [] }));
+      if (exist.data && exist.data.length > 0) {
+        const p = exist.data[0];
+        return { ok: true, data: { policy_no: p.policy_no, status: p.status, is_mock: true, idempotent: true } };
+      }
+      // 生成保单号 INS + 时间戳 + 6 位随机
+      const ts = Date.now();
+      const rand = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+      const policyNo = `INS${ts}${rand}`;
+      const now = ts;
+      try {
+        await col('insurance_record').add({
+          data: {
+            order_id, policy_no: policyNo, status: 'active',
+            openid, scene_code: order.scene || '',
+            coverage_accident_fen: 50000000,  // 50 万意外险(分)
+            coverage_property_fen: 5000000,   // 5 万财产险(分)
+            premium_fen: 0,                    // 平台承担保费
+            is_mock: true,
+            created_at: now, updated_at: now, is_deleted: false
+          }
+        });
+        return { ok: true, data: { policy_no: policyNo, status: 'active', is_mock: true } };
+      } catch (e) {
+        log.d(`mock_ins fail: ${e.message}`);
+        return { ok: false, code: 'ins_db_fail', msg: '保险购买失败, 请稍后重试' };
       }
     }
 

@@ -522,7 +522,7 @@ Page({
   // ───────── C1 订单卡片入口 ─────────
   goOrderDetail() {
     if (!this.data.orderId) return;
-    wx.navigateTo({
+    wx.redirectTo({
       url: `/pages-v2/order-detail/order-detail?orderId=${this.data.orderId}`,
       fail: () => wx.showToast({ title: '订单详情即将开放', icon: 'none' })
     });

@@ -104,7 +104,10 @@ module.exports = {
     defaultMinPrice: 30,
     defaultDistance: 5,
     defaultDailyLimit: 5,
-    defaultBufferMin: 30
+    defaultBufferMin: 30,
+    defaultSceneRateFen: 5000,   // 耍伴默认时薪 50 元/小时(SSOT 可由 admin_config 覆盖)
+    rateMinFen: 3000,            // 前端校验兜底, 服务端为准
+    rateMaxFen: 10000
   },
 
   // 账号注销冷静期（PRD 3.11）

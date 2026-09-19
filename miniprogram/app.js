@@ -15,6 +15,8 @@ App({
         traceUser: true
       });
     }
+    // SSOT: 异步拉 admin_config 覆盖本地 CONFIG, 失败静默降级
+    try { const { bootstrap } = require('./utils/bootstrap.js'); bootstrap(); } catch (e) {}
     // 恢复上次选择的界面身份
     const saved = wx.getStorageSync('active_role');
     if (saved === 'partner' || saved === 'user') {

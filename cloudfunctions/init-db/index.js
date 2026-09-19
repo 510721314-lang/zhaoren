@@ -11,7 +11,7 @@ const COLLECTIONS = [
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
   'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
   'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock',
-  'system_notice'
+  'system_notice', 'insurance_record'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -66,6 +66,8 @@ const SEED_CONFIG = {
   // 耍伴时薪区间 30-100 元/小时
   rate_min_fen: 3000,
   rate_max_fen: 10000,
+  // 耍伴默认时薪(可运营, accept-config 首次接场景时补默认值用)
+  scene_default_rate_fen: 5000,
   // 距离校验(公里, 可运营): 发布位置↔履约地 / 耍伴接单位置↔履约地
   publish_distance_max_km: 50,
   take_distance_max_km: 50,

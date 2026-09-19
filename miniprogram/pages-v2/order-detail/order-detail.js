@@ -856,9 +856,9 @@ Page({
     });
   },
 
-  // 跳聊天
+  // 跳聊天(Phase 1.5: 用 redirectTo 截断订单详情, 避免栈叠加)
   goChat() {
-    wx.navigateTo({
+    wx.redirectTo({
       url: `/pages-v2/chat/chat?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '聊天页待接入', icon: 'none' })
     });

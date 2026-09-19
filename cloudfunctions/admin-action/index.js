@@ -1,4 +1,4 @@
-﻿// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
 // 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
 // 否则拒绝并写 platform_event(P1, admin_probe)。
 // 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
@@ -818,7 +818,11 @@ exports.main = async (event, context) => {
         min_credit_place_order: config.min_credit_place_order || 600,
         credit_freeze_line: config.credit_freeze_line || 400
       },
-      rate_range: { rate_min_fen: config.rate_min_fen || 3000, rate_max_fen: config.rate_max_fen || 10000 },
+      rate_range: {
+        rate_min_fen: config.rate_min_fen || 3000,
+        rate_max_fen: config.rate_max_fen || 10000,
+        scene_default_rate_fen: config.scene_default_rate_fen || 5000
+      },
       scene_list: config.scene_list || [],
       system_templates: config.system_templates || []
     });
@@ -882,7 +886,7 @@ exports.main = async (event, context) => {
       ['s0_timeout_min', 1, 1440], ['s1_timeout_min', 1, 1440],
       ['interrupt_timeout_h', 1, 168], ['eval_window_h', 1, 720],
       ['min_credit_take_order', 0, 1000], ['min_credit_place_order', 0, 1000],
-      ['credit_freeze_line', 0, 1000], ['rate_min_fen', 0, 100000], ['rate_max_fen', 0, 100000]
+      ['credit_freeze_line', 0, 1000], ['rate_min_fen', 0, 100000], ['rate_max_fen', 0, 100000], ['scene_default_rate_fen', 0, 100000]
     ];
     for (const [f, lo, hi] of intFields) {
       if (event[f] !== undefined) {

@@ -138,5 +138,30 @@ Page({
   backReject() {
     this.setData({ rejected: false, logging: false });
   },
+
+  // 🔧 Phase 1.4 短信验证 mock: 纯前端生成 6 位码 + showModal 显示
+  onDebugSms() {
+    wx.showModal({
+      title: '输入手机号',
+      editable: true,
+      placeholderText: '仅用于 mock, 不上传服务器',
+      success: (res) => {
+        if (!res.confirm) return;
+        const phone = String(res.content || '').trim();
+        if (!/^\d{6,}$/.test(phone)) {
+          wx.showToast({ title: '请输入有效手机号', icon: 'none' });
+          return;
+        }
+        const code = String(Math.floor(Math.random() * 900000) + 100000);
+        try { wx.setStorageSync('mock_sms_' + phone, code); } catch (e) {}
+        wx.showModal({
+          title: '短信验证码(mock)',
+          content: `手机号 ${phone}\n验证码: ${code}\n\n(此码已缓存到 mock_sms_${phone})`,
+          showCancel: false,
+          confirmText: '好的'
+        });
+      }
+    });
+  },
   onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });
