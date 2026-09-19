@@ -1,7 +1,5 @@
-chore(payment-mock): [Phase 2.4] 恢复 prod 拦截 + 真机双身份验收完成
+chore(publish): [Phase 2.4] 临时隐藏发布页经纬度用于接口申请截图
 
-- payment-mock prod 拦截临时放开已恢复(c2 无代码残留)
-- 真机双身份全链路验收: S0→S1→S2→S3→S5→S8 完整通过
-- 发现 UX 优化项: order-progress 分支预览灰显过亮(S4/S10.5)
-- admin_config env=prod, scene_default_rate_fen 已 seed
-- 三重备份完成, bundle SHA256: 164D62B6EF71F71EDA857540CBE7922F322C6CAFF98E7E4BA316888C4FBCBB7E
+- publish.wxml: 发布地址/履约地址经纬度数字隐藏, 仅显示地址文字
+- 等接口审核通过 + 小程序提审完成后立即恢复
+- 同时上传 v1.5.3 (lat-lng hidden) 供微信审核时截图干净
