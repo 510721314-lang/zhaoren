@@ -10,7 +10,7 @@ const { SCENES, TM_TEMPLATES } = require('../../config/enums.js');
 const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
 
 function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 Page({

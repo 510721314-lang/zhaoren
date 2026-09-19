@@ -7,7 +7,7 @@ const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../c
 const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
 
 function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 // 敏感词检测：手机号/微信号

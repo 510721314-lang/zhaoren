@@ -9,7 +9,7 @@ const SCENE_NAMES = {};
 SCENES.forEach((s) => { SCENE_NAMES[s.code] = s.name; });
 
 function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 Page({

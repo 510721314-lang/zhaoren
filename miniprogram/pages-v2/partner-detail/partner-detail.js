@@ -4,7 +4,7 @@ const redline = require('../../utils/redline.js');
 const { SCENES } = require('../../config/enums.js');
 
 function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 Page({
