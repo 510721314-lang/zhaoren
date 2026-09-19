@@ -763,8 +763,6 @@ Page({
       draft_id: this.__draftId || ''
     };
 
-    console.log('[confirmPublish] → demand-publish:', { action: params.action, scene: params.scene });
-
     wx.cloud.callFunction({
       name: 'demand-publish',
       data: params,
