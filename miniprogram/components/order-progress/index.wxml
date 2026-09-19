@@ -12,8 +12,8 @@
     </block>
   </view>
   <view class="op__branches" wx:if="{{branches.length > 0}}">
-    <view class="op__branch {{item.active ? 'is-active' : ''}}" style="{{item.activeStyle}}" wx:for="{{branches}}" wx:key="code">
-      <text class="op__branch-dot">⚠</text>
+    <view class="op__branch {{item.active ? 'is-active' : ''}}" style="{{item.active ? item.activeStyle : ''}}" wx:for="{{branches}}" wx:key="code">
+      <text class="op__branch-dot" wx:if="{{item.active}}">⚠</text>
       <text class="op__branch-name">{{item.name}}</text>
     </view>
   </view>

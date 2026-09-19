@@ -57,12 +57,20 @@
 .op__branch {
   display: inline-flex;
   align-items: center;
+  padding: 4rpx 12rpx;
+  border-radius: 16rpx;
+  /* 默认=灰显预告; 更淡更小, 避免用户误以为当前状态 */
+  background: transparent;
+  color: var(--text-5);
+  font-size: 20rpx;
+  opacity: 0.55;
+  border: 1rpx dashed var(--text-5);
+}
+.op__branch.is-active {
+  font-weight: 600;
+  opacity: 1;
+  border: none;
   padding: 6rpx 16rpx;
-  border-radius: 20rpx;
-  /* 默认=灰显预告；命中态颜色由 ORDER_STATUS SSOT 内联注入 */
-  background: var(--bg-segment);
-  color: var(--text-4);
   font-size: var(--font-xs);
 }
-.op__branch.is-active { font-weight: 600; }
 .op__branch-dot { margin-right: 6rpx; }
