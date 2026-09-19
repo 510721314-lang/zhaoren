@@ -3,6 +3,17 @@
   background: var(--bg-page);
   padding: 0 20rpx 180rpx;
 }
+/* 内测版声明条(Phase 0.6): 上线后整体移除 */
+.pay__beta-banner {
+  background: #FFF3E0;
+  border-left: 6rpx solid #E65100;
+  color: #BF360C;
+  font-size: 24rpx;
+  line-height: 1.5;
+  padding: 16rpx 24rpx;
+  margin: 16rpx 0 0;
+  border-radius: 8rpx;
+}
 .pay__body {
   padding-top: 20rpx;
 }

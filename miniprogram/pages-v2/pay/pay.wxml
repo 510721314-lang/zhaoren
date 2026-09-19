@@ -1,6 +1,11 @@
 <view class="v2 pay">
   <nav-bar title="支付确认"></nav-bar>
 
+  <!-- 内测版声明(Phase 0.6): 醒目红色条, 上线后移除 -->
+  <view class="pay__beta-banner" wx:if="{{order}}">
+    ⚠️ 内测版: 支付/保险均为模拟链路, 不产生真实扣款, 资金担保暂未接入
+  </view>
+
   <view class="pay__loading" wx:if="{{loading}}">
     <view class="pay__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
   </view>

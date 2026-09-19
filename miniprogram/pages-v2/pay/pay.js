@@ -101,6 +101,20 @@ Page({
       wx.showToast({ title: '请先勾选AA承诺书', icon: 'none' });
       return;
     }
+    // 内测版二次确认(Phase 0.6): 明示无真实扣款, 防用户误解
+    wx.showModal({
+      title: '确认下单',
+      content: `合计 ¥${this.data.totalFee} · 内测版不产生真实扣款, 支付结果为模拟`,
+      confirmText: '确认支付',
+      cancelText: '再想想',
+      success: (res) => {
+        if (!res.confirm) return;
+        this._doPay();
+      }
+    });
+  },
+
+  _doPay() {
     this.setData({ paying: true });
     wx.showLoading({ title: '支付中…', mask: true });
     callCloud('payment-mock', {
@@ -114,8 +128,7 @@ Page({
         wx.showModal({ title: '支付失败', content: r.msg || '请稍后重试', showCancel: false });
         return;
       }
-      wx.showToast({ title: '支付成功·保险已生效', icon: 'success', duration: 1800 });
-      // 返回聊天页(轮询会自动刷新出 S2 状态)
+      wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 });
       setTimeout(() => { wx.navigateBack({ fail: () => {} }); }, 1500);
     }).catch(() => {
       wx.hideLoading();
