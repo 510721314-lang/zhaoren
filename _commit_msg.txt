@@ -1,0 +1,7 @@
+chore(admin): [Phase 0.3] admin_openids 初始化完成 + IDE 多实例路径修复
+
+- admin_openids 通过 claim_admin 自助初始化(事务 CAS)
+- 修复 CLI 硬编码查找 ed68d6a... User Data 目录导致的 timeout:
+  把两个 dead 目录的 .ide 都指向活端口 28023
+- app.json 临时改 admin 启动页已还原到 pages-v2/index/index
+- partner-apply 已重部署(success=true, packSize 5.1KB)
