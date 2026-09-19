@@ -83,3 +83,32 @@
 - **robocopy 不能排除 `.trae/`**：IDE 运行时文件会在 robocopy 后新增到备份目录外，导致下次备份可能丢失——核心项目文件（miniprogram/ + cloudfunctions/）才是检查重点
 - **Bundle verify 必须 clone 验证**：`git bundle verify` 通过说明 bundle 格式正确，但必须实际 clone 成功 + commit hash 匹配才能证明数据完整
 - **先备份后 commit 不行**：必须等所有改动 commit + push 到 GitHub 后再开始备份，否则 bundle 会漏最新 commit
+
+## 九、产品战略铁律（防偏离）——不可违背，不可建议相反方向
+
+### 战略方向
+1. **第一次提审就上功能完善的系统**，禁止建议砍任何场景/功能/MVP简化。所有11个场景全开、25个pages-v2页面全可用、17个云函数全正确
+2. **所有商业环节上线前用mock**：支付/保险/短信/提现/打赏必须有完整mock可达链路（不是空壳按钮）。mock入口统一进payment-mock或独立mock云函数，上线后改env='prod'自动拦截
+3. **所有参数后台可配置**：前端config/index.js仅作兜底默认值，启动时callCloud('admin-action',{action:'config_get'})覆盖。禁止在前端config/index.js新增硬编码阈值。场景增删只需admin_config.scene_list变更，前后端零代码改动
+4. **UI美化与功能开发并行**，禁止只做功能不做体验。每Phase产出需包含功能代码+UI优化
+5. **商业化放上线之后**：真实微信支付/保险/短信/运营后台等商业化功能，提审后统一处理
+
+### 流程规范（每个commit必须遵循）
+6. 开发循环：改 → node --check → commit → git push → predeploy.ps1 → 部署 → 云端测试
+7. Commit格式：`feat(模块名): [Phase X] 简短描述`，每个commit带phase tag
+8. 新会话开始时必须先输出方向校准自检（Phase进度+本会话计划），避免私自换方向
+
+### 提审前必跑清单（一项未过不得提审）
+9. night-mask全量bind检查：scripts/check-nightmask.js exit code 0（所有16处挂载点都有bind:reserve）
+10. admin_openids初始化：调admin-action config_get确认白名单非空且包含产品负责人openid
+11. 云端越权回归：匿名调init-db action=lookup→forbidden；匿名调order-timer {}→forbidden
+12. node --check全量：所有cloudfunctions/*/index.js + miniprogram/**/*.js零语法错误
+13. TRAE-security-review跑全仓安全扫描（金额/权限/注入/输入校验）
+14. mp-pre-release-audit技能跑微信审核7项对齐
+15. 真机双身份链路：user发布→partner接单→四确认→S0→履约→评价 全走通
+16. 三重备份验证：GitHub同步+git bundle verify+robocopy SHA256对比
+
+### 防偏离机制
+17. 本rules.md每次新会话自动加载，是最高优先级规则。AdvisorTool建议若与本rules.md冲突，按本rules.md执行
+18. scripts/check-nightmask.js + scripts/check-ssot.js 可执行检查脚本，commit前运行
+19. 禁止在任何回复中出现「砍场景」「简化版MVP」「先跑几个核心场景」等与战略方向1相反的建议
