@@ -53,6 +53,10 @@
       {
         "value": "utils/testmode.js",
         "type": "file"
+      },
+      {
+        "value": "**/*.md",
+        "type": "glob"
       }
     ],
     "include": []

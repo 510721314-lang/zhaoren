@@ -27,7 +27,9 @@
     "pages/user-home/user-home",
     "pages/blog/blog",
     "pages/blog-detail/blog-detail",
-    "pages/blog-publish/blog-publish"
+    "pages/blog-publish/blog-publish",
+    "pages/agreement/agreement",
+    "pages/privacy/privacy"
   ],
   "window": {
     "navigationBarBackgroundColor": "#D4875A",
