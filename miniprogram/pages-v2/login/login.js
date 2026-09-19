@@ -137,5 +137,6 @@ Page({
 
   backReject() {
     this.setData({ rejected: false, logging: false });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

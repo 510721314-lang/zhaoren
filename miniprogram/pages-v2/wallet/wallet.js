@@ -148,5 +148,6 @@ Page({
   onToolTap(e) {
     const name = e.currentTarget.dataset.name;
     wx.showToast({ title: `${name}功能建设中`, icon: 'none' });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

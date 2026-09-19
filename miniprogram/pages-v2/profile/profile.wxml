@@ -173,5 +173,5 @@
   <view class="pf__logout" bindtap="onLogout">注销账号</view>
   <view class="pf__version">版本号 {{version}}</view>
 
-  <night-mask visible="{{isRedline}}"></night-mask>
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

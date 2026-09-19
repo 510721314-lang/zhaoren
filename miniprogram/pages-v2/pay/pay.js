@@ -126,5 +126,6 @@ Page({
 
   openAgreement() {
     wx.navigateTo({ url: '/pages/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

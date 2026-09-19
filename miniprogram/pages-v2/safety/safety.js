@@ -406,5 +406,6 @@ Page({
     }).catch(() => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' }));
   },
 
-  noop() {}
+  noop() {},
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

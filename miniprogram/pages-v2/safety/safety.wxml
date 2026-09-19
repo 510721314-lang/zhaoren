@@ -115,5 +115,5 @@
   <empty-state wx:elif="{{order}}" icon="⚠️" title="状态不允许" desc="仅履约中状态可进入安全报备，即将跳转" />
   <!-- 空态 -->
   <empty-state wx:else icon="📭" title="数据不存在" desc="该记录可能已被删除" />
-  <night-mask visible="{{isRedline}}"></night-mask>
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

@@ -169,5 +169,5 @@
     <view class="pub__draft-empty" wx:if="{{draftList.length === 0}}">暂无草稿</view>
   </bottom-sheet>
 
-  <night-mask visible="{{isRedline}}"></night-mask>
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

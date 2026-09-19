@@ -120,5 +120,5 @@
   </view>
   </block>
 
-  <night-mask visible="{{isRedline}}"></night-mask>
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

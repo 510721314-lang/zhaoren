@@ -862,5 +862,6 @@ Page({
       url: `/pages-v2/chat/chat?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '聊天页待接入', icon: 'none' })
     });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

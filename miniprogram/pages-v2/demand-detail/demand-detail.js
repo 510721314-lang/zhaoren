@@ -144,5 +144,6 @@ Page({
       url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
       fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
     });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

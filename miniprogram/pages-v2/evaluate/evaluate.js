@@ -170,5 +170,6 @@ Page({
       this.setData({ submitting: false });
       wx.showToast({ title: '网络异常,请重试', icon: 'none' });
     });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

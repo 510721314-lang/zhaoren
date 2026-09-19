@@ -548,5 +548,6 @@ Page({
       const last = this.data.messages[this.data.messages.length - 1];
       this.setData({ scrollToView: last ? last._id : '' });
     }, 50);
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

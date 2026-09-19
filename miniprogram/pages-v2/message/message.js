@@ -111,5 +111,6 @@ Page({
   },
   onKefuTap() {
     wx.showToast({ title: '平台客服7×24小时接入中', icon: 'none' });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

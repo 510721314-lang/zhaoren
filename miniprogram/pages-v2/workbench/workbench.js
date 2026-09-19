@@ -180,5 +180,6 @@ Page({
         }
       }
     });
-  }
+  },
+  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
 });

@@ -72,5 +72,5 @@
   </view>
   <empty-state wx:else icon="📭" title="订单不存在" desc="该订单可能已被删除" />
 
-  <night-mask visible="{{isRedline}}"></night-mask>
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>
