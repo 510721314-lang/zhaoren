@@ -519,6 +519,15 @@ Page({
       wx.showToast({ title: '智能派单为高信用耍伴/VIP会员专属', icon: 'none' });
       return;
     }
+    // 手动选定向邀约: 弹确认明确告知不入公共大厅
+    if (code === 'direct' && this.data.form.match_mode !== 'direct') {
+      wx.showModal({
+        title: '定向邀约说明',
+        content: '定向邀约需求不会出现在公共大厅，只有指定的耍伴能看到并接单。请确保你已经在耍伴主页点击了「邀TA帮忙」。',
+        confirmText: '知道了',
+        showCancel: false
+      });
+    }
     this.setData({ 'form.match_mode': code });
   },
 

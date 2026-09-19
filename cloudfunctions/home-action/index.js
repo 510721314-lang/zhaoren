@@ -284,6 +284,9 @@ exports.main = async (event, context) => {
         const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
         await fillPublisherSurname(list);
 
+        // DEBUG: 输出查询命中数方便排查(仅本地/开发态, prod 保留不敏感数据)
+        log.d(`square demandR_count=${(demandR.data || []).length} sceneCodes=${sceneCodes.join(',')}`);
+
         // 按场景分组(首页): 数量由 admin_config.scene_list 决定, 空场景 list=[] 由前端渲染占位引导
         const sceneGroups = [];
         sceneRs.forEach((r, i) => {
