@@ -32,6 +32,16 @@ function ensureCollections() {
       await Promise.all(names.map((n) =>
         db.createCollection(n).catch(() => {})
       ));
+      // demand 大厅查询复合索引(与 init-db INDEXES 对齐):
+      // hallWhere = {is_deleted, status, broadcast, expire_at:gt} orderBy created_at desc
+      // 缺此索引查询报错被 .catch 吞掉 → 首页/广场永远空
+      const demandIdx = [
+        { name: 'idx_hall_broadcast_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, created_at: -1, expire_at: 1 } },
+        { name: 'idx_hall_scene_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, scene: 1, created_at: -1, expire_at: 1 } }
+      ];
+      await Promise.all(demandIdx.map((i) =>
+        db.collection('demand').createIndex(i).catch(() => {})
+      ));
       return true;
     })();
   }
