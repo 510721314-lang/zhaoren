@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.5.1 资金担保与分账架构 / 8.4 退款规则 / 3.4 AA费用 / 附录G 状态机
+// 对应 PRD 章节：3.5.1 资金担保与分账架构 / 8.4 退款规则 / 3.4 AA费用 / 附录G 状态机
 // payment-mock 模拟支付与退款(MVP 无真实微信支付,一律 is_mock=true)
 // 9 个 action: cashier_info(收银台摘要) / mock_pay(模拟支付) / mock_refund(模拟全额退款)
 //             / mock_tip(模拟打赏, 已履约完成订单 S5/S8/S9/S10, 发单人可多次打赏) / aa_record(W2 AA记账)
@@ -106,12 +106,23 @@ async function releaseWithdrawLock(openid) {
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-    const { resolveOpenid } = require('./openid');
+  const { resolveOpenid, warmEnv, getCachedEnv } = require('./openid');
+  await warmEnv(cloud);
   const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
 
   const { action } = event;
-  log.d(`payment-mock action=${action} openid=${openid}`);
+  const env = getCachedEnv();
+  log.d(`payment-mock action=${action} openid=${openid} env=${env}`);
+
+  // ── prod 环境阻断 mock 资金动作 ──
+  // 5 个 mock 资金入口(mock_pay/refund/tip/withdraw/fast_withdraw)仅 dev 放行
+  // 5 个查询/账本入口(cashier_info/aa_record/balance_info/income_list/withdraw_list) prod 保留
+  const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'withdraw', 'fast_withdraw'];
+  if (env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
+    log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
+    return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
+  }
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
