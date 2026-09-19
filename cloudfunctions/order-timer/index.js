@@ -47,25 +47,37 @@ async function casStatus(orderId, expectStatus, patch) {
 }
 
 exports.main = async (event, context) => {
-  await require('./openid').warmEnv(cloud); // 环境门控日志预热
-  // 定时触发器调用无 action; 云端测试面板传 {"action":"run"}
+  const { resolveOpenid, warmEnv } = require('./openid');
+  await warmEnv(cloud); // 环境门控日志预热
+
+  // ── 鉴权: 仅定时触发器或管理员可调 ──
+  const wxCtx = cloud.getWXContext();
+  const isTimer = !!(context && context.TRIGGER_NAME);
+  const openid = await resolveOpenid(cloud, event);
+  const cfg = await getConfig();
+  const adminOpenids = cfg.admin_openids || [];
+  const isAdmin = !!openid && adminOpenids.indexOf(openid) >= 0;
+
+  if (!isTimer && !isAdmin) {
+    return { ok: false, code: 'ot_forbidden', msg: '无权限, 仅定时器或管理员可调用' };
+  }
+
+  // 管理员手动触发时可传 action=run 表明意图(默认也放行, 但拒绝其他 action)
   if (event.action && event.action !== 'run') {
     return { ok: false, code: 'ot_unknown_action', msg: '未知动作, 定时器或传 action=run' };
   }
-  const cfg = await getConfig();
-  const now = Date.now();
 
-  // 阈值(admin_config 为准; 事件入参可覆盖, 供云端测试立即触发)
-  const s1Min = num(event.s1_timeout_min, cfg.s1_timeout_min || 15);
-  const interruptH = num(event.interrupt_timeout_h, cfg.interrupt_timeout_h || 24);
-  const evalH = num(event.eval_window_h, cfg.eval_window_h || 48);
+  // 阈值一律只读 admin_config, 拒绝 event 覆盖(防恶意篡改超时窗口)
+  const now = Date.now();
+  const s1Min = num(cfg.s1_timeout_min, 15);
+  const interruptH = num(cfg.interrupt_timeout_h, 24);
+  const evalH = num(cfg.eval_window_h, 48);
   const defaultStar = num(cfg.default_star, 4);
-  const s0Force = !!event.s0_force; // 测试用: 跳过 pay_expire_at 检查
-  const msConfirmMin = num(event.milestone_confirm_min, 15); // 里程碑提交后15分钟自动确认
-  const modifyConfirmH = num(event.modify_confirm_h, 2); // 改期申请确认时限(小时), 超时自动拒绝
+  const msConfirmMin = num(cfg.milestone_confirm_min, 15); // 里程碑提交后自动确认时限(分钟)
+  const modifyConfirmH = num(cfg.modify_confirm_h, 2); // 改期申请确认时限(小时), 超时自动拒绝
 
   const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
-  log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} s0Force=${s0Force}`);
+  log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
   try {
@@ -88,11 +100,11 @@ exports.main = async (event, context) => {
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 ─────────
   try {
-    const q = s0Force ? { status: 'S0' } : { status: 'S0', pay_expire_at: _.lt(now) };
+    const q = { status: 'S0', pay_expire_at: _.lt(now) };
     const s0s = (await col('order_main').where(q).limit(BATCH).get()).data || [];
     const s0OK = [];
     await Promise.allSettled(s0s.map(async (o) => {
-      if (!s0Force && !(o.pay_expire_at && o.pay_expire_at < now)) return;
+      if (!(o.pay_expire_at && o.pay_expire_at < now)) return;
       const won = await casStatus(o._id, 'S0', { status: 'S6', updated_at: now });
       if (!won) { out.skipped.push(o.order_no + ':S0竞态'); return; }
       s0OK.push(o);
@@ -260,7 +272,7 @@ exports.main = async (event, context) => {
     ok: true,
     data: {
       ran_at: now,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, s0_force: s0Force, modify_confirm_h: modifyConfirmH },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
