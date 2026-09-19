@@ -89,8 +89,7 @@
 .dcard__btn.button-hover {
   background: var(--brand-primary-press);
 }
-.dcard__btn--gray,
-.dcard__btn--gray[disabled] {
+.dcard__btn--gray {
   background: var(--bg-segment);
   color: var(--text-5);
 }

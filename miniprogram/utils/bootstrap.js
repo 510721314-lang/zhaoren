@@ -4,7 +4,7 @@
 //   2. 映射表 CLOUD_MAP 只覆盖明确存在于 admin_config 的键，不盲合并
 //   3. 冷启动异步调用，页面初次渲染用兜底，config_get 返回后 Object.assign 到原对象
 //   4. 失败静默降级（无网络/云函数冷启动/鉴权），不弹错不阻塞
-const CONFIG = require('./config/index.js');
+const CONFIG = require('../config/index.js');
 
 // admin_config key → CONFIG path 映射表
 // 点号分隔表示嵌套路径: 'ORDER.payTimeoutMin' → CONFIG.ORDER.payTimeoutMin
