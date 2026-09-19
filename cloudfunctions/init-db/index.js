@@ -22,6 +22,10 @@ const INDEXES = [
   { coll: 'demand', name: 'idx_creator_status_created', keys: { creator_openid: 1, status: 1, created_at: -1 } },
   { coll: 'demand', name: 'idx_status_created', keys: { status: 1, created_at: -1 } },
   { coll: 'demand', name: 'idx_expire_at', keys: { expire_at: 1 } },
+  // 大厅查询: home-action square 用 (等值 is_deleted+status+broadcast) → orderBy created_at → 范围 expire_at
+  { coll: 'demand', name: 'idx_hall_broadcast_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, created_at: -1, expire_at: 1 } },
+  // 大厅按场景查询: 多一个 scene 等值条件
+  { coll: 'demand', name: 'idx_hall_scene_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, scene: 1, created_at: -1, expire_at: 1 } },
   { coll: 'order_main', name: 'uk_order_no', keys: { order_no: 1 }, unique: true },
   { coll: 'order_main', name: 'idx_demand_id', keys: { demand_id: 1 } },
   { coll: 'order_main', name: 'idx_partner_status', keys: { partner_openid: 1, status: 1 } },
