@@ -698,26 +698,45 @@ Page({
     const f = this.data.form;
     const durationH = f.duration_hours || Number(f.duration_custom) || 0;
 
-    // 1. 发布地址必须为真实GPS(进入页面已自动定位); 未定位则现场补取, 失败只给"重试/去设置"
+    // 1. 发布地址必须为真实GPS(进入页面已自动定位); 未定位则 offer 手动选点
     const pub = this.data.publishLocation;
     if (!pub) {
+      // getLocation 不可用时 offer chooseLocation 手动选点
       wx.showModal({
-        title: '需要发布地址',
-        content: '发布需求必须获取你的当前位置（自动记录不可修改），请授权定位后再发布。',
-        confirmText: '重试定位',
-        cancelText: '去设置',
+        title: '定位不可用',
+        content: '无法自动获取发布地址, 是否在地图上手动选点?',
+        confirmText: '手动选点',
+        cancelText: '取消',
         success: (r) => {
-          if (r.confirm) {
-            this._locatePublish(true);
-          } else {
-            wx.openSetting({ fail: () => {} });
-          }
+          if (!r.confirm) return;
+          wx.chooseLocation({
+            success: (loc) => {
+              pub = { latitude: loc.latitude, longitude: loc.longitude, name: loc.name || '手动选点', address: loc.address || '' };
+              this.setData({ publishLocation: pub });
+              this._doPublish(f, durationH, pub);
+            },
+            fail: () => wx.showToast({ title: '未选择位置,无法发布', icon: 'none' })
+          });
         }
       });
       return;
     }
 
-    // 2. 前置距离校验: 发布位置 ↔ 履约地(有地图选点坐标时) ≤ 后台阈值, 服务端为最终准
+    // 2. 定向邀约校验: select 模式必须指定耍伴
+    if (f.match_mode === 'direct' && !this.invitePartnerOpenid) {
+      wx.showModal({
+        title: '定向邀约缺少指定耍伴',
+        content: '定向邀约模式需要指定一个已审核通过的耍伴, 或切换到广场广播模式。',
+        confirmText: '切换广播',
+        cancelText: '取消',
+        success: (r) => {
+          if (r.confirm) this.setData({ 'form.match_mode': 'broadcast' });
+        }
+      });
+      return;
+    }
+
+    // 3. 前置距离校验: 发布位置 ↔ 履约地(有地图选点坐标时) ≤ 后台阈值, 服务端为最终准
     if (Number(f.latitude) && Number(f.longitude)) {
       const distKm = haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude));
       if (distKm > CONFIG.PUBLISH.distanceMaxKm) {
