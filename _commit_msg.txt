@@ -1,24 +1,7 @@
-feat(bootstrap): [Phase 1] SSOT + 保险 mock + 短信 mock + 订单一屏流
+chore(payment-mock): [Phase 2.4] 恢复 prod 拦截 + 真机双身份验收完成
 
-1.1 SSOT 启动配置覆盖
-- 新建 utils/bootstrap.js: 启动时调 admin-action config_get, 映射表 CLOUD_MAP 深合并进 CONFIG
-- 失败静默降级(云函数冷启动/无网络/鉴权都不阻塞)
-- app.js onLaunch 里异步调用 bootstrap()
-- admin-action config_get rate_range 加 scene_default_rate_fen 返回
-- admin-action config_set intFields 加 scene_default_rate_fen 校验
-- init-db SEED_CONFIG 加 scene_default_rate_fen: 5000
-- init-db 新增 insurance_record 集合
-- config/index.js PARTNER_ACCEPT 加 defaultSceneRateFen/rateMinFen/rateMaxFen 兜底
-- accept-config 默认时薪从硬编码 5000 → PA.defaultSceneRateFen
-
-1.3 保险 mock
-- payment-mock 新增 action=mock_ins: 幂等购买保险, 写 insurance_record(is_mock=true)
-- prod 拦截: MOCK_ONLY_ACTIONS 加 mock_ins
-
-1.4 短信验证 mock
-- login.js 加 onDebugSms: editable Modal 输入手机号 → 生成 6 位码 → showModal 显示 + wx.setStorageSync 缓存
-- login.wxml/wxss 加低存在感调试入口(上线移除)
-
-1.5 订单一屏流
-- chat.goOrderDetail: navigateTo → redirectTo
-- order-detail.goChat: navigateTo → redirectTo
+- payment-mock prod 拦截临时放开已恢复(c2 无代码残留)
+- 真机双身份全链路验收: S0→S1→S2→S3→S5→S8 完整通过
+- 发现 UX 优化项: order-progress 分支预览灰显过亮(S4/S10.5)
+- admin_config env=prod, scene_default_rate_fen 已 seed
+- 三重备份完成, bundle SHA256: 164D62B6EF71F71EDA857540CBE7922F322C6CAFF98E7E4BA316888C4FBCBB7E
