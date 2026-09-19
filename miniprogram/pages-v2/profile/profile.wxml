@@ -70,7 +70,7 @@
         <view class="pf__dash-body">
           <view class="pf__dash-line">🕐 {{item.time_str}}</view>
           <view class="pf__dash-line">📍 {{item.location_name}}</view>
-          <view class="pf__dash-line">💰 ¥{{item.total_fen / 100}}</view>
+          <view class="pf__dash-line">💰 ¥{{item.price_str}}</view>
         </view>
       </view>
     </view>

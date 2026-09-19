@@ -160,7 +160,8 @@ Page({
             location_name: o.location_name || '地点待确认',
             status: o.status,
             status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[normalizeStatus(o.status)] || o.status,
-            total_fen: o.total_fen || 0
+            total_fen: o.total_fen || 0,
+            price_str: Math.round((o.total_fen || 0) / 100)
           }));
         this.setData({ partnerRecentOrders: list });
       }).catch(() => {});
