@@ -58,11 +58,15 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 3 });
     }
-    // 每次进"我的"刷新一次(昵称/信用分可能变)
-    this.fetchUser();
+    // 防抖: 距上次 fetchUser > 30s 才刷新, 避免 onLoad+onShow 双拉 ≈10 次云调用
+    const now = Date.now();
+    if (!this.__lastFetch || (now - this.__lastFetch > 30000)) {
+      this.fetchUser();
+    }
   },
 
   fetchUser() {
+    this.__lastFetch = Date.now();
     callCloud('user-login', { action: 'peek_login' }).then((r) => {
       if (!r.ok || !r.data || !r.data.user) {
         wx.showToast({ title: r.msg || '登录失败', icon: 'none' });

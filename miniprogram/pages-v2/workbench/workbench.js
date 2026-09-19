@@ -152,17 +152,32 @@ Page({
     wx.showToast({ title: '请到订单详情处理', icon: 'none' });
   },
 
-  // W5 一键报警(wx.showModal 原生二次确认, 真机稳定)
+  // W5 一键报警: 上报云端 + 可选拨号
   onAlarmTap() {
     wx.showModal({
       title: '确认报警？',
-      content: '紧急情况下请确认是否拨打110并通知平台客服？',
-      confirmText: '报警',
+      content: '将向平台安全中心上报并拨打110报警电话（可选）',
+      confirmText: '拨号并上报',
+      cancelText: '仅上报',
       confirmColor: '#fa5151',
       fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
       success: (res) => {
-        if (!res.confirm) return;
-        wx.showToast({ title: '已通知客服介入', icon: 'success' });
+        if (!res.confirm && !res.cancel) return;
+        // 上报云端 safety-report
+        const orderId = this.data.currentOrderId || this.data.orders[0].order_id;
+        if (orderId) {
+          wx.cloud.callFunction({ name: 'safety-report', data: { action: 'one_key_sos', order_id: orderId, source: 'workbench' } })
+            .catch(() => {});  // 上报失败不阻塞拨号
+        }
+        // 拨号 110
+        if (res.confirm) {
+          wx.makePhoneCall({
+            phoneNumber: '110',
+            fail: () => wx.showToast({ title: '请手动拨打110', icon: 'none' })
+          });
+        } else {
+          wx.showToast({ title: '已通知客服', icon: 'success' });
+        }
       }
     });
   }

@@ -165,9 +165,17 @@ exports.main = async (event, context) => {
       // 日常位置(注册时 chooseLocation 选点); 未传/非法则保留旧值, 不强制阻断老客户端
       const homeLocation = sanitizeHomeLocation(event.home_location);
 
-      // 补全场景考核分(exam_scores 为空时默认全部 100 分, 让耍伴能直接接所有已开通场景)
-      // W1 真实上线需对接真实考核系统, prod 正式运营前由管理员手动审核维护各场景考核分
-      const defaultExam = sceneCodes.reduce((a, c) => { a[c] = 100; return a; }, {});
+      // 补全场景考核分: 非 W1 场景默认 100, W1(就医陪诊) 强制默认 0 防止架空国标考核
+      // prod 环境 W1 必须由 partner-apply 入口显式提交 >= 80 分才能开通
+      const defaultExam = sceneCodes.reduce((a, c) => { a[c] = c === 'W1' ? 0 : 100; return a; }, {});
+
+      // 若显式传了 W1 分数, 同 partner-apply 对齐强制 >= 80
+      if (event.exam_scores && Number(event.exam_scores.W1)) {
+        if (Number(event.exam_scores.W1) < 80) {
+          return { ok: false, code: 'pa_w1_exam_failed', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
+        }
+        defaultExam.W1 = Number(event.exam_scores.W1);
+      }
 
       // 已是 approved 的历史档案重走申请时保留资格(只更新场景); 其余一律按自动开关决定
       const wasApproved = existing.data.some(p => p.status === 'approved');

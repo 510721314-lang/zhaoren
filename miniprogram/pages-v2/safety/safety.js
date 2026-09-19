@@ -94,7 +94,8 @@ Page({
         redirect: false,
         checkinStartedAt: Date.now(),
         lastCheckin: order.safety.last_checkin || '--:--',
-        loading: false
+        loading: false,
+        isAdmin: (typeof getApp === 'function' && getApp().globalData && getApp().globalData.role === 'admin')
       });
       this.startTimers();
       this.startLocationTracking();  // 安全场景立即开始高精度定位
@@ -107,6 +108,11 @@ Page({
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    // 恢复计时器 + GPS 跟踪(上一次 onHide 清掉了)
+    if (this.data.sosActive || this._checkinStarted) {
+      this.startTimers();
+      this.startLocationTracking();
+    }
   },
 
   onUnload() { this.clearTimers(); this.stopLocationTracking(); },

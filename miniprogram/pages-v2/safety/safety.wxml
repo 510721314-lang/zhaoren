@@ -12,7 +12,8 @@
   <!-- 已发出求助顶部红条（不可滑动消除） -->
   <view class="sf__sos-bar" wx:if="{{sosActive}}">
     🚨 求助已发出，平台安全专员正在处理
-    <text class="sf__sos-kefu" bindtap="onKefuResolve">客服模拟解除</text>
+    <!-- 测试残留: "客服模拟解除"仅管理员可见 -->
+    <text class="sf__sos-kefu" wx:if="{{isAdmin}}" bindtap="onKefuResolve">[管理员]模拟解除</text>
   </view>
 
   <view class="sf__body">
