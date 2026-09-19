@@ -96,6 +96,13 @@ Page({
             activePartners: r.data.active_partners || [],
             _diag: r.data._diag || null
           });
+          // 临时诊断弹窗: 把 demand 分布打出来
+          const d = r.data._diag || {};
+          wx.showModal({
+            title: 'DIAG demand',
+            content: `total=${d.total||0} hall=${d.hall_count||0}\nstats=${JSON.stringify(d.stats||{})}`,
+            showCancel: false
+          });
         }
       },
       fail: () => {
