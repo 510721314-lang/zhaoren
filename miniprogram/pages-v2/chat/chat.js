@@ -183,15 +183,20 @@ Page({
       }).catch(() => {});
   },
 
-  // ───────── 消息渲染 ─────────
+  // ───────── 消息渲染(增量合并 + 条件滚底) ─────────
   renderMessages(list) {
-    const messages = (list || []).map((m) => this.toUiMsg(m));
+    const incoming = (list || []).map((m) => this.toUiMsg(m));
+    // 增量合并: 保留系统消息 + 按 _id 去重追加
     const sysIdx = this.data.messages.findIndex((x) => x._id === 'sys_order_created');
     const sys = sysIdx >= 0 ? [this.data.messages[sysIdx]] : [];
-    this.setData({ messages: sys.concat(messages) }, () => {
-      // 用最新确认状态同步模板卡(避免覆盖为 pending)
+    const sysIds = new Set(sys.map((s) => s._id));
+    const existingIds = new Set(this.data.messages.map((m) => m._id).filter((x) => x !== 'sys_order_created'));
+    const merged = sys.concat(this.data.messages.filter((m) => m._id !== 'sys_order_created'), incoming.filter((m) => !existingIds.has(m._id)));
+    // 只在有新消息时滚底(用户上翻历史不被拉回)
+    const shouldScroll = incoming.some((m) => !existingIds.has(m._id));
+    this.setData({ messages: merged }, () => {
       this.updateMsgStatuses();
-      this.scrollBottom();
+      if (shouldScroll) this.scrollBottom();
     });
   },
 
