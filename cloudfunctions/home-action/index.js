@@ -32,16 +32,6 @@ function ensureCollections() {
       await Promise.all(names.map((n) =>
         db.createCollection(n).catch(() => {})
       ));
-      // demand 大厅查询复合索引(与 init-db INDEXES 对齐):
-      // hallWhere = {is_deleted, status, broadcast, expire_at:gt} orderBy created_at desc
-      // 缺此索引查询报错被 .catch 吞掉 → 首页/广场永远空
-      const demandIdx = [
-        { name: 'idx_hall_broadcast_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, created_at: -1, expire_at: 1 } },
-        { name: 'idx_hall_scene_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, scene: 1, created_at: -1, expire_at: 1 } }
-      ];
-      await Promise.all(demandIdx.map((i) =>
-        db.collection('demand').createIndex(i).catch(() => {})
-      ));
       return true;
     })();
   }
@@ -291,15 +281,6 @@ exports.main = async (event, context) => {
           created_at: u.created_at || 0
         })).filter((u) => !!u.openid).slice(0, 10);
 
-        // 诊断: 统计 demand 集合全量状态分布(临时, 定位"首页空"问题)
-        const diagAll = await col('demand').orderBy('created_at', 'desc').limit(20).get().catch(() => ({ data: [] }));
-        const diagStats = {};
-        (diagAll.data || []).forEach((d) => {
-          const k = `s=${d.status}|b=${d.broadcast}|m=${d.match_mode}|del=${d.is_deleted}`;
-          diagStats[k] = (diagStats[k] || 0) + 1;
-        });
-        log.d(`DIAG demand total=${(diagAll.data||[]).length} stats=${JSON.stringify(diagStats)}`);
-
         const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
         await fillPublisherSurname(list);
 
@@ -353,7 +334,7 @@ exports.main = async (event, context) => {
         const activePartners = partnerList.slice(0, 10);
         const partners = partnerList.slice(0, 5);
 
-        return { ok: true, data: { list, scene_groups: sceneGroups, partners, active_partners: activePartners, active_users: activeUsers, _diag: { total: (diagAll.data||[]).length, stats: diagStats, hall_count: (demandR.data||[]).length } } };
+        return { ok: true, data: { list, scene_groups: sceneGroups, partners, active_partners: activePartners, active_users: activeUsers } };
       }
 
       // ───────── 单场景需求分页(更多列表, 每页 50) ─────────

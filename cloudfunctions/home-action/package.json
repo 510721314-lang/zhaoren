@@ -4,6 +4,6 @@
   "description": "首页概览(最新动态/最新需求/活跃用户/活跃耍伴)",
   "main": "index.js",
   "dependencies": {
-    "wx-server-sdk": "^4.0.2"
+    "wx-server-sdk": "latest"
   }
 }

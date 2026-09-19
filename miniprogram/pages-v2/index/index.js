@@ -82,36 +82,22 @@ Page({
 
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
   fetchSquare() {
-    console.log('[fetchSquare] start');
     wx.cloud.callFunction({
       name: 'home-action',
       data: { action: 'square', limit: 20 },
       success: (res) => {
         const r = res.result || {};
-        console.log('[fetchSquare] result:', JSON.stringify(r));
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
             sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
-            activePartners: r.data.active_partners || [],
-            _diag: r.data._diag || null
+            activePartners: r.data.active_partners || []
           });
-          const d = r.data._diag || {};
-          wx.showModal({
-            title: 'DIAG demand',
-            content: `total=${d.total||0} hall=${d.hall_count||0}\nstats=${JSON.stringify(d.stats||{})}`,
-            showCancel: false
-          });
-        } else {
-          wx.showModal({ title: 'home-action FAIL', content: JSON.stringify(r).slice(0, 200), showCancel: false });
         }
       },
-      fail: (e) => {
-        console.error('[fetchSquare] fail:', e);
-        wx.showModal({ title: 'home-action ERROR', content: JSON.stringify(e).slice(0, 200), showCancel: false });
-      }
+      fail: () => {}
     });
   },
 
@@ -127,8 +113,7 @@ Page({
             sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
-            activePartners: r.data.active_partners || [],
-            _diag: r.data._diag || null
+            activePartners: r.data.active_partners || []
           });
         }
         wx.stopPullDownRefresh();
