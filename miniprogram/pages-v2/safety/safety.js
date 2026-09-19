@@ -21,6 +21,7 @@ Page({
     // A2 实时定位（安全报警核心）
     locating: false,
     locStatus: 'idle',        // idle|locating|success|fail
+    locDegraded: false,       // getLocation API 不可用时降级标记
     currentLat: 0,
     currentLng: 0,
     accuracy: 0,              // 精度半径(米), 越小越准
@@ -148,6 +149,7 @@ Page({
 
   // 高精度 GPS: isHighAccuracy=true + highAccuracyExpireTime=4s
   // 安全报警场景必须尽可能准, accuracy 越小越好
+  // 若 wx.getLocation API 被拒(审核未通过), 第一次失败即停止轮询并显示降级 banner
   getHighAccuracyLocation() {
     if (this.data.locating) return;
     this.setData({ locating: true, locStatus: 'locating' });
@@ -155,10 +157,16 @@ Page({
       type: 'gcj02',
       isHighAccuracy: true,
       highAccuracyExpireTime: 4000,
-      success: (res) => this._applyLocation(res),
-      fail: (err) => {
-        console.error('[safety] getLocation fail:', err);
+      success: (res) => { this._applyLocation(res); this._locFailCount = 0; },
+      fail: () => {
+        // 连续失败 3 次 → GPS 不可用, 停止轮询并标记降级模式
+        this._locFailCount = (this._locFailCount || 0) + 1;
         this.setData({ locating: false, locStatus: 'fail' });
+        if (this._locFailCount >= 3) {
+          this.stopLocationTracking();
+          this.setData({ locDegraded: true });
+          wx.showToast({ title: '定位服务不可用,安全功能降级运行', icon: 'none', duration: 2500 });
+        }
       }
     });
   },
@@ -269,7 +277,22 @@ Page({
     wx.getLocation({
       type: 'gcj02',
       success: (res) => doCheckin({ latitude: res.latitude, longitude: res.longitude }),
-      fail: () => doCheckin(null)  // 无定位权限/用户拒绝 → 无位置打卡,不阻塞
+      fail: () => {
+        // getLocation 不可用时 offer chooseLocation 手动选点
+        wx.showModal({
+          title: '定位不可用',
+          content: '是否手动在地图上选择你当前的位置进行打卡?',
+          confirmText: '选点打卡',
+          cancelText: '跳过',
+          success: (r) => {
+            if (!r.confirm) { doCheckin(null); return; }
+            wx.chooseLocation({
+              success: (loc) => doCheckin({ latitude: loc.latitude, longitude: loc.longitude }),
+              fail: () => doCheckin(null)
+            });
+          }
+        });
+      }
     });
   },
 

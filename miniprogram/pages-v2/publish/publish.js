@@ -570,18 +570,28 @@ Page({
         this.setData({ locating: false });
         // 用户在弹窗内主动取消不算失败
         if (err && /cancel/i.test(err.errMsg || '')) return;
-        console.warn('[_locatePublish] getLocation fail:', err);
         wx.showModal({
-          title: '定位失败',
-          content: '发布需求必须获取你的当前位置（自动记录不可修改）。请授权位置信息并开启系统定位后重试。',
-          confirmText: '重试',
-          cancelText: '去设置',
+          title: '定位不可用',
+          content: '无法自动获取当前位置, 是否在地图上手动选点?',
+          confirmText: '手动选点',
+          cancelText: '跳过',
           success: (r) => {
-            if (r.confirm) {
-              this._locatePublish(showToast);
-            } else {
-              wx.openSetting({ fail: () => {} });
-            }
+            if (!r.confirm) return;
+            wx.chooseLocation({
+              success: async (loc) => {
+                const now = new Date();
+                const pub = {
+                  latitude: loc.latitude, longitude: loc.longitude,
+                  name: loc.name || '手动选点', address: loc.address || '',
+                  updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+                };
+                const f = this.data.form;
+                const dist = (Number(f.latitude) && Number(f.longitude))
+                  ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude)) : 0;
+                this.setData({ publishLocation: pub, distanceKm: dist, distanceText: fmtDist(dist) });
+              },
+              fail: () => wx.showToast({ title: '未选择位置', icon: 'none' })
+            });
           }
         });
       }
