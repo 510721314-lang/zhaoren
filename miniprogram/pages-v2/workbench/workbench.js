@@ -34,10 +34,15 @@ Page({
     confirmTimeoutMin: CONFIG.ORDER.confirmTimeoutMin
   },
 
-  onLoad() { this.fetchData(); },
+  onLoad() {
+    // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 操作后返回 onShow 正常刷新
+    this.__skipNextShow = true;
+    this.fetchData();
+  },
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.fetchData();
   },
 

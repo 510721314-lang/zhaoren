@@ -24,6 +24,8 @@ Page({
   },
 
   onLoad() {
+    // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 发布返回时 onShow 正常刷新
+    this.__skipNextShow = true;
     const chips = [{ code: 'all', name: '全部' }]
       .concat(SCENES.map((s) => ({ code: s.code, name: s.name })))
       .concat([{ code: 'public_welfare', name: '💚 公益免费' }]);
@@ -36,6 +38,8 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 });
     }
+    // 首次 onShow 跳过(onLoad 已拉); 发布返回/切回广场时刷新
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.fetchSquare();
   },
 

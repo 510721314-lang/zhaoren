@@ -19,6 +19,8 @@ Page({
   },
 
   onLoad() {
+    // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 聊完返回 onShow 刷新未读数
+    this.__skipNextShow = true;
     this.fetchData();
   },
 
@@ -45,7 +47,8 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 2 });
     }
-    // 每次进入消息列表刷新未读数
+    // 首次 onShow 跳过(onLoad 已拉); 之后进入消息列表刷新未读数
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     if (!this.data.loading) this.fetchData();
   },
 

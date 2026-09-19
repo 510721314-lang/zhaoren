@@ -20,6 +20,8 @@ Page({
   },
 
   onLoad(options) {
+    // onLoad 已拉首屏, 首次 onShow 跳过; 之后 onShow(编辑/接单返回)静默刷新
+    this.__skipNextShow = true;
     this.fetchData(options);
   },
 
@@ -60,6 +62,9 @@ Page({
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    // 编辑需求/其他页返回时刷新详情(P1-o: 原 onShow 不刷数据导致编辑后看到旧内容)
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
+    this.reload();
   },
 
   onGrab(e) {

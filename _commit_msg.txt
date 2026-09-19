@@ -1,8 +1,0 @@
-fix(order-progress): UX 分支预览灰显过亮修复 + 全量 17 云函数部署
-
-- order-progress/index.wxss: 灰显分支透明底+虚线边框+opacity 0.55+字号20rpx
-  活跃分支恢复内联颜色+去虚线
-- order-progress/index.wxml: ⚠️ 图标仅活跃态显示, 灰显态隐藏
-- 云端 UX 问题: S5 显示"部分完成"(S4分支预告)、S8 显示"争议处理中"(S10.5分支预告)
-  原灰显太亮像当前状态, 现已调淡避免用户误解
-- 部署: 全量 17 云函数统一部署, 云端代码版本与 git HEAD 对齐

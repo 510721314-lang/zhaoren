@@ -19,11 +19,20 @@ Page({
   },
 
   onLoad(options) {
+    // onLoad 已拉首页, 首次 onShow 跳过; 从发布页返回时重置到第一页刷新
+    this.__skipNextShow = true;
     const code = options.scene || '';
     const scene = SCENES.find((s) => s.code === code);
     const name = decodeURIComponent(options.name || '') || (scene && scene.name) || '需求列表';
     wx.setNavigationBarTitle({ title: name });
     this.setData({ sceneCode: code, sceneName: name, sceneIcon: (scene && scene.icon) || '' });
+    this.loadMore();
+  },
+
+  onShow() {
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
+    // 发布/编辑返回: 重置翻页并重新拉第一页, 保证新需求出现在顶部
+    this.setData({ list: [], skip: 0, hasMore: true, loaded: false, empty: false });
     this.loadMore();
   },
 

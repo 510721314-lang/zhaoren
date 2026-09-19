@@ -35,6 +35,8 @@ Page({
   },
 
   onLoad() {
+    // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 切 tab/发布返回时 onShow 正常刷新
+    this.__skipNextShow = true;
     try {
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20, greeting: this.computeGreeting() });
@@ -66,7 +68,8 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 });
     }
-    // 每次显示刷新广场(可能刚发布了新需求)
+    // 首次 onShow 跳过(onLoad 已拉); 之后切回首页/发布返回刷新广场
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.fetchSquare();
   },
 
