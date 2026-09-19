@@ -15,6 +15,13 @@ Page({
     submitting: false,
     alreadyPartner: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad() {
     const user = wx.getStorageSync('user_info') || {};

@@ -29,6 +29,18 @@ Page({
     this.fetchData(options);
   },
 
+  onShareAppMessage() {
+    const p = this.data.partner || {};
+    const scenes = (this.data.sceneList || []).map((s) => s.name).filter(Boolean).join('/');
+    const title = p.nickname ? `${p.nickname} · 找个人帮忙` : (scenes ? `${scenes}耍伴` : '找个人帮忙');
+    const openid = p.openid || (this.__lastOptions && this.__lastOptions.partnerOpenid) || '';
+    return {
+      title: String(title).slice(0, 30),
+      path: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
+      imageUrl: ''
+    };
+  },
+
   async fetchData(options) {
     this.__lastOptions = options || {};
     const partnerOpenid = options && options.partnerOpenid;

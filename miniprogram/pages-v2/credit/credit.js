@@ -36,6 +36,13 @@ Page({
     loaded: false
   },
 
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
   onShow() {
     this.loadCredit();
   },

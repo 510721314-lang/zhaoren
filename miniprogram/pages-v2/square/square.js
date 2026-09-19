@@ -22,6 +22,13 @@ Page({
     matchExpandMin: CONFIG.MATCH.expandMin,
     reserveDiscountText: `${CONFIG.MATCH.reserveDiscount * 10}折`
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙 · 需求广场',
+      path: '/pages-v2/square/square'
+    };
+  },
+
 
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 发布返回时 onShow 正常刷新

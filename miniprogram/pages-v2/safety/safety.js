@@ -50,6 +50,13 @@ Page({
     locationRefreshSec: CONFIG.SAFETY.locationRefreshSec,
     hasMapKey: !!CONFIG.TENCENT_MAP_KEY
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     this.fetchData(options);

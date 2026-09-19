@@ -44,6 +44,13 @@ Page({
     fastArriveDays: CONFIG.WITHDRAW.fastArriveDays,
     arriveDays: CONFIG.WITHDRAW.arriveDays
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 支付/提现返回 onShow 正常刷新

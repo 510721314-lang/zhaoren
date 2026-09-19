@@ -48,6 +48,13 @@ Page({
     version: CONFIG.VERSION,
     isRedline: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad() {
     this.fetchUser();

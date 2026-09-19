@@ -33,6 +33,13 @@ Page({
     isRedline: false,
     confirmTimeoutMin: CONFIG.ORDER.confirmTimeoutMin
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 操作后返回 onShow 正常刷新

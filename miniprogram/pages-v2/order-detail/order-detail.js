@@ -128,6 +128,13 @@ Page({
     // 安全中心: 进行中求助/最近报备/我的紧急联系人(由 safety-report status 填充)
     safety: { help_flag: false, active_sos: null, checkins: [], contacts: [] }
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     this.fetchData(options);

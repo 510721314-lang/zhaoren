@@ -17,6 +17,13 @@ Page({
     loaded: false,
     empty: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     // onLoad 已拉首页, 首次 onShow 跳过; 从发布页返回时重置到第一页刷新

@@ -33,6 +33,13 @@ Page({
     trafficOrders: CONFIG.NEW_PARTNER.trafficSupportOrders,
     reserveDiscountText: `${CONFIG.MATCH.reserveDiscount * 10}折`
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙 · 同城帮忙撮合',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 切 tab/发布返回时 onShow 正常刷新

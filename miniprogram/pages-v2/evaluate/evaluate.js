@@ -35,6 +35,13 @@ Page({
     evalRewardYuan: CONFIG.ORDER.evalRewardYuan,
     submitting: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     this.fetchData(options);

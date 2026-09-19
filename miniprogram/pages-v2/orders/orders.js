@@ -45,6 +45,13 @@ Page({
     loading: false,
     loaded: false
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     const tab = (options && TABS.some((t) => t.key === options.tab)) ? options.tab : 'all';

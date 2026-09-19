@@ -17,6 +17,13 @@ function fmtAgo(ts) {
 Page({
   data: { list: [], unread: 0, loading: true, empty: false },
 
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
   onShow() { this.loadList(); },
   onPullDownRefresh() {
     this.loadList().then(() => wx.stopPullDownRefresh());

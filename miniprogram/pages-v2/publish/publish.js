@@ -135,6 +135,13 @@ Page({
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     try {

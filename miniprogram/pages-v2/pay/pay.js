@@ -72,6 +72,13 @@ Page({
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
   },
+  onShareAppMessage() {
+    return {
+      title: '找个人帮忙',
+      path: '/pages-v2/index/index'
+    };
+  },
+
 
   onLoad(options) {
     this.fetchData(options);

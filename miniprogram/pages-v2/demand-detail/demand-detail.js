@@ -60,6 +60,18 @@ Page({
 
   reload() { this.fetchData(this.__lastOptions || {}); },
 
+  onShareAppMessage() {
+    const d = this.data.demand || {};
+    const scene = this.data.scene || {};
+    const title = d.title || d.remark || d.project_name || (scene.name ? `${scene.name}帮忙需求` : '找个人帮忙');
+    const id = d._id || (this.__lastOptions && this.__lastOptions.id) || '';
+    return {
+      title: String(title).slice(0, 30),
+      path: `/pages-v2/demand-detail/demand-detail?id=${id}`,
+      imageUrl: ''
+    };
+  },
+
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
     // 编辑需求/其他页返回时刷新详情(P1-o: 原 onShow 不刷数据导致编辑后看到旧内容)
