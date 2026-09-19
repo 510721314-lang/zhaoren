@@ -39,7 +39,7 @@ function takeOrder(demand, opts) {
   }
 }
 
-// 真实客户端 create_from_take 必传 partner_location(服务端 50km 距离校验), 定位失败直接拦截
+// 真实客户端 create_from_take 必传 partner_location(服务端 50km 距离校验), 定位失败 fallback 到 chooseLocation
 function _locate(demand, opts) {
   wx.showLoading({ title: '获取定位...', mask: true });
   wx.getLocation({
@@ -48,14 +48,25 @@ function _locate(demand, opts) {
       wx.hideLoading();
       _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
     },
-    fail: (err) => {
+    fail: () => {
       wx.hideLoading();
-      console.warn('[takeOrder] getLocation fail:', err);
+      // getLocation 可能因 API 未通过审核或用户权限被拒而失败, fallback 到 chooseLocation(已审核通过)
       wx.showModal({
-        title: '需要定位权限',
-        content: '接单需获取你的实时位置用于距离校验，请开启定位权限后重试',
-        confirmText: '去设置',
-        success: (r) => { if (r.confirm) wx.openSetting(); }
+        title: '定位不可用',
+        content: '需要位置信息用于距离校验, 是否手动在地图上选择你的当前位置?',
+        confirmText: '选点',
+        cancelText: '取消',
+        success: (r) => {
+          if (!r.confirm) return;
+          wx.chooseLocation({
+            success: (loc) => {
+              _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
+            },
+            fail: () => {
+              wx.showToast({ title: '未选择位置,无法接单', icon: 'none' });
+            }
+          });
+        }
       });
     }
   });
