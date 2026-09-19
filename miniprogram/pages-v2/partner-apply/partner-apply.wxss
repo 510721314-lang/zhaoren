@@ -6,11 +6,11 @@
 }
 .pa__hero-emoji { font-size: 96rpx; }
 .pa__hero-title {
-  font-size: 40rpx; font-weight: 700; color: var(--text-primary);
+  font-size: 40rpx; font-weight: 700; color: var(--text-1);
   margin-top: 8rpx;
 }
 .pa__hero-sub {
-  font-size: 26rpx; color: var(--text-tertiary); margin-top: 12rpx;
+  font-size: 26rpx; color: var(--text-4); margin-top: 12rpx;
 }
 
 .pa__card {
@@ -18,23 +18,23 @@
   margin-top: 24rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
 }
 .pa__card-title {
-  font-size: 30rpx; font-weight: 600; color: var(--text-primary); margin-bottom: 24rpx;
+  font-size: 30rpx; font-weight: 600; color: var(--text-1); margin-bottom: 24rpx;
 }
-.pa__required { color: #FA5151; margin-left: 4rpx; }
-.pa__tip { font-size: 24rpx; color: var(--text-tertiary); margin: -12rpx 0 20rpx; line-height: 1.5; }
+.pa__required { color: var(--func-danger); margin-left: 4rpx; }
+.pa__tip { font-size: 24rpx; color: var(--text-4); margin: -12rpx 0 20rpx; line-height: 1.5; }
 
 .pa__loc {
   border: 2rpx dashed #FF9A3C; border-radius: 14rpx;
   padding: 24rpx 22rpx; display: flex; align-items: center;
 }
 .pa__loc-main { flex: 1; min-width: 0; }
-.pa__loc-name { font-size: 28rpx; color: var(--text-primary); font-weight: 600; }
+.pa__loc-name { font-size: 28rpx; color: var(--text-1); font-weight: 600; }
 .pa__loc-addr {
-  font-size: 24rpx; color: var(--text-tertiary); margin-top: 6rpx;
+  font-size: 24rpx; color: var(--text-4); margin-top: 6rpx;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pa__loc-change { font-size: 24rpx; color: #FF9A3C; margin-left: 16rpx; flex-shrink: 0; }
-.pa__loc-empty { font-size: 28rpx; color: var(--text-tertiary); }
+.pa__loc-empty { font-size: 28rpx; color: var(--text-4); }
 
 .pa__scenes { display: flex; flex-wrap: wrap; gap: 20rpx; }
 .pa__scene {
@@ -49,7 +49,7 @@
   background: #FFF4E6; border-color: #FF9A3C;
 }
 .pa__scene-emoji { font-size: 52rpx; }
-.pa__scene-name { font-size: 24rpx; color: var(--text-primary); margin-top: 6rpx; }
+.pa__scene-name { font-size: 24rpx; color: var(--text-1); margin-top: 6rpx; }
 .pa__scene-check {
   position: absolute; top: 8rpx; right: 12rpx;
   width: 36rpx; height: 36rpx; border-radius: 50%;
@@ -58,7 +58,7 @@
 }
 
 .pa__tips {
-  margin-top: 32rpx; font-size: 24rpx; color: var(--text-quaternary);
+  margin-top: 32rpx; font-size: 24rpx; color: var(--text-5);
   padding: 0 12rpx;
 }
 

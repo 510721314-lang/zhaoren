@@ -32,7 +32,7 @@
   display: inline-block; padding: 6rpx 16rpx; border-radius: 20rpx;
   font-size: var(--font-xs); font-weight: 600; margin-bottom: 12rpx;
 }
-.sf__acc-badge--good { background: rgba(7,193,96,0.15); color: #07C160; }        /* <50m: 好 */
+.sf__acc-badge--good { background: rgba(7,193,96,0.15); color: var(--brand-primary); }  /* <50m: 好 */
 .sf__acc-badge--ok   { background: rgba(255,152,0,0.15); color: #FF9800; }        /* 50-200m: 一般 */
 .sf__acc-badge--poor { background: rgba(250,81,81,0.15); color: var(--func-danger); } /* >200m: 差 */
 .sf__acc-badge--unknown { background: var(--bg-segment); color: var(--text-3); }

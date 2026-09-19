@@ -315,7 +315,7 @@
   color: var(--func-danger);
 }
 .pf__logout--exit {
-  color: var(--text-tertiary);
+  color: var(--text-4);
   margin-top: 48rpx;
 }
 .pf__version {

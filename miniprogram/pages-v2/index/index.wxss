@@ -357,7 +357,7 @@
   font-size: var(--font-xs);
   color: var(--text-disabled);
   text-align: center;
-  background: var(--bg-empty);
+  background: var(--bg-segment);
   border-radius: var(--r-md);
   margin-bottom: 12rpx;
 }
