@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
+// 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
 // 14 个 action: get_confirmation / update_item / confirm_item / confirm_all /
 //              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
@@ -240,12 +240,25 @@ exports.main = async (event, context) => {
       if (!Array.isArray(value)) return { ok: false, code: 'oa_content_invalid', msg: '服务内容格式有误' };
     } else if (item === 'fee') {
       const fee = Number(value);
-      if (!fee || fee <= 0 || !Number.isInteger(fee)) {
-        return { ok: false, code: 'oa_fee_invalid', msg: '费用金额格式有误' };
+      if (!Number.isInteger(fee)) {
+        return { ok: false, code: 'oa_fee_invalid', msg: '费用必须是整数(分)' };
       }
+      // ── 服务端重算+区间约束, 前端值仅作参考(金额不可信红线) ──
+      const rateMin = config.rate_min_fen || 3000;   // 30 元起
+      const rateMax = config.rate_max_fen || 10000;  // 100 元封顶
+      // 夹取: 低于下限提到底, 高于上限截到顶
+      const clampedFee = Math.max(rateMin, Math.min(rateMax, fee));
+      if (clampedFee !== fee) {
+        return { ok: false, code: 'oa_fee_out_of_range',
+          msg: `费用超出耍伴时薪区间(${Math.round(rateMin/100)}元-${Math.round(rateMax/100)}元/小时),已自动调整为 ${Math.round(clampedFee/100)}元/小时`,
+          original_fen: fee, adjusted_fen: clampedFee };
+      }
+      // 平台抽成: platform_fee_rate_fen 默认 1000 (10%)
+      const feeRate = config.platform_fee_rate_fen || 1000;
+      const feeFen = Math.round(clampedFee * feeRate / 10000);
+
       // 青少年保护:改后总价仍受 200 元上限约束
       const youthLimit = config.youth_limit_fen || 20000;
-      // 取双方年龄(订单里没存年龄,查用户)
       const [u, p] = await Promise.all([
         col('user_account').where({ openid: order.user_openid }).limit(1).get(),
         col('user_account').where({ openid: order.partner_openid }).limit(1).get()
@@ -253,11 +266,10 @@ exports.main = async (event, context) => {
       const isYouth = (doc) => doc && doc.age !== null && doc.age !== undefined && doc.age >= 18 && doc.age <= 22;
       const uYouth = u.data && u.data[0] && isYouth(u.data[0]);
       const pYouth = p.data && p.data[0] && isYouth(p.data[0]);
-      if ((uYouth || pYouth) && fee > youthLimit) {
+      if ((uYouth || pYouth) && clampedFee > youthLimit) {
         return { ok: false, code: 'oa_youth_limit', msg: '18-22 岁用户单笔订单上限 200 元' };
       }
-      const feeFen = Math.round(fee * (config.platform_fee_rate_fen || 1000) / 10000);
-      updateOrder = { total_fen: fee, fee_fen: feeFen, partner_income_fen: fee - feeFen };
+      updateOrder = { total_fen: clampedFee, fee_fen: feeFen, partner_income_fen: clampedFee - feeFen };
     }
 
     // 重置 8 位 + 更新该项 value
