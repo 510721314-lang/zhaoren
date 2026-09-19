@@ -59,8 +59,8 @@ Page({
       });
       this.setData({ list, loading: false, loaded: true });
     }).catch(() => {
-      this.setData({ loading: false, loaded: true });
-      wx.showToast({ title: '加载失败', icon: 'none' });
+      this.setData({ loading: false });
+      wx.showToast({ title: '加载失败,下拉重试', icon: 'none' });
     }).then(() => { if (done) done(); });
   },
 

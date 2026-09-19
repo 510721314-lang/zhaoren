@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
+// 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
 // partner-action 耍伴配置与接单动作 · 身份取自 getWXContext().OPENID
 // 7 个 action: apply / set_switch / update_config / my_profile / review / detail / route_plan
 const cloud = require('wx-server-sdk');
@@ -356,7 +356,10 @@ exports.main = async (event, context) => {
             scene_rates: profile.scene_rates || {},
             exam_scores: profile.exam_scores || {},
             city: profile.city, accept_switch: profile.accept_switch,
-            home_location: profile.home_location || null,
+            home_location: profile.home_location ? {
+              name: profile.home_location.name || '',
+              address: profile.home_location.address || ''
+            } : null,
             status: profile.status, applied_at: profile.applied_at
           },
           stats: {
@@ -456,7 +459,10 @@ exports.main = async (event, context) => {
             accept_scenes: p.accept_scenes || [],
             scene_rates: p.scene_rates || {},
             city: p.city,
-            home_location: p.home_location || null,
+            home_location: p.home_location ? {
+              name: p.home_location.name || '',
+              address: p.home_location.address || ''
+            } : null,
             score: p.score || 0,
             level: p.level || 'L1',
             accept_switch: p.accept_switch !== false,

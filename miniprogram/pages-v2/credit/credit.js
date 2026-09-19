@@ -70,8 +70,8 @@ Page({
         loaded: true
       });
     }).catch(() => {
-      this.setData({ loading: false, loaded: true });
-      wx.showToast({ title: '网络异常', icon: 'none' });
+      this.setData({ loading: false });
+      wx.showToast({ title: '网络异常,下拉重试', icon: 'none' });
     }).then(() => { if (done) done(); });
   },
 

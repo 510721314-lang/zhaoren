@@ -1,6 +1,7 @@
 // PRD章节: 1.6.1 双身份 / 3.1.2 双信用分 / 3.11 账号注销 / 3.10 耍伴专区
 // P1: 接云端 user-login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');
+const { maskPhone } = require('../../utils/util.js');
 const CONFIG = require('../../config/index.js');
 const { CREDIT_LEVEL, normalizeStatus } = require('../../config/enums.js');
 
@@ -81,7 +82,7 @@ Page({
         _id: u._id,
         nickname: u.nickname || '微信用户',
         avatar: (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '', // 只接受 http(s) URL, 否则兜底
-        phone: u.phone || '',
+        phone: maskPhone(u.phone) || '',
         roles: u.roles || [],
         is_realname_done: !!u.is_realname_done,
         user_credit_score: u.user_credit_score || 0,
@@ -323,7 +324,7 @@ Page({
 
   // 用户工作台空态 → 去发布
   goPublish() {
-    wx.switchTab({ url: '/pages-v2/publish/publish', fail: () => wx.switchTab({ url: '/pages-v2/index/index', fail: () => {} }) });
+    wx.navigateTo({ url: '/pages-v2/publish/publish' });
   },
   becomePartner() {
     wx.navigateTo({
