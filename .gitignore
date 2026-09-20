@@ -14,3 +14,7 @@ sm*.json
 Thumbs.db
 desktop.ini
 node_modules/
+
+# 本地临时文件与完整备份目录(仅本机保留, 不入版本库)
+.tmp-*.txt
+.backup-*/
