@@ -97,6 +97,7 @@ Page({
       }
       const d = r.data;
       this.__convId = d.conv_id;
+      this.__payNotified = false; // 耍伴支付弹窗标记, 每次重进会话清零
       const scene = SCENES.find((s) => s.code === d.scene) || null;
       this.setData({
         orderId: d.order_id,
@@ -185,7 +186,32 @@ Page({
         // 如果后端返回的 status 和当前不同但没触发 setData(比如 applyConfirmation 里 nextStatus 没变化),
         // 也强制检查一次 orderStatus 是否需要更新
         if (r.ok && r.data && r.data.status && r.data.status !== this.data.orderStatus) {
-          this.setData({ orderStatus: r.data.status });
+          const old = this.data.orderStatus;
+          const neu = r.data.status;
+          this.setData({ orderStatus: neu });
+          // ── 耍伴主动通知: 看到用户已支付(S2) → 弹引导去履约 ──
+          // 场景: user 已支付但 partner 还停留在四确认聊天页, 需主动告知状态变化
+          // 用 __payNotified 标记只弹一次, 防止轮询重复触发
+          if (this.data.role === 'partner' &&
+              ['S0', 'S1'].includes(old) && neu === 'S2' &&
+              !this.__payNotified) {
+            this.__payNotified = true;
+            wx.showModal({
+              title: '💳 用户已支付',
+              content: '用户已完成支付,请前往订单详情开始履约\n服务时间到达后点击"开始履约"',
+              confirmText: '去履约',
+              cancelText: '稍后再说',
+              confirmColor: '#07C160',
+              success: (res) => {
+                if (res.confirm) {
+                  wx.redirectTo({
+                    url: `/pages-v2/order-detail/order-detail?order_id=${this.data.orderId}`,
+                    fail: () => wx.navigateBack()
+                  });
+                }
+              }
+            });
+          }
         }
       }).catch(() => {});
   },
