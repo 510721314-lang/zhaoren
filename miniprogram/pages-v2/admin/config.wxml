@@ -1,0 +1,58 @@
+<view class="admin-list" wx:if="{{isAdmin && config}}">
+  <!-- 平台抽成 -->
+  <view class="section">
+    <view class="section-title">平台抽成 (万分比)</view>
+    <view class="row">
+      <input class="input" type="number" value="{{feeInput}}" placeholder="{{config.platform_fee_rate_fen}}" bindinput="onFeeInput" />
+      <button class="btn-save" size="mini" hover-class="btn-hover" bindtap="saveFee">保存</button>
+    </view>
+  </view>
+
+  <!-- 开关 -->
+  <view class="section">
+    <view class="section-title">功能开关</view>
+    <view class="switch-row" bindtap="toggleAutoApprove">
+      <text>耍伴自动审核通过</text>
+      <text class="switch {{config.auto_approve_partner ? 'on' : ''}}">{{config.auto_approve_partner ? '开' : '关'}}</text>
+    </view>
+    <view class="switch-row" bindtap="togglePaymentVisible">
+      <text>显示支付入口</text>
+      <text class="switch {{config.payment_visible ? 'on' : ''}}">{{config.payment_visible ? '开' : '关'}}</text>
+    </view>
+  </view>
+
+  <!-- 屏蔽词 -->
+  <view class="section">
+    <view class="section-title">屏蔽词 ({{config.block_words.length}})</view>
+    <view class="row">
+      <input class="input" value="{{blockWordInput}}" placeholder="输入屏蔽词" bindinput="onBlockWordInput" />
+      <button class="btn-save" size="mini" hover-class="btn-hover" bindtap="addBlockWord">添加</button>
+    </view>
+    <view class="tag-list">
+      <view class="tag" wx:for="{{config.block_words}}" wx:key="*this">
+        {{item}}
+        <text class="tag-del" bindtap="removeBlockWord" data-word="{{item}}">×</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 场景列表 -->
+  <view class="section">
+    <view class="section-title">场景列表 ({{config.scene_list.length}})</view>
+    <view class="scene-item" wx:for="{{config.scene_list}}" wx:key="code">
+      <text class="scene-name">{{item.name}} ({{item.code}})</text>
+      <text class="scene-rate">¥{{item.default_rate_fen / 100}}/h</text>
+    </view>
+  </view>
+
+  <!-- 超时参数 -->
+  <view class="section">
+    <view class="section-title">超时参数</view>
+    <view class="info-row">待支付超时: {{config.timeouts.s0_timeout_min}} 分钟</view>
+    <view class="info-row">待确认超时: {{config.timeouts.s1_timeout_min}} 分钟</view>
+    <view class="info-row">中断超时: {{config.timeouts.interrupt_timeout_h}} 小时</view>
+    <view class="info-row">评价窗口: {{config.timeouts.eval_window_h}} 小时</view>
+  </view>
+</view>
+
+<view class="loading" wx:if="{{loading}}">加载中...</view>

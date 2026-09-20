@@ -1,0 +1,10 @@
+.admin-list { padding: var(--gap-md); background: var(--bg-page); min-height: 100vh; }
+.list-item { background: var(--bg-card); border-radius: var(--r-sm); padding: var(--gap-md); margin-bottom: var(--sp-sm); box-shadow: var(--shadow-card); }
+.item-header { display: flex; justify-content: space-between; align-items: center; }
+.order-no { font-size: var(--font-base); color: var(--text-3); }
+.status-tag { font-size: var(--font-sm); padding: 4rpx 12rpx; border-radius: var(--r-sm); background: var(--bg-segment); color: var(--text-2); }
+.item-main { font-size: var(--font-lg); color: var(--text-1); margin-top: 12rpx; }
+.item-sub { font-size: var(--font-sm); color: var(--text-4); margin-top: var(--sp-xs); word-break: break-all; }
+.actions { margin-top: var(--sp-sm); }
+.btn-cancel { background: var(--func-danger); color: var(--text-invert); font-size: var(--font-base); }
+.tip, .loading { text-align: center; padding: var(--sp-xl); color: var(--text-3); font-size: var(--font-md); }

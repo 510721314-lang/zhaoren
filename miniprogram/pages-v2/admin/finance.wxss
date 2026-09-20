@@ -1,0 +1,10 @@
+.admin-list { padding: var(--gap-md); background: var(--bg-page); min-height: 100vh; }
+.list-item { background: var(--bg-card); border-radius: var(--r-sm); padding: var(--gap-md); margin-bottom: var(--sp-sm); box-shadow: var(--shadow-card); }
+.item-header { display: flex; justify-content: space-between; align-items: center; }
+.type-tag { font-size: var(--font-base); padding: 6rpx var(--sp-sm); border-radius: var(--r-sm); }
+.type-tag.pay { background: var(--func-success-light); color: var(--func-success); }
+.type-tag.refund { background: var(--func-danger-light); color: var(--func-danger); }
+.type-tag.tip { background: var(--func-warning-light); color: var(--func-warning); }
+.amount { font-size: 32rpx; font-weight: 600; color: var(--text-1); }
+.item-sub { font-size: var(--font-base); color: var(--text-3); margin-top: var(--sp-xs); word-break: break-all; }
+.tip, .loading { text-align: center; padding: var(--sp-xl); color: var(--text-3); font-size: var(--font-md); }

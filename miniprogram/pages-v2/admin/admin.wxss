@@ -1,0 +1,16 @@
+.admin-page { padding: var(--gap-md); background: var(--bg-page); min-height: 100vh; }
+.section { background: var(--bg-card); border-radius: var(--r-md); padding: var(--gap-md); margin-bottom: var(--gap-md); box-shadow: var(--shadow-card); }
+.section-title { font-size: var(--font-xl); font-weight: 600; color: var(--text-1); margin-bottom: var(--sp-md); }
+.stat-grid { display: flex; flex-wrap: wrap; gap: var(--sp-sm); }
+.stat-card { flex: 1; min-width: 45%; background: var(--bg-input); border-radius: var(--r-sm); padding: var(--sp-md); text-align: center; }
+.stat-num { font-size: 40rpx; font-weight: 700; color: var(--brand-primary); }
+.stat-label { font-size: var(--font-base); color: var(--text-3); margin-top: var(--sp-xs); }
+.finance-row { display: flex; justify-content: space-around; }
+.finance-item { text-align: center; }
+.finance-val { font-size: var(--font-xxl); font-weight: 600; color: var(--text-1); }
+.finance-label { font-size: var(--font-sm); color: var(--text-3); margin-top: 6rpx; }
+.nav-grid { display: flex; flex-wrap: wrap; gap: var(--sp-sm); }
+.nav-card { flex: 1; min-width: 30%; background: var(--bg-input); border-radius: var(--r-sm); padding: var(--sp-lg) 0; text-align: center; }
+.nav-icon { font-size: 48rpx; }
+.nav-name { font-size: var(--font-md); color: var(--text-1); margin-top: var(--sp-xs); }
+.loading { text-align: center; padding: 60rpx; color: var(--text-3); }

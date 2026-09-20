@@ -1,0 +1,76 @@
+<view class="admin-page" wx:if="{{isAdmin}}">
+  <!-- 看板 -->
+  <view class="section">
+    <view class="section-title">数据看板</view>
+    <view class="stat-grid">
+      <view class="stat-card">
+        <view class="stat-num">{{stats.user_count || 0}}</view>
+        <view class="stat-label">用户总数</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-num">{{stats.partner_count || 0}}</view>
+        <view class="stat-label">耍伴数</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-num">{{stats.today_demand_count || 0}}</view>
+        <view class="stat-label">今日需求</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-num">{{stats.active_order_count || 0}}</view>
+        <view class="stat-label">进行中订单</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 财务概览 -->
+  <view class="section">
+    <view class="section-title">财务概览</view>
+    <view class="finance-row">
+      <view class="finance-item">
+        <view class="finance-val">¥{{gmvYuan}}</view>
+        <view class="finance-label">累计 GMV</view>
+      </view>
+      <view class="finance-item">
+        <view class="finance-val">{{stats.pending_review_count || 0}}</view>
+        <view class="finance-label">待审核耍伴</view>
+      </view>
+      <view class="finance-item">
+        <view class="finance-val">{{stats.dispute_count || 0}}</view>
+        <view class="finance-label">争议订单</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 功能模块 -->
+  <view class="section">
+    <view class="section-title">管理模块</view>
+    <view class="nav-grid">
+      <view class="nav-card" bindtap="goUsers">
+        <view class="nav-icon">👥</view>
+        <view class="nav-name">用户管理</view>
+      </view>
+      <view class="nav-card" bindtap="goPartners">
+        <view class="nav-icon">🤝</view>
+        <view class="nav-name">耍伴管理</view>
+      </view>
+      <view class="nav-card" bindtap="goDemands">
+        <view class="nav-icon">📋</view>
+        <view class="nav-name">需求管理</view>
+      </view>
+      <view class="nav-card" bindtap="goOrders">
+        <view class="nav-icon">📦</view>
+        <view class="nav-name">订单管理</view>
+      </view>
+      <view class="nav-card" bindtap="goFinance">
+        <view class="nav-icon">💰</view>
+        <view class="nav-name">财务流水</view>
+      </view>
+      <view class="nav-card" bindtap="goConfig">
+        <view class="nav-icon">⚙️</view>
+        <view class="nav-name">系统配置</view>
+      </view>
+    </view>
+  </view>
+</view>
+
+<view class="loading" wx:if="{{loading && isAdmin}}">加载中...</view>

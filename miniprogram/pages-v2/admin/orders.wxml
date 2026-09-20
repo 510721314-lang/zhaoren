@@ -1,0 +1,26 @@
+<view class="admin-list" wx:if="{{isAdmin}}">
+  <view class="list">
+    <view class="list-item" wx:for="{{list}}" wx:key="order_id">
+      <view class="item-header">
+        <text class="order-no">{{item.order_no}}</text>
+        <text class="status-tag">{{item.statusText}}</text>
+      </view>
+      <view class="item-main">场景: {{item.scene}} · ¥{{item.total_fen / 100}}</view>
+      <view class="item-sub">需求者: {{item.user_openid}} 耍伴: {{item.partner_openid}}</view>
+      <view class="actions" wx:if="{{item.status === 'S0' || item.status === 'S1'}}">
+        <button class="btn-cancel" size="mini" hover-class="btn-hover" bindtap="forceCancel" data-id="{{item.order_id}}" data-status="{{item.status}}">强制取消</button>
+      </view>
+    </view>
+  </view>
+  <view class="tip" wx:if="{{list.length === 0 && !loading}}">
+    <view class="empty-icon">🧾</view>
+    <view>暂无订单</view>
+  </view>
+  <block wx:if="{{loading}}">
+    <view class="list-item skeleton" wx:for="{{[1,2,3]}}" wx:key="*this">
+      <view class="skeleton sk-line-sm"></view>
+      <view class="skeleton sk-line" style="margin-top:12rpx;"></view>
+      <view class="skeleton sk-line-sm" style="margin-top:8rpx;"></view>
+    </view>
+  </block>
+</view>

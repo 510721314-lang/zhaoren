@@ -1,0 +1,11 @@
+.admin-list { padding: var(--gap-md); background: var(--bg-page); min-height: 100vh; }
+.search-bar { background: var(--bg-card); border-radius: 40rpx; padding: 12rpx var(--gap-md); margin-bottom: var(--sp-md); }
+.search-input { font-size: var(--font-lg); }
+.list-item { background: var(--bg-card); border-radius: var(--r-sm); padding: var(--gap-md); margin-bottom: var(--sp-sm); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-card); }
+.item-name { font-size: var(--font-xl); color: var(--text-1); font-weight: 500; }
+.item-sub { font-size: var(--font-base); color: var(--text-3); margin-top: var(--sp-xs); }
+.item-status { font-size: var(--font-base); padding: 6rpx var(--sp-sm); border-radius: 20rpx; }
+.item-status.normal { background: var(--func-success-light); color: var(--func-success); }
+.item-status.frozen { background: var(--func-warning-light); color: var(--func-warning); }
+.item-status.banned { background: var(--func-danger-light); color: var(--func-danger); }
+.tip, .loading { text-align: center; padding: var(--sp-xl); color: var(--text-3); font-size: var(--font-md); }

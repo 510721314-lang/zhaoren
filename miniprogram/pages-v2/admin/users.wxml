@@ -1,0 +1,28 @@
+<view class="admin-list" wx:if="{{isAdmin}}">
+  <view class="search-bar">
+    <input class="search-input" placeholder="搜索昵称/openid" value="{{keyword}}" bindinput="onSearch" confirm-type="search" />
+  </view>
+  <view class="list">
+    <view class="list-item" wx:for="{{list}}" wx:key="openid" bindtap="goDetail" data-openid="{{item.openid}}">
+      <view class="item-main">
+        <view class="item-name">{{item.nickname}}</view>
+        <view class="item-sub">{{item.phone}} · 信用{{item.user_credit_score}}</view>
+      </view>
+      <view class="item-status {{item.status}}">{{item.status === 'normal' ? '正常' : item.status === 'frozen' ? '冻结' : item.status === 'banned' ? '封禁' : item.status}}</view>
+    </view>
+  </view>
+  <view class="tip" wx:if="{{list.length === 0 && !loading}}">
+    <view class="empty-icon">🔍</view>
+    <view>暂无用户</view>
+  </view>
+  <block wx:if="{{loading}}">
+    <view class="list-item skeleton" wx:for="{{[1,2,3]}}" wx:key="*this">
+      <view class="sk-circle"></view>
+      <view style="flex:1;margin-left:20rpx;">
+        <view class="skeleton sk-line"></view>
+        <view class="skeleton sk-line-sm"></view>
+      </view>
+    </view>
+  </block>
+  <view class="tip" wx:if="{{!hasMore && list.length > 0}}">没有更多了</view>
+</view>

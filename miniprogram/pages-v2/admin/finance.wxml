@@ -1,0 +1,24 @@
+<view class="admin-list" wx:if="{{isAdmin}}">
+  <view class="list">
+    <view class="list-item" wx:for="{{list}}" wx:key="tx_id">
+      <view class="item-header">
+        <text class="type-tag {{item.type}}">{{item.typeText}}</text>
+        <text class="amount">¥{{item.amountYuan}}</text>
+      </view>
+      <view class="item-sub">单号: {{item.pay_no || '-'}}</view>
+      <view class="item-sub">订单: {{item.order_no || '-'}}</view>
+      <view class="item-sub">{{item.is_mock ? '模拟支付' : '真实支付'}} · {{item.status}}</view>
+    </view>
+  </view>
+  <view class="tip" wx:if="{{list.length === 0 && !loading}}">
+    <view class="empty-icon">💰</view>
+    <view>暂无流水</view>
+  </view>
+  <block wx:if="{{loading}}">
+    <view class="list-item skeleton" wx:for="{{[1,2,3]}}" wx:key="*this">
+      <view class="skeleton sk-line-sm"></view>
+      <view class="skeleton sk-line-sm" style="margin-top:8rpx;"></view>
+      <view class="skeleton sk-line-sm" style="margin-top:8rpx;"></view>
+    </view>
+  </block>
+</view>

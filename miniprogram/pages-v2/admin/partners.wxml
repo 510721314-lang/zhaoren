@@ -1,0 +1,33 @@
+<view class="admin-list" wx:if="{{isAdmin}}">
+  <view class="filter-bar">
+    <view class="filter-tab {{statusFilter === '' ? 'active' : ''}}" bindtap="filterStatus" data-status="">全部</view>
+    <view class="filter-tab {{statusFilter === 'pending_review' ? 'active' : ''}}" bindtap="filterStatus" data-status="pending_review">待审核</view>
+    <view class="filter-tab {{statusFilter === 'approved' ? 'active' : ''}}" bindtap="filterStatus" data-status="approved">已通过</view>
+    <view class="filter-tab {{statusFilter === 'rejected' ? 'active' : ''}}" bindtap="filterStatus" data-status="rejected">已驳回</view>
+  </view>
+  <view class="list">
+    <view class="list-item" wx:for="{{list}}" wx:key="openid">
+      <view class="item-main">
+        <view class="item-name">{{item.nickname}}</view>
+        <view class="item-sub">场景: {{item.accept_scenes.join(',') || '无'}} · 接单: {{item.accept_switch ? '开' : '关'}}</view>
+      </view>
+      <view class="item-status {{item.status}}">{{item.status === 'approved' ? '已通过' : item.status === 'pending_review' ? '待审核' : '已驳回'}}</view>
+      <view class="actions" wx:if="{{item.status === 'pending_review'}}">
+        <button class="btn-approve" size="mini" hover-class="btn-hover" bindtap="review" data-openid="{{item.openid}}" data-decision="approve">通过</button>
+        <button class="btn-reject" size="mini" hover-class="btn-hover" bindtap="review" data-openid="{{item.openid}}" data-decision="reject">驳回</button>
+      </view>
+    </view>
+  </view>
+  <view class="tip" wx:if="{{list.length === 0 && !loading}}">
+    <view class="empty-icon">👥</view>
+    <view>暂无耍伴</view>
+  </view>
+  <block wx:if="{{loading}}">
+    <view class="list-item skeleton" wx:for="{{[1,2,3]}}" wx:key="*this">
+      <view style="flex:1;">
+        <view class="skeleton sk-line"></view>
+        <view class="skeleton sk-line-sm"></view>
+      </view>
+    </view>
+  </block>
+</view>

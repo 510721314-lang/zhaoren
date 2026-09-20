@@ -168,6 +168,15 @@
     </block>
   </view>
 
+  <!-- 管理员入口(仅白名单 openid 可见) -->
+  <view class="pf__card" wx:if="{{isAdmin}}">
+    <view class="pf__link pf__link--btn" bindtap="goAdmin" hover-class="pf__link--hover">
+      <text class="pf__link-ic">🛠️</text>
+      <text class="pf__link-name">管理后台</text>
+      <text class="pf__link-arrow">›</text>
+    </view>
+  </view>
+
   <!-- U6 -->
   <view class="pf__logout pf__logout--exit" bindtap="onExitLogin">退出登录</view>
   <view class="pf__logout" bindtap="onLogout">注销账号</view>
