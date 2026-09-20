@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
+// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
 // user-login 登录与实名注册 · 身份取自 getWXContext().OPENID,禁止信任前端字段
 // action 列表: login / peek_login / phone_login / phone_register / password_register / password_login /
 //             update_profile / bind_phone / bind_idcard / set_emergency_contact / get_my_credit / close_account
@@ -159,6 +159,10 @@ async function resolvePhone(event, callerOpenid) {
     }
   }
   if (phone && sms_code) {
+    // MVP 禁做清单: 短信验证码仅 dev 测试放行; prod 只允许微信官方 phone_code 授权(env 未预热亦拒绝, fail-closed)
+    if (require('./openid').getCachedEnv() !== 'dev') {
+      return { ok: false, code: 'PLACEHOLDER', msg: '短信登录功能升级中,请使用微信授权手机号' };
+    }
     if (!PHONE_RE.test(phone)) return { ok: false, code: 'phone_format', msg: '手机号格式有误' };
     try {
       const r = await col('user_account').where({ openid: callerOpenid }).limit(1).get();
@@ -464,6 +468,10 @@ exports.main = async (event, context) => {
     // 发送短信验证码: 给指定 phone 发 6 位验证码, 存当前 openid 的 user_account(无则自动建空壳)
     // 开发期: console.log 打出来(模拟发送) 生产期: 接腾讯云 SMS
     case 'send_sms_code': {
+      // MVP 禁做清单: 短信验证码本期不提供, 仅 dev 云端测试放行; prod 直接占位(fail-closed)
+      if (require('./openid').getCachedEnv() !== 'dev') {
+        return { ok: false, code: 'PLACEHOLDER', msg: '功能升级中' };
+      }
       const { phone } = event;
       if (!PHONE_RE.test(phone)) return { ok: false, code: 'phone_format', msg: '手机号格式有误' };
       const code = genSmsCode();
