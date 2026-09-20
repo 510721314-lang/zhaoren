@@ -708,7 +708,7 @@ Page({
     const durationH = f.duration_hours || Number(f.duration_custom) || 0;
 
     // 1. 发布地址必须为真实GPS(进入页面已自动定位); 未定位则 offer 手动选点
-    const pub = this.data.publishLocation;
+    let pub = this.data.publishLocation;
     if (!pub) {
       // getLocation 不可用时 offer chooseLocation 手动选点
       wx.showModal({
