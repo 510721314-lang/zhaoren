@@ -279,7 +279,7 @@ exports.main = async (event, context) => {
         openid: u.openid, nickname: u.nickname, avatar: u.avatar, roles: u.roles || [],
         status: u.status || 'normal', age: u.age || null,
         user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
-        is_realname_done: !!u.is_realname_done, phone: u.phone,
+        is_realname_done: !!u.is_realname_done, phone: u.phone, id_card: u.id_card,
         banned_reason: u.banned_reason || '', created_at: u.created_at
       }),
       partner: p ? {

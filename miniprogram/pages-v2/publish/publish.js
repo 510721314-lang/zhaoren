@@ -541,14 +541,12 @@ Page({
     }).catch(() => {});
   },
 
-  // ── 发布地址: 高精度GPS自动记录, 用户不可手改, 仅可点击重新定位 ──
+  // ── 发布地址: 自动记录当前位置(网络定位), 用户不可手改, 仅可点击重新定位 ──
   _locatePublish(showToast) {
     if (this.data.locating) return;
     this.setData({ locating: true });
     wx.getLocation({
       type: 'gcj02',
-      isHighAccuracy: true,
-      highAccuracyExpireTime: 4000,
       success: async (res) => {
         const now = new Date();
         const pub = {
@@ -577,31 +575,60 @@ Page({
       },
       fail: (err) => {
         this.setData({ locating: false });
-        // 用户在弹窗内主动取消不算失败
-        if (err && /cancel/i.test(err.errMsg || '')) return;
-        wx.showModal({
-          title: '定位不可用',
-          content: '无法自动获取当前位置, 是否在地图上手动选点?',
-          confirmText: '手动选点',
-          cancelText: '跳过',
-          success: (r) => {
-            if (!r.confirm) return;
-            wx.chooseLocation({
-              success: async (loc) => {
-                const now = new Date();
-                const pub = {
-                  latitude: loc.latitude, longitude: loc.longitude,
-                  name: loc.name || '手动选点', address: loc.address || '',
-                  updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-                };
-                const f = this.data.form;
-                const dist = (Number(f.latitude) && Number(f.longitude))
-                  ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude)) : 0;
-                this.setData({ publishLocation: pub, distanceKm: dist, distanceText: fmtDist(dist) });
-              },
-              fail: () => wx.showToast({ title: '未选择位置', icon: 'none' })
-            });
-          }
+        const msg = (err && err.errMsg) || 'unknown';
+        if (/cancel/i.test(msg)) return;
+        console.warn('[getLocation fail]', msg);
+        // 权限被拒(含"不再询问") → 引导去设置开启, 恢复后自动重新定位
+        if (/auth|deny|denied/i.test(msg)) {
+          wx.showModal({
+            title: '需要定位权限',
+            content: '定位权限未开启, 是否前往设置开启?',
+            confirmText: '去设置',
+            cancelText: '手动选点',
+            success: (r) => {
+              if (!r.confirm) return this._offerManualPick();
+              wx.openSetting({
+                success: (s) => {
+                  if (s.authSetting && s.authSetting['scope.userLocation']) {
+                    this._locatePublish(true);
+                  } else {
+                    this._offerManualPick();
+                  }
+                },
+                fail: () => this._offerManualPick()
+              });
+            }
+          });
+          return;
+        }
+        // 非权限类失败: 弹窗带出具体 errMsg, 现场可见根因
+        this._offerManualPick(msg);
+      }
+    });
+  },
+  // 手动选点兜底弹窗(errMsg 附加展示, 便于现场定位根因)
+  _offerManualPick(msg) {
+    wx.showModal({
+      title: '定位不可用',
+      content: `定位失败(${msg || 'unknown'}), 是否在地图上手动选点?`,
+      confirmText: '手动选点',
+      cancelText: '跳过',
+      success: (r) => {
+        if (!r.confirm) return;
+        wx.chooseLocation({
+          success: async (loc) => {
+            const now = new Date();
+            const pub = {
+              latitude: loc.latitude, longitude: loc.longitude,
+              name: loc.name || '手动选点', address: loc.address || '',
+              updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+            };
+            const f = this.data.form;
+            const dist = (Number(f.latitude) && Number(f.longitude))
+              ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude)) : 0;
+            this.setData({ publishLocation: pub, distanceKm: dist, distanceText: fmtDist(dist) });
+          },
+          fail: () => wx.showToast({ title: '未选择位置', icon: 'none' })
         });
       }
     });

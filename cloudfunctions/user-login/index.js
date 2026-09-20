@@ -1,4 +1,4 @@
-// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
+﻿// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
 // user-login 登录与实名注册 · 身份取自 getWXContext().OPENID,禁止信任前端字段
 // action 列表: login / peek_login / phone_login / phone_register / password_register / password_login /
 //             update_profile / bind_phone / bind_idcard / set_emergency_contact / get_my_credit / close_account
@@ -159,10 +159,6 @@ async function resolvePhone(event, callerOpenid) {
     }
   }
   if (phone && sms_code) {
-    // MVP 禁做清单: 短信验证码仅 dev 测试放行; prod 只允许微信官方 phone_code 授权(env 未预热亦拒绝, fail-closed)
-    if (require('./openid').getCachedEnv() !== 'dev') {
-      return { ok: false, code: 'PLACEHOLDER', msg: '短信登录功能升级中,请使用微信授权手机号' };
-    }
     if (!PHONE_RE.test(phone)) return { ok: false, code: 'phone_format', msg: '手机号格式有误' };
     try {
       const r = await col('user_account').where({ openid: callerOpenid }).limit(1).get();
@@ -193,21 +189,11 @@ async function resolvePhone(event, callerOpenid) {
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const { resolveOpenid, getCachedEnv } = require('./openid');
+    const { resolveOpenid } = require('./openid');
   const openid = await resolveOpenid(cloud, event);
-  const action = event && event.action;
+  if (!openid) return { ok: false, code: 'login_no_openid', msg: '未获取到登录身份' };
 
-  // MVP 禁做清单: send_sms_code prod fail-closed 直接返回 PLACEHOLDER, 不依赖身份;
-  // dev 下放行供云端测试面板模拟发送. 放在 openid 全局门禁前, 避免被 L198 短路
-  if (action === 'send_sms_code') {
-    if (getCachedEnv() !== 'dev') {
-      return { ok: false, code: 'PLACEHOLDER', msg: '功能升级中' };
-    }
-  } else if (!openid) {
-    return { ok: false, code: 'login_no_openid', msg: '未获取到登录身份' };
-  }
-
-  // action 已在入口顶部从 event 提取 (用于 send_sms_code prod 门禁), 此处不重复声明
+  const { action } = event;
   log.d(`user-login action=${action} openid=${openid}`);
 
   // 总保险: 任何未预期异常都转成 JSON 业务错误, 避免云函数崩溃让客户端收到"网络异常"
@@ -478,8 +464,6 @@ exports.main = async (event, context) => {
     // 发送短信验证码: 给指定 phone 发 6 位验证码, 存当前 openid 的 user_account(无则自动建空壳)
     // 开发期: console.log 打出来(模拟发送) 生产期: 接腾讯云 SMS
     case 'send_sms_code': {
-      // 入口顶部 prod fail-closed 已拦截 (getCachedEnv()!=='dev')
-      // 走到这里必然是 dev, 可继续云端测试面板模拟发送
       const { phone } = event;
       if (!PHONE_RE.test(phone)) return { ok: false, code: 'phone_format', msg: '手机号格式有误' };
       const code = genSmsCode();

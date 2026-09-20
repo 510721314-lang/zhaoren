@@ -115,9 +115,15 @@ exports.main = async (event, context) => {
   const env = getCachedEnv();
   log.d(`payment-mock action=${action} openid=${openid} env=${env}`);
 
-  // MVP 正式方案: mock 支付/退款/提现全链路 is_mock=true, prod/dev 一律放行
-  // 真实微信支付属 MVP 禁做项, 此处为完整资金流转骨架
+  // ── prod 环境阻断 mock 资金动作 ──
+  // 5 个 mock 资金入口(mock_pay/refund/tip/withdraw/fast_withdraw)仅 dev 放行
+  // 5 个查询/账本入口(cashier_info/aa_record/balance_info/income_list/withdraw_list) prod 保留
+  // [临时放开测试] env 判断改为 false，上线前恢复 env === 'prod'
   const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'withdraw', 'fast_withdraw'];
+  if (false && env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
+    log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
+    return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
+  }
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
