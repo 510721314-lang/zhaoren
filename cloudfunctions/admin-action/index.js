@@ -799,6 +799,77 @@ exports.main = async (event, context) => {
     return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
   }
 
+  // ───────── 7.5 用户中心只读: 信用流水/提现/结算/保险 ─────────
+  // 仅查询, 不做任何资金写操作(提现审核待接真实支付后单独上双人复核)
+  function paginateList(collName, where, pg, mapper) {
+    const query = col(collName).where(where);
+    return Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]).then(([totalR, rows]) => {
+      const list = (rows.data || []).map(mapper);
+      return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+    });
+  }
+
+  if (action === 'credit_log_list') {
+    const { target_openid, log_type } = event;
+    const pg = pager(event);
+    const q = { is_deleted: _.neq(true) };
+    if (isOpenid(target_openid)) q.openid = target_openid;
+    if (log_type) q.type = String(log_type);
+    return paginateList('credit_score_log', q, pg, (l) => ({
+      log_id: l._id, openid: l.openid, type: l.type, delta: l.delta, score: l.score,
+      reason: l.reason || '', is_system: !!l.is_system, created_at: l.created_at
+    }));
+  }
+
+  if (action === 'withdraw_list') {
+    const { target_openid, status: wdStatus, wd_type } = event;
+    const pg = pager(event);
+    const q = { is_deleted: _.neq(true) };
+    if (isOpenid(target_openid)) q.openid = target_openid;
+    if (wdStatus) q.status = String(wdStatus);
+    if (wd_type) q.type = String(wd_type);
+    return paginateList('withdraw_record', q, pg, (w) => ({
+      withdraw_id: w._id, withdraw_no: w.withdraw_no, openid: w.openid,
+      type: w.type, amount_fen: w.amount_fen, status: w.status,
+      expect_arrive_at: w.expect_arrive_at || null, arrived_at: w.arrived_at || null,
+      is_mock: !!w.is_mock, created_at: w.created_at
+    }));
+  }
+
+  if (action === 'settlement_list') {
+    const { target_openid, order_id, status: stStatus } = event;
+    const pg = pager(event);
+    const q = { is_deleted: _.neq(true) };
+    if (isOpenid(target_openid)) q.openid = target_openid;
+    if (order_id) q.order_id = String(order_id);
+    if (stStatus) q.status = String(stStatus);
+    // settlement 集合字段可能随结算批次演进, 这里白名单透传常见金额/状态字段, 不臆造
+    return paginateList('settlement', q, pg, (s) => ({
+      settlement_id: s._id, order_id: s.order_id || '', openid: s.openid || '',
+      type: s.type || '', amount_fen: s.amount_fen, fee_fen: s.fee_fen,
+      income_fen: s.income_fen, status: s.status || '', batch_no: s.batch_no || '',
+      created_at: s.created_at
+    }));
+  }
+
+  if (action === 'insurance_list') {
+    const { target_openid, order_id, policy_no } = event;
+    const pg = pager(event);
+    const q = { is_deleted: _.neq(true) };
+    if (isOpenid(target_openid)) q.openid = target_openid;
+    if (order_id) q.order_id = String(order_id);
+    if (policy_no) q.policy_no = String(policy_no);
+    return paginateList('insurance_record', q, pg, (i) => ({
+      insurance_id: i._id, order_id: i.order_id, policy_no: i.policy_no,
+      openid: i.openid, scene_code: i.scene_code || '', status: i.status,
+      coverage_accident_fen: i.coverage_accident_fen, coverage_property_fen: i.coverage_property_fen,
+      premium_fen: i.premium_fen, created_at: i.created_at
+    }));
+  }
+
   // ───────── 8. 参数配置(白名单字段; 每次修改写 P2 config_change before/after) ─────────
   if (action === 'config_get') {
     return ok({
@@ -811,8 +882,24 @@ exports.main = async (event, context) => {
         s0_timeout_min: config.s0_timeout_min || 30,
         s1_timeout_min: config.s1_timeout_min || 15,
         interrupt_timeout_h: config.interrupt_timeout_h || 24,
-        eval_window_h: config.eval_window_h || 48
+        eval_window_h: config.eval_window_h || 48,
+        default_star: config.default_star || 4,
+        milestone_confirm_min: config.milestone_confirm_min || 15,
+        modify_confirm_h: config.modify_confirm_h || 2
       },
+      limits: {
+        publish_distance_max_km: config.publish_distance_max_km || 50,
+        take_distance_max_km: config.take_distance_max_km || 50,
+        youth_limit_fen: config.youth_limit_fen || 20000
+      },
+      security: {
+        security_only_template_before_confirm: config.security_only_template_before_confirm !== false
+      },
+      modify_config: Object.assign(
+        { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 },
+        config.modify_config || {}
+      ),
+      idcard_aes_key_set: !!(config.idcard_aes_key && /^[0-9a-f]{64}$/i.test(config.idcard_aes_key)),
       credits: {
         min_credit_take_order: config.min_credit_take_order || 600,
         min_credit_place_order: config.min_credit_place_order || 600,
@@ -842,6 +929,10 @@ exports.main = async (event, context) => {
     }
     if (event.auto_approve_partner !== undefined) touch('auto_approve_partner', !!event.auto_approve_partner);
     if (event.payment_visible !== undefined) touch('payment_visible', !!event.payment_visible);
+    // 四确认前仅允许模板消息(关闭后自由聊天, 仅 super 应可操作)
+    if (event.security_only_template_before_confirm !== undefined) {
+      touch('security_only_template_before_confirm', !!event.security_only_template_before_confirm);
+    }
     // 环境开关: dev(允许 mock_openid 测试身份) / prod(强制忽略, 见各函数 openid.js)
     if (event.env !== undefined) {
       const envVal = String(event.env);
@@ -886,7 +977,11 @@ exports.main = async (event, context) => {
       ['s0_timeout_min', 1, 1440], ['s1_timeout_min', 1, 1440],
       ['interrupt_timeout_h', 1, 168], ['eval_window_h', 1, 720],
       ['min_credit_take_order', 0, 1000], ['min_credit_place_order', 0, 1000],
-      ['credit_freeze_line', 0, 1000], ['rate_min_fen', 0, 100000], ['rate_max_fen', 0, 100000], ['scene_default_rate_fen', 0, 100000]
+      ['credit_freeze_line', 0, 1000], ['rate_min_fen', 0, 100000], ['rate_max_fen', 0, 100000], ['scene_default_rate_fen', 0, 100000],
+      // ── 第一批补白名单: 云函数已读但此前后台改不了的键 ──
+      ['publish_distance_max_km', 1, 500], ['take_distance_max_km', 1, 500],
+      ['youth_limit_fen', 1000, 100000], ['default_star', 1, 5],
+      ['milestone_confirm_min', 1, 1440], ['modify_confirm_h', 1, 168]
     ];
     for (const [f, lo, hi] of intFields) {
       if (event[f] !== undefined) {
@@ -899,6 +994,32 @@ exports.main = async (event, context) => {
       const minF = patch.rate_min_fen !== undefined ? patch.rate_min_fen : (config.rate_min_fen || 3000);
       const maxF = patch.rate_max_fen !== undefined ? patch.rate_max_fen : (config.rate_max_fen || 10000);
       if (minF >= maxF) return fail('config_bad_rate_range', '最低时薪必须小于最高时薪');
+    }
+
+    // 改期规则对象(部分更新; 与库内已有对象合并, 仅接受 4 个白名单子字段)
+    if (event.modify_config !== undefined) {
+      if (typeof event.modify_config !== 'object' || Array.isArray(event.modify_config) || event.modify_config === null) {
+        return fail('config_bad_modify_config', 'modify_config 须为对象');
+      }
+      const mcRanges = [
+        ['minLeadHours', 0, 72], ['maxTimes', 0, 10],
+        ['maxSpanH', 1, 720], ['confirmHours', 1, 168]
+      ];
+      const nextMC = Object.assign(
+        { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 },
+        config.modify_config || {}
+      );
+      for (const [k, lo, hi] of mcRanges) {
+        if (event.modify_config[k] !== undefined) {
+          const v = parseInt(event.modify_config[k], 10);
+          if (!Number.isInteger(v) || v < lo || v > hi) {
+            return fail('config_bad_modify_' + k, `modify_config.${k} 须为 ${lo}-${hi} 的整数`);
+          }
+          nextMC[k] = v;
+        }
+      }
+      before.modify_config = config.modify_config || {};
+      patch.modify_config = nextMC;
     }
 
     // 场景服务项增删(仅对已有场景; 新增服务项需小程序发版后才会在发布页显示)
