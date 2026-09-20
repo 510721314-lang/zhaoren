@@ -1,6 +1,0 @@
-{
-  "timeout": 60,
-  "triggers": [
-    { "name": "orderTimer", "type": "timer", "config": "0 */5 * * * * *" }
-  ]
-}
