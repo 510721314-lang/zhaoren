@@ -766,29 +766,37 @@ exports.main = async (event, context) => {
     const start0 = new Date(startTs); start0.setHours(0, 0, 0, 0);
     startTs = start0.getTime();
 
-    // ① 区间内交易按类型一次分组(pay/refund/tip 的金额/手续费/笔数)
-    // ② 已完成订单(S5/S8/S9/S10)耍伴应得收入聚合
+    // ① 区间内交易按类型一次分组(pay/refund/tip 的金额/手续费; 笔数走 count 与全仓口径一致)
+    // ② 耍伴已结算收入: 对齐 payment-mock settledFen 口径仅 S8/S9/S10
+    //    (S5=已完成待评价, 收入尚未结算; S7=已退款不计)
     // ③ 趋势明细(仅 pay/refund, 带上限保护, 超量返回 truncated 标志)
-    const [typeAgg, incomeAgg, trendR] = await Promise.all([
+    // 注意: 时间区间必须用 _.and 组合, 对象字面量写两个同名 created_at 键会被后者覆盖(丢下界)
+    const win = [{ created_at: _.gte(startTs) }, { created_at: _.lt(rangeEnd) }];
+    const txBase = { status: 'success', is_deleted: _.neq(true) };
+    const incomeBase = { status: _.in(['S8', 'S9', 'S10']), is_deleted: _.neq(true) };
+    const [typeAgg, incomeAgg, trendR, payCnt, refundCnt, incomeCnt] = await Promise.all([
       col('pay_transaction').aggregate()
-        .match({ status: 'success', is_deleted: _.neq(true), created_at: _.gte(startTs), created_at: _.lt(rangeEnd) })
-        .group({ _id: '$type', total: $.sum('$amount_fen'), fee: $.sum('$fee_fen'), cnt: $.sum(1) })
+        .match(_.and([txBase].concat(win)))
+        .group({ _id: '$type', total: $.sum('$amount_fen'), fee: $.sum('$fee_fen') })
         .end().catch(() => ({ list: [] })),
       col('order_main').aggregate()
-        .match({ status: _.in(['S5', 'S8', 'S9', 'S10']), is_deleted: _.neq(true), created_at: _.gte(startTs), created_at: _.lt(rangeEnd) })
-        .group({ _id: null, income: $.sum('$partner_income_fen'), cnt: $.sum(1) })
+        .match(_.and([incomeBase].concat(win)))
+        .group({ _id: null, income: $.sum('$partner_income_fen') })
         .end().catch(() => ({ list: [] })),
       col('pay_transaction').where({
         type: _.in(['pay', 'refund']), status: 'success', is_deleted: _.neq(true),
         created_at: _.gte(startTs)
-      }).limit(TREND_CAP).get().catch(() => ({ data: [] }))
+      }).limit(TREND_CAP).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where(_.and([Object.assign({}, txBase, { type: 'pay' })].concat(win))).count().catch(() => ({ total: 0 })),
+      col('pay_transaction').where(_.and([Object.assign({}, txBase, { type: 'refund' })].concat(win))).count().catch(() => ({ total: 0 })),
+      col('order_main').where(_.and([incomeBase].concat(win))).count().catch(() => ({ total: 0 }))
     ]);
     const typeMap = {};
     (typeAgg.list || []).forEach((r) => { typeMap[r._id] = r; });
-    const pay = typeMap.pay || { total: 0, fee: 0, cnt: 0 };
-    const refund = typeMap.refund || { total: 0, fee: 0, cnt: 0 };
-    const tip = typeMap.tip || { total: 0, fee: 0, cnt: 0 };
-    const incomeRow = (incomeAgg.list || [])[0] || { income: 0, cnt: 0 };
+    const pay = typeMap.pay || { total: 0, fee: 0 };
+    const refund = typeMap.refund || { total: 0, fee: 0 };
+    const tip = typeMap.tip || { total: 0, fee: 0 };
+    const incomeRow = (incomeAgg.list || [])[0] || { income: 0 };
 
     // 按天分桶(与 dashboard 趋势口径一致: paid_at 优先, 回退 created_at)
     const days = [];
@@ -811,9 +819,9 @@ exports.main = async (event, context) => {
         tip_fen: tip.total || 0,
         platform_fee_fen: pay.fee || 0,
         partner_income_fen: incomeRow.income || 0,
-        partner_order_count: incomeRow.cnt || 0,
-        pay_count: pay.cnt || 0,
-        refund_count: refund.cnt || 0
+        partner_order_count: incomeCnt.total || 0,
+        pay_count: payCnt.total || 0,
+        refund_count: refundCnt.total || 0
       },
       trend: {
         days,
