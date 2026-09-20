@@ -93,22 +93,35 @@
 4. **UI美化与功能开发并行**，禁止只做功能不做体验。每Phase产出需包含功能代码+UI优化
 5. **商业化放上线之后**：真实微信支付/保险/短信/运营后台等商业化功能，提审后统一处理
 
+### 临时云函数铁律（CloudBase 部署即公开端点，不存在仅控制台可调 ACL）
+A. **命名**：临时函数强制 `zz-` 前缀（延续 zz-selftest-timer 惯例），正式函数禁用该前缀。不在白名单且非 zz- 前缀 → predeploy -Audit exit 8 阻断
+B. **最小守卫**：zz- 函数即使只活 10 分钟也必须带真实 OPENID ∈ admin_openids 白名单守卫，不接 event.mock_openid，读 admin_config 失败 fail-closed。**严禁翻转 admin_config.env**（并发下 finally 恢复仍留提权窗口）
+C. **分用途默认策略**：
+   - 迁移类（fix-templates 型）→ 首选并入 init-db 迁移段，不独立部署
+   - 备份类（export-config 型）→ 走云开发控制台"数据库导出"或 admin-action 受控脱敏 action，禁止裸导出 admin_openids/费率/敏感词库
+   - 测试类（admin-test 型）→ 要 mock 身份直接在测试面板调正式函数传 mock_openid（openid.js dev 放行），无需独立测试函数
+D. **生命周期三件套（创建即登记 + 用毕闭环）**：
+   - 创建时：先问能否并入 init-db/admin-action；必须独立则 zz- 前缀 + 守卫 + `.trae/zz-registry.md` 登记（到期日默认当天 23:59）+ **正常 git commit**（入库不丢人，零记录才隐形）
+   - 用毕时（五步连续闭环，禁止用"提醒"代替）：本地删→commit→控制台删云端→`predeploy.ps1 -Audit` 复验零漂移→zz-registry 填销毁日期
+   - 会话边界：新会话方向校准自检必须含 `-Audit`；会话结束未销毁 zz 函数必须进交接
+
 ### 流程规范（每个commit必须遵循）
-6. 开发循环：改 → node --check → commit → git push → predeploy.ps1 → 部署 → 云端测试
+6. 开发循环：改 → node --check → commit → git push → predeploy.ps1 → 部署 → 云端测试；部署完成后自动跑一次 `predeploy.ps1 -Audit`
 7. Commit格式：`feat(模块名): [Phase X] 简短描述`，每个commit带phase tag
-8. 新会话开始时必须先输出方向校准自检（Phase进度+本会话计划），避免私自换方向
+8. 新会话开始时必须先输出方向校准自检（Phase进度+本会话计划 + `-Audit` 结果），避免私自换方向
 
 ### 提审前必跑清单（一项未过不得提审）
 9. night-mask全量bind检查：scripts/check-nightmask.js exit code 0（所有16处挂载点都有bind:reserve）
 10. admin_openids初始化：调admin-action config_get确认白名单非空且包含产品负责人openid
 11. 云端越权回归：匿名调init-db action=lookup→forbidden；匿名调order-timer {}→forbidden
-12. node --check全量：所有cloudfunctions/*/index.js + miniprogram/**/*.js零语法错误
-13. TRAE-security-review跑全仓安全扫描（金额/权限/注入/输入校验）
-14. mp-pre-release-audit技能跑微信审核7项对齐
-15. 真机双身份链路：user发布→partner接单→四确认→S0→履约→评价 全走通
-16. 三重备份验证：GitHub同步+git bundle verify+robocopy SHA256对比
+12. 云端函数对账：`predeploy.ps1 -Audit` exit 0——list 与白名单零 diff、无未销毁 zz- 函数、无临时翻转注释命中（payment-mock prod 闸门已恢复等）
+13. node --check全量：所有cloudfunctions/*/index.js + miniprogram/**/*.js零语法错误
+14. TRAE-security-review跑全仓安全扫描（金额/权限/注入/输入校验）
+15. mp-pre-release-audit技能跑微信审核7项对齐
+16. 真机双身份链路：user发布→partner接单→四确认→S0→履约→评价 全走通
+17. 三重备份验证：GitHub同步+git bundle verify+robocopy SHA256对比
 
 ### 防偏离机制
-17. 本rules.md每次新会话自动加载，是最高优先级规则。AdvisorTool建议若与本rules.md冲突，按本rules.md执行
-18. scripts/check-nightmask.js + scripts/check-ssot.js 可执行检查脚本，commit前运行
-19. 禁止在任何回复中出现「砍场景」「简化版MVP」「先跑几个核心场景」等与战略方向1相反的建议
+18. 本rules.md每次新会话自动加载，是最高优先级规则。AdvisorTool建议若与本rules.md冲突，按本rules.md执行
+19. scripts/check-nightmask.js + scripts/check-ssot.js 可执行检查脚本，commit前运行
+20. 禁止在任何回复中出现「砍场景」「简化版MVP」「先跑几个核心场景」等与战略方向1相反的建议

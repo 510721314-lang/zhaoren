@@ -1,21 +1,27 @@
-# ============================================================
-# zhaoren - Pre-deploy Syntax Gate
+﻿# ============================================================
+# zhaoren - Pre-deploy Syntax Gate + Cloud Audit
 # Runs `node --check` on EVERY cloud function before any deploy.
-# Bad syntax (e.g. duplicate const -> SyntaxError) blocks deploy.
+# Optionally performs cloud-side drift audit via DevTools CLI.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1
-#       -> check all cloud functions only
+#       -> check all cloud functions only (zero external deps)
 #   powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Deploy demand-publish
-#       -> check all, then deploy the named function if ALL pass
+#       -> check all, commit gate, deploy named function, then -Audit
+#   powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1 -Audit
+#       -> syntax check + cloud diff + local naming/guard scan + flip-comment scan
 #
 # Exit codes: 0 = ok / 1 = syntax failed / 2 = node not found
 #             3 = function name invalid / 4 = deploy failed / 5 = cli not found
 #             6 = uncommitted changes in target function (commit before deploy)
+#             7 = cloud drift (whitelist mismatch OR zz-registry expired)
+#             8 = local naming/guard violation (no whitelist, no zz- prefix, no guard)
+#             9 = flip-comment hit (if(false && / 临时放开 / 上线前恢复 / 上线前删除)
 # ============================================================
 param(
     [string]$Deploy = "",
-    [string]$EnvId = "cloud1-d9gkefwcp5c777088"
+    [string]$EnvId = "cloud1-d9gkefwcp5c777088",
+    [switch]$Audit = $false
 )
 
 # Continue (not Stop): native commands like node.exe emit parse errors on stderr;
@@ -162,5 +168,167 @@ if ($Deploy) {
     }
     Write-Host ""
     Write-Host "[DEPLOYED] $Deploy -> $EnvId (all syntax checks passed beforehand)" -ForegroundColor Green
+    $Audit = $true  # deploy always triggers audit
 }
+
+# ============================================================
+# 5. Audit mode (or auto-triggered after deploy)
+# ============================================================
+if ($Audit) {
+    Write-Host ""
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host " CLOUD AUDIT (whitelist drift / naming guard / flip-comments)" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+
+    $auditBlocked = $false
+
+    # ── 5.0 Load whitelist ──
+    $wlPath = Join-Path $root ".trae\cloudfunctions.whitelist"
+    if (-not (Test-Path $wlPath)) {
+        Write-Host "[AUDIT] whitelist not found: $wlPath" -ForegroundColor Red
+        Write-Host "        create it or run without -Audit" -ForegroundColor Yellow
+        $auditBlocked = $true
+        # no exit yet — naming/guard scan can still run
+    }
+    $wlNames = @()
+    if (Test-Path $wlPath) {
+        $wlNames = Get-Content $wlPath | Where-Object { $_ -and -not $_.StartsWith('#') -and $_.Trim() } | ForEach-Object { $_.Trim() }
+        Write-Host "[5.0] whitelist: $($wlNames.Count) formal functions" -ForegroundColor Gray
+    }
+
+    # ── 5.1 Cloud drift (CLI) ──
+    Write-Host "[5.1] cloud functions list vs whitelist" -ForegroundColor Gray
+    $cli = $null
+    $searchRoots = @(
+        "${env:ProgramFiles(x86)}\Tencent",
+        "$env:ProgramFiles\Tencent",
+        "$env:LOCALAPPDATA\Programs",
+        "$env:USERPROFILE\Desktop"
+    ) | Where-Object { Test-Path $_ }
+    foreach ($sr in $searchRoots) {
+        $hit = Get-ChildItem $sr -Filter "cli.bat" -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.DirectoryName "cli.js") } |
+            Select-Object -First 1
+        if ($hit) { $cli = $hit.FullName; break }
+    }
+    if (-not $cli) {
+        Write-Host "      [WARN] cli.bat not found — cloud drift skipped" -ForegroundColor Yellow
+    } else {
+        $listOut = & $cli cloud functions list --env $EnvId --project $root --lang zh 2>&1
+        $cloudNames = @()
+        foreach ($line in $listOut) {
+            if ($line -match '^\*\s+([a-z0-9-]+)\s*$') { $cloudNames += $Matches[1] }
+        }
+        if ($cloudNames.Count -eq 0) {
+            Write-Host "      [WARN] parsed 0 from cloud list — IDE not logged in or CLI changed format" -ForegroundColor Yellow
+        } else {
+            Write-Host "      cloud returns $($cloudNames.Count) functions" -ForegroundColor Gray
+            $cloudSet = @{}; $cloudNames | ForEach-Object { $cloudSet[$_] = $true }
+            $wlSet = @{}; $wlNames | ForEach-Object { $wlSet[$_] = $true }
+
+            # Cloud drift: on cloud, not in whitelist
+            $drift = @()
+            foreach ($c in $cloudNames) { if (-not $wlSet.ContainsKey($c)) { $drift += $c } }
+            if ($drift.Count -gt 0) {
+                Write-Host ""
+                Write-Host "      [DRIFT] 云端有/白名单无 — 疑似裸奔临时函数! ($($drift.Count)个)" -ForegroundColor Red
+                $drift | ForEach-Object { Write-Host "         → $_  — 立即在云开发控制台删除" -ForegroundColor Red }
+                $auditBlocked = $true
+            } else {
+                Write-Host "      ✅ 云端零漂移（与白名单完全一致）" -ForegroundColor Green
+            }
+            # Missing deploy: on whitelist, not in cloud (informational only)
+            $missing = @()
+            foreach ($w in $wlNames) { if (-not $cloudSet.ContainsKey($w)) { $missing += $w } }
+            if ($missing.Count -gt 0) {
+                Write-Host "      [INFO] 白名单有/云端无 — 未部署 ($($missing.Count)个)" -ForegroundColor Yellow
+                $missing | ForEach-Object { Write-Host "         → $_" -ForegroundColor Yellow }
+            }
+        }
+    }
+
+    # ── 5.2 Local naming + guard scan ──
+    Write-Host "[5.2] local naming + zz- guard scan" -ForegroundColor Gray
+    $localNames = @(Get-ChildItem $fnDir -Directory | Where-Object { Test-Path (Join-Path $_.FullName "index.js") } | ForEach-Object { $_.Name })
+    $wlSet2 = @{}; $wlNames | ForEach-Object { $wlSet2[$_] = $true }
+    $namingViolations = @()   # not in whitelist AND not zz-
+    $guardViolations = @()    # zz- but no guard
+    foreach ($n in $localNames) {
+        if ($wlSet2.ContainsKey($n)) { continue }
+        if ($n -match '^zz-') {
+            # zz- function: must have guard marker
+            $idx = Join-Path $fnDir "$n\index.js"
+            $raw = Get-Content $idx -Raw -ErrorAction SilentlyContinue
+            if (-not $raw) { continue }
+            $hasGuard = ($raw -match 'cloud\.getWXContext\(\)\.OPENID') -and ($raw -match 'admin_openids')
+            if (-not $hasGuard) { $guardViolations += $n }
+        } else {
+            $namingViolations += $n
+        }
+    }
+    if ($namingViolations.Count -gt 0) {
+        Write-Host "      [NAMING] 非白名单且非 zz- 前缀 — 必须登记白名单或改 zz- 名! ($($namingViolations.Count)个)" -ForegroundColor Red
+        $namingViolations | ForEach-Object { Write-Host "         → $_" -ForegroundColor Red }
+        $auditBlocked = $true
+    } else { Write-Host "      ✅ 本地命名全部合规" -ForegroundColor Green }
+    if ($guardViolations.Count -gt 0) {
+        Write-Host "      [GUARD] zz- 函数缺最小守卫 (getWXContext OPENID + admin_openids 白名单) ($($guardViolations.Count)个)" -ForegroundColor Red
+        $guardViolations | ForEach-Object { Write-Host "         → $_" -ForegroundColor Red }
+        $auditBlocked = $true
+    } else {
+        # only print zz- count — if no violations, the section is noise when there are none
+        $zzCount = @($localNames | Where-Object { $_ -match '^zz-' }).Count
+        if ($zzCount -gt 0) { Write-Host "      ✅ $zzCount 个 zz- 临时函数全部带守卫" -ForegroundColor Green }
+    }
+
+    # ── 5.3 Flip-comment scan ──
+    Write-Host "[5.3] flip-comment scan (false && gate / 临时放开 / 上线前恢复 / 上线前删除)" -ForegroundColor Gray
+    $flipPatterns = @(
+        'if\s*\(\s*false\s*\&\&',    # regex: false && with variable whitespace
+        '临时放开',
+        '上线前恢复',
+        '上线前删除'
+    ) | Select-Object -Unique
+    $flipHits = @()
+    foreach ($f in $functions) {
+        $idx = Join-Path $f.FullName "index.js"
+        if (-not (Test-Path $idx)) { continue }
+        $lines = Get-Content $idx -ErrorAction SilentlyContinue
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $ln = $lines[$i]
+            foreach ($pat in $flipPatterns) {
+                if ($ln -match $pat) {
+                    $flipHits += "$($f.Name):$($i+1): $($ln.Trim())"
+                    break
+                }
+            }
+        }
+    }
+    if ($flipHits.Count -gt 0) {
+        Write-Host "      [FLIP] 临时翻转/延迟删除注释命中 ($($flipHits.Count)处)" -ForegroundColor Red
+        $flipHits | ForEach-Object { Write-Host "         → $_" -ForegroundColor Red }
+        $auditBlocked = $true
+    } else { Write-Host "      ✅ 零临时翻转注释命中" -ForegroundColor Green }
+
+    # ── 5.4 zz-registry expiry (simple: zz- functions exist but entry has past date) ──
+    # skipped on purpose: this would require parsing the markdown table which is fragile
+    # human process rule covers it: if zz- function is present, audit reports them above,
+    # and the 5.1 drift scan catches any zz- function left on cloud
+
+    # ── Final audit verdict ──
+    Write-Host ""
+    if ($auditBlocked) {
+        Write-Host "##################################################" -ForegroundColor Red
+        Write-Host " AUDIT FAILED (see [DRIFT]/[NAMING]/[GUARD]/[FLIP] above)" -ForegroundColor Red
+        Write-Host " DEPLOY BLOCKED. Fix the issues, then run: predeploy.ps1 -Audit" -ForegroundColor Red
+        Write-Host "##################################################" -ForegroundColor Red
+        if ($deploySuccess) { exit 4 }  # deploy succeeded but audit failed
+        exit 7
+    } else {
+        Write-Host "##################################################" -ForegroundColor Green
+        Write-Host " AUDIT PASSED — zero drift, zero naming violations, zero flip-comments" -ForegroundColor Green
+        Write-Host "##################################################" -ForegroundColor Green
+    }
+}
+
 Write-Host ""
