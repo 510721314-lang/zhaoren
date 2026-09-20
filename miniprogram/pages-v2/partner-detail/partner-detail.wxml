@@ -106,8 +106,8 @@
 
   <!-- T5 底部栏 -->
   <view class="pd__bottom">
-    <button class="pd__btn pd__btn--ghost" bindtap="onConsult">💬 咨询</button>
-    <button class="pd__btn pd__btn--primary" bindtap="onInvite">邀TA帮忙</button>
+    <button class="pd__btn pd__btn--ghost" bindtap="onConsult" hover-class="btn-press">💬 咨询</button>
+    <button class="pd__btn pd__btn--primary" bindtap="onInvite" hover-class="btn-press">邀TA帮忙</button>
   </view>
   </block>
   <!-- 空态 -->

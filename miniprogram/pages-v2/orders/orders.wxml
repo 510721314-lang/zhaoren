@@ -28,7 +28,8 @@
     <view
       wx:for="{{orders}}"
       wx:key="order_id"
-      class="ol__card"
+      class="ol__card fade-in-up"
+      style="animation-delay:{{index * 0.04}}s;"
       data-id="{{item.order_id}}"
       data-type="{{item.item_type}}"
       bindtap="goItem"

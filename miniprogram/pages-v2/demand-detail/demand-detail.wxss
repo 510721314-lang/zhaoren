@@ -27,9 +27,9 @@
 .dd__direct-tag {
   margin-top: 12rpx;
   display: inline-block;
-  background: #fff6ec;
-  color: #c87a2c;
-  border: 1rpx solid #f3d4ad;
+  background: var(--func-warning-light);
+  color: var(--text-aa);
+  border: 1rpx solid var(--func-warning-light);
   border-radius: var(--r-sm);
   padding: 8rpx 16rpx;
   font-size: var(--font-xs);

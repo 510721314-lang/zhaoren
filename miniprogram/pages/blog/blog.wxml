@@ -42,11 +42,14 @@
         <view class="empty-icon">📭</view>
         <view class="empty-text">{{scope==='my' ? '你还没有发布动态' : '还没有动态'}}</view>
         <view class="empty-sub">{{scope==='my' ? '点右下角写一条吧' : '来发布第一条吧'}}</view>
+        <view class="empty-btn">
+          <button class="btn-primary" hover-class="btn-press" bindtap="goPublish">写动态</button>
+        </view>
       </view>
     </block>
 
     <block wx:else>
-      <view wx:for="{{list}}" wx:key="_id" class="post-card" bindtap="goDetail" data-id="{{item._id}}">
+      <view wx:for="{{list}}" wx:key="_id" class="post-card fade-in-up" style="animation-delay:{{index * 0.04}}s;" bindtap="goDetail" data-id="{{item._id}}">
         <!-- 作者行 -->
         <view class="post-head">
           <image wx:if="{{item.hasAvatar}}" class="avatar" src="{{item.author_avatar}}" mode="aspectFill"
@@ -75,12 +78,12 @@
 
         <!-- 图片: 单图大图 / 多图九宫格 -->
         <view wx:if="{{item.single}}" class="img-single-wrap">
-          <image class="img-single" src="{{item.images[0]}}" mode="widthFix"
+          <image class="img-single" src="{{item.images[0]}}" mode="widthFix" lazy-load
                  catchtap="previewImage" data-current="{{item.images[0]}}" data-urls="{{item.images}}" />
         </view>
         <view wx:elif="{{item.multi}}" class="img-grid img-grid-{{item.imgCount>=3 ? 3 : 2}}">
           <image wx:for="{{item.images}}" wx:for-item="img" wx:for-index="ii" wx:key="ii"
-                 class="grid-img" src="{{img}}" mode="aspectFill"
+                 class="grid-img" src="{{img}}" mode="aspectFill" lazy-load
                  catchtap="previewImage" data-current="{{img}}" data-urls="{{item.images}}" />
         </view>
 

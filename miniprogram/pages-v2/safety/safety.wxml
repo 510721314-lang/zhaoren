@@ -74,7 +74,7 @@
         <view class="sf__checkin-last">上次打卡：{{lastCheckin}}</view>
         <view class="sf__checkin-next">下次打卡倒计时：{{nextCheckinSec}}秒</view>
       </view>
-      <button class="sf__btn sf__btn--ghost" bindtap="onManualCheckin">手动打卡</button>
+      <button class="sf__btn sf__btn--ghost" bindtap="onManualCheckin" hover-class="btn-press">手动打卡</button>
     </view>
 
     <!-- A4 分级求助 -->
@@ -99,7 +99,7 @@
       <!-- 静默求助 -->
       <block wx:if="{{silentCountdownSec > 0}}">
         <view class="sf__silent-counting">静默求助倒计时：{{silentCountdownSec}}秒</view>
-        <button class="sf__btn sf__btn--danger" bindtap="onSilentCancel">撤销</button>
+        <button class="sf__btn sf__btn--danger" bindtap="onSilentCancel" hover-class="btn-press">撤销</button>
       </block>
       <block wx:else>
         <button class="sf__btn sf__btn--ghost" bindtap="onSilentStart" disabled="{{sosActive}}">静默求助（{{sosCountdownSec}}秒后触发）</button>

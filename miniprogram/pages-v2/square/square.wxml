@@ -5,7 +5,7 @@
   <view class="sq-hero">
     <view class="sq-hero__title">👏 需要人帮忙？发个需求</view>
     <view class="sq-hero__sub">描述时间地点与预算，系统为你匹配附近合适耍伴，也可广播到接单大厅</view>
-    <button class="sq-hero__btn" bindtap="onHeroPublish">＋ 发布需求</button>
+    <button class="sq-hero__btn" bindtap="onHeroPublish" hover-class="btn-press">＋ 发布需求</button>
     <view class="sq-hero__switch" bindtap="onSwitchPartner">想接单赚钱？去「我的」切换为耍伴身份 ›</view>
   </view>
 
@@ -35,17 +35,24 @@
   </view>
 
   <!-- S3 需求列表（role=partner，R9双态按钮） -->
-  <view class="square__list">
-    <demand-card
-      wx:for="{{list}}"
-      wx:key="_id"
-      demand="{{item}}"
-      role="partner"
-      certified="{{true}}"
-      bind:action="onGrab"
-      bind:cardtap="onCardTap"
-    ></demand-card>
+  <view class="square__list" wx:if="{{!loading}}">
+    <view class="fade-in-up" style="animation-delay:{{index * 0.04}}s;" wx:for="{{list}}" wx:key="_id">
+      <demand-card
+        demand="{{item}}"
+        role="partner"
+        certified="{{true}}"
+        bind:action="onGrab"
+        bind:cardtap="onCardTap"
+      ></demand-card>
+    </view>
     <empty-state wx:if="{{list.length === 0}}" icon="🧭" title="当前筛选下暂无需求" desc="{{matchExpandMin}}分钟内无匹配时将为你智能扩圈，预约下单还可享{{reserveDiscountText}}"></empty-state>
+  </view>
+
+  <!-- 骨架屏 -->
+  <view class="square__sk" wx:if="{{loading}}">
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
   </view>
 
   <!-- S4 脚注 -->

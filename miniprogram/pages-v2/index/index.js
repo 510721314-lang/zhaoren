@@ -10,6 +10,7 @@ function callCloud(name, data) {
 
 Page({
   data: {
+    loading: true,
     statusBarHeight: 20,
     city: '成都',
     greeting: '你好',
@@ -97,7 +98,8 @@ Page({
           });
         }
       },
-      fail: () => {}
+      fail: () => {},
+      complete: () => { this.setData({ loading: false }); }
     });
   },
 

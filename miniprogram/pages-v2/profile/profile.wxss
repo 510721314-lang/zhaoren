@@ -269,7 +269,7 @@
 }
 .pf__badge {
   font-size: 20rpx;
-  color: #fff;
+  color: var(--text-invert);
   background: var(--func-danger, #fa5151);
   border-radius: 20rpx;
   padding: 2rpx 10rpx;

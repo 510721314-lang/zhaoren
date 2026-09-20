@@ -63,7 +63,7 @@
 
   <!-- 提交 -->
   <view class="ev__bottom">
-    <button class="ev__btn" bindtap="onSubmit">提交评价</button>
+    <button class="ev__btn" bindtap="onSubmit" hover-class="btn-press">提交评价</button>
   </view>
   </block>
   <!-- 空态 -->

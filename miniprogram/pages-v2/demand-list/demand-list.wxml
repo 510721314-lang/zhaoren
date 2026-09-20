@@ -7,15 +7,22 @@
   </view>
 
   <!-- 需求卡片 -->
-  <view class="dl__list">
-    <demand-card
-      wx:for="{{list}}"
-      wx:key="_id"
-      demand="{{item}}"
-      role="user"
-      bind:cardtap="onDemandTap"
-      bind:action="onDemandTap"
-    ></demand-card>
+  <view class="dl__list" wx:if="{{loaded}}">
+    <view class="fade-in-up" style="animation-delay:{{index * 0.04}}s;" wx:for="{{list}}" wx:key="_id">
+      <demand-card
+        demand="{{item}}"
+        role="user"
+        bind:cardtap="onDemandTap"
+        bind:action="onDemandTap"
+      ></demand-card>
+    </view>
+  </view>
+
+  <!-- 首屏骨架屏 -->
+  <view class="dl__sk" wx:if="{{!loaded}}">
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
   </view>
 
   <!-- 空态 -->
@@ -23,13 +30,13 @@
     <view class="dl__empty-icon">📋</view>
     <view class="dl__empty-title">该场景暂无需求</view>
     <view class="dl__empty-desc">下拉刷新，或去发布一个需求</view>
-    <button class="dl__empty-btn" bindtap="onPublishTap">去发布</button>
+    <button class="dl__empty-btn" bindtap="onPublishTap" hover-class="btn-press">去发布</button>
   </view>
 
   <!-- 底部加载区 -->
   <view class="dl__footer" wx:if="{{list.length > 0}}">
-    <button wx:if="{{loading}}" class="dl__more dl__more--loading" loading="true">加载中…</button>
-    <button wx:elif="{{hasMore}}" class="dl__more" bindtap="onMoreTap">点击加载更多（每页 50 条）↓</button>
+    <button wx:if="{{loading}}" class="dl__more dl__more--loading" loading="true" hover-class="btn-press">加载中…</button>
+    <button wx:elif="{{hasMore}}" class="dl__more" bindtap="onMoreTap" hover-class="btn-press">点击加载更多（每页 50 条）↓</button>
     <view wx:else class="dl__nomore">— 已全部加载完 —</view>
   </view>
 </view>

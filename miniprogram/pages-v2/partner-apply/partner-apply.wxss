@@ -14,8 +14,8 @@
 }
 
 .pa__card {
-  background: #fff; border-radius: 20rpx; padding: 32rpx 28rpx;
-  margin-top: 24rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+  background: var(--bg-card); border-radius: 20rpx; padding: 32rpx 28rpx;
+  margin-top: 24rpx; box-shadow: var(--shadow-card);
 }
 .pa__card-title {
   font-size: 30rpx; font-weight: 600; color: var(--text-1); margin-bottom: 24rpx;
@@ -24,7 +24,7 @@
 .pa__tip { font-size: 24rpx; color: var(--text-4); margin: -12rpx 0 20rpx; line-height: 1.5; }
 
 .pa__loc {
-  border: 2rpx dashed #FF9A3C; border-radius: 14rpx;
+  border: 2rpx dashed var(--func-warning); border-radius: 14rpx;
   padding: 24rpx 22rpx; display: flex; align-items: center;
 }
 .pa__loc-main { flex: 1; min-width: 0; }
@@ -33,27 +33,27 @@
   font-size: 24rpx; color: var(--text-4); margin-top: 6rpx;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.pa__loc-change { font-size: 24rpx; color: #FF9A3C; margin-left: 16rpx; flex-shrink: 0; }
+.pa__loc-change { font-size: 24rpx; color: var(--func-warning); margin-left: 16rpx; flex-shrink: 0; }
 .pa__loc-empty { font-size: 28rpx; color: var(--text-4); }
 
 .pa__scenes { display: flex; flex-wrap: wrap; gap: 20rpx; }
 .pa__scene {
   width: calc(33.33% - 14rpx); box-sizing: border-box;
   padding: 28rpx 12rpx; border-radius: 16rpx;
-  background: #F5F5F7; text-align: center;
+  background: var(--bg-segment); text-align: center;
   border: 2rpx solid transparent;
   transition: all .15s ease;
   position: relative;
 }
 .pa__scene.is-on {
-  background: #FFF4E6; border-color: #FF9A3C;
+  background: var(--func-warning-light); border-color: var(--func-warning);
 }
 .pa__scene-emoji { font-size: 52rpx; }
 .pa__scene-name { font-size: 24rpx; color: var(--text-1); margin-top: 6rpx; }
 .pa__scene-check {
   position: absolute; top: 8rpx; right: 12rpx;
   width: 36rpx; height: 36rpx; border-radius: 50%;
-  background: #FF9A3C; color: #fff; font-size: 22rpx;
+  background: var(--func-warning); color: var(--text-invert); font-size: 22rpx;
   display: flex; align-items: center; justify-content: center;
 }
 
@@ -63,8 +63,8 @@
 }
 
 .pa__submit {
-  margin-top: 80rpx; background: #FF9A3C; color: #fff;
+  margin-top: 80rpx; background: var(--func-warning); color: var(--text-invert);
   border-radius: 48rpx; font-size: 32rpx; font-weight: 600;
   padding: 28rpx 0; border: none;
 }
-.pa__submit[disabled] { background: #D4A87A; color: #fff; }
+.pa__submit[disabled] { background: var(--btn-disabled-bg); color: var(--text-disabled); }

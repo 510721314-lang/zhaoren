@@ -6,7 +6,7 @@
 .nt__item {
   display: flex; gap: 20rpx;
   padding: 24rpx 20rpx;
-  background: #fff; border-radius: var(--r-md);
+  background: var(--bg-card); border-radius: var(--r-md);
   margin-bottom: 16rpx;
 }
 .nt__item--unread {

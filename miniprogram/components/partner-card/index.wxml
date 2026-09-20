@@ -37,7 +37,7 @@
       <text class="pcard__price-num">{{normalized.price_min}}-{{normalized.price_max}}</text>
       <text class="pcard__price-unit"> 元/小时 · 距你 {{normalized.distance_km}}km</text>
     </view>
-    <button class="pcard__btn" catchtap="onInvite">邀TA帮忙</button>
+    <button class="pcard__btn" catchtap="onInvite" hover-class="btn-press">邀TA帮忙</button>
   </view>
 
   <view class="pcard__dyn" wx:if="{{normalized.latest_dynamic}}">

@@ -35,7 +35,7 @@
       <view class="login__reject-ic">🚫</view>
       <view class="login__reject-title">暂无法提供服务</view>
       <view class="login__reject-desc">{{rejectReason}}</view>
-      <button class="login__reject-btn" bindtap="backReject">返回</button>
+      <button class="login__reject-btn" bindtap="backReject" hover-class="btn-press">返回</button>
     </view>
   </view>
 

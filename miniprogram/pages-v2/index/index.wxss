@@ -4,6 +4,12 @@
   padding-bottom: 160rpx;
 }
 
+/* 骨架屏 */
+.home__skeleton { padding: 24rpx; }
+.home__sk-grid { display: flex; flex-wrap: wrap; }
+.home__sk-cell { width: 25%; text-align: center; margin-bottom: 24rpx; }
+.home__sk-cell .skeleton { margin: 0 auto; }
+
 /* H1 */
 .home__nav {
   background: var(--bg-card);
@@ -69,7 +75,7 @@
   text-align: center;
   border-radius: 50%;
   background: var(--text-disabled);
-  color: #fff;
+  color: var(--text-invert);
   font-size: var(--font-lg);
   flex-shrink: 0;
 }
@@ -253,7 +259,7 @@
   height: 96rpx;
   border-radius: 50%;
   background: var(--bg-segment);
-  border: 4rpx solid #f1f3f5;
+  border: 4rpx solid var(--border-2);
 }
 .home__active-avatar--ph {
   display: flex;
@@ -275,8 +281,8 @@
   margin-top: 8rpx;
   padding: 2rpx 14rpx;
   border-radius: 20rpx;
-  background: #fff3e6;
-  color: #e08a1e;
+  background: var(--func-warning-light);
+  color: var(--func-warning);
   font-size: var(--font-xs);
   line-height: 1.6;
 }

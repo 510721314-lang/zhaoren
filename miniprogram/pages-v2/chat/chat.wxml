@@ -84,8 +84,8 @@
     </picker>
     <view class="chat__edit-tip">修改后四项确认将全部重置,需双方重新确认</view>
     <view slot="footer" class="chat__other-btns">
-      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet">取消</button>
-      <button class="chat__btn chat__btn--primary" bindtap="confirmEditTime">确认修改</button>
+      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditTime" hover-class="btn-press">确认修改</button>
     </view>
   </bottom-sheet>
 
@@ -99,8 +99,8 @@
     </checkbox-group>
     <view class="chat__edit-tip">修改后四项确认将全部重置,需双方重新确认</view>
     <view slot="footer" class="chat__other-btns">
-      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet">取消</button>
-      <button class="chat__btn chat__btn--primary" bindtap="confirmEditContent">确认修改</button>
+      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditContent" hover-class="btn-press">确认修改</button>
     </view>
   </bottom-sheet>
 
@@ -112,8 +112,8 @@
     </view>
     <view class="chat__edit-tip">修改后四项确认将全部重置,需双方重新确认;平台将按新金额重新计算服务费</view>
     <view slot="footer" class="chat__other-btns">
-      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet">取消</button>
-      <button class="chat__btn chat__btn--primary" bindtap="confirmEditFee">确认修改</button>
+      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditFee" hover-class="btn-press">确认修改</button>
     </view>
   </bottom-sheet>
 

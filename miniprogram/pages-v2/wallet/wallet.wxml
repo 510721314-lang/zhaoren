@@ -25,7 +25,7 @@
           <text class="wt__income-val">¥{{totalIncomeYuan}}</text>
         </view>
       </view>
-      <button class="wt__withdraw-btn" bindtap="openWithdraw">提现</button>
+      <button class="wt__withdraw-btn" bindtap="openWithdraw" hover-class="btn-press">提现</button>
     </view>
 
     <!-- V2 极速提现资格 -->
@@ -95,8 +95,8 @@
       <text class="wt__bank-val">尾号 {{bankTail}}</text>
     </view>
     <view slot="footer" class="wt__sheet-btns">
-      <button class="wt__btn wt__btn--ghost" bindtap="closeWithdraw">取消</button>
-      <button class="wt__btn wt__btn--primary" bindtap="confirmWithdraw">确认提现</button>
+      <button class="wt__btn wt__btn--ghost" bindtap="closeWithdraw" hover-class="btn-press">取消</button>
+      <button class="wt__btn wt__btn--primary" bindtap="confirmWithdraw" hover-class="btn-press">确认提现</button>
     </view>
   </bottom-sheet>
 

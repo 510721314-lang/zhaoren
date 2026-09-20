@@ -40,7 +40,7 @@
     </view>
   </view>
 
-  <button class="ct__add" wx:else bindtap="toggleSecond">＋ 添加第二联系人</button>
+  <button class="ct__add" wx:else bindtap="toggleSecond" hover-class="btn-press">＋ 添加第二联系人</button>
 
-  <button class="ct__save" loading="{{saving}}" bindtap="save">保存</button>
+  <button class="ct__save" loading="{{saving}}" bindtap="save" hover-class="btn-press">保存</button>
 </view>

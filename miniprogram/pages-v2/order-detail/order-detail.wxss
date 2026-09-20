@@ -37,7 +37,7 @@
 }
 .od__next-step--primary .od__next-btn {
   background: var(--func-success, #4caf50);
-  color: #fff;
+  color: var(--text-invert);
 }
 .od__next-step--warn {
   background: rgba(250, 81, 81, 0.12);
@@ -47,7 +47,7 @@
 .od__next-step--warn .od__next-title { color: var(--func-danger, #fa5151); font-weight: 700; }
 .od__next-step--warn .od__next-btn {
   background: var(--func-danger, #fa5151);
-  color: #fff;
+  color: var(--text-invert);
   font-size: var(--font-md);
   padding: 14rpx 28rpx;
   border-radius: 32rpx;
@@ -65,7 +65,7 @@
 }
 .od__next-step--info .od__next-btn {
   background: var(--brand-primary, #1890ff);
-  color: #fff;
+  color: var(--text-invert);
 }
 .od__next-step--mute {
   background: var(--bg-segment);
@@ -73,7 +73,7 @@
 }
 .od__next-step--mute .od__next-btn {
   background: var(--text-3);
-  color: #fff;
+  color: var(--text-invert);
 }
 
 .od__tags { display: flex; gap: 12rpx; margin-bottom: 16rpx; }
@@ -110,8 +110,8 @@
   padding: 0;
   margin: 0;
 }
-.od__sos-btn { background: #d9413b; color: #fff; }
-.od__report-btn { background: #fff; color: #d9413b; border: 2rpx solid #f0b7b4; }
+.od__sos-btn { background: var(--func-danger); color: var(--text-invert); }
+.od__report-btn { background: var(--bg-card); color: var(--func-danger); border: 2rpx solid var(--func-danger-light); }
 .od__sos-btn::after,
 .od__report-btn::after { border: none; }
 .od__safety-desc { margin-top: 16rpx; font-size: var(--font-xs); color: var(--text-4); line-height: 1.6; }

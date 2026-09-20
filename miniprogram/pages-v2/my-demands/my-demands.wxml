@@ -9,7 +9,8 @@
     <view
       wx:for="{{list}}"
       wx:key="_id"
-      class="md__card"
+      class="md__card fade-in-up"
+      style="animation-delay:{{index * 0.04}}s;"
       data-id="{{item._id}}"
       bindtap="goDetail"
       hover-class="md__card--hover"

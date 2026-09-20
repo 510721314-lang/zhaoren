@@ -56,8 +56,8 @@
             </view>
             <view class="wb__time-meta">{{item.locationName}} · {{item.partnerName}}</view>
             <view class="wb__time-btns">
-              <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onNavigate">导航</button>
-              <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onContactUser">联系</button>
+              <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onNavigate" hover-class="btn-press">导航</button>
+              <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onContactUser" hover-class="btn-press">联系</button>
             </view>
           </view>
         </view>
@@ -88,14 +88,14 @@
           <view class="wb__todo-meta">{{item.service_date}} {{item.service_time}} · {{confirmTimeoutMin}}分钟内确认</view>
         </view>
         <view class="wb__todo-btns">
-          <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onConfirmOrder">确认</button>
-          <button class="wb__mini-btn wb__mini-btn--danger" data-id="{{item._id}}" bindtap="onRejectOrder">拒绝</button>
+          <button class="wb__mini-btn" data-id="{{item._id}}" bindtap="onConfirmOrder" hover-class="btn-press">确认</button>
+          <button class="wb__mini-btn wb__mini-btn--danger" data-id="{{item._id}}" bindtap="onRejectOrder" hover-class="btn-press">拒绝</button>
         </view>
       </view>
     </view>
 
     <!-- W5 一键报警 -->
-    <button class="wb__alarm-btn" bindtap="onAlarmTap">🚨 一键报警</button>
+    <button class="wb__alarm-btn" bindtap="onAlarmTap" hover-class="btn-press">🚨 一键报警</button>
     </block>
   </view>
 

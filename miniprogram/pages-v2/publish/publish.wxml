@@ -152,7 +152,7 @@
 
   <!-- B11 底部按钮 -->
   <view class="pub__bottom">
-    <button class="pub__btn pub__btn--ghost" bindtap="saveDraft">存草稿</button>
+    <button class="pub__btn pub__btn--ghost" bindtap="saveDraft" hover-class="btn-press">存草稿</button>
     <button class="pub__btn pub__btn--primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">发布需求</button>
   </view>
 

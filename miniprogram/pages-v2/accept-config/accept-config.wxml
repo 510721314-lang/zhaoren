@@ -116,7 +116,7 @@
 
   <!-- 9. 保存 -->
   <view class="ac__bottom">
-    <button class="ac__btn" bindtap="onSave">保存配置</button>
+    <button class="ac__btn" bindtap="onSave" hover-class="btn-press">保存配置</button>
   </view>
   </block>
 

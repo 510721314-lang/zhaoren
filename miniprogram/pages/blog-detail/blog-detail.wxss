@@ -12,13 +12,13 @@
 }
 .avatar {
   width: 88rpx; height: 88rpx; border-radius: 50%; background: var(--border-1);
-  border: 2rpx solid var(--text-invert); box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.1);
+  border: 2rpx solid rgba(255,255,255,0.45); box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.1);
   transition: var(--transition, 0.2s ease);
 }
 .avatar:active { transform: scale(0.95); }
 .avatar-default {
   display: flex; align-items: center; justify-content: center; font-size: var(--font-display-lg);
-  border: 2rpx solid var(--text-invert); box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.1);
+  border: 2rpx solid rgba(255,255,255,0.45); box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.1);
 }
 .author-mid { flex: 1; margin-left: 20rpx; min-width: 0; }
 .author-name { display: flex; align-items: center; }

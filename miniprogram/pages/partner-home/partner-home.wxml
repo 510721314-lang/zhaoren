@@ -73,12 +73,12 @@
         <text wx:for="{{item.tags}}" wx:for-item="tg" wx:key="*this" class="topic-tag">#{{tg}}</text>
       </view>
       <view wx:if="{{item.single}}" class="img-single-wrap">
-        <image class="img-single" src="{{item.images[0]}}" mode="widthFix"
+        <image class="img-single" src="{{item.images[0]}}" mode="widthFix" lazy-load
                catchtap="previewImage" data-current="{{item.images[0]}}" data-urls="{{item.images}}" />
       </view>
       <view wx:elif="{{item.multi}}" class="img-grid img-grid-{{item.imgCount>=3 ? 3 : 2}}">
         <image wx:for="{{item.images}}" wx:for-item="img" wx:for-index="ii" wx:key="ii"
-               class="grid-img" src="{{img}}" mode="aspectFill"
+               class="grid-img" src="{{img}}" mode="aspectFill" lazy-load
                catchtap="previewImage" data-current="{{img}}" data-urls="{{item.images}}" />
       </view>
       <view class="post-foot">

@@ -50,8 +50,8 @@
     <view class="od__card" wx:if="{{order.status === 'S2' || order.status === 'S3' || order.status === 'S3_5' || order.status === 'S4'}}">
       <view class="od__card-title">🛡️ 安全中心</view>
       <view class="od__safety-grid">
-        <button class="od__sos-btn" bindtap="onSos">🆘 紧急求助</button>
-        <button class="od__report-btn" bindtap="onSafety">📍 安全报备</button>
+        <button class="od__sos-btn" bindtap="onSos" hover-class="btn-press">🆘 紧急求助</button>
+        <button class="od__report-btn" bindtap="onSafety" hover-class="btn-press">📍 安全报备</button>
       </view>
       <view class="od__safety-desc">紧急求助将记录位置并通知平台；安全报备可向对方报平安</view>
       <view class="od__checkin-list" wx:if="{{safety.checkins.length > 0}}">
@@ -78,8 +78,8 @@
       <!-- S0 待支付 -->
       <block wx:if="{{order.status === 'S0'}}">
         <block wx:if="{{order.my_role === 'user'}}">
-          <button class="od__btn od__btn--primary" bindtap="goPay">去支付</button>
-          <button class="od__btn od__btn--ghost" bindtap="onCancel">取消订单</button>
+          <button class="od__btn od__btn--primary" bindtap="goPay" hover-class="btn-press">去支付</button>
+          <button class="od__btn od__btn--ghost" bindtap="onCancel" hover-class="btn-press">取消订单</button>
         </block>
         <block wx:else>
           <button class="od__btn od__btn--disabled" disabled>⏳ 等待用户支付</button>
@@ -88,18 +88,18 @@
 
       <!-- S1 待确认 -->
       <block wx:elif="{{order.status === 'S1'}}">
-        <button class="od__btn od__btn--primary" bindtap="goChat">进入聊天完成四确认</button>
+        <button class="od__btn od__btn--primary" bindtap="goChat" hover-class="btn-press">进入聊天完成四确认</button>
       </block>
 
       <!-- S2 已支付待履约 -->
       <block wx:elif="{{order.status === 'S2'}}">
         <block wx:if="{{order.my_role === 'partner'}}">
-          <button class="od__btn od__btn--primary" bindtap="onStartService">开始履约</button>
-          <button class="od__btn od__btn--ghost" bindtap="goChat">联系用户</button>
+          <button class="od__btn od__btn--primary" bindtap="onStartService" hover-class="btn-press">开始履约</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
         </block>
         <block wx:else>
-          <button class="od__btn od__btn--primary" bindtap="onViewPrep">📋 查看履约准备</button>
-          <button class="od__btn od__btn--ghost" bindtap="goChat">联系耍伴</button>
+          <button class="od__btn od__btn--primary" bindtap="onViewPrep" hover-class="btn-press">📋 查看履约准备</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系耍伴</button>
         </block>
       </block>
 
@@ -117,13 +117,13 @@
               <view class="od__ms-line {{index < order.milestone.current ? 'is-done' : ''}}" wx:if="{{index < 2}}"></view>
             </block>
           </view>
-          <button class="od__btn od__btn--ghost od__ms-submit" wx:if="{{order.milestone.current < 3 && order.my_role === 'partner'}}" bindtap="onMilestoneSubmit">
+          <button class="od__btn od__btn--ghost od__ms-submit" wx:if="{{order.milestone.current < 3 && order.my_role === 'partner'}}" bindtap="onMilestoneSubmit" hover-class="btn-press">
             提交{{order.nextPercent}}%履约进度
           </button>
         </view>
         <view class="od__action-grid">
-          <button class="od__action-btn" bindtap="onAddTime">⏰ 加时申请</button>
-          <button class="od__action-btn" bindtap="onModify">📅 申请改期</button>
+          <button class="od__action-btn" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
+          <button class="od__action-btn" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
           <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
         </view>
         <view class="od__ms-hint" wx:if="{{order.my_role === 'partner' && !order.canFinishService}}">须先提交到100%才能完成履约</view>
@@ -135,8 +135,8 @@
           <view class="od__safety-q">履约中断处理</view>
           <view class="od__safety-tip">{{s35ResponseMin}}分钟内未响应自动确认 · {{statusInfo.timeoutText}}</view>
           <view class="od__safety-btns">
-            <button class="od__btn od__btn--ghost" bindtap="onResumeService">恢复履约</button>
-            <button class="od__btn od__btn--primary" bindtap="onToPartial">确认部分完成</button>
+            <button class="od__btn od__btn--ghost" bindtap="onResumeService" hover-class="btn-press">恢复履约</button>
+            <button class="od__btn od__btn--primary" bindtap="onToPartial" hover-class="btn-press">确认部分完成</button>
           </view>
         </view>
       </block>
@@ -145,20 +145,20 @@
       <block wx:elif="{{order.status === 'S4'}}">
         <view class="od__ratio-confirm">
           <view class="od__safety-q">部分完成比例确认</view>
-          <button class="od__btn od__btn--primary" bindtap="onRatioConfirm">确认比例</button>
+          <button class="od__btn od__btn--primary" bindtap="onRatioConfirm" hover-class="btn-press">确认比例</button>
         </view>
       </block>
 
       <!-- S5 已完成 -->
       <block wx:elif="{{order.status === 'S5'}}">
-        <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'user'}}" bindtap="onEvaluate">去评价</button>
+        <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'user'}}" bindtap="onEvaluate" hover-class="btn-press">去评价</button>
         <button class="od__btn od__btn--ghost" wx:else disabled>⏳ 等待用户评价</button>
       </block>
 
       <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
       <block wx:elif="{{order.status === 'S8'}}">
         <view class="od__after-sale-tip">售后窗口{{afterSaleDays}}天</view>
-        <button class="od__btn od__btn--danger" bindtap="onComplaint">发起投诉</button>
+        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方2小时内确认，超时自动拒绝） -->
@@ -171,8 +171,8 @@
           <view class="od__after-sale-tip" wx:else>耍伴发起的改期</view>
         </view>
         <view class="od__safety-btns" wx:if="{{order.pending_modify.can_respond}}">
-          <button class="od__btn od__btn--ghost" bindtap="onModifyReject">拒绝改期</button>
-          <button class="od__btn od__btn--primary" bindtap="onModifyConfirm">同意改期</button>
+          <button class="od__btn od__btn--ghost" bindtap="onModifyReject" hover-class="btn-press">拒绝改期</button>
+          <button class="od__btn od__btn--primary" bindtap="onModifyConfirm" hover-class="btn-press">同意改期</button>
         </view>
         <view class="od__after-sale-tip" wx:elif="{{order.pending_modify}}">等待对方确认…</view>
       </block>
@@ -208,8 +208,8 @@
       </view>
     </picker>
     <view class="od__panel-btns">
-      <button class="od__btn od__btn--ghost" bindtap="closeModifyPanel">取消</button>
-      <button class="od__btn od__btn--primary" bindtap="submitModify">提交改期</button>
+      <button class="od__btn od__btn--ghost" bindtap="closeModifyPanel" hover-class="btn-press">取消</button>
+      <button class="od__btn od__btn--primary" bindtap="submitModify" hover-class="btn-press">提交改期</button>
     </view>
   </view>
   </block>

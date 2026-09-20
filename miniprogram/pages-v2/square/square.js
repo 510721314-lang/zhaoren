@@ -6,6 +6,7 @@ const { takeOrder } = require('../../utils/take-order.js');
 
 Page({
   data: {
+    loading: true,
     chips: [],
     activeChip: 'all',
     sorts: ['综合', '距离', '最新', '单价'],
@@ -82,7 +83,8 @@ Page({
           this.buildList();
         }
       },
-      fail: () => {}
+      fail: () => {},
+      complete: () => { this.setData({ loading: false }); }
     });
   },
 

@@ -37,6 +37,9 @@ page {
 
 view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
 
+/* 通用按钮 hover（替代 :active 手写，统一透明度反馈） */
+.btn-hover { opacity: 0.7; transition: opacity 0.15s ease; }
+
 .container { padding: 24rpx; }
 
 /* 卡片 */
@@ -61,7 +64,7 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
 }
 .btn-primary::after { border: none; }
 .btn-primary:active { transform: scale(0.97); opacity: 0.9; }
-.btn-primary[disabled] { background: var(--primary-disabled); color: var(--text-invert); }
+.btn-primary[disabled] { background: var(--primary-disabled); color: var(--text-disabled); }
 
 /* 幽灵按钮 */
 .btn-ghost {
@@ -174,4 +177,63 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
   color: var(--text-3);
   font-size: var(--font-md);
   padding: 80rpx 0;
+}
+
+/* ═══════ 交互动效(按压反馈) ═══════ */
+/* 按钮按压: opacity + 轻微缩放, 仅 transform/opacity 不触发重排 */
+.btn-press { transition: opacity .15s ease, transform .15s ease; }
+.btn-press:active { opacity: 0.8; transform: scale(0.97); }
+.btn-press[disabled] { opacity: 1; transform: none; }
+
+/* 卡片/列表项入口按压: 更轻的缩放 */
+.card-press { transition: transform .18s ease, box-shadow .18s ease; }
+.card-press:active { transform: scale(0.985); }
+
+/* ═══════ 进场动效(淡入+上浮, 仅 opacity/transform) ═══════ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20rpx); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 进场动画类, 动画结束后保留最终态 */
+.fade-in-up {
+  opacity: 0;
+  animation: fadeInUp .4s ease forwards;
+}
+.fade-in {
+  opacity: 0;
+  animation: fadeIn .4s ease forwards;
+}
+
+/* 列表项 stagger 进场: 通过 inline style 设置 animation-delay */
+.list-item-enter {
+  opacity: 0;
+  animation: fadeInUp .4s ease forwards;
+}
+
+/* ═══════ 暗色模式（旧变量兜底，与 tokens.wxss 绿色变量同步反色） ═══════ */
+@media (prefers-color-scheme: dark) {
+  page {
+    --primary: #07C160;
+    --primary-light: rgba(7,193,96,0.15);
+    --primary-lighter: rgba(7,193,96,0.08);
+    --primary-disabled: #2A2E36;
+    --secondary: #C8CCD1;
+    --success: #07C160;
+    --success-light: rgba(7,193,96,0.15);
+    --warning: #ff8f3c;
+    --warning-light: rgba(255,143,60,0.15);
+    --danger: #fa5151;
+    --danger-light: rgba(250,81,81,0.15);
+    --text-1: #F0F1F3;
+    --text-2: #C8CCD1;
+    --text-3: #9097A0;
+    --bg-page: #14161A;
+    --bg-card: #1E2126;
+    --border: #33373F;
+  }
 }

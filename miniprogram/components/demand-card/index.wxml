@@ -37,6 +37,6 @@
     <!-- 耍伴视角：未认证该场景 → 灰态需认证 -->
     <button class="dcard__btn dcard__btn--gray" disabled wx:elif="{{role === 'partner' && !certified}}">需{{certName}}</button>
     <!-- 正常可操作 -->
-    <button class="dcard__btn" catchtap="onAction" wx:else>{{role === 'user' ? '帮TA →' : actionText}}</button>
+    <button class="dcard__btn" catchtap="onAction" wx:else hover-class="btn-press">{{role === 'user' ? '帮TA →' : actionText}}</button>
   </view>
 </view>

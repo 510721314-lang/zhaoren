@@ -4,6 +4,6 @@
     <view class="night__title">夜间服务休息中</view>
     <view class="night__desc">为保障人身安全，平台每日 {{closeTime}}–次日{{openTime}}暂停预约与履约功能（系统强制）</view>
     <view class="night__sub">您可继续浏览内容</view>
-    <button class="night__btn" catchtap="onReserve">预约明早 {{openTime}} 后的服务</button>
+    <button class="night__btn" catchtap="onReserve" hover-class="btn-press">预约明早 {{openTime}} 后的服务</button>
   </view>
 </view>

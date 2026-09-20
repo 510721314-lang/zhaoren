@@ -110,6 +110,85 @@ page {
   --shadow-card: 0 2rpx 12rpx rgba(0,0,0,0.04);
   --shadow-float: 0 12rpx 28rpx rgba(0,0,0,0.15);
   --shadow-pub: 0 12rpx 28rpx rgba(7,193,96,0.4);
+
+  /* 6. 安全区 */
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+
+  /* 7. 动效 */
+  --ease: 0.2s ease;
+}
+
+/* ═══════════ 暗色模式（prefers-color-scheme: dark） ═══════════ */
+@media (prefers-color-scheme: dark) {
+  page {
+    /* 品牌色保持 */
+    --brand-primary: #07C160;
+    --brand-primary-press: #06AD56;
+    --brand-primary-light: rgba(7,193,96,0.15);
+    --brand-accent: #ff6b35;
+    --brand-accent-light: rgba(255,107,53,0.15);
+
+    /* 功能色保持 */
+    --func-danger: #fa5151;
+    --func-danger-light: rgba(250,81,81,0.15);
+    --func-warning: #ff8f3c;
+    --func-warning-light: rgba(255,143,60,0.15);
+    --func-success: #07C160;
+    --func-success-light: rgba(7,193,96,0.15);
+    --func-info: #4d8aff;
+    --func-info-light: rgba(77,138,255,0.15);
+    --func-purple: #8b72ff;
+    --func-purple-light: rgba(139,114,255,0.15);
+
+    /* 文字色（暗底提亮） */
+    --text-1: #F0F1F3;
+    --text-2: #C8CCD1;
+    --text-3: #9097A0;
+    --text-4: #6B7280;
+    --text-5: #5A616A;
+    --text-disabled: #8a9099;
+    --text-invert: #1A1D21;
+
+    /* 背景与边框（反色） */
+    --bg-page: #14161A;
+    --bg-card: #1E2126;
+    --bg-input: #252830;
+    --bg-segment: #2A2E36;
+    --bg-mask: rgba(0,0,0,0.6);
+    --bg-night: rgba(0,0,0,0.85);
+    --border-1: #33373F;
+    --border-2: #2A2E36;
+    --border-divider: #252830;
+    --border-ghost: #3A3F48;
+    --btn-disabled-bg: #2A2E36;
+    --sheet-handle: #3A3F48;
+    --progress-todo: #33373F;
+    --text-aa: #FFB84D;
+    --cert-border: rgba(7,193,96,0.4);
+    --avatar-bg: #2A2E36;
+    --cell-gray-bg: #252830;
+    --banner-grad-start: rgba(255,143,60,0.12);
+    --banner-grad-end: rgba(255,107,53,0.12);
+    --text-banner-sub: #FFB84D;
+
+    /* 场景色（暗底降低饱和） */
+    --scene-medical-bg: rgba(77,138,255,0.15);
+    --scene-study-bg: rgba(139,114,255,0.15);
+    --scene-life-bg: rgba(255,143,60,0.15);
+    --scene-travel-bg: rgba(14,140,132,0.15);
+    --scene-online-bg: rgba(250,81,81,0.15);
+    --scene-medical-text: #4d8aff;
+    --scene-study-text: #8b72ff;
+    --scene-life-text: #FFB84D;
+    --scene-travel-text: #1abc9c;
+    --scene-online-text: #fa5151;
+
+    /* 阴影（暗色加深） */
+    --shadow-card: 0 2rpx 12rpx rgba(0,0,0,0.3);
+    --shadow-float: 0 12rpx 28rpx rgba(0,0,0,0.5);
+    --shadow-pub: 0 12rpx 28rpx rgba(7,193,96,0.3);
+  }
 }
 
 /* ═══════════ V15 工具类（.v2 作用域，新页面根节点统一挂 class="v2"） ═══════════ */
@@ -160,7 +239,7 @@ page {
 }
 .v2 .btn-primary.button-hover { background: var(--brand-primary-press); }
 .v2 .btn-primary[disabled],
-.v2 .btn-primary[disabled][button-hover] { background: var(--btn-disabled-bg); color: var(--text-invert); }
+.v2 .btn-primary[disabled][button-hover] { background: var(--btn-disabled-bg); color: var(--text-disabled); }
 .v2 .btn-ghost {
   background: var(--bg-card);
   color: var(--text-3);

@@ -253,7 +253,7 @@
 @keyframes chat-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 /* 待支付横幅 */
-.chat__pay-banner { display: flex; align-items: center; justify-content: space-between; margin: 16rpx 24rpx 0; padding: 20rpx 24rpx; background: var(--brand-primary); color: #fff; border-radius: var(--r-md); font-size: var(--font-sm); box-shadow: 0 6rpx 20rpx rgba(7, 193, 96, 0.3); }
+.chat__pay-banner { display: flex; align-items: center; justify-content: space-between; margin: 16rpx 24rpx 0; padding: 20rpx 24rpx; background: var(--brand-primary); color: var(--text-invert); border-radius: var(--r-md); font-size: var(--font-sm); box-shadow: 0 6rpx 20rpx rgba(7, 193, 96, 0.3); }
 .chat__pay-go { font-weight: 600; }
 
 /* 调整确认项弹层 */

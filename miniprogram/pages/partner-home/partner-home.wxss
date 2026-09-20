@@ -11,11 +11,11 @@
 }
 .p-avatar {
   width: 110rpx; height: 110rpx; border-radius: 50%; background: var(--border-1);
-  border: 3rpx solid var(--text-invert); box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.12);
+  border: 3rpx solid rgba(255,255,255,0.45); box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.12);
 }
 .p-avatar-default {
   display: flex; align-items: center; justify-content: center; font-size: var(--font-2xl);
-  border: 3rpx solid var(--text-invert); box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.12);
+  border: 3rpx solid rgba(255,255,255,0.45); box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.12);
 }
 .p-mid { flex: 1; margin-left: 24rpx; min-width: 0; }
 .p-name-row { display: flex; align-items: center; }

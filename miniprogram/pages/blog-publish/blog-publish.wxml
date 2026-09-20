@@ -43,6 +43,6 @@
     </view>
   </view>
 
-  <button class="btn-primary btn-block submit-btn" loading="{{submitting}}" bindtap="onSubmit">发布动态</button>
+  <button class="btn-primary btn-block submit-btn" loading="{{submitting}}" bindtap="onSubmit" hover-class="btn-press">发布动态</button>
   <view class="tip">发布即表示遵守社区规范，禁止违规、导流、辱骂等内容</view>
 </view>

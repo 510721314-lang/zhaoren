@@ -82,7 +82,7 @@
 
 /* 悬浮发布 */
 .fab {
-  position: fixed; right: 36rpx; bottom: 60rpx;
+  position: fixed; right: 36rpx; bottom: calc(60rpx + env(safe-area-inset-bottom));
   background: var(--primary, #D4875A); color: var(--text-invert);
   font-size: var(--font-lg); font-weight: 600;
   padding: 24rpx 36rpx; border-radius: 48rpx;

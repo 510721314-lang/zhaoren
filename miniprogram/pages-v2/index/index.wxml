@@ -43,7 +43,7 @@
   </view>
 
   <!-- H4 场景宫格（搜索实时过滤） -->
-  <view class="home__grid" wx:if="{{filteredScenes.length > 0}}">
+  <view class="home__grid" wx:if="{{!loading && filteredScenes.length > 0}}">
     <view class="home__cell" wx:for="{{filteredScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
       <view class="home__gb-badge" wx:if="{{item.gb}}">国标</view>
       <view class="home__cell-ic" style="background:{{item.color}};">{{item.icon}}</view>
@@ -54,9 +54,21 @@
       <view class="home__cell-name">更多场景</view>
     </view>
   </view>
-  <view class="home__search-empty" wx:else>
+  <view class="home__search-empty" wx:elif="{{!loading}}">
     <view>未找到与「{{searchKey}}」相关的场景</view>
     <view class="home__search-empty-sub">试试：陪诊 / 学习 / 生活协助 / 出行 / 线上</view>
+  </view>
+
+  <!-- 骨架屏: 场景宫格 + 需求卡片 -->
+  <view class="home__skeleton" wx:if="{{loading}}">
+    <view class="home__sk-grid">
+      <view class="home__sk-cell" wx:for="{{[1,2,3,4,5,6,7,8]}}" wx:key="*this">
+        <view class="skeleton sk-circle" style="width:72rpx;height:72rpx;"></view>
+        <view class="skeleton sk-line-sm" style="width:60rpx;margin:12rpx auto 0;"></view>
+      </view>
+    </view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-top:24rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;"></view>
   </view>
 
   <!-- H5 新人福利 -->
@@ -73,7 +85,7 @@
     <view class="home__active-title"><text class="home__title-bar"></text>👥 活跃用户</view>
     <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
       <view class="home__active-item" wx:for="{{activeUsers}}" wx:key="openid" data-openid="{{item.openid}}" bindtap="onActiveUserTap">
-        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill" lazy-load></image>
         <view wx:else class="home__active-avatar home__active-avatar--ph">👤</view>
         <view class="home__active-name">{{item.nickname}}</view>
       </view>
@@ -85,7 +97,7 @@
     <view class="home__active-title"><text class="home__title-bar"></text>⭐ 活跃耍伴</view>
     <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
       <view class="home__active-item" wx:for="{{activePartners}}" wx:key="openid" data-openid="{{item.openid}}" bindtap="onActivePartnerTap">
-        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill" lazy-load></image>
         <view wx:else class="home__active-avatar home__active-avatar--ph">👤</view>
         <view class="home__active-name">{{item.nickname}}</view>
         <view class="home__active-score" wx:if="{{item.partner_credit_score > 0}}">{{item.partner_credit_score}}分</view>
@@ -100,7 +112,7 @@
   </view>
 
   <!-- H7a 需求列表(按场景分组, 每场景8条 + 更多) -->
-  <block wx:if="{{activeTab === 'demand'}}">
+  <block wx:if="{{!loading && activeTab === 'demand'}}">
     <view class="home__scene-group" wx:for="{{sceneGroups}}" wx:for-item="group" wx:key="scene_code">
       <view class="home__scene-head">
         <view class="home__scene-bar"></view>
@@ -108,15 +120,14 @@
         <text class="home__scene-count">{{group.list.length}} 条</text>
       </view>
       <block wx:if="{{group.list.length > 0}}">
-        <demand-card
-          wx:for="{{group.list}}"
-          wx:for-item="demand"
-          wx:key="_id"
-          demand="{{demand}}"
-          role="user"
-          bind:cardtap="onDemandTap"
-          bind:action="onDemandTap"
-        ></demand-card>
+        <view class="fade-in-up" style="animation-delay:{{index * 0.05}}s;" wx:for="{{group.list}}" wx:for-item="demand" wx:key="_id">
+          <demand-card
+            demand="{{demand}}"
+            role="user"
+            bind:cardtap="onDemandTap"
+            bind:action="onDemandTap"
+          ></demand-card>
+        </view>
       </block>
       <view wx:else class="home__scene-empty">暂无匹配需求 · 点我去发布</view>
       <view
@@ -133,14 +144,14 @@
   <!-- H7b 耍伴列表 -->
   <block wx:else>
     <view class="home__list">
-      <partner-card
-        wx:for="{{partnerList}}"
-        wx:key="_id"
-        partner="{{item}}"
-        bind:cardtap="onPartnerTap"
-        bind:invite="onPartnerTap"
-        bind:more="onPartnerTap"
-      ></partner-card>
+      <view class="fade-in-up" style="animation-delay:{{index * 0.05}}s;" wx:for="{{partnerList}}" wx:key="_id">
+        <partner-card
+          partner="{{item}}"
+          bind:cardtap="onPartnerTap"
+          bind:invite="onPartnerTap"
+          bind:more="onPartnerTap"
+        ></partner-card>
+      </view>
       <view class="home__partner-tip">下拉加载更多高信用耍伴 · 新耍伴前{{trafficOrders}}单享流量扶持</view>
     </view>
   </block>
