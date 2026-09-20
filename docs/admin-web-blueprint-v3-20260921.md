@@ -54,7 +54,7 @@
 | 订单列表 | 多条件查询、强制取消（原因+二次确认） | `order_list` `order_query` `order_force_cancel` | ✅ |
 | 订单详情 | 14 态时间轴、加时/改期记录、支付分账、评价、报备、**免责签署 Tab**、**保险 Tab** | `order_detail` ✅；签署/保险数据读取 🔲 | ✅/🔲 |
 | 纠纷处理 | 待处理/已处理、SLA 计时、处理结论 | `dispute_list` `dispute_handle` | ✅ |
-| 安全报备 | SOS+报备流水、位置、时间（事故回溯） | `safety_log_list` | 🔲 P0 |
+| 安全报备 | SOS+报备流水、位置、时间（事故回溯） | `safety_log_list` | ✅ 已部署（2026-09-21，待云端面板回归） |
 | 保险记录 | 保单号、场景、意外/财产保额、保费，按订单/耍伴筛选 | `insurance_list` 🆕 | ✅（页面待做） |
 
 ### 2.3 用户与耍伴
@@ -71,7 +71,7 @@
 | 页面 | 内容 | action | 状态 |
 |---|---|---|---|
 | 交易流水 | 支付/退款/分账/加时补款筛选；导出走下载中心 | `finance_list` | ✅ |
-| 财务概览 | GMV/平台收入/耍伴分账/退款、趋势 | `finance_stats`（服务端 aggregate，扩展 sumTx） | 🔲 P0 |
+| 财务概览 | GMV/平台收入/耍伴分账/退款、趋势 | `finance_stats`（服务端 aggregate，扩展 sumTx） | ✅ 已部署（2026-09-21，待云端面板回归） |
 | 提现记录 | 普通/极速、processing/success、金额、预计到账、**挂起超 24h 角标** | `withdraw_list` 🆕 | ✅/🔲角标 |
 | 结算记录 | ⏸ 集合无写入方，页面占位禁用；落库批次完成后开放 | `settlement_list` 🆕（暂空） | ⏸ |
 | 提现审核/驳回 | 🔒 mock 阶段不做；接真实商户号后补双人复核 | `withdraw_approve/reject` | 🔲🔒 |
@@ -200,8 +200,8 @@ MFA、高危双人复核、微信支付三方对账、退款状态机、提现�
 
 | 优先级 | action | 阶段 | 说明 |
 |---|---|---|---|
-| P0 | `finance_stats` | 1 | 服务端聚合，替代前端全量聚合（M2） |
-| P0 | `safety_log_list` | 1 | 安全报备只读分页 |
+| P0 | `finance_stats` | 1 | ✅ 已部署 c0175d9（待云端面板回归）。入参 `days`(1-90,默认30) 或 `start_ts/end_ts`；返回 summary(gmv/refund/net/tip/platform_fee/partner_income+笔数) 与日趋势(trend 明细 5000 上限, 超限 `trend_truncated=true`)。耍伴收入口径=S8/S9/S10（对齐 payment-mock settledFen，不含 S5 待评价/S7 已退款），区间按订单/交易创建时间归属 |
+| P0 | `safety_log_list` | 1 | ✅ 已部署 c0175d9（待云端面板回归）。仅查 safety_report 的 sos(含 silent)/checkin；支持 kind/status/order_id/target_openid 过滤；举报类未来走 report_list 不混口径 |
 | P1 | `im_message_admin_list` | 3 | 会话监管只读，按 order_id，禁止导出 |
 | P1 | `export_task_create` / `export_task_list` | 3 | 异步导出任务+下载中心（M3） |
 | P1 | `notice_broadcast` | 3 | 群发，仅 S，频控+审计（M6） |
