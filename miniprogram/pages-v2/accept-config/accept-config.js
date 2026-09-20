@@ -21,7 +21,7 @@ Page({
     bufferOptions: PA.bufferOptions,
     bufferIndex: PA.bufferOptions.indexOf(PA.defaultBufferMin),
     redlineOpen: CONFIG.TIME_REDLINE.open,
-    redlineClose: CONFIG.TIME_REDLINE.close,
+    redlineClose: redline.PICKER_CLOSE,
     budgetPlaceholder: `${CONFIG.BUDGET_RANGE[0]}-${CONFIG.BUDGET_RANGE[1]}`,
     subsidyPercent: CONFIG.WELFARE.partnerSubsidyRate * 100,
     form: {

@@ -5,6 +5,13 @@
 const CONFIG = require('../config/index.js');
 const { SCENES } = require('../config/enums.js');
 
+// R1 红线常量: close=24:00 表示午夜(00:00)关闭, open=06:00 恢复
+// picker mode="time" 不接受 24:00, 用 23:59 替代（逻辑等价, 23:59 仍属可服务区间）
+const CLOSE_STR = CONFIG.TIME_REDLINE.close;   // '24:00'
+const OPEN_STR = CONFIG.TIME_REDLINE.open;     // '06:00'
+const PICKER_CLOSE = CLOSE_STR === '24:00' ? '23:59' : CLOSE_STR;
+const DISPLAY_CLOSE = CLOSE_STR === '24:00' ? '00:00' : CLOSE_STR;
+
 // R1：当前（或指定时间）是否处于 23:00-06:00 夜间红线
 // close=23:00 open=06:00；命中时段内暂停预约与履约
 function isInRedline(date) {
@@ -87,5 +94,9 @@ module.exports = {
   isYouth,
   validateBudget,
   validateYouthAmount,
-  checkEntryLocked
+  checkEntryLocked,
+  PICKER_CLOSE,
+  DISPLAY_CLOSE,
+  OPEN_STR,
+  CLOSE_STR
 };

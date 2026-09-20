@@ -137,7 +137,7 @@ Page({
   // 不用 bottom-sheet 二次确认(真机渲染不可靠)
   onGrab(e) {
     if (this.data.isRedline) {
-      wx.showToast({ title: `夜间${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}暂停抢单`, icon: 'none' });
+      wx.showToast({ title: `夜间${redline.DISPLAY_CLOSE}-${CONFIG.TIME_REDLINE.open}暂停抢单`, icon: 'none' });
       return;
     }
     const demand = e.detail.demand;

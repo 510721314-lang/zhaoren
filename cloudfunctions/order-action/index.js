@@ -1,8 +1,10 @@
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
-// 14 个 action: get_confirmation / update_item / confirm_item / confirm_all /
+// 17 个 action: get_confirmation / update_item / confirm_item / confirm_all /
 //              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
-//              modify / modify_confirm / modify_reject / resume_service / partial_confirm / ratio_confirm / complaint /
+//              modify / modify_confirm / modify_reject /
+//              extend / extend_confirm / extend_reject /
+//              resume_service / partial_confirm / ratio_confirm / complaint /
 //              detail / my_orders / my_counts
 // 四确认 SSOT:时间/地点/内容/费用四项,用户与耍伴双方各确认一次共 8 位;
 //   8 位全完成 → S1→S0(待支付,30 分钟支付时限);任一方修改任一项 → 8 位全部重置。
@@ -148,14 +150,14 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'nudge_partner'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'nudge_partner'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };
     }
     if (isValidDocId(order_id)) {
       // 32 位 hex, 直接当 _id 用
-    } else if (typeof order_id === 'string' && /^ORD[0-9]+$/.test(order_id)) {
+    } else if (typeof order_id === 'string' && /^ORD[A-Za-z0-9]+$/.test(order_id)) {
       // ORD 订单号, 反查 _id
       try {
         const lookup = await col('order_main').where({ order_no: order_id }).limit(1).get();
@@ -669,10 +671,10 @@ exports.main = async (event, context) => {
 
   // 改期业务常量(与小程序 config/index.js MODIFY/TIME_REDLINE 对齐; admin_config.modify_config 可覆盖)
   const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 2 };
-  const REDLINE_CLOSE_MIN = 23 * 60;   // 23:00 起不可服务
+  const REDLINE_CLOSE_MIN = 24 * 60;   // 24:00(午夜) 起不可服务
   const REDLINE_OPEN_MIN = 6 * 60;     // 06:00 恢复
 
-  // 时间红线: 服务开始时间(本地时区 HH:mm)不得落在 23:00-06:00
+  // 时间红线: 服务开始时间(本地时区 HH:mm)不得落在 00:00-06:00
   function isModifyTimeAllowed(ts) {
     const d = new Date(ts);
     const mins = d.getHours() * 60 + d.getMinutes();
@@ -707,9 +709,9 @@ exports.main = async (event, context) => {
     if (newTs - Date.now() < modifyConfig.minLeadHours * 3600000) {
       return { ok: false, code: 'oa_modify_lead', msg: `须提前${modifyConfig.minLeadHours}小时申请改期` };
     }
-    // 时间红线: 23:00-06:00 不可约
+    // 时间红线: 00:00-06:00 不可约
     if (!isModifyTimeAllowed(newTs)) {
-      return { ok: false, code: 'oa_modify_redline', msg: '服务时间须在 06:00-23:00 之间' };
+      return { ok: false, code: 'oa_modify_redline', msg: '服务时间须在 06:00-24:00 之间' };
     }
     // 幅度上限 72h(相对原服务时间)
     const span = Math.abs(newTs - Number(order.start_time)) / 3600000;
@@ -803,7 +805,7 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_modify_expired', msg: '改期时间已过期,请重新发起' };
     }
     if (!isModifyTimeAllowed(pending.new_start_time)) {
-      return { ok: false, code: 'oa_modify_redline', msg: '服务时间不在 06:00-23:00 之间' };
+      return { ok: false, code: 'oa_modify_redline', msg: '服务时间不在 06:00-24:00 之间' };
     }
     const won = await casStatus(order_id, 'S2_5', {
       status: toStatus,
@@ -823,6 +825,137 @@ exports.main = async (event, context) => {
       action_key: 'jump_order', action_payload: { order_id }
     });
     return { ok: true, data: { order_id, status: toStatus, start_time: pending.new_start_time, modify_confirmed: true } };
+  }
+
+  // ───────── 加时申请: S3 履约中发起, 对方确认后金额+时长合并进订单 ─────────
+  // 算价: add_amount_fen = Math.round(total_fen / duration_h × add_hours)
+  if (action === 'extend') {
+    const { order_id, add_hours, reason } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+
+    const addHours = Number(add_hours);
+    if (!Number.isInteger(addHours) || addHours <= 0 || addHours > 12) {
+      return { ok: false, code: 'oa_extend_hours', msg: '加时时长须为 1-12 小时整数' };
+    }
+    if (order.status !== 'S3') {
+      return { ok: false, code: 'oa_extend_status', msg: `订单当前状态(${order.status})不可申请加时` };
+    }
+    if (order.pending_extend) {
+      return { ok: false, code: 'oa_extend_exist', msg: '已有待确认的加时申请,请等待对方处理' };
+    }
+
+    // 算价: 按原单价折算
+    const durationH = Number(order.duration_h) || 1;
+    const totalFen = Number(order.total_fen) || 0;
+    const addAmountFen = Math.round(totalFen / durationH * addHours);
+    if (addAmountFen <= 0) {
+      return { ok: false, code: 'oa_extend_price', msg: '加时金额计算异常,请联系客服' };
+    }
+
+    const config = await getConfig();
+    const now = Date.now();
+    const confirmHours = (config.modify_config && config.modify_config.confirmHours) || 24;
+
+    const won = await casStatus(order_id, 'S3', {
+      pending_extend: {
+        add_hours: addHours,
+        add_amount_fen: addAmountFen,
+        reason: String(reason || '').slice(0, 200),
+        by_openid: openid,
+        by_role: role,
+        created_at: now,
+        expire_at: now + confirmHours * 3600000
+      },
+      extend_count: (Number(order.extend_count) || 0) + 1,
+      updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.pending_extend && latest.pending_extend.by_openid === openid) {
+        return { ok: true, data: { order_id, add_amount_fen: addAmountFen, idempotent: true } };
+      }
+      return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    }
+    await logStatus(order_id, 'S3', 'S3', role === 'user' ? 'user_extend' : 'partner_extend', openid);
+    log.d(`order extend: ${order.order_no} +${addHours}h addFen=${addAmountFen}`);
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'custom',
+      title: `${role === 'user' ? '发单人' : '耍伴'}申请加时 ${addHours} 小时`,
+      body: `加时金额 ¥${(addAmountFen / 100).toFixed(2)}, 请在 ${confirmHours} 小时内确认或拒绝`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
+    return { ok: true, data: { order_id, add_hours: addHours, add_amount_fen: addAmountFen } };
+  }
+
+  // 加时确认/拒绝: 仅对方(非发起人)可操作
+  if (action === 'extend_confirm' || action === 'extend_reject') {
+    const { order_id } = event;
+    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+
+    if (!order.pending_extend) {
+      return { ok: false, code: 'oa_extend_no_pending', msg: '订单当前没有待确认的加时申请' };
+    }
+    const pending = order.pending_extend;
+    if (pending.by_openid === openid) {
+      return { ok: false, code: 'oa_extend_self', msg: '只能由对方确认或拒绝加时' };
+    }
+
+    if (action === 'extend_reject') {
+      const won = await casStatus(order_id, 'S3', {
+        pending_extend: _.remove(),
+        extend_rejected_at: Date.now(),
+        extend_rejected_by: openid,
+        updated_at: Date.now()
+      });
+      if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+      await logStatus(order_id, 'S3', 'S3', role === 'user' ? 'user_extend_reject' : 'partner_extend_reject', openid);
+      writeNotice({
+        to_openid: pending.by_openid, order_id, type: 'custom',
+        title: '加时申请已被拒绝',
+        body: `${role === 'user' ? '发单人' : '耍伴'}拒绝了你的加时申请`,
+        action_key: 'jump_order', action_payload: { order_id }
+      });
+      return { ok: true, data: { order_id, extend_rejected: true } };
+    }
+
+    // 确认: 更新金额+时长+抽成, 清 pending_extend
+    const addFen = Number(pending.add_amount_fen) || 0;
+    const addH = Number(pending.add_hours) || 0;
+    const newTotalFen = (Number(order.total_fen) || 0) + addFen;
+    const newDurationH = (Number(order.duration_h) || 0) + addH;
+    const feeRate = (await getConfig()).platform_fee_rate_fen || 1000;
+    const newFeeFen = Math.round(newTotalFen * feeRate / 10000);
+    const newPartnerIncomeFen = newTotalFen - newFeeFen;
+
+    const won = await casStatus(order_id, 'S3', {
+      duration_h: newDurationH,
+      total_fen: newTotalFen,
+      fee_fen: newFeeFen,
+      partner_income_fen: newPartnerIncomeFen,
+      pending_extend: _.remove(),
+      extend_confirmed_at: Date.now(),
+      extend_confirmed_by: openid,
+      updated_at: Date.now()
+    });
+    if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    await logStatus(order_id, 'S3', 'S3', role === 'user' ? 'user_extend_confirm' : 'partner_extend_confirm', openid);
+    log.d(`order extend confirmed: ${order.order_no} +${addH}h addFen=${addFen} totalFen=${newTotalFen}`);
+    writeNotice({
+      to_openid: pending.by_openid, order_id, type: 'custom',
+      title: '加时申请已确认',
+      body: `服务时长延长至 ${newDurationH} 小时, 加时金额 ¥${(addFen / 100).toFixed(2)} 已合并进结算`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
+    return { ok: true, data: { order_id, duration_h: newDurationH, total_fen: newTotalFen, add_amount_fen: addFen } };
   }
 
 
@@ -1080,7 +1213,8 @@ exports.main = async (event, context) => {
         partner_nickname: partnerNickname,
         milestone: order.milestone || null,
         modify_count: Number(order.modify_count) || 0,
-        pending_modify: order.pending_modify || null
+        pending_modify: order.pending_modify || null,
+        pending_extend: order.pending_extend || null
       }
     };
   }

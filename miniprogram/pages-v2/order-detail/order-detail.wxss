@@ -168,8 +168,50 @@
 .od__picker-val { flex: 1; font-size: var(--font-md); color: var(--text-1); }
 .od__picker-val.is-empty { color: var(--text-5); }
 .od__arrow { color: var(--text-4); }
+.od__reason-row { padding: 16rpx 0 8rpx; }
+.od__reason-row .od__picker-label { display: block; width: auto; margin-bottom: 8rpx; }
+.od__reason-input {
+  width: 100%;
+  min-height: 120rpx;
+  max-height: 300rpx;
+  padding: 16rpx 20rpx;
+  background: var(--bg-input, #F5F5F5);
+  border-radius: var(--r-md);
+  font-size: var(--font-sm);
+  color: var(--text-1);
+  box-sizing: border-box;
+  line-height: 1.6;
+}
+.od__reason-count { display: block; text-align: right; font-size: var(--font-xs); color: var(--text-4); margin-top: 4rpx; }
 .od__panel-btns { display: flex; gap: 16rpx; margin-top: 20rpx; }
 .od__panel-btns .od__btn { flex: 1; margin-top: 0; }
+
+/* 加时申请面板 */
+.od__extend-hours { display: flex; flex-wrap: wrap; gap: 12rpx; flex: 1; }
+.od__hour-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 72rpx; height: 56rpx; padding: 0 16rpx;
+  font-size: var(--font-sm); color: var(--text-3);
+  background: var(--bg-segment); border-radius: var(--r-md);
+}
+.od__hour-chip.is-active { background: var(--brand-primary); color: #fff; }
+.od__hour-custom { display: flex; gap: 12rpx; margin-left: auto; }
+
+/* 加时在途提示 */
+.od__extend-pending {
+  margin-top: 12rpx; padding: 16rpx 24rpx;
+  background: var(--func-info-light); border-radius: var(--r-md);
+}
+.od__extend-pending-title { font-size: var(--font-sm); color: var(--func-info); font-weight: 600; }
+.od__extend-reason {
+  margin-top: 8rpx;
+  padding: 12rpx 16rpx;
+  background: rgba(7, 193, 96, 0.08);
+  border-radius: var(--r-md);
+  font-size: var(--font-xs);
+  color: var(--text-2);
+  line-height: 1.6;
+}
 
 /* 三态骨架屏 */
 .od__loading { padding: 16rpx; }

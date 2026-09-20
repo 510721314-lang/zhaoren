@@ -124,7 +124,7 @@ Page({
     distanceMaxKm: CONFIG.PUBLISH.distanceMaxKm,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
-    redlineClose: CONFIG.TIME_REDLINE.close,
+    redlineClose: redline.PICKER_CLOSE,
     titleMax: CONFIG.TITLE_MAX,
     descMax: CONFIG.DESC_MAX,
     draftExpireDays: CONFIG.DRAFT.expireDays,
@@ -434,7 +434,7 @@ Page({
     const time = e.detail.value;
     // R1 校验：可服务区间以 CONFIG.TIME_REDLINE 为准
     if (!redline.isServiceTimeAllowed(time)) {
-      wx.showToast({ title: `须满足时间红线${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}`, icon: 'none' });
+      wx.showToast({ title: `须满足时间红线${redline.DISPLAY_CLOSE}-${CONFIG.TIME_REDLINE.open}`, icon: 'none' });
       return;
     }
     this.setData({ 'form.service_time': time });

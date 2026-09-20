@@ -19,6 +19,26 @@ function computeNextStep(order) {
   const status = order.status;
   const role = order.my_role; // 'user' | 'partner' | ''
   const pm = order.pending_modify;
+  const pe = order.pending_extend;
+
+  // 加时在途: 优先级最高(比改期更高)
+  if (pe) {
+    if (pe.can_respond) {
+      return {
+        icon: '⏰',
+        title: '对方申请加时',
+        subtitle: `+${pe.add_hours}小时 · ¥${(pe.add_amount_fen / 100).toFixed(2)} · ${pe.expire_text}`,
+        tone: 'primary',
+        action: { key: 'extend_respond', text: '去确认' }
+      };
+    }
+    return {
+      icon: '⏳',
+      title: '你发起了加时',
+      subtitle: `等待${role === 'user' ? '耍伴' : '发单人'}确认 · +${pe.add_hours}小时 ¥${(pe.add_amount_fen / 100).toFixed(2)}`,
+      tone: 'info'
+    };
+  }
 
   // 改期在途: 优先级最高
   if (pm) {
@@ -107,6 +127,11 @@ Page({
     countdownText: '',
     modifyPanelVisible: false,
     modifyUsedUp: false,
+    extendPanelVisible: false,
+    extendHours: 1,
+    extendRefPriceFen: 0,
+    extendReason: '',
+    modifyReason: '',
     cancelTiers: CONFIG.CANCEL_REFUND,
     currentCancelIdx: 0,
     modifyDate: '',
@@ -119,7 +144,7 @@ Page({
     isRedline: false,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
-    redlineClose: CONFIG.TIME_REDLINE.close,
+    redlineClose: redline.PICKER_CLOSE,
     modifyRuleText: `规则：提前${CONFIG.MODIFY.minLeadHours}小时以上/最多${CONFIG.MODIFY.maxTimes}次/${CONFIG.MODIFY.freeFirst ? '首次免费/' : ''}第二次收${CONFIG.MODIFY.secondFeeRate * 100}%手续费/幅度≤${CONFIG.MODIFY.maxSpanH}小时`,
     s35ResponseMin: CONFIG.SAFETY.s35ResponseMin,
     modifyConfirmH: CONFIG.MODIFY.confirmHours,
@@ -229,6 +254,22 @@ Page({
         can_respond: !!d.role && !!pm.by_role && d.role !== pm.by_role
       };
     }
+    // 加时在途申请(同改期)
+    const pe = d.pending_extend || null;
+    let pendingExtend = null;
+    if (pe && pe.add_hours) {
+      const expireMs = (pe.expire_at || 0) - Date.now();
+      const expireHours = Math.max(0, Math.round(expireMs / 3600000));
+      pendingExtend = {
+        add_hours: pe.add_hours,
+        add_amount_fen: pe.add_amount_fen || 0,
+        by_role: pe.by_role || '',
+        reason: pe.reason || '',
+        expire_at: pe.expire_at || 0,
+        expire_text: expireMs > 0 ? `${expireHours}小时内确认` : '已超时',
+        can_respond: !!d.role && !!pe.by_role && d.role !== pe.by_role
+      };
+    }
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
@@ -237,6 +278,7 @@ Page({
       my_role: d.role || '',
       modify_count: d.modify_count || 0,
       pending_modify: pendingModify,
+      pending_extend: pendingExtend,
       scene_code: d.scene,
       partner_name: d.partner_nickname,
       location: d.location || {},
@@ -540,7 +582,96 @@ Page({
     });
   },
 
-  onAddTime() { wx.showToast({ title: '加时申请功能建设中', icon: 'none' }); },
+  // 加时申请: 内联时长选择 + 云函数算价 + showModal 二次确认
+  onAddTime() {
+    const order = this.data.order;
+    if (!order || order.status !== 'S3') {
+      wx.showToast({ title: '仅履约中可加时', icon: 'none' });
+      return;
+    }
+    if (order.pending_extend) {
+      wx.showToast({ title: '已有待确认的加时申请', icon: 'none' });
+      return;
+    }
+    // 按原单价算参考价(仅展示, 以云端为准)
+    const durationH = Number(order.duration_h) || 1;
+    const totalFen = Number(order.total_fen) || 0;
+    const hourRateFen = Math.round(totalFen / durationH);
+    this.setData({
+      extendPanelVisible: true,
+      extendHours: 1,
+      extendRefPriceFen: hourRateFen,
+      extendReason: ''
+    });
+  },
+
+  closeExtendPanel() { this.setData({ extendPanelVisible: false, extendReason: '' }); },
+
+  onExtendHoursTap(e) {
+    this.setData({ extendHours: Number(e.currentTarget.dataset.hours) });
+  },
+
+  onExtendReasonInput(e) {
+    const v = (e.detail.value || '').slice(0, 200);
+    this.setData({ extendReason: v });
+  },
+
+  submitExtend() {
+    const that = this;
+    const hours = Number(this.data.extendHours);
+    if (!hours || hours < 1 || hours > 12) {
+      wx.showToast({ title: '加时时长须为1-12小时', icon: 'none' });
+      return;
+    }
+    wx.showLoading({ title: '提交加时', mask: true });
+    callCloud('order-action', {
+      action: 'extend',
+      order_id: this.data.order._id,
+      add_hours: hours,
+      reason: (this.data.extendReason || '').trim().slice(0, 200)
+    }).then((r) => {
+      wx.hideLoading();
+      if (!r.ok) {
+        wx.showToast({ title: r.msg || '加时申请失败', icon: 'none' });
+        return;
+      }
+      that.setData({ extendPanelVisible: false });
+      wx.showModal({
+        title: '加时申请已提交',
+        content: `+${hours}小时 · 加时金额 ¥${(r.data.add_amount_fen / 100).toFixed(2)}\n等待对方确认`,
+        showCancel: false, confirmText: '知道了',
+        fail: () => {},
+        success: () => that.fetchData({ orderId: that.data.order._id })
+      });
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
+  },
+
+  // 对方发起的加时申请: 确认/拒绝
+  onExtendConfirm() {
+    const that = this;
+    const pe = this.data.order && this.data.order.pending_extend;
+    if (!pe) { wx.showToast({ title: '无待处理的加时申请', icon: 'none' }); return; }
+    wx.showModal({
+      title: '确认同意加时',
+      content: `+${pe.add_hours}小时 · 加时金额 ¥${(pe.add_amount_fen / 100).toFixed(2)}\n确认后金额合并进结算`,
+      confirmText: '同意',
+      cancelText: '拒绝',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        const act = res.confirm ? 'extend_confirm' : 'extend_reject';
+        wx.showLoading({ title: res.confirm ? '确认加时' : '拒绝加时', mask: true });
+        callCloud('order-action', { action: act, order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: res.confirm ? '加时已确认' : '已拒绝加时', icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
+  },
 
   // O4 改期: 内联卡(原生 date/time picker) + showModal 二次确认, 替代 bottom-sheet
   onModify() {
@@ -552,7 +683,8 @@ Page({
     this.setData({
       modifyPanelVisible: true,
       modifyDate: this.data.order.service_date || '',
-      modifyTime: this.data.order.service_time || ''
+      modifyTime: this.data.order.service_time || '',
+      modifyReason: ''
     });
     // 上拉页面让改期操作面板进入显著位置
     setTimeout(() => {
@@ -560,7 +692,7 @@ Page({
     }, 50);
   },
 
-  closeModifyPanel() { this.setData({ modifyPanelVisible: false }); },
+  closeModifyPanel() { this.setData({ modifyPanelVisible: false, modifyReason: '' }); },
 
   onModifyDateChange(e) {
     this.setData({ modifyDate: e.detail.value });
@@ -570,10 +702,15 @@ Page({
     const time = e.detail.value;
     // R1 校验：可服务区间以 CONFIG.TIME_REDLINE 为准
     if (!redline.isServiceTimeAllowed(time)) {
-      wx.showToast({ title: `须满足时间红线${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}`, icon: 'none' });
+      wx.showToast({ title: `须满足时间红线${redline.DISPLAY_CLOSE}-${CONFIG.TIME_REDLINE.open}`, icon: 'none' });
       return;
     }
     this.setData({ modifyTime: time });
+  },
+
+  onModifyReasonInput(e) {
+    const v = (e.detail.value || '').slice(0, 200);
+    this.setData({ modifyReason: v });
   },
 
   // 组合 picker 的日期+时分 → 本地时间戳
@@ -615,7 +752,7 @@ Page({
           action: 'modify',
           order_id: that.data.order._id,
           new_start_time: ts,
-          reason: ''
+          reason: (that.data.modifyReason || '').trim().slice(0, 200)
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
@@ -838,6 +975,10 @@ Page({
       case 'eval': return this.onEvaluate();
       case 'modify_respond':
         // 改期在途时同意/拒绝按钮在操作区已单独渲染, 这里滚到操作区提示
+        wx.showToast({ title: '请在下方操作区确认', icon: 'none' });
+        return;
+      case 'extend_respond':
+        // 加时在途时同意/拒绝按钮在操作区已单独渲染, 这里滚到操作区提示
         wx.showToast({ title: '请在下方操作区确认', icon: 'none' });
         return;
     }

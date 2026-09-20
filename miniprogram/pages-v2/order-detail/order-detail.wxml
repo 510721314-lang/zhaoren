@@ -122,10 +122,23 @@
           </button>
         </view>
         <view class="od__action-grid">
-          <button class="od__action-btn" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
+          <button class="od__action-btn {{order.pending_extend ? 'od__action-btn--disabled' : ''}}" wx:if="{{!order.pending_extend}}" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
           <button class="od__action-btn" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
           <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
         </view>
+        <!-- 加时在途: S3 内嵌提示 + 对方确认/拒绝按钮 -->
+        <view class="od__extend-pending" wx:if="{{order.pending_extend}}">
+          <view class="od__extend-pending-title">⏰ 加时申请 +{{order.pending_extend.add_hours}}小时 · ¥{{order.pending_extend.add_amount_fen / 100}}</view>
+          <view class="od__after-sale-tip">{{order.pending_extend.expire_text}}，超时自动拒绝</view>
+          <view class="od__after-sale-tip" wx:if="{{order.pending_extend.by_role === 'user'}}">发单人发起的加时</view>
+          <view class="od__after-sale-tip" wx:else>耍伴发起的加时</view>
+          <view class="od__extend-reason" wx:if="{{order.pending_extend.reason}}">📝 {{order.pending_extend.reason}}</view>
+        </view>
+        <view class="od__safety-btns" wx:if="{{order.pending_extend && order.pending_extend.can_respond}}">
+          <button class="od__btn od__btn--ghost" bindtap="onExtendConfirm" hover-class="btn-press">拒绝加时</button>
+          <button class="od__btn od__btn--primary" bindtap="onExtendConfirm" hover-class="btn-press">同意加时</button>
+        </view>
+        <view class="od__after-sale-tip" wx:elif="{{order.pending_extend}}">等待对方确认…</view>
         <view class="od__ms-hint" wx:if="{{order.my_role === 'partner' && !order.canFinishService}}">须先提交到100%才能完成履约</view>
       </block>
 
@@ -169,6 +182,7 @@
           <view class="od__after-sale-tip">{{statusInfo.timeoutText}}，超时自动拒绝</view>
           <view class="od__after-sale-tip" wx:if="{{order.pending_modify.by_role === 'user'}}">发单人发起的改期</view>
           <view class="od__after-sale-tip" wx:else>耍伴发起的改期</view>
+          <view class="od__extend-reason" wx:if="{{order.pending_modify.reason}}">📝 {{order.pending_modify.reason}}</view>
         </view>
         <view class="od__safety-btns" wx:if="{{order.pending_modify.can_respond}}">
           <button class="od__btn od__btn--ghost" bindtap="onModifyReject" hover-class="btn-press">拒绝改期</button>
@@ -207,9 +221,40 @@
         <text class="od__arrow">›</text>
       </view>
     </picker>
+    <view class="od__reason-row">
+      <text class="od__picker-label">改期原因（选填）</text>
+      <textarea class="od__reason-input" placeholder="简要说明改期原因,如:临时有事、时间安排冲突..." value="{{modifyReason}}" bindinput="onModifyReasonInput" maxlength="200" auto-height />
+      <text class="od__reason-count">{{modifyReason.length}}/200</text>
+    </view>
     <view class="od__panel-btns">
       <button class="od__btn od__btn--ghost" bindtap="closeModifyPanel" hover-class="btn-press">取消</button>
       <button class="od__btn od__btn--primary" bindtap="submitModify" hover-class="btn-press">提交改期</button>
+    </view>
+  </view>
+
+  <!-- 加时申请面板: 时长选择(1-12h) + 参考单价 -->
+  <view class="od__modify-panel" wx:if="{{extendPanelVisible}}">
+    <view class="od__modify-tip">加时按原单价折算 · 参考单价 ¥{{extendRefPriceFen / 100}}/小时 · 对方确认后合并进结算</view>
+    <view class="od__picker-row">
+      <text class="od__picker-label">加时时长</text>
+      <view class="od__extend-hours">
+        <block wx:for="{{[1,2,3,4,6,8]}}" wx:key="*this">
+          <text class="od__hour-chip {{extendHours === item ? 'is-active' : ''}}" bindtap="onExtendHoursTap" data-hours="{{item}}">{{item}}h</text>
+        </block>
+        <view class="od__hour-custom">
+          <text class="od__hour-chip {{extendHours > 8 ? 'is-active' : ''}}" bindtap="onExtendHoursTap" data-hours="10">10h</text>
+          <text class="od__hour-chip {{extendHours === 12 ? 'is-active' : ''}}" bindtap="onExtendHoursTap" data-hours="12">12h</text>
+        </view>
+      </view>
+    </view>
+    <view class="od__reason-row">
+      <text class="od__picker-label">申请原因（选填）</text>
+      <textarea class="od__reason-input" placeholder="简要说明加时原因,如:项目进度未完成、需要额外时间..." value="{{extendReason}}" bindinput="onExtendReasonInput" maxlength="200" auto-height />
+      <text class="od__reason-count">{{extendReason.length}}/200</text>
+    </view>
+    <view class="od__panel-btns">
+      <button class="od__btn od__btn--ghost" bindtap="closeExtendPanel" hover-class="btn-press">取消</button>
+      <button class="od__btn od__btn--primary" bindtap="submitExtend" hover-class="btn-press">提交加时</button>
     </view>
   </view>
   </block>

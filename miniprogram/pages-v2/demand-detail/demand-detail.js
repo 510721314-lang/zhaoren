@@ -81,7 +81,7 @@ Page({
 
   onGrab(e) {
     if (this.data.isRedline) {
-      wx.showToast({ title: `夜间${CONFIG.TIME_REDLINE.close}-${CONFIG.TIME_REDLINE.open}暂停接单`, icon: 'none' });
+      wx.showToast({ title: `夜间${redline.DISPLAY_CLOSE}-${CONFIG.TIME_REDLINE.open}暂停接单`, icon: 'none' });
       return;
     }
     const demand = this.data.demand;

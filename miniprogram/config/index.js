@@ -5,7 +5,7 @@ const newbieDiscount = 20;
 
 module.exports = {
   // R1 夜间红线
-  TIME_REDLINE: { close: '23:00', open: '06:00' },
+  TIME_REDLINE: { close: '24:00', open: '06:00' },
 
   // 发布校验
   BUDGET_RANGE: [10, 500],          // 元/小时

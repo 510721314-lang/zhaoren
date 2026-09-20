@@ -30,7 +30,7 @@ Page({
     welfare: CONFIG.NEWBIE,
     isRedline: false,
     redlineOpen: CONFIG.TIME_REDLINE.open,
-    redlineClose: CONFIG.TIME_REDLINE.close,
+    redlineClose: redline.DISPLAY_CLOSE,
     trafficOrders: CONFIG.NEW_PARTNER.trafficSupportOrders,
     reserveDiscountText: `${CONFIG.MATCH.reserveDiscount * 10}折`
   },
