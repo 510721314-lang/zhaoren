@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 
 // CloudBase HTTP trigger URL 部署后填到 cloudbaseUrl
 // 本地 dev 用 vite proxy 转发
-const cloudbaseUrl = 'https://cloud1-d9gkefwcp5c777088-xxxxx.tcloudbaseapp.com'; // TODO: 部署后替换
+const cloudbaseUrl = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com'; // CloudBase HTTP 网关根 URL
 
 export default defineConfig({
   plugins: [vue()],
