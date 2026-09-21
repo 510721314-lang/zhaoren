@@ -70,6 +70,8 @@
   ],
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
   "sitemapLocation": "sitemap.json",
   "__usePrivacyCheck__": true,
   "usingComponents": {
