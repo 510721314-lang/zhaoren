@@ -2,8 +2,8 @@
 .tmp-cloud-runner/
 sm*.json
 
-# Trae skills 缓存
-.trae/skills/
+# Trae skills 已入库(团队共享), 仅本地缓存类文件忽略
+.trae/cache/
 
 # IDE 临时文件
 .idea/

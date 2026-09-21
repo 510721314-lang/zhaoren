@@ -1,14 +1,18 @@
 # zhaoren Cloud Backup Script L2+L3+L5
-# Usage: .\backup.ps1 [-BackupDir C:\zhaoren_backup_YYYYMMDD]
+# Usage: .\backup.ps1 [-BackupDir C:\zhaoren_backup_YYYYMMDD] [-AdminKey AWK-...]
+#        or set $env:ADMIN_WEB_KEY before running
 param(
-  [string]$BackupDir = ''
+  [string]$BackupDir = '',
+  [string]$AdminKey = ''
 )
 $ErrorActionPreference = 'Stop'
 
 $CLOUD_ENV   = 'cloud1-d9gkefwcp5c777088'
 $PROJECT_DIR = 'c:\Users\DC\Desktop\zhaoren'
 $APPID       = 'wxbc4a4afacdf234f5'
-$ADMIN_KEY   = 'AWK-27ea10d4ed8a995add3000f977ad62c2ade8ff98d70ef9c1a8bee02df9d49c0c'
+# Key not hardcoded: pass -AdminKey or set $env:ADMIN_WEB_KEY (get from admin or init-db generate_admin_web_key)
+if (-not $AdminKey) { $AdminKey = $env:ADMIN_WEB_KEY }
+if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or ADMIN_WEB_KEY env var' }
 $GATEWAY_URL = "https://$CLOUD_ENV-1482004365.ap-shanghai.app.tcloudbase.com/api"
 
 $COLLECTIONS = @(
@@ -42,7 +46,7 @@ function Invoke-AdminApi($Action, $Params = @{}) {
   $body = $bodyObj | ConvertTo-Json -Depth 20 -Compress
   try {
     $resp = Invoke-RestMethod -Uri $GATEWAY_URL -Method Post `
-      -Headers @{ 'X-Admin-Key' = $ADMIN_KEY; 'Content-Type' = 'application/json' } `
+      -Headers @{ 'X-Admin-Key' = $AdminKey; 'Content-Type' = 'application/json' } `
       -Body $body -TimeoutSec 60
     return $resp
   } catch {

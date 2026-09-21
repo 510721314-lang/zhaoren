@@ -1,24 +1,28 @@
-# zhaoren 云端恢复脚本
-# 用法: .\restore.ps1 -BackupDir C:\zhaoren_backup_20260921-2359 [-Force]
-# 警告: 恢复会覆盖云端数据! 默认 dry-run 只校验不执行
+﻿# zhaoren cloud restore script
+# Usage: .\restore.ps1 -BackupDir C:\zhaoren_backup_xxx [-Force] [-AdminKey AWK-...]
+#        or set $env:ADMIN_WEB_KEY before running
+# Warning: restore overwrites cloud data! Default dry-run only verifies
 param(
   [Parameter(Mandatory=$true)]
   [string]$BackupDir,
-  [switch]$Force  # 加此参数才真恢复, 否则只校验备份完整性
+  [switch]$Force,  # real restore only with this switch
+  [string]$AdminKey = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
-# ── 常量 ──
+# -- constants --
 $CLOUD_ENV   = 'cloud1-d9gkefwcp5c777088'
 $PROJECT_DIR = 'c:\Users\DC\Desktop\zhaoren'
 $APPID       = 'wxbc4a4afacdf234f5'
-$ADMIN_KEY   = 'AWK-27ea10d4ed8a995add3000f977ad62c2ade8ff98d70ef9c1a8bee02df9d49c0c'
+# Key not hardcoded: pass -AdminKey or set $env:ADMIN_WEB_KEY (get from admin or init-db generate_admin_web_key)
+if (-not $AdminKey) { $AdminKey = $env:ADMIN_WEB_KEY }
+if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or ADMIN_WEB_KEY env var' }
 $GATEWAY_URL = "https://$CLOUD_ENV-1482004365.ap-shanghai.app.tcloudbase.com/api"
 
-# ── 动态发现 CLI ──
+# -- find CLI --
 $cli = Get-ChildItem -Path 'C:\Users\DC','C:\' -Filter 'cli.bat' -Recurse -ErrorAction SilentlyContinue |
-  Where-Object { $_.FullName -match '微信WEB开发者工具' -or $_.FullName -match 'wechat' } |
+  Where-Object { $_.FullName -match 'wechat' } |
   Select-Object -First 1 -ExpandProperty FullName
 
 Write-Host "===== zhaoren 云端恢复 =====" -ForegroundColor Yellow
@@ -66,7 +70,7 @@ if ($cfgFiles.Count -gt 0) {
   $body = @{ action = 'config_restore'; config = $cfgData } | ConvertTo-Json -Depth 30 -Compress
   try {
     $resp = Invoke-RestMethod -Uri $GATEWAY_URL -Method Post `
-      -Headers @{ 'X-Admin-Key' = $ADMIN_KEY; 'Content-Type' = 'application/json' } `
+      -Headers @{ 'X-Admin-Key' = $AdminKey; 'Content-Type' = 'application/json' } `
       -Body $body -TimeoutSec 120
     Write-Host "  [OK] admin_config 恢复成功" -ForegroundColor Green
   } catch {
