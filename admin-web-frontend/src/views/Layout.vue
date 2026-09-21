@@ -42,8 +42,12 @@
           <el-menu-item index="/conversation">会话监管</el-menu-item>
         </el-sub-menu>
 
-        <!-- 7. 运营配置 -->
-        <el-menu-item index="/config"><el-icon><Setting /></el-icon>运营配置</el-menu-item>
+        <!-- 7. 运营配置(已拆为独立模块) -->
+        <el-sub-menu index="ops-group">
+          <template #title><el-icon><Setting /></el-icon><span>运营配置</span></template>
+          <el-menu-item index="/operations">阈值与开关</el-menu-item>
+          <el-menu-item index="/legal">法律合规</el-menu-item>
+        </el-sub-menu>
 
         <!-- 8. 系统管理 -->
         <el-sub-menu index="sys-group">

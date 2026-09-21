@@ -1043,7 +1043,42 @@ exports.main = async (event, context) => {
         scene_default_rate_fen: config.scene_default_rate_fen || 5000
       },
       scene_list: config.scene_list || [],
-      system_templates: config.system_templates || []
+      system_templates: config.system_templates || [],
+      // ── 运营配置独立模块(前端 Operations.vue 数据来源) ──
+      operations: {
+        publish_distance_max_km: config.publish_distance_max_km || 50,
+        take_distance_max_km: config.take_distance_max_km || 50,
+        youth_limit_fen: config.youth_limit_fen || 20000,
+        city_enabled: config.city_enabled || [],
+        platform_fee_rate_fen: config.platform_fee_rate_fen || 0,
+        auto_approve_partner: !!config.auto_approve_partner,
+        payment_visible: config.payment_visible !== false,
+        s0_timeout_min: config.s0_timeout_min || 30,
+        s1_timeout_min: config.s1_timeout_min || 15,
+        interrupt_timeout_h: config.interrupt_timeout_h || 24,
+        eval_window_h: config.eval_window_h || 48,
+        default_star: config.default_star || 4,
+        milestone_confirm_min: config.milestone_confirm_min || 15,
+        time_redline_close_min: config.time_redline_close_min || 1440,
+        time_redline_open_min: config.time_redline_open_min || 360,
+        min_credit_take_order: config.min_credit_take_order || 600,
+        min_credit_place_order: config.min_credit_place_order || 600,
+        credit_freeze_line: config.credit_freeze_line || 400,
+        rate_min_fen: config.rate_min_fen || 3000,
+        rate_max_fen: config.rate_max_fen || 10000,
+        scene_default_rate_fen: config.scene_default_rate_fen || 5000,
+        insurance_coverage_accident_fen: config.insurance_coverage_accident_fen || 50000000,
+        insurance_coverage_property_fen: config.insurance_coverage_property_fen || 5000000,
+        fast_withdraw_per_order_max_fen: config.fast_withdraw_per_order_max_fen || 20000,
+        fast_withdraw_per_day_max_fen: config.fast_withdraw_per_day_max_fen || 200000
+      },
+      // ── 法律合规模块(前端 Legal.vue 数据来源) ──
+      legal: {
+        disclaimer_text: config.legal_disclaimer_text || '',
+        service_agreement: config.legal_service_agreement || '',
+        privacy_policy: config.legal_privacy_policy || '',
+        scene_disclaimers: config.legal_scene_disclaimers || {}
+      }
     });
   }
 
@@ -1198,6 +1233,34 @@ exports.main = async (event, context) => {
       if (next.length !== templates.length) { templates = next; tplTouched = true; }
     }
     if (tplTouched) { before.system_templates = config.system_templates || []; patch.system_templates = templates; }
+
+    // 法律文件/免责声明(大文本, 限长, P2 config_change 审计)
+    const legalFields = [
+      ['legal_disclaimer_text', 0, 8000],      // 通用免责声明(发布前弹)
+      ['legal_service_agreement', 0, 20000],   // 服务协议
+      ['legal_privacy_policy', 0, 20000]       // 隐私政策
+    ];
+    for (const [f, lo, hi] of legalFields) {
+      if (event[f] !== undefined) {
+        const v = String(event[f]);
+        if (v.length < lo || v.length > hi) return fail('config_bad_' + f, `${f} 长度须为 ${lo}-${hi}`);
+        touch(f, v);
+      }
+    }
+    // 各场景专属免责声明({scene_code: text})
+    if (event.legal_scene_disclaimers !== undefined) {
+      if (typeof event.legal_scene_disclaimers !== 'object' || Array.isArray(event.legal_scene_disclaimers)) {
+        return fail('config_bad_scene_disclaimers', 'legal_scene_disclaimers 须为 {scene_code: text} 对象');
+      }
+      const next = {};
+      for (const [code, text] of Object.entries(event.legal_scene_disclaimers)) {
+        const t = String(text || '');
+        if (t.length > 4000) return fail('config_bad_scene_disclaimer_' + code, `${code} 免责声明不得超过 4000 字`);
+        if (t) next[code] = t;
+      }
+      before.legal_scene_disclaimers = config.legal_scene_disclaimers || {};
+      patch.legal_scene_disclaimers = next;
+    }
 
     const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
     if (!changed.length) return fail('config_no_change', '没有需要修改的字段');

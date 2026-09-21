@@ -35,7 +35,9 @@ const routes = [
       { path: 'conversation', component: () => import('../views/Conversation.vue'), meta: { title: '会话监管' } },
 
       // ── 7. 运营配置 ──
-      { path: 'config', component: () => import('../views/Config.vue'), meta: { title: '运营配置' } },
+      { path: 'config', redirect: '/operations' },  // 旧入口跳转
+      { path: 'operations', component: () => import('../views/Operations.vue'), meta: { title: '运营配置' } },
+      { path: 'legal', component: () => import('../views/Legal.vue'), meta: { title: '法律合规' } },
 
       // ── 8. 系统管理 ──
       { path: 'notice', component: () => import('../views/Notice.vue'), meta: { title: '通知群发' } },
