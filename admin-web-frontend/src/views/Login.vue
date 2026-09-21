@@ -23,7 +23,7 @@ const loading = ref(false);
 async function onLogin() {
   if (!key.value) return;
   loading.value = true;
-  const r = await call('config_get'); // 用 config_get 当探测接口
+  const r = await call('config_get', {}, key.value); // 显式传 key, 此时 localStorage 还没存
   loading.value = false;
   if (r.ok) {
     localStorage.setItem('admin_web_key', key.value);

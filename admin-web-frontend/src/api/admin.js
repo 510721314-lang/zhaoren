@@ -38,7 +38,12 @@ http.interceptors.response.use(
   }
 );
 
-export function call(action, data = {}) {
-  return http.post('/api', { action, ...data });
+export function call(action, data = {}, keyOverride = null) {
+  // keyOverride 用于登录页: 此时 localStorage 还没存 key, 显式传才能通过网关校验
+  const cfg = { action, ...data };
+  if (keyOverride) {
+    return http.post('/api', cfg, { headers: { 'X-Admin-Key': keyOverride } });
+  }
+  return http.post('/api', cfg);
 }
 export default { call };
