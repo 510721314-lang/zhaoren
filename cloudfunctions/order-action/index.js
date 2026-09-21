@@ -672,16 +672,19 @@ exports.main = async (event, context) => {
   // 改期业务常量(与小程序 config/index.js MODIFY/TIME_REDLINE 对齐; admin_config.modify_config 可覆盖)
   const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
   // 时间红线: admin_config.time_redline_close_min / time_redline_open_min (分钟); 默认 24:00 关闭 06:00 恢复
-  // 云函数侧不再写死, 允许后台配置运营时段(如疫情/春节临时关闭)
+  // close_min=0 语义为"全天开放"(午夜不关闭); open_min 必须 < close_min 才合法
   function redlineBounds(cfg) {
     const c = parseInt(cfg && cfg.time_redline_close_min, 10);
     const o = parseInt(cfg && cfg.time_redline_open_min, 10);
-    return { close: (c > 0 && c <= 1440) ? c : 1440, open: (o >= 0 && o < 1440 && o < (c || 1440)) ? o : 360 };
+    const close = (c >= 0 && c <= 1440) ? c : 1440;     // 默认 1440=24:00
+    const open  = (o >= 0 && o < close) ? o : 360;      // 默认 360=06:00; open 必须 < close
+    return { open, close };
   }
 
-  // 时间红线: 服务开始时间(本地时区 HH:mm)不得落在 open~close 之外(夜间暂停)
+  // 时间红线: close_min=0 语义为"全天开放"(任何时间都允许); 否则 mins ∈ [open, close) 合法
   function isModifyTimeAllowed(ts, cfg) {
     const { open, close } = redlineBounds(cfg);
+    if (close === 0) return true;  // 全天开放(运营显式设 close_min=0)
     const d = new Date(ts);
     const mins = d.getHours() * 60 + d.getMinutes();
     return mins >= open && mins < close;
