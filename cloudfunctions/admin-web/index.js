@@ -60,7 +60,13 @@ exports.main = async (event, context) => {
     const action = body.action;
     if (!action) return makeResponse({ ok: false, code: 'no_action' }, 400);
 
-    const proxyData = { ...body, __admin_web_proxy: true };
+    // proxy 时附加可信 admin openid (X-Admin-Key 已通过 checkAuth 校验)
+    let adminOpenid = null;
+    try {
+      const cfg2 = (await db.collection('admin_config').doc('global').get()).data;
+      adminOpenid = (cfg2.admin_openids && cfg2.admin_openids[0]) || null;
+    } catch (e) {}
+    const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid };
     try {
       const r = await cloud.callFunction({ name: 'admin-action', data: proxyData });
       return makeResponse(r.result || { ok: false, code: 'no_result' });

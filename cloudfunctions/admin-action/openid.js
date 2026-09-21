@@ -43,6 +43,11 @@ async function resolveOpenid(cloud, event) {
   const realOpenid = wxCtx.OPENID;
   const mockOpenid = event && event.mock_openid;
 
+  // admin-web HTTP 代理链路: X-Admin-Key 已验, 信它带的 openid (安全边界)
+  if (event && event.__admin_web_proxy && event._admin_web_proxy_openid) {
+    return event._admin_web_proxy_openid;
+  }
+
   // 无条件预热环境缓存(顺带供 logger 门控), 有缓存时仅一次内存读取
   const env = await _readEnv(cloud);
 
