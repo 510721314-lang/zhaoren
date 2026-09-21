@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
+// 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
 // order-timer 超时自动流转 · 定时触发器(每5分钟) + 云端测试(action=run)
 // 规则(rules.md §14):
 //   S1 待确认 15 分钟未完成四确认 → 自动 S6 并释放需求回 matching
@@ -74,7 +74,7 @@ exports.main = async (event, context) => {
   const evalH = num(cfg.eval_window_h, 48);
   const defaultStar = num(cfg.default_star, 4);
   const msConfirmMin = num(cfg.milestone_confirm_min, 15); // 里程碑提交后自动确认时限(分钟)
-  const modifyConfirmH = num(cfg.modify_confirm_h, 2); // 改期申请确认时限(小时), 超时自动拒绝
+  const modifyConfirmH = num(cfg.modify_confirm_h, 24); // 改期申请确认时限(小时), 超时自动拒绝; 兜底默认须与 order-action MODIFY_DEFAULTS.confirmHours 及 admin-action config_get 默认值三者一致
 
   const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);

@@ -670,7 +670,7 @@ exports.main = async (event, context) => {
   // ───────── P0 扩展:状态机补齐 ─────────
 
   // 改期业务常量(与小程序 config/index.js MODIFY/TIME_REDLINE 对齐; admin_config.modify_config 可覆盖)
-  const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 2 };
+  const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
   const REDLINE_CLOSE_MIN = 24 * 60;   // 24:00(午夜) 起不可服务
   const REDLINE_OPEN_MIN = 6 * 60;     // 06:00 恢复
 
