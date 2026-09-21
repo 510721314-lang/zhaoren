@@ -671,14 +671,20 @@ exports.main = async (event, context) => {
 
   // 改期业务常量(与小程序 config/index.js MODIFY/TIME_REDLINE 对齐; admin_config.modify_config 可覆盖)
   const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
-  const REDLINE_CLOSE_MIN = 24 * 60;   // 24:00(午夜) 起不可服务
-  const REDLINE_OPEN_MIN = 6 * 60;     // 06:00 恢复
+  // 时间红线: admin_config.time_redline_close_min / time_redline_open_min (分钟); 默认 24:00 关闭 06:00 恢复
+  // 云函数侧不再写死, 允许后台配置运营时段(如疫情/春节临时关闭)
+  function redlineBounds(cfg) {
+    const c = parseInt(cfg && cfg.time_redline_close_min, 10);
+    const o = parseInt(cfg && cfg.time_redline_open_min, 10);
+    return { close: (c > 0 && c <= 1440) ? c : 1440, open: (o >= 0 && o < 1440 && o < (c || 1440)) ? o : 360 };
+  }
 
-  // 时间红线: 服务开始时间(本地时区 HH:mm)不得落在 00:00-06:00
-  function isModifyTimeAllowed(ts) {
+  // 时间红线: 服务开始时间(本地时区 HH:mm)不得落在 open~close 之外(夜间暂停)
+  function isModifyTimeAllowed(ts, cfg) {
+    const { open, close } = redlineBounds(cfg);
     const d = new Date(ts);
     const mins = d.getHours() * 60 + d.getMinutes();
-    return mins >= REDLINE_OPEN_MIN && mins < REDLINE_CLOSE_MIN;
+    return mins >= open && mins < close;
   }
 
   // 改期发起:S2/S3 → S2_5(改期处理中, 等待对方确认; 超时由 order-timer 自动拒绝)
@@ -710,8 +716,8 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_modify_lead', msg: `须提前${modifyConfig.minLeadHours}小时申请改期` };
     }
     // 时间红线: 00:00-06:00 不可约
-    if (!isModifyTimeAllowed(newTs)) {
-      return { ok: false, code: 'oa_modify_redline', msg: '服务时间须在 06:00-24:00 之间' };
+    if (!isModifyTimeAllowed(newTs, config)) {
+      return { ok: false, code: 'oa_modify_redline', msg: '服务时间须在运营时段内' };
     }
     // 幅度上限 72h(相对原服务时间)
     const span = Math.abs(newTs - Number(order.start_time)) / 3600000;
@@ -804,8 +810,8 @@ exports.main = async (event, context) => {
     if (!pending.new_start_time || pending.new_start_time <= now) {
       return { ok: false, code: 'oa_modify_expired', msg: '改期时间已过期,请重新发起' };
     }
-    if (!isModifyTimeAllowed(pending.new_start_time)) {
-      return { ok: false, code: 'oa_modify_redline', msg: '服务时间不在 06:00-24:00 之间' };
+    if (!isModifyTimeAllowed(pending.new_start_time, config)) {
+      return { ok: false, code: 'oa_modify_redline', msg: '服务时间不在运营时段内' };
     }
     const won = await casStatus(order_id, 'S2_5', {
       status: toStatus,

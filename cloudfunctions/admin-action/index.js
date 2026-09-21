@@ -998,13 +998,24 @@ exports.main = async (event, context) => {
         interrupt_timeout_h: config.interrupt_timeout_h || 24,
         eval_window_h: config.eval_window_h || 48,
         default_star: config.default_star || 4,
-        milestone_confirm_min: config.milestone_confirm_min || 15,
-        modify_confirm_h: config.modify_confirm_h || 2
+        milestone_confirm_min: config.milestone_confirm_min || 15
+      },
+      time_redline: {
+        close_min: config.time_redline_close_min || 1440,   // 24:00
+        open_min: config.time_redline_open_min || 360      // 06:00
       },
       limits: {
         publish_distance_max_km: config.publish_distance_max_km || 50,
         take_distance_max_km: config.take_distance_max_km || 50,
         youth_limit_fen: config.youth_limit_fen || 20000
+      },
+      insurance: {
+        coverage_accident_fen: config.insurance_coverage_accident_fen || 50000000,
+        coverage_property_fen: config.insurance_coverage_property_fen || 5000000
+      },
+      fast_withdraw: {
+        per_order_max_fen: config.fast_withdraw_per_order_max_fen || 20000,
+        per_day_max_fen: config.fast_withdraw_per_day_max_fen || 200000
       },
       security: {
         security_only_template_before_confirm: config.security_only_template_before_confirm !== false
@@ -1095,7 +1106,11 @@ exports.main = async (event, context) => {
       // ── 第一批补白名单: 云函数已读但此前后台改不了的键 ──
       ['publish_distance_max_km', 1, 500], ['take_distance_max_km', 1, 500],
       ['youth_limit_fen', 1000, 100000], ['default_star', 1, 5],
-      ['milestone_confirm_min', 1, 1440], ['modify_confirm_h', 1, 168]
+      ['milestone_confirm_min', 1, 1440],
+      // ── 第二批补白名单: REDLINE/保险/极速提现(云函数侧硬编码债) ──
+      ['time_redline_close_min', 0, 1440], ['time_redline_open_min', 0, 1440],
+      ['insurance_coverage_accident_fen', 0, 1000000000], ['insurance_coverage_property_fen', 0, 1000000000],
+      ['fast_withdraw_per_order_max_fen', 0, 1000000], ['fast_withdraw_per_day_max_fen', 0, 10000000]
     ];
     for (const [f, lo, hi] of intFields) {
       if (event[f] !== undefined) {

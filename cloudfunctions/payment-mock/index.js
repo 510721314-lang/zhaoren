@@ -454,13 +454,16 @@ exports.main = async (event, context) => {
       const rand = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
       const policyNo = `INS${ts}${rand}`;
       const now = ts;
+      const pcfg = await getConfig();
+      const accidentFen = parseInt(pcfg.insurance_coverage_accident_fen, 10) || 50000000;
+      const propertyFen = parseInt(pcfg.insurance_coverage_property_fen, 10) || 5000000;
       try {
         await col('insurance_record').add({
           data: {
             order_id, policy_no: policyNo, status: 'active',
             openid, scene_code: order.scene || '',
-            coverage_accident_fen: 50000000,  // 50 万意外险(分)
-            coverage_property_fen: 5000000,   // 5 万财产险(分)
+            coverage_accident_fen: accidentFen,
+            coverage_property_fen: propertyFen,
             premium_fen: 0,                    // 平台承担保费
             is_mock: true,
             created_at: now, updated_at: now, is_deleted: false
@@ -593,9 +596,12 @@ exports.main = async (event, context) => {
       if (amount < 1000) {
         return { ok: false, code: 'wd_too_small', msg: '单次最低提现 10 元' };
       }
-      // 极速提现单笔上限 200 元(WITHDRAW.fastPerOrderMax=200)
-      if (isFast && amount > 20000) {
-        return { ok: false, code: 'wd_fast_cap', msg: '极速提现单笔上限 200 元' };
+      const wcfg = await getConfig();
+      const fastPerOrder = parseInt(wcfg.fast_withdraw_per_order_max_fen, 10) || 20000;
+      const fastPerDay = parseInt(wcfg.fast_withdraw_per_day_max_fen, 10) || 200000;
+      // 极速提现单笔上限(admin_config.fast_withdraw_per_order_max_fen; 默认 200 元)
+      if (isFast && amount > fastPerOrder) {
+        return { ok: false, code: 'wd_fast_cap', msg: `极速提现单笔上限 ${fastPerOrder / 100} 元` };
       }
 
       // 串行锁: 余额校验→落库期间禁止同 openid 并发, 防双击/并发双花
@@ -628,8 +634,8 @@ exports.main = async (event, context) => {
       // 极速提现当日累计上限 2000 元(WITHDRAW.fastPerDayMax=2000)
       if (isFast) {
         const todayFast = (dayR.list && dayR.list[0] && dayR.list[0].total) || 0;
-        if (todayFast + amount > 200000) {
-          return { ok: false, code: 'wd_fast_daily', msg: '极速提现当日累计上限 2000 元' };
+        if (todayFast + amount > fastPerDay) {
+          return { ok: false, code: 'wd_fast_daily', msg: `极速提现当日累计上限 ${fastPerDay / 100} 元` };
         }
       }
 
