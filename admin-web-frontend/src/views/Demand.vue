@@ -12,8 +12,11 @@
       <el-table-column prop="demand_no" label="需求号" width="200">
         <template #default="{row}"><code style="font-size:11px">{{ row.demand_no }}</code></template>
       </el-table-column>
-      <el-table-column label="用户" width="160">
-        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.user_openid?.slice(-12) }}</span></template>
+      <el-table-column label="创建人" width="160">
+        <template #default="{row}">{{ row.creator_name || '-' }}</template>
+      </el-table-column>
+      <el-table-column label="OpenID" width="160">
+        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.creator_openid?.slice(-12) }}</span></template>
       </el-table-column>
       <el-table-column prop="scene" label="场景" width="80" />
       <el-table-column prop="status" label="状态" width="100">

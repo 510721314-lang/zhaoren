@@ -8,16 +8,18 @@
 
     <!-- 表格 -->
     <el-table :data="list" v-loading="loading" border stripe size="small">
-      <el-table-column prop="blog_id" label="ID" width="80" />
-      <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip />
-      <el-table-column prop="author" label="作者" width="140" />
+      <el-table-column prop="_id" label="ID" width="180">
+        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row._id }}</span></template>
+      </el-table-column>
+      <el-table-column prop="content" label="内容" min-width="240" show-overflow-tooltip />
+      <el-table-column prop="author_nickname" label="作者" width="140" />
       <el-table-column label="状态" width="100">
         <template #default="{row}">
           <el-tag :type="blogStatusType(row.status)" size="small">{{ row.status ?? '-' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="发布时间" width="160">
-        <template #default="{row}">{{ row.published_at ? formatTime(row.published_at) : '-' }}</template>
+      <el-table-column label="创建时间" width="160">
+        <template #default="{row}">{{ row.created_at ? formatTime(row.created_at) : '-' }}</template>
       </el-table-column>
     </el-table>
 

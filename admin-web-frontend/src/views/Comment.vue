@@ -9,10 +9,14 @@
 
     <!-- 表格 -->
     <el-table :data="list" v-loading="loading" border stripe size="small">
-      <el-table-column prop="comment_id" label="评论ID" width="100" />
-      <el-table-column prop="blog_id" label="博客ID" width="100" />
-      <el-table-column label="评论者" width="160">
-        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.openid?.slice(-12) }}</span></template>
+      <el-table-column prop="_id" label="评论ID" width="180">
+        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row._id }}</span></template>
+      </el-table-column>
+      <el-table-column label="评论者" width="180">
+        <template #default="{row}">
+          <div>{{ row.author_nickname || '-' }}</div>
+          <div style="font-family:monospace;font-size:10px;color:#999">{{ row.author_openid?.slice(-12) }}</div>
+        </template>
       </el-table-column>
       <el-table-column prop="content" label="内容" min-width="260" show-overflow-tooltip />
       <el-table-column label="状态" width="100">
@@ -50,7 +54,7 @@ function commentStatusType(s) {
 async function load() {
   loading.value = true;
   const params = { page: page.value, size: size.value };
-  if (blogId.value) params.blog_id = blogId.value;
+  if (blogId.value) params.post_id = blogId.value;
   const r = await call('blog_comment_list', params);
   loading.value = false;
   if (r.ok) { list.value = r.data.list; total.value = r.data.total; }

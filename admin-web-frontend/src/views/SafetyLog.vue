@@ -14,13 +14,13 @@
     <el-table :data="list" v-loading="loading" border stripe size="small">
       <el-table-column label="类型" width="100">
         <template #default="{row}">
-          <el-tag :type="row.kind === 'sos' ? 'danger' : 'info'" size="small">
-            {{ row.kind === 'sos' ? 'SOS' : '签到' }}
+          <el-tag :type="row.type === 'sos' ? 'danger' : 'info'" size="small">
+            {{ row.type === 'sos' ? 'SOS' : '签到' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="target_openid" label="目标用户" width="180">
-        <template #default="{row}"><code style="font-size:11px">{{ row.target_openid }}</code></template>
+      <el-table-column prop="reporter_openid" label="上报用户" width="180">
+        <template #default="{row}"><code style="font-size:11px">{{ row.reporter_openid }}</code></template>
       </el-table-column>
       <el-table-column prop="order_id" label="订单ID" width="180">
         <template #default="{row}"><code style="font-size:11px">{{ row.order_id || '-' }}</code></template>
@@ -32,7 +32,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="location" label="位置" show-overflow-tooltip />
+      <el-table-column prop="location_name" label="位置" show-overflow-tooltip />
       <el-table-column label="创建时间" width="160">
         <template #default="{row}">{{ formatTime(row.created_at) }}</template>
       </el-table-column>
@@ -56,7 +56,7 @@ const loading = ref(false); const kindFilter = ref('');
 async function load() {
   loading.value = true;
   const params = { page: page.value, size: size.value };
-  if (kindFilter.value) params.kind = kindFilter.value;
+  if (kindFilter.value) params.sub_type = kindFilter.value;
   const r = await call('safety_log_list', params);
   loading.value = false;
   if (r.ok) { list.value = r.data.list; total.value = r.data.total; }

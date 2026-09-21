@@ -13,10 +13,12 @@
         <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.event_id }}</span></template>
       </el-table-column>
       <el-table-column prop="type" label="type" width="140" />
-      <el-table-column prop="target_openid" label="target_openid" width="180">
-        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.target_openid?.slice(-12) }}</span></template>
+      <el-table-column prop="openid" label="openid" width="180">
+        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.openid?.slice(-12) }}</span></template>
       </el-table-column>
-      <el-table-column prop="content_preview" label="content_preview" min-width="200" show-overflow-tooltip />
+      <el-table-column label="payload" min-width="200" show-overflow-tooltip>
+        <template #default="{row}">{{ row.payload ? JSON.stringify(row.payload) : '-' }}</template>
+      </el-table-column>
       <el-table-column label="created_at" width="170">
         <template #default="{row}">{{ formatTime(row.created_at) }}</template>
       </el-table-column>

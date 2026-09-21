@@ -13,12 +13,13 @@
 
     <!-- 表格 -->
     <el-table :data="list" v-loading="loading" border stripe size="small">
-      <el-table-column prop="report_id" label="举报ID" width="100" />
-      <el-table-column prop="report_type" label="举报类型" width="120" />
-      <el-table-column prop="target_type" label="目标类型" width="100" />
-      <el-table-column prop="target_id" label="目标ID" width="140">
-        <template #default="{row}"><code style="font-size:11px">{{ row.target_id }}</code></template>
+      <el-table-column prop="report_id" label="举报ID" width="180">
+        <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.report_id }}</span></template>
       </el-table-column>
+      <el-table-column prop="order_no" label="订单号" width="180">
+        <template #default="{row}"><code style="font-size:11px">{{ row.order_no }}</code></template>
+      </el-table-column>
+      <el-table-column prop="type" label="举报类型" width="120" />
       <el-table-column label="举报人" width="160">
         <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.reporter_openid?.slice(-12) }}</span></template>
       </el-table-column>

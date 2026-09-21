@@ -13,14 +13,13 @@
         <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.openid?.slice(-12) }}</span></template>
       </el-table-column>
       <el-table-column prop="nickname" label="昵称" min-width="140" show-overflow-tooltip />
-      <el-table-column prop="exam_scores" label="考试分数" width="110" />
       <el-table-column label="状态" width="90">
         <template #default="{row}">
           <el-tag :type="partnerStatusType(row.status)" size="small">{{ partnerStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" width="160">
-        <template #default="{row}">{{ formatTime(row.created_at) }}</template>
+      <el-table-column label="申请时间" width="160">
+        <template #default="{row}">{{ formatTime(row.applied_at) }}</template>
       </el-table-column>
     </el-table>
 
@@ -40,12 +39,12 @@ const list = ref([]); const total = ref(0); const page = ref(1); const size = re
 const loading = ref(false); const kw = ref('');
 
 function partnerStatusLabel(s) {
-  const m = { active: '在岗', inactive: '离岗', banned: '封禁', pending: '待审核' };
+  const m = { pending_review: '待审核', approved: '已通过', rejected: '已拒绝', offline: '离线', banned: '封禁' };
   return m[s] || s || '-';
 }
 
 function partnerStatusType(s) {
-  const m = { active: 'success', inactive: 'info', banned: 'danger', pending: 'warning' };
+  const m = { pending_review: 'warning', approved: 'success', rejected: 'danger', offline: 'info', banned: 'danger' };
   return m[s] || 'info';
 }
 
