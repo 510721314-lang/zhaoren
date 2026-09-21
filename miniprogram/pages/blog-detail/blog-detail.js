@@ -18,10 +18,22 @@ Page({
     sending: false,
     showCommentEmpty: false
   },
+  // 动态分享: 带 blog content 前 30 字 + post_id
   onShareAppMessage() {
+    const p = this.data.post;
+    const title = p ? (p.content || '').slice(0, 30) + (((p.content || '').length > 30) ? '...' : '') : '找个人帮忙';
     return {
-      title: '找个人帮忙',
-      path: '/pages-v2/index/index'
+      title: title || '找个人帮忙',
+      path: '/pages/blog-detail/blog-detail?post_id=' + (this.data.postId || ''),
+      imageUrl: p && p.hasImages ? p.images[0] : ''
+    };
+  },
+  // 朋友圈分享 (只支持 title + imageUrl, 无 path)
+  onShareTimeline() {
+    const p = this.data.post;
+    return {
+      title: p ? (p.content || '').slice(0, 30) : '找个人帮忙',
+      imageUrl: p && p.hasImages ? p.images[0] : ''
     };
   },
 

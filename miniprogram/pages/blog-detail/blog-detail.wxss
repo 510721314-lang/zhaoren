@@ -65,6 +65,10 @@
 .like-btn { display: flex; align-items: center; font-size: var(--font-md); color: var(--text-2, #4B5563); margin-right: 20rpx; }
 .like-icon { font-size: var(--font-display); margin-right: 6rpx; }
 .like-btn.like-on { color: var(--danger, #B03A2E); }
+.share-btn { display: flex; align-items: center; font-size: var(--font-md); color: var(--text-2, #4B5563); margin-right: 20rpx; background: transparent; padding: 0; border: none; line-height: 1.6; }
+.share-btn::after { border: none; }
+.share-icon { margin-right: 4rpx; }
+.share-on { color: var(--primary, #D4875A); opacity: 0.7; }
 .comment-input { flex: 1; background: var(--bg-page); border-radius: 32rpx; padding: 16rpx 28rpx; font-size: var(--font-md); }
 .send-btn { margin-left: 18rpx; color: var(--primary, #D4875A); font-size: var(--font-lg); font-weight: 600; padding: 8rpx 12rpx; }
 .send-disabled { opacity: 0.5; }

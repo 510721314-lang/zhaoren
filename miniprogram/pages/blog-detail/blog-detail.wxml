@@ -72,6 +72,10 @@
         <text class="like-icon">{{post.liked ? '❤️' : '🤍'}}</text>
         <text>{{post.likeCount}}</text>
       </view>
+      <button class="share-btn" open-type="share" hover-class="share-on">
+        <text class="share-icon">📤</text>
+        <text>分享</text>
+      </button>
       <input class="comment-input" placeholder="友善评论，认真交流" value="{{commentText}}"
              bindinput="onCommentInput" confirm-type="send" bindconfirm="onSendComment" />
       <view class="send-btn {{sending?'send-disabled':''}}" bindtap="onSendComment">发送</view>
