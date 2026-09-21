@@ -119,6 +119,17 @@ exports.main = async (event, context) => {
   const { resolveOpenid, warmEnv } = require('./openid');
   await warmEnv(cloud);
 
+  // ── force_set_env 过期自毁: 每次 init-db 被调用时检查, 超 4h 自动切回 prod ──
+  try {
+    const _cfg = (await db.collection('admin_config').doc('global').get()).data;
+    if (_cfg && _cfg.force_expire_at && _cfg.force_expire_at < Date.now()) {
+      await db.collection('admin_config').doc('global').update({
+        data: { env: 'prod', force_expire_at: null, force_operator: null, force_reason: null, force_used_at: null, updated_at: Date.now(), updated_by: { action: 'force_expired_auto_revert', at: Date.now() } }
+      });
+      console.warn('[init-db] force_set_env 已过期, 自动切回 prod');
+    }
+  } catch (_) {}
+
   // ── 鉴权: lookup/check_pp/force_migrate_scenes 需管理员; quick_check + 默认幂等种子补齐放行 ──
   const action = event && event.action;
   const openid = await resolveOpenid(cloud, event);
@@ -230,7 +241,6 @@ exports.main = async (event, context) => {
     if (env !== 'dev' && env !== 'prod') return { ok: false, msg: 'env 只能是 dev 或 prod' };
     if (!reason) return { ok: false, msg: 'force_set_env 必须填 reason 留审计' };
     try {
-      // 安全门控: 云端测试面板传 mock_openid, 真机走真实 OPENID, 两者都必须在 admin_openids 里
       const wxCtx = cloud.getWXContext();
       const curOpenid = wxCtx.OPENID || mock_openid || null;
       if (!curOpenid) return { ok: false, code: 'no_identity', msg: '请提供 mock_openid(云端测试面板) 或真机身份' };
@@ -240,9 +250,20 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'forbidden', msg: '仅白名单管理员可调用 force_set_env' };
       }
       const before = (acr.data.env) || 'prod';
-      await db.collection('admin_config').doc('global').update({ data: { env, updated_at: Date.now() } });
-      await db.collection('admin_config').doc('global').update({ data: { updated_by: { action: 'force_set_env', operator: curOpenid, from: before, to: env, reason, at: Date.now() } } });
-      return { ok: true, mode: 'force_set_env', from: before, to: env, operator: curOpenid };
+      const now = Date.now();
+      const EXPIRE_MS = 4 * 60 * 60 * 1000; // 4 小时自毁
+      await db.collection('admin_config').doc('global').update({
+        data: {
+          env,
+          updated_at: now,
+          force_expire_at: env === 'dev' ? now + EXPIRE_MS : null,
+          force_operator: env === 'dev' ? curOpenid : null,
+          force_reason: env === 'dev' ? reason : null,
+          force_used_at: env === 'dev' ? now : null,
+          updated_by: { action: 'force_set_env', operator: curOpenid, from: before, to: env, reason, at: now, auto_revert_at: env === 'dev' ? now + EXPIRE_MS : null }
+        }
+      });
+      return { ok: true, mode: 'force_set_env', from: before, to: env, operator: curOpenid, auto_revert_in_hours: env === 'dev' ? 4 : null };
     } catch (e) { return { ok: false, msg: e.message }; }
   }
 

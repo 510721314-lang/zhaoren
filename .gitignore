@@ -21,3 +21,7 @@ node_modules/
 # Git Bundle 备份产物（不入仓库，由热备目录留存）
 *.bundle
 zhaoren_backup_*/
+
+# 临时云函数（手动调试用，不上仓库；云端残留自己 rm）
+cloudfunctions/admin-test/
+cloudfunctions/export-config/
