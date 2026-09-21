@@ -37,7 +37,32 @@
       <el-table-column label="纠纷" width="70">
         <template #default="{row}"><span v-if="row.help_flag" style="color:#E6A23C">⚠</span><span v-else>-</span></template>
       </el-table-column>
+      <el-table-column label="操作" width="120" fixed="right">
+        <template #default="{row}">
+          <el-button v-if="row.status === 'S0' || row.status === 'S1'"
+            size="small" type="danger" :loading="busy === row.order_id"
+            @click.stop="openCancel(row)">强制取消</el-button>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
     </el-table>
+
+    <!-- 强制取消弹窗 -->
+    <el-dialog v-model="cancelDialog" title="强制取消订单" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="目标订单">
+          <span>{{ cancelTarget?.order_no }}</span>
+        </el-form-item>
+        <el-form-item label="取消原因" required>
+          <el-input v-model="cancelNote" type="textarea" :rows="3"
+            placeholder="请填写取消原因, 仅待确认/待支付订单可取消, 将记录到审计日志" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="cancelDialog = false">取消</el-button>
+        <el-button type="danger" :loading="submitting" @click="doCancel">确认取消</el-button>
+      </template>
+    </el-dialog>
 
     <el-pagination style="margin-top:12px;justify-content:flex-end;display:flex"
       v-model:current-page="page" v-model:page-size="size"
@@ -91,12 +116,20 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import { call } from '../api/admin.js';
 import { fenToYuan, formatTime, statusLabel, txTypeLabel, STATUS_MAP } from '../utils/format.js';
 
 const list = ref([]); const total = ref(0); const page = ref(1); const size = ref(15);
 const loading = ref(false); const kw = ref(''); const stFilter = ref('');
 const showDetail = ref(false); const detail = ref(null);
+const busy = ref('');
+
+// 强制取消弹窗
+const cancelDialog = ref(false);
+const cancelTarget = ref(null);
+const cancelNote = ref('');
+const submitting = ref(false);
 
 const statusOpts = Object.keys(STATUS_MAP);
 
@@ -106,6 +139,30 @@ function statusType(s) {
   if (warn.includes(s)) return 'warning';
   if (succ.includes(s)) return 'success';
   return 'info';
+}
+
+function openCancel(row) {
+  cancelTarget.value = row;
+  cancelNote.value = '';
+  cancelDialog.value = true;
+}
+
+async function doCancel() {
+  if (!cancelNote.value.trim()) {
+    ElMessage.warning('请填写取消原因');
+    return;
+  }
+  submitting.value = true;
+  const target = cancelTarget.value;
+  const r = await call('order_force_cancel', { order_id: target.order_id, note: cancelNote.value.trim() });
+  submitting.value = false;
+  if (r.ok) {
+    ElMessage.success(r.data?.msg || '已强制取消');
+    cancelDialog.value = false;
+    await load();
+  } else {
+    ElMessage.error(r.msg || r.code || '操作失败');
+  }
 }
 
 async function load() {
