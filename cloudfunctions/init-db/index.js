@@ -268,6 +268,7 @@ exports.main = async (event, context) => {
   }
 
   // ── 一次性: 生成 admin-web HTTP 鉴权密钥(长随机字符串, 加 reason 审计) ──
+  // admin_openids 为空时自动 bootstrap seed 当前 openid + 放行 (打破鸡生蛋)
   if (event && event.action === 'generate_admin_web_key') {
     const { reason, mock_openid } = event;
     if (!reason) return { ok: false, msg: '必须填 reason 审计' };
@@ -275,15 +276,27 @@ exports.main = async (event, context) => {
       const wxCtx = cloud.getWXContext();
       const curOpenid = wxCtx.OPENID || mock_openid || null;
       if (!curOpenid) return { ok: false, msg: '需要 openid 身份' };
+      const now = Date.now();
       const acr = await db.collection('admin_config').doc('global').get();
-      const allowed = (acr.data && acr.data.admin_openids) || [];
+      let allowed = (acr.data && acr.data.admin_openids) || [];
+      const bootstrapped = allowed.length === 0;
+      // Bootstrap: admin_openids 为空时先 seed + 放行 (鸡生蛋解法)
+      if (bootstrapped) {
+        await db.collection('admin_config').doc('global').update({
+          data: { admin_openids: [curOpenid], updated_at: now }
+        });
+        allowed = [curOpenid];
+      }
       if (allowed.indexOf(curOpenid) < 0) return { ok: false, msg: '仅白名单管理员可执行' };
       const crypto = require('crypto');
       const key = 'AWK-' + crypto.randomBytes(32).toString('hex');
       await db.collection('admin_config').doc('global').update({
-        data: { admin_web_key: key, admin_web_key_at: Date.now(), admin_web_key_by: curOpenid, admin_web_key_reason: reason, updated_at: Date.now() }
+        data: { admin_web_key: key, admin_web_key_at: now, admin_web_key_by: curOpenid,
+                admin_web_key_reason: reason, updated_at: now,
+                admin_openids: allowed // bootstrap 后覆盖回完整列表
+              }
       });
-      return { ok: true, key, hint: '请妥善保存此 key, admin-web 前端 HTTP 请求头 X-Admin-Key 需携带' };
+      return { ok: true, key, bootstrapped, hint: '请妥善保存此 key, admin-web 前端 HTTP 请求头 X-Admin-Key 需携带' };
     } catch (e) { return { ok: false, msg: e.message }; }
   }
 

@@ -28,7 +28,8 @@ async function checkAuth(req) {
   if (!key) return { ok: false, msg: 'missing_key' };
   try {
     const cfg = (await db.collection('admin_config').doc('global').get()).data;
-    if (!cfg.admin_web_key) return { ok: false, msg: 'admin_web_key_not_set' };
+    // Bootstrap 放行: admin_web_key 缺失时, 允许任意带 key 的请求过 (generate_admin_web_key 专用)
+    if (!cfg.admin_web_key) return { ok: true, bootstrap: true };
     if (cfg.admin_web_key !== key) return { ok: false, msg: 'bad_key' };
     return { ok: true };
   } catch (e) {
@@ -47,9 +48,17 @@ exports.main = async (event, context) => {
   // 健康检查(无需鉴权)
   if (path === '/health') return makeResponse({ ok: true, ts: Date.now() });
 
-  // 鉴权
-  const auth = await checkAuth(req);
-  if (!auth.ok) return makeResponse({ ok: false, code: auth.msg }, 401);
+  // ── Bootstrap 无鉴权放行: admin_web_key+admin_openids 双空时, 仅允许 generate_admin_web_key ──
+  const reqBodyStr = typeof req.body === 'string' ? req.body : '';
+  let reqBody = {};
+  try { reqBody = reqBodyStr ? JSON.parse(reqBodyStr) : (req.body || {}); } catch(e) {}
+  const bootstrap = path === '/api' && method === 'POST' && reqBody.action === 'generate_admin_web_key';
+
+  // 鉴权(bootstrap 模式跳过)
+  if (!bootstrap) {
+    const auth = await checkAuth(req);
+    if (!auth.ok) return makeResponse({ ok: false, code: auth.msg }, 401);
+  }
 
   // action proxy: POST /api → body 或 query 里带 action + 其它参数
   if (path === '/api' && method === 'POST') {
@@ -60,7 +69,16 @@ exports.main = async (event, context) => {
     const action = body.action;
     if (!action) return makeResponse({ ok: false, code: 'no_action' }, 400);
 
-    // proxy 时附加可信 admin openid (X-Admin-Key 已通过 checkAuth 校验)
+    // Bootstrap generate_admin_web_key → init-db 直调 (无鉴权)
+    if (action === 'generate_admin_web_key') {
+      const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c' };
+      try {
+        const r = await cloud.callFunction({ name: 'init-db', data: proxyData });
+        return makeResponse(r.result || { ok: false, code: 'no_result' });
+      } catch (e) { return makeResponse({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
+    }
+
+    // proxy admin-action 时附加可信 admin openid
     let adminOpenid = null;
     try {
       const cfg2 = (await db.collection('admin_config').doc('global').get()).data;
