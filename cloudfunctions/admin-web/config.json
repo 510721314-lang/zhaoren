@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "openapi": []
+  },
+  "timeout": 30,
+  "env": {
+    "VAR": "value"
+  }
+}

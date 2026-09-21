@@ -1,0 +1,9 @@
+{
+  "name": "admin-web",
+  "version": "0.1.0",
+  "description": "Web 管理后台后端代理层 (HTTP trigger)",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

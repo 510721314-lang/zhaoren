@@ -267,6 +267,26 @@ exports.main = async (event, context) => {
     } catch (e) { return { ok: false, msg: e.message }; }
   }
 
+  // ── 一次性: 生成 admin-web HTTP 鉴权密钥(长随机字符串, 加 reason 审计) ──
+  if (event && event.action === 'generate_admin_web_key') {
+    const { reason, mock_openid } = event;
+    if (!reason) return { ok: false, msg: '必须填 reason 审计' };
+    try {
+      const wxCtx = cloud.getWXContext();
+      const curOpenid = wxCtx.OPENID || mock_openid || null;
+      if (!curOpenid) return { ok: false, msg: '需要 openid 身份' };
+      const acr = await db.collection('admin_config').doc('global').get();
+      const allowed = (acr.data && acr.data.admin_openids) || [];
+      if (allowed.indexOf(curOpenid) < 0) return { ok: false, msg: '仅白名单管理员可执行' };
+      const crypto = require('crypto');
+      const key = 'AWK-' + crypto.randomBytes(32).toString('hex');
+      await db.collection('admin_config').doc('global').update({
+        data: { admin_web_key: key, admin_web_key_at: Date.now(), admin_web_key_by: curOpenid, admin_web_key_reason: reason, updated_at: Date.now() }
+      });
+      return { ok: true, key, hint: '请妥善保存此 key, admin-web 前端 HTTP 请求头 X-Admin-Key 需携带' };
+    } catch (e) { return { ok: false, msg: e.message }; }
+  }
+
   // ── 临时: 按 openid 查 partner_profile 全部文档 ──
   if (event && event.action === 'check_pp') {
     const _ = db.command;
