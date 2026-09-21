@@ -4,12 +4,18 @@
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 
+const PHONE_RE = /^1\d{10}$/;
+const ACCOUNT_RE = /^[a-zA-Z0-9_]{4,20}$/;
+const PASSWORD_RE = /^\S{6,32}$/;
+const SMS_CODE_RE = /^\d{6}$/;
+
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 Page({
   data: {
+    tab: 'wechat',
     agreeItems: [
       { key: 'user', label: '《用户服务协议》' },
       { key: 'privacy', label: '《隐私政策》' },
@@ -23,7 +29,129 @@ Page({
     age: null,
     hasEmergency: false,
     statusBarHeight: 20,
-    isRedline: false
+    isRedline: false,
+    // 手机号/密码 Tab 字段
+    phone: '',
+    smsCode: '',
+    smsCountdown: 0,
+    loginAccount: '',
+    loginPassword: '',
+    phLogging: false,
+    pwLogging: false,
+    // 校验态
+    phoneValid: false,
+    smsCodeValid: false,
+    accountValid: false,
+    passwordValid: false
+  },
+
+  // ── Tab 切换 ──
+  switchTab(e) {
+    const tab = e.currentTarget.dataset.tab;
+    this.setData({ tab });
+  },
+
+  // ── 手机号 Tab ──
+  onPhoneInput(e) {
+    const phone = (e.detail.value || '').trim();
+    this.setData({ phone, phoneValid: PHONE_RE.test(phone) });
+  },
+  onSmsInput(e) {
+    const smsCode = (e.detail.value || '').trim();
+    this.setData({ smsCode, smsCodeValid: SMS_CODE_RE.test(smsCode) });
+  },
+  onSendSms() {
+    if (!this.data.phoneValid || this.data.smsCountdown > 0) return;
+    if (!this.data.allChecked) { wx.showToast({ title: '请先勾选协议', icon: 'none' }); return; }
+    callCloud('user-login', { action: 'send_sms_code', phone: this.data.phone }).then((r) => {
+      if (!r.ok) { wx.showToast({ title: r.msg || '发送失败', icon: 'none' }); return; }
+      // 后端 dev 模式回传 dev_code, prod 不回(防泄露)
+      if (r.data && r.data.dev_code) {
+        wx.showModal({ title: '验证码', content: r.data.dev_code, showCancel: false, confirmText: '复制', success: (m) => { if (m.confirm) wx.setClipboardData({ data: r.data.dev_code }); }});
+      } else {
+        wx.showToast({ title: '验证码已发送', icon: 'none' });
+      }
+      this.startCountdown(60);
+    });
+  },
+  startCountdown(sec) {
+    this.setData({ smsCountdown: sec });
+    const t = setInterval(() => {
+      const n = this.data.smsCountdown - 1;
+      if (n <= 0) { clearInterval(t); this.setData({ smsCountdown: 0 }); }
+      else this.setData({ smsCountdown: n });
+    }, 1000);
+  },
+  onPhoneRegister() {
+    if (!this.data.allChecked || !this.data.phoneValid || !this.data.smsCodeValid || this.data.phLogging) return;
+    this.setData({ phLogging: true });
+    wx.showLoading({ title: '注册中…', mask: true });
+    callCloud('user-login', { action: 'phone_register', phone: this.data.phone, sms_code: this.data.smsCode }).then((r) => {
+      wx.hideLoading(); this.setData({ phLogging: false });
+      if (!r.ok || !r.data || !r.data.user) { wx.showModal({ title: '注册失败', content: r.msg || '请稍后重试', showCancel: false }); return; }
+      const u = r.data.user;
+      if (u.status === 'frozen') { wx.showModal({ title: '账号已冻结', content: '请联系管理员', showCancel: false }); return; }
+      this.afterVerified(u);
+    });
+  },
+  onPhoneLogin() {
+    if (!this.data.allChecked || !this.data.phoneValid || !this.data.smsCodeValid || this.data.phLogging) return;
+    this.setData({ phLogging: true });
+    wx.showLoading({ title: '登录中…', mask: true });
+    callCloud('user-login', { action: 'phone_login', phone: this.data.phone, sms_code: this.data.smsCode }).then((r) => {
+      wx.hideLoading(); this.setData({ phLogging: false });
+      if (!r.ok) { wx.showModal({ title: '登录失败', content: r.msg || '请稍后重试', showCancel: false }); return; }
+      const u = r.data.user;
+      if (u.status === 'frozen') { wx.showModal({ title: '账号已冻结', content: '请联系管理员', showCancel: false }); return; }
+      this.afterVerified(u);
+    });
+  },
+
+  // ── 账号密码 Tab ──
+  onAccountInput(e) {
+    const loginAccount = (e.detail.value || '').trim();
+    this.setData({ loginAccount, accountValid: ACCOUNT_RE.test(loginAccount) });
+  },
+  onPasswordInput(e) {
+    const loginPassword = e.detail.value || '';
+    this.setData({ loginPassword, passwordValid: PASSWORD_RE.test(loginPassword) });
+  },
+  onPasswordLogin() {
+    if (!this.data.allChecked || !this.data.accountValid || !this.data.passwordValid || this.data.pwLogging) return;
+    this.setData({ pwLogging: true });
+    wx.showLoading({ title: '登录中…', mask: true });
+    callCloud('user-login', { action: 'password_login', login_account: this.data.loginAccount, password: this.data.loginPassword }).then((r) => {
+      wx.hideLoading(); this.setData({ pwLogging: false });
+      if (!r.ok || !r.data || !r.data.user) { wx.showModal({ title: '登录失败', content: r.msg || '请稍后重试', showCancel: false }); return; }
+      this.afterVerified(r.data.user);
+    });
+  },
+  onPasswordRegister() {
+    if (!this.data.allChecked || !this.data.accountValid || !this.data.passwordValid || this.data.pwLogging) return;
+    this.setData({ pwLogging: true });
+    wx.showLoading({ title: '注册中…', mask: true });
+    callCloud('user-login', { action: 'password_register', login_account: this.data.loginAccount, password: this.data.loginPassword }).then((r) => {
+      wx.hideLoading(); this.setData({ pwLogging: false });
+      if (r.ok) { wx.showToast({ title: '密码设置成功,可直接登录', icon: 'success', duration: 1500 }); return; }
+      // register_no_user → 自动微信登录建号再回来
+      if (r.code === 'register_no_user') {
+        wx.showModal({ title: '需先登录微信', content: '账号密码注册前请先微信登录, 系统会自动跳转', showCancel: false, confirmText: '立即登录', success: () => {
+          this.doWechatLogin(() => {
+            this.setData({ tab: 'password' });
+            wx.showToast({ title: '微信登录已完成,请重试点注册', icon: 'none', duration: 2000 });
+          });
+        }});
+        return;
+      }
+      wx.showModal({ title: '注册失败', content: r.msg || '请稍后重试', showCancel: false });
+    });
+  },
+  // 账号密码注册前置: 隐式微信登录(静默建号)
+  doWechatLogin(cb) {
+    callCloud('user-login', { action: 'login' }).then((r) => {
+      if (r.ok && r.data && r.data.user) { cb && cb(); return; }
+      wx.showModal({ title: '登录失败', content: r.msg || '请稍后重试', showCancel: false });
+    });
   },
 
   onShow() {

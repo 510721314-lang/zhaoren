@@ -216,10 +216,33 @@ exports.main = async (event, context) => {
       const cur = await db.collection('admin_config').doc('global').get();
       const curEnv = (cur.data && cur.data.env) || 'prod';
       if (curEnv === 'prod' && env === 'dev') {
-        return { ok: false, msg: 'prod 环境禁止切 dev, 请先在代码层面放行' };
+        return { ok: false, msg: 'prod 环境禁止切 dev, 请用 force_set_env 并填 reason' };
       }
       await db.collection('admin_config').doc('global').update({ data: { env, updated_at: Date.now() } });
       return { ok: true, mode: 'set_env', env };
+    } catch (e) { return { ok: false, msg: e.message }; }
+  }
+
+  // ── 应急: 强制切 env(任何方向, 需 reason + openid 在 admin_openids 白名单) ──
+  // 真机调试时需要 prod→dev 拿 send_sms_code 的 dev_code, 测完立即切回 prod 并移除本 action
+  if (event && event.action === 'force_set_env') {
+    const { env, reason, mock_openid } = event;
+    if (env !== 'dev' && env !== 'prod') return { ok: false, msg: 'env 只能是 dev 或 prod' };
+    if (!reason) return { ok: false, msg: 'force_set_env 必须填 reason 留审计' };
+    try {
+      // 安全门控: 云端测试面板传 mock_openid, 真机走真实 OPENID, 两者都必须在 admin_openids 里
+      const wxCtx = cloud.getWXContext();
+      const curOpenid = wxCtx.OPENID || mock_openid || null;
+      if (!curOpenid) return { ok: false, code: 'no_identity', msg: '请提供 mock_openid(云端测试面板) 或真机身份' };
+      const acr = await db.collection('admin_config').doc('global').get();
+      const allowed = (acr.data && acr.data.admin_openids) || [];
+      if (allowed.indexOf(curOpenid) < 0) {
+        return { ok: false, code: 'forbidden', msg: '仅白名单管理员可调用 force_set_env' };
+      }
+      const before = (acr.data.env) || 'prod';
+      await db.collection('admin_config').doc('global').update({ data: { env, updated_at: Date.now() } });
+      await db.collection('admin_config').doc('global').update({ data: { updated_by: { action: 'force_set_env', operator: curOpenid, from: before, to: env, reason, at: Date.now() } } });
+      return { ok: true, mode: 'force_set_env', from: before, to: env, operator: curOpenid };
     } catch (e) { return { ok: false, msg: e.message }; }
   }
 
