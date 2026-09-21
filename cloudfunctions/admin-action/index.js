@@ -987,6 +987,7 @@ exports.main = async (event, context) => {
   // ───────── 8. 参数配置(白名单字段; 每次修改写 P2 config_change before/after) ─────────
   if (action === 'config_get') {
     return ok({
+      env: config.env || 'prod',   // 与 config_set 对称, 后台 UI 显示当前环境(非机密)
       platform_fee_rate_fen: config.platform_fee_rate_fen,
       auto_approve_partner: !!config.auto_approve_partner,
       payment_visible: config.payment_visible !== false,   // 默认 true, false 才隐藏支付入口
