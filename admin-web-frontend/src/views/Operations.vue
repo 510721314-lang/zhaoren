@@ -117,6 +117,41 @@
 
         <el-alert v-if="sceneList.length === 0" type="info" :closable="false" style="margin-top:12px">暂无场景, 请点"+ 新增场景"</el-alert>
       </el-tab-pane>
+
+      <!-- ── Tab 3: 首页活动 ── -->
+      <el-tab-pane label="首页活动" name="activities">
+        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+          <el-button type="primary" :loading="actLoading" @click="loadActivities">刷新</el-button>
+          <el-button type="primary" plain @click="openAddActivity">＋ 新增活动</el-button>
+          <el-tag type="info" size="small">活动仅在有效期内+状态active时前端可见</el-tag>
+        </div>
+        <el-table :data="activities" v-loading="actLoading" border stripe size="small">
+          <el-table-column prop="id" label="ID" width="140">
+            <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.id }}</span></template>
+          </el-table-column>
+          <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
+          <el-table-column label="类型" width="100">
+            <template #default="{row}">
+              <el-tag size="small">{{ actTypeLabel(row.type) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{row}">
+              <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '显示中' : '隐藏' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="有效期" width="180">
+            <template #default="{row}">{{ actTime(row.start_at) }} ~ {{ actTime(row.end_at) }}</template>
+          </el-table-column>
+          <el-table-column prop="priority" label="优先级" width="70" sortable />
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{row}">
+              <el-button size="small" type="primary" text @click="openEditActivity(row)">编辑</el-button>
+              <el-button size="small" type="danger" text :loading="actBusy === row.id" @click="doDeleteActivity(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 新增场景弹窗 -->
@@ -158,6 +193,58 @@
         <el-button type="primary" :loading="sceneSaving" @click="doOptSubmit">确认</el-button>
       </template>
     </el-dialog>
+
+    <!-- 活动编辑弹窗 -->
+    <el-dialog v-model="actDialog" :title="actIsEdit ? '编辑活动' : '新增活动'" width="560px">
+      <el-form label-position="top">
+        <el-row :gutter="12">
+          <el-col :span="16"><el-form-item label="活动标题 (1-30 字)" required><el-input v-model="actForm.title" placeholder="如: 国庆搭子总动员" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="活动类型" required>
+            <el-select v-model="actForm.type" style="width:100%">
+              <el-option label="banner 轮播" value="banner" />
+              <el-option label="活动卡片" value="card" />
+              <el-option label="两者都有" value="both" />
+            </el-select>
+          </el-form-item></el-col>
+        </el-row>
+        <el-form-item label="副标题 (≤60 字, 可选)"><el-input v-model="actForm.subtitle" placeholder="如: 假期出行找搭子,最高立减20元" /></el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="Banner 图 URL (云存储, banner 类型必填)"><el-input v-model="actForm.banner_image" placeholder="cloud://..." /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="封面图 URL (卡片类型必填)"><el-input v-model="actForm.cover_image" placeholder="cloud://..." /></el-form-item></el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="点击跳转" required>
+            <el-select v-model="actForm.jump_to" style="width:100%">
+              <el-option label="跳发布页 (预填场景)" value="demand_publish" />
+              <el-option label="跳场景广场" value="scene_list" />
+              <el-option label="Webview H5" value="webview" />
+              <el-option label="活动详情页 (暂未实现)" value="activity_detail" />
+            </el-select>
+          </el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="关联场景 (可选, 空=所有场景可见)">
+            <el-select v-model="actForm.scene_code" clearable placeholder="不绑定=所有场景可见" style="width:100%">
+              <el-option v-for="s in sceneList" :key="s.code" :label="s.name + ' (' + s.code + ')'" :value="s.code" />
+            </el-select>
+          </el-form-item></el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="8"><el-form-item label="优先级 (越大越靠前)"><el-input-number v-model="actForm.priority" :min="0" :max="1000" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="状态">
+            <el-select v-model="actForm.status" style="width:100%">
+              <el-option label="显示" value="active" />
+              <el-option label="隐藏" value="draft" />
+            </el-select>
+          </el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="有效期 (天, 默认30)">
+            <el-input-number v-model="actForm.days" :min="1" :max="365" @change="syncActTime" />
+          </el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="actDialog = false">取消</el-button>
+        <el-button type="primary" :loading="actSaving" @click="doSubmitActivity">确认</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -171,6 +258,93 @@ const data = ref(null);
 const patch = reactive({});
 const saving = ref(false);
 const sceneSaving = ref(false);
+
+// 活动管理
+const activities = ref([]);
+const actLoading = ref(false);
+const actBusy = ref('');
+const actDialog = ref(false);
+const actIsEdit = ref(false);
+const actSaving = ref(false);
+const actForm = reactive({
+  id: '', title: '', subtitle: '', banner_image: '', cover_image: '',
+  type: 'banner', jump_to: 'demand_publish', jump_param: {},
+  scene_code: '', priority: 0, status: 'active', days: 30,
+  start_at: 0, end_at: 0
+});
+
+function actTypeLabel(t) {
+  return { banner: '轮播', card: '卡片', both: '两者' }[t] || t;
+}
+function actTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+function syncActTime() {
+  const now = Date.now();
+  actForm.start_at = now;
+  actForm.end_at = now + (actForm.days || 30) * 86400000;
+}
+
+async function loadActivities() {
+  actLoading.value = true;
+  const r = await call('home_activity_list');
+  actLoading.value = false;
+  if (r.ok) activities.value = r.data?.list || [];
+  else ElMessage.error(r.msg || '加载活动失败');
+}
+
+function openAddActivity() {
+  actIsEdit.value = false;
+  actForm.id = ''; actForm.title = ''; actForm.subtitle = '';
+  actForm.banner_image = ''; actForm.cover_image = '';
+  actForm.type = 'banner'; actForm.jump_to = 'demand_publish';
+  actForm.jump_param = {}; actForm.scene_code = '';
+  actForm.priority = 0; actForm.status = 'active'; actForm.days = 30;
+  syncActTime();
+  actDialog.value = true;
+}
+
+function openEditActivity(row) {
+  actIsEdit.value = true;
+  Object.assign(actForm, { ...row, days: Math.round((row.end_at - row.start_at) / 86400000) || 30 });
+  actDialog.value = true;
+}
+
+async function doSubmitActivity() {
+  if (!actForm.title) { ElMessage.warning('标题必填'); return; }
+  if (!actForm.type) { ElMessage.warning('类型必填'); return; }
+  actSaving.value = true;
+  const payload = {
+    title: actForm.title, subtitle: actForm.subtitle,
+    banner_image: actForm.banner_image, cover_image: actForm.cover_image,
+    type: actForm.type, jump_to: actForm.jump_to,
+    jump_param: actForm.jump_param, scene_code: actForm.scene_code,
+    start_at: actForm.start_at, end_at: actForm.end_at,
+    status: actForm.status, priority: actForm.priority
+  };
+  const r = actIsEdit.value
+    ? await call('home_activity_update', { id: actForm.id, patch: payload })
+    : await call('home_activity_create', { activity: payload });
+  actSaving.value = false;
+  if (r.ok) {
+    ElMessage.success(actIsEdit.value ? '已更新' : '已创建');
+    actDialog.value = false;
+    await loadActivities();
+  } else { ElMessage.error(r.msg || r.code || '保存失败'); }
+}
+
+async function doDeleteActivity(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除活动「${row.title}」?`, '删除确认', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' });
+  } catch (_) { return; }
+  actBusy.value = row.id;
+  const r = await call('home_activity_delete', { id: row.id });
+  actBusy.value = '';
+  if (r.ok) { ElMessage.success('已删除'); await loadActivities(); }
+  else { ElMessage.error(r.msg || r.code || '删除失败'); }
+}
 
 // 场景列表
 const sceneList = computed(() => data.value?.scene_list || []);
@@ -274,5 +448,8 @@ async function doOptSubmit() {
   } else { ElMessage.error(r.msg || r.code || '操作失败'); }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  await loadActivities();
+});
 </script>

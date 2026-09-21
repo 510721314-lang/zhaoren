@@ -4,6 +4,88 @@
   padding-bottom: 160rpx;
 }
 
+/* 活动 banner 轮播 */
+.sq-banner-wrap {
+  margin: 16rpx 20rpx 0;
+  border-radius: 20rpx;
+  overflow: hidden;
+}
+.sq-banner {
+  width: 100%;
+  height: 300rpx;
+  border-radius: 20rpx;
+}
+.sq-banner__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sq-banner__text {
+  position: absolute;
+  left: 28rpx;
+  bottom: 24rpx;
+  right: 28rpx;
+  color: #fff;
+  text-shadow: 0 2rpx 8rpx rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+.sq-banner__title {
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.sq-banner__sub {
+  font-size: 24rpx;
+  opacity: 0.92;
+  margin-top: 6rpx;
+}
+
+/* 活动卡片区 */
+.sq-cards {
+  white-space: nowrap;
+  padding: 16rpx 20rpx 4rpx;
+}
+.sq-card {
+  display: inline-block;
+  width: 280rpx;
+  margin-right: 16rpx;
+  background: var(--bg-card);
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  vertical-align: top;
+}
+.sq-card__cover {
+  width: 100%;
+  height: 150rpx;
+  display: block;
+  background: #e8e8e8;
+}
+.sq-card__body {
+  padding: 12rpx 16rpx 16rpx;
+  white-space: normal;
+}
+.sq-card__title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.sq-card__sub {
+  font-size: 22rpx;
+  color: var(--text-3);
+  margin-top: 4rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 /* S0 发布需求引导卡 */
 .sq-hero {
   margin: 20rpx 20rpx 4rpx;

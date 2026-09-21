@@ -441,6 +441,39 @@ exports.main = async (event, context) => {
         };
       }
 
+      // ───────── 首页活动列表(小程序端: 时间过滤 + 状态过滤 + 优先级排序) ─────────
+      case 'home_activity_list': {
+        try {
+          const cfgR = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+          const cfg = cfgR.data && cfgR.data[0] || {};
+          const now = Date.now();
+          const sceneCode = String(event.scene_code || '').trim();
+          const raw = cfg.home_activities || [];
+          const list = raw.filter((a) => {
+            if (a.status !== 'active') return false;
+            if (a.start_at && now < a.start_at) return false;
+            if (a.end_at && now > a.end_at) return false;
+            if (sceneCode && a.scene_code && a.scene_code !== sceneCode) return false;
+            return true;
+          }).sort((a, b) => (b.priority || 0) - (a.priority || 0)).map((a) => ({
+            id: a.id,
+            title: a.title,
+            subtitle: a.subtitle || '',
+            banner_image: a.banner_image || '',
+            cover_image: a.cover_image || '',
+            type: a.type,
+            jump_to: a.jump_to,
+            jump_param: a.jump_param || {}
+          }));
+          const banners = list.filter((a) => a.type === 'banner' || a.type === 'both');
+          const cards = list.filter((a) => a.type === 'card' || a.type === 'both');
+          return { ok: true, data: { banners: banners.slice(0, 3), cards: cards.slice(0, 4) } };
+        } catch (e) {
+          log.d('home_activity_list err:', e.message);
+          return { ok: true, data: { banners: [], cards: [] } };
+        }
+      }
+
       default:
         return { ok: false, code: 'home_unknown_action', msg: '未知动作' };
     }

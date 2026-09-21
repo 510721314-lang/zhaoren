@@ -7,6 +7,8 @@ const { takeOrder } = require('../../utils/take-order.js');
 Page({
   data: {
     loading: true,
+    banners: [],     // 活动 banner 列表 (home_action_list 返回)
+    cards: [],       // 活动卡片列表
     chips: [],
     activeChip: 'all',
     sorts: ['综合', '距离', '最新', '单价'],
@@ -39,6 +41,7 @@ Page({
       .concat([{ code: 'public_welfare', name: '💚 公益免费' }]);
     this.setData({ chips });
     this.fetchSquare();
+    this.fetchActivities();
   },
 
   onShow() {
@@ -103,6 +106,53 @@ Page({
       url: '/pages-v2/publish/publish',
       fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' })
     });
+  },
+
+  // ───────── 活动 banner / 卡片 ─────────
+  fetchActivities() {
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'home_activity_list' },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data) {
+          this.setData({
+            banners: r.data.banners || [],
+            cards: r.data.cards || []
+          });
+        }
+      },
+      fail: () => { /* 活动拉取失败静默降级, 首页仍可用 */ }
+    });
+  },
+
+  onActivityTap(e) {
+    const idx = e.currentTarget.dataset.idx;
+    const act = (this.data.banners[idx] || this.data.cards[idx]);
+    if (!act) return;
+    const p = act.jump_param || {};
+    switch (act.jump_to) {
+      case 'demand_publish': {
+        const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
+        wx.navigateTo({ url });
+        break;
+      }
+      case 'scene_list': {
+        const url = '/pages-v2/square/square' + (p.scene_code ? '?scene_code=' + p.scene_code : '');
+        wx.redirectTo({ url });
+        break;
+      }
+      case 'webview': {
+        if (!p.url) return;
+        wx.navigateTo({ url: '/pages-v2/webview/webview?url=' + encodeURIComponent(p.url),
+          fail: () => wx.showToast({ title: '链接打开失败', icon: 'none' }) });
+        break;
+      }
+      case 'activity_detail':
+      default: {
+        wx.showToast({ title: '活动详情即将上线', icon: 'none' });
+      }
+    }
   },
   onSwitchPartner() {
     wx.switchTab({

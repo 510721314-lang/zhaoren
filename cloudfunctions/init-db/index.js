@@ -98,6 +98,8 @@ const SEED_CONFIG = {
     { id: 'TM7', text: '取消申请' },
     { id: 'TM8', text: '改期申请' }
   ],
+  // 首页活动栏: 后台运营配置, init-db 仅存空数组, 由 admin-action home_activity_create 填充
+  home_activities: [],
   // 本地兜底词库(msgSecCheck 不可用时使用)
   block_words: ['加微信', '加V', '转账', '私聊我'],
   // 环境开关: dev(测试期,允许 mock_openid 模拟身份) / prod(上线,强制忽略 mock_openid)
