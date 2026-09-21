@@ -83,13 +83,13 @@
           <el-button size="small" type="primary" plain @click="openCredit(detail.user)">信用调整</el-button>
           <el-button size="small" type="danger" plain @click="openPenalty(detail.user)">V3 处罚</el-button>
           <el-button v-if="detail.user.status === 'normal'" size="small" type="warning" plain
-            @click="openSimple(detail.user, 'freeze')">冻结</el-button>
+            :loading="busy === detail.user.openid" @click="openSimple(detail.user, 'freeze')">冻结</el-button>
           <el-button v-if="detail.user.status === 'frozen'" size="small" type="success" plain
-            @click="doUnfreeze(detail.user)">解冻</el-button>
+            :loading="busy === detail.user.openid" @click="doUnfreeze(detail.user)">解冻</el-button>
           <el-button v-if="detail.user.status !== 'banned'" size="small" type="danger" plain
-            @click="openSimple(detail.user, 'ban')">封禁</el-button>
+            :loading="busy === detail.user.openid" @click="openSimple(detail.user, 'ban')">封禁</el-button>
           <el-button v-if="detail.user.status === 'banned'" size="small" type="success" plain
-            @click="doUnban(detail.user)">解封</el-button>
+            :loading="busy === detail.user.openid" @click="doUnban(detail.user)">解封</el-button>
         </div>
 
         <h4 style="margin-top:20px">信用流水 <el-button size="small" text @click="loadLogs(detail.user.openid)">刷新</el-button></h4>

@@ -122,7 +122,7 @@ async function load() {
   loading.value = false;
   if (r.ok) {
     list.value = r.data.list || [];
-    total.value = r.data.total || list.value.length;
+    total.value = r.data.total || 0;
   }
 }
 

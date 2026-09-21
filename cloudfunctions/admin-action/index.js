@@ -653,16 +653,22 @@ exports.main = async (event, context) => {
 
   // ───────── 争议处置(S10→S10.5→裁决 S7/S5) ─────────
   if (action === 'dispute_list') {
-    const r = await col('order_main').where({
+    const pg = pager(event);
+    const query = col('order_main').where({
       status: _.in(['S10.5', 'S10']), is_deleted: _.neq(true)
-    }).orderBy('updated_at', 'desc').limit(50).get();
+    });
+    const [totalR, r] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('updated_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
     return ok({
       list: (r.data || []).map((o) => ({
         order_id: o._id, order_no: o.order_no, status: o.status, scene: o.scene,
         user_openid: o.user_openid, partner_openid: o.partner_openid,
         total_fen: o.total_fen, dispute_reason: o.dispute_reason || '',
         admin_note: o.admin_note || '', updated_at: o.updated_at
-      }))
+      })),
+      total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0)
     });
   }
 
