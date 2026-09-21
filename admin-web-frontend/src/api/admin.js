@@ -2,12 +2,11 @@
 // 所有请求走 admin-web HTTP 云函数 → proxy admin-action
 import axios from 'axios';
 
-// 规则: BASE_URL 只做"根"（dev 空串走 vite proxy、生产 trigger 根 URL 不带 /api）
-//       call() 固定 .post('/api', data)  → 最终拼成 /api + body.action
-const PROD_ROOT = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com'; // CloudBase HTTP 网关根 URL
-const BASE_URL = window.location.hostname.includes('localhost')
-  ? ''         // dev: 空串让 axios 走 vite proxy（/api/* → cloudbaseUrl/api/*）
-  : PROD_ROOT; // prod: 直打 CloudBase HTTP trigger 根
+// 规则: 始终直打 CloudBase HTTP 网关（HTTPS + CORS 已配置, 跨域无问题）
+//       call() 固定 .post('/api', data) → 最终拼成 PROD_ROOT/api + body.action
+// 这样无论本机 dev / 远程桌面 / 手机浏览器 / 生产 dist 都能通, 不依赖 vite proxy
+const PROD_ROOT = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com';
+const BASE_URL = PROD_ROOT;
 
 const http = axios.create({ baseURL: BASE_URL, timeout: 15000 });
 

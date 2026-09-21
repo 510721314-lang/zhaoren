@@ -8,6 +8,7 @@ const cloudbaseUrl = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.ap
 export default defineConfig({
   plugins: [vue()],
   server: {
+    host: '0.0.0.0',
     port: 5173,
     proxy: {
       '/api': {
