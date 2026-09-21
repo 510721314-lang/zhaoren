@@ -18,7 +18,17 @@ http.interceptors.request.use((config) => {
 });
 
 http.interceptors.response.use(
-  (r) => r.data,
+  (r) => {
+    const d = r.data;
+    // 业务层 bad_key / missing_key → 清 localStorage + 跳 login
+    if (d && d.ok === false && (d.code === 'bad_key' || d.code === 'missing_key' || d.code === 'admin_web_key_not_set')) {
+      localStorage.removeItem('admin_web_key');
+      if (window.location.hash !== '#/login') {
+        window.location.hash = '#/login';
+      }
+    }
+    return d;
+  },
   (e) => {
     const status = e.response && e.response.status;
     if (status === 401) {
