@@ -207,6 +207,22 @@ exports.main = async (event, context) => {
     }
   }
 
+  // ── 临时: 切换 admin_config.env(仅 dev/prod, 用于云端测试面板 mock_openid 放行) ──
+  // prod 环境 fail-closed 禁止切 dev(防云端测试面板被人滥用身份门控)
+  if (event && event.action === 'set_env') {
+    const { env } = event;
+    if (env !== 'dev' && env !== 'prod') return { ok: false, msg: 'env 只能是 dev 或 prod' };
+    try {
+      const cur = await db.collection('admin_config').doc('global').get();
+      const curEnv = (cur.data && cur.data.env) || 'prod';
+      if (curEnv === 'prod' && env === 'dev') {
+        return { ok: false, msg: 'prod 环境禁止切 dev, 请先在代码层面放行' };
+      }
+      await db.collection('admin_config').doc('global').update({ data: { env, updated_at: Date.now() } });
+      return { ok: true, mode: 'set_env', env };
+    } catch (e) { return { ok: false, msg: e.message }; }
+  }
+
   // ── 临时: 按 openid 查 partner_profile 全部文档 ──
   if (event && event.action === 'check_pp') {
     const _ = db.command;
