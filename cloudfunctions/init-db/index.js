@@ -80,11 +80,11 @@ const SEED_CONFIG = {
   default_star: 4,
   // 场景白名单(MVP-V1 一期 · PRD 3.2/11章) · 每个场景含 disclaimer_type(与 demand-publish/order-create 统一)
   scene_list: [
-    { code: 'W1',  name: '就医陪诊', options: ['挂号排队', '取药送药', '陪诊解压'], aa_default: true, disclaimer_type: 'medical_disclaimer' },
-    { code: 'W2',  name: '学习陪伴', options: ['自习陪伴', '口语陪练', '作业督促'], disclaimer_type: 'general_disclaimer' },
-    { code: 'W8',  name: '生活协助', options: ['排队代办', '搬家帮手', '采买陪同'], disclaimer_type: 'general_disclaimer' },
-    { code: 'W10', name: '出行陪伴', options: ['逛街同行', '夜跑陪跑', '活动搭子'], disclaimer_type: 'general_disclaimer' },
-    { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'], disclaimer_type: 'online_disclaimer' }
+    { code: 'W1',  name: '就医陪诊', options: ['挂号排队', '取药送药', '陪诊解压'], aa_default: true, disclaimer_type: 'medical_disclaimer', builtin: true },
+    { code: 'W2',  name: '学习陪伴', options: ['自习陪伴', '口语陪练', '作业督促'], disclaimer_type: 'general_disclaimer', builtin: true },
+    { code: 'W8',  name: '生活协助', options: ['排队代办', '搬家帮手', '采买陪同'], disclaimer_type: 'general_disclaimer', builtin: true },
+    { code: 'W10', name: '出行陪伴', options: ['逛街同行', '夜跑陪跑', '活动搭子'], disclaimer_type: 'general_disclaimer', builtin: true },
+    { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'], disclaimer_type: 'online_disclaimer', builtin: true }
   ],
   // aa_tiers 已下线: 前端 AA_OPTIONS 硬编码格式不同, 第二批云化 AA_OPTIONS 时再按 admin_config.aa_tiers 接通
   // IM 系统模板消息(PRD 3.3.2 四确认前仅允许这些)

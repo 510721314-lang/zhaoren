@@ -1214,6 +1214,42 @@ exports.main = async (event, context) => {
     }
     if (scenesTouched) { before.scene_list = config.scene_list || []; patch.scene_list = scenes; }
 
+    // 场景新增(自定义场景, builtin=false)
+    if (event.scene_add) {
+      const req = event.scene_add;
+      const code = String(req.code || '').trim().toUpperCase();
+      const name = String(req.name || '').trim();
+      if (!code || !/^W\d{1,3}$/.test(code)) return fail('config_bad_scene_code', '场景编码须为 W + 1-3 位数字(如 W12)');
+      if (!name || name.length > 12) return fail('config_bad_scene_name', '场景名称须为 1-12 字');
+      if (scenes.find((s) => s.code === code)) return fail('config_scene_exists', '场景编码已存在: ' + code);
+      const newScene = {
+        code, name,
+        options: (req.options || []).map((o) => String(o).trim()).filter(Boolean).slice(0, 8),
+        disclaimer_type: String(req.disclaimer_type || 'general_disclaimer').trim(),
+        builtin: false,
+        created_at: now
+      };
+      scenes.push(newScene);
+      before.scene_list = config.scene_list || [];
+      patch.scene_list = scenes;
+      scenesTouched = true;
+    }
+
+    // 场景删除(仅自定义场景可删; builtin=true 的种子场景拦截)
+    if (event.scene_delete) {
+      const code = String(event.scene_delete || '').trim().toUpperCase();
+      const idx = scenes.findIndex((s) => s.code === code);
+      if (idx < 0) return fail('config_scene_not_found', '场景不存在: ' + code);
+      if (scenes[idx].builtin) return fail('config_scene_builtin', `内置场景 ${code} 不可删除, 仅可修改服务项`);
+      if (scenes[idx].options && scenes[idx].options.length > 0) {
+        return fail('config_scene_has_options', `场景 ${code} 还有服务项, 请先清空服务项再删除`);
+      }
+      scenes.splice(idx, 1);
+      before.scene_list = config.scene_list || [];
+      patch.scene_list = scenes;
+      scenesTouched = true;
+    }
+
     // IM 模板增删
     let templates = (config.system_templates || []).slice();
     let tplTouched = false;
