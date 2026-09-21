@@ -1378,6 +1378,81 @@ exports.main = async (event, context) => {
     return ok({ deleted: id });
   }
 
+  // ───────── 8.6 云端备份导出(L2 admin_config 快照 + L3 DB 分页导出) ─────────
+  // 允许导出的 collection 白名单(20+)
+  const EXPORT_COLLECTIONS = new Set([
+    'admin_config', 'admin_web_sessions',
+    'user_profile', 'partner_profile', 'partner_exam',
+    'order', 'order_status_log', 'order_deposit', 'order_payment', 'order_settlement',
+    'demand_publish', 'demand_match',
+    'blog', 'blog_comment', 'blog_like',
+    'safety_report', 'safety_checkin',
+    'system_notice',
+    'credit_log', 'withdraw_request',
+    'insurance_record',
+    'report', 'dispute',
+    'sms_log', 'device_bind'
+  ]);
+  // 敏感字段脱敏规则: 字段名 → 脱敏函数
+  const SENSITIVE_MASK = {
+    phone: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
+    idcard_no: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+    real_name: (v) => typeof v === 'string' && v.length >= 2 ? v[0] + '*' + (v.length > 2 ? v.slice(-1) : '') : v,
+    address: (v) => typeof v === 'string' && v.length > 6 ? v.slice(0, 6) + '***' : v,
+    openid: (v) => typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-6) : v,
+    wx_nickname: (v) => typeof v === 'string' ? v.slice(0, 1) + '***' : v
+  };
+  function maskDoc(doc) {
+    if (!doc || typeof doc !== 'object') return doc;
+    const out = {};
+    for (const k of Object.keys(doc)) {
+      if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](doc[k]);
+      else if (k.includes('password') || k.includes('secret') || k.includes('token')) out[k] = '***REDACTED***';
+      else out[k] = doc[k];
+    }
+    return out;
+  }
+
+  // L2: admin_config 完整快照(不走 export_collection, 因为只有一个 _id=global 文档且字段特殊)
+  if (action === 'export_admin_config') {
+    const cfgR = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+    const cfg = (cfgR.data && cfgR.data[0]) || {};
+    const safe = maskDoc(cfg);
+    // 密钥类字段只返回存在性布尔, 不返回值
+    if (safe.idcard_aes_key !== undefined) safe.idcard_aes_key_set = !!safe.idcard_aes_key;
+    delete safe.idcard_aes_key;
+    if (safe.admin_web_key !== undefined) safe.admin_web_key_set = !!safe.admin_web_key;
+    delete safe.admin_web_key;
+    await logEvent('P2', 'export_admin_config', openid, { size: JSON.stringify(safe).length });
+    return ok({ config: safe, exported_at: now });
+  }
+
+  // L3: 按 collection 分页导出
+  if (action === 'export_collection') {
+    const collection = String(event.collection || '').trim();
+    if (!EXPORT_COLLECTIONS.has(collection)) {
+      return fail('export_bad_collection', `不在导出白名单: ${collection}`);
+    }
+    const page = Math.max(1, parseInt(event.page, 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(event.page_size, 10) || 100));
+    const skip = (page - 1) * pageSize;
+    const limit = Math.min(10000, skip + pageSize);
+    const totalR = await col(collection).count().catch(() => ({ total: 0 }));
+    const total = totalR.total || 0;
+    const docs = await col(collection).skip(skip).limit(pageSize).get().catch(() => ({ data: [] }));
+    const list = (docs.data || []).map(maskDoc);
+    await logEvent('P2', 'export_collection', openid, { collection, page, pageSize, count: list.length });
+    return ok({
+      collection,
+      page,
+      page_size: pageSize,
+      total,
+      has_more: (page * pageSize) < total && (page * pageSize) < 10000,
+      truncated: total > 10000,
+      list
+    });
+  }
+
   // ───────── 9. 封禁/解封 ─────────
   if (action === 'user_ban' || action === 'user_unban') {
     const { target_openid, reason } = event;
