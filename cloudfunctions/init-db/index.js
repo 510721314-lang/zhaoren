@@ -60,7 +60,8 @@ const SEED_CONFIG = {
   s1_timeout_min: 15,       // S1 待确认 15 分钟未四确认 → S6
   interrupt_timeout_h: 24,   // S3.5 履约中断 24 小时 → 默认转 S4
   eval_window_h: 48,         // S5 完成后 48 小时未评价 → 系统默认 4 星转 S9
-  dispute_escalate_d: 30,
+  dispute_escalate_d: 30,  // PRD S10.5 争议升级天数 · 预留字段, 当前争议为人工处理, 超期自动升级逻辑待实现
+  // aa_tiers 已下线: 前端 AA_OPTIONS 硬编码, 格式不同; 第二批云化 AA_OPTIONS 时再按 admin_config.aa_tiers 接通
   // 信用分(PRD 8.1 SSOT)
   min_credit_take_order: 600,
   min_credit_place_order: 600,
@@ -85,8 +86,7 @@ const SEED_CONFIG = {
     { code: 'W10', name: '出行陪伴', options: ['逛街同行', '夜跑陪跑', '活动搭子'], disclaimer_type: 'general_disclaimer' },
     { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'], disclaimer_type: 'online_disclaimer' }
   ],
-  // AA 费用档位(PRD 3.4 · 平台不代收)
-  aa_tiers: ['0-50元', '50-200元', '200元以上', '自定义'],
+  // aa_tiers 已下线: 前端 AA_OPTIONS 硬编码格式不同, 第二批云化 AA_OPTIONS 时再按 admin_config.aa_tiers 接通
   // IM 系统模板消息(PRD 3.3.2 四确认前仅允许这些)
   system_templates: [
     { id: 'TM1', text: '时间确认' },
