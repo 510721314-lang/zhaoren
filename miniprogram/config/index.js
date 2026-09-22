@@ -99,15 +99,18 @@ module.exports = {
   // 接单配置可调区间（PRD 3.2.2）
   PARTNER_ACCEPT: {
     distanceRange: [3, 10],
-    dailyLimitRange: [1, 10],
+    dailyLimitRange: [1, 10],    // 保留: 后台 daily_take_limit 的展示参考区间
     bufferOptions: [15, 30, 45, 60],
     defaultMinPrice: 30,
+    defaultMaxPrice: 100,        // 最高单价默认(元/小时), 与 rateMaxFen 对齐
     defaultDistance: 5,
-    defaultDailyLimit: 5,
+    defaultDailyLimit: 5,        // 兜底: 云端 admin_config.partner_daily_take_limit 优先(平台统一设定, 耍伴只读)
     defaultBufferMin: 30,
     defaultSceneRateFen: 5000,   // 耍伴默认时薪 50 元/小时(SSOT 可由 admin_config 覆盖)
     rateMinFen: 3000,            // 前端校验兜底, 服务端为准
-    rateMaxFen: 10000
+    rateMaxFen: 10000,
+    slotStepMin: 30,             // 每周时段滑动条步长(分钟)
+    slotsPerDay: 48              // 每天半小时槽位数 = 24*60/30
   },
 
   // 账号注销冷静期（PRD 3.11）

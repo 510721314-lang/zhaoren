@@ -386,6 +386,7 @@ exports.main = async (event, context) => {
     }
 
     // 4. 接单大厅列表(广场可接单需求)
+    // deprecated: 前端广场已走 home-action.square(含耍伴价格区间过滤), 此 action 仅保留兼容
     case 'hall_list': {
       // lazy_expire:把已过期的 matching 需求置为 expired
       try {

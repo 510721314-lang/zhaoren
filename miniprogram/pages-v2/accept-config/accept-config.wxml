@@ -39,28 +39,44 @@
       </view>
     </view>
 
-    <!-- 2. 每周时段 -->
+    <!-- 2. 每周时段(每天起止时间各一个滑动条) -->
     <view class="ac__card">
       <view class="ac__card-title">每周接单时段</view>
+      <view class="ac__card-sub">仅在你启用的时段内可接单：需求的服务时间段须完全落在时段内</view>
       <view class="ac__week-list">
-        <view class="ac__week-row" wx:for="{{weekLabels}}" wx:key="key">
-          <view class="ac__week-left">
+        <view class="ac__week-item" wx:for="{{weekLabels}}" wx:key="key">
+          <view class="ac__week-head">
             <switch checked="{{form.weeklySlots[item.key].enabled}}" color="var(--brand-primary)" data-key="{{item.key}}" bindchange="onWeekToggle" />
             <text class="ac__week-name">{{item.name}}</text>
+            <text class="ac__week-range" wx:if="{{form.weeklySlots[item.key].enabled}}">{{slotText[item.key].start}} - {{slotText[item.key].end}}{{slotText[item.key].cross ? ' · 次日' : ''}}</text>
+            <text class="ac__week-off" wx:else>休息</text>
           </view>
-          <picker mode="time" start="{{redlineOpen}}" end="{{redlineClose}}" value="{{form.weeklySlots[item.key].time}}" data-key="{{item.key}}" bindchange="onWeekTimeChange" wx:if="{{form.weeklySlots[item.key].enabled}}">
-            <view class="ac__week-time">{{form.weeklySlots[item.key].time}} ›</view>
-          </picker>
-          <text class="ac__week-off" wx:else>休息</text>
+          <block wx:if="{{form.weeklySlots[item.key].enabled}}">
+            <view class="ac__slot-row">
+              <text class="ac__slot-label">开始</text>
+              <slider class="ac__slot-slider" min="0" max="{{slotsPerDay}}" step="1" value="{{slotIdx[item.key].start}}" data-key="{{item.key}}" bindchange="onWeekStartChange" activeColor="var(--brand-primary)" block-size="20" />
+            </view>
+            <view class="ac__slot-row">
+              <text class="ac__slot-label">结束</text>
+              <slider class="ac__slot-slider" min="0" max="{{slotsPerDay}}" step="1" value="{{slotIdx[item.key].end}}" data-key="{{item.key}}" bindchange="onWeekEndChange" activeColor="var(--brand-primary)" block-size="20" />
+            </view>
+          </block>
         </view>
       </view>
     </view>
 
-    <!-- 3. 最低单价 -->
+    <!-- 3. 接单价格区间(广场过滤 + 抢单校验均以此为准) -->
     <view class="ac__card">
-      <view class="ac__card-title">最低单价</view>
+      <view class="ac__card-title">接单价格区间</view>
+      <view class="ac__card-sub">平台单价范围 {{rateMinYuan}}-{{rateMaxYuan}} 元/小时；超出区间的需求不会出现在广场，也不可接单</view>
       <view class="ac__row">
-        <input class="ac__input" type="digit" value="{{form.minPrice}}" bindinput="onMinPriceInput" placeholder="{{budgetPlaceholder}}" />
+        <text class="ac__field-label">最低</text>
+        <input class="ac__input" type="digit" value="{{form.minPrice}}" bindinput="onMinPriceInput" placeholder="{{minPricePlaceholder}}" />
+        <text class="ac__unit">元/小时</text>
+      </view>
+      <view class="ac__row">
+        <text class="ac__field-label">最高</text>
+        <input class="ac__input" type="digit" value="{{form.maxPrice}}" bindinput="onMaxPriceInput" placeholder="{{maxPricePlaceholder}}" />
         <text class="ac__unit">元/小时</text>
       </view>
     </view>
@@ -82,12 +98,12 @@
       </view>
     </view>
 
-    <!-- 6. 每日接单上限 -->
+    <!-- 6. 每日接单上限(平台统一设定, 耍伴只读) -->
     <view class="ac__card">
       <view class="ac__card-title">每日接单上限</view>
-      <view class="ac__row">
-        <slider min="{{dailyLimitRange[0]}}" max="{{dailyLimitRange[1]}}" value="{{form.dailyLimit}}" show-value bindchange="onDailyLimitChange" activeColor="var(--brand-primary)" />
-        <text class="ac__slider-unit">单</text>
+      <view class="ac__row-between">
+        <text class="ac__readonly">{{form.dailyLimit}} 单/天</text>
+        <text class="ac__tip">由平台统一设定</text>
       </view>
     </view>
 

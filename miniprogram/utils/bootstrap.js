@@ -31,6 +31,7 @@ const CLOUD_MAP = {
   'rate_range.rate_min_fen': 'PARTNER_ACCEPT.rateMinFen',
   'rate_range.rate_max_fen': 'PARTNER_ACCEPT.rateMaxFen',
   'scene_default_rate_fen': 'PARTNER_ACCEPT.defaultSceneRateFen',
+  'partner_accept.daily_take_limit': 'PARTNER_ACCEPT.dailyLimit',   // 每日接单上限(平台统一设定, 耍伴端只读展示)
   // ── 第一批新增 ──
   'timeouts.default_star': 'ORDER.evalDefaultStars',
   'time_redline.close_min': { path: 'TIME_REDLINE.close', transform: minsToHHmm },

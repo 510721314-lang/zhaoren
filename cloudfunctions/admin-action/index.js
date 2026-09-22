@@ -187,7 +187,11 @@ exports.main = async (event, context) => {
         per_order_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_order_max_fen,
         per_day_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_day_max_fen
       },
-      modify_config: cfgRaw.modify_config
+      modify_config: cfgRaw.modify_config,
+      // 耍伴接单配置(前端「接单配置」页只读展示: 每日上限由平台统一设定)
+      partner_accept: {
+        daily_take_limit: cfgRaw.partner_daily_take_limit || 5
+      }
     } };
   }
 
@@ -1083,6 +1087,8 @@ exports.main = async (event, context) => {
       },
       scene_list: config.scene_list || [],
       system_templates: config.system_templates || [],
+      // 耍伴每日接单上限(平台统一设定, 耍伴端只读展示)
+      partner_daily_take_limit: config.partner_daily_take_limit || 5,
       // ── 运营配置独立模块(前端 Operations.vue 数据来源) ──
       operations: {
         publish_distance_max_km: config.publish_distance_max_km || 50,
@@ -1109,7 +1115,8 @@ exports.main = async (event, context) => {
         insurance_coverage_accident_fen: config.insurance_coverage_accident_fen || 50000000,
         insurance_coverage_property_fen: config.insurance_coverage_property_fen || 5000000,
         fast_withdraw_per_order_max_fen: config.fast_withdraw_per_order_max_fen || 20000,
-        fast_withdraw_per_day_max_fen: config.fast_withdraw_per_day_max_fen || 200000
+        fast_withdraw_per_day_max_fen: config.fast_withdraw_per_day_max_fen || 200000,
+        partner_daily_take_limit: config.partner_daily_take_limit || 5
       },
       // ── 法律合规模块(前端 Legal.vue 数据来源) ──
       legal: {
@@ -1200,7 +1207,9 @@ exports.main = async (event, context) => {
       // ── 第二批补白名单: REDLINE/保险/极速提现(云函数侧硬编码债) ──
       ['time_redline_close_min', 0, 1440], ['time_redline_open_min', 0, 1440],
       ['insurance_coverage_accident_fen', 0, 1000000000], ['insurance_coverage_property_fen', 0, 1000000000],
-      ['fast_withdraw_per_order_max_fen', 0, 1000000], ['fast_withdraw_per_day_max_fen', 0, 10000000]
+      ['fast_withdraw_per_order_max_fen', 0, 1000000], ['fast_withdraw_per_day_max_fen', 0, 10000000],
+      // ── 第三批: 耍伴每日接单上限(平台统一设定, 耍伴端只读; order-create 服务端强校验) ──
+      ['partner_daily_take_limit', 1, 50]
     ];
     for (const [f, lo, hi] of intFields) {
       if (event[f] !== undefined) {

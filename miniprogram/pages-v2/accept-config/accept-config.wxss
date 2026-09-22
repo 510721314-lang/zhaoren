@@ -20,12 +20,23 @@
 .ac__exam--fail { background: rgba(250,81,81,0.15); color: var(--func-danger); }
 
 .ac__week-list { margin-top: 16rpx; }
-.ac__week-row { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
-.ac__week-row:last-child { border-bottom: none; }
-.ac__week-left { display: flex; align-items: center; }
+.ac__week-item { padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.ac__week-item:last-child { border-bottom: none; }
+.ac__week-head { display: flex; align-items: center; }
 .ac__week-name { margin-left: 16rpx; font-size: var(--font-sm); color: var(--text-1); }
-.ac__week-time { font-size: var(--font-sm); color: var(--brand-primary); }
-.ac__week-off { font-size: var(--font-sm); color: var(--text-5); }
+/* 时段结果显眼展示(HH:mm - HH:mm) */
+.ac__week-range { margin-left: auto; font-size: var(--font-md); font-weight: 600; color: var(--brand-primary); }
+.ac__week-off { margin-left: auto; font-size: var(--font-sm); color: var(--text-5); }
+/* 时段滑动条(开始/结束各一条) */
+.ac__slot-row { display: flex; align-items: center; margin-top: 2rpx; }
+.ac__slot-label { width: 64rpx; font-size: var(--font-xs); color: var(--text-3); }
+.ac__slot-slider { flex: 1; margin: 0 8rpx; }
+/* 卡片副标题(说明文案) */
+.ac__card-sub { margin-top: 6rpx; font-size: var(--font-xs); color: var(--text-4); line-height: 1.5; }
+/* 价格区间两个输入的行前缀 */
+.ac__field-label { width: 64rpx; font-size: var(--font-sm); color: var(--text-3); }
+/* 只读值(每日接单上限, 平台统一设定) */
+.ac__readonly { font-size: var(--font-md); font-weight: 600; color: var(--text-1); }
 
 .ac__row { display: flex; align-items: center; margin-top: 16rpx; }
 .ac__input { flex: 1; height: 72rpx; background: var(--bg-segment); border-radius: var(--r-md); padding: 0 16rpx; font-size: var(--font-md); }

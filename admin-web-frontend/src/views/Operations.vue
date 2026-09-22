@@ -15,6 +15,7 @@
               <el-col :span="8"><el-form-item label="发布距离上限(km)"><el-input-number v-model="patch.publish_distance_max_km" :min="1" :max="500" /></el-form-item></el-col>
               <el-col :span="8"><el-form-item label="接单距离上限(km)"><el-input-number v-model="patch.take_distance_max_km" :min="1" :max="500" /></el-form-item></el-col>
               <el-col :span="8"><el-form-item label="青年最低预算(分)"><el-input-number v-model="patch.youth_limit_fen" :min="1000" :max="100000" /></el-form-item></el-col>
+              <el-col :span="8"><el-form-item label="耍伴每日接单上限(单)"><el-input-number v-model="patch.partner_daily_take_limit" :min="1" :max="50" /></el-form-item></el-col>
             </el-row>
           </el-card>
 

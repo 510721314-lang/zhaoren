@@ -140,6 +140,28 @@ function hallWhere(extra) {
   }, extra || {});
 }
 
+// 广场(抢单入口)价格区间过滤: 取当前访问者的接单价格区间(缺字段/非耍伴/游客=不限)
+// ⚠️ 仅用于 square; 首页宫格(scene_groups/scene_list)不按价格过滤 —— 首页是通用入口(含需求者视角)
+let _rateRangeCache = {};              // openid → { at, range } 进程内短缓存
+const RATE_RANGE_TTL = 60 * 1000;
+async function loadVisitorRateRange(openid) {
+  if (!openid) return null;            // 游客/匿名(如后台探针) → 不过滤, 且不产生查询
+  const hit = _rateRangeCache[openid];
+  if (hit && Date.now() - hit.at < RATE_RANGE_TTL) return hit.range;
+  let range = null;
+  try {
+    const r = await col('partner_profile').where({ openid, is_deleted: _.neq(true) }).limit(1).get();
+    const p = (r.data && r.data[0]) || null;
+    if (p && p.status === 'approved') {
+      const lo = (p.accept_rate_min_fen === undefined || p.accept_rate_min_fen === null) ? null : Number(p.accept_rate_min_fen);
+      const hi = (p.accept_rate_max_fen === undefined || p.accept_rate_max_fen === null) ? null : Number(p.accept_rate_max_fen);
+      if (lo !== null || hi !== null) range = [lo, hi];
+    }
+  } catch (e) {}
+  _rateRangeCache[openid] = { at: Date.now(), range };
+  return range;
+}
+
 exports.main = async (event, context) => {
   try {
     await require('./openid').warmEnv(cloud); // 环境门控日志预热
@@ -249,11 +271,19 @@ exports.main = async (event, context) => {
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
+        // 价格区间过滤(耍伴在接单配置设的区间; 非耍伴/游客/未设置 → 不过滤)
+        // 过滤条件下推到 DB(而非 JS 侧过滤), 保证 limit 仍能取满
+        const openid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
+        const vRange = await loadVisitorRateRange(openid);
+        const rateCond = vRange
+          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
+          : null;
+
         // 轻量并行: demand + partner + active_user, 不查 scene_groups(5个额外查询导致冷启动超时,
         // 场景分组改由 scene_groups action 单独懒加载)
         const [demandR, partnerR, activeUserR] = await Promise.all([
           col('demand')
-            .where(hallWhere())
+            .where(hallWhere(rateCond))
             .orderBy('created_at', 'desc')
             .limit(limit)
             .get()

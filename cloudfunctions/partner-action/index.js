@@ -48,6 +48,24 @@ function sanitizeHomeLocation(loc) {
   };
 }
 
+// 每周接单时段校验+规整: {mon:{enabled,start,end},...}; start/end 为 0-1440 分钟(本地时区), start>end 视为跨夜槽
+const WEEK_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const SLOT_DEFAULT = { enabled: false, start: 540, end: 1080 };  // 09:00-18:00
+function sanitizeWeeklySlots(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  for (const k of WEEK_KEYS) {
+    const s = raw[k];
+    if (!s || typeof s !== 'object') { out[k] = Object.assign({}, SLOT_DEFAULT); continue; }
+    const start = Number(s.start);
+    const end = Number(s.end);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start > 1440 || end < 0 || end > 1440) return null;
+    if (start === end) return null;    // 起止相同 → 无意义时段
+    out[k] = { enabled: !!s.enabled, start, end };
+  }
+  return out;
+}
+
 // Haversine 直线距离(米)
 function haversineMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -327,6 +345,43 @@ exports.main = async (event, context) => {
         }
       }
 
+      // 每周接单时段(结构化分钟数; 服务端 order-create 按"服务时间必须落在启用时段内"校验)
+      if (event.weekly_slots !== undefined) {
+        if (event.weekly_slots === null) {
+          update.weekly_slots = _.remove();
+        } else {
+          const slots = sanitizeWeeklySlots(event.weekly_slots);
+          if (!slots) {
+            return { ok: false, code: 'pa_bad_slots', msg: '接单时段格式不正确(每天需 0-1440 的整数分钟, 起止不能相同)' };
+          }
+          update.weekly_slots = slots;
+        }
+      }
+
+      // 接单价格区间(分/小时; null=清除=不限); 边界复用 admin_config.rate_min_fen~rate_max_fen
+      const priceLo = config.rate_min_fen || 3000;
+      const priceHi = config.rate_max_fen || 10000;
+      const hasMin = event.accept_rate_min_fen !== undefined;
+      const hasMax = event.accept_rate_max_fen !== undefined;
+      if (hasMin || hasMax) {
+        const norm = (v) => (v === null ? null : Number(v));
+        const curMin = profile.accept_rate_min_fen === undefined ? null : profile.accept_rate_min_fen;
+        const curMax = profile.accept_rate_max_fen === undefined ? null : profile.accept_rate_max_fen;
+        const nextMin = hasMin ? norm(event.accept_rate_min_fen) : curMin;
+        const nextMax = hasMax ? norm(event.accept_rate_max_fen) : curMax;
+        if (nextMin !== null && (!Number.isInteger(nextMin) || nextMin < priceLo || nextMin > priceHi)) {
+          return { ok: false, code: 'pa_price_min_range', msg: `最低单价需在 ${priceLo / 100}-${priceHi / 100} 元/小时之间` };
+        }
+        if (nextMax !== null && (!Number.isInteger(nextMax) || nextMax < priceLo || nextMax > priceHi)) {
+          return { ok: false, code: 'pa_price_max_range', msg: `最高单价需在 ${priceLo / 100}-${priceHi / 100} 元/小时之间` };
+        }
+        if (nextMin !== null && nextMax !== null && nextMin > nextMax) {
+          return { ok: false, code: 'pa_price_cross', msg: '最低单价不能高于最高单价' };
+        }
+        if (hasMin) update.accept_rate_min_fen = nextMin === null ? _.remove() : nextMin;
+        if (hasMax) update.accept_rate_max_fen = nextMax === null ? _.remove() : nextMax;
+      }
+
       await col('partner_profile').doc(profile._id).update({ data: update });
       log.d(`partner config updated: ${openid}`);
       return { ok: true, data: { updated: Object.keys(update).filter(k => k !== 'updated_at') } };
@@ -362,6 +417,9 @@ exports.main = async (event, context) => {
             nickname: profile.nickname, avatar: profile.avatar,
             accept_scenes: profile.accept_scenes || [],
             scene_rates: profile.scene_rates || {},
+            weekly_slots: profile.weekly_slots || null,
+            accept_rate_min_fen: profile.accept_rate_min_fen === undefined ? null : profile.accept_rate_min_fen,
+            accept_rate_max_fen: profile.accept_rate_max_fen === undefined ? null : profile.accept_rate_max_fen,
             exam_scores: profile.exam_scores || {},
             city: profile.city, accept_switch: profile.accept_switch,
             home_location: profile.home_location ? {

@@ -26,6 +26,74 @@ async function getConfig() {
   };
 }
 
+// ── 接单配置校验辅助(价格区间 / 每周时段 / 每日接单上限) ──
+// 东八区自然日 00:00 毫秒时间戳(云函数运行时时区不可依赖, 统一按 UTC+8 折算)
+const CN_OFFSET_MS = 8 * 3600 * 1000;
+const DAY_MS = 86400000;
+function cnDayStart(ts) {
+  return Math.floor((ts + CN_OFFSET_MS) / DAY_MS) * DAY_MS - CN_OFFSET_MS;
+}
+// 星期 key(0=周日, 避免依赖 Date.getDay() 的运行时区); 1970-01-01 为周四
+const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function cnWeekday(ts) {
+  const epochDay = Math.floor((ts + CN_OFFSET_MS) / DAY_MS);
+  return DAY_KEY[(((epochDay % 7) + 4) % 7 + 7) % 7];
+}
+
+// 接单价格区间读取+钳制到平台边界; 缺字段(null/undefined)=不限
+function readRateRange(profile, config) {
+  const lo = config.rate_min_fen || 3000;
+  const hi = config.rate_max_fen || 10000;
+  const clamp = (v) => Math.min(Math.max(v, lo), hi);
+  const raw = (v) => (v === undefined || v === null ? null : clamp(Number(v)));
+  const mn = raw(profile.accept_rate_min_fen);
+  const mx = raw(profile.accept_rate_max_fen);
+  if (mn !== null && mx !== null && mn > mx) return [mx, mn];   // 异常数据兜底
+  return [mn, mx];
+}
+
+// 时段解析: 兼容结构化 {start,end}(分钟) 与旧格式 {time:'09:00-18:00'}
+function parseSlot(s) {
+  if (!s || typeof s !== 'object') return null;
+  if (typeof s.start === 'number' && typeof s.end === 'number') {
+    return { enabled: !!s.enabled, start: s.start, end: s.end };
+  }
+  const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(String(s.time || ''));
+  return m ? { enabled: !!s.enabled, start: +m[1] * 60 + +m[2], end: +m[3] * 60 + +m[4] } : null;
+}
+
+// [from,to) 是否被槽 [s,e) 覆盖; s>e 表示跨夜槽([s,1440)∪[0,e))
+function rangeInSlot(from, to, s, e) {
+  if (s < e) return from >= s && to <= e;
+  return (from >= s) || (to <= e);
+}
+
+// 服务时间段是否完全落在启用的接单时段内; 未配置 / 无任何启用日 → 不限制(兼容老数据)
+function slotCovers(weekly, startTs, endTs) {
+  if (!weekly || typeof weekly !== 'object') return true;
+  const slots = {};
+  let anyEnabled = false;
+  for (const k of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) {
+    const s = parseSlot(weekly[k]);
+    slots[k] = s;
+    if (s && s.enabled) anyEnabled = true;
+  }
+  if (!anyEnabled) return true;
+  // 按东八区自然日切片逐段判定(跨午夜服务需次日槽也覆盖)
+  let cur = startTs;
+  for (let i = 0; i < 8 && cur < endTs; i++) {
+    const dayStart = cnDayStart(cur);
+    const segEnd = Math.min(endTs, dayStart + DAY_MS);
+    const s = slots[cnWeekday(cur)];
+    if (!s || !s.enabled) return false;
+    const fromMin = (cur - dayStart) / 60000;
+    const toMin = (segEnd - dayStart) / 60000;
+    if (!rangeInSlot(fromMin, toMin, s.start, s.end)) return false;
+    cur = segEnd;
+  }
+  return true;
+}
+
 async function getUser(openid) {
   const r = await col('user_account').where({ openid }).limit(1).get();
   return (r.data && r.data[0]) || null;
@@ -290,6 +358,24 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_scene_not_accepted', msg: `你未开通该场景的接单(需求场景:${demandScene},你已开通:${acceptScenes.join(',')})` };
   }
 
+  // ── 接单价格区间(耍伴在接单配置设的区间; 未设置=不限) ──
+  const [rateLo, rateHi] = readRateRange(profile, config);
+  const demandRate = Number(demand.rate_fen) || 0;
+  if (rateLo !== null && demandRate < rateLo) {
+    await logReject(openid, demand_id, 'rate_below_min');
+    return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，低于你的最低单价 ¥${rateLo / 100}/小时，可在接单配置调整` };
+  }
+  if (rateHi !== null && demandRate > rateHi) {
+    await logReject(openid, demand_id, 'rate_above_max');
+    return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，高于你的最高单价 ¥${rateHi / 100}/小时，可在接单配置调整` };
+  }
+
+  // ── 接单时段(服务时间段必须完全落在你启用的时段内; 未设置=不限) ──
+  if (!slotCovers(profile.weekly_slots, newStart, newEnd)) {
+    await logReject(openid, demand_id, 'slot_not_covered');
+    return { ok: false, code: 'order_slot_not_covered', msg: '该服务时段不在你启用的接单时段内，可在接单配置调整' };
+  }
+
   // ── 创建者校验(已并行预取):存在 + 未冻结 + 信用分 ──
   if (!creator) {
     await logReject(openid, demand_id, 'creator_not_found');
@@ -318,6 +404,29 @@ exports.main = async (event, context) => {
   if ((isYouth(partnerUser) || isYouth(creator)) && demand.total_fen > youthLimit) {
     await logReject(openid, demand_id, 'youth_limit');
     return { ok: false, code: 'order_youth_limit', msg: '18-22 岁用户单笔订单上限 200 元' };
+  }
+
+  // ── 每日接单上限(后台统一配置 admin_config.partner_daily_take_limit; 由平台设定, 耍伴不可改) ──
+  const dailyLimit = Number(config.partner_daily_take_limit) || 5;
+  {
+    const d0 = cnDayStart(Date.now());
+    let todayCount = -1;
+    try {
+      const cr = await col('order_main').where({
+        partner_openid: openid,
+        is_deleted: false,
+        status: _.nin(['S6']),                 // 已取消不计入, 防"接了退"刷量
+        created_at: _.gte(d0).and(_.lt(d0 + DAY_MS))
+      }).count();
+      todayCount = cr.total || 0;
+    } catch (e) {
+      log.d(`daily limit count fail: ${e.message}`);
+      return { ok: false, code: 'order_busy_check_fail', msg: '系统繁忙,请稍后重试' };
+    }
+    if (todayCount >= dailyLimit) {
+      await logReject(openid, demand_id, 'daily_limit');
+      return { ok: false, code: 'order_daily_limit', msg: `今日接单已达上限 ${dailyLimit} 单，明天再来` };
+    }
   }
 
   // ── 创建订单 ──
