@@ -87,7 +87,7 @@ function bootstrap() {
   if (!wx.cloud) return Promise.resolve(false);
   return wx.cloud.callFunction({
     name: 'admin-action',
-    data: { action: 'config_get' }
+    data: { action: 'config_public' }  // 免鉴权公开配置入口(普通用户可调); config_get 需管理员白名单,普通用户必失败
   }).then((r) => {
     const cloudConfig = r.result && r.result.data;
     if (!cloudConfig) return false;

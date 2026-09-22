@@ -152,6 +152,45 @@ exports.main = async (event, context) => {
     }
   }
 
+  // ───────── 例外: 公开配置(免鉴权) ─────────
+  // 普通用户拉运营参数的唯一入口: 仅返回公开字段白名单(按前端 CLOUD_MAP 嵌套结构组装),
+  // 绝不返回 admin_openids/admin_web_key/idcard_aes_key/env/block_words 等敏感字段。
+  // 缺失字段返回 undefined, 前端 flatten+deepAssign 自动跳过, 走本地 CONFIG 兜底。
+  if (action === 'config_public') {
+    const cfgRaw = config || {};
+    return { ok: true, data: {
+      version: cfgRaw.version,
+      timeouts: {
+        s0_timeout_min: cfgRaw.s0_timeout_min,
+        s1_timeout_min: cfgRaw.s1_timeout_min,
+        interrupt_timeout_h: cfgRaw.interrupt_timeout_h,
+        eval_window_h: cfgRaw.eval_window_h,
+        default_star: cfgRaw.default_star
+      },
+      credits: { credit_freeze_line: cfgRaw.credit_freeze_line },
+      rate_range: { rate_min_fen: cfgRaw.rate_min_fen, rate_max_fen: cfgRaw.rate_max_fen },
+      scene_default_rate_fen: cfgRaw.scene_default_rate_fen,
+      time_redline: {
+        open_min: cfgRaw.time_redline && cfgRaw.time_redline.open_min,
+        close_min: cfgRaw.time_redline && cfgRaw.time_redline.close_min
+      },
+      limits: {
+        publish_distance_max_km: cfgRaw.publish_distance_max_km,
+        take_distance_max_km: cfgRaw.take_distance_max_km,
+        youth_limit_fen: cfgRaw.youth_limit_fen
+      },
+      insurance: {
+        coverage_accident_fen: cfgRaw.insurance && cfgRaw.insurance.coverage_accident_fen,
+        coverage_property_fen: cfgRaw.insurance && cfgRaw.insurance.coverage_property_fen
+      },
+      fast_withdraw: {
+        per_order_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_order_max_fen,
+        per_day_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_day_max_fen
+      },
+      modify_config: cfgRaw.modify_config
+    } };
+  }
+
   // ───────── 统一鉴权 ─────────
   if (!openid) {
     await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
