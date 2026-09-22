@@ -16,23 +16,28 @@ if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or ADMIN_WEB_KE
 $GATEWAY_URL = "https://$CLOUD_ENV-1482004365.ap-shanghai.app.tcloudbase.com/api"
 
 $COLLECTIONS = @(
+  # ── 实际在用(2026-09-22 按云函数代码核实) ──
   'admin_config', 'admin_web_sessions',
-  'user_profile', 'partner_profile', 'partner_exam',
-  'order', 'order_status_log', 'order_deposit', 'order_payment', 'order_settlement',
-  'demand_publish', 'demand_match',
-  'blog', 'blog_comment', 'blog_like',
-  'safety_report', 'safety_checkin',
-  'system_notice',
-  'credit_log', 'withdraw_request',
-  'insurance_record',
-  'report', 'dispute',
-  'sms_log', 'device_bind'
+  'user_account', 'partner_profile',
+  'demand', 'demand_draft',
+  'order_main', 'order_status_log', 'order_confirmations',
+  'emergency_contact', 'credit_score_log', 'platform_event',
+  'system_notice', 'disclaimer_signature', 'evaluation',
+  'blog_post', 'blog_like', 'blog_comment',
+  'safety_report',
+  'im_conversation', 'im_message',
+  # ── 旧表/低频(不存在自动 SKIP) ──
+  'user_profile', 'partner_exam', 'partner_apply',
+  'dispute', 'withdraw_request', 'credit_log',
+  'insurance_record', 'report', 'sms_log', 'device_bind'
 )
 
-# Find cli.bat
-$cli = Get-ChildItem -Path 'C:\Users\DC','C:\' -Filter 'cli.bat' -Recurse -ErrorAction SilentlyContinue |
-  Where-Object { $_.FullName -match 'wechat' } |
-  Select-Object -First 1 -ExpandProperty FullName
+# Find cli.bat (glob 桌面一级目录找 cli.bat, 避免中文字面量被 PS5 GBK 读取乱码 + 避免全盘扫描)
+$cli = ''
+$cliDir = Get-ChildItem -Path 'C:\Users\DC\Desktop' -Directory -ErrorAction SilentlyContinue |
+  Where-Object { Test-Path (Join-Path $_.FullName 'cli.bat') } |
+  Select-Object -First 1
+if ($cliDir) { $cli = Join-Path $cliDir.FullName 'cli.bat' }
 if (-not $cli) { Write-Host '[WARN] cli.bat not found, L5 skip' -ForegroundColor Magenta }
 Write-Host "[INFO] CLI: $cli" -ForegroundColor Cyan
 
@@ -115,9 +120,12 @@ foreach ($col in $COLLECTIONS) {
 # L5: function metadata
 Write-Host "`n===== L5 Function Meta =====" -ForegroundColor Yellow
 if ($cli) {
-  $fnInfo = & $cli cloud functions info --env $CLOUD_ENV --project $PROJECT_DIR 2>&1 | Out-String
-  [System.IO.File]::WriteAllText("$BackupDir\meta\functions_info.txt", $fnInfo, [System.Text.UTF8Encoding]::new($false))
-  Write-Host '[OK] functions_info.txt' -ForegroundColor Green
+  # PS5 下 & $cli 2>&1 会把 cli.bat 的 stderr 输出包装成 NativeCommandError 中断脚本,
+  # 改用 Start-Process 分文件重定向 stdout/stderr, 不产生 ErrorRecord
+  $fnOut = "$BackupDir\meta\functions_info.txt"
+  $fnErr = "$BackupDir\meta\functions_info.err.txt"
+  $p = Start-Process -FilePath $cli -ArgumentList @('cloud','functions','info','--env',$CLOUD_ENV,'--project',$PROJECT_DIR) -RedirectStandardOutput $fnOut -RedirectStandardError $fnErr -NoNewWindow -Wait -PassThru
+  Write-Host "[OK] functions_info.txt (cli exit=$($p.ExitCode))" -ForegroundColor Green
 } else {
   Write-Host '[SKIP] CLI missing' -ForegroundColor Magenta
 }
