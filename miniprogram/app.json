@@ -76,6 +76,7 @@
   "__usePrivacyCheck__": true,
   "usingComponents": {
     "night-mask": "/components/night-mask/index",
-    "empty-state": "/components/empty-state/index"
+    "empty-state": "/components/empty-state/index",
+    "bottom-sheet": "/components/bottom-sheet/index"
   }
 }
