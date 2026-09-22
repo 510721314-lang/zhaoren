@@ -11,8 +11,12 @@ const BASE_URL = PROD_ROOT;
 const http = axios.create({ baseURL: BASE_URL, timeout: 15000 });
 
 http.interceptors.request.use((config) => {
-  const key = localStorage.getItem('admin_web_key') || '';
-  if (key) config.headers['X-Admin-Key'] = key;
+  // 只在 headers 里没显式传 X-Admin-Key 时才从 localStorage 读
+  // 登录页 call('config_get', {}, keyOverride) 显式传 key → 不能被 localStorage 旧 key 覆盖
+  if (!config.headers['X-Admin-Key']) {
+    const key = localStorage.getItem('admin_web_key') || '';
+    if (key) config.headers['X-Admin-Key'] = key;
+  }
   return config;
 });
 

@@ -110,6 +110,32 @@ exports.main = async (event, context) => {
   // 健康检查(无需鉴权)
   if (pathname === '/health') return makeJson({ ok: true, ts: Date.now(), timeout_ms: PROXY_TIMEOUT_MS });
 
+  // 🔍 Debug probe: 查 admin_config admin_web_key 实际值(无鉴权, 仅返回前 8 位+hash 确认)
+  if (pathname === '/debug' && method === 'GET') {
+    try {
+      const cfg = (await db.collection('admin_config').doc('global').get()).data;
+      const k = cfg?.admin_web_key || '';
+      const crypto = require('crypto');
+      return {
+        status: 200, headers: CORS_HEADERS,
+        body: JSON.stringify({
+          ok: true,
+          env: cfg?.env || 'unknown',
+          admin_openids_count: (cfg?.admin_openids || []).length,
+          admin_web_key_set: !!k,
+          admin_web_key_len: k.length,
+          admin_web_key_prefix: k ? k.slice(0, 8) + '...' : '(empty)',
+          admin_web_key_hash: k ? crypto.createHash('sha256').update(k).digest('hex').slice(0, 16) : null,
+          admin_web_key_at: cfg?.admin_web_key_at || null,
+          scene_count: (cfg?.scene_list || []).length,
+          ts: Date.now()
+        })
+      };
+    } catch (e) {
+      return { status: 500, headers: CORS_HEADERS, body: JSON.stringify({ ok: false, msg: e.message }) };
+    }
+  }
+
   // 🟢 静态文件: 所有 GET / 非 /api 路径 → serveStatic
   if (method === 'GET' && !pathname.startsWith('/api')) {
     return serveStatic(pathname);
@@ -142,7 +168,8 @@ exports.main = async (event, context) => {
 
   // Bootstrap generate_admin_web_key → init-db 直调 (无鉴权)
   if (action === 'generate_admin_web_key') {
-    const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c' };
+    const oid = 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c';
+    const proxyData = { ...body, mock_openid: oid, __admin_web_proxy: true, _admin_web_proxy_openid: oid };
     try {
       const r = await cloud.callFunction({ name: 'init-db', data: proxyData });
       return makeJson(r.result || { ok: false, code: 'no_result' });
