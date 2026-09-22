@@ -1,5 +1,6 @@
 // PRD章节: 3.3 需求发布 / 3.3.1 场景与撮合 / 3.5.1-V15 AA费用 / 1.5 公益 / R1时间红线 / R9场景白名单
 const redline = require('../../utils/redline.js');
+const { getScene } = redline;
 const CONFIG = require('../../config/index.js');
 const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../config/enums.js');
 
@@ -144,7 +145,7 @@ Page({
         const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
         const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
         const scenes = r.data.scene_groups.map((g) => {
-          const hc = SCENES.find((s) => s.code === g.scene_code);
+          const hc = getScene(g.scene_code);
           return {
             code: g.scene_code,
             name: g.scene_name,
@@ -419,7 +420,7 @@ Page({
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
     // 优先从动态场景列表找, SCENES 兜底（编辑模式回填时可能还没拉动态列表）
-    let scene = (this.data.scenes || []).find((s) => s.code === code) || SCENES.find((s) => s.code === code);
+    let scene = (this.data.scenes || []).find((s) => s.code === code) || getScene(code);
     if (!scene) return;
     const form = Object.assign({}, this.data.form);
     form.scene_code = code;
@@ -707,7 +708,7 @@ Page({
     if (this.data.publishing) return;
     const f = this.data.form;
     // 当前场景未签免责声明（如草稿恢复）→ 强制补弹场景专属免责声明
-    const curScene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || SCENES.find((s) => s.code === f.scene_code);
+    const curScene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || getScene(f.scene_code);
     if (curScene && !this.data.disclaimerChecked) {
       const disclaimer = curScene.disclaimer || this._defaultDisclaimer(curScene);
       this._showSceneDisclaimer({ disclaimer },
@@ -839,7 +840,7 @@ Page({
 
   _doPublish(f, durationH, pubLoc) {
     // 场景子服务选项（前端无单独选择 UI → 用场景全选兜底）
-    const scene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || SCENES.find((s) => s.code === f.scene_code);
+    const scene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || getScene(f.scene_code);
     // 动态场景 options 不在前端 scenes 里 → 走 cloud fetch 兜底？先给空数组, demand-publish 服务端不会强制要求
     const contentOptions = scene && scene.options ? scene.options : [];
 

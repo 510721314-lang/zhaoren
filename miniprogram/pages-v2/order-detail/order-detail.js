@@ -2,7 +2,8 @@
 // P0-4: 接云端 order-action detail, 删除 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
-const { SCENES, ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
+const { getScene } = redline;
+const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -299,7 +300,7 @@ Page({
     // 引导横幅: 根据 status + my_role + 特殊条件计算下一步
     const nextStep = computeNextStep(order);
 
-    const scene = SCENES.find((s) => s.code === d.scene) || null;
+    const scene = getScene(d.scene);
     const statusInfo = ORDER_STATUS[order.status] || ORDER_STATUS.S1;
     // 改期次数以 detail 返回的 modify_count 为准
     const modifyUsedUp = (d.modify_count || 0) >= CONFIG.MODIFY.maxTimes;

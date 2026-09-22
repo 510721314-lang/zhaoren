@@ -1,5 +1,6 @@
 // 场景需求更多列表: 每页50条, 底部醒目「加载更多」按钮无限翻页
-const { SCENES } = require('../../config/enums.js');
+const redline = require('../../utils/redline.js');
+const { getScene } = redline;
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -29,7 +30,7 @@ Page({
     // onLoad 已拉首页, 首次 onShow 跳过; 从发布页返回时重置到第一页刷新
     this.__skipNextShow = true;
     const code = options.scene || '';
-    const scene = SCENES.find((s) => s.code === code);
+    const scene = getScene(code);
     const name = decodeURIComponent(options.name || '') || (scene && scene.name) || '需求列表';
     wx.setNavigationBarTitle({ title: name });
     this.setData({ sceneCode: code, sceneName: name, sceneIcon: (scene && scene.icon) || '' });

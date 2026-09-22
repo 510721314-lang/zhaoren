@@ -1,6 +1,8 @@
 // pages-v2/my-demands/my-demands.js · 我的发布
 // 数据源: demand-publish my_demands(含懒过期, 最多 50 条)
-const { SCENES, DEMAND_STATUS } = require('../../config/enums.js');
+const redline = require('../../utils/redline.js');
+const { getScene } = redline;
+const { DEMAND_STATUS } = require('../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -51,7 +53,7 @@ Page({
     this.setData({ loading: true });
     callCloud('demand-publish', { action: 'my_demands' }).then((r) => {
       const list = ((r.ok && r.data && r.data.list) || []).map((d) => {
-        const scene = SCENES.find((s) => s.code === d.scene) || {};
+        const scene = getScene(d.scene) || {};
         const style = STATUS_STYLE[d.status] || STATUS_STYLE.expired;
         return {
           ...d,

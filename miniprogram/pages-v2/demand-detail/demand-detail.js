@@ -1,7 +1,7 @@
 // PRD章节: 2.2 需求详情 / 3.3 发布流程 / R9 场景认证校验
 const redline = require('../../utils/redline.js');
+const { getScene } = redline;
 const CONFIG = require('../../config/index.js');
-const { SCENES } = require('../../config/enums.js');
 const { takeOrder } = require('../../utils/take-order.js');
 
 Page({
@@ -40,7 +40,7 @@ Page({
         const r = res.result || {};
         if (r.ok && r.data) {
           const demand = r.data;
-          const scene = SCENES.find((s) => s.code === demand.scene_code) || null;
+          const scene = getScene(demand.scene_code);
           this.setData({
             demand,
             scene,

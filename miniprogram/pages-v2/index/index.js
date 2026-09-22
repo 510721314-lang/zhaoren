@@ -1,6 +1,7 @@
 // PRD章节: 3.2.1 首页 / 3.2.3 耍伴推荐 / 1.8.1 新人福利 / 1.7 紧急联系人 / R1 夜间红线
 // P1: 接云端 user-login peek_login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');
+const { getScene } = redline;
 // requireRealname 在 enterScene 入口按需动态加载, 不在顶部 require 避免冷启动时序
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
@@ -106,7 +107,7 @@ Page({
       const ICON_FALLBACK = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
       const COLOR_FALLBACK = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
       const scenes = groups.map((g) => {
-        const hardCoded = SCENES.find((s) => s.code === g.scene_code);
+        const hardCoded = getScene(g.scene_code);
         return {
           code: g.scene_code,
           name: g.scene_name,

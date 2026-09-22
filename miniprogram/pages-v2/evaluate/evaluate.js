@@ -2,7 +2,7 @@
 // P1: 接云端 order-action detail + evaluation-submit, 删 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');
 const redline = require('../../utils/redline.js');
-const { SCENES } = require('../../config/enums.js');
+const { getScene } = redline;
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -61,7 +61,7 @@ Page({
         return;
       }
       const d = r.data;
-      const scene = SCENES.find((s) => s.code === d.scene) || null;
+      const scene = getScene(d.scene);
       const order = {
         _id: d.order_id,
         order_id: d.order_id,

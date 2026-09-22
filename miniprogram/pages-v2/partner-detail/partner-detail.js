@@ -1,7 +1,7 @@
 // PRD章节: 3.2.3 耍伴详情 / 3.1.4 认证标识
 // 接 partner-action 云函数: detail
 const redline = require('../../utils/redline.js');
-const { SCENES } = require('../../config/enums.js');
+const { getScene } = redline;
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -62,7 +62,7 @@ Page({
       }
       const { partner, stats, evaluations } = r.data;
       const sceneList = (partner.accept_scenes || [])
-        .map((code) => SCENES.find((s) => s.code === code))
+        .map((code) => getScene(code))
         .filter(Boolean);
 
       // avatar 正则校验 (后端可能返回 openid)

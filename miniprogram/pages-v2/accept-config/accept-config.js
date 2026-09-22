@@ -1,8 +1,9 @@
 // PRD章节: 3.2.2 接单配置 / R9 场景认证校验
 // 接 partner-action 云函数: my_profile(拉) + update_config(存)
 const CONFIG = require('../../config/index.js');
-const { SCENES } = require('../../config/enums.js');
 const redline = require('../../utils/redline.js');
+const { getScene } = redline;
+const { SCENES } = require('../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -103,7 +104,7 @@ Page({
       const pushScene = (code, name) => {
         if (seen[code]) return;
         seen[code] = true;
-        const hc = SCENES.find((s) => s.code === code);
+        const hc = getScene(code);
         sceneDefs.push({
           code,
           name: name || (hc ? hc.name : code),
