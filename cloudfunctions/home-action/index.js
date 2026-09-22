@@ -47,17 +47,30 @@ function truncate(s, n) {
 const HOME_GROUP_SIZE = 8;     // 首页每场景展示条数
 const SCENE_PAGE_SIZE = 50;    // 场景更多列表每页条数
 
-// 从 admin_config.scene_list 动态获取场景列表(运营后台可随时增删, 首页自动同步)
+// 运营配置兜底: admin_config.scene_list 优先, 硬编码兜底(与 init-db 种子对齐)
+// 返回: { scenes: [{code,name,disclaimer_type,builtin}], legal_scene_disclaimers: {code:text} }
 async function loadSceneList() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const cfg = r.data && r.data[0];
-    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
-      ? cfg.scene_list.filter((s) => s && s.code).map((s) => ({ code: s.code, name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code }))
+    const r = await col('admin_config').doc('global').get();
+    const cfg = r.data;
+    const legal = (cfg && cfg.legal_scene_disclaimers) || {};
+    const raw = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list
       : SCENE_FALLBACK;
-    return list;
+    const scenes = raw.filter((s) => s && s.code).map((s) => ({
+      code: s.code,
+      name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code,
+      options: Array.isArray(s.options) ? s.options.slice(0, 3) : [],
+      disclaimer_type: s.disclaimer_type || 'general_disclaimer',
+      builtin: !!s.builtin,
+      disclaimer_text: legal[s.code] || ''
+    }));
+    return { scenes, legal_scene_disclaimers: legal };
   } catch (e) {
-    return SCENE_FALLBACK;
+    return {
+      scenes: SCENE_FALLBACK.map((s) => ({ ...s, disclaimer_type: 'general_disclaimer', builtin: true, disclaimer_text: '' })),
+      legal_scene_disclaimers: {}
+    };
   }
 }
 
@@ -307,7 +320,7 @@ exports.main = async (event, context) => {
 
       // ───────── 首页按场景分组(懒加载, 首屏 square 不查) ─────────
       case 'scene_groups': {
-        const scenes = await loadSceneList();
+        const { scenes } = await loadSceneList();
         const sceneCodes = scenes.map((s) => s.code);
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
@@ -329,6 +342,10 @@ exports.main = async (event, context) => {
           sceneGroups.push({
             scene_code: sceneDef.code,
             scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
+            scene_options: Array.isArray(sceneDef.options) ? sceneDef.options.slice(0, 3) : [],
+            scene_disclaimer_type: sceneDef.disclaimer_type || 'general_disclaimer',
+            scene_disclaimer_text: sceneDef.disclaimer_text || '',
+            scene_builtin: sceneDef.builtin === true,
             list: items,
             has_more: docs.length > HOME_GROUP_SIZE
           });
@@ -341,7 +358,7 @@ exports.main = async (event, context) => {
       case 'scene_list': {
         const sceneCode = String(event.scene_code || '').trim();
         // 动态校验: 必须在 admin_config.scene_list 里(首页分组同源)
-        const scenes = await loadSceneList();
+        const { scenes } = await loadSceneList();
         const sceneDef = scenes.find((s) => s.code === sceneCode);
         if (!sceneDef) {
           return { ok: false, code: 'home_bad_scene', msg: '场景不存在或已隐藏' };
@@ -444,8 +461,8 @@ exports.main = async (event, context) => {
       // ───────── 首页活动列表(小程序端: 时间过滤 + 状态过滤 + 优先级排序) ─────────
       case 'home_activity_list': {
         try {
-          const cfgR = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-          const cfg = cfgR.data && cfgR.data[0] || {};
+          const cfgR = await col('admin_config').doc('global').get();
+          const cfg = cfgR.data || {};
           const now = Date.now();
           const sceneCode = String(event.scene_code || '').trim();
           const raw = cfg.home_activities || [];

@@ -1402,17 +1402,20 @@ exports.main = async (event, context) => {
   // ───────── 8.6 云端备份导出(L2 admin_config 快照 + L3 DB 分页导出) ─────────
   // 允许导出的 collection 白名单(20+)
   const EXPORT_COLLECTIONS = new Set([
+    // ── 实际在用(2026-09-22 按云函数代码核实) ──
     'admin_config', 'admin_web_sessions',
-    'user_profile', 'partner_profile', 'partner_exam',
-    'order', 'order_status_log', 'order_deposit', 'order_payment', 'order_settlement',
-    'demand_publish', 'demand_match',
-    'blog', 'blog_comment', 'blog_like',
-    'safety_report', 'safety_checkin',
-    'system_notice',
-    'credit_log', 'withdraw_request',
-    'insurance_record',
-    'report', 'dispute',
-    'sms_log', 'device_bind'
+    'user_account', 'partner_profile',
+    'demand', 'demand_draft',
+    'order_main', 'order_status_log', 'order_confirmations',
+    'emergency_contact', 'credit_score_log', 'platform_event',
+    'system_notice', 'disclaimer_signature', 'evaluation',
+    'blog_post', 'blog_like', 'blog_comment',
+    'safety_report',
+    'im_conversation', 'im_message',
+    // ── 旧表/低频(保留兼容, 不存在返回空) ──
+    'user_profile', 'partner_exam', 'partner_apply',
+    'dispute', 'withdraw_request', 'credit_log',
+    'insurance_record', 'report', 'sms_log', 'device_bind'
   ]);
   // 敏感字段脱敏规则: 字段名 → 脱敏函数
   const SENSITIVE_MASK = {
@@ -1436,8 +1439,8 @@ exports.main = async (event, context) => {
 
   // L2: admin_config 完整快照(不走 export_collection, 因为只有一个 _id=global 文档且字段特殊)
   if (action === 'export_admin_config') {
-    const cfgR = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const cfg = (cfgR.data && cfgR.data[0]) || {};
+    const cfgR = await col('admin_config').doc('global').get();
+    const cfg = (cfgR.data) || {};
     const safe = maskDoc(cfg);
     // 密钥类字段只返回存在性布尔, 不返回值
     if (safe.idcard_aes_key !== undefined) safe.idcard_aes_key_set = !!safe.idcard_aes_key;

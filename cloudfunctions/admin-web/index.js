@@ -111,26 +111,64 @@ exports.main = async (event, context) => {
   if (pathname === '/health') return makeJson({ ok: true, ts: Date.now(), timeout_ms: PROXY_TIMEOUT_MS });
 
   // 🔍 Debug probe: 查 admin_config admin_web_key 实际值(无鉴权, 仅返回前 8 位+hash 确认)
+  //   ?probe=scene_groups → 云端直调 home-action scene_groups, 返回小程序首页实际消费的场景分组摘要
   if (pathname === '/debug' && method === 'GET') {
     try {
       const cfg = (await db.collection('admin_config').doc('global').get()).data;
-      const k = cfg?.admin_web_key || '';
       const crypto = require('crypto');
-      return {
-        status: 200, headers: CORS_HEADERS,
-        body: JSON.stringify({
-          ok: true,
-          env: cfg?.env || 'unknown',
-          admin_openids_count: (cfg?.admin_openids || []).length,
-          admin_web_key_set: !!k,
-          admin_web_key_len: k.length,
-          admin_web_key_prefix: k ? k.slice(0, 8) + '...' : '(empty)',
-          admin_web_key_hash: k ? crypto.createHash('sha256').update(k).digest('hex').slice(0, 16) : null,
-          admin_web_key_at: cfg?.admin_web_key_at || null,
-          scene_count: (cfg?.scene_list || []).length,
-          ts: Date.now()
-        })
+      const base = {
+        ok: true,
+        env: cfg?.env || 'unknown',
+        admin_openids_count: (cfg?.admin_openids || []).length,
+        admin_web_key_set: !!cfg?.admin_web_key,
+        admin_web_key_prefix: cfg?.admin_web_key ? cfg.admin_web_key.slice(0, 8) + '...' : '(empty)',
+        admin_web_key_hash: cfg?.admin_web_key ? crypto.createHash('sha256').update(cfg.admin_web_key).digest('hex').slice(0, 16) : null,
+        scene_count: (cfg?.scene_list || []).length,
+        ts: Date.now()
       };
+      // 首页场景分组实测探针: 内网直调 home-action(无需鉴权)
+      const qs = req.queryStringParameters || req.queryString || req.query || {};
+      // ⚠️ 仅限本机开发调试: 绕过所有缓存层直接改 DB 源头; 写操作 fail-closed, 仅 dev 环境放行(网关本身无鉴权)
+      if (qs.force_probe === 'set_simulated_realname') {
+        if ((cfg?.env) !== 'dev') {
+          base.force_probe = { action: 'set_simulated_realname', blocked: 'env_not_dev', env: cfg?.env || 'unknown' };
+        } else {
+        const where = { is_realname_simulated: true, is_realname_done: false };
+        const before = await db.collection('user_account').where(where).count();
+        const batch = await db.collection('user_account').where(where).limit(100).get();
+        const ids = (batch.data || []).map((u) => u._id);
+        let updated = 0;
+        for (const id of ids) {
+          try { await db.collection('user_account').doc(id).update({ data: { is_realname_done: true, updated_at: Date.now() } }); updated++; } catch (_) {}
+        }
+        base.force_probe = { action: 'set_simulated_realname', before_count: before.total, updated, ids };
+        }
+      }
+      // 查所有 simulated 账号状态(前端 Storage 残留定位用)
+      if (qs.force_probe === 'list_simulated') {
+        const all = await db.collection('user_account').where({ is_realname_simulated: true }).limit(50).get();
+        base.force_probe = { action: 'list_simulated', count: (all.data || []).length, users: (all.data || []).map((u) => ({ openid: u.openid?.slice(0, 10) + '...', is_realname_done: u.is_realname_done, nickname: u.nickname, status: u.status, env_cause: cfg?.env })) };
+      }
+      if (qs.probe === 'scene_groups') {
+        const t0 = Date.now();
+        const hr = await cloud.callFunction({ name: 'home-action', data: { action: 'scene_groups' } });
+        const groups = (hr.result && hr.result.data && hr.result.data.scene_groups) || [];
+        base.scene_groups_probe = {
+          ms: Date.now() - t0,
+          upstream_ok: !!(hr.result && hr.result.ok),
+          group_count: groups.length,
+          groups: groups.map((g) => ({
+            scene_code: g.scene_code,
+            scene_name: g.scene_name,
+            scene_options: g.scene_options || [],
+            scene_disclaimer_type: g.scene_disclaimer_type || '',
+            scene_builtin: !!g.scene_builtin,
+            item_count: (g.list || []).length,
+            has_more: !!g.has_more
+          }))
+        };
+      }
+      return { status: 200, headers: CORS_HEADERS, body: JSON.stringify(base) };
     } catch (e) {
       return { status: 500, headers: CORS_HEADERS, body: JSON.stringify({ ok: false, msg: e.message }) };
     }
