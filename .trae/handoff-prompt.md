@@ -95,9 +95,10 @@ d566d13 feat(cloudfunctions): 场景数据链路打通与导出白名单对齐
 
 ```
 admin_config.scene_list (云端集合, SSOT)
-  └─ 当前云端 6 个: W1就医陪诊 / W2学习陪伴 / W8生活协助 / W10出行陪伴 / W11线上陪伴 / W123测试场景(待清理)
-  └─ 每个 scene 对象含: code, name, options, disclaimer_type, builtin
-  └─ 5 个内置场景 builtin=true，后台不可删除；新增场景走 admin-web 场景管理
+  └─ 当前云端 9 个(2026-09-22 放开): W1就医陪诊 / W2学习陪伴 / W3健身陪伴 / W4游玩陪伴 / W7情绪陪伴 / W8生活协助 / W9宠物陪伴 / W10出行陪伴 / W11线上陪伴
+  └─ W5探店陪伴、W6演出陪伴 已拍板终止不做(勿再加)
+  └─ 每个 scene 对象含: code, name, options(3), disclaimer_type, builtin(true=后台不可删)
+  └─ 免责声明双写: 云端 admin_config.legal_scene_disclaimers {code: 全文} + 前端 enums.js SCENES[].disclaimer
      │
      ├── home-action       ✅ loadSceneList() 动态读，输出 scene_options(发布页服务项数据源)
      ├── demand-publish    ✅ 发布校验链: content_options 非空 + 每项 ∈ 场景 options + ≤3 项
@@ -252,9 +253,10 @@ async function getSceneCodes() {
 ## 12. 待办与未决项（2026-09-22 盘点）
 
 **P0 · 提审前必须处理**
-1. **W123「测试场景新增」仍在生产 scene_list** → 提审前删除（首页宫格/发布页会展示）
+1. ~~W123 测试场景 / W10 脏选项~~ → **已清理**（2026-09-22）
 2. **mock 支付注释口径冲突**：`payment-mock/index.js` 守卫写成 `if (false && env === 'prod' ...)` 且注释写「[临时放开测试]…上线前恢复」，但 commit `b2ccef7` 已决策「mock 支付为 MVP 正式方案」（rules 第 91/94 条：商业化放上线之后）。→ 需把注释改成与决策一致，避免未来误判为"漏恢复的临时闸门"；收银台「内测版不产生真实扣款」提示已到位
-3. **场景数量口径冲突（待产品拍板）**：`.trae/rules.md` 第 90 条要求「所有 11 个场景全开」；但 `PRD_v15.1.md` 多处明确「一期仅 W1/W2/W8/W10/W11，W3/W7/W9 为二期备选不纳入一期，W4/W5/W6 已移出白名单，后续新增必须走合规评审流程，禁止直接新增至白名单」。→ 两文件需对齐后再动 scene_list
+3. **场景口径已拍板 = 9 个**（W3/W4/W7/W9 已放开；W5/W6 终止）。rules.md 第 90 条「11 个场景全开」表述已过期，需同步修正
+4. **4 份新场景免责声明待法务终审**（已按草稿上线）：W7 心理危机检测口径（与 MVP 禁做清单冲突）/ W9 宠物照料授权凭证链路未建 / W3 健身教练资质与题库（PRD 3.9 每场景 ≥100 题）未建
 
 **P1 · 提审清单未跑项（rules 第 13/14/15 条）**
 4. TRAE-security-review 全仓安全扫描 — 未跑
@@ -290,6 +292,9 @@ async function getSceneCodes() {
 **运维/工具链**
 - CLI `cloud functions info` 必须带 `--names`；PS5 调用 cli.bat 必须 `Start-Process` 分文件重定向
 - CLI deploy 不同步 timeout（控制台改）
+- 🩸 **命令行内联中文必被破坏成 `?`（字数不变）**：含中文的载荷必须先 Write 成 UTF-8 JSON 文件，再 `ReadAllText(UTF8) | ConvertFrom-Json` → `ConvertTo-Json`（PS5 转义 `\uXXXX` 天然安全）后 POST；禁止命令行内联中文（W10 脏选项 `????` 与本次 scene_add 全部踩此坑）
+- `config_set` 无 `scene_rename`：场景写错只能「清空 options → scene_delete → scene_add 重加」
+- `config_set` 的 `legal_scene_disclaimers` 是**整体替换**，写入需带全量
 - 备份脚本 `backup.ps1`：cli.bat 用 glob 桌面一级目录发现（避免中文字面量 GBK 乱码 + 全盘扫描卡死）
 - 恢复桌面/历史记录：`.trae/skills/cloud-backup-restore/SKILL.md`
 
@@ -390,10 +395,10 @@ type(scope): description
 4. miniprogram/config/enums.js + miniprogram/config/index.js — 前端侧 SSOT
 
 【场景白名单 SSOT 与前端配置入口】
-- admin_config.scene_list 是唯一可信源；云端当前 6 个: W1/W2/W8/W10/W11(内置 builtin 不可删) + W123 测试场景(待清理)
+- admin_config.scene_list 是唯一可信源；云端当前 9 个: W1就医陪诊/W2学习陪伴/W3健身陪伴/W4游玩陪伴/W7情绪陪伴/W8生活协助/W9宠物陪伴/W10出行陪伴/W11线上陪伴（全部 builtin 不可删）；W5探店/W6演出 已终止不做
 - 前端拉云端配置唯一入口 = admin-action config_public（免鉴权，仅公开字段）；config_get 仅 admin 可用，普通用户必失败
 - 场景查找统一走 miniprogram/utils/redline.js getScene()（全项目 SCENES.find 已清零）；app.globalData.availableScenes 存完整场景对象数组
-- ⚠️ 场景数量口径待拍板: rules 第90条说 11 场景全开，PRD_v15.1.md 明确一期仅 5 场景（W3/W7/W9 二期备选，W4/W5/W6 已移出白名单，新增须走合规评审）
+- 场景口径已拍板 = 9 场景（W3/W4/W7/W9 放开、W5/W6 终止）；新场景免责声明已双写云端+前端，但 4 份全文待法务终审（W7 心理危机检测 / W9 宠物授权凭证 / W3 资质题库 三项配套未建）
 
 【CloudBase 数据访问血泪坑（必记）】
 - where().get() 的 r.data 是数组（取 [0]）；doc().get() 的 r.data 是单对象（禁止 [0]/判 length）——混用不报错、只会静默走 fallback
@@ -427,7 +432,7 @@ type(scope): description
 16. 三重备份验证 ✅(今日通过)
 
 【当前待办（按优先级）】
-P0: ① 清理生产 W123 测试场景 ② 修正 payment-mock「临时放开」注释口径（决策见 commit b2ccef7: mock 支付为 MVP 正式方案）③ 场景数量口径拍板（rules 11 vs PRD 一期 5）
+P0: ① 修正 payment-mock「临时放开」注释口径（决策见 commit b2ccef7: mock 支付为 MVP 正式方案）② 4 份新场景免责声明送法务终审 + W3/W9 资质配套、W7 危机检测口径拍板 ③ 同步修正 rules.md 第90条「11 场景」为 9 场景
 P1: ④ 跑提审终检 13/14/15 ⑤ 补 .trae/zz-registry.md + 处理 export-config 临时函数 ⑥ predeploy 补 -Audit 漂移检查
 P2: ⑦ admin-web 网关 3s 硬限 vs 大批量导出 504 风险
 
