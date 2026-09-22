@@ -218,10 +218,10 @@ async function getSceneCodes() {
 
 | 函数 | timeout | 主要 action |
 |---|---|---|
-| admin-action | 20s | claim_admin / dashboard / user_list / scene_list / scene_update / config_get / config_set / **config_public(免鉴权)** / export_admin_config / export_collection |
+| admin-action | 20s | claim_admin / dashboard / user_list / scene_list / scene_update / config_get / config_set / **config_public(免鉴权)** / export_admin_config / export_collection；可配 **partner_daily_take_limit**(1-50，默认5) |
 | admin-web | 20s | HTTP 触发（根路径）：静态 SPA + `/health` + `/debug`(探针) + `POST /api` proxy→admin-action（X-Admin-Key 鉴权） |
 | order-action | 20s | confirm / reject / start / finish / detail / my_orders / cancel / evaluate / safety / modify / resume |
-| order-create | 20s | create_from_take / sign_disclaimer |
+| order-create | 20s | create_from_take / sign_disclaimer；**接单校验链**：开关/审核/信用/W1考核/需求状态/免责/接单范围/**价格区间**/**接单时段**/距离/时间冲突/scene/**每日接单上限**/青少年 |
 | demand-publish | 20s | publish / my_demands / cancel / edit |
 | demand-match | 20s | take / select / reject / list |
 | blog-action | 20s | feed_list / detail / publish / like / comment_* / my_list / author_home |
@@ -230,8 +230,8 @@ async function getSceneCodes() {
 | init-db | 20s | 种子/迁移；`lookup`/`force_migrate_scenes`/`check_pp`/`force_set_env` 需管理员 |
 | partner-apply | 20s | apply |
 | payment-mock | 10s | cashier_info / mock_pay / mock_refund / mock_tip / mock_ins / withdraw / fast_withdraw / balance_info / income_list / aa_record |
-| partner-action | 8s | apply / set_switch / update_config / my_profile / review / detail / route_plan |
-| home-action | 8s | index / square / scene_groups / scene_list |
+| partner-action | 8s | apply / set_switch / update_config(接受 accept_scenes/scene_rates/home_location/**weekly_slots**/**accept_rate_min_fen·max_fen**) / my_profile / review / detail / route_plan |
+| home-action | 8s | index / square(**按耍伴价格区间下推 DB 过滤**) / scene_groups / scene_list（首页宫格不过滤） |
 | user-login | 8s | login / bind / phone_login(预留) |
 | safety-report | 8s | report / resolve / resolve_sos |
 | evaluation-submit | 8s | submit |
@@ -299,6 +299,8 @@ async function getSceneCodes() {
 - 恢复桌面/历史记录：`.trae/skills/cloud-backup-restore/SKILL.md`
 
 **业务**
+- 🩸 **前端本地 Storage 参数不会自动生效**：`accept-config` 曾把「时段/单价/距离/性别/每日上限」只写 `wx.setStorageSync`、从不传云端 → 服务端零校验，用户实测「设置不起作用」。**凡需服务端生效的参数，必须经云函数落库 + 校验**；本地 Storage 只能作离线兜底
+- **接单配置服务端生效链路（2026-09-22）**：`partner_profile.weekly_slots`（分钟结构化 `{enabled,start,end}`，兼容旧 `'HH:mm-HH:mm'` 字符串）+ `accept_rate_min_fen/max_fen`（分/小时，null=不限）；order-create 校验「价格区间 / 服务时间段覆盖（按东八区自然日切片；跨夜槽 start>end 覆盖本日 [start,24:00)∪[00:00,end)，跨午夜服务需次日槽也覆盖）/ 当日接单上限（东八区自然日、排除 S6）」。**缺字段=不限**（保护存量耍伴），读侧 clamp 到 `rate_min_fen~rate_max_fen`
 - 订单安全：CAS 防并发（status check-then-set 必须在同一 update 语句里）
 - 敏感数据：phone/idcard 加密存储，绝不进入 blog_post author_snapshot
 - 四确认前禁止自由文本 + 联系方式交换（IM 红线）
