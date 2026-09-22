@@ -46,6 +46,7 @@
         <el-sub-menu index="ops-group">
           <template #title><el-icon><Setting /></el-icon><span>运营配置</span></template>
           <el-menu-item index="/operations">阈值与开关</el-menu-item>
+          <el-menu-item index="/config-log">参数变更日志</el-menu-item>
           <el-menu-item index="/legal">法律合规</el-menu-item>
         </el-sub-menu>
 

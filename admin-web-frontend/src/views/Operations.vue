@@ -1,84 +1,50 @@
 // views/Operations.vue · 运营配置独立模块(阈值 + 场景管理)
-// 数据来源: admin-action config_get → operations 聚合块 + scene_list
-// 写操作用 config_set 的各白名单字段 / scene_add / scene_delete / scene_option_add / scene_option_remove
+// 数据来源: admin-action config_get → operations 聚合块 + config_schema + scene_list
+// 阈值表单由 config_schema 元数据驱动(新增参数零前端改动);
+// 保存走 diff 确认弹窗(仅提交变化字段 + 必填变更原因)。
+// 场景写操作: scene_add / scene_delete / scene_option_add / scene_option_remove
 <template>
   <div>
     <h3 style="margin:0 0 16px">运营配置</h3>
 
     <el-tabs v-model="activeTab">
-      <!-- ── Tab 1: 阈值与开关 ── -->
+      <!-- ── Tab 1: 阈值与开关(schema 驱动) ── -->
       <el-tab-pane label="阈值与开关" name="thresholds">
-        <el-form v-if="data" label-width="200px" label-position="right">
-          <el-card style="margin-bottom:16px">
-            <template #header><b>距离与限额</b></template>
+        <el-form v-if="data" label-width="210px" label-position="right">
+          <el-card v-for="grp in groups" :key="grp" style="margin-bottom:16px">
+            <template #header>
+              <b>{{ grp }}</b>
+              <el-tag v-if="changedInGroup(grp).length" type="warning" size="small" style="margin-left:8px">
+                {{ changedInGroup(grp).length }} 项待保存
+              </el-tag>
+            </template>
             <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="发布距离上限(km)"><el-input-number v-model="patch.publish_distance_max_km" :min="1" :max="500" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="接单距离上限(km)"><el-input-number v-model="patch.take_distance_max_km" :min="1" :max="500" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="青年最低预算(分)"><el-input-number v-model="patch.youth_limit_fen" :min="1000" :max="100000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="耍伴每日接单上限(单)"><el-input-number v-model="patch.partner_daily_take_limit" :min="1" :max="50" /></el-form-item></el-col>
-            </el-row>
-          </el-card>
-
-          <el-card style="margin-bottom:16px">
-            <template #header><b>订单超时</b></template>
-            <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="S0 待确认(分钟)"><el-input-number v-model="patch.s0_timeout_min" :min="1" :max="1440" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="S1 待确认(分钟)"><el-input-number v-model="patch.s1_timeout_min" :min="1" :max="1440" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="中断超时(小时)"><el-input-number v-model="patch.interrupt_timeout_h" :min="1" :max="168" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="评价窗口(小时)"><el-input-number v-model="patch.eval_window_h" :min="1" :max="720" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="里程碑确认(分钟)"><el-input-number v-model="patch.milestone_confirm_min" :min="1" :max="1440" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="默认星级"><el-input-number v-model="patch.default_star" :min="1" :max="5" /></el-form-item></el-col>
-            </el-row>
-          </el-card>
-
-          <el-card style="margin-bottom:16px">
-            <template #header><b>时间红线</b></template>
-            <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="接单截止(分钟,0=00:00)"><el-input-number v-model="patch.time_redline_close_min" :min="0" :max="1440" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="接单开放(分钟,0=00:00)"><el-input-number v-model="patch.time_redline_open_min" :min="0" :max="1440" /></el-form-item></el-col>
-            </el-row>
-          </el-card>
-
-          <el-card style="margin-bottom:16px">
-            <template #header><b>信用阈值</b></template>
-            <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="最低接单刷分"><el-input-number v-model="patch.min_credit_take_order" :min="0" :max="1000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="最低发单刷分"><el-input-number v-model="patch.min_credit_place_order" :min="0" :max="1000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="冻结线"><el-input-number v-model="patch.credit_freeze_line" :min="0" :max="1000" /></el-form-item></el-col>
-            </el-row>
-          </el-card>
-
-          <el-card style="margin-bottom:16px">
-            <template #header><b>费率</b></template>
-            <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="最低时薪(分)"><el-input-number v-model="patch.rate_min_fen" :min="0" :max="100000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="最高时薪(分)"><el-input-number v-model="patch.rate_max_fen" :min="0" :max="100000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="场景默认时薪(分)"><el-input-number v-model="patch.scene_default_rate_fen" :min="0" :max="100000" /></el-form-item></el-col>
-            </el-row>
-          </el-card>
-
-          <el-card style="margin-bottom:16px">
-            <template #header><b>保险与提现</b></template>
-            <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="意外险保额(分)"><el-input-number v-model="patch.insurance_coverage_accident_fen" :min="0" :max="1000000000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="财产险保额(分)"><el-input-number v-model="patch.insurance_coverage_property_fen" :min="0" :max="1000000000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="极速提现单笔上限(分)"><el-input-number v-model="patch.fast_withdraw_per_order_max_fen" :min="0" :max="1000000" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="极速提现日上限(分)"><el-input-number v-model="patch.fast_withdraw_per_day_max_fen" :min="0" :max="10000000" /></el-form-item></el-col>
-            </el-row>
-          </el-card>
-
-          <el-card style="margin-bottom:16px">
-            <template #header><b>开关</b></template>
-            <el-row :gutter="16">
-              <el-col :span="8"><el-form-item label="自动通过耍伴申请"><el-switch v-model="patch.auto_approve_partner" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="显示支付入口"><el-switch v-model="patch.payment_visible" /></el-form-item></el-col>
-              <el-col :span="8"><el-form-item label="平台抽成(万分比)"><el-input-number v-model="patch.platform_fee_rate_fen" :min="0" :max="10000" /></el-form-item></el-col>
+              <el-col v-for="s in fieldsOf(grp)" :key="s.f" :xs="24" :sm="12" :md="8">
+                <el-form-item :label="s.label">
+                  <el-input-number
+                    v-if="s.t === 'int'"
+                    v-model="patch[s.f]"
+                    :min="s.min"
+                    :max="s.max"
+                  />
+                  <el-switch
+                    v-else
+                    v-model="patch[s.f]"
+                    inline-prompt
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <span v-if="s.unit" class="ops-unit">{{ s.unit }}</span>
+                </el-form-item>
+              </el-col>
             </el-row>
           </el-card>
 
           <div style="text-align:right">
             <el-button @click="load">重置</el-button>
-            <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+            <el-button type="primary" :loading="saving" @click="openSave">
+              保存<template v-if="diffRows.length"> ({{ diffRows.length }} 项变更)</template>
+            </el-button>
           </div>
         </el-form>
       </el-tab-pane>
@@ -155,6 +121,40 @@
       </el-tab-pane>
     </el-tabs>
 
+    <!-- 参数变更确认弹窗(diff + 原因) -->
+    <el-dialog v-model="confirmDialog" title="确认参数变更" width="620px">
+      <el-alert
+        type="warning"
+        :closable="false"
+        style="margin-bottom:12px"
+        title="仅提交发生变化的参数；保存后立即生效并写入变更日志。"
+      />
+      <el-table :data="diffRows" size="small" border style="margin-bottom:14px">
+        <el-table-column prop="label" label="参数" width="180" />
+        <el-table-column label="原值" width="130">
+          <template #default="{row}"><span class="v-old">{{ fmt(row, false) }}</span></template>
+        </el-table-column>
+        <el-table-column width="36" align="center">
+          <template #default>→</template>
+        </el-table-column>
+        <el-table-column label="新值">
+          <template #default="{row}"><span class="v-new">{{ fmt(row, true) }}</span></template>
+        </el-table-column>
+      </el-table>
+      <el-input
+        v-model="reason"
+        type="textarea"
+        :rows="2"
+        maxlength="100"
+        show-word-limit
+        placeholder="请填写变更原因（必填），如：大促前临时放宽接单距离"
+      />
+      <template #footer>
+        <el-button @click="confirmDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!reason.trim()" @click="doSave">确认保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增场景弹窗 -->
     <el-dialog v-model="sceneAddDialog" title="新增场景" width="480px">
       <el-form label-position="top">
@@ -224,7 +224,7 @@
           </el-form-item></el-col>
           <el-col :span="12"><el-form-item label="关联场景 (可选, 空=所有场景可见)">
             <el-select v-model="actForm.scene_code" clearable placeholder="不绑定=所有场景可见" style="width:100%">
-              <el-option v-for="s in sceneList" :key="s.code" :label="s.name + ' (' + s.code + ')'" :value="s.code" />
+              <el-option v-for="s in sceneList" :key="s.code" :label="`${s.name} (${s.code})`" :value="s.code" />
             </el-select>
           </el-form-item></el-col>
         </el-row>
@@ -257,10 +257,79 @@ import { call } from '../api/admin.js';
 const activeTab = ref('thresholds');
 const data = ref(null);
 const patch = reactive({});
+const orig = reactive({});
 const saving = ref(false);
 const sceneSaving = ref(false);
 
-// 活动管理
+// ───────── schema 驱动: 分组与字段 ─────────
+const groups = computed(() => {
+  const schema = data.value?.config_schema || [];
+  const arr = [];
+  schema.forEach((s) => { if (arr.indexOf(s.g) < 0) arr.push(s.g); });
+  return arr;
+});
+function fieldsOf(g) {
+  return (data.value?.config_schema || []).filter((s) => s.g === g);
+}
+
+// ───────── diff(仅 schema 字段; 与加载快照逐字段比较) ─────────
+const diffRows = computed(() => {
+  const schema = data.value?.config_schema || [];
+  return schema
+    .filter((s) => String(orig[s.f]) !== String(patch[s.f]))
+    .map((s) => ({ f: s.f, label: s.label, unit: s.unit || '', t: s.t, old: orig[s.f], now: patch[s.f] }));
+});
+function changedInGroup(g) {
+  const keys = fieldsOf(g).map((s) => s.f);
+  return diffRows.value.filter((r) => keys.indexOf(r.f) >= 0);
+}
+function fmt(row, isNew) {
+  const v = isNew ? row.now : row.old;
+  if (row.t === 'bool') return v ? '开启' : '关闭';
+  return v + (row.unit ? ' ' + row.unit : '');
+}
+
+// ───────── 加载 / 保存 ─────────
+async function load() {
+  const r = await call('config_get');
+  if (r.ok && r.data) {
+    data.value = r.data;
+    const ops = r.data.operations || {};
+    Object.keys(patch).forEach((k) => delete patch[k]);
+    Object.keys(orig).forEach((k) => delete orig[k]);
+    Object.assign(patch, ops);
+    Object.assign(orig, ops);
+  } else {
+    ElMessage.error(r.msg || '加载失败');
+  }
+}
+
+const confirmDialog = ref(false);
+const reason = ref('');
+
+function openSave() {
+  if (!diffRows.value.length) { ElMessage.info('没有参数变更'); return; }
+  reason.value = '';
+  confirmDialog.value = true;
+}
+
+async function doSave() {
+  if (!reason.value.trim()) { ElMessage.warning('请填写变更原因'); return; }
+  saving.value = true;
+  const payload = { reason: reason.value.trim() };
+  diffRows.value.forEach((r) => { payload[r.f] = r.now; });
+  const r = await call('config_set', payload);
+  saving.value = false;
+  if (r.ok) {
+    ElMessage.success(`已保存 ${(r.data && r.data.updated && r.data.updated.length) || ''} 项参数`);
+    confirmDialog.value = false;
+    await load();
+  } else {
+    ElMessage.error(r.msg || r.code || '保存失败');
+  }
+}
+
+// ───────── 活动管理 ─────────
 const activities = ref([]);
 const actLoading = ref(false);
 const actBusy = ref('');
@@ -347,7 +416,7 @@ async function doDeleteActivity(row) {
   else { ElMessage.error(r.msg || r.code || '删除失败'); }
 }
 
-// 场景列表
+// ───────── 场景列表 ─────────
 const sceneList = computed(() => data.value?.scene_list || []);
 const builtinCount = computed(() => sceneList.value.filter((s) => s.builtin).length);
 
@@ -364,29 +433,6 @@ const optValue = ref('');
 function disclaimerLabel(type) {
   const m = { medical_disclaimer: '就医声明', general_disclaimer: '通用声明', online_disclaimer: '线上声明' };
   return m[type] || type || '通用声明';
-}
-
-async function load() {
-  const r = await call('config_get');
-  if (r.ok && r.data) {
-    data.value = r.data;
-    const ops = r.data.operations || {};
-    Object.keys(patch).forEach((k) => delete patch[k]);
-    Object.assign(patch, ops);
-    if (r.data.platform_fee_rate_fen !== undefined) patch.platform_fee_rate_fen = r.data.platform_fee_rate_fen;
-    if (r.data.auto_approve_partner !== undefined) patch.auto_approve_partner = r.data.auto_approve_partner;
-    if (r.data.payment_visible !== undefined) patch.payment_visible = r.data.payment_visible;
-  } else {
-    ElMessage.error(r.msg || '加载失败');
-  }
-}
-
-async function save() {
-  saving.value = true;
-  const r = await call('config_set', patch);
-  saving.value = false;
-  if (r.ok) { ElMessage.success('已保存'); await load(); }
-  else { ElMessage.error(r.msg || r.code || '保存失败'); }
 }
 
 // ── 场景新增 ──
@@ -454,3 +500,9 @@ onMounted(async () => {
   await loadActivities();
 });
 </script>
+
+<style scoped>
+.ops-unit { margin-left:8px; color:#909399; font-size:12px; }
+.v-old { color:#909399; }
+.v-new { color:#67c23a; font-weight:600; }
+</style>

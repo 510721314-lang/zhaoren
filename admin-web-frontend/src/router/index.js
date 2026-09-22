@@ -37,6 +37,7 @@ const routes = [
       // ── 7. 运营配置 ──
       { path: 'config', redirect: '/operations' },  // 旧入口跳转
       { path: 'operations', component: () => import('../views/Operations.vue'), meta: { title: '运营配置' } },
+      { path: 'config-log', component: () => import('../views/ConfigLog.vue'), meta: { title: '参数变更日志' } },
       { path: 'legal', component: () => import('../views/Legal.vue'), meta: { title: '法律合规' } },
 
       // ── 8. 系统管理 ──
