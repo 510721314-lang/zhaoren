@@ -1,27 +1,80 @@
 // admin-web HTTP 云函数 · Web 管理后台后端代理层
 // 鉴权: admin_config.admin_web_key (后续商用升级 token+HMAC)
-// 职责: 鉴权 → proxy admin-action → 返回 JSON
+// 职责: 静态文件服务 (Vue SPA) + 鉴权 → proxy admin-action → 返回 JSON
 // ⚠️ CloudBase HTTP 网关 3s 硬限, 必须在 2.5s 内返回否则网关 504
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
+const fs = require('fs');
+const path = require('path');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type,X-Admin-Key',
-  'Content-Type': 'application/json; charset=utf-8'
 };
 
 const GATEWAY_HARD_TIMEOUT_MS = 3000;
 const SAFE_MARGIN_MS = 500;
 const PROXY_TIMEOUT_MS = GATEWAY_HARD_TIMEOUT_MS - SAFE_MARGIN_MS; // 2500ms
 
-function makeResponse(data, status = 200) {
-  return { status, headers: CORS_HEADERS, body: JSON.stringify(data) };
+// ── 静态文件服务 ──
+const PUBLIC_DIR = path.join(__dirname, 'public'); // 云函数运行时 = /var/task/public
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js':   'application/javascript; charset=utf-8',
+  '.css':  'text/css; charset=utf-8',
+  '.svg':  'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
+  '.ico':  'image/x-icon',
+  '.map':  'application/json; charset=utf-8',
+};
+
+function makeJson(data, status = 200) {
+  return { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(data) };
 }
 
-// Promise.race 包装: 2.5s 超时返回 timeout error
+function serveStatic(urlPath) {
+  // 路径安全: 防止 ../ 穿越
+  const clean = urlPath.split('?')[0]; // 去掉 query string
+  const decoded = decodeURIComponent(clean);
+  const fullPath = path.normalize(path.join(PUBLIC_DIR, decoded));
+  if (!fullPath.startsWith(PUBLIC_DIR)) {
+    return { status: 403, headers: { ...CORS_HEADERS }, body: 'forbidden' };
+  }
+
+  // 1. 精确匹配 (带 / 也尝试 index.html)
+  let target = fullPath;
+  if (target.endsWith('/')) target = path.join(target, 'index.html');
+
+  if (fs.existsSync(target) && fs.statSync(target).isFile()) {
+    const ext = path.extname(target).toLowerCase();
+    const contentType = MIME[ext] || 'application/octet-stream';
+    const content = fs.readFileSync(target, 'utf-8');
+    return {
+      status: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': contentType },
+      body: content,
+    };
+  }
+
+  // 2. SPA fallback: 如果不是明显的静态资源路径 (有扩展名), 回退到 index.html
+  if (!path.extname(fullPath)) {
+    const indexHtml = path.join(PUBLIC_DIR, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      return {
+        status: 200,
+        headers: { ...CORS_HEADERS, 'Content-Type': MIME['.html'] },
+        body: fs.readFileSync(indexHtml, 'utf-8'),
+      };
+    }
+  }
+
+  // 3. 404
+  return { status: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
+}
+
+// ── proxy 工具 ──
 function withTimeout(promise, ms) {
   return Promise.race([
     promise,
@@ -29,7 +82,6 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-// 单次读 admin_config (带 fallback, 避免两次查)
 async function loadConfig() {
   try {
     const cfg = (await db.collection('admin_config').doc('global').get()).data;
@@ -39,7 +91,6 @@ async function loadConfig() {
   }
 }
 
-// 鉴权: 比对 admin_config.admin_web_key (空时 bootstrap 放行)
 function checkAuth(cfg, key) {
   if (!key) return { ok: false, msg: 'missing_key' };
   if (!cfg.admin_web_key) return { ok: true, bootstrap: true };
@@ -47,18 +98,28 @@ function checkAuth(cfg, key) {
   return { ok: true };
 }
 
+// ── 主入口 ──
 exports.main = async (event, context) => {
   const req = event && event.requestContext ? event : { headers: {}, query: {} };
-  const path = req.path || '/';
+  const pathname = req.path || '/';
   const method = (req.httpMethod || 'GET').toUpperCase();
 
   // CORS preflight
   if (method === 'OPTIONS') return { status: 204, headers: CORS_HEADERS };
 
   // 健康检查(无需鉴权)
-  if (path === '/health') return makeResponse({ ok: true, ts: Date.now(), timeout_ms: PROXY_TIMEOUT_MS });
+  if (pathname === '/health') return makeJson({ ok: true, ts: Date.now(), timeout_ms: PROXY_TIMEOUT_MS });
 
-  // 单次读 admin_config (鉴权 + adminOpenid 共享, 消除重复查询)
+  // 🟢 静态文件: 所有 GET / 非 /api 路径 → serveStatic
+  if (method === 'GET' && !pathname.startsWith('/api')) {
+    return serveStatic(pathname);
+  }
+
+  // ── 以下为 /api POST 代理逻辑 ──
+  if (pathname !== '/api' || method !== 'POST') {
+    return makeJson({ ok: false, code: 'not_found' }, 404);
+  }
+
   const cfg = await loadConfig();
   const reqBodyStr = typeof req.body === 'string' ? req.body : '';
   let body = {};
@@ -71,13 +132,11 @@ exports.main = async (event, context) => {
   if (!bootstrap) {
     const key = (req.headers['x-admin-key'] || req.query.key || '').trim();
     const auth = checkAuth(cfg, key);
-    if (!auth.ok) return makeResponse({ ok: false, code: auth.msg }, 401);
+    if (!auth.ok) return makeJson({ ok: false, code: auth.msg }, 401);
   }
 
-  if (path !== '/api' || method !== 'POST') return makeResponse({ ok: false, code: 'not_found' }, 404);
-
   const action = body.action;
-  if (!action) return makeResponse({ ok: false, code: 'no_action' }, 400);
+  if (!action) return makeJson({ ok: false, code: 'no_action' }, 400);
 
   const adminOpenid = (cfg.admin_openids && cfg.admin_openids[0]) || null;
 
@@ -86,24 +145,23 @@ exports.main = async (event, context) => {
     const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c' };
     try {
       const r = await cloud.callFunction({ name: 'init-db', data: proxyData });
-      return makeResponse(r.result || { ok: false, code: 'no_result' });
-    } catch (e) { return makeResponse({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
+      return makeJson(r.result || { ok: false, code: 'no_result' });
+    } catch (e) { return makeJson({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
   }
 
   // proxy admin-action: 带 2.5s 超时保护 + 超时降级
   const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid };
   try {
     const r = await withTimeout(cloud.callFunction({ name: 'admin-action', data: proxyData }), PROXY_TIMEOUT_MS);
-    return makeResponse(r.result || { ok: false, code: 'no_result' });
+    return makeJson(r.result || { ok: false, code: 'no_result' });
   } catch (e) {
     if (e && e.message && e.message.startsWith('proxy_timeout_')) {
-      // 超时降级: 返回 timeout code + action 提示, 前端可 retry
-      return makeResponse({
+      return makeJson({
         ok: false, code: 'gateway_timeout',
         action, hint: '网关响应慢, 请稍后重试',
         timeout_ms: PROXY_TIMEOUT_MS
       }, 504);
     }
-    return makeResponse({ ok: false, code: 'proxy_error', msg: e.message }, 502);
+    return makeJson({ ok: false, code: 'proxy_error', msg: e.message }, 502);
   }
 };
