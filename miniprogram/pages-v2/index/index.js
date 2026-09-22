@@ -11,7 +11,7 @@ function callCloud(name, data) {
 
 Page({
   data: {
-    loading: true,
+    loading: false,  // 不阻塞渲染: 首页先展示骨架, 数据返回后填充, 避免云函数超时导致白屏
     statusBarHeight: 20,
     city: '成都',
     greeting: '你好',
@@ -92,15 +92,31 @@ Page({
         if (r.ok && r.data) {
           this.setData({
             demandList: r.data.list || [],
-            sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
             activeUsers: r.data.active_users || [],
             activePartners: r.data.active_partners || []
           });
+          // 场景分组懒加载: 首屏不阻塞, 数据返回后填充
+          this.fetchSceneGroups();
         }
       },
       fail: () => {},
-      complete: () => { this.setData({ loading: false }); }
+      complete: () => {}  // 不再设 loading=false, 已改为 loading:false 不阻塞渲染
+    });
+  },
+
+  // 场景分组懒加载: 独立 action, 冷启动不阻塞
+  fetchSceneGroups() {
+    wx.cloud.callFunction({
+      name: 'home-action',
+      data: { action: 'scene_groups' },
+      success: (res) => {
+        const r = res.result || {};
+        if (r.ok && r.data && r.data.scene_groups) {
+          this.setData({ sceneGroups: r.data.scene_groups });
+        }
+      },
+      fail: () => {}  // 场景分组加载失败不影响首屏
     });
   },
 

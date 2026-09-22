@@ -236,21 +236,9 @@ exports.main = async (event, context) => {
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
-        // 动态场景列表: 从 admin_config.scene_list 读取, 与前端 enum 同步
-        const scenes = await loadSceneList();
-        const sceneCodes = scenes.map((s) => s.code);
-
-        // 并行拉 demand + partner_profile + 活跃用户 + N 个场景分组(每场景取 9 条判定 has_more)
-        // broadcast:true 硬过滤: 定向邀约(direct)/选单(select)需求不得泄漏进公共大厅/首页
-        const sceneQueries = sceneCodes.map((code) =>
-          col('demand')
-            .where(hallWhere({ scene: code }))
-            .orderBy('created_at', 'desc')
-            .limit(HOME_GROUP_SIZE + 1)
-            .get()
-            .catch(() => ({ data: [] }))
-        );
-        const [demandR, partnerR, activeUserR, ...sceneRs] = await Promise.all([
+        // 轻量并行: demand + partner + active_user, 不查 scene_groups(5个额外查询导致冷启动超时,
+        // 场景分组改由 scene_groups action 单独懒加载)
+        const [demandR, partnerR, activeUserR] = await Promise.all([
           col('demand')
             .where(hallWhere())
             .orderBy('created_at', 'desc')
@@ -263,14 +251,12 @@ exports.main = async (event, context) => {
             .limit(20)
             .get()
             .catch(() => ({ data: [] })),
-          // 活跃用户: 最近注册/登录的正常账号(排除冻结/封禁/注销)
           col('user_account')
             .where({ is_deleted: _.neq(true), status: _.nin(['frozen', 'banned', 'closed']) })
             .orderBy('created_at', 'desc')
             .limit(20)
             .get()
-            .catch(() => ({ data: [] })),
-          ...sceneQueries
+            .catch(() => ({ data: [] }))
         ]);
 
         // 活跃用户横滑栏(图4): 头像+昵称, 不泄露手机号/openid 以外敏感信息
@@ -283,25 +269,6 @@ exports.main = async (event, context) => {
 
         const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
         await fillPublisherSurname(list);
-
-        // DEBUG: 输出查询命中数方便排查(仅本地/开发态, prod 保留不敏感数据)
-        log.d(`square demandR_count=${(demandR.data || []).length} sceneCodes=${sceneCodes.join(',')}`);
-
-        // 按场景分组(首页): 数量由 admin_config.scene_list 决定, 空场景 list=[] 由前端渲染占位引导
-        const sceneGroups = [];
-        sceneRs.forEach((r, i) => {
-          const sceneDef = scenes[i];
-          if (!sceneDef) return;
-          const docs = r.data || [];
-          const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
-          sceneGroups.push({
-            scene_code: sceneDef.code,
-            scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
-            list: items,
-            has_more: docs.length > HOME_GROUP_SIZE
-          });
-        });
-        await fillPublisherSurname(sceneGroups.reduce((acc, g) => acc.concat(g.list), []));
 
         // 耍伴推荐: partner_profile + user_account 昵称
         let partnerList = [];
@@ -334,7 +301,40 @@ exports.main = async (event, context) => {
         const activePartners = partnerList.slice(0, 10);
         const partners = partnerList.slice(0, 5);
 
-        return { ok: true, data: { list, scene_groups: sceneGroups, partners, active_partners: activePartners, active_users: activeUsers } };
+        // scene_groups 由 scene_groups action 单独懒加载, 避免首屏 5 个额外 DB 查询导致免费版 3s 超时
+        return { ok: true, data: { list, scene_groups: [], partners, active_partners: activePartners, active_users: activeUsers } };
+      }
+
+      // ───────── 首页按场景分组(懒加载, 首屏 square 不查) ─────────
+      case 'scene_groups': {
+        const scenes = await loadSceneList();
+        const sceneCodes = scenes.map((s) => s.code);
+        const now = Date.now();
+        const pad = (n) => n < 10 ? '0' + n : '' + n;
+        const sceneQueries = sceneCodes.map((code) =>
+          col('demand')
+            .where(hallWhere({ scene: code }))
+            .orderBy('created_at', 'desc')
+            .limit(HOME_GROUP_SIZE + 1)
+            .get()
+            .catch(() => ({ data: [] }))
+        );
+        const sceneRs = await Promise.all(sceneQueries);
+        const sceneGroups = [];
+        sceneRs.forEach((r, i) => {
+          const sceneDef = scenes[i];
+          if (!sceneDef) return;
+          const docs = r.data || [];
+          const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
+          sceneGroups.push({
+            scene_code: sceneDef.code,
+            scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
+            list: items,
+            has_more: docs.length > HOME_GROUP_SIZE
+          });
+        });
+        await fillPublisherSurname(sceneGroups.reduce((acc, g) => acc.concat(g.list), []));
+        return { ok: true, data: { scene_groups: sceneGroups } };
       }
 
       // ───────── 单场景需求分页(更多列表, 每页 50) ─────────
