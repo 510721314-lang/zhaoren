@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
+// 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
 // user-login 登录与实名注册 · 身份取自 getWXContext().OPENID,禁止信任前端字段
 // action 列表: login / peek_login / phone_login / phone_register / password_register / password_login /
 //             update_profile / bind_phone / bind_idcard / set_emergency_contact / get_my_credit / close_account
@@ -545,8 +545,31 @@ exports.main = async (event, context) => {
           }
           return { ok: true, data: { user: safeUserDoc(real) } };
         }
-        // 3. 既无 openid 正式账号也无手机号正式账号: 引导去注册
-        return { ok: false, code: 'phone_no_account', msg: '该手机号暂无账号,请先注册' };
+        // 3. 既无 openid 正式账号也无手机号正式账号: 一键登录语义 → 自动注册
+        //    (用户已完成 getPhoneNumber 授权或短信验证, 且前端已校验勾选协议)
+        const now = Date.now();
+        const baseData = {
+          nickname: '微信用户', avatar: '',
+          roles: ['user'],
+          user_credit_score: 800, partner_credit_score: 800,
+          is_realname_done: false, is_realname_simulated: true,
+          age: null, status: 'normal',
+          register_source: 'phone', phone,
+          updated_at: now
+        };
+        let newId;
+        if (pendingShellId) {
+          // 短信链路的 phone_pending 空壳: 直接填充复用, 不新建
+          await col('user_account').doc(pendingShellId).update({ data: baseData });
+          newId = pendingShellId;
+        } else {
+          const addRes = await col('user_account').add({ data: Object.assign({ created_at: now }, baseData) });
+          newId = addRes._id;
+        }
+        await logCredit(openid, 'init', 0, 800, 'phone one-click auto register');
+        const filledR = await col('user_account').doc(newId).get();
+        log.d(`phone_login auto-register user: ${openid}`);
+        return { ok: true, data: { user: safeUserDoc(filledR.data), is_new: true } };
       } catch (e) {
         log.d(`phone_login db error: ${e.message}`);
         return { ok: false, code: 'login_fail', msg: '登录失败,请稍后重试' };

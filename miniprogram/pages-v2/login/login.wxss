@@ -224,3 +224,35 @@
   border-color: var(--border-1);
   color: var(--text-5);
 }
+
+/* ── 手机号一键/手输分隔 ── */
+.login__divider {
+  display: flex;
+  align-items: center;
+  margin: 40rpx 0 8rpx;
+}
+.login__divider::before,
+.login__divider::after {
+  content: '';
+  flex: 1;
+  height: 2rpx;
+  background: var(--border-1);
+}
+.login__divider-tx {
+  padding: 0 24rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.login__manual-toggle {
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--func-info);
+  padding: 16rpx 0;
+}
+/* ── 账号密码辅助入口 ── */
+.login__alt-link {
+  margin-top: 32rpx;
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}

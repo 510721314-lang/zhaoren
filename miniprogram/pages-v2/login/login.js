@@ -42,13 +42,41 @@ Page({
     phoneValid: false,
     smsCodeValid: false,
     accountValid: false,
-    passwordValid: false
+    passwordValid: false,
+    // 手工输入手机号入口(默认收起, 首选一键授权)
+    showManual: false
   },
 
   // ── Tab 切换 ──
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab;
     this.setData({ tab });
+  },
+
+  // ── 手机号一键授权: 微信自动拉取当前绑定手机号, code 仅可消费一次 ──
+  onGetPhoneNumber(e) {
+    if (!this.data.allChecked) { wx.showToast({ title: '请先勾选协议', icon: 'none' }); return; }
+    const detail = e.detail || {};
+    // 用户拒绝授权/取消: detail.code 为空, 静默返回
+    if (!detail.code) return;
+    if (this.data.phLogging) return;
+    this.setData({ phLogging: true });
+    wx.showLoading({ title: '登录中…', mask: true });
+    // 后端 phone_login 一键语义: 有账号登录, 无账号自动注册
+    callCloud('user-login', { action: 'phone_login', phone_code: detail.code }).then((r) => {
+      wx.hideLoading();
+      this.setData({ phLogging: false });
+      if (r.ok && r.data && r.data.user) {
+        this.afterVerified(r.data.user);
+      } else {
+        wx.showModal({ title: '登录失败', content: r.msg || r.code || '请稍后重试', showCancel: false });
+      }
+    });
+  },
+
+  // ── 手工输入手机号入口展开/收起 ──
+  toggleManual() {
+    this.setData({ showManual: !this.data.showManual });
   },
 
   // ── 手机号 Tab ──
