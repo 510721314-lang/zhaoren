@@ -40,8 +40,5 @@
     </view>
   </view>
 
-  <!-- 🔧 内测辅助: 短信验证码 mock 工具(Phase 1.4, 上线移除) -->
-  <view class="login__debug" bindtap="onDebugSms">🔧 内测工具: 获取短信验证码</view>
-
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>
