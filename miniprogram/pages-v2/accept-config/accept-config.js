@@ -108,7 +108,7 @@ Page({
       idx[k] = { start: Math.round(start / 30), end: Math.round(end / 30) };
       txt[k] = { start: this.fmtHalf(start), end: this.fmtHalf(end), cross: end < start };
     });
-    this.setData({ slotIdx: idx, slotText: txt, dailyLimit: this.data.form.dailyLimit });
+    this.setData({ slotIdx: idx, slotText: txt });
   },
 
   async fetchData() {
