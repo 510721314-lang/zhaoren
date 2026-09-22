@@ -30,7 +30,7 @@ async function getSceneCodes() {
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data[0];
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return { rate_min_fen: 3000, rate_max_fen: 10000, min_credit_take_order: 600, auto_approve_partner: false };
 }
@@ -56,7 +56,7 @@ exports.main = async (event, context) => {
 
   if (action === 'debug_profile') {
     const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
-    const profile = (r.data) || null;
+    const profile = (r.data && r.data[0]) || null;   // where().get() 返回数组
     return { ok: true, data: { openid, profile } };
   }
 

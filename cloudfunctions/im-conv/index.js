@@ -23,7 +23,7 @@ const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9'
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data[0];
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return { system_templates: [], security_only_template_before_confirm: true };
 }

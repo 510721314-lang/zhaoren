@@ -81,7 +81,7 @@ function ensureCollections() {
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data[0];
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return { block_words: ['加微信', '加V', '转账', '私聊我'] };
 }
@@ -105,7 +105,7 @@ async function safeCheckText(text, blockWords) {
 async function getAuthorSnapshot(openid) {
   try {
     const r = await col('user_account').where({ openid }).limit(1).get();
-    const u = r.data;
+    const u = r.data && r.data[0];   // where().get() 返回数组, 必须取 [0]
     if (!u) return null;
     return {
       author_nickname: u.nickname || '微信用户',

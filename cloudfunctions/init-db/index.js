@@ -158,7 +158,7 @@ exports.main = async (event, context) => {
         const r = await db.collection('user_account').where({
           nickname: nick, is_deleted: _.neq(true)
         }).limit(1).get();
-        const u = r.data;
+        const u = r.data && r.data[0];   // where().get() 返回数组, 必须取 [0]
         results[nick] = u ? {
           openid: u.openid,
           roles: u.roles || [],

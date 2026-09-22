@@ -559,7 +559,7 @@ exports.main = async (event, context) => {
       const r = await col('partner_profile').where({
         openid: event.partner_openid, status: 'approved', is_deleted: false
       }).limit(1).get();
-      const p = r.data;
+      const p = r.data && r.data[0];   // where().get() 返回数组, 必须取 [0]
       if (!p) return { ok: false, code: 'pa_not_found', msg: '耍伴不存在或未认证' };
       const h = sanitizeHomeLocation(p.home_location);
       if (!h) return { ok: false, code: 'pa_no_home', msg: '该耍伴未设置日常位置' };
