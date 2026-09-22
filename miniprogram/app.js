@@ -1,28 +1,38 @@
 // app.js - 找人帮忙 小程序入口
+const CLOUD_ENV = require('./envList.js').CLOUD_ENV;
+
 App({
   globalData: {
-    userInfo: null,   // 登录后填充 { openid, nick, avatar, phone, role, creditScore, roles }
-    role: 'guest',    // 'guest' | 'user' | 'partner' | 'admin'
-    activeRole: 'user', // 当前界面身份 'user'(发单人) | 'partner'(耍伴), 仅影响展示
-    orderTabRole: ''  // 跳订单 Tab 时预选角色的一次性通道
+    userInfo: null,
+    role: 'guest',
+    activeRole: 'user',
+    orderTabRole: '',
+    // 云初始化等待 Promise: 所有 callFunction 前 await this.globalData.cloudReady
+    cloudReady: null
   },
 
   onLaunch() {
-    // 初始化云开发 · 环境ID 来自 envList.js 唯一来源
+    // 云开发初始化: 返回 Promise, 所有云函数调用必须等它 resolve
+    // 非局域网(4G/5G)下 WebSocket 握手比局域网慢 2-5x, 必须显式等待
     if (wx.cloud) {
-      wx.cloud.init({
-        env: require('./envList.js').CLOUD_ENV,
+      this.globalData.cloudReady = wx.cloud.init({
+        env: CLOUD_ENV,
         traceUser: true
       });
+    } else {
+      this.globalData.cloudReady = Promise.resolve();
     }
+
     // SSOT: 异步拉 admin_config 覆盖本地 CONFIG, 失败静默降级
-    try { const { bootstrap } = require('./utils/bootstrap.js'); bootstrap(); } catch (e) {}
+    const bootstrap = require('./utils/bootstrap.js').bootstrap;
+    this.globalData.cloudReady.then(() => bootstrap()).catch(() => {});
+
     // 恢复上次选择的界面身份
     const saved = wx.getStorageSync('active_role');
     if (saved === 'partner' || saved === 'user') {
       this.globalData.activeRole = saved;
     }
-    // ── 恢复登录态: 从 storage 读 userInfo + role, 防止冷启动后 userInfo 恒 null ──
+    // 恢复登录态
     try {
       const cached = wx.getStorageSync('userInfo');
       if (cached && cached.openid) {
@@ -33,7 +43,50 @@ App({
     } catch (e) {}
   },
 
-  // 登录成功统一调用: 写 globalData + storage
+  // 统一等云就绪后再 callFunction(带 retry)
+  // 用法: await app.cloudCall('home-action', {action:'square'});
+  cloudCall(name, data, opts) {
+    opts = opts || {};
+    const retries = opts.retries || 2;      // 失败重试 2 次(总共 3 次)
+    const waitMs = opts.waitMs || 1500;     // 重试间隔
+    const timeout = opts.timeout || 4000;   // 单次超时(免费版 3s 硬限, 给 4s 留余量)
+
+    return this.globalData.cloudReady.then(() => {
+      return new Promise((resolve) => {
+        let attempt = 0;
+        const doCall = () => {
+          attempt++;
+          const timer = setTimeout(() => {
+            // 超时: 免费版 3s 硬限, 继续 retry
+            if (attempt <= retries) {
+              setTimeout(doCall, waitMs);
+            } else {
+              resolve({ ok: false, code: 'cloud_timeout', msg: '网络慢,请稍后再试' });
+            }
+          }, timeout);
+
+          wx.cloud.callFunction({
+            name, data,
+            success: (res) => {
+              clearTimeout(timer);
+              resolve(res.result || { ok: false, code: 'cloud_empty' });
+            },
+            fail: (err) => {
+              clearTimeout(timer);
+              console.error('[cloudCall fail]', name, 'attempt=' + attempt, err && err.errMsg);
+              if (attempt <= retries) {
+                setTimeout(doCall, waitMs);
+              } else {
+                resolve({ ok: false, code: 'cloud_error', msg: '网络异常,请检查网络' });
+              }
+            }
+          });
+        };
+        doCall();
+      });
+    });
+  },
+
   setLoginUser(user) {
     if (!user || !user.openid) return;
     this.globalData.userInfo = user;
@@ -42,7 +95,6 @@ App({
     this.syncTabBar();
   },
 
-  // 登出统一调用: 清 globalData + storage
   clearLoginUser() {
     this.globalData.userInfo = null;
     this.globalData.role = 'guest';
@@ -50,12 +102,10 @@ App({
     this.setActiveRole('user');
   },
 
-  // 当前界面身份
   getActiveRole() {
     return this.globalData.activeRole || 'user';
   },
 
-  // 切换界面身份(仅影响大厅/订单等页面展示, 不改云端权限)
   setActiveRole(role) {
     if (role !== 'user' && role !== 'partner') return;
     this.globalData.activeRole = role;
@@ -63,7 +113,6 @@ App({
     this.syncTabBar();
   },
 
-  // 按身份同步 tabBar 文案: 耍伴→「接单」, 发单人→「大厅」
   syncTabBar() {
     const text = this.getActiveRole() === 'partner' ? '接单' : '大厅';
     if (wx.setTabBarItem) {

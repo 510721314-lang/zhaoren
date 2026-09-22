@@ -83,41 +83,26 @@ Page({
   },
 
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
-  fetchSquare() {
-    wx.cloud.callFunction({
-      name: 'home-action',
-      data: { action: 'square', limit: 20 },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          this.setData({
-            demandList: r.data.list || [],
-            partnerList: r.data.partners || [],
-            activeUsers: r.data.active_users || [],
-            activePartners: r.data.active_partners || []
-          });
-          // 场景分组懒加载: 首屏不阻塞, 数据返回后填充
-          this.fetchSceneGroups();
-        }
-      },
-      fail: () => {},
-      complete: () => {}  // 不再设 loading=false, 已改为 loading:false 不阻塞渲染
-    });
+  async fetchSquare() {
+    const app = getApp();
+    const r = await app.cloudCall('home-action', { action: 'square', limit: 20 });
+    if (r.ok && r.data) {
+      this.setData({
+        demandList: r.data.list || [],
+        partnerList: r.data.partners || [],
+        activeUsers: r.data.active_users || [],
+        activePartners: r.data.active_partners || []
+      });
+      this.fetchSceneGroups();
+    }
   },
 
-  // 场景分组懒加载: 独立 action, 冷启动不阻塞
-  fetchSceneGroups() {
-    wx.cloud.callFunction({
-      name: 'home-action',
-      data: { action: 'scene_groups' },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data && r.data.scene_groups) {
-          this.setData({ sceneGroups: r.data.scene_groups });
-        }
-      },
-      fail: () => {}  // 场景分组加载失败不影响首屏
-    });
+  async fetchSceneGroups() {
+    const app = getApp();
+    const r = await app.cloudCall('home-action', { action: 'scene_groups' });
+    if (r.ok && r.data && r.data.scene_groups) {
+      this.setData({ sceneGroups: r.data.scene_groups });
+    }
   },
 
   onPullDownRefresh() {
