@@ -52,7 +52,7 @@ L1新手600-799(日上限10) / L2标准800-899(15) / L3优质900-949(20) / L4金
   gender_pref:'不限', aa_estimate:'50-200',
   match_mode:'broadcast', status:'matching',   // matching/matched/cancelled/expired
   published_at:'2026-09-14T10:00:00', draft:false }
-示例数据：6条（覆盖5场景+1公益单:project_attr='public_welfare',budget:null）
+示例数据：6条（覆盖多场景+1公益单:project_attr='public_welfare',budget:null）
 
 ### orders（PRD16.2 order_main）
 { _id, order_no:'20260916001', demand_id, user_id, partner_id,

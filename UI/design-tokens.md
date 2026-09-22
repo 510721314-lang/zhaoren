@@ -50,14 +50,18 @@
 | --border-2 | #f0f0f0 | 分割线 |
 | --border-divider | #f5f5f5 | 列表分隔 |
 
-### 1.5 场景图标底色（一期5场景）
+### 1.5 场景图标底色（一期 9 场景，2026-09-22 放开 W3/W4/W7/W9）
 | 场景编码 | 底色 | 图标 |
 |---|---|---|
-| medical_escort | #E8F1FF | 🏥 |
-| study_companion | #EDE8FF | 📚 |
-| life_assist | #FFF3E0 | 🧾 |
-| travel_companion | #E0F5F4 | 🚄 |
-| online_companion | #FFE9EC | 💬 |
+| W1 就医陪诊 | #E8F1FF | 🏥 |
+| W2 学习陪伴 | #EDE8FF | 📚 |
+| W3 健身陪伴 | #E8FFF0 | 🏋️ |
+| W4 游玩陪伴 | #FFF0E8 | 🎡 |
+| W7 情绪陪伴 | #FFE8F3 | 🫂 |
+| W8 生活协助 | #FFF3E0 | 🛠️ |
+| W9 宠物陪伴 | #E8F5FF | 🐾 |
+| W10 出行陪伴 | #E0F5F4 | 🚄 |
+| W11 线上陪伴 | #FFE9EC | 💬 |
 
 ## 2. 字体系统
 | 变量名 | 值 | 用途 |
