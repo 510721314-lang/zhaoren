@@ -142,8 +142,8 @@ Page({
     try {
       const r = await wx.cloud.callFunction({ name: 'home-action', data: { action: 'scene_groups' } }).then((res) => res.result || {});
       if (r.ok && r.data && r.data.scene_groups) {
-        const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
-        const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
+        const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬', W3: '🏋️', W4: '🎡', W7: '🫂', W9: '🐾' };
+        const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC', W3: '#E8FFF0', W4: '#FFF0E8', W7: '#FFE8F3', W9: '#E8F5FF' };
         const scenes = r.data.scene_groups.map((g) => {
           const hc = getScene(g.scene_code);
           return {

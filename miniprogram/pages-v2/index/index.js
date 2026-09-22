@@ -104,8 +104,8 @@ Page({
     if (r.ok && r.data && r.data.scene_groups) {
       const groups = r.data.scene_groups;
       // 从 scene_groups 派生动态场景列表(去重 + SCENES 兜底 icon/color/disclaimer)
-      const ICON_FALLBACK = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
-      const COLOR_FALLBACK = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
+      const ICON_FALLBACK = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬', W3: '🏋️', W4: '🎡', W7: '🫂', W9: '🐾' };
+      const COLOR_FALLBACK = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC', W3: '#E8FFF0', W4: '#FFF0E8', W7: '#FFE8F3', W9: '#E8F5FF' };
       const scenes = groups.map((g) => {
         const hardCoded = getScene(g.scene_code);
         return {

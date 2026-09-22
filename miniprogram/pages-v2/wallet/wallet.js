@@ -1,12 +1,15 @@
 // PRD章节: 3.10 资金钱包 / 3.10.2 提现 / 3.10.3 极速提现 / 3.10.4 收益明细
 // P2: 接云端 payment-mock balance_info + income_list, 删 mock 依赖
 const CONFIG = require('../../config/index.js');
-const { FUND_STATUS, SCENES } = require('../../config/enums.js');
+const { FUND_STATUS } = require('../../config/enums.js');
 const redline = require('../../utils/redline.js');
+const { getScene } = redline;
 
-// 从 config/enums.js SCENES 构建 scene code → 显示名映射, 与 admin_config.scene_list 对齐
-const SCENE_NAMES = {};
-SCENES.forEach((s) => { SCENE_NAMES[s.code] = s.name; });
+// scene code → 显示名: 优先全局动态场景(后台可增删, 含新增场景), 兜底 redline.getScene(硬编码 SCENES)
+function sceneName(code) {
+  const s = getScene(code);
+  return (s && s.name) || code || '其他';
+}
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -88,7 +91,7 @@ Page({
         d.incomeList = (incR.data.list || []).map((i) => ({
           order_no: i.order_no,
           scene: i.scene,
-          scene_name: SCENE_NAMES[i.scene] || i.scene || '其他',
+          scene_name: sceneName(i.scene),
           status: i.status,
           netYuan: ((i.partner_income_fen || 0) / 100).toFixed(2),
           grossYuan: ((i.total_fen || 0) / 100).toFixed(2),

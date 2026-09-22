@@ -36,16 +36,27 @@ Page({
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 发布返回时 onShow 正常刷新
     this.__skipNextShow = true;
-    const chips = [{ code: 'all', name: '全部' }]
-      .concat(SCENES.map((s) => ({ code: s.code, name: s.name })))
-      .concat([{ code: 'public_welfare', name: '💚 公益免费' }]);
-    this.setData({ chips });
+    this.setData({ chips: this.buildChips() });
     this.fetchSquare();
     this.fetchActivities();
   },
 
+  // 场景 chips: 优先全局动态场景(首页/发布页/接单配置同步, 后台可增删), 兜底 enums SCENES
+  buildChips() {
+    let list = null;
+    try {
+      const app = getApp();
+      const dyn = app && app.globalData && app.globalData.availableScenes;
+      if (Array.isArray(dyn) && dyn.length) list = dyn;
+    } catch (e) {}
+    if (!list) list = SCENES;
+    return [{ code: 'all', name: '全部' }]
+      .concat(list.map((s) => ({ code: s.code, name: s.name })))
+      .concat([{ code: 'public_welfare', name: '💚 公益免费' }]);
+  },
+
   onShow() {
-    this.setData({ isRedline: redline.isInRedline() });
+    this.setData({ isRedline: redline.isInRedline(), chips: this.buildChips() });
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 });
     }
