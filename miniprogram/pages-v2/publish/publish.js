@@ -78,6 +78,7 @@ Page({
     form: {
       project_attr: 'commercial',  // B2
       scene_code: '',               // B3
+      content_options: [],          // B3.1 服务内容(子服务项)勾选, 至少 1 项最多 3 项
       title: '',                    // B4
       description: '',             // B4
       service_date: '',            // B5
@@ -99,6 +100,9 @@ Page({
 
     // B3 免责声明(选场景时 wx.showModal 签署后置 true; 草稿恢复场景 onPublish 会补弹)
     disclaimerChecked: false,
+    // B3.1 服务内容选择窗(免责声明通过后自动弹出)
+    optionSheetVisible: false,
+    optionList: [],  // [{ name, checked }] 当前场景的服务项 + 勾选态
     // B9 智能派单
     smartLocked: true,  // mock用户非L3且非会员 → 置灰
     // B10 自动保存
@@ -210,6 +214,8 @@ Page({
             return;
           }
           const d = r.data;
+          // 服务内容回填(供选择窗预勾选; 需在 setScene 之前, 否则选择窗拿不到已选值)
+          this.setData({ 'form.content_options': Array.isArray(d.content_options) ? d.content_options : [] });
           // 场景 + 标题 + 描述
           this.setScene({ code: d.scene_code });
           // 日期 + 时间 → duration_hours + service_date + service_time
@@ -390,6 +396,7 @@ Page({
       form: {
         project_attr: d.project_attr || 'commercial',
         scene_code: d.scene_code || '',
+        content_options: Array.isArray(d.content_options) ? d.content_options : [],
         title: d.title || '',
         description: d.description || '',
         service_date: d.service_date || '',
@@ -437,7 +444,12 @@ Page({
     // 动态场景无完整 disclaimer.title/content 时用 disclaimer_type 通用文案兜底
     const disclaimerScene = scene.disclaimer ? scene : { disclaimer: this._defaultDisclaimer(scene) };
     this._showSceneDisclaimer(disclaimerScene,
-      () => { this.setData({ form, disclaimerChecked: true }); },
+      () => {
+        // 换场景 → 清空旧场景的服务项选择, 并弹出服务内容选择窗
+        form.content_options = [];
+        this.setData({ form, disclaimerChecked: true });
+        this._openOptionSheet(scene);
+      },
       () => {
         // 不同意 → 取消场景选择
         form.scene_code = '';
@@ -445,6 +457,51 @@ Page({
         wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
       }
     );
+  },
+
+  // ── B3.1 服务内容(子服务项)选择窗 ──
+  // 点击场景卡 → 免责声明通过后自动弹出; 至少 1 项, 最多 3 项(与服务端 demand-publish 校验一致)
+  _openOptionSheet(scene) {
+    const opts = (scene && scene.options) || [];
+    if (!opts.length) {
+      // 场景未配服务项(理论上不会发生, 服务端要求 content_options 非空): 不弹窗, 发布时会提示
+      this.setData({ optionSheetVisible: false, optionList: [] });
+      return;
+    }
+    const chosen = this.data.form.content_options || [];
+    this.setData({
+      optionList: opts.map((name) => ({ name, checked: chosen.indexOf(name) >= 0 })),
+      optionSheetVisible: true
+    });
+  },
+  // 已选服务内容区点击 → 重新打开选择窗
+  openOptionSheet() {
+    const f = this.data.form;
+    const scene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || getScene(f.scene_code);
+    this._openOptionSheet(scene);
+  },
+  closeOptionSheet() {
+    this.setData({ optionSheetVisible: false });
+  },
+  toggleOption(e) {
+    const name = e.currentTarget.dataset.name;
+    const list = (this.data.optionList || []).map((o) => Object.assign({}, o));
+    const idx = list.findIndex((o) => o.name === name);
+    if (idx < 0) return;
+    if (!list[idx].checked && list.filter((o) => o.checked).length >= 3) {
+      wx.showToast({ title: '最多选择 3 项', icon: 'none' });
+      return;
+    }
+    list[idx].checked = !list[idx].checked;
+    this.setData({ optionList: list });
+  },
+  confirmOptions() {
+    const chosen = (this.data.optionList || []).filter((o) => o.checked).map((o) => o.name);
+    if (!chosen.length) {
+      wx.showToast({ title: '请至少选择 1 项服务内容', icon: 'none' });
+      return;
+    }
+    this.setData({ 'form.content_options': chosen, optionSheetVisible: false });
   },
   _defaultDisclaimer(scene) {
     const titleMap = { medical_disclaimer: '就医免责声明', online_disclaimer: '线上陪伴声明' };
@@ -758,6 +815,7 @@ Page({
   validatePublish(f) {
     const errs = [];
     if (!f.scene_code) errs.push('请选择场景');
+    if (!f.content_options || !f.content_options.length) errs.push('请选择服务内容');
     if (!f.title) errs.push('请输入标题');
     if (!f.description) errs.push('请输入描述');
     if (!f.service_date) errs.push('请选择日期');
@@ -848,10 +906,8 @@ Page({
   },
 
   _doPublish(f, durationH, pubLoc) {
-    // 场景子服务选项（前端无单独选择 UI → 用场景全选兜底）
-    const scene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || getScene(f.scene_code);
-    // 动态场景 options 不在前端 scenes 里 → 走 cloud fetch 兜底？先给空数组, demand-publish 服务端不会强制要求
-    const contentOptions = scene && scene.options ? scene.options : [];
+    // 服务内容: 用户在选择窗勾选(≥1 项, ≤3 项); 服务端 demand-publish 还会按场景 options 再校验一次
+    const contentOptions = (f.content_options || []).slice(0, 3);
 
     // 服务开始时间 → 时间戳(本地时区组时间, 兼容 iOS; iOS 不支持 new Date('YYYY-MM-DDTHH:mm:ss'))
     const dateParts = String(f.service_date).split('-');

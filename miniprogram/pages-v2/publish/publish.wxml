@@ -34,6 +34,17 @@
         <view class="pub__scene-name">{{item.name}}</view>
       </view>
     </view>
+    <!-- B3.1 已选服务内容(点场景卡→免责声明→选择窗; 此处可点击重新编辑) -->
+    <view class="pub__opt-row" wx:if="{{form.scene_code}}">
+      <view class="pub__opt-label">服务内容 <text class="pub__required">*</text></view>
+      <view class="pub__opt-picked" bindtap="openOptionSheet">
+        <block wx:if="{{form.content_options.length > 0}}">
+          <text class="pub__opt-chip" wx:for="{{form.content_options}}" wx:key="*this">{{item}}</text>
+        </block>
+        <text class="pub__opt-empty" wx:else>请选择服务内容</text>
+        <text class="pub__opt-edit">修改 ›</text>
+      </view>
+    </view>
   </view>
 
   <!-- B4 标题+描述 -->
@@ -163,6 +174,20 @@
       <view class="pub__draft-meta">{{item.demand_data.service_date}} · 保存于 {{item.saved_at}}</view>
     </view>
     <view class="pub__draft-empty" wx:if="{{draftList.length === 0}}">暂无草稿</view>
+  </bottom-sheet>
+
+  <!-- 服务内容(子服务项)选择窗: 选场景→免责声明通过后自动弹出 -->
+  <bottom-sheet visible="{{optionSheetVisible}}" title="选择服务内容" has-footer="{{true}}" bind:close="closeOptionSheet">
+    <view class="pub__opt-tip">请选择本次需要的服务（至少 1 项，最多 3 项）</view>
+    <view class="pub__opt-list">
+      <view class="pub__opt-item {{item.checked ? 'is-on' : ''}}" wx:for="{{optionList}}" wx:key="name" data-name="{{item.name}}" bindtap="toggleOption">
+        <text class="pub__opt-name">{{item.name}}</text>
+        <text class="pub__opt-check">{{item.checked ? '✓' : ''}}</text>
+      </view>
+    </view>
+    <view slot="footer" class="pub__opt-footer">
+      <button class="pub__btn pub__btn--primary" bindtap="confirmOptions">确定</button>
+    </view>
   </bottom-sheet>
 
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
