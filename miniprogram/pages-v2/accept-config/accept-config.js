@@ -128,8 +128,8 @@ Page({
           examNeeded: hasExam
         };
       });
-      // 同步到全局, 其他组件白名单校验用
-      try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs.map((s) => s.code); } catch (e) {}
+      // 同步到全局, 组件 getScene 动态兜底(存完整场景对象)
+      try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs; } catch (e) {}
 
       // 为已选场景补默认时薪（如果没有 scene_rates）
       for (const s of scenes) {

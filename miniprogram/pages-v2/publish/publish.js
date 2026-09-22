@@ -157,9 +157,9 @@ Page({
           };
         });
         this.setData({ scenes });
-        // 同步到全局, redline.js R9 白名单校验用
+        // 同步到全局, redline.js R9 白名单校验 + 组件 getScene 动态兜底(存完整场景对象)
         const app = getApp();
-        if (app) app.globalData.availableScenes = scenes.map((s) => s.code);
+        if (app) app.globalData.availableScenes = scenes;
         // 场景预选中: onLoad 里拿到的 sceneCode 等这里 scenes 数据就绪后再触发
         if (this.__pendingSceneCode) {
           const code = this.__pendingSceneCode;

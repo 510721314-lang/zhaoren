@@ -1,6 +1,6 @@
 // components/partner-card · 耍伴卡（pages-spec P02-H7b / P08 精简规格，含动态模块）
 // props: partner 对象；事件: invite(邀TA帮忙) / consult(咨询) / cardtap / more(查看更多动态)
-const { SCENES } = require('../../config/enums.js');
+const { getScene } = require('../../utils/redline.js');
 
 Component({
   properties: {
@@ -24,7 +24,7 @@ Component({
         avatar: (p.avatar && /^https?:/.test(p.avatar)) ? p.avatar : ''
       });
       const sceneList = (p.scenes || p.accept_scenes || p.certified_scenes || [])
-        .map((code) => SCENES.find((s) => s.code === code))
+        .map((code) => getScene(code))
         .filter(Boolean);
       // PRD 3.2.3：数据<3次显示「数据积累中」
       const statsText = (p.order_count != null && p.order_count < 3) ? '数据积累中' : '';

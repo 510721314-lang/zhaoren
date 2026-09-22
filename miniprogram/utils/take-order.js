@@ -1,7 +1,7 @@
 // utils/take-order.js · 耍伴接单链路（P0-1）
 // 流程: 实名门禁 → 场景免责声明(wx.showModal·接单方双签) → wx.getLocation → sign_disclaimer(幂等) → create_from_take
 // 拒绝规则(身份/资料审核/信用分/距离50km/时间冲突/接单范围)以后端 order-create 为准, 前端只做入口校验
-const { SCENES } = require('../config/enums.js');
+const { getScene } = require('./redline.js');
 
 // demand: 需求对象(需 _id / scene_code / match_mode)
 // opts:   { onSuccess(data), onError(result) }  data = { order_id, order_no, status: 'S1', ... }
@@ -20,7 +20,7 @@ function takeOrder(demand, opts) {
     wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
     return;
   }
-  const scene = SCENES.find((s) => s.code === demand.scene_code) || null;
+  const scene = getScene(demand.scene_code);
   const d = scene && scene.disclaimer;
   if (d) {
     // 免责声明用 wx.showModal(真机稳定, 与发布侧弹法统一, 禁用 bottom-sheet)

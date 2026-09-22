@@ -123,9 +123,9 @@ Page({
         scenes,
         filteredScenes: scenes
       });
-      // 同步到全局, redline.js R9 白名单校验 + 其他组件查场景
+      // 同步到全局, redline.js R9 白名单校验 + 组件 getScene 动态兜底(存完整场景对象)
       const app = getApp();
-      if (app) app.globalData.availableScenes = scenes.map((s) => s.code);
+      if (app) app.globalData.availableScenes = scenes;
     }
   },
 

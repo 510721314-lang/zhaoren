@@ -1,6 +1,7 @@
 // components/tag-chip · 万能标签：type = scene / gongyi / aa / status
-// 场景色取 config/enums.js SCENES；13态色取 ORDER_STATUS（颜色均为 token）
-const { SCENES, ORDER_STATUS } = require('../../config/enums.js');
+// 场景信息走 redline.getScene(硬编码 SCENES + 后台动态场景兜底)；13态色取 ORDER_STATUS（颜色均为 token）
+const { ORDER_STATUS } = require('../../config/enums.js');
+const { getScene } = require('../../utils/redline.js');
 
 // 场景浅底 → 配套深字色（token）
 const SCENE_TEXT_VAR = {
@@ -34,7 +35,7 @@ Component({
       let label = text;
       let customStyle = '';
       if (type === 'scene') {
-        const scene = SCENES.find((s) => s.code === sceneCode);
+        const scene = getScene(sceneCode);
         if (scene) {
           label = label || scene.name;
           customStyle = `background:${scene.color};color:${SCENE_TEXT_VAR[scene.code] || 'var(--func-info)'};`;

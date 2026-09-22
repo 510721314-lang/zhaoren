@@ -1,7 +1,7 @@
 // components/demand-card · 需求卡（pages-spec P03 卡片规格）
 // props: demand 需求对象 / role user|partner / certified 当前耍伴是否已认证该场景
 //        grabbed 是否已被抢 / actionText 按钮文案
-const { SCENES } = require('../../config/enums.js');
+const { getScene } = require('../../utils/redline.js');
 
 Component({
   properties: {
@@ -27,7 +27,7 @@ Component({
   methods: {
     compute() {
       const d = this.properties.demand || {};
-      const scene = SCENES.find((s) => s.code === d.scene_code) || null;
+      const scene = getScene(d.scene_code);
       const online = d.scene_code === 'W11';
       const distanceText = online
         ? '线上 · 不限距离'

@@ -31,7 +31,7 @@ function isServiceTimeAllowed(timeStr) {
   return mins >= toMinutes(CONFIG.TIME_REDLINE.open) && mins < toMinutes(CONFIG.TIME_REDLINE.close);
 }
 
-// R9：场景白名单 — 优先全局动态列表(home-action scene_groups 同步), fallback 硬编码 SCENES
+// R9：场景白名单 — 优先全局动态列表(首页/发布页 scene_groups 同步, 元素为完整场景对象), fallback 硬编码 SCENES
 function _globalAvailableScenes() {
   try {
     const app = getApp();
@@ -42,17 +42,27 @@ function _globalAvailableScenes() {
 
 function isSceneAllowed(sceneCode) {
   const dyn = _globalAvailableScenes();
-  if (dyn && dyn.length > 0) return dyn.indexOf(sceneCode) >= 0;
+  if (dyn && dyn.length > 0) return dyn.some((s) => s && s.code === sceneCode);
   return SCENES.some((s) => s.code === sceneCode);
 }
 
 function getScene(sceneCode) {
+  if (!sceneCode) return null;
   const hc = SCENES.find((s) => s.code === sceneCode);
   if (hc) return hc;
-  // 动态场景兜底(无完整 icon/disclaimer, 用默认)
+  // 后台新增动态场景: 优先用全局同步的完整对象(真实名称/图标/色), 缺字段用默认
   const dyn = _globalAvailableScenes();
-  if (dyn && dyn.indexOf(sceneCode) >= 0) {
-    return { code: sceneCode, name: sceneCode, icon: '📌', color: '#F5F5F5', disclaimer_type: 'general_disclaimer' };
+  const d = dyn && dyn.find((s) => s && s.code === sceneCode);
+  if (d) {
+    return {
+      code: sceneCode,
+      name: d.name || sceneCode,
+      icon: d.icon || '📌',
+      color: d.color || '#F5F5F5',
+      cert: d.cert || '',
+      disclaimer_type: d.disclaimer_type || 'general_disclaimer',
+      disclaimer: d.disclaimer || (d.disclaimer_text ? { title: d.disclaimer_title || '免责声明', content: d.disclaimer_text } : null)
+    };
   }
   return null;
 }
