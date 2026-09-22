@@ -26,15 +26,21 @@
       </view>
     </view>
 
-    <!-- 1. 场景多选 -->
+    <!-- 1. 场景多选 + 每场景独立时薪 -->
     <view class="ac__card">
-      <view class="ac__card-title">接单场景 <text class="ac__required">*</text></view>
-      <view class="ac__tip">选择你要接的场景，点击保存后生效</view>
+      <view class="ac__card-title">接单场景与时薪 <text class="ac__required">*</text></view>
+      <view class="ac__tip">选择你要接的场景并设置时薪（{{rateMinYuan}}-{{rateMaxYuan}} 元/小时），点击保存后生效</view>
       <view class="ac__scene-list">
-        <view class="ac__scene-chip {{item.selected ? 'is-on' : ''}}" wx:for="{{certifiedScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneToggle">
-          {{item.icon}} {{item.name}}
-          <text class="ac__exam-tag ac__exam--pass" wx:if="{{item.examNeeded && item.examPassed}}">✓已通过</text>
-          <text class="ac__exam-tag ac__exam--fail" wx:elif="{{item.examNeeded && !item.examPassed}}">需考核</text>
+        <view class="ac__scene-row" wx:for="{{certifiedScenes}}" wx:key="code">
+          <view class="ac__scene-chip {{item.selected ? 'is-on' : ''}}" data-code="{{item.code}}" bindtap="onSceneToggle">
+            {{item.icon}} {{item.name}}
+            <text class="ac__exam-tag ac__exam--pass" wx:if="{{item.examNeeded && item.examPassed}}">✓已通过</text>
+            <text class="ac__exam-tag ac__exam--fail" wx:elif="{{item.examNeeded && !item.examPassed}}">需考核</text>
+          </view>
+          <view class="ac__scene-rate" wx:if="{{item.selected}}">
+            <input class="ac__scene-rate-input" type="digit" value="{{sceneRateYuan[item.code]}}" placeholder="{{rateMinYuan}}" data-code="{{item.code}}" bindinput="onRateInput" />
+            <text class="ac__scene-rate-unit">元/小时</text>
+          </view>
         </view>
       </view>
     </view>

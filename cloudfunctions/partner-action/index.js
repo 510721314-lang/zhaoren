@@ -315,34 +315,37 @@ exports.main = async (event, context) => {
         update.accept_scenes = newScenes;
       }
 
-      // 各场景时薪校验(scene_rates: { W1: 5000, ... })
+      // 各场景时薪(scene_rates: { W1: 5000, ... } 分单位)
+      // 耍伴端逐场景输入(元/小时); 传入值非法时回落「原有效值 → 平台默认时薪」, 不硬拒(防脏数据/旧客户端)
+      const sceneDefaultRate = config.scene_default_rate_fen || 5000;
+      const oldRates = profile.scene_rates || {};
       if (event.scene_rates && typeof event.scene_rates === 'object') {
         const rateKeys = Object.keys(event.scene_rates);
-        // 校验:每个选中场景必须有对应时薪
-        for (const s of newScenes) {
-          if (rateKeys.indexOf(s) < 0) {
-            return { ok: false, code: 'pa_rate_missing', msg: `请为场景 ${s} 设置时薪` };
-          }
-          const r = Number(event.scene_rates[s]);
-          if (!r || r < rateMin || r > rateMax) {
-            return { ok: false, code: 'pa_rate_range', msg: `场景 ${s} 时薪需在 30-100 元/小时之间` };
-          }
-        }
         // 不允许多余 key
         for (const k of rateKeys) {
           if (newScenes.indexOf(k) < 0) {
             return { ok: false, code: 'pa_rate_extra', msg: `场景 ${k} 未勾选但设置了时薪` };
           }
         }
-        update.scene_rates = event.scene_rates;
-      } else if (update.accept_scenes) {
-        // 只改场景未带时薪:校验原 scene_rates 是否覆盖新场景
-        const oldRates = profile.scene_rates || {};
+        // 为每个选中场景确定时薪: 传入值合法则用, 否则回退原值, 再否则平台默认
+        const mergedRates = {};
         for (const s of newScenes) {
-          if (oldRates[s] === undefined) {
-            return { ok: false, code: 'pa_rate_missing', msg: `新增场景 ${s} 需设置时薪` };
+          let r = rateKeys.indexOf(s) >= 0 ? Number(event.scene_rates[s]) : NaN;
+          if (!r || r < rateMin || r > rateMax) {
+            const old = Number(oldRates[s]);
+            r = (old && old >= rateMin && old <= rateMax) ? old : sceneDefaultRate;
           }
+          mergedRates[s] = r;
         }
+        update.scene_rates = mergedRates;
+      } else if (update.accept_scenes) {
+        // 只改场景未带时薪: 为新场景补默认时薪, 已有场景保留原值
+        const mergedRates = {};
+        for (const s of newScenes) {
+          const old = Number(oldRates[s]);
+          mergedRates[s] = (old && old >= rateMin && old <= rateMax) ? old : sceneDefaultRate;
+        }
+        update.scene_rates = mergedRates;
       }
 
       // 每周接单时段(结构化分钟数; 服务端 order-create 按"服务时间必须落在启用时段内"校验)

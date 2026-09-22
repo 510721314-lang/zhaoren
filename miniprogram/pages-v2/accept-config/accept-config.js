@@ -16,7 +16,8 @@ Page({
   data: {
     certifiedScenes: [],
     homeLocation: null,       // 耍伴日常位置 { name, address, latitude, longitude }
-    sceneRates: {},           // { W1: 5000, ... } 元/分
+    sceneRates: {},           // { W1: 5000, ... } 分/小时
+    sceneRateYuan: {},        // { W1: '50', ... } 输入框展示值(元/小时), 由 sceneRates 派生
     distanceRange: PA.distanceRange,
     bufferOptions: PA.bufferOptions,
     bufferIndex: PA.bufferOptions.indexOf(PA.defaultBufferMin),
@@ -170,10 +171,16 @@ Page({
       // 同步到全局, 组件 getScene 动态兜底(存完整场景对象)
       try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs; } catch (e) {}
 
-      // 为已选场景补默认时薪（如果没有 scene_rates）
+      // 为已选场景补默认时薪: 缺失或越界(历史脏数据)统一回落到平台默认时薪
       for (const s of scenes) {
-        if (!sceneRates[s]) sceneRates[s] = PA.defaultSceneRateFen; // 默认时薪来自 CONFIG, SSOT 可覆盖
+        const v = Number(sceneRates[s]);
+        if (!v || v < PA.rateMinFen || v > PA.rateMaxFen) sceneRates[s] = PA.defaultSceneRateFen; // 默认时薪来自 CONFIG, SSOT 可覆盖
       }
+      // 输入框展示值(元/小时): 由 sceneRates(分) 派生
+      const sceneRateYuan = {};
+      Object.keys(sceneRates).forEach((k) => {
+        sceneRateYuan[k] = String(Math.round(Number(sceneRates[k]) / 100));
+      });
 
       // 本地缓存仅作离线兜底; 云端 profile 为 SSOT
       let local = {};
@@ -204,6 +211,7 @@ Page({
         certifiedScenes: certifiedScenes,
         homeLocation: p.home_location || null,
         sceneRates: sceneRates,
+        sceneRateYuan: sceneRateYuan,
         'form.scenes': scenes,
         'form.weeklySlots': slots,
         'form.minPrice': minYuan,
@@ -256,22 +264,37 @@ Page({
     const scenes = this.data.form.scenes.slice();
     const idx = scenes.indexOf(code);
     let selected = false;
+    const patch = {};
     if (idx > -1) { scenes.splice(idx, 1); selected = false; }
-    else { scenes.push(code); selected = true; }
+    else {
+      scenes.push(code);
+      selected = true;
+      // 新勾选场景若无有效时薪, 预填平台默认时薪(用户可在输入框修改)
+      const cur = Number(this.data.sceneRates[code]);
+      if (!cur || cur < PA.rateMinFen || cur > PA.rateMaxFen) {
+        patch.sceneRates = Object.assign({}, this.data.sceneRates, { [code]: PA.defaultSceneRateFen });
+        patch.sceneRateYuan = Object.assign({}, this.data.sceneRateYuan, { [code]: String(Math.round(PA.defaultSceneRateFen / 100)) });
+      }
+    }
     // 同步更新 certifiedScenes 里的 selected
     const certifiedScenes = this.data.certifiedScenes.map((s) => {
       if (s.code === code) return { ...s, selected };
       return { ...s, selected: scenes.indexOf(s.code) > -1 };
     });
-    this.setData({ 'form.scenes': scenes, certifiedScenes });
+    patch['form.scenes'] = scenes;
+    patch.certifiedScenes = certifiedScenes;
+    this.setData(patch);
   },
 
-  // 时薪输入（分→元 输入, 存分）
+  // 各场景时薪输入(元/小时 → 存分)
   onRateInput(e) {
     const code = e.currentTarget.dataset.code;
-    const yuan = Number(e.detail.value) || 0;
-    const fen = Math.round(yuan * 100);
-    this.setData({ [`sceneRates.${code}`]: fen });
+    const raw = String(e.detail.value || '').trim();
+    const yuan = Number(raw) || 0;
+    this.setData({
+      [`sceneRateYuan.${code}`]: raw,
+      [`sceneRates.${code}`]: Math.round(yuan * 100)
+    });
   },
 
   onWeekToggle(e) {
@@ -331,16 +354,22 @@ Page({
       return;
     }
 
-    // 校验每个选中场景都有时薪(区间取 CONFIG, 服务端为准)
+    // 校验每个选中场景的时薪(逐场景输入, 元/小时; 服务端会再校验一次)
     const rates = this.data.sceneRates;
     const rateLoYuan = Math.round(PA.rateMinFen / 100);
     const rateHiYuan = Math.round(PA.rateMaxFen / 100);
     for (const s of form.scenes) {
-      if (!rates[s] || rates[s] < PA.rateMinFen || rates[s] > PA.rateMaxFen) {
-        wx.showToast({ title: `场景${s}时薪需${rateLoYuan}-${rateHiYuan}元`, icon: 'none' });
+      const v = Number(rates[s]);
+      if (!v || v < PA.rateMinFen || v > PA.rateMaxFen) {
+        const nm = ((this.data.certifiedScenes.find((c) => c.code === s) || {}).name) || s;
+        wx.showToast({ title: `${nm}时薪需在${rateLoYuan}-${rateHiYuan}元/小时之间`, icon: 'none' });
         return;
       }
     }
+
+    // 只上传已选场景的时薪(后端对未勾选场景的时薪会报 pa_rate_extra)
+    const ratesPayload = {};
+    for (const s of form.scenes) ratesPayload[s] = Number(rates[s]);
 
     // 校验接单价格区间(元/小时; 服务端会按平台边界再校验一次)
     const minYuan = Number(form.minPrice) || 0;
@@ -371,7 +400,7 @@ Page({
       const r = await callCloud('partner-action', {
         action: 'update_config',
         accept_scenes: form.scenes,
-        scene_rates: rates,
+        scene_rates: ratesPayload,
         home_location: this.data.homeLocation,
         weekly_slots: slotsPayload,
         accept_rate_min_fen: Math.round(minYuan * 100),
