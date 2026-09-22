@@ -146,6 +146,13 @@ Page({
         const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC', W3: '#E8FFF0', W4: '#FFF0E8', W7: '#FFE8F3', W9: '#E8F5FF' };
         const scenes = r.data.scene_groups.map((g) => {
           const hc = getScene(g.scene_code);
+          const hard = hc && hc.disclaimer;
+          // 场景专属免责声明: 云端 legal_scene_disclaimers(SSOT, 后台可改) 优先 → 硬编码 enums 兜底
+          // ⚠️ 必须挂到场景对象上, 否则 setScene 会落到 _defaultDisclaimer 通用文案(所有场景同一段)
+          const cloudText = g.scene_disclaimer_text || '';
+          const disclaimer = cloudText
+            ? { title: (hard && hard.title) || '免责声明', content: cloudText }
+            : (hard || null);
           return {
             code: g.scene_code,
             name: g.scene_name,
@@ -154,7 +161,9 @@ Page({
             options: Array.isArray(g.scene_options) && g.scene_options.length
               ? g.scene_options.slice(0, 3)
               : (hc ? (hc.options || []).slice(0, 3) : []),
-            gb: hc ? hc.gb : false
+            gb: hc ? hc.gb : false,
+            disclaimer_type: g.scene_disclaimer_type || (hc && hc.disclaimer_type) || 'general_disclaimer',
+            disclaimer
           };
         });
         this.setData({ scenes });
