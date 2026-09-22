@@ -138,7 +138,7 @@ exports.main = async (event, context) => {
   const ADMIN_ACTIONS = ['lookup', 'force_migrate_scenes', 'check_pp'];
   if (ADMIN_ACTIONS.indexOf(action) >= 0) {
     let cfg = null;
-    try { cfg = (await db.collection('admin_config').where({ _id: 'global' }).limit(1).get()).data[0]; } catch (e) {}
+    try { cfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) {}
     const adminOpenids = (cfg && cfg.admin_openids) || [];
     const isAdmin = !!openid && adminOpenids.indexOf(openid) >= 0;
     // 鸡生蛋兼容: admin_openids 为空时首次部署放行(等 init-db 建好 admin_config 后 admin-action claim_admin 初始化)
@@ -158,7 +158,7 @@ exports.main = async (event, context) => {
         const r = await db.collection('user_account').where({
           nickname: nick, is_deleted: _.neq(true)
         }).limit(1).get();
-        const u = r.data && r.data[0];
+        const u = r.data;
         results[nick] = u ? {
           openid: u.openid,
           roles: u.roles || [],
@@ -353,9 +353,9 @@ exports.main = async (event, context) => {
 
   // 3. 写入 admin_config 种子(幂等:不存在则建,已存在则补齐缺失字段,不覆盖已有值)
   try {
-    const exist = await db.collection('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (exist.data && exist.data.length > 0) {
-      const doc = exist.data[0];
+    const exist = await db.collection('admin_config').doc('global').get();
+    const doc = exist.data;
+    if (doc && doc._id) {
       // 检测 SEED_CONFIG 中存在但 doc 中缺失的字段,补齐(不覆盖已有值)
       const patch = {};
       let hasPatch = false;
@@ -400,7 +400,7 @@ exports.main = async (event, context) => {
       }
       if (hasPatch) {
         patch.updated_at = Date.now();
-        await db.collection('admin_config').doc(exist.data[0]._id).update({ data: patch });
+        await db.collection('admin_config').doc('global').update({ data: patch });
         created.push('seed:admin_config (patched: ' + Object.keys(patch).filter(k => k !== 'updated_at').join(',') + ')');
         console.log('patched seed: admin_config fields: ' + Object.keys(patch).filter(k => k !== 'updated_at').join(','));
       } else {

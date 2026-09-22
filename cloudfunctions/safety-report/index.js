@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：PRD 3.6 标准化安全报备系统
+// 对应 PRD 章节：PRD 3.6 标准化安全报备系统
 // safety-report 安全报备与紧急求助 · 身份取自 getWXContext().OPENID
 // 7 个 action:
 //   sos               紧急求助:写 safety_report(active) + order_main.help_flag=true + platform_event(P0),返回本人紧急联系人
@@ -22,8 +22,8 @@ const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
 // 管理员白名单只认 admin_config.admin_openids; 读不到/为空一律返回空列表(fail-closed, 禁止硬编码兜底)
 async function getAdminOpenids() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const list = r.data && r.data[0] && r.data[0].admin_openids;
+    const r = await col('admin_config').doc('global').get();
+    const list = r.data && r.data.admin_openids;   // doc().get() 返回单个对象(非数组)
     if (Array.isArray(list)) return list;
   } catch (e) {}
   return [];

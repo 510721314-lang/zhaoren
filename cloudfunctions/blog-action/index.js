@@ -20,8 +20,8 @@ let _sceneCodesCache = null;
 async function getSceneCodes() {
   if (_sceneCodesCache) return _sceneCodesCache;
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const cfg = r.data && r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    const cfg = r.data;
     const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
       ? cfg.scene_list.map((s) => s.code).filter(Boolean)
       : SCENE_CODES_FALLBACK;
@@ -80,8 +80,8 @@ function ensureCollections() {
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data[0];
   } catch (e) {}
   return { block_words: ['加微信', '加V', '转账', '私聊我'] };
 }
@@ -105,7 +105,7 @@ async function safeCheckText(text, blockWords) {
 async function getAuthorSnapshot(openid) {
   try {
     const r = await col('user_account').where({ openid }).limit(1).get();
-    const u = r.data && r.data[0];
+    const u = r.data;
     if (!u) return null;
     return {
       author_nickname: u.nickname || '微信用户',

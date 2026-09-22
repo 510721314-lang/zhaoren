@@ -19,8 +19,8 @@ const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return { s0_timeout_min: 30, youth_limit_fen: 20000, platform_fee_rate_fen: 1000 };
 }

@@ -17,8 +17,8 @@ const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴'
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return { s0_timeout_min: 30 };
 }

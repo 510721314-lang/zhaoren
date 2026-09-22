@@ -16,8 +16,8 @@ let _sceneCodesCache = null;
 async function getSceneCodes() {
   if (_sceneCodesCache) return _sceneCodesCache;
   try {
-    const r = await db.collection('admin_config').where({ _id: 'global' }).limit(1).get();
-    const cfg = r.data && r.data[0];
+    const r = await db.collection('admin_config').doc('global').get();
+    const cfg = r.data;
     const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
       ? cfg.scene_list.map((s) => s.code).filter(Boolean)
       : SCENE_CODES_FALLBACK;
@@ -100,8 +100,8 @@ async function fetchTencentRoute(mode, from, to) {
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return {
     rate_min_fen: 3000, rate_max_fen: 10000,
@@ -498,7 +498,7 @@ exports.main = async (event, context) => {
       const r = await col('partner_profile').where({
         openid: event.partner_openid, status: 'approved', is_deleted: false
       }).limit(1).get();
-      const p = r.data && r.data[0];
+      const p = r.data;
       if (!p) return { ok: false, code: 'pa_not_found', msg: '耍伴不存在或未认证' };
       const h = sanitizeHomeLocation(p.home_location);
       if (!h) return { ok: false, code: 'pa_no_home', msg: '该耍伴未设置日常位置' };

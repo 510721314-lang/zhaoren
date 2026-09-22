@@ -76,8 +76,8 @@ async function ensureIdcardKey() {
     return key;
   } catch (e) {
     // 并发首次绑定落败: 重读拿到另一方写入的 key
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get().catch(() => ({ data: [] }));
-    const k = r.data && r.data[0] && r.data[0].idcard_aes_key;
+    const r = await col('admin_config').doc('global').get().catch(() => ({ data: {} }));
+    const k = r.data && r.data.idcard_aes_key;
     if (k && /^[0-9a-f]{64}$/i.test(k)) return k;
     throw new Error('idcard_key_unavailable');
   }
@@ -106,10 +106,20 @@ async function safeCheckText(text, blockWords) {
 // 获取运营参数(本地兜底词库等)
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data.length) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    return r.data || { block_words: ['加微信', '加V', '转账', '私聊我'] };
+  } catch (e) { return { block_words: ['加微信', '加V', '转账', '私聊我'] }; }
+}
+
+// dev 环境 simulated 实名用户当作已实名放行(开发调试便利, prod 严格)
+// 来源: admin_config.env (openid.js 5 分钟缓存)
+function devAllowSimulatedRealname(u) {
+  if (!u || u.is_realname_done || !u.is_realname_simulated) return u;
+  try {
+    const env = require('./openid').getCachedEnv();
+    if (env === 'dev') u.is_realname_done = true;
   } catch (e) {}
-  return { block_words: ['加微信', '加V', '转账', '私聊我'] };
+  return u;
 }
 
 // 写信用分流水
@@ -123,11 +133,13 @@ async function logCredit(openid, type, delta, score, reason) {
 // 用户文档脱敏后返回
 function safeUserDoc(u) {
   if (!u) return null;
+  // dev 环境 simulated 实名用户当作已实名放行(开发调试便利, prod 严格)
+  const realnameDone = devAllowSimulatedRealname(u).is_realname_done;
   return {
     _id: u._id, openid: u.openid, nickname: u.nickname, avatar: u.avatar,
     roles: u.roles, user_credit_score: u.user_credit_score,
     partner_credit_score: u.partner_credit_score,
-    is_realname_done: u.is_realname_done,
+    is_realname_done: realnameDone,
     is_realname_simulated: u.is_realname_simulated,
     age: u.age, status: u.status, phone: u.phone ? maskPhone(u.phone) : '',
     idcard_masked: u.idcard_mask || (u.idcard ? maskIdCard(u.idcard) : ''),
@@ -215,6 +227,16 @@ exports.main = async (event, context) => {
           if (u.status === 'closed') {
             return { ok: false, code: 'login_account_closed', msg: '该账号已注销' };
           }
+          // dev 环境 simulated 账号强制放行: 直接读 DB env (不走 getCachedEnv 缓存, 因为跨进程 invalidate 不掉)
+          if (!u.is_realname_done && u.is_realname_simulated) {
+            try {
+              const cfg = await getConfig();
+              if (cfg && cfg.env === 'dev') {
+                u.is_realname_done = true;
+                log.d('[login] dev 放行 simulated realname for', openid);
+              }
+            } catch (_) {}
+          }
           return { ok: true, data: { user: safeUserDoc(u) } };
         }
         // 新建账号(初始信用 800)
@@ -230,6 +252,13 @@ exports.main = async (event, context) => {
         const addRes = await col('user_account').add({ data: newUser });
         await logCredit(openid, 'init', 0, 800, 'register init credit');
         newUser._id = addRes._id;
+        // 新建账号同样 dev 放行 simulated
+        try {
+          const cfg = await getConfig();
+          if (cfg && cfg.env === 'dev') {
+            newUser.is_realname_done = true;
+          }
+        } catch (_) {}
         log.d(`new user created: ${openid}`);
         return { ok: true, data: { user: safeUserDoc(newUser), is_new: true } };
       } catch (e) {

@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.10 耍伴工作台 / 5.1 B端后台RBAC / 9.1 信用分扣除与冻结规则
+// 对应 PRD 章节：3.10 耍伴工作台 / 5.1 B端后台RBAC / 9.1 信用分扣除与冻结规则
 // partner-apply 耍伴入驻 · 身份取自 getWXContext().OPENID
 // 1 个 action: apply
 const cloud = require('wx-server-sdk');
@@ -14,8 +14,8 @@ let _sceneCodesCache = null;
 async function getSceneCodes() {
   if (_sceneCodesCache) return _sceneCodesCache;
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const cfg = r.data && r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    const cfg = r.data;
     const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
       ? cfg.scene_list.map((s) => s.code).filter(Boolean)
       : SCENE_CODES_FALLBACK;
@@ -29,8 +29,8 @@ async function getSceneCodes() {
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data[0];
   } catch (e) {}
   return { rate_min_fen: 3000, rate_max_fen: 10000, min_credit_take_order: 600, auto_approve_partner: false };
 }
@@ -56,7 +56,7 @@ exports.main = async (event, context) => {
 
   if (action === 'debug_profile') {
     const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
-    const profile = (r.data && r.data[0]) || null;
+    const profile = (r.data) || null;
     return { ok: true, data: { openid, profile } };
   }
 

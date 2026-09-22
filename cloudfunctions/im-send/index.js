@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
+// 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
 // im-send 发消息 · 身份取自 getWXContext().OPENID
 // 2 个 action:
 //   send_template  发送系统模板消息(四确认前唯一允许的消息类型)
@@ -59,8 +59,8 @@ const TEXT_MAX_LEN = 500;
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data[0];
   } catch (e) {}
   return { system_templates: [], block_words: BLOCK_WORDS_FALLBACK, security_only_template_before_confirm: true };
 }

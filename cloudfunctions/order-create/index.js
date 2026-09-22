@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
+// 对应 PRD 章节：3.5 订单交易系统 / 3.5.2 订单创建 / 附录G 状态机 / 8.1 信用分 / 1.7.1 青少年保护
 // order-create 订单创建 · 耍伴接单(create_from_take) · 免责声明签署(sign_disclaimer)
 // 2 个 action: create_from_take / sign_disclaimer · 订单初始状态 S1(待确认/四确认阶段)
 const cloud = require('wx-server-sdk');
@@ -14,8 +14,8 @@ const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return {
     platform_fee_rate_fen: 1000,

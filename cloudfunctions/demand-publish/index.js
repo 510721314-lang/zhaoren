@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.3 需求发布功能 / 8.4.1 需求超时与梯度退款 / 11 业务场景白名单
+// 对应 PRD 章节：3.3 需求发布功能 / 8.4.1 需求超时与梯度退款 / 11 业务场景白名单
 // demand-publish 需求发布 · 身份取自 getWXContext().OPENID
 // 8 个 action: publish / cancel / my_demands / lazy_expire / detail
 //             / save_draft(新增或更新草稿) / list_drafts(草稿列表,过滤过期) / delete_draft(软删)
@@ -16,8 +16,8 @@ let _sceneCodesCache = null;
 async function getSceneCodes() {
   if (_sceneCodesCache) return _sceneCodesCache;
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    const cfg = r.data && r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    const cfg = r.data;
     const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
       ? cfg.scene_list.map((s) => s.code).filter(Boolean)
       : SCENE_CODES_FALLBACK;
@@ -118,8 +118,8 @@ function validLngLat(lat, lng) {
 // 取运营参数(失败用兜底)
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data.length) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return {
     rate_min_fen: 3000, rate_max_fen: 10000,
@@ -134,6 +134,7 @@ async function getConfig() {
 // 获取用户文档
 async function getUser(openid) {
   const r = await col('user_account').where({ openid }).limit(1).get();
+  // 修复: get() 返回 { data: [doc] }, 必须取 [0]; 之前返回数组导致 user.is_realname_done 恒为 undefined → 误报需实名
   return (r.data && r.data[0]) || null;
 }
 

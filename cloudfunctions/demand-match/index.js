@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
+// 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
 // demand-match 需求匹配 · 身份取自 getWXContext().OPENID
 // 6 个 action: top5 / invite / broadcast / hall_list / apply / confirm_apply
 const cloud = require('wx-server-sdk');
@@ -24,8 +24,8 @@ function partnerLevel(completedOrders) {
 // 取运营参数
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
   return { min_credit_take_order: 600 };
 }

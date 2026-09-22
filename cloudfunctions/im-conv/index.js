@@ -1,4 +1,4 @@
-﻿// 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
+// 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
 // im-conv 会话读取 · 身份取自 getWXContext().OPENID
 // 3 个 action:
 //   open       打开(不存在则懒创建)某订单的会话,返回会话元信息+模板列表,并清零本方未读
@@ -22,8 +22,8 @@ const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9'
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data[0];
   } catch (e) {}
   return { system_templates: [], security_only_template_before_confirm: true };
 }
