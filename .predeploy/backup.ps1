@@ -122,10 +122,17 @@ Write-Host "`n===== L5 Function Meta =====" -ForegroundColor Yellow
 if ($cli) {
   # PS5 下 & $cli 2>&1 会把 cli.bat 的 stderr 输出包装成 NativeCommandError 中断脚本,
   # 改用 Start-Process 分文件重定向 stdout/stderr, 不产生 ErrorRecord
+  # ⚠️ cloud functions info 必须带 --names, 否则只打印帮助(输出到 stderr) → stdout 为空
+  $fnNames = @(Get-ChildItem (Join-Path $PROJECT_DIR 'cloudfunctions') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'index.js') } | ForEach-Object { $_.Name })
   $fnOut = "$BackupDir\meta\functions_info.txt"
   $fnErr = "$BackupDir\meta\functions_info.err.txt"
-  $p = Start-Process -FilePath $cli -ArgumentList @('cloud','functions','info','--env',$CLOUD_ENV,'--project',$PROJECT_DIR) -RedirectStandardOutput $fnOut -RedirectStandardError $fnErr -NoNewWindow -Wait -PassThru
-  Write-Host "[OK] functions_info.txt (cli exit=$($p.ExitCode))" -ForegroundColor Green
+  if ($fnNames.Count -gt 0) {
+    $p = Start-Process -FilePath $cli -ArgumentList (@('cloud','functions','info','--env',$CLOUD_ENV,'--project',$PROJECT_DIR,'--names') + $fnNames) -RedirectStandardOutput $fnOut -RedirectStandardError $fnErr -NoNewWindow -Wait -PassThru
+    Write-Host "[OK] functions_info.txt ($($fnNames.Count) funcs, cli exit=$($p.ExitCode), $((Get-Item $fnOut).Length)B)" -ForegroundColor Green
+  } else {
+    Write-Host '[SKIP] no cloudfunctions with index.js' -ForegroundColor Magenta
+  }
 } else {
   Write-Host '[SKIP] CLI missing' -ForegroundColor Magenta
 }
