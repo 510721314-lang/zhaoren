@@ -211,6 +211,10 @@ exports.main = async (event, context) => {
   }
 
   const config = await getConfig();
+  // 平台总开关: 私信维护中直接拦截(模板与文本均禁止)
+  if (config.switch_im === false) {
+    return { ok: false, code: 'im_disabled', msg: '私信功能维护中,请稍后再试' };
+  }
   const conv = await getOrCreateConv(order);
 
   // ───────── 1. 发送系统模板消息 ─────────
@@ -243,6 +247,27 @@ exports.main = async (event, context) => {
     if (!text) return { ok: false, code: 'im_empty_text', msg: '消息内容不能为空' };
     if (text.length > TEXT_MAX_LEN) {
       return { ok: false, code: 'im_text_too_long', msg: `消息最长 ${TEXT_MAX_LEN} 字` };
+    }
+
+    // 私信频控(滑动窗口): 该会话内本窗口已发消息数 ≥ 上限即拦截,
+    // retry_after = 窗口内最早一条消息"老化出窗"的剩余秒数, 供客户端倒计时
+    const windowMin = Number(config.im_rate_window_min) || 5;
+    const maxCount = Number(config.im_rate_max_count) || 30;
+    const windowStart = Date.now() - windowMin * 60000;
+    const rateQ = { conv_id: conv._id, from_openid: openid, is_deleted: false, created_at: _.gt(windowStart) };
+    const cntR = await col('im_message').where(rateQ).count();
+    if (cntR.total >= maxCount) {
+      const oldestR = await col('im_message').where(rateQ).orderBy('created_at', 'asc').limit(1).get();
+      let retryAfter = windowMin * 60;
+      if (oldestR.data && oldestR.data[0]) {
+        retryAfter = Math.max(1, Math.ceil((oldestR.data[0].created_at + windowMin * 60000 - Date.now()) / 1000));
+      }
+      log.d(`im rate limited: order=${order.order_no} by=${role} cnt=${cntR.total}/${maxCount} retry=${retryAfter}s`);
+      return {
+        ok: false, code: 'im_rate_limited',
+        msg: `发送过于频繁,每 ${windowMin} 分钟最多发送 ${maxCount} 条消息`,
+        retry_after: retryAfter
+      };
     }
 
     const chk = await checkText(openid, text, config.block_words);

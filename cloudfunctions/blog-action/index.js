@@ -217,6 +217,10 @@ exports.main = async (event, context) => {
         const scene = sceneCodes.indexOf(event.scene) >= 0 ? event.scene : '';
         const tags = sanitizeTags(event.tags);
         const cfg = await getConfig();
+        // 平台总开关: 动态社区维护中, 阻断发布
+        if (cfg.switch_blog === false) {
+          return { ok: false, code: 'blog_disabled', msg: '动态功能维护中,请稍后再试' };
+        }
         const check = await safeCheckText(content, cfg.block_words);
         if (!check.pass) return { ok: false, code: 'content_blocked', msg: check.msg };
 
@@ -305,6 +309,10 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'post_gone', msg: '动态不存在或已下架' };
         }
         const cfg = await getConfig();
+        // 平台总开关: 动态社区维护中, 阻断评论
+        if (cfg.switch_blog === false) {
+          return { ok: false, code: 'blog_disabled', msg: '动态功能维护中,请稍后再试' };
+        }
         const check = await safeCheckText(content, cfg.block_words);
         if (!check.pass) return { ok: false, code: 'content_blocked', msg: check.msg };
         const snap = await getAuthorSnapshot(openid);

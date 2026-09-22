@@ -210,6 +210,11 @@ exports.main = async (event, context) => {
     getDemand(demand_id)
   ]);
 
+  // 平台总开关: 核心交易维护中, 阻断接单建单
+  if (config.switch_access === false) {
+    return { ok: false, code: 'access_disabled', msg: '平台交易功能维护中,暂无法接单,请稍后再试' };
+  }
+
   // ── 取耍伴身份 ──
   if (!partnerUser) {
     await logReject(openid, demand_id, 'partner_no_user');

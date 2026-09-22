@@ -14,6 +14,63 @@ const log = require('./logger');
 const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 const PAGE_SIZE = 15;
 
+// ───────── 参数元数据(单一真相 SSOT) ─────────
+// config_set 区间校验 + config_get 输出 schema + admin-web Operations.vue 动态渲染,
+// 新增参数只需在此加一行, 三端自动生效。字段:
+//   f=admin_config 键名  t=int|bool  g=卡片分组  label=中文标签
+//   unit=单位(渲染)  min/max=区间  def=默认值
+const CONFIG_SCHEMA = [
+  // ── 距离与限额 ──
+  { f: 'publish_distance_max_km', t: 'int', g: '距离与限额', label: '发布距离上限', unit: 'km', min: 1, max: 500, def: 50 },
+  { f: 'take_distance_max_km', t: 'int', g: '距离与限额', label: '接单距离上限', unit: 'km', min: 1, max: 500, def: 50 },
+  { f: 'youth_limit_fen', t: 'int', g: '距离与限额', label: '青年最低预算', unit: '分', min: 1000, max: 100000, def: 20000 },
+  { f: 'partner_daily_take_limit', t: 'int', g: '距离与限额', label: '耍伴每日接单上限', unit: '单', min: 1, max: 50, def: 5 },
+  // ── 订单超时 ──
+  { f: 's0_timeout_min', t: 'int', g: '订单超时', label: 'S0 待支付', unit: '分钟', min: 1, max: 1440, def: 30 },
+  { f: 's1_timeout_min', t: 'int', g: '订单超时', label: 'S1 待确认', unit: '分钟', min: 1, max: 1440, def: 15 },
+  { f: 'interrupt_timeout_h', t: 'int', g: '订单超时', label: '中断超时', unit: '小时', min: 1, max: 168, def: 24 },
+  { f: 'eval_window_h', t: 'int', g: '订单超时', label: '评价窗口', unit: '小时', min: 1, max: 720, def: 48 },
+  { f: 'milestone_confirm_min', t: 'int', g: '订单超时', label: '里程碑确认', unit: '分钟', min: 1, max: 1440, def: 15 },
+  { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4 },
+  // ── 时间红线 ──
+  { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 1440 },
+  { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 360 },
+  // ── 信用阈值 ──
+  { f: 'min_credit_take_order', t: 'int', g: '信用阈值', label: '最低接单刷分', unit: '分', min: 0, max: 1000, def: 600 },
+  { f: 'min_credit_place_order', t: 'int', g: '信用阈值', label: '最低发单刷分', unit: '分', min: 0, max: 1000, def: 600 },
+  { f: 'credit_freeze_line', t: 'int', g: '信用阈值', label: '冻结线', unit: '分', min: 0, max: 1000, def: 400 },
+  // ── 费率 ──
+  { f: 'rate_min_fen', t: 'int', g: '费率', label: '最低时薪', unit: '分', min: 0, max: 100000, def: 3000 },
+  { f: 'rate_max_fen', t: 'int', g: '费率', label: '最高时薪', unit: '分', min: 0, max: 100000, def: 10000 },
+  { f: 'scene_default_rate_fen', t: 'int', g: '费率', label: '场景默认时薪', unit: '分', min: 0, max: 100000, def: 5000 },
+  // ── 保险与提现 ──
+  { f: 'insurance_coverage_accident_fen', t: 'int', g: '保险与提现', label: '意外险保额', unit: '分', min: 0, max: 1000000000, def: 50000000 },
+  { f: 'insurance_coverage_property_fen', t: 'int', g: '保险与提现', label: '财产险保额', unit: '分', min: 0, max: 1000000000, def: 5000000 },
+  { f: 'fast_withdraw_per_order_max_fen', t: 'int', g: '保险与提现', label: '极速提现单笔上限', unit: '分', min: 0, max: 1000000, def: 20000 },
+  { f: 'fast_withdraw_per_day_max_fen', t: 'int', g: '保险与提现', label: '极速提现日上限', unit: '分', min: 0, max: 10000000, def: 200000 },
+  // ── 通用开关 ──
+  { f: 'auto_approve_partner', t: 'bool', g: '通用开关', label: '自动通过耍伴申请', def: false },
+  { f: 'payment_visible', t: 'bool', g: '通用开关', label: '显示支付入口', def: true },
+  { f: 'platform_fee_rate_fen', t: 'int', g: '通用开关', label: '平台抽成', unit: '万分比', min: 0, max: 10000, def: 0 },
+  // ── 平台总开关(关停=维护态, 各云函数服务端拦截 + C 端维护提示) ──
+  { f: 'switch_access', t: 'bool', g: '平台总开关', label: '核心交易(下单/接单)', def: true },
+  { f: 'switch_blog', t: 'bool', g: '平台总开关', label: '动态社区', def: true },
+  { f: 'switch_im', t: 'bool', g: '平台总开关', label: '私信沟通', def: true },
+  // ── 私信频控(滑动窗口; im-send 服务端计数拦截) ──
+  { f: 'im_rate_window_min', t: 'int', g: '私信频控', label: '频控统计窗口', unit: '分钟', min: 1, max: 60, def: 5 },
+  { f: 'im_rate_max_count', t: 'int', g: '私信频控', label: '窗口内最多消息', unit: '条', min: 1, max: 200, def: 30 }
+];
+
+// 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
+function resolveOperations(config) {
+  const ops = { city_enabled: config.city_enabled || [] };
+  CONFIG_SCHEMA.forEach((s) => {
+    const raw = config[s.f];
+    ops[s.f] = raw === undefined ? s.def : (s.t === 'bool' ? !!raw : Number(raw));
+  });
+  return ops;
+}
+
 async function getConfig() {
   try {
     const r = await db.collection('admin_config').doc('global').get();
@@ -188,6 +245,12 @@ exports.main = async (event, context) => {
         per_day_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_day_max_fen
       },
       modify_config: cfgRaw.modify_config,
+      // 平台总开关(缺省=true 正常态; false=维护态, C 端展示维护提示并阻断入口)
+      switches: {
+        switch_access: cfgRaw.switch_access !== false,
+        switch_blog: cfgRaw.switch_blog !== false,
+        switch_im: cfgRaw.switch_im !== false
+      },
       // 耍伴接单配置(前端「接单配置」页只读展示: 每日上限由平台统一设定)
       partner_accept: {
         daily_take_limit: cfgRaw.partner_daily_take_limit || 5
@@ -1087,37 +1150,12 @@ exports.main = async (event, context) => {
       },
       scene_list: config.scene_list || [],
       system_templates: config.system_templates || [],
+      // 参数元数据(Operations.vue schema 驱动渲染的唯一来源)
+      config_schema: CONFIG_SCHEMA,
       // 耍伴每日接单上限(平台统一设定, 耍伴端只读展示)
       partner_daily_take_limit: config.partner_daily_take_limit || 5,
-      // ── 运营配置独立模块(前端 Operations.vue 数据来源) ──
-      operations: {
-        publish_distance_max_km: config.publish_distance_max_km || 50,
-        take_distance_max_km: config.take_distance_max_km || 50,
-        youth_limit_fen: config.youth_limit_fen || 20000,
-        city_enabled: config.city_enabled || [],
-        platform_fee_rate_fen: config.platform_fee_rate_fen || 0,
-        auto_approve_partner: !!config.auto_approve_partner,
-        payment_visible: config.payment_visible !== false,
-        s0_timeout_min: config.s0_timeout_min || 30,
-        s1_timeout_min: config.s1_timeout_min || 15,
-        interrupt_timeout_h: config.interrupt_timeout_h || 24,
-        eval_window_h: config.eval_window_h || 48,
-        default_star: config.default_star || 4,
-        milestone_confirm_min: config.milestone_confirm_min || 15,
-        time_redline_close_min: config.time_redline_close_min || 1440,
-        time_redline_open_min: config.time_redline_open_min || 360,
-        min_credit_take_order: config.min_credit_take_order || 600,
-        min_credit_place_order: config.min_credit_place_order || 600,
-        credit_freeze_line: config.credit_freeze_line || 400,
-        rate_min_fen: config.rate_min_fen || 3000,
-        rate_max_fen: config.rate_max_fen || 10000,
-        scene_default_rate_fen: config.scene_default_rate_fen || 5000,
-        insurance_coverage_accident_fen: config.insurance_coverage_accident_fen || 50000000,
-        insurance_coverage_property_fen: config.insurance_coverage_property_fen || 5000000,
-        fast_withdraw_per_order_max_fen: config.fast_withdraw_per_order_max_fen || 20000,
-        fast_withdraw_per_day_max_fen: config.fast_withdraw_per_day_max_fen || 200000,
-        partner_daily_take_limit: config.partner_daily_take_limit || 5
-      },
+      // ── 运营配置独立模块(前端 Operations.vue 数据来源, schema 统一生成) ──
+      operations: resolveOperations(config),
       // ── 法律合规模块(前端 Legal.vue 数据来源) ──
       legal: {
         disclaimer_text: config.legal_disclaimer_text || '',
@@ -1133,15 +1171,10 @@ exports.main = async (event, context) => {
     const before = {};
     const touch = (k, v) => { before[k] = config[k]; patch[k] = v; };
 
-    if (event.platform_fee_rate_fen !== undefined) {
-      const fee = Number(event.platform_fee_rate_fen);
-      if (!Number.isInteger(fee) || fee < 0 || fee > 10000) {
-        return fail('config_bad_fee', '平台抽成需为 0-10000 之间的整数(单位:万分之)');
-      }
-      touch('platform_fee_rate_fen', fee);
+    // bool 字段统一处理(区间/类型由 schema 声明): auto_approve_partner/payment_visible/三个总开关
+    for (const s of CONFIG_SCHEMA) {
+      if (s.t === 'bool' && event[s.f] !== undefined) touch(s.f, !!event[s.f]);
     }
-    if (event.auto_approve_partner !== undefined) touch('auto_approve_partner', !!event.auto_approve_partner);
-    if (event.payment_visible !== undefined) touch('payment_visible', !!event.payment_visible);
     // 四确认前仅允许模板消息(关闭后自由聊天, 仅 super 应可操作)
     if (event.security_only_template_before_confirm !== undefined) {
       touch('security_only_template_before_confirm', !!event.security_only_template_before_confirm);
@@ -1194,23 +1227,10 @@ exports.main = async (event, context) => {
     }
     if (citiesTouched) { before.city_enabled = config.city_enabled || []; patch.city_enabled = cities; }
 
-    // 超时参数(正整数 + 合理范围)
-    const intFields = [
-      ['s0_timeout_min', 1, 1440], ['s1_timeout_min', 1, 1440],
-      ['interrupt_timeout_h', 1, 168], ['eval_window_h', 1, 720],
-      ['min_credit_take_order', 0, 1000], ['min_credit_place_order', 0, 1000],
-      ['credit_freeze_line', 0, 1000], ['rate_min_fen', 0, 100000], ['rate_max_fen', 0, 100000], ['scene_default_rate_fen', 0, 100000],
-      // ── 第一批补白名单: 云函数已读但此前后台改不了的键 ──
-      ['publish_distance_max_km', 1, 500], ['take_distance_max_km', 1, 500],
-      ['youth_limit_fen', 1000, 100000], ['default_star', 1, 5],
-      ['milestone_confirm_min', 1, 1440],
-      // ── 第二批补白名单: REDLINE/保险/极速提现(云函数侧硬编码债) ──
-      ['time_redline_close_min', 0, 1440], ['time_redline_open_min', 0, 1440],
-      ['insurance_coverage_accident_fen', 0, 1000000000], ['insurance_coverage_property_fen', 0, 1000000000],
-      ['fast_withdraw_per_order_max_fen', 0, 1000000], ['fast_withdraw_per_day_max_fen', 0, 10000000],
-      // ── 第三批: 耍伴每日接单上限(平台统一设定, 耍伴端只读; order-create 服务端强校验) ──
-      ['partner_daily_take_limit', 1, 50]
-    ];
+    // int 参数统一校验(区间由 CONFIG_SCHEMA 单一真相声明; 新增参数零改动)
+    const intFields = CONFIG_SCHEMA
+      .filter((s) => s.t === 'int')
+      .map((s) => [s.f, s.min, s.max]);
     for (const [f, lo, hi] of intFields) {
       if (event[f] !== undefined) {
         const v = parseInt(event[f], 10);
@@ -1370,8 +1390,36 @@ exports.main = async (event, context) => {
     const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
     if (!changed.length) return fail('config_no_change', '没有需要修改的字段');
     await col('admin_config').where({ _id: 'global' }).update({ data: patch });
-    await logEvent('P2', 'config_change', openid, { before, after: patch });
+    // 变更原因(前端 diff 确认弹窗必填; 旧客户端可能不带, 兼容空值)
+    const reason = event.reason !== undefined ? String(event.reason).trim().slice(0, 100) : '';
+    const eventPayload = { before, after: patch };
+    if (reason) eventPayload.reason = reason;
+    await logEvent('P2', 'config_change', openid, eventPayload);
     return ok({ updated: changed });
+  }
+
+  // ───────── 8.4 参数变更日志(platform_event type=config_change 分页倒序) ─────────
+  if (action === 'config_log_list') {
+    const pg = pager(event);
+    const baseQ = { type: 'config_change', is_deleted: false };
+    const cnt = await col('platform_event').where(baseQ).count();
+    const r = await col('platform_event')
+      .where(baseQ).orderBy('created_at', 'desc')
+      .skip(pg.skip).limit(pg.size).get();
+    return ok({
+      total: cnt.total, page: pg.page, size: pg.size,
+      list: r.data.map((e) => {
+        const p = e.payload || {};
+        return {
+          _id: e._id,
+          created_at: e.created_at,
+          openid: e.openid || '',
+          reason: p.reason || '',
+          before: p.before || {},
+          after: p.after || {}
+        };
+      })
+    });
   }
 
   // ───────── 8.5 首页活动管理(CRUD, 存 admin_config.home_activities) ─────────
