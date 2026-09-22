@@ -1,6 +1,7 @@
 // PRD章节: 3.2.1 首页 / 3.2.3 耍伴推荐 / 1.8.1 新人福利 / 1.7 紧急联系人 / R1 夜间红线
 // P1: 接云端 user-login peek_login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');
+const { requireRealname } = require('../../utils/bootstrap.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
 
@@ -193,6 +194,7 @@ Page({
       wx.showToast({ title: gate.msg, icon: 'none' });
       return;
     }
+    if (!requireRealname('发布需求')) return;
     wx.navigateTo({
       url: `/pages-v2/publish/publish?sceneCode=${code}`,
       fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' })

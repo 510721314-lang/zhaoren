@@ -1,7 +1,8 @@
 // utils/take-order.js · 耍伴接单链路（P0-1）
-// 流程: 场景免责声明(wx.showModal·接单方双签) → wx.getLocation → sign_disclaimer(幂等) → create_from_take
+// 流程: 实名门禁 → 场景免责声明(wx.showModal·接单方双签) → wx.getLocation → sign_disclaimer(幂等) → create_from_take
 // 拒绝规则(身份/资料审核/信用分/距离50km/时间冲突/接单范围)以后端 order-create 为准, 前端只做入口校验
 const { SCENES } = require('../config/enums.js');
+const { requireRealname } = require('./bootstrap.js');
 
 // demand: 需求对象(需 _id / scene_code / match_mode)
 // opts:   { onSuccess(data), onError(result) }  data = { order_id, order_no, status: 'S1', ... }
@@ -10,6 +11,8 @@ function takeOrder(demand, opts) {
     wx.showToast({ title: '需求数据异常', icon: 'none' });
     return;
   }
+  // 实名门禁: 接单前必须实名
+  if (!requireRealname('接单')) return;
   // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast
   if (demand.match_mode === 'select') {
     wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });

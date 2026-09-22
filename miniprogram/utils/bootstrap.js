@@ -103,3 +103,37 @@ function bootstrap() {
 }
 
 module.exports = { bootstrap, CLOUD_MAP };
+
+// ── 实名认证门禁守卫 ──
+// 登录后用户未实名 → 允许浏览但禁止发布/接单/下单/提现等关键操作
+// pending_realname 标记由 login.js 登录成功后写入 Storage
+function requireRealname(actionLabel) {
+  const pending = wx.getStorageSync('pending_realname');
+  if (!pending) return true; // 已实名或无标记
+  const label = actionLabel || '该操作';
+  wx.showModal({
+    title: '需先完成实名认证',
+    content: `为保障双方权益，${label}前请先完成实名认证。`,
+    confirmText: '去实名',
+    cancelText: '暂不',
+    success: (res) => {
+      if (res.confirm) {
+        // 跳到 profile 页的实名入口(profile 页有"完成实名"按钮)
+        wx.switchTab({ url: '/pages-v2/profile/profile' });
+      }
+    }
+  });
+  return false;
+}
+
+// 检查是否需要实名(静默, 不弹窗, 供 UI 条件渲染用)
+function needsRealname() {
+  return !!wx.getStorageSync('pending_realname');
+}
+
+// 清除实名待办标记(实名成功后调)
+function clearRealnamePending() {
+  wx.removeStorageSync('pending_realname');
+}
+
+module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending };

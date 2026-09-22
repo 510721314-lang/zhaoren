@@ -250,16 +250,9 @@ Page({
         return;
       }
       const u = r.data.user;
-      // 步骤2: 若未实名, 弹阻断弹窗(本期实名链路未开放, 需实名才能进入)
+      // 实名闸门后移: 登录即可进首页, 实名仅在发布需求/接单/下单等关键操作时要求
       if (!u.is_realname_done) {
-        wx.showModal({
-          title: '需先完成实名认证',
-          content: '本期实名认证链路正在升级，请稍后再试。您也可以联系客服协助开通。',
-          showCancel: false,
-          confirmText: '我知道了',
-          success: () => { this.setData({ logging: false }); }
-        });
-        return;
+        wx.setStorageSync('pending_realname', true);
       }
       this.afterVerified(u);
     }).catch(() => {
