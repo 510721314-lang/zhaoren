@@ -201,6 +201,10 @@
   padding: 16rpx 32rpx;
   flex-shrink: 0;
 }
+.chat__send-btn--disabled {
+  background: var(--text-3, #c0c4cc);
+  opacity: 0.7;
+}
 
 /* 弹窗内 */
 .chat__other-textarea {

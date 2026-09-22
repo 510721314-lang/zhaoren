@@ -43,6 +43,7 @@ Page({
     otherUsedCount: 0,
     // C6 输入
     inputText: '',
+    rateCooldown: 0,     // 私信频控倒计时(秒); >0 时发送按钮置灰
     // 编辑弹层: '' | 'time' | 'content' | 'fee' (location 走 chooseLocation 无弹层)
     editSheet: '',
     editDate: '',
@@ -81,7 +82,7 @@ Page({
     this.startPolling();
   },
   onHide() { this.stopPolling(); },
-  onUnload() { this.stopPolling(); },
+  onUnload() { this.stopPolling(); this.clearRateTimer(); },
 
   // ───────── 数据加载 ─────────
   fetchData() {
@@ -453,6 +454,8 @@ Page({
   },
 
   sendTemplate(tmId) {
+    const { guardSwitch } = require('../../utils/bootstrap.js');
+    if (!guardSwitch('im')) return;
     callCloud('im-send', {
       action: 'send_template', order_id: this.data.orderId, template_id: tmId
     }).then((r) => {
@@ -495,9 +498,30 @@ Page({
 
   // ───────── C6 自由输入(四确认后) ─────────
   onTextInput(e) { this.setData({ inputText: e.detail.value }); },
+
+  // 频控倒计时(服务端 im_rate_limited 下发 retry_after 秒)
+  startRateCooldown(sec) {
+    this.clearRateTimer();
+    this.setData({ rateCooldown: Math.max(1, parseInt(sec, 10) || 1) });
+    this._rateTimer = setInterval(() => {
+      const left = this.data.rateCooldown - 1;
+      if (left <= 0) { this.clearRateTimer(); this.setData({ rateCooldown: 0 }); }
+      else this.setData({ rateCooldown: left });
+    }, 1000);
+  },
+  clearRateTimer() {
+    if (this._rateTimer) { clearInterval(this._rateTimer); this._rateTimer = null; }
+  },
+
   sendText() {
+    const { guardSwitch } = require('../../utils/bootstrap.js');
+    if (!guardSwitch('im')) return;
     const text = this.data.inputText.trim();
     if (!text) return;
+    if (this.data.rateCooldown > 0) {
+      wx.showToast({ title: `请稍候 ${this.data.rateCooldown} 秒再发送`, icon: 'none' });
+      return;
+    }
     if (!this.data.freeChat) {
       wx.showToast({ title: '四项确认完成前仅可发送模板消息', icon: 'none' });
       return;
@@ -508,6 +532,8 @@ Page({
       if (!r.ok) {
         wx.showToast({ title: r.msg || '发送失败', icon: 'none' });
         if (r.code === 'im_template_only') this.refreshConfirmation();
+        // 命中频控: 启动本地倒计时与服务端窗口对齐
+        if (r.code === 'im_rate_limited' && r.retry_after) this.startRateCooldown(r.retry_after);
         return;
       }
       this.setData({ inputText: '' });

@@ -115,6 +115,8 @@ Page({
   },
 
   onSubmit() {
+    const { guardSwitch } = require('../../utils/bootstrap.js');
+    if (!guardSwitch('blog')) return;
     const content = (this.data.content || '').trim();
     if (content.length < 2) { wx.showToast({ title: '说点什么再发布吧', icon: 'none' }); return; }
     if (content.length > CONTENT_MAX) { wx.showToast({ title: '正文不能超过 ' + CONTENT_MAX + ' 字', icon: 'none' }); return; }

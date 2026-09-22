@@ -4,6 +4,9 @@
 const newbieDiscount = 20;
 
 module.exports = {
+  // 平台总开关（云端 admin_config.switches 同步；false=维护态，bootstrap 覆盖）
+  SWITCH: { access: true, blog: true, im: true },
+
   // R1 夜间红线
   TIME_REDLINE: { close: '24:00', open: '06:00' },
 

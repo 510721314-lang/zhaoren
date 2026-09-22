@@ -10,10 +10,11 @@ function takeOrder(demand, opts) {
     wx.showToast({ title: '需求数据异常', icon: 'none' });
     return;
   }
-  // 实名门禁: 动态加载避免冷启动时序
+  // 实名门禁 + 平台总开关: 动态加载避免冷启动时序
   try {
-    const { requireRealname } = require('./bootstrap.js');
+    const { requireRealname, guardSwitch } = require('./bootstrap.js');
     if (!requireRealname('接单')) return;
+    if (!guardSwitch('access')) return;
   } catch (e) {}
   // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast
   if (demand.match_mode === 'select') {

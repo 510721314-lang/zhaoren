@@ -46,7 +46,11 @@ const CLOUD_MAP = {
   'modify_config.minLeadHours': 'MODIFY.minLeadHours',
   'modify_config.maxTimes': 'MODIFY.maxTimes',
   'modify_config.maxSpanH': 'MODIFY.maxSpanH',
-  'modify_config.confirmHours': 'MODIFY.confirmHours'
+  'modify_config.confirmHours': 'MODIFY.confirmHours',
+  // ── 平台总开关(维护态) ──
+  'switches.switch_access': 'SWITCH.access',
+  'switches.switch_blog': 'SWITCH.blog',
+  'switches.switch_im': 'SWITCH.im'
 };
 
 // 深合并: 把 cloud 返回的嵌套结构展平后按映射表写入 CONFIG
@@ -106,6 +110,23 @@ function bootstrap() {
 
 module.exports = { bootstrap, CLOUD_MAP };
 
+// ── 平台总开关守卫 ──
+// key: access(下单/接单) | blog(动态) | im(私信); 维护中(false)弹维护提示并返回 false
+const SWITCH_NAME = { access: '下单/接单', blog: '动态', im: '私信' };
+function switchOn(key) {
+  return !!(CONFIG.SWITCH && CONFIG.SWITCH[key] !== false);
+}
+function guardSwitch(key) {
+  if (switchOn(key)) return true;
+  wx.showModal({
+    title: '功能维护中',
+    content: `${SWITCH_NAME[key] || '该'}功能正在维护，请稍后再试。`,
+    showCancel: false,
+    confirmText: '知道了'
+  });
+  return false;
+}
+
 // ── 实名认证门禁守卫 ──
 // 登录后用户未实名 → 允许浏览但禁止发布/接单/下单/提现等关键操作
 // 【唯一可信来源】user-login 返回并由 app.setUserInfo 持久化的 userInfo.is_realname_done
@@ -155,4 +176,4 @@ function clearRealnamePending() {
   wx.removeStorageSync('pending_realname');
 }
 
-module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending };
+module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending, switchOn, guardSwitch };

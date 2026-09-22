@@ -69,8 +69,8 @@
       <view class="chat__input-locked">🔒 四确认完成后解锁自由沟通...</view>
     </block>
     <block wx:else>
-      <input class="chat__input" value="{{inputText}}" placeholder="输入消息..." bindinput="onTextInput" confirm-type="send" bindconfirm="sendText" />
-      <view class="chat__send-btn" bindtap="sendText">发送</view>
+      <input class="chat__input" value="{{inputText}}" placeholder="{{rateCooldown > 0 ? '请稍候 ' + rateCooldown + ' 秒' : '输入消息...'}}" disabled="{{rateCooldown > 0}}" bindinput="onTextInput" confirm-type="send" bindconfirm="sendText" />
+      <view class="chat__send-btn {{rateCooldown > 0 ? 'chat__send-btn--disabled' : ''}}" bindtap="sendText">{{rateCooldown > 0 ? rateCooldown + 's' : '发送'}}</view>
     </block>
   </view>
 
