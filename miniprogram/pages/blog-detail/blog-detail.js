@@ -1,7 +1,6 @@
 // pages/blog-detail/blog-detail.js - 动态详情(大图/点赞/评论/删除)
 const { timeAgo } = require('../../utils/util.js');
 const { SCENE_LIST } = require('../../utils/constants.js');
-const app = getApp();
 
 const SCENE_MAP = {};
 SCENE_LIST.forEach((s) => { SCENE_MAP[s.code] = s; });
@@ -174,7 +173,19 @@ Page({
   onSendComment() {
     const content = (this.data.commentText || '').trim();
     if (!content) { wx.showToast({ title: '说点什么吧', icon: 'none' }); return; }
-    if (!app.globalData.userInfo) { wx.showToast({ title: '请先登录', icon: 'none' }); return; }
+    // v2 登录态检查: login.js 登录成功后写 v2_login_ok=true, profile.js 退出登录时删除
+    // 不可用 app.globalData.userInfo: 它只由 v1 登录流程写入, v2 登录后恒为 null → 已登录用户被误报「请先登录」
+    if (!wx.getStorageSync('v2_login_ok')) {
+      wx.showModal({
+        title: '需要先登录',
+        content: '评论前请先授权登录',
+        confirmText: '去登录',
+        success: (res) => {
+          if (res.confirm) wx.navigateTo({ url: '/pages-v2/login/login' });
+        }
+      });
+      return;
+    }
     if (this.data.sending) return;
     this.setData({ sending: true });
     wx.showLoading({ title: '发送中', mask: true });
