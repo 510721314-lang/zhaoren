@@ -1,0 +1,1 @@
+import{B as e,I as t,_ as n,p as r}from"./runtime-core.esm-bundler-BNqAnNn3.js";import"./admin-hbzNA4yl.js";var i={__name:`Notice`,setup(i){return(i,a)=>{let o=e(`el-empty`);return t(),r(`div`,null,[n(o,{description:`通知群发商用前接通（仅 super_admin，分人群 system_notice → 预览 → 频控 → 审计 → 发送记录）`})])}}};export{i as default};

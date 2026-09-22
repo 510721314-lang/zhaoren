@@ -37,6 +37,12 @@ function getCachedEnv() {
   return _cachedEnv;
 }
 
+// 强制清 env 缓存 (force_set_env 更新 DB 后立即生效)
+function invalidateEnvCache() {
+  _cachedEnv = null;
+  _cacheUntil = 0;
+}
+
 // 主入口: 云函数统一用这个
 async function resolveOpenid(cloud, event) {
   const wxCtx = cloud.getWXContext();
@@ -59,4 +65,4 @@ async function resolveOpenid(cloud, event) {
   return env === 'dev' ? mockOpenid : null;
 }
 
-module.exports = { resolveOpenid, warmEnv, getCachedEnv };
+module.exports = { resolveOpenid, warmEnv, getCachedEnv, invalidateEnvCache };

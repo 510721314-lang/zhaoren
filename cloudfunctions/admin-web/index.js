@@ -149,6 +149,19 @@ exports.main = async (event, context) => {
     } catch (e) { return makeJson({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
   }
 
+  // init_db → init-db 通用代理 (鉴权通过, init-db 内部有 admin_openids 门控)
+  // ⚠️ action 字段名冲突: admin-web 用 action 判断路由, init-db 也用 action 找具体动作
+  //    所以 init_db proxy 的真实 init-db action 放在 __init_db_action 里
+  if (action === 'init_db') {
+    const realAction = body.__init_db_action || 'quick_check';
+    const proxyData = { ...body, action: realAction, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid, mock_openid: adminOpenid || 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c' };
+    delete proxyData.__init_db_action;
+    try {
+      const r = await withTimeout(cloud.callFunction({ name: 'init-db', data: proxyData }), PROXY_TIMEOUT_MS);
+      return makeJson(r.result || { ok: false, code: 'no_result' });
+    } catch (e) { return makeJson({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
+  }
+
   // proxy admin-action: 带 2.5s 超时保护 + 超时降级
   const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid };
   try {

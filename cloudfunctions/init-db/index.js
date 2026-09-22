@@ -118,7 +118,7 @@ const SEED_CONFIG = {
 };
 
 exports.main = async (event, context) => {
-  const { resolveOpenid, warmEnv } = require('./openid');
+  const { resolveOpenid, warmEnv, invalidateEnvCache } = require('./openid');
   await warmEnv(cloud);
 
   // ── force_set_env 过期自毁: 每次 init-db 被调用时检查, 超 4h 自动切回 prod ──
@@ -201,7 +201,7 @@ exports.main = async (event, context) => {
       cfg = {
         env: c.env,
         enabled_cities: c.enabled_cities || c.city,
-        scene_list: (c.scene_list || []).map(s => ({ code: s.code, name: s.name })),
+        scene_list: c.scene_list || [],
         scene_count: (c.scene_list || []).length,
         seed_expected_codes: SEED_CONFIG.scene_list.map(s => s.code)
       };
@@ -265,6 +265,7 @@ exports.main = async (event, context) => {
           updated_by: { action: 'force_set_env', operator: curOpenid, from: before, to: env, reason, at: now, auto_revert_at: env === 'dev' ? now + EXPIRE_MS : null }
         }
       });
+      invalidateEnvCache(); // 强制清缓存, 后续 init-db 操作立即感知新 env
       return { ok: true, mode: 'force_set_env', from: before, to: env, operator: curOpenid, auto_revert_in_hours: env === 'dev' ? 4 : null };
     } catch (e) { return { ok: false, msg: e.message }; }
   }

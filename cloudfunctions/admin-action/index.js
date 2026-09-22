@@ -16,8 +16,8 @@ const PAGE_SIZE = 15;
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').where({ _id: 'global' }).limit(1).get();
-    if (r.data && r.data[0]) return r.data[0];
+    const r = await db.collection('admin_config').doc('global').get();
+    if (r.data) return r.data;
   } catch (e) {}
   return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true };
 }
