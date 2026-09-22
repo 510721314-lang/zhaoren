@@ -1107,6 +1107,15 @@ exports.main = async (event, context) => {
       touch('env', envVal);
     }
 
+    // admin_web_key 轮换(安全加固: 历史泄露后紧急轮换, 仅 super 可操作, 需 reason 审计)
+    if (event.admin_web_key !== undefined) {
+      const newKey = String(event.admin_web_key).trim();
+      if (!/^AWK-[a-f0-9]{64}$/.test(newKey)) return fail('config_bad_key', 'admin_web_key 格式不符 AWK-+64位hex');
+      if (!event.reason) return fail('config_need_reason', '轮换 admin_web_key 需填 reason');
+      touch('admin_web_key', newKey);
+      logEvent('P2', 'config_rotate_web_key', openid, { reason: event.reason });
+    }
+
     // 屏蔽词增删
     let words = (config.block_words || []).slice();
     let wordsTouched = false;
@@ -1248,6 +1257,18 @@ exports.main = async (event, context) => {
       before.scene_list = config.scene_list || [];
       patch.scene_list = scenes;
       scenesTouched = true;
+    }
+
+    // 一次性迁移: 给所有现有场景补 builtin:true(种子场景, 历史遗漏)
+    if (event.scene_migrate_builtin) {
+      let touched = 0;
+      before.scene_list = config.scene_list || [];
+      scenes.forEach((s) => { if (s.builtin !== true) { s.builtin = true; touched++; } });
+      if (touched > 0) {
+        patch.scene_list = scenes;
+        scenesTouched = true;
+        logEvent('P2', 'scene_migrate_builtin', openid, { count: touched });
+      }
     }
 
     // IM 模板增删
