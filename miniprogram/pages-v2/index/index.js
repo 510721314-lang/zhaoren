@@ -101,7 +101,31 @@ Page({
     const app = getApp();
     const r = await app.cloudCall('home-action', { action: 'scene_groups' });
     if (r.ok && r.data && r.data.scene_groups) {
-      this.setData({ sceneGroups: r.data.scene_groups });
+      const groups = r.data.scene_groups;
+      // 从 scene_groups 派生动态场景列表(去重 + SCENES 兜底 icon/color/disclaimer)
+      const ICON_FALLBACK = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
+      const COLOR_FALLBACK = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
+      const scenes = groups.map((g) => {
+        const hardCoded = SCENES.find((s) => s.code === g.scene_code);
+        return {
+          code: g.scene_code,
+          name: g.scene_name,
+          icon: hardCoded ? hardCoded.icon : (ICON_FALLBACK[g.scene_code] || '📌'),
+          color: hardCoded ? hardCoded.color : (COLOR_FALLBACK[g.scene_code] || '#F5F5F5'),
+          gb: hardCoded ? hardCoded.gb : false,
+          disclaimer_type: g.scene_disclaimer_type || 'general_disclaimer',
+          disclaimer_text: g.scene_disclaimer_text || (hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.content : ''),
+          disclaimer_title: hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.title : '免责声明'
+        };
+      });
+      this.setData({
+        sceneGroups: groups,
+        scenes,
+        filteredScenes: scenes
+      });
+      // 同步到全局, redline.js R9 白名单校验 + 其他组件查场景
+      const app = getApp();
+      if (app) app.globalData.availableScenes = scenes.map((s) => s.code);
     }
   },
 
@@ -120,6 +144,7 @@ Page({
             activePartners: r.data.active_partners || []
           });
         }
+        this.fetchSceneGroups();  // 同步刷新动态场景宫格
         wx.stopPullDownRefresh();
         wx.showToast({ title: '已刷新', icon: 'none' });
       },

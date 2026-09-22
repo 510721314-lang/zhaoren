@@ -91,7 +91,9 @@ Page({
       }
       const u = r.data.user;
       // 实名闸门后移: 登录即可进首页, 实名仅在发布需求/接单等关键操作时要求
-      if (!u.is_realname_done) {
+      if (u.is_realname_done) {
+        wx.removeStorageSync('pending_realname');  // 后端返回已实名 → 清前端残留标记
+      } else {
         wx.setStorageSync('pending_realname', true);
       }
       this.afterVerified(u);

@@ -31,13 +31,30 @@ function isServiceTimeAllowed(timeStr) {
   return mins >= toMinutes(CONFIG.TIME_REDLINE.open) && mins < toMinutes(CONFIG.TIME_REDLINE.close);
 }
 
-// R9：场景白名单（一期5场景，硬编码）
+// R9：场景白名单 — 优先全局动态列表(home-action scene_groups 同步), fallback 硬编码 SCENES
+function _globalAvailableScenes() {
+  try {
+    const app = getApp();
+    if (app && Array.isArray(app.globalData && app.globalData.availableScenes)) return app.globalData.availableScenes;
+  } catch (e) {}
+  return null;
+}
+
 function isSceneAllowed(sceneCode) {
+  const dyn = _globalAvailableScenes();
+  if (dyn && dyn.length > 0) return dyn.indexOf(sceneCode) >= 0;
   return SCENES.some((s) => s.code === sceneCode);
 }
 
 function getScene(sceneCode) {
-  return SCENES.find((s) => s.code === sceneCode) || null;
+  const hc = SCENES.find((s) => s.code === sceneCode);
+  if (hc) return hc;
+  // 动态场景兜底(无完整 icon/disclaimer, 用默认)
+  const dyn = _globalAvailableScenes();
+  if (dyn && dyn.indexOf(sceneCode) >= 0) {
+    return { code: sceneCode, name: sceneCode, icon: '📌', color: '#F5F5F5', disclaimer_type: 'general_disclaimer' };
+  }
+  return null;
 }
 
 // R5：成年门槛（阈值取 CONFIG.ADULT_AGE）

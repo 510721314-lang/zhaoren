@@ -75,8 +75,11 @@ Page({
   async fetchData() {
     this.setData({ loading: true, loadError: false });
     try {
-      // 拉云端 profile
-      const r = await callCloud('partner-action', { action: 'my_profile' });
+      // 并行拉云端 profile + 动态场景列表
+      const [r, sgRes] = await Promise.all([
+        callCloud('partner-action', { action: 'my_profile' }),
+        callCloud('home-action', { action: 'scene_groups' }).catch(() => ({ ok: false }))
+      ]);
       if (!r.ok) {
         wx.showToast({ title: r.msg || '加载失败', icon: 'none' });
         this.setData({ loading: false, loadError: true });
@@ -87,9 +90,32 @@ Page({
       const sceneRates = p.scene_rates || {};
       const examScores = p.exam_scores || {};
 
-      // 遍历全部 SCENES，每个都展示（选中状态由 accept_scenes 标记）
-      // W1/W2 等有 exam_scores 的场景显示考核状态标签
-      const certifiedScenes = SCENES.map((s) => {
+      // 动态场景列表 (运营后台可增删, home-action scene_groups 为 SSOT)
+      const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
+      const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
+      let dynCodes = [];
+      if (sgRes.ok && sgRes.data && sgRes.data.scene_groups) {
+        dynCodes = sgRes.data.scene_groups.map((g) => g.scene_code);
+      }
+      // 合并: 动态列表为 SSOT, SCENES 兜底 icon/color (两个去重)
+      const sceneDefs = [];
+      const seen = {};
+      const pushScene = (code, name) => {
+        if (seen[code]) return;
+        seen[code] = true;
+        const hc = SCENES.find((s) => s.code === code);
+        sceneDefs.push({
+          code,
+          name: name || (hc ? hc.name : code),
+          icon: hc ? hc.icon : (ICON_FB[code] || '📌'),
+          color: hc ? hc.color : (COLOR_FB[code] || '#F5F5F5'),
+          gb: hc ? hc.gb : false
+        });
+      };
+      dynCodes.forEach((code, i) => pushScene(code, sgRes.data.scene_groups[i].scene_name));
+      SCENES.forEach((s) => pushScene(s.code, s.name));
+
+      const certifiedScenes = sceneDefs.map((s) => {
         const selected = scenes.indexOf(s.code) > -1;
         const hasExam = !!examScores[s.code];
         const examScore = Number(examScores[s.code]) || 0;
@@ -99,9 +125,11 @@ Page({
           hasExam,
           examScore,
           examPassed: hasExam && examScore >= 80,
-          examNeeded: hasExam  // 有考核门槛的场景都显示标签(W1=gb=true 时需考核)
+          examNeeded: hasExam
         };
       });
+      // 同步到全局, 其他组件白名单校验用
+      try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs.map((s) => s.code); } catch (e) {}
 
       // 为已选场景补默认时薪（如果没有 scene_rates）
       for (const s of scenes) {

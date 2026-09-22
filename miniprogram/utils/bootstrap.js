@@ -93,8 +93,9 @@ function bootstrap() {
     if (!cloudConfig) return false;
     const flat = flatten(cloudConfig);
     deepAssign(CONFIG, flat, CLOUD_MAP);
-    // 版本号也同步一下（admin_config 如果有 version 字段的话）
     if (cloudConfig.version) CONFIG.VERSION = cloudConfig.version;
+    // 注: 不再往 Storage 写 env —— 该调用走 admin-action(需管理员白名单),
+    // 普通用户必然鉴权失败, 写不进去; 实名门禁已改为直读 userInfo.is_realname_done
     return true;
   }).catch(() => {
     // 静默降级: 云函数冷启动/无网络/鉴权失败都不阻塞启动
@@ -106,10 +107,25 @@ module.exports = { bootstrap, CLOUD_MAP };
 
 // ── 实名认证门禁守卫 ──
 // 登录后用户未实名 → 允许浏览但禁止发布/接单/下单/提现等关键操作
-// pending_realname 标记由 login.js 登录成功后写入 Storage
+// 【唯一可信来源】user-login 返回并由 app.setUserInfo 持久化的 userInfo.is_realname_done
+// 不再依赖 admin_config_env / pending_realname 这类二次缓存(前者需 admin 鉴权,普通用户永远写不进去)
+function realnameDoneState() {
+  try {
+    const app = getApp();
+    const u = (app && app.globalData && app.globalData.userInfo) || wx.getStorageSync('userInfo');
+    if (u && typeof u === 'object') return !!u.is_realname_done;
+  } catch (e) {}
+  return null; // 未知(未登录/无缓存)
+}
+
 function requireRealname(actionLabel) {
-  const pending = wx.getStorageSync('pending_realname');
-  if (!pending) return true; // 已实名或无标记
+  const done = realnameDoneState();
+  if (done === true) {
+    // 服务端已确认实名 → 顺手清掉可能残留的旧标记(自愈)
+    try { wx.removeStorageSync('pending_realname'); } catch (e) {}
+    return true;
+  }
+  if (done === null && !wx.getStorageSync('pending_realname')) return true; // 已实名或无标记
   const label = actionLabel || '该操作';
   wx.showModal({
     title: '需先完成实名认证',
@@ -128,6 +144,8 @@ function requireRealname(actionLabel) {
 
 // 检查是否需要实名(静默, 不弹窗, 供 UI 条件渲染用)
 function needsRealname() {
+  const done = realnameDoneState();
+  if (done !== null) return !done;
   return !!wx.getStorageSync('pending_realname');
 }
 

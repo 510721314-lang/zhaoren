@@ -134,6 +134,40 @@ Page({
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    this.fetchScenes();  // 动态拉场景列表(运营后台可增删, 硬编码 SCENES 仅兜底 icon/color)
+  },
+
+  async fetchScenes() {
+    try {
+      const r = await wx.cloud.callFunction({ name: 'home-action', data: { action: 'scene_groups' } }).then((res) => res.result || {});
+      if (r.ok && r.data && r.data.scene_groups) {
+        const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬' };
+        const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC' };
+        const scenes = r.data.scene_groups.map((g) => {
+          const hc = SCENES.find((s) => s.code === g.scene_code);
+          return {
+            code: g.scene_code,
+            name: g.scene_name,
+            icon: hc ? hc.icon : (ICON_FB[g.scene_code] || '📌'),
+            color: hc ? hc.color : (COLOR_FB[g.scene_code] || '#F5F5F5'),
+            options: Array.isArray(g.scene_options) && g.scene_options.length
+              ? g.scene_options.slice(0, 3)
+              : (hc ? (hc.options || []).slice(0, 3) : []),
+            gb: hc ? hc.gb : false
+          };
+        });
+        this.setData({ scenes });
+        // 同步到全局, redline.js R9 白名单校验用
+        const app = getApp();
+        if (app) app.globalData.availableScenes = scenes.map((s) => s.code);
+        // 场景预选中: onLoad 里拿到的 sceneCode 等这里 scenes 数据就绪后再触发
+        if (this.__pendingSceneCode) {
+          const code = this.__pendingSceneCode;
+          this.__pendingSceneCode = null;  // 只触发一次
+          setTimeout(() => this.setScene({ code }), 50);  // 微延迟等 setData 渲染
+        }
+      }
+    } catch (e) { /* 网络异常保留硬编码兜底 */ }
   },
   onShareAppMessage() {
     return {
@@ -209,8 +243,10 @@ Page({
       });
     }
 
+    // 场景预选中: 存到 pending 等 fetchScenes 完成后再调 setScene
+    // (onLoad 执行时 this.data.scenes 还是老数据, 直接 setScene 会 find 不到 → 不聚焦)
     if (options.sceneCode) {
-      this.setScene({ code: options.sceneCode });
+      this.__pendingSceneCode = options.sceneCode;
     }
     // 定向邀约: 从耍伴详情"咨询/邀TA"携带 invitePartnerOpenid 进入
     if (options.invitePartnerOpenid) {
@@ -382,12 +418,15 @@ Page({
   // ── B3 场景选择 ──
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
-    const scene = SCENES.find((s) => s.code === code);
+    // 优先从动态场景列表找, SCENES 兜底（编辑模式回填时可能还没拉动态列表）
+    let scene = (this.data.scenes || []).find((s) => s.code === code) || SCENES.find((s) => s.code === code);
     if (!scene) return;
     const form = Object.assign({}, this.data.form);
     form.scene_code = code;
-    // 每个场景都有对应免责声明（与云函数 DISCLAIMER_TYPE_MAP 对齐）→ wx.showModal 弹场景专属文案
-    this._showSceneDisclaimer(scene,
+    // 每个场景都有对应免责声明 → wx.showModal 弹场景专属文案
+    // 动态场景无完整 disclaimer.title/content 时用 disclaimer_type 通用文案兜底
+    const disclaimerScene = scene.disclaimer ? scene : { disclaimer: this._defaultDisclaimer(scene) };
+    this._showSceneDisclaimer(disclaimerScene,
       () => { this.setData({ form, disclaimerChecked: true }); },
       () => {
         // 不同意 → 取消场景选择
@@ -396,6 +435,13 @@ Page({
         wx.showToast({ title: '请同意免责声明后继续', icon: 'none' });
       }
     );
+  },
+  _defaultDisclaimer(scene) {
+    const titleMap = { medical_disclaimer: '就医免责声明', online_disclaimer: '线上陪伴声明' };
+    return {
+      title: titleMap[scene.disclaimer_type] || '免责声明',
+      content: '本平台提供的服务仅为生活协助性质，非专业资质服务。请双方确保真实身份与安全合规，遇紧急情况请立即报警或联系相关部门。平台与耍伴/发布者仅承担协助义务，因您自身原因造成的损失平台不承担责任。'
+    };
   },
   // 场景免责声明统一弹窗（wx.showModal 真机稳定；onAgree/onReject 回调）
   _showSceneDisclaimer(scene, onAgree, onReject) {
@@ -661,9 +707,10 @@ Page({
     if (this.data.publishing) return;
     const f = this.data.form;
     // 当前场景未签免责声明（如草稿恢复）→ 强制补弹场景专属免责声明
-    const curScene = SCENES.find((s) => s.code === f.scene_code);
-    if (curScene && curScene.disclaimer && !this.data.disclaimerChecked) {
-      this._showSceneDisclaimer(curScene,
+    const curScene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || SCENES.find((s) => s.code === f.scene_code);
+    if (curScene && !this.data.disclaimerChecked) {
+      const disclaimer = curScene.disclaimer || this._defaultDisclaimer(curScene);
+      this._showSceneDisclaimer({ disclaimer },
         () => {
           this.setData({ disclaimerChecked: true });
           this._continuePublish();
@@ -792,7 +839,8 @@ Page({
 
   _doPublish(f, durationH, pubLoc) {
     // 场景子服务选项（前端无单独选择 UI → 用场景全选兜底）
-    const scene = SCENES.find((s) => s.code === f.scene_code);
+    const scene = (this.data.scenes || []).find((s) => s.code === f.scene_code) || SCENES.find((s) => s.code === f.scene_code);
+    // 动态场景 options 不在前端 scenes 里 → 走 cloud fetch 兜底？先给空数组, demand-publish 服务端不会强制要求
     const contentOptions = scene && scene.options ? scene.options : [];
 
     // 服务开始时间 → 时间戳(本地时区组时间, 兼容 iOS; iOS 不支持 new Date('YYYY-MM-DDTHH:mm:ss'))
