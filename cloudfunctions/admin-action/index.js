@@ -1615,9 +1615,14 @@ exports.main = async (event, context) => {
     'insurance_record', 'report', 'sms_log', 'device_bind'
   ]);
   // 敏感字段脱敏规则: 字段名 → 脱敏函数
+  // 2026-09-23 备份查证补全: idcard(历史明文证件号)/sms_target(原样手机号)/sms_code(验证码)/
+  //   *_aes_key/*_web_key(密钥, 此前 export_collection 会原样导出) 均在 L3 导出中泄露过
   const SENSITIVE_MASK = {
     phone: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
     idcard_no: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+    idcard: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+    sms_target: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
+    sms_code: () => '***REDACTED***',
     real_name: (v) => typeof v === 'string' && v.length >= 2 ? v[0] + '*' + (v.length > 2 ? v.slice(-1) : '') : v,
     address: (v) => typeof v === 'string' && v.length > 6 ? v.slice(0, 6) + '***' : v,
     openid: (v) => typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-6) : v,
@@ -1628,7 +1633,8 @@ exports.main = async (event, context) => {
     const out = {};
     for (const k of Object.keys(doc)) {
       if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](doc[k]);
-      else if (k.includes('password') || k.includes('secret') || k.includes('token')) out[k] = '***REDACTED***';
+      else if (k.includes('password') || k.includes('secret') || k.includes('token')
+        || k.includes('aes_key') || k.includes('web_key')) out[k] = '***REDACTED***';
       else out[k] = doc[k];
     }
     return out;
