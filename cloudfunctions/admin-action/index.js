@@ -488,6 +488,8 @@ exports.main = async (event, context) => {
       applied_at: p.applied_at,
       review_note: p.review_note || '',
       max_distance_km: p.max_distance_km === undefined ? null : p.max_distance_km,
+      accept_rate_min_fen: p.accept_rate_min_fen === undefined ? null : p.accept_rate_min_fen,
+      accept_rate_max_fen: p.accept_rate_max_fen === undefined ? null : p.accept_rate_max_fen,
       home_lat: (p.home_location && Number(p.home_location.latitude)) || null,
       home_lng: (p.home_location && Number(p.home_location.longitude)) || null,
       user: userMap[p.openid] || null

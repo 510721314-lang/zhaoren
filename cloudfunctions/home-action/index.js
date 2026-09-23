@@ -143,7 +143,7 @@ function hallWhere(extra) {
 // 广场(抢单入口)访问者过滤数据: 接单价格区间 + 最大接单距离 + 日常位置(非耍伴/游客=不限)
 // ⚠️ 仅用于 square; 首页宫格(scene_groups/scene_list)不按这些字段过滤 —— 首页是通用入口(含需求者视角)
 let _visitorCache = {};                // openid → { at, val } 进程内短缓存
-const VISITOR_TTL = 60 * 1000;
+const VISITOR_TTL = 15 * 1000;   // 短缓存: 接单配置改完后尽快在广场生效
 async function loadVisitorPartner(openid) {
   if (!openid) return null;            // 游客/匿名(如后台探针) → 不过滤, 且不产生查询
   const hit = _visitorCache[openid];
@@ -403,9 +403,16 @@ exports.main = async (event, context) => {
         const sceneCodes = scenes.map((s) => s.code);
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
+        // 耍伴视角一致性: 与广场同口径应用接单价格区间过滤(非耍伴/游客/未设置 → 不过滤)
+        const vOpenid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
+        const vp = await loadVisitorPartner(vOpenid);
+        const vRange = vp && vp.range;
+        const rateCond = vRange
+          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
+          : null;
         const sceneQueries = sceneCodes.map((code) =>
           col('demand')
-            .where(hallWhere({ scene: code }))
+            .where(hallWhere(Object.assign({ scene: code }, rateCond || {})))
             .orderBy('created_at', 'desc')
             .limit(HOME_GROUP_SIZE + 1)
             .get()
@@ -446,9 +453,17 @@ exports.main = async (event, context) => {
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
+        // 耍伴视角一致性: 与广场同口径应用接单价格区间过滤(非耍伴/游客/未设置 → 不过滤)
+        const vOpenid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
+        const vp = await loadVisitorPartner(vOpenid);
+        const vRange = vp && vp.range;
+        const rateCond = vRange
+          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
+          : null;
+
         // 取 51 条判定是否还有下一页
         const demandR = await col('demand')
-          .where(hallWhere({ scene: sceneCode }))
+          .where(hallWhere(Object.assign({ scene: sceneCode }, rateCond || {})))
           .orderBy('created_at', 'desc')
           .skip(skip)
           .limit(SCENE_PAGE_SIZE + 1)

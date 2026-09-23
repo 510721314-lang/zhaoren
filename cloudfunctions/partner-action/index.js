@@ -285,8 +285,11 @@ exports.main = async (event, context) => {
 
       const config = await getConfig();
       const update = { updated_at: Date.now() };
-      const rateMin = config.rate_min_fen || 3000;
-      const rateMax = config.rate_max_fen || 10000;
+      // 0 是合法下限(不能用 || 兜底, 否则 admin 配置 0 会被误当成缺省 3000)
+      const _rmn = Number(config.rate_min_fen);
+      const _rmx = Number(config.rate_max_fen);
+      const rateMin = Number.isFinite(_rmn) ? _rmn : 3000;
+      const rateMax = Number.isFinite(_rmx) ? _rmx : 10000;
 
       // 日常位置更新: 显式 null 清除, 传对象则校验后覆盖
       if (event.home_location !== undefined) {
@@ -370,9 +373,9 @@ exports.main = async (event, context) => {
         }
       }
 
-      // 接单价格区间(分/小时; null=清除=不限); 边界复用 admin_config.rate_min_fen~rate_max_fen
-      const priceLo = config.rate_min_fen || 3000;
-      const priceHi = config.rate_max_fen || 10000;
+      // 接单价格区间(分/小时; null=清除=不限); 边界复用上方 rateMin/rateMax(0 合法)
+      const priceLo = rateMin;
+      const priceHi = rateMax;
       const hasMin = event.accept_rate_min_fen !== undefined;
       const hasMax = event.accept_rate_max_fen !== undefined;
       if (hasMin || hasMax) {

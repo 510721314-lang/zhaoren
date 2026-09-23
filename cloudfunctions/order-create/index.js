@@ -42,8 +42,11 @@ function cnWeekday(ts) {
 
 // 接单价格区间读取+钳制到平台边界; 缺字段(null/undefined)=不限
 function readRateRange(profile, config) {
-  const lo = config.rate_min_fen || 3000;
-  const hi = config.rate_max_fen || 10000;
+  // 0 是合法下限(不能用 || 兜底, 否则 admin 配置 0 会被误当成缺省 3000)
+  const _lo = Number(config.rate_min_fen);
+  const _hi = Number(config.rate_max_fen);
+  const lo = Number.isFinite(_lo) ? _lo : 3000;
+  const hi = Number.isFinite(_hi) ? _hi : 10000;
   const clamp = (v) => Math.min(Math.max(v, lo), hi);
   const raw = (v) => (v === undefined || v === null ? null : clamp(Number(v)));
   const mn = raw(profile.accept_rate_min_fen);
