@@ -100,6 +100,10 @@ Page({
 
     // B3 免责声明(选场景时 wx.showModal 签署后置 true; 草稿恢复场景 onPublish 会补弹)
     disclaimerChecked: false,
+    // B3.2 W9 宠物照料授权书(电子确认; PRD R9: 无凭证视为未授权, 不得履约)
+    petAuthChecked: false,
+    showPetAuth: false,
+    petAuthText: '',
     // B3.1 服务内容选择窗(免责声明通过后自动弹出)
     optionSheetVisible: false,
     optionList: [],  // [{ name, checked }] 当前场景的服务项 + 勾选态
@@ -263,6 +267,8 @@ Page({
             descCount: (d.description || '').length,
             // 已发布需求视为已签署场景声明(编辑提交时不再重复弹)
             disclaimerChecked: true,
+            // W9 宠物照料授权: 已确认过的需求编辑时回填勾选
+            petAuthChecked: !!d.pet_auth_signed,
             // 已发布需求不能改发布地址(只读留痕)
             publishLocation: d.publish_location ? {
               latitude: d.publish_location.latitude,
@@ -320,6 +326,7 @@ Page({
     const max = new Date(now.getTime() + CONFIG.DATE_RANGE_DAYS * 86400000);
     this.setData({ today: todayStr, dateMax: this.fmtDate(max) });
     this.startAutoSave();
+    this._loadPetAuthText();
     // 草稿数量角标(静默拉取,失败不打扰) — 编辑模式不需要草稿
     if (!this.__editMode) {
       callCloud('demand-publish', { action: 'list_drafts' }).then((r) => {
@@ -453,6 +460,18 @@ Page({
   },
 
   // ── B3 场景选择 ──
+  // W9 宠物照料授权书全文(云端 admin_config.legal_pet_authorization; 与留证 hash 同源)
+  _loadPetAuthText() {
+    callCloud('admin-action', { action: 'config_public' }).then((r) => {
+      const lp = (r && r.data && r.data.legal_public) || {};
+      this.setData({ petAuthText: lp.pet_authorization || CONFIG.LEGAL_FALLBACK.petAuthorization });
+    }).catch(() => {
+      this.setData({ petAuthText: CONFIG.LEGAL_FALLBACK.petAuthorization });
+    });
+  },
+  togglePetAuth() { this.setData({ showPetAuth: !this.data.showPetAuth }); },
+  onPetAuthChange(e) { this.setData({ petAuthChecked: (e.detail.value || []).length > 0 }); },
+
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
     // 优先从动态场景列表找, SCENES 兜底（编辑模式回填时可能还没拉动态列表）
@@ -847,6 +866,8 @@ Page({
       if (!bv.ok) errs.push(bv.msg);
     }
     if (!f.aa_estimate) errs.push('请选择AA费用预估');
+    // W9 宠物照料授权(电子确认凭证; PRD R9 无凭证不得履约, 服务端同口径兜底)
+    if (f.scene_code === 'W9' && !this.data.petAuthChecked) errs.push('请确认《宠物照料授权书》');
     // 敏感词
     const sen1 = detectSensitive(f.title);
     if (sen1) errs.push(sen1);
@@ -971,6 +992,8 @@ Page({
       // 人数/性别偏好此前漏发, 导致编辑"人数"等修改不生效
       headcount: f.headcount || 1,
       gender_pref: f.gender_pref || '不限',
+      // W9 宠物照料授权电子确认(服务端 W9 场景强制校验)
+      pet_auth_checked: this.data.petAuthChecked,
       target_openid: this.invitePartnerOpenid || '',
       draft_id: this.__draftId || ''
     };

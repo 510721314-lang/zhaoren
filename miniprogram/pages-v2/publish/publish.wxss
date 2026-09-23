@@ -477,3 +477,34 @@
   font-size: var(--font-sm);
   color: var(--text-5);
 }
+
+/* B3.2 W9 宠物照料授权书(电子确认) */
+.pub__pet-doc {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F2F3F5;
+}
+.pub__pet-doc-name { font-size: 28rpx; color: #222; }
+.pub__pet-doc-op { font-size: 26rpx; color: #22B573; }
+.pub__pet-doc-body {
+  max-height: 420rpx;
+  background: #FAFAFA;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin: 12rpx 0;
+  font-size: 26rpx;
+  color: #606266;
+  line-height: 1.8;
+}
+.pub__pet-doc-body text { white-space: pre-wrap; }
+.pub__pet-agree { margin-top: 16rpx; }
+.pub__pet-agree-label {
+  display: flex;
+  align-items: flex-start;
+  font-size: 26rpx;
+  color: #606266;
+  line-height: 1.6;
+}
+.pub__pet-agree-label checkbox { transform: scale(0.8); margin-right: 8rpx; flex-shrink: 0; }

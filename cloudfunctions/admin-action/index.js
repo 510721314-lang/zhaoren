@@ -267,7 +267,8 @@ exports.main = async (event, context) => {
       // 实名签署所需协议全文(与留证 hash 同源; 仅实名页按需读取, 不进 bootstrap 映射)
       legal_public: {
         service_agreement: cfgRaw.legal_service_agreement || '',
-        aa_promise: cfgRaw.legal_aa_promise || ''
+        aa_promise: cfgRaw.legal_aa_promise || '',
+        pet_authorization: cfgRaw.legal_pet_authorization || ''
       }
     } };
   }
@@ -1184,6 +1185,7 @@ exports.main = async (event, context) => {
         service_agreement: config.legal_service_agreement || '',
         privacy_policy: config.legal_privacy_policy || '',
         aa_promise: config.legal_aa_promise || '',
+        pet_authorization: config.legal_pet_authorization || '',
         scene_disclaimers: config.legal_scene_disclaimers || {}
       }
     });
@@ -1410,7 +1412,8 @@ exports.main = async (event, context) => {
       ['legal_disclaimer_text', 0, 8000],      // 通用免责声明(发布前弹)
       ['legal_service_agreement', 0, 20000],   // 服务协议
       ['legal_privacy_policy', 0, 20000],      // 隐私政策
-      ['legal_aa_promise', 0, 8000]            // 费用自理承诺书(实名签署留证对象)
+      ['legal_aa_promise', 0, 8000],            // 费用自理承诺书(实名签署留证对象)
+      ['legal_pet_authorization', 0, 8000]     // 宠物照料授权书(W9 电子确认留证对象)
     ];
     for (const [f, lo, hi] of legalFields) {
       if (event[f] !== undefined) {

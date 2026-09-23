@@ -340,6 +340,12 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_disclaimer_required', msg: '请先签署该场景免责声明后再接单' };
   }
 
+  // ── W9 宠物照料授权凭证校验(PRD R9: 无凭证视为未授权, 不得履约) ──
+  if (demandScene === 'W9' && demand.pet_auth_signed !== true) {
+    await logReject(openid, demand_id, 'pet_auth_missing');
+    return { ok: false, code: 'order_pet_auth_required', msg: '该宠物陪伴需求缺少宠物照料授权凭证,无法履约' };
+  }
+
   // 接单范围校验: 抢单模式需 broadcast 或在邀约名单; 选单模式跳过(由 apply/confirm_apply 控制)
   const demandMatchMode = demand.match_mode || 'broadcast';
   if (demandMatchMode !== 'select') {

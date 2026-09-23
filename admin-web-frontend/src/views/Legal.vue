@@ -38,6 +38,16 @@
       </el-card>
 
       <el-card style="margin-bottom:16px">
+        <template #header><b>宠物照料授权书</b></template>
+        <el-alert type="info" :closable="false" style="margin-bottom:12px">
+          W9 宠物陪伴场景发布时需电子确认（PRD R9：无凭证视为未授权、不得履约）。确认记录含全文摘要留证。最多 8000 字。
+        </el-alert>
+        <el-form-item label="授权书全文">
+          <el-input v-model="patch.legal_pet_authorization" type="textarea" :rows="8" :maxlength="8000" show-word-limit placeholder="请输入宠物照料授权书全文" />
+        </el-form-item>
+      </el-card>
+
+      <el-card style="margin-bottom:16px">
         <template #header><b>隐私政策</b></template>
         <el-form-item label="隐私政策全文">
           <el-input v-model="patch.legal_privacy_policy" type="textarea" :rows="12" :maxlength="20000" show-word-limit placeholder="请输入隐私政策全文" />
@@ -78,7 +88,7 @@ import { ElMessage } from 'element-plus';
 import { call } from '../api/admin.js';
 
 const data = ref(null);
-const patch = reactive({ legal_disclaimer_text: '', legal_service_agreement: '', legal_privacy_policy: '', legal_aa_promise: '' });
+const patch = reactive({ legal_disclaimer_text: '', legal_service_agreement: '', legal_privacy_policy: '', legal_aa_promise: '', legal_pet_authorization: '' });
 const sceneDisclaimers = ref([]);  // [{scene, text}]
 const sceneOptions = ref([]);       // 场景列表
 const saving = ref(false);
@@ -102,6 +112,7 @@ async function load() {
     patch.legal_service_agreement = lg.service_agreement || '';
     patch.legal_privacy_policy = lg.privacy_policy || '';
     patch.legal_aa_promise = lg.aa_promise || '';
+    patch.legal_pet_authorization = lg.pet_authorization || '';
     // 场景专属免责声明 → 转为数组
     sceneDisclaimers.value = Object.entries(lg.scene_disclaimers || {}).map(([scene, text]) => ({ scene, text }));
   } else {
@@ -121,6 +132,7 @@ async function save() {
     legal_service_agreement: patch.legal_service_agreement,
     legal_privacy_policy: patch.legal_privacy_policy,
     legal_aa_promise: patch.legal_aa_promise,
+    legal_pet_authorization: patch.legal_pet_authorization,
     legal_scene_disclaimers: sceneMap
   };
   const r = await call('config_set', payload);

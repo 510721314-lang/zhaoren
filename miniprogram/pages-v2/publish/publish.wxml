@@ -47,6 +47,24 @@
     </view>
   </view>
 
+  <!-- B3.2 W9 宠物照料授权书(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权、不得履约) -->
+  <view class="pub__block" wx:if="{{form.scene_code === 'W9'}}">
+    <view class="pub__label">宠物照料授权 <text class="pub__required">*</text></view>
+    <view class="pub__pet-doc" bindtap="togglePetAuth">
+      <text class="pub__pet-doc-name">《宠物照料授权书》</text>
+      <text class="pub__pet-doc-op">{{showPetAuth ? '收起' : '查看全文'}}</text>
+    </view>
+    <scroll-view class="pub__pet-doc-body" wx:if="{{showPetAuth}}" scroll-y>
+      <text>{{petAuthText || '授权书文本加载失败，请检查网络后重试'}}</text>
+    </scroll-view>
+    <checkbox-group bindchange="onPetAuthChange" class="pub__pet-agree">
+      <label class="pub__pet-agree-label">
+        <checkbox value="ok" checked="{{petAuthChecked}}" color="#22B573" />
+        <text>本人为宠物主人或已获明确授权，已阅读并同意《宠物照料授权书》，知悉本电子确认将作为授权凭证留存</text>
+      </label>
+    </checkbox-group>
+  </view>
+
   <!-- B4 标题+描述 -->
   <view class="pub__block">
     <view class="pub__label">需求标题 <text class="pub__required">*</text></view>

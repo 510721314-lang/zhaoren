@@ -64,26 +64,36 @@ const SCENE_OPTIONS_FALLBACK = {
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
 
 // ─────────────── P1 节点留证(勾选同意型) ───────────────
-// 发布/修改需求时用户勾选《场景免责声明》; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
+// 发布/修改需求时用户勾选《场景免责声明》等文档; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
 // 与实名手写签名留证(kind=realname_agreement)同集合不同 kind; 全文入库保证事后可举证"当时同意的是什么"
+// o.doc 可显式指定文档(如 W9《宠物照料授权书》); 缺省取场景免责声明(admin_config.legal_scene_disclaimers)
+const DEFAULT_PET_AUTHORIZATION = [
+  '找个人帮忙 宠物照料授权书（电子确认）',
+  '一、本人系所照料宠物的主人，或已获得宠物主人的明确授权；',
+  '二、本人知悉并确认：服务内容仅限遛狗、宠物医院陪同等陪同类事项；禁止代为饲养，禁止上门喂猫、寄养等入户照料；',
+  '三、服务过程中如发生宠物伤人、应激等情形，双方应及时沟通处理，并保留相关记录；',
+  '四、本人同意：本电子确认记录将作为平台内「明确授权」凭证留存，用于履约与纠纷举证。'
+].join('\n');
 function sceneDocText(config, scene) {
   const m = config && config.legal_scene_disclaimers;
   const t = (m && typeof m === 'object') ? m[scene] : '';
   return typeof t === 'string' ? t.trim() : '';
 }
 function buildCheckboxEvidence(o) {
-  const text = sceneDocText(o.config, o.scene);
-  const docs = text ? [{
-    key: 'scene_disclaimer',
-    title: `场景免责声明(${o.scene})`,
-    hash: crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
-    text
+  const doc = o.doc
+    ? { key: o.doc.key, title: o.doc.title, text: String(o.doc.text || '').trim() }
+    : { key: 'scene_disclaimer', title: `场景免责声明(${o.scene})`, text: sceneDocText(o.config, o.scene) };
+  const docs = doc.text ? [{
+    key: doc.key,
+    title: doc.title,
+    hash: crypto.createHash('sha256').update(doc.text, 'utf8').digest('hex'),
+    text: doc.text
   }] : [];
   const data = {
     openid: o.openid,
     role: o.role,
     scene: o.scene,
-    kind: 'scene_disclaimer',
+    kind: o.kind || 'scene_disclaimer',
     disclaimer_type: o.disclaimerType,
     agree_type: 'checkbox',   // 勾选同意(无手写签名; 手写签名见 kind=realname_agreement)
     docs,
@@ -215,7 +225,7 @@ exports.main = async (event, context) => {
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
-        match_mode, disclaimer_signed, target_openid
+        match_mode, disclaimer_signed, target_openid, pet_auth_checked
       } = event;
 
       // ── 基础校验 ──
@@ -266,6 +276,10 @@ exports.main = async (event, context) => {
       // 场景免责声明必勾(code.html 第一道防线·需求者下单前签署)
       if (!disclaimer_signed) {
         return { ok: false, code: 'publish_disclaimer', msg: '请先阅读并勾选《场景免责声明》' };
+      }
+      // W9 宠物照料授权(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权不得履约)
+      if (scene === 'W9' && !pet_auth_checked) {
+        return { ok: false, code: 'publish_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
       }
 
       // 并行拉取 配置/用户/紧急联系人(减少串行往返, 冷启动也能压进超时)
@@ -476,6 +490,9 @@ exports.main = async (event, context) => {
         disclaimer_type: disclaimerType,
         disclaimer_signed: true,
         disclaimer_signed_at: now,
+        // W9 宠物照料授权电子确认凭证(PRD R9; 非 W9 恒 false)
+        pet_auth_signed: scene === 'W9' ? !!pet_auth_checked : false,
+        pet_auth_signed_at: (scene === 'W9' && pet_auth_checked) ? now : 0,
         // ── 接单模式 ──
         match_mode: mode,                            // broadcast=抢单 / select=选单
         applicants: [],                              // 选单模式:报名耍伴列表
@@ -508,6 +525,29 @@ exports.main = async (event, context) => {
             payload: { node: 'publish', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
             created_at: Date.now(), updated_at: Date.now(), is_deleted: false
           }}).catch(() => {});
+        }
+
+        // ── W9 留证: 宠物照料授权书(电子确认, PRD R9 授权凭证; 不阻断主流程) ──
+        if (scene === 'W9' && pet_auth_checked) {
+          try {
+            await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: 'pet_authorization',
+              config, demandId: addRes._id, signedAt: now,
+              kind: 'pet_authorization',
+              doc: {
+                key: 'pet_authorization', title: '宠物照料授权书',
+                text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
+              }
+            }) });
+            log.d(`pet auth evidence written: ${demand_no}`);
+          } catch (ee) {
+            log.d(`pet auth evidence fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'publish_pet', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
         }
 
         // 定向邀约: 给受邀耍伴写系统通知(不阻断主流程), 通知点击直达需求详情
@@ -678,6 +718,8 @@ exports.main = async (event, context) => {
           aa_estimate: d.aa_tier || '0-50',
           match_mode: d.match_mode || 'broadcast',
           gender_pref: d.gender_pref || '不限',
+          // W9 宠物照料授权电子确认状态(编辑回填 + 详情展示)
+          pet_auth_signed: !!d.pet_auth_signed,
           // 原始发布地址(只读留痕, 编辑模式回填用; 普通详情不展示)
           publish_location: d.publish_location || null,
           // 是否入公共大厅(定向需求不在大厅/首页出现)
@@ -795,7 +837,7 @@ exports.main = async (event, context) => {
     case 'update': {
       const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
-        match_mode, target_openid, gender_pref, headcount } = event;
+        match_mode, target_openid, gender_pref, headcount, pet_auth_checked } = event;
 
       if (!demand_id) return { ok: false, code: 'update_no_id', msg: '缺少需求 ID' };
       if (!isValidDocId(demand_id)) return { ok: false, code: 'update_bad_id', msg: '需求 ID 格式不正确' };
@@ -863,6 +905,10 @@ exports.main = async (event, context) => {
       if (!aa_tier) return { ok: false, code: 'update_aa_tier', msg: '请选择 AA 档位' };
       if (!aa_promise_checked) return { ok: false, code: 'update_aa_promise', msg: '请先勾选《线下费用自理承诺书》' };
       if (!disclaimer_signed) return { ok: false, code: 'update_disclaimer', msg: '请先勾选《场景免责声明》' };
+      // W9 宠物照料授权(与 publish 同口径: 无凭证视为未授权)
+      if (scene === 'W9' && !pet_auth_checked) {
+        return { ok: false, code: 'update_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
+      }
 
       // ── 定向邀约改 direct 时需校验 target_openid ──
       if (mode === 'direct') {
@@ -976,6 +1022,9 @@ exports.main = async (event, context) => {
       patch.invited = mode === 'direct' ? [target_openid] : [];
       // 场景变更时同步刷新免责声明类型(SSOT: admin_config.scene_list; 此前 update 漏刷新, 场景与类型可能不一致)
       patch.disclaimer_type = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
+      // W9 宠物照料授权(电子确认)状态同步; 非 W9 场景恒 false
+      patch.pet_auth_signed = scene === 'W9' && !!pet_auth_checked;
+      if (patch.pet_auth_signed) patch.pet_auth_signed_at = now;
       if (mode === 'direct' && target_openid) {
         patch.target_openid = target_openid;
       }
@@ -1000,6 +1049,28 @@ exports.main = async (event, context) => {
             col('platform_event').add({ data: {
               level: 'P3', type: 'evidence_write_fail', openid,
               payload: { node: 'update', scene, demand_id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
+        // ── W9 留证: 首次确认宠物照料授权书(该需求此前无凭证)时补留证 ──
+        if (scene === 'W9' && pet_auth_checked && d.pet_auth_signed !== true) {
+          try {
+            await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: 'pet_authorization',
+              config, demandId: demand_id, signedAt: now,
+              kind: 'pet_authorization',
+              doc: {
+                key: 'pet_authorization', title: '宠物照料授权书',
+                text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
+              }
+            }) });
+            log.d(`pet auth evidence written(update): ${d.demand_no}`);
+          } catch (ee) {
+            log.d(`pet auth evidence(update) fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'update_pet', scene, demand_id, message: String((ee && ee.message) || ee) },
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
             }}).catch(() => {});
           }
