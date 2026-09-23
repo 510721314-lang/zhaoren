@@ -225,10 +225,11 @@ Page({
         'form.acceptWelfare': local.acceptWelfare !== false,
         'form.bufferMin': local.bufferMin || PA.defaultBufferMin,
         bufferIndex: PA.bufferOptions.indexOf(local.bufferMin || PA.defaultBufferMin),
-        rateMinYuan: Math.round((PA.rateMinFen || 3000) / 100),
-        rateMaxYuan: Math.round((PA.rateMaxFen || 10000) / 100),
-        minPricePlaceholder: String(Math.round((PA.rateMinFen || 3000) / 100)),
-        maxPricePlaceholder: String(Math.round((PA.rateMaxFen || 10000) / 100)),
+        // 直读 PA(静态默认已含 3000/10000 兜底; 云端把下限配置为 0 是合法的, 不能用 || 覆盖成 30)
+        rateMinYuan: Math.round(PA.rateMinFen / 100),
+        rateMaxYuan: Math.round(PA.rateMaxFen / 100),
+        minPricePlaceholder: String(Math.round(PA.rateMinFen / 100)),
+        maxPricePlaceholder: String(Math.round(PA.rateMaxFen / 100)),
         loading: false
       });
       this._syncSlots();
