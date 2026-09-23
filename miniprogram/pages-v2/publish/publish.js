@@ -509,7 +509,10 @@ Page({
   onPetSignConfirm() {
     if (this.data.petSignSubmitting) return;
     const sig = this.selectComponent('#pet-sign');
-    if (!sig) return;
+    if (!sig) {
+      wx.showToast({ title: '签字板未就绪,请重试', icon: 'none' });
+      return;
+    }
     this.setData({ petSignSubmitting: true });
     const prevFileId = this.data.petAuthSignFileId;
     sig.exportPNG().then((tempPath) => {

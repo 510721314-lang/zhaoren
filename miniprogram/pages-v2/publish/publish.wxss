@@ -521,15 +521,30 @@
 .pub__sign-btn--cancel { background: #F2F3F5; color: #606266; }
 .pub__sign-btn--ok { background: #22B573; color: #fff; font-weight: 600; }
 
-/* W9 授权书手写签字窗口 */
-.pub__petsign-body {
-  padding: 8rpx 0 0;
+/* W9 授权书手写签字窗口(页级浮层; bottom-sheet z-index 999/1000, 此处需更高) */
+.pub__petsign-mask {
+  position: fixed;
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1001;
+  display: flex;
+  align-items: flex-end;
 }
+.pub__petsign-panel {
+  width: 100%;
+  box-sizing: border-box;
+  background: #FFFFFF;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 28rpx 32rpx calc(28rpx + env(safe-area-inset-bottom));
+}
+.pub__petsign-head { display: flex; justify-content: space-between; align-items: center; }
+.pub__petsign-title { font-size: 32rpx; font-weight: 600; color: #1D2129; }
+.pub__petsign-close { font-size: 30rpx; color: #86909C; padding: 0 10rpx; }
 .pub__petsign-tip {
   font-size: 25rpx;
   color: #86909C;
   line-height: 1.7;
-  margin-bottom: 16rpx;
+  margin: 16rpx 0;
 }
 .pub__petsign-clear {
   margin-top: 16rpx;
@@ -538,3 +553,4 @@
   color: #22B573;
   padding: 8rpx 0;
 }
+.pub__petsign-foot { display: flex; gap: 20rpx; margin-top: 20rpx; }
