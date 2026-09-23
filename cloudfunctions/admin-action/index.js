@@ -1839,16 +1839,25 @@ exports.main = async (event, context) => {
     real_name: (v) => typeof v === 'string' && v.length >= 2 ? v[0] + '*' + (v.length > 2 ? v.slice(-1) : '') : v,
     address: (v) => typeof v === 'string' && v.length > 6 ? v.slice(0, 6) + '***' : v,
     openid: (v) => typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-6) : v,
-    wx_nickname: (v) => typeof v === 'string' ? v.slice(0, 1) + '***' : v
+    wx_nickname: (v) => typeof v === 'string' ? v.slice(0, 1) + '***' : v,
+    // 2026-09-24 网关实测: admin_openids(管理员白名单)此前在 export_collection/export_admin_config 原样泄露, 补脱敏
+    admin_openids: (v) => Array.isArray(v)
+      ? v.map((o) => typeof o === 'string' && o.length > 8 ? o.slice(0, 4) + '****' + o.slice(-6) : o)
+      : v
   };
-  function maskDoc(doc) {
+  // 递归脱敏(嵌套对象/数组逐层应用, 深度 ≤4 防循环引用), 覆盖 admin_config 嵌套场景与历史文档嵌套字段
+  function maskDoc(doc, depth = 0) {
     if (!doc || typeof doc !== 'object') return doc;
+    if (depth > 4) return doc;
+    if (Array.isArray(doc)) return doc.map((x) => maskDoc(x, depth + 1));
     const out = {};
     for (const k of Object.keys(doc)) {
-      if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](doc[k]);
+      const v = doc[k];
+      if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](v);
       else if (k.includes('password') || k.includes('secret') || k.includes('token')
         || k.includes('aes_key') || k.includes('web_key')) out[k] = '***REDACTED***';
-      else out[k] = doc[k];
+      else if (v && typeof v === 'object') out[k] = maskDoc(v, depth + 1);
+      else out[k] = v;
     }
     return out;
   }
