@@ -1009,7 +1009,13 @@ Page({
             }
           }, 800);
         } else {
-          wx.showToast({ title: r.msg || '操作失败', icon: 'none', duration: 2500 });
+          // 服务端实名门禁(publish_not_realname): 给「去实名」按钮引导, 而非只弹 toast 无出路
+          const bs = require('../../utils/bootstrap.js');
+          if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
+            bs.showRealnameGuide(r.msg);
+          } else {
+            wx.showToast({ title: r.msg || '操作失败', icon: 'none', duration: 2500 });
+          }
           this.setData({ publishing: false });
         }
       },

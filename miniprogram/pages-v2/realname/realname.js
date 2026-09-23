@@ -44,6 +44,11 @@ Page({
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
     this._refreshDoneState();
+    // 本地 userInfo 缓存可能陈旧(如服务端重置实名) → 拉服务端刷新后重算展示状态, 避免误显示"已实名"
+    try {
+      const { syncLoginUser } = require('../../utils/bootstrap.js');
+      if (syncLoginUser) syncLoginUser().then(() => this._refreshDoneState());
+    } catch (e) {}
   },
 
   // 已实名状态(登录态唯一来源: globalData/storage 的 userInfo, 由 user-login 写入)

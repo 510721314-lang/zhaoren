@@ -103,8 +103,14 @@ function _signThenCreate(demand, loc, opts) {
       if (r2.ok && r2.data) {
         if (opts && opts.onSuccess) opts.onSuccess(r2.data);
       } else {
-        // 拒绝原因以云函数 r.msg 为准(已被抢/距离超限/资料未审核/时间冲突等)
-        wx.showModal({ title: '无法接单', content: r2.msg || '接单失败,请稍后重试', showCancel: false });
+        // 服务端实名门禁(order_realname_required): 给「去实名」按钮引导
+        const bs = require('./bootstrap.js');
+        if (bs.isRealnameGateCode && bs.isRealnameGateCode(r2.code)) {
+          bs.showRealnameGuide(r2.msg);
+        } else {
+          // 拒绝原因以云函数 r.msg 为准(已被抢/距离超限/资料未审核/时间冲突等)
+          wx.showModal({ title: '无法接单', content: r2.msg || '接单失败,请稍后重试', showCancel: false });
+        }
         if (opts && opts.onError) opts.onError(r2);
       }
     });

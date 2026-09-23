@@ -109,7 +109,13 @@ Page({
           }, 800);
         }
       } else {
-        wx.showToast({ title: r.msg || '申请失败', icon: 'none' });
+        // 服务端实名门禁(apply_not_realname): 给「去实名」按钮引导
+        const bs = require('../../utils/bootstrap.js');
+        if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
+          bs.showRealnameGuide(r.msg);
+        } else {
+          wx.showToast({ title: r.msg || '申请失败', icon: 'none' });
+        }
       }
     } catch (e) {
       wx.hideLoading();

@@ -148,23 +148,52 @@ function requireRealname(actionLabel) {
     return true;
   }
   if (done === null && !wx.getStorageSync('pending_realname')) return true; // 已实名或无标记
-  const label = actionLabel || '该操作';
+  showRealnameGuide(`为保障双方权益，${actionLabel || '该操作'}前请先完成实名认证。`);
+  return false;
+}
+
+// ── 实名门禁统一引导(带按钮) ──
+// 服务端门禁错误码: publish_not_realname(demand-publish) / order_realname_required(order-create) / apply_not_realname(partner)
+// 场景: 本地 userInfo 缓存陈旧(如服务端重置实名)时客户端门禁漏放, 由服务端兜底拒绝 → 必须给「去实名」按钮而非纯 toast
+function isRealnameGateCode(code) {
+  return code === 'publish_not_realname' || code === 'order_realname_required' || code === 'apply_not_realname';
+}
+
+// 从服务端刷新登录态并持久化(本地缓存陈旧时自愈); best-effort, 失败静默
+function syncLoginUser() {
+  try {
+    return wx.cloud.callFunction({ name: 'user-login', data: { action: 'peek_login' } })
+      .then((res) => {
+        const r = (res && res.result) || {};
+        if (r.ok && r.data && r.data.found && r.data.user) {
+          const app = getApp();
+          if (app && app.setLoginUser) app.setLoginUser(r.data.user);
+        }
+        return true;
+      })
+      .catch(() => false);
+  } catch (e) {
+    return Promise.resolve(false);
+  }
+}
+
+// 实名引导弹窗: 确认后先刷新登录态(避免实名页显示陈旧状态)再跳实名页
+function showRealnameGuide(content) {
   wx.showModal({
     title: '需先完成实名认证',
-    content: `为保障双方权益，${label}前请先完成实名认证。`,
+    content: content || '为保障双方权益，请先完成实名认证。',
     confirmText: '去实名',
     cancelText: '暂不',
     success: (res) => {
-      if (res.confirm) {
-        // 跳实名认证页(测试期为模拟认证入口)
-        wx.navigateTo({
-          url: '/pages-v2/realname/realname',
-          fail: () => wx.switchTab({ url: '/pages-v2/profile/profile' })
-        });
-      }
-    }
+      if (!res.confirm) return;
+      syncLoginUser();
+      wx.navigateTo({
+        url: '/pages-v2/realname/realname',
+        fail: () => wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} })
+      });
+    },
+    fail: () => {}
   });
-  return false;
 }
 
 // 检查是否需要实名(静默, 不弹窗, 供 UI 条件渲染用)
@@ -179,4 +208,4 @@ function clearRealnamePending() {
   wx.removeStorageSync('pending_realname');
 }
 
-module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending, switchOn, guardSwitch };
+module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending, switchOn, guardSwitch, showRealnameGuide, isRealnameGateCode, syncLoginUser };
