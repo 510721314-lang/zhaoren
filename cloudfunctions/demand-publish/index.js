@@ -237,6 +237,11 @@ exports.main = async (event, context) => {
       ]);
       if (!user) return { ok: false, code: 'publish_no_user', msg: '用户不存在,请先登录' };
 
+      // 平台总开关: 核心交易维护中, 阻断发布/编辑需求(与 order-create、C 端入口守卫口径一致)
+      if (config.switch_access === false) {
+        return { ok: false, code: 'access_disabled', msg: '平台维护中,暂无法发布需求,请稍后再试' };
+      }
+
       // ── 账号状态: 冻结/封禁统一拦截 ──
       if (user.status === 'frozen') {
         return { ok: false, code: 'publish_frozen', msg: '账号已冻结,不可发布需求' };
