@@ -387,10 +387,12 @@ exports.main = async (event, context) => {
       }
 
       // ── 场景对齐(非破坏式) ──
-      // 种子已含全部 9 个开放场景(W1/W2/W3/W4/W7/W8/W9/W10/W11)。
-      // 规则: ① 仅同步"种子已定义"的场景字段(位置沿用云端原顺序) ② 缺失的种子场景追加到末尾
-      //       ③ 云端存在但种子没有的场景(运营用 scene_add 新增)一律保留、只打日志 —— 早期版本此处
-      //          做全量覆写, 一旦在线上执行会删掉运营新增场景/未纳入种子的场景。
+      // 种子已含全部 9 个开放场景, 与线上 config 的差异仅为 options 中的运营测试项。
+      // 规则: ① 云端额外场景(运营 scene_add 新增)一律保留 ② 种子已知场景按"字段级合并"同步:
+      //          以云端对象为底, 只覆盖种子定义的字段(保留 created_at 等云端独有字段)
+      //       ③ 云端缺失的种子场景追加到末尾
+      // 语义说明: 9 个内置场景的 options 以种子为准(运营用 scene_option_add 加的选项会被同步覆盖),
+      //           场景本身不会被删 —— 早期版本此处做"全量覆写", 会连同额外场景一起删掉。
       const seedList = SEED_CONFIG.scene_list;
       const seedCodes = seedList.map((s) => s.code);
       const docList = Array.isArray(doc.scene_list) ? doc.scene_list.slice() : [];
@@ -401,9 +403,11 @@ exports.main = async (event, context) => {
       const mergedList = docList.map((d) => {
         if (!d || seedCodes.indexOf(d.code) < 0) return d;
         const seedS = seedList.find((s) => s.code === d.code);
-        if (!seedS || JSON.stringify(d) === JSON.stringify(seedS)) return d;
-        sceneChanged = true;
-        return seedS;
+        if (!seedS) return d;
+        // 字段级合并: 以云端为底(保留 created_at 等云端独有字段), 只覆盖种子定义的字段
+        const merged = Object.assign({}, d, seedS);
+        if (JSON.stringify(merged) !== JSON.stringify(d)) sceneChanged = true;
+        return merged;
       });
       for (const c of missingInDoc) {
         const seedS = seedList.find((s) => s.code === c);
