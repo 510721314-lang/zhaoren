@@ -227,9 +227,10 @@ exports.main = async (event, context) => {
       credits: { credit_freeze_line: cfgRaw.credit_freeze_line },
       rate_range: { rate_min_fen: cfgRaw.rate_min_fen, rate_max_fen: cfgRaw.rate_max_fen },
       scene_default_rate_fen: cfgRaw.scene_default_rate_fen,
+      // 扁平字段与 CONFIG_SCHEMA/config_set 写入一致; 缺省给 schema 默认值(def 1440/360)
       time_redline: {
-        open_min: cfgRaw.time_redline && cfgRaw.time_redline.open_min,
-        close_min: cfgRaw.time_redline && cfgRaw.time_redline.close_min
+        open_min: cfgRaw.time_redline_open_min !== undefined ? cfgRaw.time_redline_open_min : 360,
+        close_min: cfgRaw.time_redline_close_min !== undefined ? cfgRaw.time_redline_close_min : 1440
       },
       limits: {
         publish_distance_max_km: cfgRaw.publish_distance_max_km,
@@ -1114,8 +1115,9 @@ exports.main = async (event, context) => {
         milestone_confirm_min: config.milestone_confirm_min || 15
       },
       time_redline: {
-        close_min: config.time_redline_close_min || 1440,   // 24:00
-        open_min: config.time_redline_open_min || 360      // 06:00
+        // 禁止用 || 兜底: close=0 合法(全天开放), open=0 合法(00:00), || 会错误改写
+        close_min: config.time_redline_close_min !== undefined ? config.time_redline_close_min : 1440,
+        open_min: config.time_redline_open_min !== undefined ? config.time_redline_open_min : 360
       },
       limits: {
         publish_distance_max_km: config.publish_distance_max_km || 50,
@@ -1242,6 +1244,20 @@ exports.main = async (event, context) => {
       const minF = patch.rate_min_fen !== undefined ? patch.rate_min_fen : (config.rate_min_fen || 3000);
       const maxF = patch.rate_max_fen !== undefined ? patch.rate_max_fen : (config.rate_max_fen || 10000);
       if (minF >= maxF) return fail('config_bad_rate_range', '最低时薪必须小于最高时薪');
+    }
+
+    // 接单时间红线联动校验: close>0 时 open 必须早于 close; close=0 表示全天开放(open 值无意义)
+    if (patch.time_redline_close_min !== undefined || patch.time_redline_open_min !== undefined) {
+      const parseCur = (v, d) => { const n = parseInt(v, 10); return Number.isInteger(n) ? n : d; };
+      const closeR = patch.time_redline_close_min !== undefined
+        ? patch.time_redline_close_min
+        : parseCur(config.time_redline_close_min, 1440);
+      const openR = patch.time_redline_open_min !== undefined
+        ? patch.time_redline_open_min
+        : parseCur(config.time_redline_open_min, 360);
+      if (closeR > 0 && openR >= closeR) {
+        return fail('config_bad_time_redline', '接单开放须早于接单截止；截止设 0 表示全天开放');
+      }
     }
 
     // 改期规则对象(部分更新; 与库内已有对象合并, 仅接受 4 个白名单子字段)
