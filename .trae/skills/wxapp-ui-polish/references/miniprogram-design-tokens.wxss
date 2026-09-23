@@ -1,0 +1,147 @@
+/* ============================================================
+ * Design Token 参考模板（放到 app.wxss 顶部，用 page 变量承载）
+ * 用法：各页面 wxss 中用 var(--xxx) 引用，禁止再写硬编码色值
+ * 单位说明：750rpx = 屏幕宽；数值按 iPhone6 视觉稿 1:1 换算
+ * ============================================================ */
+
+page {
+  /* ---------- 品牌色 / 主色 ---------- */
+  --color-primary: #4a6cf7;          /* 主色：按钮、重要信息 */
+  --color-primary-light: #eef1fe;    /* 主色浅底：Tag、选中态背景 */
+  --color-primary-dark: #3a56d4;     /* 主色深：按下态、hover */
+
+  /* ---------- 语义色 ---------- */
+  --color-success: #07c160;
+  --color-warning: #ff976a;
+  --color-error: #e64340;
+  --color-info: #576b95;             /* 微信规范中的链接蓝 */
+
+  /* ---------- 文字 ---------- */
+  --text-1: #1a1a1a;                 /* 一级：标题、主内容 */
+  --text-2: #5c5c5c;                 /* 二级：正文 */
+  --text-3: #9a9a9a;                 /* 三级：时间、辅助说明 */
+  --text-disabled: #c8c8c8;
+
+  /* ---------- 背景与分割 ---------- */
+  --bg-page: #f6f7f9;                /* 页面底色 */
+  --bg-card: #ffffff;                /* 卡片 */
+  --bg-mask: rgba(0, 0, 0, 0.45);
+  --border-color: #ededed;
+  --border-delicate: rgba(0, 0, 0, 0.06);  /* 极细边框 */
+
+  /* ---------- 圆角 ---------- */
+  --radius-sm: 8rpx;
+  --radius-md: 16rpx;
+  --radius-lg: 24rpx;
+  --radius-pill: 999rpx;
+
+  /* ---------- 阴影（低透明 rgba，避免发灰发脏） ---------- */
+  --shadow-soft: 0 4rpx 16rpx rgba(26, 26, 26, 0.05);
+  --shadow-md: 0 8rpx 24rpx rgba(26, 26, 26, 0.08);
+  --shadow-lg: 0 16rpx 48rpx rgba(26, 26, 26, 0.12);
+
+  /* ---------- 间距阶梯 ---------- */
+  --space-xs: 8rpx;
+  --space-sm: 12rpx;
+  --space-md: 16rpx;
+  --space-lg: 24rpx;
+  --space-xl: 32rpx;
+
+  /* ---------- 字号 ---------- */
+  --font-xs: 22rpx;
+  --font-sm: 24rpx;
+  --font-md: 28rpx;
+  --font-lg: 32rpx;
+  --font-xl: 36rpx;
+  --font-title: 44rpx;
+
+  /* ---------- 动效 ---------- */
+  --ease-standard: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --duration-fast: 200ms;
+  --duration-base: 300ms;
+}
+
+/* ---------- 全局基础类（供页面直接复用） ---------- */
+
+/* 卡片：圆角 + 柔和阴影 + 极细边框 */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  border: 1rpx solid var(--border-delicate);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+/* 标签：浅底 + 同色系深字 */
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: var(--font-xs);
+  line-height: 1.6;
+}
+
+/* 主按钮 */
+.btn-primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-md);
+  height: 88rpx;                     /* ≈44px，满足最小点击区 */
+  line-height: 88rpx;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+/* 点击反馈：轻微下陷 */
+.btn-primary:active {
+  transform: scale(0.98);
+  box-shadow: var(--shadow-soft);
+  background: var(--color-primary-dark);
+}
+
+/* 禁用态 */
+.btn-primary.is-disabled {
+  background: var(--text-disabled);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* 列表交错入场动画（stagger） */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24rpx); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  opacity: 0;
+  animation: slide-up var(--duration-base) var(--ease-standard) forwards;
+}
+
+.delay-1 { animation-delay: 60ms; }
+.delay-2 { animation-delay: 120ms; }
+.delay-3 { animation-delay: 180ms; }
+.delay-4 { animation-delay: 240ms; }
+
+/* 骨架屏占位 */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #f7f7f7 37%, #f0f0f0 63%);
+  background-size: 400% 100%;
+  border-radius: var(--radius-sm);
+  animation: skeleton-loading 1.4s ease infinite;
+}
+
+@keyframes skeleton-loading {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* 底部安全区适配（全面屏 / iPhone X 以上） */
+.safe-bottom {
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}
