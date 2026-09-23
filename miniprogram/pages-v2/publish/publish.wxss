@@ -488,17 +488,6 @@
 }
 .pub__pet-doc-name { font-size: 28rpx; color: #222; }
 .pub__pet-doc-op { font-size: 26rpx; color: #22B573; }
-.pub__pet-doc-body {
-  max-height: 420rpx;
-  background: #FAFAFA;
-  border-radius: 12rpx;
-  padding: 20rpx;
-  margin: 12rpx 0;
-  font-size: 26rpx;
-  color: #606266;
-  line-height: 1.8;
-}
-.pub__pet-doc-body text { white-space: pre-wrap; }
 .pub__pet-agree { margin-top: 16rpx; }
 .pub__pet-agree-label {
   display: flex;
@@ -508,3 +497,26 @@
   line-height: 1.6;
 }
 .pub__pet-agree-label checkbox { transform: scale(0.8); margin-right: 8rpx; flex-shrink: 0; }
+
+/* W9 授权书电子文件弹窗(bottom-sheet 内容/底部按钮) */
+.pub__pet-sheet-body {
+  height: 52vh;
+  box-sizing: border-box;
+  padding: 8rpx 0 0;
+}
+.pub__pet-sheet-text {
+  font-size: 27rpx;
+  color: #4E5969;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+.pub__pet-sheet-foot { display: flex; gap: 20rpx; }
+.pub__sign-btn {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx 0;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+}
+.pub__sign-btn--cancel { background: #F2F3F5; color: #606266; }
+.pub__sign-btn--ok { background: #22B573; color: #fff; font-weight: 600; }

@@ -102,7 +102,8 @@ Page({
     disclaimerChecked: false,
     // B3.2 W9 宠物照料授权书(电子确认; PRD R9: 无凭证视为未授权, 不得履约)
     petAuthChecked: false,
-    showPetAuth: false,
+    petAuthSheetVisible: false,     // 授权书电子文件弹窗
+    petAuthSheetFromCheck: false,   // 由勾选动作进入(取消时回到未签署初始态)
     petAuthText: '',
     // B3.1 服务内容选择窗(免责声明通过后自动弹出)
     optionSheetVisible: false,
@@ -469,8 +470,29 @@ Page({
       this.setData({ petAuthText: CONFIG.LEGAL_FALLBACK.petAuthorization });
     });
   },
-  togglePetAuth() { this.setData({ showPetAuth: !this.data.showPetAuth }); },
-  onPetAuthChange(e) { this.setData({ petAuthChecked: (e.detail.value || []).length > 0 }); },
+  // 点击《宠物照料授权书》标题: 仅查看(取消不改变已签状态)
+  openPetAuthSheet() {
+    this.setData({ petAuthSheetVisible: true, petAuthSheetFromCheck: false });
+    if (!this.data.petAuthText) this._loadPetAuthText();
+  },
+  // 勾选 → 弹出授权书电子文件; 需「本人签字确认」后才生效
+  onPetAuthChange(e) {
+    const on = (e.detail.value || []).length > 0;
+    if (!on) { this.setData({ petAuthChecked: false }); return; }   // 直接取消勾选(无弹窗)
+    this.setData({ petAuthChecked: true, petAuthSheetVisible: true, petAuthSheetFromCheck: true });
+    if (!this.data.petAuthText) this._loadPetAuthText();
+  },
+  // 取消: 由勾选进入 → 回到未签署初始态(返回发布界面); 查看进入 → 仅关闭
+  onPetAuthCancel() {
+    const patch = { petAuthSheetVisible: false };
+    if (this.data.petAuthSheetFromCheck) patch.petAuthChecked = false;
+    this.setData(patch);
+  },
+  // 本人签字确认 → 返回发布界面并保持已签
+  onPetAuthSign() {
+    this.setData({ petAuthSheetVisible: false, petAuthChecked: true, petAuthSheetFromCheck: false });
+    wx.showToast({ title: '已签字确认', icon: 'success' });
+  },
 
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;

@@ -50,17 +50,14 @@
   <!-- B3.2 W9 宠物照料授权书(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权、不得履约) -->
   <view class="pub__block" wx:if="{{form.scene_code === 'W9'}}">
     <view class="pub__label">宠物照料授权 <text class="pub__required">*</text></view>
-    <view class="pub__pet-doc" bindtap="togglePetAuth">
+    <view class="pub__pet-doc" bindtap="openPetAuthSheet">
       <text class="pub__pet-doc-name">《宠物照料授权书》</text>
-      <text class="pub__pet-doc-op">{{showPetAuth ? '收起' : '查看全文'}}</text>
+      <text class="pub__pet-doc-op">{{petAuthChecked ? '已签署 · 点击查看' : '点击查看全文'}}</text>
     </view>
-    <scroll-view class="pub__pet-doc-body" wx:if="{{showPetAuth}}" scroll-y>
-      <text>{{petAuthText || '授权书文本加载失败，请检查网络后重试'}}</text>
-    </scroll-view>
     <checkbox-group bindchange="onPetAuthChange" class="pub__pet-agree">
       <label class="pub__pet-agree-label">
         <checkbox value="ok" checked="{{petAuthChecked}}" color="#22B573" />
-        <text>本人为宠物主人或已获明确授权，已阅读并同意《宠物照料授权书》，知悉本电子确认将作为授权凭证留存</text>
+        <text>本人为宠物主人或已获明确授权；勾选后将弹出授权书电子文件，需签字确认后才生效，知悉该电子确认将作为授权凭证留存</text>
       </label>
     </checkbox-group>
   </view>
@@ -211,6 +208,17 @@
     </view>
     <view slot="footer" class="pub__opt-footer">
       <button class="pub__btn pub__btn--primary" bindtap="confirmOptions">确定</button>
+    </view>
+  </bottom-sheet>
+
+  <!-- W9 宠物照料授权书 电子文件弹窗(签字确认 / 取消) -->
+  <bottom-sheet visible="{{petAuthSheetVisible}}" title="宠物照料授权书" has-footer="{{true}}" bind:close="onPetAuthCancel">
+    <scroll-view class="pub__pet-sheet-body" scroll-y>
+      <text class="pub__pet-sheet-text">{{petAuthText || '授权书文本加载失败，请检查网络后重试'}}</text>
+    </scroll-view>
+    <view slot="footer" class="pub__pet-sheet-foot">
+      <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onPetAuthCancel">取消</view>
+      <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onPetAuthSign">本人签字确认</view>
     </view>
   </bottom-sheet>
 
