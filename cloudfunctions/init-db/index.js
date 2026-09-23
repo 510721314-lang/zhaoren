@@ -80,13 +80,19 @@ const SEED_CONFIG = {
   take_distance_max_km: 50,
   // 默认评价:超时未评价记 4 星(非 5 星)
   default_star: 4,
-  // 场景白名单(MVP-V1 一期 · PRD 3.2/11章) · 每个场景含 disclaimer_type(与 demand-publish/order-create 统一)
+  // 场景白名单(一期放开 9 场景 W1/W2/W3/W4/W7/W8/W9/W10/W11; W5探店/W6演出 已终止)
+  // · 每个场景含 disclaimer_type(与 demand-publish/order-create 统一) 与 builtin(后台不可删)
+  // · 本种子必须与云端 admin_config.scene_list 的 9 个开放场景保持一致 —— 补充前先核对线上 config_get
   scene_list: [
     { code: 'W1',  name: '就医陪诊', options: ['挂号排队', '取药送药', '陪诊解压'], aa_default: true, disclaimer_type: 'medical_disclaimer', builtin: true },
     { code: 'W2',  name: '学习陪伴', options: ['自习陪伴', '口语陪练', '作业督促'], disclaimer_type: 'general_disclaimer', builtin: true },
     { code: 'W8',  name: '生活协助', options: ['排队代办', '搬家帮手', '采买陪同'], disclaimer_type: 'general_disclaimer', builtin: true },
     { code: 'W10', name: '出行陪伴', options: ['逛街同行', '夜跑陪跑', '活动搭子'], disclaimer_type: 'general_disclaimer', builtin: true },
-    { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'], disclaimer_type: 'online_disclaimer', builtin: true }
+    { code: 'W11', name: '线上陪伴', options: ['树洞倾听', '游戏陪玩', '打卡监督'], disclaimer_type: 'online_disclaimer', builtin: true },
+    { code: 'W3',  name: '健身陪伴', options: ['健身指导', '跑步陪跑', '器械陪同'], disclaimer_type: 'sports_disclaimer', builtin: true },
+    { code: 'W4',  name: '游玩陪伴', options: ['景区游览', '博物馆参观', '商圈逛街'], disclaimer_type: 'general_disclaimer', builtin: true },
+    { code: 'W7',  name: '情绪陪伴', options: ['陪伴散步', '倾听陪伴', '考前鼓励'], disclaimer_type: 'emotion_disclaimer', builtin: true },
+    { code: 'W9',  name: '宠物陪伴', options: ['遛狗陪伴', '喂猫照料', '宠物就医陪同'], disclaimer_type: 'pet_disclaimer', builtin: true }
   ],
   // aa_tiers 已下线: 前端 AA_OPTIONS 硬编码格式不同, 第二批云化 AA_OPTIONS 时再按 admin_config.aa_tiers 接通
   // IM 系统模板消息(PRD 3.3.2 四确认前仅允许这些)
@@ -380,25 +386,38 @@ exports.main = async (event, context) => {
         hasPatch = true;
       }
 
-      // 旧版 scene_list 可能含 W3/W7/W9 隐藏场景; 需与 SEED_CONFIG.scene_list 全量对齐
-      // 检测维度: ① scene code 有无增减 ② 每个 scene 对象的完整字段有无差异
-      const seedCodes = SEED_CONFIG.scene_list.map((s) => s.code);
-      const docCodes = (Array.isArray(doc.scene_list) ? doc.scene_list : []).map((s) => s && s.code).filter(Boolean);
+      // ── 场景对齐(非破坏式) ──
+      // 种子已含全部 9 个开放场景(W1/W2/W3/W4/W7/W8/W9/W10/W11)。
+      // 规则: ① 仅同步"种子已定义"的场景字段(位置沿用云端原顺序) ② 缺失的种子场景追加到末尾
+      //       ③ 云端存在但种子没有的场景(运营用 scene_add 新增)一律保留、只打日志 —— 早期版本此处
+      //          做全量覆写, 一旦在线上执行会删掉运营新增场景/未纳入种子的场景。
+      const seedList = SEED_CONFIG.scene_list;
+      const seedCodes = seedList.map((s) => s.code);
+      const docList = Array.isArray(doc.scene_list) ? doc.scene_list.slice() : [];
+      const docCodes = docList.map((s) => s && s.code).filter(Boolean);
       const extraInDoc = docCodes.filter((c) => seedCodes.indexOf(c) < 0);
       const missingInDoc = seedCodes.filter((c) => docCodes.indexOf(c) < 0);
-      // 字段级比对: 同 code 的 scene 对象 JSON 序列化后必须完全一致
-      let sceneFieldChanged = false;
-      if (extraInDoc.length === 0 && missingInDoc.length === 0) {
-        for (let i = 0; i < SEED_CONFIG.scene_list.length; i++) {
-          const seedS = SEED_CONFIG.scene_list[i];
-          const docS = doc.scene_list.find((d) => d.code === seedS.code);
-          if (!docS) { sceneFieldChanged = true; break; }
-          if (JSON.stringify(docS) !== JSON.stringify(seedS)) { sceneFieldChanged = true; break; }
+      let sceneChanged = false;
+      const mergedList = docList.map((d) => {
+        if (!d || seedCodes.indexOf(d.code) < 0) return d;
+        const seedS = seedList.find((s) => s.code === d.code);
+        if (!seedS || JSON.stringify(d) === JSON.stringify(seedS)) return d;
+        sceneChanged = true;
+        return seedS;
+      });
+      for (const c of missingInDoc) {
+        const seedS = seedList.find((s) => s.code === c);
+        if (seedS) {
+          mergedList.push(seedS);
+          sceneChanged = true;
         }
       }
-      if (extraInDoc.length > 0 || missingInDoc.length > 0 || sceneFieldChanged) {
-        patch.scene_list = SEED_CONFIG.scene_list;
+      if (sceneChanged && mergedList.length > 0) {
+        patch.scene_list = mergedList;
         hasPatch = true;
+      }
+      if (extraInDoc.length > 0) {
+        console.log('scene_list keeps scenes not in seed (operator-added): ' + extraInDoc.join(','));
       }
       if (hasPatch) {
         patch.updated_at = Date.now();

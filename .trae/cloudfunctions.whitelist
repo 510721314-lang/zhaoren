@@ -28,7 +28,6 @@ admin-web
 
 # 说明：
 # - cloudfunctions/_shared/ 为共享代码暂存目录（无 index.js，不可部署，不列入本清单）
-# - cloudfunctions/admin-test/、cloudfunctions/export-config/ 为本地手工调试工具
-#   （.gitignore 已忽略、云端未部署）；按 rules.md 临时函数规范它们不应部署，
-#   故不列入白名单 —— 若执行 -Audit 会被标记为"未登记函数"。
-# - 临时云函数必须用 zz- 前缀 + 登记 .trae/zz-registry.md（含过期日期与最低守卫）
+# - 调试类临时云函数一律不列入白名单（rules 第 5 章：临时函数需 zz- 前缀 + 守卫 + 登记
+#   .trae/zz-registry.md）。历史上本地曾有 admin-test / export-config 两个手工调试函数
+#   （已核实从未部署到云端；因含 env 切换与明文导出密钥逻辑，2026-09-23 已删除）。
