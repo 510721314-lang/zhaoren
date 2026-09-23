@@ -1,9 +1,0 @@
-im-send|ev\i04-text-S1.json|TC28-text-S1
-im-send|ev\i05-tpl-T1.json|TC28-tpl-T1
-im-send|ev\i06-tpl-bad.json|TC28-tpl-bad
-order-action|ev\i07-confirmall-A.json|TC29-confirmall-A
-order-action|ev\i08-confirmall-B.json|TC29-confirmall-B-S0
-im-send|ev\i09-text-ok.json|TC29-text-ok
-im-send|ev\i10-text-blocked.json|TC29-text-blocked
-order-action|ev\i11-cancel-A.json|TC29-cancel-S6
-im-send|ev\i12-text-closed.json|TC29-chat-closed

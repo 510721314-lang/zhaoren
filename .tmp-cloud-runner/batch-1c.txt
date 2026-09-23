@@ -1,3 +1,0 @@
-demand-publish|ev\n07b-content-empty.json|r2-content-empty
-demand-publish|ev\n08-remark-long.json|r2-remark-long
-demand-publish|ev\n09-remark-blocked.json|r2-remark-blocked

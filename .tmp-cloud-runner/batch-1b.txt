@@ -1,4 +1,0 @@
-demand-publish|ev\n07a-content-invalid.json|14j2-content-invalid
-demand-publish|ev\n07b-content-empty.json|14j2-content-empty
-demand-publish|ev\n08-remark-long.json|14k2-remark-long
-demand-publish|ev\n09-remark-blocked.json|14l2-remark-blocked

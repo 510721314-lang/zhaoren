@@ -1,8 +1,0 @@
-evaluation-submit|ev\e01-eval-unsafe-A.json|TC25-eval-unsafe
-evaluation-submit|ev\e02-eval-ok-A.json|TC25-eval-ok
-evaluation-submit|ev\e03-eval-B.json|TC25-eval-notowner
-payment-mock|ev\t01-tip-0.json|TC27-tip-0
-payment-mock|ev\t02-tip-50100.json|TC27-tip-over
-payment-mock|ev\t03-tip-1000.json|TC27-tip-1000
-payment-mock|ev\t04-tip-500.json|TC27-tip-500
-order-action|ev\oa-detail-A.json|order-detail-final

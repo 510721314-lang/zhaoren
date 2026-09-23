@@ -1,8 +1,0 @@
-order-action|ev\c00-get-A.json|TC16-get
-order-action|ev\c01-pre-A-time.json|TC16-pre-A-time
-order-action|ev\c02-pre-A-location.json|TC16-pre-A-location
-order-action|ev\c03-pre-A-content.json|TC16-pre-A-content
-order-action|ev\c04-pre-B-time.json|TC16-pre-B-time
-order-action|ev\c05-pre-B-location.json|TC16-pre-B-location
-order-action|ev\c06-update-fee-B.json|TC17-update-reset
-order-action|ev\c07-get-A.json|TC17-get-reset
