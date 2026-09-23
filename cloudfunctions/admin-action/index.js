@@ -51,7 +51,7 @@ const CONFIG_SCHEMA = [
   // ── 通用开关 ──
   { f: 'auto_approve_partner', t: 'bool', g: '通用开关', label: '自动通过耍伴申请', def: false },
   { f: 'payment_visible', t: 'bool', g: '通用开关', label: '显示支付入口', def: true },
-  { f: 'platform_fee_rate_fen', t: 'int', g: '通用开关', label: '平台抽成', unit: '万分比', min: 0, max: 10000, def: 0 },
+  { f: 'platform_fee_rate_fen', t: 'int', g: '通用开关', label: '平台抽成', unit: '万分比', min: 0, max: 10000, def: 1000 },
   // ── 平台总开关(关停=维护态, 各云函数服务端拦截 + C 端维护提示) ──
   { f: 'switch_access', t: 'bool', g: '平台总开关', label: '核心交易(下单/接单)', def: true },
   { f: 'switch_blog', t: 'bool', g: '平台总开关', label: '动态社区', def: true },
@@ -1762,7 +1762,54 @@ exports.main = async (event, context) => {
     return ok({ deleted: id });
   }
 
-  // ───────── 8.6 云端备份导出(L2 admin_config 快照 + L3 DB 分页导出) ─────────
+  // ───────── 8.6 通知群发(system_notice 广播 → 用户消息中心) ─────────
+  // audience: all(全部用户) / partner(仅耍伴) / user(仅普通用户) / one(指定用户)
+  // 频控: 群发(>1 人)同操作者 10 分钟内仅 1 次; 发送记录走 logEvent P2(platform_event + audit_log), 无需额外表
+  if (action === 'notice_send') {
+    const t = String(event.title || '').trim();
+    const b = String(event.body || '').trim();
+    const audience = event.audience;
+    if (!t || t.length > 30) return fail('notice_bad_title', '标题必填且不超过30字');
+    if (!b || b.length > 500) return fail('notice_bad_body', '内容必填且不超过500字');
+    if (['all', 'partner', 'user', 'one'].indexOf(audience) < 0) {
+      return fail('notice_bad_audience', '群发对象不合法');
+    }
+    // 目标 openid 集合
+    let targets = [];
+    if (audience === 'one') {
+      if (!isOpenid(event.target_openid)) return fail('notice_bad_openid', 'openid 格式不正确');
+      targets = [event.target_openid];
+    } else {
+      const q = { is_deleted: _.neq(true) };
+      if (audience === 'partner') q.roles = 'partner';
+      else if (audience === 'user') q.roles = _.neq('partner');
+      const ur = await col('user_account').where(q).field({ openid: true }).limit(1000).get()
+        .catch(() => ({ data: [] }));
+      targets = (ur.data || []).map((d) => d.openid).filter(Boolean);
+    }
+    if (targets.length === 0) return fail('notice_no_target', '没有可发送的目标用户');
+    // 群发频控(>1 人): 10 分钟内同操作者仅 1 次
+    if (targets.length > 1) {
+      const recent = await col('platform_event').where({
+        type: 'notice_send', openid, created_at: _.gte(now - 10 * 60 * 1000)
+      }).count().catch(() => ({ total: 0 }));
+      if ((recent.total || 0) > 0) return fail('notice_too_frequent', '群发10分钟内仅可1次');
+    }
+    // fan-out 批量写入(单次上限 1000 人, 分块 100 写避免超时/批量上限)
+    const cap = Math.min(targets.length, 1000);
+    const docs = targets.slice(0, cap).map((to) => ({
+      to_openid: to, type: 'broadcast', title: t, body: b,
+      action_key: '', action_payload: {}, read: false,
+      created_at: now, updated_at: now, is_deleted: false
+    }));
+    for (let i = 0; i < docs.length; i += 100) {
+      await col('system_notice').add({ data: docs.slice(i, i + 100) });
+    }
+    await logEvent('P2', 'notice_send', openid, { audience, count: docs.length, total_targets: targets.length, title: t });
+    return ok({ sent: docs.length, total_targets: targets.length, cap: 1000 });
+  }
+
+  // ───────── 8.7 云端备份导出(L2 admin_config 快照 + L3 DB 分页导出) ─────────
   // 允许导出的 collection 白名单(20+)
   const EXPORT_COLLECTIONS = new Set([
     // ── 实际在用(2026-09-22 按云函数代码核实) ──
