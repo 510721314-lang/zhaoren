@@ -487,6 +487,9 @@ exports.main = async (event, context) => {
       accept_switch: !!p.accept_switch,
       applied_at: p.applied_at,
       review_note: p.review_note || '',
+      max_distance_km: p.max_distance_km === undefined ? null : p.max_distance_km,
+      home_lat: (p.home_location && Number(p.home_location.latitude)) || null,
+      home_lng: (p.home_location && Number(p.home_location.longitude)) || null,
       user: userMap[p.openid] || null
     }));
     return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
@@ -606,6 +609,8 @@ exports.main = async (event, context) => {
       remark: d.remark || '',
       start_time: d.start_time, duration_h: d.duration_h,
       location_name: d.location && d.location.name, city: d.location && d.location.city,
+      loc_lat: (d.location && Number(d.location.latitude)) || null,
+      loc_lng: (d.location && Number(d.location.longitude)) || null,
       rate_fen: d.rate_fen, total_fen: d.total_fen,
       broadcast: !!d.broadcast, match_mode: d.match_mode || 'invite',
       admin_note: d.admin_note || '', created_at: d.created_at
