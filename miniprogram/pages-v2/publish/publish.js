@@ -860,7 +860,8 @@ Page({
 
   // 用户在 AA wx.showModal 确认后执行实际发布
   confirmPublish() {
-    const { guardSwitch } = require('../../utils/bootstrap.js');
+    const { requireRealname, guardSwitch } = require('../../utils/bootstrap.js');
+    if (!requireRealname('发布需求')) return;
     if (!guardSwitch('access')) return;
     const f = this.data.form;
     const durationH = f.duration_hours || Number(f.duration_custom) || 0;

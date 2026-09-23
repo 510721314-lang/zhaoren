@@ -1,0 +1,15 @@
+.rn { min-height: 100vh; background: #F5F5F5; padding-bottom: 60rpx; }
+.rn__hero { padding: 56rpx 32rpx 24rpx; text-align: center; }
+.rn__hero-ic { font-size: 88rpx; }
+.rn__hero-title { margin-top: 12rpx; font-size: 40rpx; font-weight: 600; color: #222; }
+.rn__hero-sub { margin-top: 8rpx; font-size: 26rpx; color: #909399; }
+.rn__card { margin: 24rpx 32rpx; background: #fff; border-radius: 20rpx; padding: 28rpx 32rpx; }
+.rn__card--ok { background: #EAFBF1; }
+.rn__ok { font-size: 30rpx; color: #16A34A; font-weight: 600; text-align: center; padding: 12rpx 0; }
+.rn__row { display: flex; justify-content: space-between; padding: 16rpx 0; font-size: 28rpx; }
+.rn__label { color: #909399; }
+.rn__value { color: #333; }
+.rn__value--warn { color: #D4875A; font-weight: 600; }
+.rn__tip { margin: 8rpx 44rpx 0; font-size: 24rpx; color: #909399; line-height: 1.7; }
+.rn__btn { margin: 40rpx 32rpx 0; background: #22B573; color: #fff; font-size: 32rpx; border-radius: 44rpx; }
+.rn__btn::after { border: none; }

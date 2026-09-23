@@ -1,0 +1,26 @@
+<view class="v2 rn">
+  <nav-bar title="实名认证" show-back="{{true}}"></nav-bar>
+
+  <view class="rn__hero">
+    <view class="rn__hero-ic">🪪</view>
+    <view class="rn__hero-title">实名认证</view>
+    <view class="rn__hero-sub">完成实名后才能发布需求与接单</view>
+  </view>
+
+  <view class="rn__card rn__card--ok" wx:if="{{done}}">
+    <view class="rn__ok">✅ 已通过实名认证{{simulated ? '（测试期模拟）' : ''}}</view>
+  </view>
+
+  <block wx:else>
+    <view class="rn__card">
+      <view class="rn__row"><text class="rn__label">认证方式</text><text class="rn__value">身份证 + 人脸核验</text></view>
+      <view class="rn__row"><text class="rn__label">当前模式</text><text class="rn__value rn__value--warn">测试期 · 模拟认证</text></view>
+    </view>
+
+    <view class="rn__tip">上线前测试期间为模拟认证：点击下方按钮即标记为已实名，不采集身份证与人脸信息；正式上线后将改为真实核验（身份证上传 + 人脸核验）。</view>
+
+    <button class="rn__btn" bindtap="onSimulate" loading="{{submitting}}" hover-class="btn-press">模拟实名认证（测试期）</button>
+  </block>
+
+  <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
+</view>

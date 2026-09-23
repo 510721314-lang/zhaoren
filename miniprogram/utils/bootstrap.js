@@ -156,8 +156,11 @@ function requireRealname(actionLabel) {
     cancelText: '暂不',
     success: (res) => {
       if (res.confirm) {
-        // 跳到 profile 页的实名入口(profile 页有"完成实名"按钮)
-        wx.switchTab({ url: '/pages-v2/profile/profile' });
+        // 跳实名认证页(测试期为模拟认证入口)
+        wx.navigateTo({
+          url: '/pages-v2/realname/realname',
+          fail: () => wx.switchTab({ url: '/pages-v2/profile/profile' })
+        });
       }
     }
   });

@@ -24,6 +24,11 @@ Component({
         wx.showToast({ title: gate.msg, icon: 'none' });
         return;
       }
+      // 实名门禁: 未实名 -> 弹「去实名」(动态加载避免冷启动时序)
+      try {
+        const { requireRealname } = require('../utils/bootstrap.js');
+        if (!requireRealname('发布需求')) return;
+      } catch (e) {}
       // P06 发布页在批次2实现，先保留跳转契约
       wx.navigateTo({
         url: '/pages-v2/publish/publish',

@@ -6,6 +6,7 @@
     "pages-v2/message/message",
     "pages-v2/profile/profile",
     "pages-v2/login/login",
+    "pages-v2/realname/realname",
     "pages-v2/publish/publish",
     "pages-v2/demand-detail/demand-detail",
     "pages-v2/demand-list/demand-list",
