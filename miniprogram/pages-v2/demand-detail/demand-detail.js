@@ -162,5 +162,5 @@ Page({
       fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
     });
   },
-  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
+  onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });

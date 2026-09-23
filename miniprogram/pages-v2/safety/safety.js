@@ -437,5 +437,5 @@ Page({
   },
 
   noop() {},
-  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
+  onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });

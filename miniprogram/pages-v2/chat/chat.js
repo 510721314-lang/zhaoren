@@ -583,5 +583,5 @@ Page({
       this.setData({ scrollToView: last ? last._id : '' });
     }, 50);
   },
-  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
+  onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });

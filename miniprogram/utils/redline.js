@@ -110,6 +110,11 @@ function checkEntryLocked(date) {
   return { locked: false, msg: '' };
 }
 
+// 夜间红线「预约开服提醒」统一提示(各页面 night-mask 的 onReserve 共用)
+function reserveNotice() {
+  wx.showToast({ title: `已为您预约${CONFIG.TIME_REDLINE.open}开服提醒`, icon: 'none' });
+}
+
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
@@ -125,6 +130,7 @@ module.exports = {
   validateBudget,
   validateYouthAmount,
   checkEntryLocked,
+  reserveNotice,
   PICKER_CLOSE,
   DISPLAY_CLOSE,
   OPEN_STR,

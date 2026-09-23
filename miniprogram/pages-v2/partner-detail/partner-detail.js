@@ -204,5 +204,5 @@ Page({
     const fen = this.data.sceneRatesMap && this.data.sceneRatesMap[code];
     return fen ? (fen / 100) + '元/小时' : '面议';
   },
-  onReserve() { wx.showModal({ title: 'Rest', content: 'Please stay safe', showCancel: false }); }
+  onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });
