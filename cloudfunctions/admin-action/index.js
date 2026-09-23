@@ -1514,6 +1514,7 @@ exports.main = async (event, context) => {
         openid: String(x.openid || ''),
         role: x.role || '', scene: x.scene || '',
         disclaimer_type: x.disclaimer_type || '',
+        agree_type: x.agree_type || (x.verify_method ? 'handwritten' : ''),
         verify_method: x.verify_method || '',
         signature_file_id: x.signature_file_id || '',
         signature_hash: x.signature_hash || '',

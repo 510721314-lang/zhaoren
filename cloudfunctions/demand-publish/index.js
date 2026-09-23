@@ -4,6 +4,7 @@
 //             / save_draft(新增或更新草稿) / list_drafts(草稿列表,过滤过期) / delete_draft(软删)
 // 草稿上限与有效期与小程序 config/index.js DRAFT 对齐: maxCount=20 / expireDays=30
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
@@ -61,6 +62,42 @@ const SCENE_OPTIONS_FALLBACK = {
 
 // 备注安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词)
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+
+// ─────────────── P1 节点留证(勾选同意型) ───────────────
+// 发布/修改需求时用户勾选《场景免责声明》; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
+// 与实名手写签名留证(kind=realname_agreement)同集合不同 kind; 全文入库保证事后可举证"当时同意的是什么"
+function sceneDocText(config, scene) {
+  const m = config && config.legal_scene_disclaimers;
+  const t = (m && typeof m === 'object') ? m[scene] : '';
+  return typeof t === 'string' ? t.trim() : '';
+}
+function buildCheckboxEvidence(o) {
+  const text = sceneDocText(o.config, o.scene);
+  const docs = text ? [{
+    key: 'scene_disclaimer',
+    title: `场景免责声明(${o.scene})`,
+    hash: crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+    text
+  }] : [];
+  const data = {
+    openid: o.openid,
+    role: o.role,
+    scene: o.scene,
+    kind: 'scene_disclaimer',
+    disclaimer_type: o.disclaimerType,
+    agree_type: 'checkbox',   // 勾选同意(无手写签名; 手写签名见 kind=realname_agreement)
+    docs,
+    // 兼容旧字段: 原为占位 sig_xxx, 现为所同意文档的 SHA-256(文档缺失时保留占位以标记异常)
+    signature_hash: docs.length ? docs[0].hash : `sig_missing_${o.openid}_${o.scene}_${o.signedAt}`,
+    signed_at: o.signedAt,
+    created_at: o.signedAt,
+    updated_at: o.signedAt,
+    is_deleted: false
+  };
+  if (o.demandId) data.demand_id = o.demandId;
+  if (o.orderId) data.order_id = o.orderId;
+  return data;
+}
 const REMARK_MAX_LEN = 200;
 
 // 备注内容安全:msgSecCheck v2;87014 明确违规;其他异常(未开通/网络)降级本地违禁词
@@ -456,6 +493,22 @@ exports.main = async (event, context) => {
       try {
         const addRes = await col('demand').add({ data: doc });
         log.d(`demand created: ${demand_no}`);
+
+        // ── P1 留证: 需求者场景免责声明(勾选同意)全文+SHA-256 落库(不阻断主流程) ──
+        try {
+          await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+            openid, role: 'user', scene, disclaimerType, config,
+            demandId: addRes._id, signedAt: now
+          }) });
+          log.d(`scene evidence(user) written: ${demand_no}`);
+        } catch (ee) {
+          log.d(`scene evidence(user) fail: ${(ee && ee.message) || ee}`);
+          col('platform_event').add({ data: {
+            level: 'P3', type: 'evidence_write_fail', openid,
+            payload: { node: 'publish', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
+            created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+          }}).catch(() => {});
+        }
 
         // 定向邀约: 给受邀耍伴写系统通知(不阻断主流程), 通知点击直达需求详情
         if (mode === 'direct') {
@@ -921,6 +974,8 @@ exports.main = async (event, context) => {
       // match_mode 改了 → 同步更新 broadcast/invited(不改 publish_location!)
       patch.broadcast = mode === 'broadcast';
       patch.invited = mode === 'direct' ? [target_openid] : [];
+      // 场景变更时同步刷新免责声明类型(SSOT: admin_config.scene_list; 此前 update 漏刷新, 场景与类型可能不一致)
+      patch.disclaimer_type = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
       if (mode === 'direct' && target_openid) {
         patch.target_openid = target_openid;
       }
@@ -932,6 +987,23 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'update_gone', msg: '需求状态已变化,请刷新后重试' };
         }
         log.d(`demand updated: ${d.demand_no}`);
+        // ── P1 留证: 场景变更(=换签新场景免责声明)才补新留证; 场景未变沿用原留证(不重复签) ──
+        if (d.scene !== scene) {
+          try {
+            await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: patch.disclaimer_type, config,
+              demandId: demand_id, signedAt: now
+            }) });
+            log.d(`scene evidence(user) written(update): ${d.demand_no}`);
+          } catch (ee) {
+            log.d(`scene evidence(update) fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'update', scene, demand_id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
         return { ok: true, data: { _id: demand_id, updated_at: now } };
       } catch (e) {
         // 记录数据库原始错误(此前被吞, 无法定位; 查询通道: admin-action export_collection platform_event)

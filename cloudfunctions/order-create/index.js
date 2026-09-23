@@ -158,6 +158,42 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 // 接单距离上限(公里): 耍伴接单时实际位置与履约地点直线距离
 const TAKE_MAX_DISTANCE_KM = 50;
 
+// ─────────────── P1 节点留证(勾选同意型) ───────────────
+// 接单前耍伴勾选《场景免责声明》; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
+// 与实名手写签名留证(kind=realname_agreement)同集合不同 kind; 全文入库保证事后可举证"当时同意的是什么"
+function sceneDocText(config, scene) {
+  const m = config && config.legal_scene_disclaimers;
+  const t = (m && typeof m === 'object') ? m[scene] : '';
+  return typeof t === 'string' ? t.trim() : '';
+}
+function buildCheckboxEvidence(o) {
+  const text = sceneDocText(o.config, o.scene);
+  const docs = text ? [{
+    key: 'scene_disclaimer',
+    title: `场景免责声明(${o.scene})`,
+    hash: crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+    text
+  }] : [];
+  const data = {
+    openid: o.openid,
+    role: o.role,
+    scene: o.scene,
+    kind: 'scene_disclaimer',
+    disclaimer_type: o.disclaimerType,
+    agree_type: 'checkbox',   // 勾选同意(无手写签名; 手写签名见 kind=realname_agreement)
+    docs,
+    // 兼容旧字段: 原为占位 sig_xxx, 现为所同意文档的 SHA-256(文档缺失时保留占位以标记异常)
+    signature_hash: docs.length ? docs[0].hash : `sig_missing_${o.openid}_${o.scene}_${o.signedAt}`,
+    signed_at: o.signedAt,
+    created_at: o.signedAt,
+    updated_at: o.signedAt,
+    is_deleted: false
+  };
+  if (o.demandId) data.demand_id = o.demandId;
+  if (o.orderId) data.order_id = o.orderId;
+  return data;
+}
+
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
     const { resolveOpenid } = require('./openid');
@@ -179,20 +215,27 @@ exports.main = async (event, context) => {
       W10: 'general_disclaimer', W11: 'online_disclaimer'
     }[scene] || 'general_disclaimer';
 
-    // 已签同场景则幂等返回
+    // 已签同场景则幂等返回; 遗留占位哈希(sig_ 开头)= 早期无文档哈希版本, 顺带自愈为真实 SHA-256
+    const evData = buildCheckboxEvidence({
+      openid, role: 'partner', scene, disclaimerType, config: cfg, signedAt: Date.now()
+    });
     const exist = await col('disclaimer_signature').where({
       openid, role: 'partner', scene, is_deleted: false
     }).limit(1).get().catch(() => ({ data: [] }));
     if (exist.data && exist.data[0]) {
+      const rec = exist.data[0];
+      if (/^sig_/.test(String(rec.signature_hash || '')) && evData.docs.length) {
+        await col('disclaimer_signature').doc(rec._id).update({ data: {
+          kind: 'scene_disclaimer', agree_type: 'checkbox',
+          docs: evData.docs, signature_hash: evData.signature_hash,
+          updated_at: evData.updated_at
+        }}).catch((he) => log.d(`evidence heal fail: ${(he && he.message) || he}`));
+        log.d(`partner disclaimer evidence healed: ${rec._id}`);
+      }
       return { ok: true, data: { scene, signed: true, idempotent: true } };
     }
 
-    const now = Date.now();
-    await col('disclaimer_signature').add({ data: {
-      openid, role: 'partner', scene, disclaimer_type: disclaimerType,
-      signed_at: now, signature_hash: `sig_${openid}_${scene}_${now}`,
-      created_at: now, updated_at: now, is_deleted: false
-    }});
+    await col('disclaimer_signature').add({ data: evData });
     log.d(`partner signed disclaimer: openid=${openid} scene=${scene}`);
     return { ok: true, data: { scene, signed: true } };
   }
@@ -524,6 +567,16 @@ exports.main = async (event, context) => {
   }
 
   // ② 事务建单: order_main + order_confirmations + 状态流水 同成同败
+  // P1 留证预构建: 需求者侧场景免责声明(勾选同意型)文档全文+SHA-256, 在事务内随订单一起落库
+  const userEvidence = buildCheckboxEvidence({
+    openid: demand.creator_openid, role: 'user', scene: demandScene,
+    disclaimerType: demand.disclaimer_type || 'general_disclaimer',
+    config, demandId: demand_id,
+    signedAt: demand.disclaimer_signed_at || now
+  });
+  userEvidence.created_at = now;
+  userEvidence.updated_at = now;
+
   let orderId = '';
   try {
     await db.runTransaction(async (t) => {
@@ -550,15 +603,8 @@ exports.main = async (event, context) => {
         created_at: now, updated_at: now, is_deleted: false
       }});
 
-      // 需求者免责声明签署凭证(双签入库 · code.html 第一道防线)
-      await t.collection('disclaimer_signature').add({ data: {
-        openid: demand.creator_openid, role: 'user', scene: demandScene,
-        disclaimer_type: demand.disclaimer_type || 'general_disclaimer',
-        demand_id, order_id: orderId,
-        signed_at: demand.disclaimer_signed_at || now,
-        signature_hash: `sig_user_${demand.creator_openid}_${demandScene}_${orderId}`,
-        created_at: now, updated_at: now, is_deleted: false
-      }});
+      // 需求者免责声明签署凭证(双签入库 · code.html 第一道防线; P1 留证: 文档全文+SHA-256)
+      await t.collection('disclaimer_signature').add({ data: Object.assign({}, userEvidence, { order_id: orderId }) });
     });
   } catch (e) {
     // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接
