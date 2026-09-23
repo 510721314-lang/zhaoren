@@ -21,7 +21,7 @@ $COLLECTIONS = @(
   'user_account', 'partner_profile',
   'demand', 'demand_draft',
   'order_main', 'order_status_log', 'order_confirmations',
-  'emergency_contact', 'credit_score_log', 'platform_event',
+  'emergency_contact', 'credit_score_log', 'platform_event', 'audit_log',
   'system_notice', 'disclaimer_signature', 'evaluation',
   'blog_post', 'blog_like', 'blog_comment',
   'safety_report',

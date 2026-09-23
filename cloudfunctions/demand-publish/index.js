@@ -10,6 +10,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 // 场景白名单: 动态从 admin_config.scene_list 读取(SSOT), 兜底与 init-db 种子对齐
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
@@ -217,6 +218,10 @@ exports.main = async (event, context) => {
 
   const { action } = event;
   log.d(`demand-publish action=${action} openid=${openid}`);
+
+  // 审计留痕公共字段
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
 
   switch (action) {
 
@@ -512,11 +517,16 @@ exports.main = async (event, context) => {
         log.d(`demand created: ${demand_no}`);
 
         // ── P1 留证: 需求者场景免责声明(勾选同意)全文+SHA-256 落库(不阻断主流程) ──
+        let evidenceId = '';
+        let evidenceHash = '';
         try {
-          await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+          const evData = buildCheckboxEvidence({
             openid, role: 'user', scene, disclaimerType, config,
             demandId: addRes._id, signedAt: now
-          }) });
+          });
+          const evRes = await col('disclaimer_signature').add({ data: evData });
+          evidenceId = (evRes && evRes._id) || '';
+          evidenceHash = evData.signature_hash || '';
           log.d(`scene evidence(user) written: ${demand_no}`);
         } catch (ee) {
           log.d(`scene evidence(user) fail: ${(ee && ee.message) || ee}`);
@@ -528,9 +538,11 @@ exports.main = async (event, context) => {
         }
 
         // ── W9 留证: 宠物照料授权书(电子确认, PRD R9 授权凭证; 不阻断主流程) ──
+        let petEvidenceId = '';
+        let petEvidenceHash = '';
         if (scene === 'W9' && pet_auth_checked) {
           try {
-            await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+            const petData = buildCheckboxEvidence({
               openid, role: 'user', scene, disclaimerType: 'pet_authorization',
               config, demandId: addRes._id, signedAt: now,
               kind: 'pet_authorization',
@@ -538,7 +550,10 @@ exports.main = async (event, context) => {
                 key: 'pet_authorization', title: '宠物照料授权书',
                 text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
               }
-            }) });
+            });
+            const petRes = await col('disclaimer_signature').add({ data: petData });
+            petEvidenceId = (petRes && petRes._id) || '';
+            petEvidenceHash = petData.signature_hash || '';
             log.d(`pet auth evidence written: ${demand_no}`);
           } catch (ee) {
             log.d(`pet auth evidence fail: ${(ee && ee.message) || ee}`);
@@ -588,6 +603,18 @@ exports.main = async (event, context) => {
             }
           } catch (e) { /* 草稿清理失败不阻断发布 */ }
         }
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'demand_publish',
+          target_type: 'demand', target_id: addRes._id,
+          detail: {
+            demand_no, scene, match_mode: mode, rate_fen, aa_tier,
+            duration_h, aa_promise_checked: !!aa_promise_checked,
+            pet_auth: scene === 'W9' && !!pet_auth_checked,
+            evidence_ids: [evidenceId, petEvidenceId].filter(Boolean)
+          },
+          evidence_id: evidenceId, doc_hash: evidenceHash,
+          result: 'ok', client_ip: clientIp, device
+        });
         return {
           ok: true,
           data: {
@@ -628,6 +655,12 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'cancel_status', msg: '需求状态已变化,请刷新后重试' };
         }
         log.d(`demand cancelled: ${d.demand_no}`);
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'demand_cancel',
+          target_type: 'demand', target_id: demand_id,
+          detail: { demand_no: d.demand_no, scene: d.scene || '' },
+          result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { demand_id, status: 'cancelled' } };
       } catch (e) {
         return { ok: false, code: 'cancel_fail', msg: '取消失败' };
@@ -1037,12 +1070,18 @@ exports.main = async (event, context) => {
         }
         log.d(`demand updated: ${d.demand_no}`);
         // ── P1 留证: 场景变更(=换签新场景免责声明)才补新留证; 场景未变沿用原留证(不重复签) ──
+        let upEvidenceId = '';
+        let upEvidenceHash = '';
+        let upPetEvidenceId = '';
         if (d.scene !== scene) {
           try {
-            await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+            const upData = buildCheckboxEvidence({
               openid, role: 'user', scene, disclaimerType: patch.disclaimer_type, config,
               demandId: demand_id, signedAt: now
-            }) });
+            });
+            const upRes = await col('disclaimer_signature').add({ data: upData });
+            upEvidenceId = (upRes && upRes._id) || '';
+            upEvidenceHash = upData.signature_hash || '';
             log.d(`scene evidence(user) written(update): ${d.demand_no}`);
           } catch (ee) {
             log.d(`scene evidence(update) fail: ${(ee && ee.message) || ee}`);
@@ -1056,7 +1095,7 @@ exports.main = async (event, context) => {
         // ── W9 留证: 首次确认宠物照料授权书(该需求此前无凭证)时补留证 ──
         if (scene === 'W9' && pet_auth_checked && d.pet_auth_signed !== true) {
           try {
-            await col('disclaimer_signature').add({ data: buildCheckboxEvidence({
+            const upPetData = buildCheckboxEvidence({
               openid, role: 'user', scene, disclaimerType: 'pet_authorization',
               config, demandId: demand_id, signedAt: now,
               kind: 'pet_authorization',
@@ -1064,7 +1103,9 @@ exports.main = async (event, context) => {
                 key: 'pet_authorization', title: '宠物照料授权书',
                 text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
               }
-            }) });
+            });
+            const upPetRes = await col('disclaimer_signature').add({ data: upPetData });
+            upPetEvidenceId = (upPetRes && upPetRes._id) || '';
             log.d(`pet auth evidence written(update): ${d.demand_no}`);
           } catch (ee) {
             log.d(`pet auth evidence(update) fail: ${(ee && ee.message) || ee}`);
@@ -1075,6 +1116,18 @@ exports.main = async (event, context) => {
             }}).catch(() => {});
           }
         }
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'demand_update',
+          target_type: 'demand', target_id: demand_id,
+          detail: {
+            demand_no: d.demand_no, scene, prev_scene: d.scene, match_mode: mode,
+            scene_changed: d.scene !== scene,
+            pet_auth: scene === 'W9' && !!pet_auth_checked,
+            evidence_ids: [upEvidenceId, upPetEvidenceId].filter(Boolean)
+          },
+          evidence_id: upEvidenceId, doc_hash: upEvidenceHash,
+          result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { _id: demand_id, updated_at: now } };
       } catch (e) {
         // 记录数据库原始错误(此前被吞, 无法定位; 查询通道: admin-action export_collection platform_event)

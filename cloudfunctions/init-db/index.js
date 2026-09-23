@@ -11,7 +11,7 @@ const COLLECTIONS = [
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
   'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
   'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock',
-  'system_notice', 'insurance_record'
+  'system_notice', 'insurance_record', 'audit_log'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -46,7 +46,9 @@ const INDEXES = [
   // system_notice: 消息中心按收件人查, 未读过滤, 点击后标记已读
   { coll: 'system_notice', name: 'idx_to_read_created', keys: { to_openid: 1, read: 1, created_at: -1 } },
   { coll: 'system_notice', name: 'idx_order_created', keys: { order_id: 1, created_at: -1 } },
-  { coll: 'system_notice', name: 'idx_to_created', keys: { to_openid: 1, created_at: -1 } }
+  { coll: 'system_notice', name: 'idx_to_created', keys: { to_openid: 1, created_at: -1 } },
+  // audit_log 行为审计: 单用户链查询(writeAudit 取上一条 orderBy at desc) 与 audit_verify 全量升序
+  { coll: 'audit_log', name: 'idx_openid_at', keys: { openid: 1, at: -1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)

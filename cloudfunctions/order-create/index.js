@@ -8,6 +8,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 // 进行中订单状态集合(用于"无进行中订单"校验)
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
@@ -203,6 +204,10 @@ exports.main = async (event, context) => {
   const { action } = event;
   log.d(`order-create action=${action} openid=${openid}`);
 
+  // 审计留痕公共字段
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
   // ── 耍伴签署场景免责声明(code.html 第一道防线·接单前置) ──
   if (action === 'sign_disclaimer') {
     const { scene } = event;
@@ -232,11 +237,32 @@ exports.main = async (event, context) => {
         }}).catch((he) => log.d(`evidence heal fail: ${(he && he.message) || he}`));
         log.d(`partner disclaimer evidence healed: ${rec._id}`);
       }
+      await writeAudit(db, log, {
+        openid, role: 'partner', category: 'consent', action: 'sign_disclaimer',
+        target_type: 'disclaimer_signature', target_id: rec._id || '',
+        detail: { scene, disclaimer_type: disclaimerType, idempotent: true },
+        evidence_id: rec._id || '', doc_hash: evData.signature_hash || '',
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { scene, signed: true, idempotent: true } };
     }
 
-    await col('disclaimer_signature').add({ data: evData });
+    let signEvidenceId = '';
+    try {
+      const signRes = await col('disclaimer_signature').add({ data: evData });
+      signEvidenceId = (signRes && signRes._id) || '';
+    } catch (se) {
+      log.d(`partner disclaimer add fail: ${(se && se.message) || se}`);
+      return { ok: false, code: 'sign_db_fail', msg: '签署失败,请稍后重试' };
+    }
     log.d(`partner signed disclaimer: openid=${openid} scene=${scene}`);
+    await writeAudit(db, log, {
+      openid, role: 'partner', category: 'consent', action: 'sign_disclaimer',
+      target_type: 'disclaimer_signature', target_id: signEvidenceId,
+      detail: { scene, disclaimer_type: disclaimerType, idempotent: false },
+      evidence_id: signEvidenceId, doc_hash: evData.signature_hash || '',
+      result: 'ok', client_ip: clientIp, device
+    });
     return { ok: true, data: { scene, signed: true } };
   }
 
@@ -584,6 +610,7 @@ exports.main = async (event, context) => {
   userEvidence.updated_at = now;
 
   let orderId = '';
+  let userEvidenceId = '';
   try {
     await db.runTransaction(async (t) => {
       const addRes = await t.collection('order_main').add({ data: orderData });
@@ -610,7 +637,8 @@ exports.main = async (event, context) => {
       }});
 
       // 需求者免责声明签署凭证(双签入库 · code.html 第一道防线; P1 留证: 文档全文+SHA-256)
-      await t.collection('disclaimer_signature').add({ data: Object.assign({}, userEvidence, { order_id: orderId }) });
+      const ueRes = await t.collection('disclaimer_signature').add({ data: Object.assign({}, userEvidence, { order_id: orderId }) });
+      userEvidenceId = (ueRes && ueRes._id) || '';
     });
   } catch (e) {
     // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接
@@ -622,6 +650,18 @@ exports.main = async (event, context) => {
   }
 
   log.d(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
+  await writeAudit(db, log, {
+    openid, role: 'partner', category: 'business', action: 'order_take',
+    target_type: 'order', target_id: orderId,
+    detail: {
+      order_no: orderNo, demand_id, demand_no: demand.demand_no, scene: demandScene,
+      total_fen: totalFen, take_distance_km: takeDistanceKm,
+      user_evidence_id: userEvidenceId
+    },
+    evidence_id: (signed.data[0] && signed.data[0]._id) || '',
+    doc_hash: (signed.data[0] && signed.data[0].signature_hash) || '',
+    result: 'ok', client_ip: clientIp, device
+  });
   // 抢单成功通知发单人 A: 有人接单了, 可进入聊天开始四确认
   col('system_notice').add({ data: {
     to_openid: demand.creator_openid,

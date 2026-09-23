@@ -101,6 +101,11 @@ function maskPhone(p) {
   if (!p || typeof p !== 'string') return p || '';
   return p.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
 }
+// IP 脱敏: 1.2.3.4 → 1.2.*.*(审计列表展示用; 原始 IP 仍存于记录, 举证时不脱敏)
+function maskIp(ip) {
+  if (!ip || typeof ip !== 'string') return ip || '';
+  return ip.replace(/^(\d+)\.(\d+)\.\d+\.\d+$/, '$1.$2.*.*');
+}
 function maskIdCard(id) {
   if (!id || typeof id !== 'string') return id || '';
   return id.replace(/^(.{4}).+(.{4})$/, '$1**********$2');
@@ -1527,6 +1532,102 @@ exports.main = async (event, context) => {
     });
   }
 
+  // ───────── 8.8 行为审计留痕·证据链(认证/授权/确认/注册/平台操作) ─────────
+  // audit_log 集合: 每条记录带 prev_hash→chain_hash 哈希链, 事后篡改/删除可被 audit_verify 检出。
+  // 写入侧见各业务云函数 audit.js(writeAudit); 本处提供 建集合/查询/链校验 三个动作。
+  if (action === 'audit_init') {
+    let created = false;
+    try {
+      await db.createCollection('audit_log');
+      created = true;
+    } catch (e) {
+      log.d(`audit_init createCollection: ${(e && e.message) || e}`);
+    }
+    const cnt = await col('audit_log').count().catch(() => ({ total: 0 }));
+    await logEvent('P2', 'audit_init', openid, { created, total: cnt.total || 0 });
+    return ok({ created, total: cnt.total || 0 });
+  }
+
+  // 审计记录查询(openid/category/result/action/时间范围 过滤, 分页倒序)
+  // 注意: event.action 已被本函数占用于动作路由, 审计动作名过滤参数为 action_name
+  if (action === 'audit_query') {
+    const pg = pager(event);
+    const q = {};
+    if (event.openid) {
+      if (!isOpenid(String(event.openid))) return fail('aq_bad_openid', 'openid 格式不正确');
+      q.openid = String(event.openid);
+    }
+    if (event.action_name) q.action = String(event.action_name);
+    if (event.category) q.category = String(event.category);
+    if (event.result) q.result = String(event.result);
+    if (event.target_id) q.target_id = String(event.target_id);
+    const win = [];
+    const s = parseInt(event.start_ts, 10);
+    const e2 = parseInt(event.end_ts, 10);
+    if (Number.isInteger(s)) win.push({ at: _.gte(s) });
+    if (Number.isInteger(e2)) win.push({ at: _.lte(e2) });
+    const where = win.length ? _.and([q].concat(win)) : q;
+    const cnt = await col('audit_log').where(where).count().catch(() => ({ total: 0 }));
+    const r = await col('audit_log').where(where).orderBy('at', 'desc')
+      .skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }));
+    return ok({
+      total: cnt.total || 0, page: pg.page, size: pg.size,
+      list: (r.data || []).map((x) => ({
+        _id: x._id, openid: x.openid || '', role: x.role || '',
+        category: x.category || '', action: x.action || '',
+        target_type: x.target_type || '', target_id: x.target_id || '',
+        detail: x.detail || {}, evidence_id: x.evidence_id || '', doc_hash: x.doc_hash || '',
+        result: x.result || 'ok', code: x.code || '',
+        client_ip: maskIp(x.client_ip), device: x.device || '', platform: x.platform || '',
+        at: x.at, prev_hash: x.prev_hash || '', chain_hash: x.chain_hash || ''
+      }))
+    });
+  }
+
+  // 证据链校验: 按 openid 拉全量(时间升序)逐条重算哈希, 报首个断点(chain_hash_mismatch / prev_hash_link_break)
+  if (action === 'audit_verify') {
+    const target = String(event.openid || '').trim();
+    if (!isOpenid(target)) return fail('av_bad_openid', 'openid 格式不正确');
+    const crypto = require('crypto');
+    const recs = [];
+    const BATCH = 100;
+    for (let skip = 0; skip < 5000; skip += BATCH) {
+      const r = await col('audit_log').where({ openid: target })
+        .orderBy('at', 'asc').skip(skip).limit(BATCH).get().catch(() => ({ data: [] }));
+      const rows = r.data || [];
+      for (const x of rows) recs.push(x);
+      if (rows.length < BATCH) break;
+    }
+    let broken = null;
+    let prevChain = '';
+    for (let i = 0; i < recs.length; i++) {
+      const x = recs[i];
+      const expect = crypto.createHash('sha256').update([
+        x.prev_hash || '', x.openid || '', x.action || '', x.target_id || '', x.at,
+        JSON.stringify(x.detail || {})
+      ].join('|'), 'utf8').digest('hex');
+      const mismatch = expect !== (x.chain_hash || '');
+      // 同一毫秒多条的极端情形可能因返回顺序不定报 link_break, 属排序噪声而非篡改(重算 mismatch 才是硬证据)
+      const linkBreak = i > 0 && (x.prev_hash || '') !== prevChain;
+      if (mismatch || linkBreak) {
+        broken = {
+          index: i, record_id: x._id, action: x.action, at: x.at,
+          reason: mismatch ? 'chain_hash_mismatch' : 'prev_hash_link_break'
+        };
+        break;
+      }
+      prevChain = x.chain_hash || '';
+    }
+    return ok({
+      openid: target, total: recs.length,
+      ok: !broken,
+      first_ts: recs.length ? recs[0].at : 0,
+      last_ts: recs.length ? recs[recs.length - 1].at : 0,
+      broken,
+      checked_at: now
+    });
+  }
+
   // ───────── 8.5 首页活动管理(CRUD, 存 admin_config.home_activities) ─────────
   if (action === 'home_activity_list') {
     const list = (config.home_activities || []).slice().sort((a, b) => (b.priority || 0) - (a.priority || 0));
@@ -1608,7 +1709,7 @@ exports.main = async (event, context) => {
     'user_account', 'partner_profile',
     'demand', 'demand_draft',
     'order_main', 'order_status_log', 'order_confirmations',
-    'emergency_contact', 'credit_score_log', 'platform_event',
+    'emergency_contact', 'credit_score_log', 'platform_event', 'audit_log',
     'system_notice', 'disclaimer_signature', 'evaluation',
     'blog_post', 'blog_like', 'blog_comment',
     'safety_report',

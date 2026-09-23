@@ -10,6 +10,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 // ─────────────────── 账号密码辅助 ───────────────────
 // 生成 16 字节随机 salt (hex 32 字符)
@@ -230,6 +231,10 @@ exports.main = async (event, context) => {
   const { action } = event;
   log.d(`user-login action=${action} openid=${openid}`);
 
+  // 审计留痕公共字段(IP 取自微信侧上下文, 设备由端上透传)
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
   // 总保险: 任何未预期异常都转成 JSON 业务错误, 避免云函数崩溃让客户端收到"网络异常"
   try {
   switch (action) {
@@ -259,6 +264,11 @@ exports.main = async (event, context) => {
               }
             } catch (_) {}
           }
+          await writeAudit(db, log, {
+            openid, role: 'user', category: 'auth', action: 'login',
+            target_type: 'user_account', target_id: u._id || '',
+            detail: { is_new: false }, result: 'ok', client_ip: clientIp, device
+          });
           return { ok: true, data: { user: safeUserDoc(u) } };
         }
         // 新建账号(初始信用 800)
@@ -282,6 +292,11 @@ exports.main = async (event, context) => {
           }
         } catch (_) {}
         log.d(`new user created: ${openid}`);
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'auth', action: 'login',
+          target_type: 'user_account', target_id: addRes._id || '',
+          detail: { is_new: true, register_source: 'mvp' }, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { user: safeUserDoc(newUser), is_new: true } };
       } catch (e) {
         log.d(`login error: ${e.message}`);
@@ -455,6 +470,13 @@ exports.main = async (event, context) => {
       const r2 = await col('user_account').where({ openid }).limit(1).get();
       const u2 = (r2.data && r2.data[0]) || null;
       log.d(`realname done(evidence=${evidenceId}) openid=${openid}`);
+      await writeAudit(db, log, {
+        openid, role: 'user', category: 'auth', action: 'submit_realname',
+        target_type: 'disclaimer_signature', target_id: evidenceId,
+        detail: { method: 'mock_face', face_mode: faceMode, age, name_masked: name.slice(0, 1) + '**' },
+        evidence_id: evidenceId, doc_hash: docs[0] ? docs[0].hash : '',
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { user: u2 ? safeUserDoc(u2) : null, evidence_id: evidenceId } };
     }
 
@@ -475,6 +497,11 @@ exports.main = async (event, context) => {
       }
       const r = await col('user_account').where({ openid }).limit(1).get();
       const u = (r.data && r.data[0]) || null;
+      await writeAudit(db, log, {
+        openid, role: 'user', category: 'auth', action: 'simulate_realname',
+        target_type: 'user_account', target_id: u ? u._id : '',
+        detail: { simulated: true, face_mode: 'mock' }, result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { user: u ? safeUserDoc(u) : null } };
     }
 
@@ -610,6 +637,11 @@ exports.main = async (event, context) => {
           payload: { at: now },
           created_at: now, updated_at: now, is_deleted: false
         }});
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'account', action: 'close_account',
+          target_type: 'user_account', target_id: uid || '',
+          detail: { anonymized: true }, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { msg: '账号已注销' } };
       } catch (e) {
         log.d(`close account fail: ${e.message}`);
@@ -700,6 +732,11 @@ exports.main = async (event, context) => {
             await col('user_account').doc(u._id).update({ data: { phone, updated_at: Date.now() }});
             u.phone = phone;
           }
+          await writeAudit(db, log, {
+            openid, role: 'user', category: 'auth', action: 'phone_login',
+            target_type: 'user_account', target_id: u._id || '',
+            detail: { path: 'openid_match' }, result: 'ok', client_ip: clientIp, device
+          });
           return { ok: true, data: { user: safeUserDoc(u) } };
         }
         // 2. openid 下无正式账号: 按手机号查正式账号(换设备/换微信登录后重绑定); 排除 phone_pending 空壳
@@ -716,6 +753,11 @@ exports.main = async (event, context) => {
           if (pendingShellId) {
             await col('user_account').doc(pendingShellId).remove();
           }
+          await writeAudit(db, log, {
+            openid, role: 'user', category: 'auth', action: 'phone_login',
+            target_type: 'user_account', target_id: real._id || '',
+            detail: { path: 'phone_rebind' }, result: 'ok', client_ip: clientIp, device
+          });
           return { ok: true, data: { user: safeUserDoc(real) } };
         }
         // 3. 既无 openid 正式账号也无手机号正式账号: 一键登录语义 → 自动注册
@@ -742,6 +784,11 @@ exports.main = async (event, context) => {
         await logCredit(openid, 'init', 0, 800, 'phone one-click auto register');
         const filledR = await col('user_account').doc(newId).get();
         log.d(`phone_login auto-register user: ${openid}`);
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'auth', action: 'phone_login',
+          target_type: 'user_account', target_id: newId || '',
+          detail: { is_new: true, path: 'auto_register' }, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { user: safeUserDoc(filledR.data), is_new: true } };
       } catch (e) {
         log.d(`phone_login db error: ${e.message}`);
@@ -782,6 +829,12 @@ exports.main = async (event, context) => {
             await logCredit(openid, 'init', 0, 800, 'phone register init credit');
             const updated = Object.assign({}, u, { nickname: '微信用户', roles: ['user'], user_credit_score: 800, partner_credit_score: 800, register_source: 'phone', phone, status: 'normal' });
             log.d(`phone register filled pending shell: ${openid}`);
+            await writeAudit(db, log, {
+              openid, role: 'user', category: 'auth', action: 'phone_register',
+              target_type: 'user_account', target_id: u._id || '',
+              detail: { is_new: true, register_source: 'phone', path: 'fill_pending' },
+              result: 'ok', client_ip: clientIp, device
+            });
             return { ok: true, data: { user: safeUserDoc(updated), is_new: true } };
           }
           // 已有正常账号
@@ -802,6 +855,11 @@ exports.main = async (event, context) => {
         await logCredit(openid, 'init', 0, 800, 'phone register init credit');
         newUser._id = addRes._id;
         log.d(`phone register new user: ${openid}`);
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'auth', action: 'phone_register',
+          target_type: 'user_account', target_id: addRes._id || '',
+          detail: { is_new: true, register_source: 'phone' }, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { user: safeUserDoc(newUser), is_new: true } };
       } catch (e) {
         log.d(`phone_register db error: ${e.message}`);
@@ -834,6 +892,11 @@ exports.main = async (event, context) => {
         await col('user_account').doc(myR.data[0]._id).update({ data: {
           login_account, password_hash: hash, password_salt: salt, updated_at: Date.now()
         }});
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'security', action: 'password_register',
+          target_type: 'user_account', target_id: myR.data[0]._id || '',
+          detail: { login_account }, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { msg: '注册成功' } };
       } catch (e) {
         log.d(`password_register error: ${e.message}`);
@@ -876,6 +939,11 @@ exports.main = async (event, context) => {
           await col('user_account').doc(u._id).update({ data: { openid, updated_at: Date.now() }});
           u.openid = openid;
         }
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'auth', action: 'password_login',
+          target_type: 'user_account', target_id: u._id || '',
+          detail: { login_account: u.login_account || '' }, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { user: safeUserDoc(u) } };
       } catch (e) {
         log.d(`password_login error: ${e.message}`);
