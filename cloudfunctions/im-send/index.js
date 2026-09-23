@@ -12,6 +12,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 const CHAT_BLOCKED = ['S6', 'S10'];
@@ -190,6 +191,8 @@ exports.main = async (event, context) => {
   const { resolveOpenid } = require('./openid');
   const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'im_no_openid', msg: '未获取到登录身份' };
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
 
   const { action } = event;
   log.d(`im-send action=${action} openid=${openid}`);
@@ -229,6 +232,12 @@ exports.main = async (event, context) => {
     try {
       const msg = await appendMessage(conv, order, role, openid, 'template', tpl.text, tpl.id);
       log.d(`im template sent: order=${order.order_no} ${tpl.id} by=${role}`);
+      await writeAudit(db, log, {
+        openid, role, category: 'business', action: 'im_send_template',
+        target_type: 'im_message', target_id: msg.msg_id || '',
+        detail: { conv_id: msg.conv_id, template_id: tpl.id, msg_id: msg.msg_id },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { msg, free_chat: FREE_CHAT_STATUS.indexOf(order.status) >= 0 } };
     } catch (e) {
       log.d(`send_template fail: ${e.message}`);
@@ -263,6 +272,12 @@ exports.main = async (event, context) => {
         retryAfter = Math.max(1, Math.ceil((oldestR.data[0].created_at + windowMin * 60000 - Date.now()) / 1000));
       }
       log.d(`im rate limited: order=${order.order_no} by=${role} cnt=${cntR.total}/${maxCount} retry=${retryAfter}s`);
+      await writeAudit(db, log, {
+        openid, role, category: 'security', action: 'im_send_blocked',
+        target_type: 'im_message', target_id: '',
+        detail: { conv_id: conv._id, retry_after: retryAfter },
+        result: 'fail', code: 'im_rate_limited', client_ip: clientIp, device
+      });
       return {
         ok: false, code: 'im_rate_limited',
         msg: `发送过于频繁,每 ${windowMin} 分钟最多发送 ${maxCount} 条消息`,
@@ -296,6 +311,12 @@ exports.main = async (event, context) => {
     try {
       const msg = await appendMessage(conv, order, role, openid, 'text', text, '');
       log.d(`im text sent: order=${order.order_no} by=${role} len=${text.length} degraded=${!!chk.degraded}`);
+      await writeAudit(db, log, {
+        openid, role, category: 'business', action: 'im_send_text',
+        target_type: 'im_message', target_id: msg.msg_id || '',
+        detail: { conv_id: msg.conv_id, msg_id: msg.msg_id, text_len: text.length, free_chat: true },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { msg, free_chat: true } };
     } catch (e) {
       log.d(`send_text fail: ${e.message}`);

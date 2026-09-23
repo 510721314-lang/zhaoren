@@ -12,6 +12,7 @@ const _ = db.command;
 const $ = db.command.aggregate;  // 聚合操作符(balance_info 历史上漏定义导致 ReferenceError,已修复)
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
@@ -111,6 +112,9 @@ exports.main = async (event, context) => {
   const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
 
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
   const { action } = event;
   const env = getCachedEnv();
   log.d(`payment-mock action=${action} openid=${openid} env=${env}`);
@@ -122,6 +126,7 @@ exports.main = async (event, context) => {
   const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'withdraw', 'fast_withdraw'];
   if (false && env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
     log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
+    await writeAudit(db, log, { openid, role: 'user', category: 'security', action: 'mock_pay_blocked', target_type: 'order', target_id: event.order_id || '', detail: { order_id: event.order_id || '', action }, result: 'fail', code: 'pay_mock_disabled', client_ip: clientIp, device });
     return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
   }
 
@@ -190,6 +195,7 @@ exports.main = async (event, context) => {
         }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
           log.d(`mock_pay idempotent hit: ${order.order_no}`);
+          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_pay', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, total_fen: order.total_fen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
           return { ok: true, data: { order_id, order_no: order.order_no, status: order.status, idempotent: true } };
         }
       } catch (e) {}
@@ -226,6 +232,7 @@ exports.main = async (event, context) => {
         if (dup.data && dup.data[0]) {
           const latest = await getOrder(order_id);
           log.d(`mock_pay idempotent after cas miss: ${order.order_no}`);
+          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_pay', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, total_fen: order.total_fen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S2', idempotent: true } };
         }
         const latest = await getOrder(order_id);
@@ -275,6 +282,7 @@ exports.main = async (event, context) => {
           created_at: now, read: false
         }})
       ]);
+      await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_pay', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, pay_no: payNo, total_fen: order.total_fen }, result: 'ok', client_ip: clientIp, device });
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, pay_no: payNo, status: 'S2', is_mock: true }
@@ -303,6 +311,7 @@ exports.main = async (event, context) => {
         if (exist.data && exist.data.length > 0) {
           const latest = await getOrder(order_id);
           log.d(`mock_refund idempotent hit: ${order.order_no}`);
+          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, amount_fen: order.total_fen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
         }
       } catch (e) {}
@@ -327,6 +336,7 @@ exports.main = async (event, context) => {
         }).limit(1).get().catch(() => ({ data: [] }));
         if (dup.data && dup.data[0]) {
           const latest = await getOrder(order_id);
+          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, amount_fen: order.total_fen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
         }
         return { ok: false, code: 'refund_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -377,6 +387,7 @@ exports.main = async (event, context) => {
           created_at: now, read: false
         }})
       ]);
+      await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, refund_no: refundNo, amount_fen: order.total_fen }, result: 'ok', client_ip: clientIp, device });
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }
@@ -427,6 +438,7 @@ exports.main = async (event, context) => {
         const tipTotal = after ? (after.tip_total_fen || 0) : amount;
 
         log.d(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
+        await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_tip', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, tip_no: tipNo, amount_fen: amount }, result: 'ok', client_ip: clientIp, device });
         return {
           ok: true,
           data: { order_id, order_no: order.order_no, tip_no: tipNo, amount_fen: amount, tip_total_fen: tipTotal, is_mock: true }
@@ -447,6 +459,7 @@ exports.main = async (event, context) => {
       const exist = await col('insurance_record').where({ order_id }).limit(1).get().catch(() => ({ data: [] }));
       if (exist.data && exist.data.length > 0) {
         const p = exist.data[0];
+        await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_insurance', target_type: 'insurance_record', target_id: order_id, detail: { order_id, policy_no: p.policy_no, status: p.status, idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { policy_no: p.policy_no, status: p.status, is_mock: true, idempotent: true } };
       }
       // 生成保单号 INS + 时间戳 + 6 位随机
@@ -469,6 +482,7 @@ exports.main = async (event, context) => {
             created_at: now, updated_at: now, is_deleted: false
           }
         });
+        await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_insurance', target_type: 'insurance_record', target_id: order_id, detail: { order_id, policy_no: policyNo, status: 'active', premium_fen: 0 }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { policy_no: policyNo, status: 'active', is_mock: true } };
       } catch (e) {
         log.d(`mock_ins fail: ${e.message}`);
@@ -656,6 +670,7 @@ exports.main = async (event, context) => {
       try {
         await addWithColl('withdraw_record', record);
         log.d(`${action} success: openid=${openid} no=${wdNo} amount=${amount}`);
+        await writeAudit(db, log, { openid, role: 'partner', category: 'business', action: isFast ? 'mock_fast_withdraw' : 'mock_withdraw', target_type: 'withdraw_record', target_id: wdNo, detail: { withdraw_no: wdNo, amount_fen: amount, type: record.type, status: record.status }, result: 'ok', client_ip: clientIp, device });
         return {
           ok: true,
           data: {

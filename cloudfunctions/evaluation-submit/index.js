@@ -8,6 +8,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我'];
 
@@ -79,6 +80,8 @@ exports.main = async (event, context) => {
   // 用户提交评价:S5 → S8
   if (action === 'submit') {
     const { order_id, star, content } = event;
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     if (!order_id) return { ok: false, code: 'ev_no_order', msg: '缺少订单 ID' };
     if (!isValidDocId(order_id)) return { ok: false, code: 'ev_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)' };
     if (!Number.isInteger(star) || star < 1 || star > 5) return { ok: false, code: 'ev_star_invalid', msg: '评分需在 1-5 之间' };
@@ -90,6 +93,12 @@ exports.main = async (event, context) => {
       // 已评价/系统默认评价等非 S5 状态: 有评价记录则幂等返回, 便于前端重试/弱网重发
       const dup0 = await col('evaluation').where({ order_id, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
       if (dup0.data && dup0.data[0]) {
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'evaluation_submit',
+          target_type: 'evaluation', target_id: dup0.data[0]._id || '',
+          detail: { order_id, star: dup0.data[0].star, status: order.status, idempotent: true },
+          result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { order_id, status: order.status, star: dup0.data[0].star, idempotent: true, is_system: !!dup0.data[0].is_system } };
       }
       if (order.status === 'S9') return { ok: false, code: 'ev_auto_evaluated', msg: '已超过评价时限,系统已默认评价' };
@@ -99,6 +108,12 @@ exports.main = async (event, context) => {
     // 幂等快查: 已有评价记录直接返回(防弱网重发/重复提交)
     const existR = await col('evaluation').where({ order_id, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
     if (existR.data && existR.data[0]) {
+      await writeAudit(db, log, {
+        openid, role: 'user', category: 'business', action: 'evaluation_submit',
+        target_type: 'evaluation', target_id: existR.data[0]._id || '',
+        detail: { order_id, star: existR.data[0].star, idempotent: true },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { order_id, status: order.status, star: existR.data[0].star, idempotent: true, is_system: !!existR.data[0].is_system } };
     }
 
@@ -127,6 +142,12 @@ exports.main = async (event, context) => {
         col('evaluation').where({ order_id, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }))
       ]);
       if (dup.data && dup.data[0]) {
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'evaluation_submit',
+          target_type: 'evaluation', target_id: dup.data[0]._id || '',
+          detail: { order_id, star: dup.data[0].star, idempotent: true },
+          result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { order_id, status: latest ? latest.status : 'S8', star: dup.data[0].star, idempotent: true, is_system: !!dup.data[0].is_system } };
       }
       if (latest && latest.status === 'S9') return { ok: false, code: 'ev_auto_evaluated', msg: '已超过评价时限,系统已默认评价' };
@@ -194,6 +215,12 @@ exports.main = async (event, context) => {
       action_key: 'jump_order', action_payload: { order_id },
       created_at: now, read: false
     }}).catch(e => log.d('[notice] evaluated fail:', e.message));
+    await writeAudit(db, log, {
+      openid, role: 'user', category: 'business', action: 'evaluation_submit',
+      target_type: 'evaluation', target_id: '',
+      detail: { order_id, star, content_len: content ? content.length : 0, credit_delta: delta },
+      result: 'ok', client_ip: clientIp, device
+    });
     return { ok: true, data: { order_id, status: 'S8', star, credit_delta: delta } };
   }
 

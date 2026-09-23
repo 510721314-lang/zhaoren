@@ -7,6 +7,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
@@ -150,6 +151,9 @@ exports.main = async (event, context) => {
   const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'pa_no_openid', msg: '未获取到登录身份' };
 
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
   const { action } = event;
   log.d(`partner-action action=${action} openid=${openid}`);
 
@@ -200,6 +204,7 @@ exports.main = async (event, context) => {
       const finalApproved = wasApproved || autoApprove;
       const finalStatus = finalApproved ? 'approved' : 'pending_review';
 
+      let profileId = '';
       if (existing.data.length) {
         for (const p of existing.data) {
           // 重走申请=重新开通: 补全所有守卫依赖字段(status/is_deleted/accept_switch)
@@ -213,6 +218,7 @@ exports.main = async (event, context) => {
           if (p.credit_score === undefined) patch.credit_score = 800;
           if (defaultExam && !p.exam_scores) patch.exam_scores = defaultExam;
           if (homeLocation) patch.home_location = homeLocation;
+          profileId = p._id;
           await ppCol.doc(p._id).update({ data: patch });
         }
       } else {
@@ -231,7 +237,8 @@ exports.main = async (event, context) => {
         };
         if (defaultExam) doc.exam_scores = defaultExam;
         if (homeLocation) doc.home_location = homeLocation;
-        await ppCol.add({ data: doc });
+        const addRes = await ppCol.add({ data: doc });
+        profileId = (addRes && addRes._id) || '';
       }
 
       // 仅最终审核通过才授予 partner role; 待审核不污染身份分流
@@ -242,6 +249,12 @@ exports.main = async (event, context) => {
       }
 
       log.d(`partner apply: ${openid} scenes=${scenes} docs=${existing.data.length} status=${finalStatus}`);
+      await writeAudit(db, log, {
+        openid, role: 'partner', category: 'account', action: 'partner_apply',
+        target_type: 'partner_profile', target_id: profileId,
+        detail: { profile_id: profileId, scenes_count: scenes.length, status: finalStatus },
+        result: 'ok', client_ip: clientIp, device
+      });
       return {
         ok: true,
         data: {
@@ -272,6 +285,12 @@ exports.main = async (event, context) => {
         accept_switch: newSwitch, updated_at: Date.now()
       }});
       log.d(`partner switch -> ${newSwitch}: ${openid}`);
+      await writeAudit(db, log, {
+        openid, role: 'partner', category: 'business', action: 'partner_switch',
+        target_type: 'partner_profile', target_id: profile._id,
+        detail: { accept_switch: newSwitch },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { accept_switch: newSwitch } };
     }
 
@@ -402,7 +421,14 @@ exports.main = async (event, context) => {
 
       await col('partner_profile').doc(profile._id).update({ data: update });
       log.d(`partner config updated: ${openid}`);
-      return { ok: true, data: { updated: Object.keys(update).filter(k => k !== 'updated_at') } };
+      const updated = Object.keys(update).filter(k => k !== 'updated_at');
+      await writeAudit(db, log, {
+        openid, role: 'partner', category: 'business', action: 'partner_config_update',
+        target_type: 'partner_profile', target_id: profile._id,
+        detail: { updated },
+        result: 'ok', client_ip: clientIp, device
+      });
+      return { ok: true, data: { updated } };
     }
 
     // 3. 我的耍伴资料与接单统计
@@ -492,6 +518,12 @@ exports.main = async (event, context) => {
         } catch (e) { log.d(`review grant role fail: ${e.message}`); }
       }
       log.d(`partner reviewed: ${target_openid} -> ${newStatus}`);
+      await writeAudit(db, log, {
+        openid, role: 'partner', category: 'business', action: 'partner_review',
+        target_type: 'partner_profile', target_id: profile._id,
+        detail: { target_openid, status: newStatus, pass: !!pass },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { target_openid, status: newStatus } };
     }
 

@@ -9,6 +9,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 const PAGE_SIZE = 15;
 const MAX_IMAGES = 9;
@@ -123,6 +124,8 @@ exports.main = async (event, context) => {
   const openid = await resolveOpenid(cloud, event);
   const action = event.action;
   const now = Date.now();
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
 
   try {
     await ensureCollections();
@@ -236,6 +239,12 @@ exports.main = async (event, context) => {
           like_count: 0, comment_count: 0, view_count: 0,
           status: 'normal', created_at: now, updated_at: now, is_deleted: false
         }});
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'blog_publish',
+          target_type: 'blog_post', target_id: addRes._id || '',
+          detail: { post_id: addRes._id || '', topic_count: tags.length, has_images: images.length > 0 },
+          result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { _id: addRes._id, msg: '发布成功' } };
       }
 
@@ -247,6 +256,11 @@ exports.main = async (event, context) => {
         if (!doc) return { ok: false, code: 'post_gone', msg: '动态不存在' };
         if (doc.author_openid !== openid) return { ok: false, code: 'forbidden', msg: '只能删除自己的动态' };
         await col('blog_post').doc(post_id).update({ data: { status: 'deleted', is_deleted: true, updated_at: now } });
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'blog_delete',
+          target_type: 'blog_post', target_id: post_id,
+          detail: {}, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { msg: '已删除' } };
       }
 
@@ -256,6 +270,11 @@ exports.main = async (event, context) => {
         if (!isValidDocId(post_id)) return { ok: false, code: 'bad_post_id', msg: '动态不存在' };
         const exist = await col('blog_like').where({ post_id, openid }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
+          await writeAudit(db, log, {
+            openid, role: 'user', category: 'business', action: 'blog_like',
+            target_type: 'blog_post', target_id: post_id,
+            detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device
+          });
           return { ok: true, data: { liked: true, msg: '已点赞' } };
         }
         const post = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
@@ -264,6 +283,11 @@ exports.main = async (event, context) => {
         }
         await col('blog_like').add({ data: { post_id, openid, created_at: now } });
         await col('blog_post').doc(post_id).update({ data: { like_count: _.inc(1) } });
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'blog_like',
+          target_type: 'blog_post', target_id: post_id,
+          detail: {}, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { liked: true, like_count: (post.like_count || 0) + 1 } };
       }
 
@@ -276,6 +300,11 @@ exports.main = async (event, context) => {
           await col('blog_like').doc(exist.data[0]._id).remove();
           await col('blog_post').doc(post_id).update({ data: { like_count: _.inc(-1) } }).catch(() => {});
         }
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'blog_unlike',
+          target_type: 'blog_post', target_id: post_id,
+          detail: {}, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { liked: false } };
       }
 
@@ -324,6 +353,11 @@ exports.main = async (event, context) => {
           content, status: 'normal', created_at: now, is_deleted: false
         }});
         await col('blog_post').doc(post_id).update({ data: { comment_count: _.inc(1) } }).catch(() => {});
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'blog_comment_add',
+          target_type: 'blog_comment', target_id: addRes._id || '',
+          detail: { post_id }, result: 'ok', client_ip: clientIp, device
+        });
         return {
           ok: true,
           data: {
@@ -344,6 +378,11 @@ exports.main = async (event, context) => {
         if (doc.author_openid !== openid) return { ok: false, code: 'forbidden', msg: '只能删除自己的评论' };
         await col('blog_comment').doc(comment_id).update({ data: { status: 'deleted', is_deleted: true } });
         await col('blog_post').doc(doc.post_id).update({ data: { comment_count: _.inc(-1) } }).catch(() => {});
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'blog_comment_delete',
+          target_type: 'blog_comment', target_id: comment_id,
+          detail: {}, result: 'ok', client_ip: clientIp, device
+        });
         return { ok: true, data: { msg: '已删除' } };
       }
 

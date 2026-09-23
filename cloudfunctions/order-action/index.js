@@ -14,6 +14,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 
@@ -341,6 +342,8 @@ exports.main = async (event, context) => {
     if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
 
     const okKey = role + '_ok';   // user_ok / partner_ok
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     // 幂等:本方已确认该项,直接返回当前状态
     if (conf.items[item][okKey]) {
       let cnt = 0;
@@ -348,6 +351,7 @@ exports.main = async (event, context) => {
         if (conf.items[f].user_ok) cnt++;
         if (conf.items[f].partner_ok) cnt++;
       }
+      await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_item', target_type: 'order', target_id: order_id, detail: { item, role, idempotent: true }, result: 'ok', client_ip: clientIp, device });
       return { ok: true, data: { item, idempotent: true, confirmed_count: cnt, total_count: 8, all_confirmed: allConfirmed(conf.items), status: order.status } };
     }
 
@@ -396,6 +400,7 @@ exports.main = async (event, context) => {
       }
     }
 
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_item', target_type: 'order', target_id: order_id, detail: { item, role, confirmed_count: cnt, status: newStatus }, result: 'ok', client_ip: clientIp, device });
     return {
       ok: true,
       data: {
@@ -420,6 +425,8 @@ exports.main = async (event, context) => {
     if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
 
     const okKey = role + '_ok';
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
 
     // 原子置本方 4 位(点路径, 一次更新) + version+1
     const now = Date.now();
@@ -457,6 +464,7 @@ exports.main = async (event, context) => {
         }
       }
     }
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_all', target_type: 'order', target_id: order_id, detail: { role, confirmed_count: cnt, status: newStatus }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { role, confirmed_count: cnt, total_count: 8, all_confirmed: done, status: newStatus } };
   }
 
@@ -479,6 +487,8 @@ exports.main = async (event, context) => {
 
     const now = Date.now();
     const fromStatus = order.status;
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     // CAS: 仅 S1/S0 → S6, 与定时器/并发取消/支付互斥
     const won = await casStatus(order_id, ['S1', 'S0'], {
       status: 'S6', cancel_at: now, updated_at: now
@@ -486,6 +496,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S6') {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_cancel', target_type: 'order', target_id: order_id, detail: { from_status: fromStatus, idempotent: true, demand_released: false }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S6', demand_released: false, idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -513,6 +524,7 @@ exports.main = async (event, context) => {
       body: `${role === 'user' ? '发单人' : '耍伴'}取消了订单, 请查看详情`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_cancel', target_type: 'order', target_id: order_id, detail: { from_status: fromStatus, status: 'S6', demand_released: demandReleased, cancel_reason_type: String(reason || '').slice(0, 30) }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S6', demand_released: demandReleased } };
   }
 
@@ -528,6 +540,8 @@ exports.main = async (event, context) => {
     if (order.status !== 'S2') return { ok: false, code: 'oa_start_status', msg: `订单当前状态(${order.status})不可开始履约` };
 
     const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     // CAS S2→S3, 防重复开始
     const won = await casStatus(order_id, 'S2', {
       status: 'S3', service_started_at: now, updated_at: now,
@@ -536,6 +550,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S3') {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_service', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S3', service_started_at: latest.service_started_at || now, idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -547,6 +562,7 @@ exports.main = async (event, context) => {
       title: '耍伴已开始履约', body: `${order.partner_nickname || '耍伴'} 已到达服务地点, 履约开始`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_service', target_type: 'order', target_id: order_id, detail: { status: 'S3' }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
   }
 
@@ -568,6 +584,8 @@ exports.main = async (event, context) => {
     }
 
     const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     // CAS S3→S5, 防重复完成
     const won = await casStatus(order_id, 'S3', {
       status: 'S5', service_completed_at: now, updated_at: now
@@ -575,6 +593,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S5') {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complete_service', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S5', service_completed_at: latest.service_completed_at || now, idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -586,6 +605,7 @@ exports.main = async (event, context) => {
       title: '履约已完成', body: '耍伴已完成全部履约, 请对服务进行评价',
       action_key: 'jump_evaluate', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complete_service', target_type: 'order', target_id: order_id, detail: { status: 'S5', total_fen: Number(order.total_fen) || 0 }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
   }
 
@@ -630,12 +650,15 @@ exports.main = async (event, context) => {
     if (!casRes.stats || casRes.stats.updated !== 1) {
       return { ok: false, code: 'oa_ms_conflict', msg: '进度状态已变化,请刷新后重试' };
     }
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     log.d(`milestone ${next}/3 submitted: ${order.order_no}`);
     writeNotice({
       to_openid: order.user_openid, order_id, type: 'milestone',
       title: `履约进度 ${MS_LABEL[next]}`, body: `耍伴提交了履约进度 ${MS_LABEL[next]}, 可在订单详情查看`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_milestone_submit', target_type: 'order', target_id: order_id, detail: { milestone: next, label: MS_LABEL[next] }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, milestone: next, label: MS_LABEL[next] } };
   }
 
@@ -663,7 +686,10 @@ exports.main = async (event, context) => {
     if (!casRes.stats || casRes.stats.updated !== 1) {
       return { ok: false, code: 'oa_ms_already_confirmed', msg: '该进度已确认,无需重复操作' };
     }
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     log.d(`milestone ${milestone} confirmed by user: ${order.order_no}`);
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_milestone_confirm', target_type: 'order', target_id: order_id, detail: { milestone, confirmed: true }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, milestone, confirmed: true } };
   }
 
@@ -730,6 +756,8 @@ exports.main = async (event, context) => {
 
     const now = Date.now();
     const fromStatus = order.status;
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     const won = await casStatus(order_id, ['S2', 'S3'], {
       status: 'S2_5',
       pending_modify: {
@@ -747,6 +775,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S2_5' && latest.pending_modify && latest.pending_modify.by_openid === openid) {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_modify_apply', target_type: 'order', target_id: order_id, detail: { status: 'S2_5', idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S2_5', idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -759,6 +788,7 @@ exports.main = async (event, context) => {
       title: `${role === 'user' ? '发单人' : '耍伴'}发起改期`, body: `请在 ${modifyConfig.confirmHours} 小时内确认或拒绝`,
       action_key: 'jump_accept_modify', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_modify_apply', target_type: 'order', target_id: order_id, detail: { status: 'S2_5', new_start_time: newTs }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S2_5', new_start_time: newTs } };
   }
 
@@ -771,9 +801,12 @@ exports.main = async (event, context) => {
     const role = roleOf(order, openid);
     if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
 
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     // 幂等: pending_modify 已消失且订单回到 S2/S3 → 按结果返回成功
     if (order.status === 'S2' || order.status === 'S3') {
       if (!order.pending_modify) {
+        await writeAudit(db, log, { openid, role, category: action === 'modify_confirm' ? 'consent' : 'business', action: action === 'modify_confirm' ? 'order_modify_confirm' : 'order_modify_reject', target_type: 'order', target_id: order_id, detail: { status: order.status, idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: order.status, idempotent: true } };
       }
     }
@@ -803,6 +836,7 @@ exports.main = async (event, context) => {
         title: '改期已被拒绝', body: `${role === 'user' ? '发单人' : '耍伴'}拒绝了你的改期申请`,
         action_key: 'jump_order', action_payload: { order_id }
       });
+      await writeAudit(db, log, { openid, role, category: 'business', action: 'order_modify_reject', target_type: 'order', target_id: order_id, detail: { status: toStatus, modify_rejected: true }, result: 'ok', client_ip: clientIp, device });
       return { ok: true, data: { order_id, status: toStatus, modify_rejected: true } };
     }
 
@@ -833,6 +867,7 @@ exports.main = async (event, context) => {
       title: '改期已确认', body: `新时间已生效, 订单状态回到${toStatus === 'S3' ? '履约中' : '待履约'}`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_modify_confirm', target_type: 'order', target_id: order_id, detail: { status: toStatus, start_time: pending.new_start_time }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: toStatus, start_time: pending.new_start_time, modify_confirmed: true } };
   }
 
@@ -868,6 +903,8 @@ exports.main = async (event, context) => {
     const config = await getConfig();
     const now = Date.now();
     const confirmHours = (config.modify_config && config.modify_config.confirmHours) || 24;
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
 
     const won = await casStatus(order_id, 'S3', {
       pending_extend: {
@@ -885,6 +922,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.pending_extend && latest.pending_extend.by_openid === openid) {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_extend_apply', target_type: 'order', target_id: order_id, detail: { idempotent: true, add_amount_fen: addAmountFen }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, add_amount_fen: addAmountFen, idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -898,6 +936,7 @@ exports.main = async (event, context) => {
       body: `加时金额 ¥${(addAmountFen / 100).toFixed(2)}, 请在 ${confirmHours} 小时内确认或拒绝`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_extend_apply', target_type: 'order', target_id: order_id, detail: { add_hours: addHours, add_amount_fen: addAmountFen }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, add_hours: addHours, add_amount_fen: addAmountFen } };
   }
 
@@ -917,6 +956,8 @@ exports.main = async (event, context) => {
     if (pending.by_openid === openid) {
       return { ok: false, code: 'oa_extend_self', msg: '只能由对方确认或拒绝加时' };
     }
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
 
     if (action === 'extend_reject') {
       const won = await casStatus(order_id, 'S3', {
@@ -933,6 +974,7 @@ exports.main = async (event, context) => {
         body: `${role === 'user' ? '发单人' : '耍伴'}拒绝了你的加时申请`,
         action_key: 'jump_order', action_payload: { order_id }
       });
+      await writeAudit(db, log, { openid, role, category: 'business', action: 'order_extend_reject', target_type: 'order', target_id: order_id, detail: { extend_rejected: true }, result: 'ok', client_ip: clientIp, device });
       return { ok: true, data: { order_id, extend_rejected: true } };
     }
 
@@ -964,6 +1006,7 @@ exports.main = async (event, context) => {
       body: `服务时长延长至 ${newDurationH} 小时, 加时金额 ¥${(addFen / 100).toFixed(2)} 已合并进结算`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_extend_confirm', target_type: 'order', target_id: order_id, detail: { duration_h: newDurationH, total_fen: newTotalFen, add_amount_fen: addFen }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, duration_h: newDurationH, total_fen: newTotalFen, add_amount_fen: addFen } };
   }
 
@@ -980,12 +1023,15 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_resume_status', msg: `订单当前状态(${order.status})不可恢复履约` };
     }
     const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     const won = await casStatus(order_id, 'S3.5', {
       status: 'S3', resumed_at: now, resumed_by: openid, updated_at: now
     });
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S3') {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_resume_service', target_type: 'order', target_id: order_id, detail: { status: 'S3', idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S3', idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -998,6 +1044,7 @@ exports.main = async (event, context) => {
       title: '履约已恢复', body: `${role === 'user' ? '发单人' : '耍伴'}恢复了履约, 可继续服务`,
       action_key: 'jump_order', action_payload: { order_id }
     });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_resume_service', target_type: 'order', target_id: order_id, detail: { status: 'S3' }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S3' } };
   }
 
@@ -1013,12 +1060,15 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_partial_status', msg: `订单当前状态(${order.status})不可转部分完成` };
     }
     const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     const won = await casStatus(order_id, 'S3.5', {
       status: 'S4', partial_confirmed_at: now, partial_confirmed_by: openid, updated_at: now
     });
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S4') {
+        await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_partial_confirm', target_type: 'order', target_id: order_id, detail: { status: 'S4', idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S4', idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -1036,6 +1086,7 @@ exports.main = async (event, context) => {
       action_payload: { order_id }
     });
     log.d(`order partial confirm: ${order.order_no} S3.5→S4`);
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_partial_confirm', target_type: 'order', target_id: order_id, detail: { status: 'S4' }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S4' } };
   }
 
@@ -1060,6 +1111,8 @@ exports.main = async (event, context) => {
       ratioFen = r;
     }
     const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     const won = await casStatus(order_id, 'S4', {
       status: 'S5',
       ratio_confirmed_at: now,
@@ -1070,6 +1123,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S5') {
+        await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_ratio_confirm', target_type: 'order', target_id: order_id, detail: { status: 'S5', ratio_fen: latest.ratio_fen || ratioFen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S5', ratio_fen: latest.ratio_fen || ratioFen, idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -1087,6 +1141,7 @@ exports.main = async (event, context) => {
       action_payload: { order_id }
     });
     log.d(`order ratio confirm: ${order.order_no} S4→S5 ratio=${ratioFen}%`);
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_ratio_confirm', target_type: 'order', target_id: order_id, detail: { status: 'S5', ratio_fen: ratioFen }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S5', ratio_fen: ratioFen } };
   }
 
@@ -1103,6 +1158,8 @@ exports.main = async (event, context) => {
     }
     const now = Date.now();
     const fromStatus = order.status;
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
     const won = await casStatus(order_id, ['S5', 'S8', 'S9'], {
       status: 'S10.5',
       help_flag: true,
@@ -1114,6 +1171,7 @@ exports.main = async (event, context) => {
     if (!won) {
       const latest = await getOrder(order_id);
       if (latest && latest.status === 'S10.5') {
+        await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complaint_open', target_type: 'order', target_id: order_id, detail: { status: 'S10.5', idempotent: true }, result: 'ok', client_ip: clientIp, device });
         return { ok: true, data: { order_id, status: 'S10.5', idempotent: true } };
       }
       return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -1135,6 +1193,7 @@ exports.main = async (event, context) => {
     }
 
     log.d(`complaint filed: ${order.order_no} ${fromStatus}→S10.5 by=${role}`);
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complaint_open', target_type: 'order', target_id: order_id, detail: { from_status: fromStatus, status: 'S10.5', reason_type: String(reason || '').slice(0, 20) }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S10.5' } };
   }
 

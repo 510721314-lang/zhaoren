@@ -15,6 +15,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { writeAudit } = require('./audit');
 
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
 const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
@@ -95,6 +96,10 @@ exports.main = async (event, context) => {
   const openid = await resolveOpenid(cloud, event);
   if (!openid) return { ok: false, code: 'sr_no_openid', msg: '未获取到登录身份' };
 
+  // 审计留痕公共字段
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
   const { action } = event;
   log.d(`safety-report action=${action} openid=${openid}`);
 
@@ -123,6 +128,13 @@ exports.main = async (event, context) => {
     const exist = await getActiveSos(order_id);
     if (exist) {
       const contacts = await getMyContacts(openid);
+      await writeAudit(db, log, {
+        openid, role, category: 'security',
+        action: action === 'silent_sos' ? 'silent_sos_report' : 'sos_report',
+        target_type: 'safety_report', target_id: exist._id,
+        detail: { order_id, sub_type: action === 'silent_sos' ? 'silent' : '', idempotent: true },
+        result: 'ok', client_ip: clientIp, device
+      });
       return {
         ok: true,
         data: {
@@ -173,6 +185,13 @@ exports.main = async (event, context) => {
     }
 
     const contacts = await getMyContacts(openid);
+    await writeAudit(db, log, {
+      openid, role, category: 'security',
+      action: action === 'silent_sos' ? 'silent_sos_report' : 'sos_report',
+      target_type: 'safety_report', target_id: reportId,
+      detail: { order_id, sub_type: subType, idempotent: false },
+      result: 'ok', client_ip: clientIp, device
+    });
     return {
       ok: true,
       data: {
@@ -206,6 +225,12 @@ exports.main = async (event, context) => {
         order_id, order_no: order.order_no, role, sos_report_id: active._id
       });
       log.d(`silent SOS cancelled: order=${order.order_no} by=${role}`);
+      await writeAudit(db, log, {
+        openid, role, category: 'security', action: 'sos_cancel_silent',
+        target_type: 'safety_report', target_id: active._id,
+        detail: { order_id, report_id: active._id },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { order_id, help_flag: false } };
     } catch (e) {
       log.d(`cancel_silent_sos fail: ${e.message}`);
@@ -233,6 +258,12 @@ exports.main = async (event, context) => {
         sos_reporter: active.reporter_openid
       });
       log.d(`SOS resolved by admin: order=${order.order_no}`);
+      await writeAudit(db, log, {
+        openid, role, category: 'security', action: 'sos_resolve',
+        target_type: 'safety_report', target_id: active._id,
+        detail: { order_id, report_id: active._id },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { order_id, help_flag: false, resolved_by: 'admin' } };
     } catch (e) {
       log.d(`resolve_sos fail: ${e.message}`);
@@ -262,6 +293,12 @@ exports.main = async (event, context) => {
         sos_reporter: active.reporter_openid
       });
       log.d(`SOS resolved: order=${order.order_no} by=${role}`);
+      await writeAudit(db, log, {
+        openid, role, category: 'security', action: 'safety_resolve',
+        target_type: 'safety_report', target_id: active._id,
+        detail: { order_id, report_id: active._id },
+        result: 'ok', client_ip: clientIp, device
+      });
       return { ok: true, data: { order_id, help_flag: false } };
     } catch (e) {
       log.d(`resolve fail: ${e.message}`);
@@ -303,6 +340,12 @@ exports.main = async (event, context) => {
         updated_at: now,
         is_deleted: false
       }});
+      await writeAudit(db, log, {
+        openid, role, category: 'security', action: 'safety_checkin',
+        target_type: 'safety_report', target_id: r._id,
+        detail: { order_id, report_id: r._id, type: 'checkin' },
+        result: 'ok', client_ip: clientIp, device
+      });
       return {
         ok: true,
         data: {
