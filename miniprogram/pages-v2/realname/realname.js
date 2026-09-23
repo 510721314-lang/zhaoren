@@ -7,7 +7,11 @@ const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 
 function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
+  // 审计留痕: 实名链路关键动作携带设备摘要
+  let device = '';
+  try { const s = wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
+  const sendData = Object.assign({}, data, { device });
+  return wx.cloud.callFunction({ name, data: sendData }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }

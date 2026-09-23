@@ -78,11 +78,19 @@ function _locate(demand, opts) {
   });
 }
 
+// 审计留痕: 统一注入设备摘要(仅接单关键动作, 走本文件 callFunction 的调用携带)
+function _deviceInfo() {
+  try {
+    const s = wx.getSystemInfoSync();
+    return `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200);
+  } catch (e) { return ''; }
+}
+
 function _signThenCreate(demand, loc, opts) {
   wx.showLoading({ title: '接单中...', mask: true });
   wx.cloud.callFunction({
     name: 'order-create',
-    data: { action: 'sign_disclaimer', scene: demand.scene_code }
+    data: Object.assign({ action: 'sign_disclaimer', scene: demand.scene_code }, { device: _deviceInfo() })
   }).then((res) => {
     const r = res.result || {};
     if (!r.ok) {
@@ -92,11 +100,11 @@ function _signThenCreate(demand, loc, opts) {
     }
     return wx.cloud.callFunction({
       name: 'order-create',
-      data: {
+      data: Object.assign({
         action: 'create_from_take',
         demand_id: demand._id,
         partner_location: loc
-      }
+      }, { device: _deviceInfo() })
     }).then((res2) => {
       wx.hideLoading();
       const r2 = res2.result || {};

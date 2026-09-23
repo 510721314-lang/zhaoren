@@ -90,9 +90,12 @@ function flatten(obj, prefix) {
 
 function bootstrap() {
   if (!wx.cloud) return Promise.resolve(false);
+  // 审计留痕: 登录链路关键调用携带设备摘要
+  let device = '';
+  try { const s = wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
   return wx.cloud.callFunction({
     name: 'admin-action',
-    data: { action: 'config_public' }  // 免鉴权公开配置入口(普通用户可调); config_get 需管理员白名单,普通用户必失败
+    data: Object.assign({ action: 'config_public' }, { device })  // 免鉴权公开配置入口(普通用户可调); config_get 需管理员白名单,普通用户必失败
   }).then((r) => {
     const cloudConfig = r.result && r.result.data;
     if (!cloudConfig) return false;
@@ -162,7 +165,9 @@ function isRealnameGateCode(code) {
 // 从服务端刷新登录态并持久化(本地缓存陈旧时自愈); best-effort, 失败静默
 function syncLoginUser() {
   try {
-    return wx.cloud.callFunction({ name: 'user-login', data: { action: 'peek_login' } })
+    let device = '';
+    try { const s = wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
+    return wx.cloud.callFunction({ name: 'user-login', data: Object.assign({ action: 'peek_login' }, { device }) })
       .then((res) => {
         const r = (res && res.result) || {};
         if (r.ok && r.data && r.data.found && r.data.user) {

@@ -54,6 +54,14 @@ App({
     return this.globalData.cloudReady.then(() => {
       return new Promise((resolve) => {
         let attempt = 0;
+        // 统一注入设备摘要(审计留痕用; 覆盖走本封装的所有云函数调用)
+        // 避免污染调用方 data 对象: 构造副本
+        let sendData = data;
+        try {
+          const sys = wx.getSystemInfoSync();
+          const device = `${sys.brand || ''} ${sys.model || ''}|${sys.system || ''}|${sys.platform || ''}`.trim().slice(0, 200);
+          sendData = Object.assign({}, data, { device });
+        } catch (e) { /* 取不到设备信息则不带 device */ }
         const doCall = () => {
           attempt++;
           const timer = setTimeout(() => {
@@ -66,7 +74,7 @@ App({
           }, timeout);
 
           wx.cloud.callFunction({
-            name, data,
+            name, data: sendData,
             success: (res) => {
               clearTimeout(timer);
               resolve(res.result || { ok: false, code: 'cloud_empty' });
