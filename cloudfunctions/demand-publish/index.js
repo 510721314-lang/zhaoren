@@ -596,11 +596,12 @@ exports.main = async (event, context) => {
         const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
         const description = remarkParts[1] ? remarkParts[1].trim() : '';
 
-        // 时间格式化
-        const dt = new Date(d.start_time);
+        // 时间格式化(固定按东八区输出: 云函数运行时区为 UTC, 直接 getHours 会少 8 小时)
+        const CN_OFF = 8 * 3600 * 1000;
+        const dt = new Date(d.start_time + CN_OFF);
         const pad = (n) => n < 10 ? '0' + n : '' + n;
-        const service_date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-        const service_time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+        const service_date = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+        const service_time = `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
 
         // 发布于 X 分钟前
         const minutes_ago = Math.max(1, Math.floor((Date.now() - (d.created_at || Date.now())) / 60000));
@@ -930,6 +931,15 @@ exports.main = async (event, context) => {
         log.d(`demand updated: ${d.demand_no}`);
         return { ok: true, data: { _id: demand_id, updated_at: now } };
       } catch (e) {
+        // 记录数据库原始错误(此前被吞, 无法定位)
+        try {
+          await col('platform_event').add({ data: {
+            level: 'P3', type: 'debug_update_fail', openid,
+            payload: { demand_id, message: String((e && e.message) || e), errCode: (e && e.errCode) || '' },
+            created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+          }});
+        } catch (_) {}
+        log.d(`update db fail: ${(e && e.message) || e}`);
         return { ok: false, code: 'update_db_fail', msg: '需求更新失败' };
       }
     }

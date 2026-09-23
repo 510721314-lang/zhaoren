@@ -968,6 +968,9 @@ Page({
       aa_promise_checked: true,
       disclaimer_signed: this.data.disclaimerChecked,
       match_mode: f.match_mode,
+      // 人数/性别偏好此前漏发, 导致编辑"人数"等修改不生效
+      headcount: f.headcount || 1,
+      gender_pref: f.gender_pref || '不限',
       target_openid: this.invitePartnerOpenid || '',
       draft_id: this.__draftId || ''
     };
