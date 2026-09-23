@@ -747,9 +747,12 @@ exports.main = async (event, context) => {
       if (!demand_id) return { ok: false, code: 'update_no_id', msg: '缺少需求 ID' };
       if (!isValidDocId(demand_id)) return { ok: false, code: 'update_bad_id', msg: '需求 ID 格式不正确' };
 
+      // d 需在整个 update case 可见(后续 mode 兜底 + 成功日志均引用);
+      // 此前 const 声明在 try 块内, 块外引用抛 ReferenceError: d is not defined, 被误判为 DB 失败
+      let d;
       try {
         const r = await col('demand').doc(demand_id).get();
-        const d = r.data;
+        d = r.data;
         if (!d || d.is_deleted) return { ok: false, code: 'update_not_found', msg: '需求不存在' };
         if (d.creator_openid !== openid) return { ok: false, code: 'update_not_owner', msg: '无权编辑此需求' };
         if (d.status !== 'matching') return { ok: false, code: 'update_bad_status', msg: `当前状态(${d.status})不可编辑` };
