@@ -84,6 +84,7 @@ async function getConfig() {
 }
 
 // 平台事件(P0 紧急 / P1 安全/越权 / P2 运营 / P3 业务异常)
+// Phase2-A5 管理端操作镜像: P2(运营写操作) 除 platform_event 外同步写 audit_log(role=admin), 供审计证据链留痕
 async function logEvent(level, type, openid, payload) {
   const now = Date.now();
   try {
@@ -93,6 +94,27 @@ async function logEvent(level, type, openid, payload) {
     }});
   } catch (e) {
     log.d(`platform_event write fail: ${e.message}`);
+  }
+  if (level === 'P2') {
+    try {
+      const { writeAudit } = require('./audit');
+      const pl = payload || {};
+      // 镜像审计: 管理写操作留痕(不含敏感明文; 展示用 detail 为 payload 摘要)
+      const detail = {};
+      Object.keys(pl).forEach((k) => {
+        const v = pl[k];
+        if (v === undefined || v === null) return;
+        detail[k] = (typeof v === 'object') ? JSON.stringify(v) : v;
+      });
+      await writeAudit(db, log, {
+        openid: openid || '', role: 'admin', category: 'business',
+        action: 'admin_' + type,
+        target_type: 'platform_event', target_id: '',
+        detail, result: 'ok', client_ip: '', device: 'admin-web', at: now
+      });
+    } catch (e) {
+      log.d(`audit mirror fail: ${(e && e.message) || e}`);
+    }
   }
 }
 
