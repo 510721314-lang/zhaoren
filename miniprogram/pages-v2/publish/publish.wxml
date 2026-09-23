@@ -222,5 +222,18 @@
     </view>
   </bottom-sheet>
 
+  <!-- W9 授权书手写签字窗口(点「本人签字确认」弹出; 签字图上传云存储, 发布时服务端复算 SHA-256 留证) -->
+  <bottom-sheet visible="{{petSignSheetVisible}}" title="本人签字确认" has-footer="{{true}}" bind:close="onPetSignCancel">
+    <view class="pub__petsign-body" wx:if="{{petSignSheetVisible}}">
+      <view class="pub__petsign-tip">请在下方手写你的姓名；签字后《宠物照料授权书》即时生效，并作为授权凭证留存</view>
+      <signature-canvas id="pet-sign" tip="请在此处手写你的姓名"></signature-canvas>
+      <view class="pub__petsign-clear" bindtap="onPetSignClear">清除重签</view>
+    </view>
+    <view slot="footer" class="pub__pet-sheet-foot">
+      <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onPetSignCancel">取消</view>
+      <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onPetSignConfirm">{{petSignSubmitting ? '提交中…' : '完成签署'}}</view>
+    </view>
+  </bottom-sheet>
+
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

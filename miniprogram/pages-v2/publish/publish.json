@@ -4,6 +4,7 @@
     "nav-bar": "/components/nav-bar/index",
     "bottom-sheet": "/components/bottom-sheet/index",
     "tag-chip": "/components/tag-chip/index",
-    "night-mask": "/components/night-mask/index"
+    "night-mask": "/components/night-mask/index",
+    "signature-canvas": "/components/signature-canvas/index"
   }
 }

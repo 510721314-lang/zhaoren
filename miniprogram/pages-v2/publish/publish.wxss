@@ -520,3 +520,21 @@
 }
 .pub__sign-btn--cancel { background: #F2F3F5; color: #606266; }
 .pub__sign-btn--ok { background: #22B573; color: #fff; font-weight: 600; }
+
+/* W9 授权书手写签字窗口 */
+.pub__petsign-body {
+  padding: 8rpx 0 0;
+}
+.pub__petsign-tip {
+  font-size: 25rpx;
+  color: #86909C;
+  line-height: 1.7;
+  margin-bottom: 16rpx;
+}
+.pub__petsign-clear {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #22B573;
+  padding: 8rpx 0;
+}

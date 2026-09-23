@@ -107,7 +107,31 @@ function buildCheckboxEvidence(o) {
   };
   if (o.demandId) data.demand_id = o.demandId;
   if (o.orderId) data.order_id = o.orderId;
+  // 手写签字型(覆盖 signature_hash/agree_type): 用于 W9 授权书本人手写签字留证
+  if (o.signature) {
+    data.signature_file_id = o.signature.fileId;
+    data.signature_hash = o.signature.hash;
+    data.signature_size = o.signature.size;
+    data.verify_method = 'handwritten';
+    data.agree_type = 'handwritten';
+  }
   return data;
+}
+
+// W9 手写签字图取证: 服务端下载 → PNG 魔数 + 体积校验 → SHA-256(证明入库时刻文件内容, 与实名留证同口径)
+async function verifySignatureFile(fileId) {
+  if (!fileId || !/^cloud:\/\//.test(String(fileId))) return { ok: false, code: 'missing' };
+  try {
+    const dl = await cloud.downloadFile({ fileID: String(fileId) });
+    const buf = dl && dl.fileContent;
+    const size = buf ? buf.length : 0;
+    if (!buf || !size || size > 2 * 1024 * 1024) return { ok: false, code: 'bad_size' };
+    if (!(buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47)) return { ok: false, code: 'not_png' };
+    return { ok: true, fileId: String(fileId), hash: crypto.createHash('sha256').update(buf).digest('hex'), size };
+  } catch (e) {
+    log.d(`pet signature verify fail: ${(e && e.message) || e}`);
+    return { ok: false, code: 'download_fail' };
+  }
 }
 const REMARK_MAX_LEN = 200;
 
@@ -230,7 +254,7 @@ exports.main = async (event, context) => {
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
-        match_mode, disclaimer_signed, target_openid, pet_auth_checked
+        match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id
       } = event;
 
       // ── 基础校验 ──
@@ -283,8 +307,16 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'publish_disclaimer', msg: '请先阅读并勾选《场景免责声明》' };
       }
       // W9 宠物照料授权(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权不得履约)
-      if (scene === 'W9' && !pet_auth_checked) {
-        return { ok: false, code: 'publish_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
+      // 凭证 = 授权书全文 + 本人手写签字图(服务端下载复算 SHA-256); 缺签字图视为未完成授权
+      let petSignature = null;
+      if (scene === 'W9') {
+        if (!pet_auth_checked) {
+          return { ok: false, code: 'publish_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
+        }
+        petSignature = await verifySignatureFile(pet_auth_signature_file_id);
+        if (!petSignature.ok) {
+          return { ok: false, code: 'publish_pet_auth_sign_required', msg: '请完成《宠物照料授权书》手写签字后重试' };
+        }
       }
 
       // 并行拉取 配置/用户/紧急联系人(减少串行往返, 冷启动也能压进超时)
@@ -546,6 +578,7 @@ exports.main = async (event, context) => {
               openid, role: 'user', scene, disclaimerType: 'pet_authorization',
               config, demandId: addRes._id, signedAt: now,
               kind: 'pet_authorization',
+              signature: petSignature,
               doc: {
                 key: 'pet_authorization', title: '宠物照料授权书',
                 text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
@@ -870,7 +903,7 @@ exports.main = async (event, context) => {
     case 'update': {
       const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
-        match_mode, target_openid, gender_pref, headcount, pet_auth_checked } = event;
+        match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id } = event;
 
       if (!demand_id) return { ok: false, code: 'update_no_id', msg: '缺少需求 ID' };
       if (!isValidDocId(demand_id)) return { ok: false, code: 'update_bad_id', msg: '需求 ID 格式不正确' };
@@ -941,6 +974,14 @@ exports.main = async (event, context) => {
       // W9 宠物照料授权(与 publish 同口径: 无凭证视为未授权)
       if (scene === 'W9' && !pet_auth_checked) {
         return { ok: false, code: 'update_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
+      }
+      // 首次补留证(该需求此前无凭证)时才要求手写签字图; 已签过的需求沿用原留证不重复签
+      let petSignature = null;
+      if (scene === 'W9' && pet_auth_checked && d.pet_auth_signed !== true) {
+        petSignature = await verifySignatureFile(pet_auth_signature_file_id);
+        if (!petSignature.ok) {
+          return { ok: false, code: 'update_pet_auth_sign_required', msg: '请完成《宠物照料授权书》手写签字后重试' };
+        }
       }
 
       // ── 定向邀约改 direct 时需校验 target_openid ──
@@ -1099,6 +1140,7 @@ exports.main = async (event, context) => {
               openid, role: 'user', scene, disclaimerType: 'pet_authorization',
               config, demandId: demand_id, signedAt: now,
               kind: 'pet_authorization',
+              signature: petSignature,
               doc: {
                 key: 'pet_authorization', title: '宠物照料授权书',
                 text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)

@@ -105,6 +105,9 @@ Page({
     petAuthSheetVisible: false,     // 授权书电子文件弹窗
     petAuthSheetFromCheck: false,   // 由勾选动作进入(取消时回到未签署初始态)
     petAuthText: '',
+    petSignSheetVisible: false,     // 手写签字窗口(点「本人签字确认」弹出)
+    petSignSubmitting: false,
+    petAuthSignFileId: '',          // 签名图 cloud fileID(发布时上报服务端复算 SHA-256 留证)
     // B3.1 服务内容选择窗(免责声明通过后自动弹出)
     optionSheetVisible: false,
     optionList: [],  // [{ name, checked }] 当前场景的服务项 + 勾选态
@@ -488,10 +491,58 @@ Page({
     if (this.data.petAuthSheetFromCheck) patch.petAuthChecked = false;
     this.setData(patch);
   },
-  // 本人签字确认 → 返回发布界面并保持已签
+  // 「本人签字确认」→ 弹出手写签字窗口(签字完成才生效)
   onPetAuthSign() {
-    this.setData({ petAuthSheetVisible: false, petAuthChecked: true, petAuthSheetFromCheck: false });
-    wx.showToast({ title: '已签字确认', icon: 'success' });
+    this.setData({ petAuthSheetVisible: false, petSignSheetVisible: true, petSignSubmitting: false });
+  },
+  // 签字窗口取消: 由勾选进入 → 回到未签署初始态(返回发布界面); 由「已签署·点击查看」进入 → 保持已签
+  onPetSignCancel() {
+    const patch = { petSignSheetVisible: false, petSignSubmitting: false };
+    if (this.data.petAuthSheetFromCheck) patch.petAuthChecked = false;
+    this.setData(patch);
+  },
+  onPetSignClear() {
+    const sig = this.selectComponent('#pet-sign');
+    if (sig) sig.clear();
+  },
+  // 完成签署: 导出签名图 → 上传云存储 → 返回发布界面并置已签(签名图随发布上报服务端复算 SHA-256 留证)
+  onPetSignConfirm() {
+    if (this.data.petSignSubmitting) return;
+    const sig = this.selectComponent('#pet-sign');
+    if (!sig) return;
+    this.setData({ petSignSubmitting: true });
+    const prevFileId = this.data.petAuthSignFileId;
+    sig.exportPNG().then((tempPath) => {
+      const rand = Math.random().toString(36).slice(2, 8);
+      const cloudPath = 'sign_evidence/pet_auth_' + Date.now() + '_' + rand + '.png';
+      wx.cloud.uploadFile({
+        cloudPath,
+        filePath: tempPath,
+        success: (up) => {
+          // 换签时清掉上一张签名图, 避免孤儿文件
+          if (prevFileId && prevFileId !== up.fileID) {
+            try { wx.cloud.deleteFile({ fileList: [prevFileId] }); } catch (e) {}
+          }
+          this.setData({
+            petSignSheetVisible: false, petSignSubmitting: false,
+            petAuthChecked: true, petAuthSheetFromCheck: false,
+            petAuthSignFileId: up.fileID
+          });
+          wx.showToast({ title: '已签字确认', icon: 'success' });
+        },
+        fail: () => {
+          this.setData({ petSignSubmitting: false });
+          wx.showToast({ title: '签名上传失败,请重试', icon: 'none' });
+        }
+      });
+    }).catch((e) => {
+      this.setData({ petSignSubmitting: false });
+      if (e && e.message === 'empty_signature') {
+        wx.showToast({ title: '请先手写签名', icon: 'none' });
+        return;
+      }
+      wx.showToast({ title: '签字失败,请重试', icon: 'none' });
+    });
   },
 
   setScene(e) {
@@ -1014,8 +1065,9 @@ Page({
       // 人数/性别偏好此前漏发, 导致编辑"人数"等修改不生效
       headcount: f.headcount || 1,
       gender_pref: f.gender_pref || '不限',
-      // W9 宠物照料授权电子确认(服务端 W9 场景强制校验)
+      // W9 宠物照料授权电子确认(服务端 W9 场景强制校验; 签字图随需求上报留证)
       pet_auth_checked: this.data.petAuthChecked,
+      pet_auth_signature_file_id: this.data.petAuthSignFileId || '',
       target_openid: this.invitePartnerOpenid || '',
       draft_id: this.__draftId || ''
     };
