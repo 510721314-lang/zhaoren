@@ -290,6 +290,8 @@ exports.main = async (event, context) => {
       const _rmx = Number(config.rate_max_fen);
       const rateMin = Number.isFinite(_rmn) ? _rmn : 3000;
       const rateMax = Number.isFinite(_rmx) ? _rmx : 10000;
+      // 场景时薪硬上限(分/小时): 仅防溢出与脏数据, 不构成业务边界 —— 场景时薪由耍伴前端自主设定(产品拍板 2026-09-23)
+      const RATE_FEN_HARD_MAX = 9999900; // = 99999 元/时
 
       // 日常位置更新: 显式 null 清除, 传对象则校验后覆盖
       if (event.home_location !== undefined) {
@@ -340,12 +342,13 @@ exports.main = async (event, context) => {
           }
         }
         // 为每个选中场景确定时薪: 传入值合法则用, 否则回退原值, 再否则平台默认
+        // (场景时薪自主设定: 仅要求正整数分, 不按平台 rateMin/rateMax 卡边界)
         const mergedRates = {};
         for (const s of newScenes) {
           let r = rateKeys.indexOf(s) >= 0 ? Number(event.scene_rates[s]) : NaN;
-          if (!r || r < rateMin || r > rateMax) {
+          if (!r || !Number.isInteger(r) || r < 100 || r > RATE_FEN_HARD_MAX) {
             const old = Number(oldRates[s]);
-            r = (old && old >= rateMin && old <= rateMax) ? old : sceneDefaultRate;
+            r = (old && Number.isInteger(old) && old >= 100 && old <= RATE_FEN_HARD_MAX) ? old : sceneDefaultRate;
           }
           mergedRates[s] = r;
         }
@@ -355,7 +358,7 @@ exports.main = async (event, context) => {
         const mergedRates = {};
         for (const s of newScenes) {
           const old = Number(oldRates[s]);
-          mergedRates[s] = (old && old >= rateMin && old <= rateMax) ? old : sceneDefaultRate;
+          mergedRates[s] = (old && Number.isInteger(old) && old >= 100 && old <= RATE_FEN_HARD_MAX) ? old : sceneDefaultRate;
         }
         update.scene_rates = mergedRates;
       }

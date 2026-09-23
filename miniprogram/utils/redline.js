@@ -1,5 +1,6 @@
 // utils/redline.js · V15.1 全局合规红线校验
 // R1 夜间时间红线 / R9 场景白名单 / R5 年龄校验 / 金额校验（含18-22岁200元上限）
+// 产品拍板 2026-09-23: 夜间仅拦 00:00-06:00（close_min=1440=24:00, open_min=360=06:00）
 // 供所有页面/组件调用，禁止在业务代码内重复实现规则
 
 const CONFIG = require('../config/index.js');
@@ -12,18 +13,18 @@ const OPEN_STR = CONFIG.TIME_REDLINE.open;     // '06:00'
 const PICKER_CLOSE = CLOSE_STR === '24:00' ? '23:59' : CLOSE_STR;
 const DISPLAY_CLOSE = CLOSE_STR === '24:00' ? '00:00' : CLOSE_STR;
 
-// R1：当前（或指定时间）是否处于 23:00-06:00 夜间红线
-// close=23:00 open=06:00；命中时段内暂停预约与履约
+// R1：当前（或指定时间）是否处于夜间红线（00:00-06:00 拦截）
+// close=00:00(24:00) open=06:00；命中时段内暂停预约与履约
 function isInRedline(date) {
   const d = date || new Date();
   const hhmm = d.getHours() * 60 + d.getMinutes();
-  const closeMin = toMinutes(CONFIG.TIME_REDLINE.close); // 1380
+  const closeMin = toMinutes(CONFIG.TIME_REDLINE.close); // 1440(=24:00, 仅拦 00:00-06:00)
   const openMin = toMinutes(CONFIG.TIME_REDLINE.open);   // 360
   if (closeMin === 0) return false;  // 截止=00:00 表示全天开放(午夜不关闭), 永不命中红线
   return hhmm >= closeMin || hhmm < openMin;
 }
 
-// R1：校验服务时间（HH:mm）是否落在可服务区间 06:00-23:00
+// R1：校验服务时间（HH:mm）是否落在可服务区间 06:00-24:00（夜间红线仅拦 00:00-06:00）
 function isServiceTimeAllowed(timeStr) {
   if (!timeStr || typeof timeStr !== 'string') return false;
   const m = /^(\d{1,2}):(\d{2})/.exec(timeStr.trim());

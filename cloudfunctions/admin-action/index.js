@@ -1133,12 +1133,13 @@ exports.main = async (event, context) => {
       block_words: config.block_words || [],
       city_enabled: config.city_enabled || [],
       timeouts: {
-        s0_timeout_min: config.s0_timeout_min || 30,
-        s1_timeout_min: config.s1_timeout_min || 15,
-        interrupt_timeout_h: config.interrupt_timeout_h || 24,
-        eval_window_h: config.eval_window_h || 48,
-        default_star: config.default_star || 4,
-        milestone_confirm_min: config.milestone_confirm_min || 15
+        // 显式 undefined 判断兜底: 值为 0 时不得被 || 改写成默认值(config_get 掩码修复 2026-09-23)
+        s0_timeout_min: config.s0_timeout_min !== undefined ? config.s0_timeout_min : 30,
+        s1_timeout_min: config.s1_timeout_min !== undefined ? config.s1_timeout_min : 15,
+        interrupt_timeout_h: config.interrupt_timeout_h !== undefined ? config.interrupt_timeout_h : 24,
+        eval_window_h: config.eval_window_h !== undefined ? config.eval_window_h : 48,
+        default_star: config.default_star !== undefined ? config.default_star : 4,
+        milestone_confirm_min: config.milestone_confirm_min !== undefined ? config.milestone_confirm_min : 15
       },
       time_redline: {
         // 禁止用 || 兜底: close=0 合法(全天开放), open=0 合法(00:00), || 会错误改写
@@ -1146,17 +1147,17 @@ exports.main = async (event, context) => {
         open_min: config.time_redline_open_min !== undefined ? config.time_redline_open_min : 360
       },
       limits: {
-        publish_distance_max_km: config.publish_distance_max_km || 50,
-        take_distance_max_km: config.take_distance_max_km || 50,
-        youth_limit_fen: config.youth_limit_fen || 20000
+        publish_distance_max_km: config.publish_distance_max_km !== undefined ? config.publish_distance_max_km : 50,
+        take_distance_max_km: config.take_distance_max_km !== undefined ? config.take_distance_max_km : 50,
+        youth_limit_fen: config.youth_limit_fen !== undefined ? config.youth_limit_fen : 20000
       },
       insurance: {
-        coverage_accident_fen: config.insurance_coverage_accident_fen || 50000000,
-        coverage_property_fen: config.insurance_coverage_property_fen || 5000000
+        coverage_accident_fen: config.insurance_coverage_accident_fen !== undefined ? config.insurance_coverage_accident_fen : 50000000,
+        coverage_property_fen: config.insurance_coverage_property_fen !== undefined ? config.insurance_coverage_property_fen : 5000000
       },
       fast_withdraw: {
-        per_order_max_fen: config.fast_withdraw_per_order_max_fen || 20000,
-        per_day_max_fen: config.fast_withdraw_per_day_max_fen || 200000
+        per_order_max_fen: config.fast_withdraw_per_order_max_fen !== undefined ? config.fast_withdraw_per_order_max_fen : 20000,
+        per_day_max_fen: config.fast_withdraw_per_day_max_fen !== undefined ? config.fast_withdraw_per_day_max_fen : 200000
       },
       security: {
         security_only_template_before_confirm: config.security_only_template_before_confirm !== false
@@ -1167,14 +1168,14 @@ exports.main = async (event, context) => {
       ),
       idcard_aes_key_set: !!(config.idcard_aes_key && /^[0-9a-f]{64}$/i.test(config.idcard_aes_key)),
       credits: {
-        min_credit_take_order: config.min_credit_take_order || 600,
-        min_credit_place_order: config.min_credit_place_order || 600,
-        credit_freeze_line: config.credit_freeze_line || 400
+        min_credit_take_order: config.min_credit_take_order !== undefined ? config.min_credit_take_order : 600,
+        min_credit_place_order: config.min_credit_place_order !== undefined ? config.min_credit_place_order : 600,
+        credit_freeze_line: config.credit_freeze_line !== undefined ? config.credit_freeze_line : 400
       },
       rate_range: {
-        rate_min_fen: config.rate_min_fen || 3000,
-        rate_max_fen: config.rate_max_fen || 10000,
-        scene_default_rate_fen: config.scene_default_rate_fen || 5000
+        rate_min_fen: config.rate_min_fen !== undefined ? config.rate_min_fen : 3000,
+        rate_max_fen: config.rate_max_fen !== undefined ? config.rate_max_fen : 10000,
+        scene_default_rate_fen: config.scene_default_rate_fen !== undefined ? config.scene_default_rate_fen : 5000
       },
       scene_list: config.scene_list || [],
       system_templates: config.system_templates || [],

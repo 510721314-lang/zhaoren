@@ -171,10 +171,11 @@ Page({
       // 同步到全局, 组件 getScene 动态兜底(存完整场景对象)
       try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs; } catch (e) {}
 
-      // 为已选场景补默认时薪: 缺失或越界(历史脏数据)统一回落到平台默认时薪
+      // 为已选场景补默认时薪: 缺失/非法(历史脏数据)统一回落到平台默认时薪
+      // (场景时薪由耍伴前端自主设定, 不设平台区间边界; 仅要求正整数分)
       for (const s of scenes) {
         const v = Number(sceneRates[s]);
-        if (!v || v < PA.rateMinFen || v > PA.rateMaxFen) sceneRates[s] = PA.defaultSceneRateFen; // 默认时薪来自 CONFIG, SSOT 可覆盖
+        if (!v || !Number.isInteger(v) || v < 100) sceneRates[s] = PA.defaultSceneRateFen; // 默认时薪来自 CONFIG, SSOT 可覆盖
       }
       // 输入框展示值(元/小时): 由 sceneRates(分) 派生
       const sceneRateYuan = {};
@@ -272,9 +273,9 @@ Page({
     else {
       scenes.push(code);
       selected = true;
-      // 新勾选场景若无有效时薪, 预填平台默认时薪(用户可在输入框修改)
+      // 新勾选场景若无有效时薪, 预填平台默认时薪(用户可在输入框修改; 场景时薪自主设定, 不设平台边界)
       const cur = Number(this.data.sceneRates[code]);
-      if (!cur || cur < PA.rateMinFen || cur > PA.rateMaxFen) {
+      if (!cur || !Number.isInteger(cur) || cur < 100) {
         patch.sceneRates = Object.assign({}, this.data.sceneRates, { [code]: PA.defaultSceneRateFen });
         patch.sceneRateYuan = Object.assign({}, this.data.sceneRateYuan, { [code]: String(Math.round(PA.defaultSceneRateFen / 100)) });
       }
@@ -357,15 +358,14 @@ Page({
       return;
     }
 
-    // 校验每个选中场景的时薪(逐场景输入, 元/小时; 服务端会再校验一次)
+    // 校验每个选中场景的时薪(逐场景输入, 元/小时; 场景时薪自主设定, 仅要求 ≥1 元的正整数; 服务端会再校验一次)
+    // 注: 平台 rate_min_fen/rate_max_fen 仅约束"接单价格区间"(form.minPrice/maxPrice), 不约束场景时薪
     const rates = this.data.sceneRates;
-    const rateLoYuan = Math.round(PA.rateMinFen / 100);
-    const rateHiYuan = Math.round(PA.rateMaxFen / 100);
     for (const s of form.scenes) {
       const v = Number(rates[s]);
-      if (!v || v < PA.rateMinFen || v > PA.rateMaxFen) {
+      if (!v || !Number.isInteger(v) || v < 100) {
         const nm = ((this.data.certifiedScenes.find((c) => c.code === s) || {}).name) || s;
-        wx.showToast({ title: `${nm}时薪需在${rateLoYuan}-${rateHiYuan}元/小时之间`, icon: 'none' });
+        wx.showToast({ title: `${nm}时薪须为不低于 1 元的整数(元/小时)`, icon: 'none' });
         return;
       }
     }
