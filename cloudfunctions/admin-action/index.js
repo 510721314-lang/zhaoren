@@ -1543,9 +1543,17 @@ exports.main = async (event, context) => {
     } catch (e) {
       log.d(`audit_init createCollection: ${(e && e.message) || e}`);
     }
+    // 链查询索引(openid+at): SDK 不支持时降级跳过, 返回 note 说明(不影响写入, 链校验会体现)
+    let index = { created: false, note: '' };
+    try {
+      await col('audit_log').createIndex({ name: 'idx_openid_at', keys: { openid: 1, at: -1 } });
+      index = { created: true, note: '' };
+    } catch (e) {
+      index = { created: false, note: String((e && e.errMsg) || (e && e.message) || e).slice(0, 200) };
+    }
     const cnt = await col('audit_log').count().catch(() => ({ total: 0 }));
-    await logEvent('P2', 'audit_init', openid, { created, total: cnt.total || 0 });
-    return ok({ created, total: cnt.total || 0 });
+    await logEvent('P2', 'audit_init', openid, { created, index, total: cnt.total || 0 });
+    return ok({ created, index, total: cnt.total || 0 });
   }
 
   // 审计记录查询(openid/category/result/action/时间范围 过滤, 分页倒序)
