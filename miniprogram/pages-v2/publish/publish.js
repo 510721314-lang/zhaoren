@@ -232,11 +232,8 @@ Page({
             return;
           }
           const d = r.data;
-          // 服务内容回填(供选择窗预勾选; 需在 setScene 之前, 否则选择窗拿不到已选值)
-          this.setData({ 'form.content_options': Array.isArray(d.content_options) ? d.content_options : [] });
-          // 场景 + 标题 + 描述
-          this.setScene({ code: d.scene_code });
-          // 日期 + 时间 → duration_hours + service_date + service_time
+          // 编辑模式静默回填: 不走 setScene(会弹免责声明+清空服务项+弹选择窗), 
+          // 需求已发布过一次即已签署声明; 直接写 form 字段, 场景卡按 code 自动高亮, 服务项直接回填
           const dt = new Date(d.service_date + 'T' + (d.service_time || '00:00'));
           const pad = (n) => n < 10 ? '0' + n : '' + n;
           const h = dt.getHours(), m = dt.getMinutes();
@@ -244,6 +241,9 @@ Page({
           const durationPresets = [1, 2, 3, 4, 6, 8];
           const dur = durationPresets.includes(d.duration_hours) ? d.duration_hours : d.duration_hours;
           this.setData({
+            'form.scene_code': d.scene_code || '',
+            'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
+            'form.project_attr': d.project_attr || 'commercial',
             'form.title': d.title || '',
             'form.description': d.description || '',
             'form.service_date': d.service_date,
@@ -261,6 +261,8 @@ Page({
             'form.longitude': (d.location && d.location.longitude) || 0,
             titleCount: (d.title || '').length,
             descCount: (d.description || '').length,
+            // 已发布需求视为已签署场景声明(编辑提交时不再重复弹)
+            disclaimerChecked: true,
             // 已发布需求不能改发布地址(只读留痕)
             publishLocation: d.publish_location ? {
               latitude: d.publish_location.latitude,

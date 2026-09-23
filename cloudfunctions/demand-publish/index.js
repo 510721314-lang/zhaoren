@@ -612,6 +612,7 @@ exports.main = async (event, context) => {
           project_attr: d.project_attr || 'commercial',
           title,
           description,
+          content_options: Array.isArray(d.content_options) ? d.content_options : (d.content_option ? [d.content_option] : []),
           service_date,
           service_time,
           duration_hours: d.duration_h,
