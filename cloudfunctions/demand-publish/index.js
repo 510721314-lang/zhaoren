@@ -258,6 +258,17 @@ exports.main = async (event, context) => {
       if (!user.is_realname_done) {
         return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证后再发布需求' };
       }
+
+      // ── 时薪需在平台区间内(与编辑口径一致; 0 为合法下限, 不用 || 兜底) ──
+      {
+        const _pLo = Number(config.rate_min_fen);
+        const _pHi = Number(config.rate_max_fen);
+        const pLo = Number.isFinite(_pLo) ? _pLo : 3000;
+        const pHi = Number.isFinite(_pHi) ? _pHi : 10000;
+        if (rate_fen < pLo || rate_fen > pHi) {
+          return { ok: false, code: 'publish_rate_range', msg: `时薪需在 ${pLo / 100}-${pHi / 100} 元/小时之间` };
+        }
+      }
       if (!hasEC) {
         // MVP bootstrap: 首次发布自动创建一个占位紧急联系人
         await col('emergency_contact').add({
@@ -311,10 +322,7 @@ exports.main = async (event, context) => {
         }
       }
 
-      // ── 金额校验(分单位 · rules.md 三.7) ──
-      if (rate_fen < (config.rate_min_fen || 3000) || rate_fen > (config.rate_max_fen || 10000)) {
-        return { ok: false, code: 'publish_rate_range', msg: '时薪不在允许区间(30-100 元/小时)' };
-      }
+      // ── 金额校验(分单位 · rules.md 三.7; 时薪区间已在上方统一校验) ──
       const total_fen = rate_fen * duration_h;
       if (typeof total_fen !== 'number' || total_fen <= 0) {
         return { ok: false, code: 'publish_total_invalid', msg: '总价计算异常' };
@@ -779,8 +787,13 @@ exports.main = async (event, context) => {
       if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
         return { ok: false, code: 'update_rate', msg: '时薪金额格式有误' };
       }
-      if (rate_fen < (config.rate_min_fen || 3000) || rate_fen > (config.rate_max_fen || 10000)) {
-        return { ok: false, code: 'update_rate_range', msg: '时薪不在允许区间(30-100 元/小时)' };
+      // 0 是合法下限(不用 || 兜底); 区间与提示文案均按后台实配生成
+      const _uLo = Number(config.rate_min_fen);
+      const _uHi = Number(config.rate_max_fen);
+      const uLo = Number.isFinite(_uLo) ? _uLo : 3000;
+      const uHi = Number.isFinite(_uHi) ? _uHi : 10000;
+      if (rate_fen < uLo || rate_fen > uHi) {
+        return { ok: false, code: 'update_rate_range', msg: `时薪需在 ${uLo / 100}-${uHi / 100} 元/小时之间` };
       }
 
       // ── 履约地点 ──

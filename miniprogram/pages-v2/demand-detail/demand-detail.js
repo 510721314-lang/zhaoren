@@ -120,7 +120,7 @@ Page({
     }
     wx.navigateTo({
       url: `/pages-v2/publish/publish?mode=edit&demand_id=${this.data.demand._id}`,
-      fail: () => wx.showToast({ title: '编辑功能暂不可用', icon: 'none' })
+      fail: () => wx.showToast({ title: '修改功能暂不可用', icon: 'none' })
     });
   },
 

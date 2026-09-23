@@ -55,7 +55,7 @@
   <!-- D4 底部操作栏 -->
   <view class="dd__bottom">
     <block wx:if="{{isOwner}}">
-      <button class="dd__btn dd__btn--ghost" bindtap="onEdit" hover-class="btn-press">编辑</button>
+      <button class="dd__btn dd__btn--ghost" bindtap="onEdit" hover-class="btn-press">修改需求</button>
       <button class="dd__btn dd__btn--danger" bindtap="onCancel" hover-class="btn-press">取消需求</button>
     </block>
     <block wx:else>

@@ -123,6 +123,9 @@ Page({
     invitePartnerName: '',
     // 发布中
     publishing: false,
+    // 编辑模式(修改需求): 标题与底部按钮随之切换
+    isEditMode: false,
+    navTitle: '发布需求',
     today: '',
     dateMax: '',
     isRedline: false,
@@ -215,7 +218,8 @@ Page({
     if (options.mode === 'edit' && options.demand_id) {
       this.__editMode = true;
       this.__editDemandId = options.demand_id;
-      wx.setNavigationBarTitle({ title: '编辑需求' });
+      wx.setNavigationBarTitle({ title: '修改需求' });
+      this.setData({ isEditMode: true, navTitle: '修改需求' });
       // 拉需求详情回填表单
       wx.cloud.callFunction({
         name: 'demand-publish',
@@ -816,8 +820,8 @@ Page({
     wx.showModal({
       title: 'AA费用确认',
       content: `当前预估：${est}元\nAA（可能产生的额外费用）由双方线下自行协商结算，平台不代收、不担保、不仲裁：\n1. AA指交通费、餐费、门票等第三方费用，不含服务费；\n2. 平台不参与定价与结算；\n3. 因AA产生的纠纷，平台不承担调解、仲裁、赔偿责任。`,
-      confirmText: '确认发布',
-      cancelText: '暂不发布',
+      confirmText: this.__editMode ? '确认修改' : '确认发布',
+      cancelText: this.__editMode ? '暂不修改' : '暂不发布',
       fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
       success: (res) => {
         if (!res.confirm) return;
@@ -1011,5 +1015,18 @@ Page({
       }
     });
   },
+  // 放弃修改(编辑模式): 二次确认后返回
+  onGiveUpEdit() {
+    wx.showModal({
+      title: '放弃修改',
+      content: '放弃本次修改？未保存的内容将丢失。',
+      confirmText: '放弃修改',
+      cancelText: '继续修改',
+      success: (res) => {
+        if (res.confirm) wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages-v2/square/square', fail: () => {} }) });
+      }
+    });
+  },
+
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });
