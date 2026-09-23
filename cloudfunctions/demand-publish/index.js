@@ -253,17 +253,10 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'publish_closed', msg: '账号已注销' };
       }
 
-      // ── 实名 + 紧急联系人（首次发布自动 bootstrap MVP 账号）──
-      // is_realname_simulated 是 user-login 为新用户标记的"模拟实名", MVP 阶段自动升级为真实实名
+      // ── 实名门禁(发布前必须完成实名; 测试期可在「实名认证」页模拟通过) ──
+      // 不再对 is_realname_simulated 自动放行: 必须由用户显式完成认证后才置 is_realname_done
       if (!user.is_realname_done) {
-        if (user.is_realname_simulated) {
-          await col('user_account').doc(user._id).update({
-            data: { is_realname_done: true, updated_at: Date.now() }
-          });
-          user.is_realname_done = true;
-        } else {
-          return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证' };
-        }
+        return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证后再发布需求' };
       }
       if (!hasEC) {
         // MVP bootstrap: 首次发布自动创建一个占位紧急联系人

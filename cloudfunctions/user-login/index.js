@@ -334,6 +334,22 @@ exports.main = async (event, context) => {
       }
     }
 
+    // 4.5 模拟实名认证(上线前测试期专用; 正式版走 bind_idcard 校验 + 照片OCR + 人脸核验)
+    case 'simulate_realname': {
+      const now = Date.now();
+      try {
+        await col('user_account').where({ openid }).update({ data: {
+          is_realname_done: true, is_realname_simulated: true,
+          realname_simulated_at: now, updated_at: now
+        }});
+      } catch (e) {
+        return { ok: false, code: 'realname_sim_fail', msg: '认证失败,请稍后重试' };
+      }
+      const r = await col('user_account').where({ openid }).limit(1).get();
+      const u = (r.data && r.data[0]) || null;
+      return { ok: true, data: { user: u ? safeUserDoc(u) : null } };
+    }
+
     // 5. 设置紧急联系人(1~2 名)
     case 'set_emergency_contact': {
       const { contacts } = event;

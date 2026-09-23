@@ -229,6 +229,12 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_frozen', msg: '账号已冻结,不可接单' };
   }
 
+  // ── 实名门禁(接单前必须完成实名; 测试期可在「实名认证」页模拟通过) ──
+  if (!partnerUser.is_realname_done) {
+    await logReject(openid, demand_id, 'partner_not_realname');
+    return { ok: false, code: 'order_realname_required', msg: '请先完成实名认证后再接单' };
+  }
+
   // ── 耍伴资料:审核通过 + 接单开关 ──
   if (!profile || profile.status !== 'approved') {
     await logReject(openid, demand_id, 'partner_not_approved');
