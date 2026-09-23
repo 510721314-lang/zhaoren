@@ -4,22 +4,81 @@
   <view class="rn__hero">
     <view class="rn__hero-ic">🪪</view>
     <view class="rn__hero-title">实名认证</view>
-    <view class="rn__hero-sub">完成实名后才能发布需求与接单</view>
+    <view class="rn__hero-sub">实名 + 电子签名后方可发布需求与接单</view>
   </view>
 
+  <!-- 已实名 -->
   <view class="rn__card rn__card--ok" wx:if="{{done}}">
-    <view class="rn__ok">✅ 已通过实名认证{{simulated ? '（测试期模拟）' : ''}}</view>
+    <view class="rn__ok">✅ 已通过实名认证</view>
+    <view class="rn__row" wx:if="{{doneInfo.methodText}}">
+      <text class="rn__label">核验方式</text><text class="rn__value">{{doneInfo.methodText}}</text>
+    </view>
+    <view class="rn__row" wx:if="{{doneInfo.signedAtText}}">
+      <text class="rn__label">认证时间</text><text class="rn__value">{{doneInfo.signedAtText}}</text>
+    </view>
+    <view class="rn__tip">身份证号已加密存储；手写签名与协议摘要已留存，用于纠纷取证。</view>
   </view>
 
   <block wx:else>
+    <!-- 第 1 步 · 实名信息 -->
     <view class="rn__card">
-      <view class="rn__row"><text class="rn__label">认证方式</text><text class="rn__value">身份证 + 人脸核验</text></view>
-      <view class="rn__row"><text class="rn__label">当前模式</text><text class="rn__value rn__value--warn">测试期 · 模拟认证</text></view>
+      <view class="rn__step">第 1 步 · 实名信息</view>
+      <view class="rn__field">
+        <text class="rn__field-label">真实姓名</text>
+        <input class="rn__input" value="{{form.real_name}}" bindinput="onNameInput" placeholder="请输入真实姓名" maxlength="20" placeholder-class="rn__ph" />
+      </view>
+      <view class="rn__field">
+        <text class="rn__field-label">身份证号</text>
+        <input class="rn__input" value="{{form.idcard}}" bindinput="onIdcardInput" placeholder="请输入18位身份证号" maxlength="18" type="idcard" placeholder-class="rn__ph" />
+      </view>
+      <view class="rn__note">身份证号经 AES-256 加密存储，仅用于实名核验与纠纷取证，不对外展示。</view>
     </view>
 
-    <view class="rn__tip">上线前测试期间为模拟认证：点击下方按钮即标记为已实名，不采集身份证与人脸信息；正式上线后将改为真实核验（身份证上传 + 人脸核验）。</view>
+    <!-- 第 2 步 · 人脸核验 -->
+    <view class="rn__card">
+      <view class="rn__step">第 2 步 · 人脸核验</view>
+      <view class="rn__row">
+        <text class="rn__label">核验方式</text>
+        <text class="rn__value">{{faceMode === 'mock' ? '测试期 · 模拟核验' : '微信官方人脸核验'}}</text>
+      </view>
+      <button class="rn__btn rn__btn--ghost" wx:if="{{!faceDone}}" bindtap="onFaceVerify">开始人脸核验{{faceMode === 'mock' ? '（测试期模拟）' : ''}}</button>
+      <view class="rn__ok rn__ok--inline" wx:else>✅ 人脸核验已通过</view>
+    </view>
 
-    <button class="rn__btn" bindtap="onSimulate" loading="{{submitting}}" hover-class="btn-press">模拟实名认证（测试期）</button>
+    <!-- 第 3 步 · 阅读并签署 -->
+    <view class="rn__card">
+      <view class="rn__step">第 3 步 · 阅读并签署</view>
+      <view class="rn__doc" bindtap="toggleAgreement">
+        <text class="rn__doc-name">《服务协议》</text>
+        <text class="rn__doc-op">{{showAgreement ? '收起' : '查看全文'}}</text>
+      </view>
+      <scroll-view class="rn__doc-body" wx:if="{{showAgreement}}" scroll-y>
+        <text>{{legal.serviceAgreement || '协议文本加载失败，请检查网络后重试'}}</text>
+      </scroll-view>
+      <view class="rn__doc" bindtap="togglePromise">
+        <text class="rn__doc-name">《费用自理承诺书》</text>
+        <text class="rn__doc-op">{{showPromise ? '收起' : '查看全文'}}</text>
+      </view>
+      <scroll-view class="rn__doc-body" wx:if="{{showPromise}}" scroll-y>
+        <text>{{legal.aaPromise || '文本加载失败，请检查网络后重试'}}</text>
+      </scroll-view>
+      <checkbox-group bindchange="onAgreeChange" class="rn__agree">
+        <label class="rn__agree-label">
+          <checkbox value="ok" checked="{{agreed}}" color="#22B573" />
+          <text>我已阅读并同意上述协议，知悉电子签名与手写签名具有同等法律效力</text>
+        </label>
+      </checkbox-group>
+    </view>
+
+    <!-- 第 4 步 · 手写签名 -->
+    <view class="rn__card">
+      <view class="rn__step">第 4 步 · 手写签名</view>
+      <signature-canvas id="sig" tip="请在此处手写你的姓名"></signature-canvas>
+      <view class="rn__clear" bindtap="onClearSign">清除重写</view>
+    </view>
+
+    <button class="rn__btn" bindtap="onSubmit" loading="{{submitting}}" hover-class="btn-press">提交实名认证</button>
+    <view class="rn__tip">提交后：身份证号加密存储；手写签名图与协议全文摘要一并留存，用于纠纷取证。</view>
   </block>
 
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>

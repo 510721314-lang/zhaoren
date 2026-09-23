@@ -58,7 +58,9 @@ const CONFIG_SCHEMA = [
   { f: 'switch_im', t: 'bool', g: '平台总开关', label: '私信沟通', def: true },
   // ── 私信频控(滑动窗口; im-send 服务端计数拦截) ──
   { f: 'im_rate_window_min', t: 'int', g: '私信频控', label: '频控统计窗口', unit: '分钟', min: 1, max: 60, def: 5 },
-  { f: 'im_rate_max_count', t: 'int', g: '私信频控', label: '窗口内最多消息', unit: '条', min: 1, max: 200, def: 30 }
+  { f: 'im_rate_max_count', t: 'int', g: '私信频控', label: '窗口内最多消息', unit: '条', min: 1, max: 200, def: 30 },
+  // ── 实名与签署(测试期 mock; 类目资质审批后切 wx 走微信官方人脸核验) ──
+  { f: 'realname_face_mode', t: 'enum', opts: ['mock', 'wx'], g: '实名与签署', label: '人脸核验模式', def: 'mock' }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -66,7 +68,9 @@ function resolveOperations(config) {
   const ops = { city_enabled: config.city_enabled || [] };
   CONFIG_SCHEMA.forEach((s) => {
     const raw = config[s.f];
-    ops[s.f] = raw === undefined ? s.def : (s.t === 'bool' ? !!raw : Number(raw));
+    if (s.t === 'bool') ops[s.f] = raw === undefined ? s.def : !!raw;
+    else if (s.t === 'enum') ops[s.f] = raw === undefined ? s.def : String(raw);
+    else ops[s.f] = raw === undefined ? s.def : Number(raw);
   });
   return ops;
 }
@@ -255,6 +259,15 @@ exports.main = async (event, context) => {
       // 耍伴接单配置(前端「接单配置」页只读展示: 每日上限由平台统一设定)
       partner_accept: {
         daily_take_limit: cfgRaw.partner_daily_take_limit || 5
+      },
+      // 实名认证(实名页读取: mock=测试期模拟人脸 / wx=官方人脸核验)
+      realname: {
+        face_mode: cfgRaw.realname_face_mode || 'mock'
+      },
+      // 实名签署所需协议全文(与留证 hash 同源; 仅实名页按需读取, 不进 bootstrap 映射)
+      legal_public: {
+        service_agreement: cfgRaw.legal_service_agreement || '',
+        aa_promise: cfgRaw.legal_aa_promise || ''
       }
     } };
   }
@@ -1190,6 +1203,7 @@ exports.main = async (event, context) => {
         disclaimer_text: config.legal_disclaimer_text || '',
         service_agreement: config.legal_service_agreement || '',
         privacy_policy: config.legal_privacy_policy || '',
+        aa_promise: config.legal_aa_promise || '',
         scene_disclaimers: config.legal_scene_disclaimers || {}
       }
     });
@@ -1203,6 +1217,15 @@ exports.main = async (event, context) => {
     // bool 字段统一处理(区间/类型由 schema 声明): auto_approve_partner/payment_visible/三个总开关
     for (const s of CONFIG_SCHEMA) {
       if (s.t === 'bool' && event[s.f] !== undefined) touch(s.f, !!event[s.f]);
+    }
+    // enum 字段统一校验(CONFIG_SCHEMA 声明 opts 白名单; 超集直接拒绝, 防脏值入库)
+    for (const s of CONFIG_SCHEMA) {
+      if (s.t !== 'enum' || event[s.f] === undefined) continue;
+      const v = String(event[s.f]);
+      if (!Array.isArray(s.opts) || s.opts.indexOf(v) < 0) {
+        return fail('config_bad_' + s.f, `${s.f} 仅支持: ${(s.opts || []).join(' / ')}`);
+      }
+      touch(s.f, v);
     }
     // 四确认前仅允许模板消息(关闭后自由聊天, 仅 super 应可操作)
     if (event.security_only_template_before_confirm !== undefined) {
@@ -1406,7 +1429,8 @@ exports.main = async (event, context) => {
     const legalFields = [
       ['legal_disclaimer_text', 0, 8000],      // 通用免责声明(发布前弹)
       ['legal_service_agreement', 0, 20000],   // 服务协议
-      ['legal_privacy_policy', 0, 20000]       // 隐私政策
+      ['legal_privacy_policy', 0, 20000],      // 隐私政策
+      ['legal_aa_promise', 0, 8000]            // 费用自理承诺书(实名签署留证对象)
     ];
     for (const [f, lo, hi] of legalFields) {
       if (event[f] !== undefined) {
@@ -1462,6 +1486,60 @@ exports.main = async (event, context) => {
           after: p.after || {}
         };
       })
+    });
+  }
+
+  // ───────── 8.7 实名与签署留证(P0 手写签名+实名正式版) ─────────
+  // 重置「模拟实名」账号(上线前必办): 仅清 is_realname_simulated=true 的测试账号,
+  // 真实证件+签名留证用户不受影响; 不传 openid 则全量重置
+  if (action === 'realname_reset_simulated') {
+    const target = event.openid ? String(event.openid).trim() : '';
+    if (target && !isOpenid(target)) return fail('rrs_bad_openid', 'openid 格式不正确');
+    const q = { is_realname_simulated: true };
+    if (target) q.openid = target;
+    const r = await col('user_account').where(q).update({ data: {
+      is_realname_done: false, is_realname_simulated: false,
+      realname_reset_at: now, updated_at: now
+    }}).catch(() => ({ stats: { updated: 0 } }));
+    const updated = (r.stats && r.stats.updated) || 0;
+    await logEvent('P2', 'realname_reset_simulated', openid, { target: target || 'ALL', updated });
+    return ok({ updated, target: target || 'ALL' });
+  }
+
+  // 签署留证查询(实名协议/场景免责声明): 按 openid/kind/scene 过滤;
+  // 传 evidence_id 返回单条完整记录(含协议全文, 供纠纷举证)
+  if (action === 'evidence_query') {
+    if (event.evidence_id) {
+      if (!isDocId(String(event.evidence_id))) return fail('eq_bad_id', 'evidence_id 需为 32 位文档 _id');
+      const dr = await col('disclaimer_signature').doc(String(event.evidence_id)).get().catch(() => ({ data: null }));
+      if (!dr.data) return fail('eq_not_found', '留证记录不存在');
+      return ok({ record: dr.data });
+    }
+    const pg = pager(event);
+    const q = { is_deleted: false };
+    if (event.openid) {
+      if (!isOpenid(String(event.openid))) return fail('eq_bad_openid', 'openid 格式不正确');
+      q.openid = String(event.openid);
+    }
+    if (event.kind) q.kind = String(event.kind);
+    if (event.scene) q.scene = String(event.scene);
+    const cnt = await col('disclaimer_signature').where(q).count();
+    const r = await col('disclaimer_signature').where(q)
+      .orderBy('signed_at', 'desc').skip(pg.skip).limit(pg.size).get();
+    return ok({
+      total: cnt.total, page: pg.page, size: pg.size,
+      list: r.data.map((x) => ({
+        _id: x._id,
+        kind: x.kind || 'scene_disclaimer',
+        openid: String(x.openid || ''),
+        role: x.role || '', scene: x.scene || '',
+        disclaimer_type: x.disclaimer_type || '',
+        verify_method: x.verify_method || '',
+        signature_file_id: x.signature_file_id || '',
+        signature_hash: x.signature_hash || '',
+        docs: Array.isArray(x.docs) ? x.docs.map((d) => ({ key: d.key, title: d.title, hash: d.hash })) : [],
+        signed_at: x.signed_at || x.created_at
+      }))
     });
   }
 

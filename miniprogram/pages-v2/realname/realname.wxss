@@ -6,6 +6,7 @@
 .rn__card { margin: 24rpx 32rpx; background: #fff; border-radius: 20rpx; padding: 28rpx 32rpx; }
 .rn__card--ok { background: #EAFBF1; }
 .rn__ok { font-size: 30rpx; color: #16A34A; font-weight: 600; text-align: center; padding: 12rpx 0; }
+.rn__ok--inline { text-align: left; padding: 16rpx 0 4rpx; }
 .rn__row { display: flex; justify-content: space-between; padding: 16rpx 0; font-size: 28rpx; }
 .rn__label { color: #909399; }
 .rn__value { color: #333; }
@@ -13,3 +14,29 @@
 .rn__tip { margin: 8rpx 44rpx 0; font-size: 24rpx; color: #909399; line-height: 1.7; }
 .rn__btn { margin: 40rpx 32rpx 0; background: #22B573; color: #fff; font-size: 32rpx; border-radius: 44rpx; }
 .rn__btn::after { border: none; }
+.rn__btn--ghost { background: #EAF9F1; color: #16A34A; font-weight: 600; margin: 16rpx 0 0; }
+.rn__btn--ghost::after { border: none; }
+
+/* 步骤标题 */
+.rn__step { font-size: 30rpx; font-weight: 600; color: #222; margin-bottom: 20rpx; }
+
+/* 表单 */
+.rn__field { display: flex; align-items: center; padding: 18rpx 0; border-bottom: 1rpx solid #F2F3F5; }
+.rn__field:last-of-type { border-bottom: none; }
+.rn__field-label { width: 170rpx; font-size: 28rpx; color: #606266; flex-shrink: 0; }
+.rn__input { flex: 1; font-size: 30rpx; color: #222; }
+.rn__ph { color: #C0C4CC; }
+.rn__note { margin-top: 14rpx; font-size: 24rpx; color: #909399; line-height: 1.7; }
+
+/* 协议 */
+.rn__doc { display: flex; justify-content: space-between; align-items: center; padding: 20rpx 0; border-bottom: 1rpx solid #F2F3F5; }
+.rn__doc-name { font-size: 28rpx; color: #222; }
+.rn__doc-op { font-size: 26rpx; color: #22B573; }
+.rn__doc-body { max-height: 480rpx; background: #FAFAFA; border-radius: 12rpx; padding: 20rpx; margin: 12rpx 0; font-size: 26rpx; color: #606266; line-height: 1.8; }
+.rn__doc-body text { white-space: pre-wrap; }
+.rn__agree { margin-top: 20rpx; }
+.rn__agree-label { display: flex; align-items: flex-start; font-size: 26rpx; color: #606266; line-height: 1.6; }
+.rn__agree-label checkbox { transform: scale(0.8); margin-right: 8rpx; flex-shrink: 0; }
+
+/* 签名 */
+.rn__clear { margin-top: 16rpx; text-align: right; font-size: 26rpx; color: #909399; text-decoration: underline; }

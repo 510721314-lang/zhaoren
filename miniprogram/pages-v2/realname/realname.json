@@ -2,6 +2,7 @@
   "navigationStyle": "custom",
   "usingComponents": {
     "nav-bar": "/components/nav-bar/index",
-    "night-mask": "/components/night-mask/index"
+    "night-mask": "/components/night-mask/index",
+    "signature-canvas": "/components/signature-canvas/index"
   }
 }

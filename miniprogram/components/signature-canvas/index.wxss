@@ -1,0 +1,20 @@
+.sgc { position: relative; }
+.sgc__canvas {
+  width: 100%;
+  height: 320rpx;
+  background: #FFFFFF;
+  border: 1rpx dashed #D8DEE9;
+  border-radius: 16rpx;
+  box-sizing: border-box;
+}
+.sgc__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+  color: #C0C4CC;
+  font-size: 28rpx;
+  pointer-events: none;
+}

@@ -1,0 +1,12 @@
+<view class="sgc">
+  <canvas
+    type="2d"
+    id="sgc-canvas"
+    class="sgc__canvas"
+    bindtouchstart="onTouchStart"
+    catchtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchEnd"
+  ></canvas>
+  <view class="sgc__hint" wx:if="{{!hasInk}}">{{tip}}</view>
+</view>

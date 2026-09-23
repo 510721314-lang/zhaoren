@@ -27,6 +27,13 @@
                     :min="s.min"
                     :max="s.max"
                   />
+                  <el-select
+                    v-else-if="s.t === 'enum'"
+                    v-model="patch[s.f]"
+                    style="width:100%"
+                  >
+                    <el-option v-for="o in (s.opts || [])" :key="o" :label="o" :value="o" />
+                  </el-select>
                   <el-switch
                     v-else
                     v-model="patch[s.f]"

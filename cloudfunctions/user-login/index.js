@@ -1,7 +1,8 @@
 // 对应 PRD 章节：3.1 注册与实名认证 / 8.1 信用分体系 / 9.2.2 用户隐私脱敏
 // user-login 登录与实名注册 · 身份取自 getWXContext().OPENID,禁止信任前端字段
 // action 列表: login / peek_login / phone_login / phone_register / password_register / password_login /
-//             update_profile / bind_phone / bind_idcard / set_emergency_contact / get_my_credit / close_account
+//             update_profile / bind_phone / bind_idcard / submit_realname / simulate_realname /
+//             set_emergency_contact / get_my_credit / close_account
 const cloud = require('wx-server-sdk');
 const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -90,6 +91,25 @@ function encryptIdCard(plain, keyHex) {
   return Buffer.concat([iv, tag, ct]).toString('hex');
 }
 
+// ─────────────── 实名签署协议兜底文案(admin_config.legal_* 未配置时使用) ───────────────
+// 正式文案由后台「法律合规」模块维护; 留证时以服务端读取到的全文计算 SHA-256 并随记录入库
+const DEFAULT_SERVICE_AGREEMENT = [
+  '找个人帮忙 服务协议（测试期精简版，正式全文以平台公示版本为准）',
+  '一、平台性质：本平台为生活服务信息撮合平台，仅提供信息发布与撮合服务，不直接提供服务，亦不承担服务方的履约责任。',
+  '二、用户义务：用户应提供真实身份信息，不得发布违法、违规或虚假需求；不得站外交易、私自转账。',
+  '三、服务与费用：服务时薪由双方按平台规则约定；平台不代收服务费，AA（交通、餐费、门票等）费用由双方线下自行协商结算。',
+  '四、安全与免责：用户应遵守平台安全规范与时间红线；因用户自身原因或第三方原因造成的损失，平台不承担责任。',
+  '五、电子签署：用户通过手写签名方式确认本协议，电子签名与手写签名具有同等法律效力。'
+].join('\n');
+
+const DEFAULT_AA_PROMISE = [
+  '费用自理承诺书',
+  '一、AA 指交通费、餐费、门票等第三方费用，不含服务费；',
+  '二、AA 费用由双方线下自行协商结算，平台不代收、不担保、不仲裁；',
+  '三、平台不参与定价与结算；',
+  '四、因 AA 产生的纠纷，平台不承担调解、仲裁、赔偿责任。'
+].join('\n');
+
 // 内容安全(msgSecCheck 不可用时降级本地词库)
 async function safeCheckText(text, blockWords) {
   if (!text) return { pass: true };
@@ -141,6 +161,8 @@ function safeUserDoc(u) {
     partner_credit_score: u.partner_credit_score,
     is_realname_done: realnameDone,
     is_realname_simulated: u.is_realname_simulated,
+    realname_method: u.realname_method || '',
+    realname_done_at: u.realname_done_at || 0,
     age: u.age, status: u.status, phone: u.phone ? maskPhone(u.phone) : '',
     idcard_masked: u.idcard_mask || (u.idcard ? maskIdCard(u.idcard) : ''),
     register_source: u.register_source,
@@ -334,8 +356,114 @@ exports.main = async (event, context) => {
       }
     }
 
-    // 4.5 模拟实名认证(上线前测试期专用; 正式版走 bind_idcard 校验 + 照片OCR + 人脸核验)
+    // 4.6 实名正式版(P0 完整留证): 真实姓名+身份证(AES) + 人脸(测试期 mock) + 手写签名留证
+    // 留证落 disclaimer_signature(kind=realname_agreement): 签名图 fileID + 服务端复算 SHA-256 + 协议全文及其 hash
+    case 'submit_realname': {
+      const { real_name, idcard, signature_file_id } = event;
+      const name = String(real_name || '').trim();
+      if (!/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/.test(name)) {
+        return { ok: false, code: 'realname_bad_name', msg: '请输入真实姓名(2-20位中文或字母)' };
+      }
+      if (!isValidIdCard(String(idcard || ''))) {
+        return { ok: false, code: 'idcard_format', msg: '身份证号格式有误' };
+      }
+      const id = String(idcard).trim().toUpperCase();
+      const age = calcAgeFromIdCard(id);
+      if (age === null || age < 18) return { ok: false, code: 'idcard_minor', msg: '未成年人禁止使用本服务' };
+      if (age > 120) return { ok: false, code: 'idcard_age', msg: '身份证号出生日期有误' };
+      if (!signature_file_id || !/^cloud:\/\//.test(String(signature_file_id))) {
+        return { ok: false, code: 'realname_no_sign', msg: '请先完成手写签名' };
+      }
+
+      const config = await getConfig();
+      // 人脸模式守卫: 测试期 mock 放行; 后台切到 wx 后本模拟通道 fail-closed(正式人脸流程随资质接入)
+      const faceMode = String(config.realname_face_mode || 'mock');
+      if (faceMode !== 'mock') {
+        return { ok: false, code: 'realname_face_online', msg: '正式人脸核验通道尚未开放,请等待上线后再试' };
+      }
+
+      // 签名图取证: 服务端下载 → PNG 魔数 + 体积校验 → SHA-256(证明入库时刻的文件内容)
+      let sigHash = '', sigSize = 0;
+      try {
+        const dl = await cloud.downloadFile({ fileID: String(signature_file_id) });
+        const buf = dl && dl.fileContent;
+        sigSize = buf ? buf.length : 0;
+        if (!buf || !sigSize || sigSize > 2 * 1024 * 1024) throw new Error('bad_size');
+        if (!(buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47)) throw new Error('not_png');
+        sigHash = crypto.createHash('sha256').update(buf).digest('hex');
+      } catch (e) {
+        log.d(`realname signature verify fail: ${(e && e.message) || e}`);
+        return { ok: false, code: 'realname_sign_file', msg: '签名图校验失败,请清除后重新签名' };
+      }
+
+      // 协议全文取证: 服务端取同一来源文本(config.legal_*)并计算 hash; 全文随留证入库, 事后不可抵赖
+      // 占位符防护: 文本过短(如"服务协议全文"7字占位)视为未配置, 回落完整兜底文案, 避免留证 hash 无意义
+      const svcRaw = String(config.legal_service_agreement || '');
+      const aaRaw = String(config.legal_aa_promise || '');
+      const docs = [
+        { key: 'service_agreement', title: '服务协议', text: svcRaw.length >= 50 ? svcRaw : DEFAULT_SERVICE_AGREEMENT },
+        { key: 'aa_promise', title: '费用自理承诺书', text: aaRaw.length >= 20 ? aaRaw : DEFAULT_AA_PROMISE }
+      ].map((d) => ({
+        key: d.key, title: d.title,
+        hash: crypto.createHash('sha256').update(d.text, 'utf8').digest('hex'),
+        text: d.text
+      }));
+
+      // 身份证加密(AES-256-GCM)
+      let idcardEnc;
+      try {
+        const key = await ensureIdcardKey();
+        idcardEnc = encryptIdCard(id, key);
+      } catch (e) {
+        return { ok: false, code: 'idcard_key_fail', msg: '实名服务暂不可用,请稍后重试' };
+      }
+
+      const nowTs = Date.now();
+      const wxCtxSign = cloud.getWXContext();
+      let evidenceId = '';
+      try {
+        const er = await col('disclaimer_signature').add({ data: {
+          kind: 'realname_agreement',
+          openid, role: 'user', scene: '', disclaimer_type: 'realname_agreement',
+          real_name: name, idcard_mask: maskIdCard(id), age,
+          verify_method: 'mock_face', face_mode: faceMode,
+          signature_file_id: String(signature_file_id), signature_hash: sigHash, signature_size: sigSize,
+          docs,
+          client_ip: (wxCtxSign && wxCtxSign.CLIENTIP) || '',
+          device: String(event.device || '').slice(0, 200),
+          signed_at: nowTs, created_at: nowTs, updated_at: nowTs, is_deleted: false
+        }});
+        evidenceId = (er && er._id) || '';
+      } catch (e) {
+        log.d(`realname evidence add fail: ${(e && e.message) || e}`);
+        return { ok: false, code: 'realname_evidence_fail', msg: '留证落库失败,请稍后重试' };
+      }
+
+      try {
+        await col('user_account').where({ openid }).update({ data: {
+          real_name: name,
+          idcard_enc: idcardEnc, idcard_mask: maskIdCard(id), idcard: '',
+          age,
+          is_realname_done: true, is_realname_simulated: false,
+          realname_method: 'mock_face', realname_evidence_id: evidenceId, realname_done_at: nowTs,
+          updated_at: nowTs
+        }});
+      } catch (e) {
+        return { ok: false, code: 'realname_save_fail', msg: '实名信息保存失败,请稍后重试' };
+      }
+
+      const r2 = await col('user_account').where({ openid }).limit(1).get();
+      const u2 = (r2.data && r2.data[0]) || null;
+      log.d(`realname done(evidence=${evidenceId}) openid=${openid}`);
+      return { ok: true, data: { user: u2 ? safeUserDoc(u2) : null, evidence_id: evidenceId } };
+    }
+
+    // 4.5 模拟实名认证(测试期专用: 仅 realname_face_mode=mock 时可用; 切 wx 后 fail-closed)
     case 'simulate_realname': {
+      const simCfg = await getConfig();
+      if (String(simCfg.realname_face_mode || 'mock') !== 'mock') {
+        return { ok: false, code: 'realname_mock_closed', msg: '模拟认证已关闭' };
+      }
       const now = Date.now();
       try {
         await col('user_account').where({ openid }).update({ data: {
