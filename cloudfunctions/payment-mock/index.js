@@ -122,9 +122,8 @@ exports.main = async (event, context) => {
   // ── prod 环境阻断 mock 资金动作 ──
   // 5 个 mock 资金入口(mock_pay/refund/tip/withdraw/fast_withdraw)仅 dev 放行
   // 5 个查询/账本入口(cashier_info/aa_record/balance_info/income_list/withdraw_list) prod 保留
-  // [临时放开测试] env 判断改为 false，上线前恢复 env === 'prod'
   const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'withdraw', 'fast_withdraw'];
-  if (false && env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
+  if (env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
     log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
     await writeAudit(db, log, { openid, role: 'user', category: 'security', action: 'mock_pay_blocked', target_type: 'order', target_id: event.order_id || '', detail: { order_id: event.order_id || '', action }, result: 'fail', code: 'pay_mock_disabled', client_ip: clientIp, device });
     return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };

@@ -708,11 +708,13 @@ exports.main = async (event, context) => {
   }
 
   // 时间红线: close_min=0 语义为"全天开放"(任何时间都允许); 否则 mins ∈ [open, close) 合法
+  // 东八区折算: 云函数运行时区为 UTC, new Date().getHours() 会少 8 小时, 统一按 UTC+8 计算
+  const CN_OFFSET_MS = 8 * 3600 * 1000;
   function isModifyTimeAllowed(ts, cfg) {
     const { open, close } = redlineBounds(cfg);
     if (close === 0) return true;  // 全天开放(运营显式设 close_min=0)
-    const d = new Date(ts);
-    const mins = d.getHours() * 60 + d.getMinutes();
+    const d = new Date(ts + CN_OFFSET_MS);
+    const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
     return mins >= open && mins < close;
   }
 

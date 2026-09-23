@@ -30,6 +30,20 @@ async function getConfig() {
 // ── 接单配置校验辅助(价格区间 / 每周时段 / 每日接单上限) ──
 // 东八区自然日 00:00 毫秒时间戳(云函数运行时时区不可依赖, 统一按 UTC+8 折算)
 const CN_OFFSET_MS = 8 * 3600 * 1000;
+
+// 服务端时间红线(R1, 与前端 redline.js 同口径, 防绕过): 00:00-06:00 不可履约
+// close_min=1440(=24:00)→仅拦 00:00-06:00; close_min=0→全天开放; open_min 默认 360(06:00)
+function isServiceTimeAllowed(ts, cfg) {
+  const config = cfg || {};
+  const close = parseInt(config.time_redline_close_min, 10);
+  const open = parseInt(config.time_redline_open_min, 10);
+  const closeMin = (close >= 0 && close <= 1440) ? close : 1440;
+  const openMin = (open >= 0 && open < closeMin) ? open : 360;
+  if (closeMin === 0) return true;  // 全天开放
+  const d = new Date(Number(ts) + CN_OFFSET_MS);
+  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return mins >= openMin && mins < closeMin;
+}
 const DAY_MS = 86400000;
 function cnDayStart(ts) {
   return Math.floor((ts + CN_OFFSET_MS) / DAY_MS) * DAY_MS - CN_OFFSET_MS;
@@ -342,6 +356,13 @@ exports.main = async (event, context) => {
   if (demand.creator_openid === openid) {
     await logReject(openid, demand_id, 'own_demand');
     return { ok: false, code: 'order_own_demand', msg: '不能接自己发布的需求' };
+  }
+
+  // 服务端时间红线(R1, 与前端 redline.js 同口径, 防绕过): 00:00-06:00 不可履约
+  // close_min=0 语义为全天开放; 东八区折算(云函数 UTC, 直接 getHours 少 8 小时)
+  if (!isServiceTimeAllowed(demand.start_time, config)) {
+    await logReject(openid, demand_id, 'time_redline');
+    return { ok: false, code: 'order_time_redline', msg: '该需求服务时间在 00:00-06:00 休息时段,无法接单' };
   }
 
   // 需求状态

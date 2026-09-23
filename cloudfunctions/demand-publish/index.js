@@ -202,6 +202,22 @@ async function getConfig() {
   };
 }
 
+// 服务端时间红线(R1, 与前端 redline.js 同口径): 00:00-06:00 不可预约
+// close_min=1440(=24:00)→仅拦 00:00-06:00; close_min=0→全天开放; open_min 默认 360(06:00)
+// 东八区折算: 云函数运行时区为 UTC, 直接 getHours 少 8 小时
+const CN_OFFSET_MS = 8 * 3600 * 1000;
+function isServiceTimeAllowed(ts, cfg) {
+  const config = cfg || {};
+  const close = parseInt(config.time_redline_close_min, 10);
+  const open = parseInt(config.time_redline_open_min, 10);
+  const closeMin = (close >= 0 && close <= 1440) ? close : 1440;
+  const openMin = (open >= 0 && open < closeMin) ? open : 360;
+  if (closeMin === 0) return true;  // 全天开放
+  const d = new Date(Number(ts) + CN_OFFSET_MS);
+  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return mins >= openMin && mins < closeMin;
+}
+
 // 获取用户文档
 async function getUser(openid) {
   const r = await col('user_account').where({ openid }).limit(1).get();
@@ -271,6 +287,11 @@ exports.main = async (event, context) => {
       if (start_time > Date.now() + MAX_ADVANCE_MS) {
         return { ok: false, code: 'publish_time_too_far', msg: '服务时间距发布时间不能超过 30 天' };
       }
+      // 服务端时间红线(R1, 与前端 redline.js 同口径, 防绕过): 00:00-06:00 不可预约
+      // close_min=0 语义为全天开放; config 稍后并行拉取, 此处先读原始 event 校验, 完整 config 在下方二次强校验
+      if (!isServiceTimeAllowed(start_time)) {
+        return { ok: false, code: 'publish_redline', msg: '00:00-06:00 为休息时段,请选择 06:00 后的服务时间' };
+      }
       if (!duration_h || duration_h < 1 || duration_h > 12) {
         return { ok: false, code: 'publish_duration', msg: '时长需 1-12 小时' };
       }
@@ -323,6 +344,11 @@ exports.main = async (event, context) => {
         getConfig(), getUser(openid), hasEmergencyContact(openid)
       ]);
       if (!user) return { ok: false, code: 'publish_no_user', msg: '用户不存在,请先登录' };
+
+      // 服务端时间红线二次强校验(带完整 admin_config, 与前端 redline.js 同口径)
+      if (!isServiceTimeAllowed(start_time, config)) {
+        return { ok: false, code: 'publish_redline', msg: '00:00-06:00 为休息时段,请选择 06:00 后的服务时间' };
+      }
 
       // 平台总开关: 核心交易维护中, 阻断发布/编辑需求(与 order-create、C 端入口守卫口径一致)
       if (config.switch_access === false) {
