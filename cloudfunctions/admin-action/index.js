@@ -633,26 +633,6 @@ exports.main = async (event, context) => {
     return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
   }
 
-  // 【TEMP 诊断】读取调试事件(platform_event type 前缀 debug_)
-  if (action === 'debug_event_tail') {
-    const r = await col('platform_event').where({ type: db.RegExp({ regexp: '^debug_', options: 'i' }), is_deleted: false })
-      .orderBy('created_at', 'desc').limit(10).get().catch(() => ({ data: [] }));
-    return ok({ list: (r.data || []).map((x) => ({ type: x.type, openid: String(x.openid || '').slice(-8), payload: x.payload, at: x.created_at })) });
-  }
-
-  // 【TEMP 诊断】重放需求更新(写法与 demand-publish update 的 CAS 完全一致), 返回数据库原始错误
-  if (action === 'debug_demand_update') {
-    const { demand_id, patch } = event;
-    if (!isDocId(demand_id)) return fail('dbg_bad_id', 'demand_id 需为 32 位文档 _id');
-    if (!patch || typeof patch !== 'object') return fail('dbg_bad_patch', 'patch 须为对象');
-    try {
-      const cr = await col('demand').where({ _id: demand_id, status: 'matching' }).update({ data: patch });
-      return ok({ stats: cr.stats });
-    } catch (e) {
-      return ok({ thrown: true, message: String((e && e.message) || e), errCode: (e && e.errCode) || '', errMsg: (e && e.errMsg) || '' });
-    }
-  }
-
   // 强制下架违规需求(仅 matching 可下架; 记 admin_note + P2)
   if (action === 'demand_offline') {
     const { demand_id, note } = event;

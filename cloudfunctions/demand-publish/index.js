@@ -934,10 +934,10 @@ exports.main = async (event, context) => {
         log.d(`demand updated: ${d.demand_no}`);
         return { ok: true, data: { _id: demand_id, updated_at: now } };
       } catch (e) {
-        // 记录数据库原始错误(此前被吞, 无法定位)
+        // 记录数据库原始错误(此前被吞, 无法定位; 查询通道: admin-action export_collection platform_event)
         try {
           await col('platform_event').add({ data: {
-            level: 'P3', type: 'debug_update_fail', openid,
+            level: 'P3', type: 'demand_update_fail', openid,
             payload: { demand_id, message: String((e && e.message) || e), errCode: (e && e.errCode) || '' },
             created_at: Date.now(), updated_at: Date.now(), is_deleted: false
           }});
