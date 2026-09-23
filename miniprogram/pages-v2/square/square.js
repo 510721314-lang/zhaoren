@@ -158,12 +158,7 @@ Page({
         wx.redirectTo({ url });
         break;
       }
-      case 'webview': {
-        if (!p.url) return;
-        wx.navigateTo({ url: '/pages-v2/webview/webview?url=' + encodeURIComponent(p.url),
-          fail: () => wx.showToast({ title: '链接打开失败', icon: 'none' }) });
-        break;
-      }
+      // webview 分支暂不启用: 无承载页 + 未配业务域名, 并入默认提示(运营配 H5 活动后再接入)
       case 'activity_detail':
       default: {
         wx.showToast({ title: '活动详情即将上线', icon: 'none' });

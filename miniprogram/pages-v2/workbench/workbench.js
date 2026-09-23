@@ -5,7 +5,11 @@ const { SCENES, FUND_STATUS } = require('../../config/enums.js');
 const redline = require('../../utils/redline.js');
 
 function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
+  // 审计留痕: 关键动作携带设备摘要
+  let device = '';
+  try { const s = wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
+  const sendData = Object.assign({}, data, { device });
+  return wx.cloud.callFunction({ name, data: sendData }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
 Page({
@@ -178,7 +182,7 @@ Page({
         // 上报云端 safety-report
         const orderId = this.data.currentOrderId || this.data.orders[0].order_id;
         if (orderId) {
-          wx.cloud.callFunction({ name: 'safety-report', data: { action: 'one_key_sos', order_id: orderId, source: 'workbench' } })
+          callCloud('safety-report', { action: 'sos', order_id: orderId, source: 'workbench' })
             .catch(() => {});  // 上报失败不阻塞拨号
         }
         // 拨号 110
