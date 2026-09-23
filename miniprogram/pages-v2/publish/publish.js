@@ -192,6 +192,20 @@ Page({
 
 
   onLoad(options) {
+    // 平台总开关: 核心交易维护中 → 入口即提示并自动返回
+    const { switchOn } = require('../../utils/bootstrap.js');
+    if (!switchOn('access')) {
+      wx.showModal({
+        title: '功能维护中',
+        content: '发布需求功能正在维护，请稍后再试。',
+        showCancel: false,
+        confirmText: '知道了',
+        complete: () => {
+          wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages-v2/square/square', fail: () => {} }) });
+        }
+      });
+      return;
+    }
     try {
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
