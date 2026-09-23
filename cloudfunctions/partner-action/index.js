@@ -299,6 +299,15 @@ exports.main = async (event, context) => {
         }
       }
 
+      // 最大接单距离(公里, 3-50): 广场展示过滤 + 接单校验取 min(本值, 平台上限 take_distance_max_km)
+      if (event.max_distance_km !== undefined) {
+        const md = parseInt(event.max_distance_km, 10);
+        if (!Number.isInteger(md) || md < 3 || md > 50) {
+          return { ok: false, code: 'pa_bad_max_distance', msg: '最大接单距离须为 3-50 公里的整数' };
+        }
+        update.max_distance_km = md;
+      }
+
       // 场景校验
       let newScenes = profile.accept_scenes || [];
       if (Array.isArray(event.accept_scenes)) {
@@ -423,6 +432,7 @@ exports.main = async (event, context) => {
             weekly_slots: profile.weekly_slots || null,
             accept_rate_min_fen: profile.accept_rate_min_fen === undefined ? null : profile.accept_rate_min_fen,
             accept_rate_max_fen: profile.accept_rate_max_fen === undefined ? null : profile.accept_rate_max_fen,
+            max_distance_km: profile.max_distance_km === undefined ? null : profile.max_distance_km,
             exam_scores: profile.exam_scores || {},
             city: profile.city, accept_switch: profile.accept_switch,
             home_location: profile.home_location ? {

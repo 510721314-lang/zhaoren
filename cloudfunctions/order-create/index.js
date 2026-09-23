@@ -313,15 +313,21 @@ exports.main = async (event, context) => {
     }
     const site = demand.location;
     if (site && site.latitude && site.longitude) {
-      // 阈值后台可配(admin_config.take_distance_max_km), 缺省 50km
-      const maxTakeKm = Number(config.take_distance_max_km) || TAKE_MAX_DISTANCE_KM;
+      // 阈值 = min(耍伴接单配置的最大接单距离, 平台上限 admin_config.take_distance_max_km), 缺省 50km
+      const capKm = Number(config.take_distance_max_km) || TAKE_MAX_DISTANCE_KM;
+      let effMaxKm = capKm;
+      try {
+        const ppr = await col('partner_profile').where({ openid, is_deleted: _.neq(true) }).limit(1).get();
+        const pMax = Number(ppr.data && ppr.data[0] && ppr.data[0].max_distance_km);
+        if (isFinite(pMax) && pMax > 0) effMaxKm = Math.min(pMax, capKm);
+      } catch (e) {}
       takeDistanceKm = haversineKm(partnerLoc.lat, partnerLoc.lng, site.latitude, site.longitude);
-      if (takeDistanceKm > maxTakeKm) {
+      if (takeDistanceKm > effMaxKm) {
         await logReject(openid, demand_id, `too_far_${Math.round(takeDistanceKm)}km`);
         return {
           ok: false,
           code: 'order_too_far',
-          msg: `你当前位置距履约地点约 ${Math.round(takeDistanceKm)} 公里，超过 ${maxTakeKm} 公里，无法接单`
+          msg: `你当前位置距履约地点约 ${Math.round(takeDistanceKm)} 公里，超过 ${effMaxKm} 公里，无法接单`
         };
       }
       takeDistanceKm = Math.round(takeDistanceKm * 10) / 10;

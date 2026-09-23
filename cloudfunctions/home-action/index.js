@@ -140,26 +140,56 @@ function hallWhere(extra) {
   }, extra || {});
 }
 
-// 广场(抢单入口)价格区间过滤: 取当前访问者的接单价格区间(缺字段/非耍伴/游客=不限)
-// ⚠️ 仅用于 square; 首页宫格(scene_groups/scene_list)不按价格过滤 —— 首页是通用入口(含需求者视角)
-let _rateRangeCache = {};              // openid → { at, range } 进程内短缓存
-const RATE_RANGE_TTL = 60 * 1000;
-async function loadVisitorRateRange(openid) {
+// 广场(抢单入口)访问者过滤数据: 接单价格区间 + 最大接单距离 + 日常位置(非耍伴/游客=不限)
+// ⚠️ 仅用于 square; 首页宫格(scene_groups/scene_list)不按这些字段过滤 —— 首页是通用入口(含需求者视角)
+let _visitorCache = {};                // openid → { at, val } 进程内短缓存
+const VISITOR_TTL = 60 * 1000;
+async function loadVisitorPartner(openid) {
   if (!openid) return null;            // 游客/匿名(如后台探针) → 不过滤, 且不产生查询
-  const hit = _rateRangeCache[openid];
-  if (hit && Date.now() - hit.at < RATE_RANGE_TTL) return hit.range;
-  let range = null;
+  const hit = _visitorCache[openid];
+  if (hit && Date.now() - hit.at < VISITOR_TTL) return hit.val;
+  let val = null;
   try {
     const r = await col('partner_profile').where({ openid, is_deleted: _.neq(true) }).limit(1).get();
     const p = (r.data && r.data[0]) || null;
     if (p && p.status === 'approved') {
+      let range = null;
       const lo = (p.accept_rate_min_fen === undefined || p.accept_rate_min_fen === null) ? null : Number(p.accept_rate_min_fen);
       const hi = (p.accept_rate_max_fen === undefined || p.accept_rate_max_fen === null) ? null : Number(p.accept_rate_max_fen);
       if (lo !== null || hi !== null) range = [lo, hi];
+      const md = Number(p.max_distance_km);
+      const maxKm = (isFinite(md) && md > 0) ? md : null;
+      const hl = p.home_location || {};
+      const hLat = Number(hl.latitude), hLng = Number(hl.longitude);
+      const home = (isFinite(hLat) && isFinite(hLng) && hLat !== 0 && hLng !== 0) ? { lat: hLat, lng: hLng } : null;
+      val = { range, maxKm, home };
     }
   } catch (e) {}
-  _rateRangeCache[openid] = { at: Date.now(), range };
-  return range;
+  _visitorCache[openid] = { at: Date.now(), val };
+  return val;
+}
+
+// 平台接单距离上限(admin_config.take_distance_max_km, 缺省 50km), 进程内 60s 缓存
+let _capCache = { at: 0, km: 50 };
+async function loadTakeDistanceCap() {
+  if (Date.now() - _capCache.at < VISITOR_TTL) return _capCache.km;
+  try {
+    const r = await col('admin_config').doc('global').get();
+    const km = Number(r.data && r.data.take_distance_max_km);
+    _capCache = { at: Date.now(), km: (isFinite(km) && km > 0) ? km : 50 };
+  } catch (e) { _capCache = { at: Date.now(), km: 50 }; }
+  return _capCache.km;
+}
+
+// Haversine 球面距离(公里) · 两经纬度间直线距离
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 exports.main = async (event, context) => {
@@ -274,7 +304,8 @@ exports.main = async (event, context) => {
         // 价格区间过滤(耍伴在接单配置设的区间; 非耍伴/游客/未设置 → 不过滤)
         // 过滤条件下推到 DB(而非 JS 侧过滤), 保证 limit 仍能取满
         const openid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
-        const vRange = await loadVisitorRateRange(openid);
+        const vp = await loadVisitorPartner(openid);
+        const vRange = vp && vp.range;
         const rateCond = vRange
           ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
           : null;
@@ -310,7 +341,25 @@ exports.main = async (event, context) => {
           created_at: u.created_at || 0
         })).filter((u) => !!u.openid).slice(0, 10);
 
-        const list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
+        let list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
+
+        // 最大接单距离(接单配置设置): 参考耍伴日常位置计算并回填 distance_km;
+        // 已设置且超出 min(设置, 平台上限) 的需求不在广场展示(与接单时服务端校验对齐)
+        if (vp && vp.home) {
+          const effMaxKm = vp.maxKm ? Math.min(vp.maxKm, await loadTakeDistanceCap()) : null;
+          const kept = [];
+          (demandR.data || []).forEach((d, i) => {
+            const site = d.location || {};
+            const lat = Number(site.latitude), lng = Number(site.longitude);
+            if (isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0) {
+              const km = Math.round(haversineKm(vp.home.lat, vp.home.lng, lat, lng) * 10) / 10;
+              list[i].distance_km = km;
+              if (effMaxKm !== null && km > effMaxKm) return;
+            }
+            kept.push(list[i]);
+          });
+          list = kept;
+        }
         await fillPublisherSurname(list);
 
         // 耍伴推荐: partner_profile + user_account 昵称
