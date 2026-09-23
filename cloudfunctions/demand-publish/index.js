@@ -31,9 +31,6 @@ async function getSceneCodes() {
   }
 }
 
-// 旧版硬编码(仅用于 SCENE_OPTIONS_FALLBACK / DISCLAIMER_TYPE_MAP 映射, 不再作为发布准入校验)
-const SCENE_WHITELIST_LEGACY = ['W1', 'W2', 'W3', 'W7', 'W8', 'W9', 'W10', 'W11'];
-
 // 接单模式白名单: direct=定向邀约(指定耍伴,不入大厅) · broadcast=抢单(先到先得) · select=选单(耍伴报名→需求者确认)
 const MATCH_MODE_WHITELIST = ['direct', 'broadcast', 'select'];
 
@@ -42,6 +39,7 @@ const DISCLAIMER_TYPE_MAP = {
   W1: 'medical_disclaimer',     // 就医陪诊免责声明(国标第7条)
   W2: 'general_disclaimer',     // 学习陪伴
   W3: 'sports_disclaimer',      // 健身陪伴(运动伤害免责)
+  W4: 'general_disclaimer',     // 游玩陪伴
   W7: 'emotion_disclaimer',     // 情绪陪伴(非心理咨询免责)
   W8: 'general_disclaimer',     // 生活协助
   W9: 'pet_disclaimer',         // 宠物陪伴(宠物授权+伤害免责)
@@ -49,12 +47,13 @@ const DISCLAIMER_TYPE_MAP = {
   W11: 'online_disclaimer'      // 线上陪伴内容协议
 };
 
-// 场景子服务选项兜底(与 init-db 种子 admin_config.scene_list / 小程序 constants 一致)
+// 场景子服务选项兜底(与 init-db 种子 admin_config.scene_list / 小程序 config/enums.js 一致)
 const SCENE_OPTIONS_FALLBACK = {
   W1: ['挂号排队', '取药送药', '陪诊解压'],
   W2: ['自习陪伴', '口语陪练', '作业督促'],
   W3: ['健身指导', '跑步陪跑', '器械陪同'],
-  W7: ['树洞倾听', '情绪疏导', '考前鼓励'],
+  W4: ['景区游览', '博物馆参观', '商圈逛街'],
+  W7: ['陪伴散步', '倾听陪伴', '考前鼓励'],
   W8: ['排队代办', '搬家帮手', '采买陪同'],
   W9: ['遛狗陪伴', '喂猫照料', '宠物就医陪同'],
   W10: ['逛街同行', '夜跑陪跑', '活动搭子'],
