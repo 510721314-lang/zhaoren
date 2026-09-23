@@ -1,60 +1,80 @@
-# 云函数统一部署脚本 (PowerShell 5+)
-# 用法: .\deploy-cloud.ps1                     # 部署全部
-#       .\deploy-cloud.ps1 -Names partner-action,order-action  # 部署指定
-# 规则: 串行 + 自动重试 + 强制 --remote-npm-install
+# ============================================================
+# zhaoren - Batch cloud function deploy (thin wrapper)
+#
+# Delegates EVERY deploy to .trae/predeploy.ps1 so there is ONE gate:
+#   syntax check ALL functions -> whitelist gate -> commit gate -> CLI deploy
+# (--remote-npm-install is always passed by the gate script.)
+#
+# NOTE: this file is intentionally ASCII-only. The previous version contained
+# Chinese text saved as UTF-8 without BOM, which PowerShell 5.1 reads as ANSI
+# and turns into mojibake -> ParseError -> the script could not run at all.
+#
+# Usage:
+#   .\deploy-cloud.ps1                                  # deploy ALL whitelisted functions
+#   .\deploy-cloud.ps1 -Names partner-action,order-action
+#
+# Exit codes: 0 = all ok / 1 = one or more failed (per-function codes come from predeploy.ps1)
+# ============================================================
 param(
-  [string[]]$Names = @(
-    "partner-action",
-    "order-action",
-    "payment-mock",
-    "user-login",
-    "demand-publish",
-    "home-action",
-    "im-conv",
-    "im-send",
-    "evaluation-submit",
-    "order-create",
-    "partner-apply",
-    "safety-report",
-    "admin-action",
-    "blog-action"
-  )
+    [string[]]$Names = @(),
+    [int]$GapSeconds = 5
 )
 
-$cli = "C:\Users\DC\Desktop\微信WEB开发者工具\cli.bat"
-$envId = "cloud1-d9gkefwcp5c777088"
-$proj = "c:\Users\DC\Desktop\zhaoren"
-$gap  = 5  # 函数之间间隔秒
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$gate = Join-Path $root ".trae\predeploy.ps1"
+$wlPath = Join-Path $root ".trae\cloudfunctions.whitelist"
 
-function Deploy-One($name) {
-  Write-Host ">>> 部署 $name ..." -ForegroundColor Cyan
-  $cmd = "& `"$cli`" cloud functions deploy --env $envId --names $name --project `"$proj`" --remote-npm-install"
-  $out = Invoke-Expression $cmd 2>&1 | Out-String
-  $success = $out -match "success\s*\|\s*true" -or $out -match "deploy cloudfunctions" -and $out -match "$name" -and $out -notmatch "false"
-  if ($out -match "Updating状态") {
-    Write-Host "    被锁了, 等 25s 重试..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 25
-    $out = Invoke-Expression $cmd 2>&1 | Out-String
-  }
-  if ($out -match "true") {
-    Write-Host "    ✅ $name OK" -ForegroundColor Green
-    return $true
-  } else {
-    Write-Host "    ❌ $name 失败: $($out -split "`n" | Select-Object -Last 3)" -ForegroundColor Red
-    return $false
-  }
+$psExe = Join-Path $PSHOME "powershell.exe"
+if (-not (Test-Path $psExe)) { $psExe = "powershell.exe" }
+
+if (-not (Test-Path $gate)) {
+    Write-Host "[FATAL] gate script not found: $gate" -ForegroundColor Red
+    exit 1
 }
 
-Write-Host "=============================" -ForegroundColor Cyan
-Write-Host "部署 $($Names.Count) 个云函数" -ForegroundColor Cyan
-Write-Host "环境: $envId" -ForegroundColor Cyan
-Write-Host "=============================" -ForegroundColor Cyan
+if ($Names.Count -eq 0) {
+    if (-not (Test-Path $wlPath)) {
+        Write-Host "[FATAL] whitelist not found: $wlPath (pass -Names explicitly to override)" -ForegroundColor Red
+        exit 1
+    }
+    $Names = @(Get-Content $wlPath -Encoding UTF8 |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and ($_ -notlike '#*') })
+    Write-Host "[info] no -Names given; deploying all $($Names.Count) whitelisted functions" -ForegroundColor Gray
+}
 
-$ok = 0; $fail = 0
+Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host " batch deploy: $($Names.Count) function(s)" -ForegroundColor Cyan
+Write-Host " gate: $gate" -ForegroundColor Cyan
+Write-Host "==================================================" -ForegroundColor Cyan
+
+$ok = 0
+$failed = @()
 foreach ($n in $Names) {
-  if (Deploy-One $n) { $ok++ } else { $fail++ }
-  Start-Sleep -Seconds $gap
+    Write-Host ""
+    Write-Host ">>> $n" -ForegroundColor Cyan
+    & $psExe -ExecutionPolicy Bypass -File $gate -Deploy $n
+    $code = $LASTEXITCODE
+    if ($code -eq 0) {
+        $ok++
+        Write-Host "    [OK] $n" -ForegroundColor Green
+    } else {
+        $failed += "$n (exit $code)"
+        Write-Host "    [FAIL] $n (exit $code)" -ForegroundColor Red
+    }
+    if ($GapSeconds -gt 0) { Start-Sleep -Seconds $GapSeconds }
 }
 
 Write-Host ""
-Write-Host "结果: ✅ $ok 成功  ❌ $fail 失败" -ForegroundColor $(if($fail -eq 0){'Green'}else{'Red'})
+Write-Host "==================================================" -ForegroundColor Cyan
+if ($failed.Count -eq 0) {
+    Write-Host " RESULT: all $ok succeeded" -ForegroundColor Green
+} else {
+    Write-Host " RESULT: $ok ok / $($failed.Count) failed" -ForegroundColor Red
+    $failed | ForEach-Object { Write-Host "   - $_" -ForegroundColor Yellow }
+}
+Write-Host " exit-code legend: 1 syntax / 3 bad name / 4 deploy / 5 cli / 6 uncommitted / 7 audit / 8 no git" -ForegroundColor Gray
+Write-Host "==================================================" -ForegroundColor Cyan
+
+if ($failed.Count -gt 0) { exit 1 }
+exit 0

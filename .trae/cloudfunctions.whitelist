@@ -1,0 +1,34 @@
+# 找人帮忙 · 云函数部署白名单（单一来源）
+# 用途：.trae/predeploy.ps1 -Audit 用它检测"云函数目录 ↔ 白名单"漂移；
+#       不在本清单内但含 index.js 的目录 = 未登记函数（部署会被 predeploy 拒绝）。
+# 规则：新增云函数必须先登记本清单（并在 rules.md 第 5 章同步职责说明）。
+# 维护：一行一个函数名；# 起始为注释。
+
+# ── 业务函数（rules.md 第 5 章清单）──
+user-login
+demand-publish
+demand-match
+partner-apply
+partner-action
+order-create
+order-action
+order-timer
+payment-mock
+safety-report
+im-conv
+im-send
+evaluation-submit
+admin-action
+
+# ── 后续批次新增（已在线上运行）──
+init-db
+home-action
+blog-action
+admin-web
+
+# 说明：
+# - cloudfunctions/_shared/ 为共享代码暂存目录（无 index.js，不可部署，不列入本清单）
+# - cloudfunctions/admin-test/、cloudfunctions/export-config/ 为本地手工调试工具
+#   （.gitignore 已忽略、云端未部署）；按 rules.md 临时函数规范它们不应部署，
+#   故不列入白名单 —— 若执行 -Audit 会被标记为"未登记函数"。
+# - 临时云函数必须用 zz- 前缀 + 登记 .trae/zz-registry.md（含过期日期与最低守卫）
