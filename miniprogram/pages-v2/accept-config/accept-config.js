@@ -397,15 +397,21 @@ Page({
 
     wx.showLoading({ title: '保存中', mask: true });
     try {
-      const r = await callCloud('partner-action', {
+      const payload = {
         action: 'update_config',
         accept_scenes: form.scenes,
         scene_rates: ratesPayload,
-        home_location: this.data.homeLocation,
         weekly_slots: slotsPayload,
         accept_rate_min_fen: Math.round(minYuan * 100),
         accept_rate_max_fen: Math.round(maxYuan * 100)
-      });
+      };
+      // 日常位置: 云端 my_profile 只回传 {name,address}(不下发 gcj02 坐标), 回传旧值会被
+      // 服务端 sanitizeHomeLocation 判为无效; 仅当本次经 chooseLocation 重选(坐标完整)时提交
+      const hl = this.data.homeLocation;
+      if (hl && isFinite(Number(hl.latitude)) && isFinite(Number(hl.longitude))) {
+        payload.home_location = hl;
+      }
+      const r = await callCloud('partner-action', payload);
       wx.hideLoading();
 
       if (!r.ok) {
