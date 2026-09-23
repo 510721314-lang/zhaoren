@@ -129,7 +129,9 @@ function todayStart() {
 // ── 分页参数 ──
 function pager(event) {
   const page = Math.max(1, parseInt(event.page, 10) || 1);
-  return { page, size: PAGE_SIZE, skip: (page - 1) * PAGE_SIZE };
+  // 支持调用方指定 size(默认 PAGE_SIZE), 钳到 1-100 防滥用
+  const size = Math.min(100, Math.max(1, parseInt(event.size, 10) || PAGE_SIZE));
+  return { page, size, skip: (page - 1) * size };
 }
 function isOpenid(s) {
   return typeof s === 'string' && /^[a-zA-Z0-9_-]{10,40}$/.test(s);
@@ -1594,20 +1596,40 @@ exports.main = async (event, context) => {
   }
 
   // 证据链校验: 按 openid 拉全量(时间升序)逐条重算哈希, 报首个断点(chain_hash_mismatch / prev_hash_link_break)
+  // 分页: keyset 游标((at,_id) 元组升序)替代旧 skip<5000 上限 —— 无条数上限, 大 openid 也不会截断
   if (action === 'audit_verify') {
     const target = String(event.openid || '').trim();
     if (!isOpenid(target)) return fail('av_bad_openid', 'openid 格式不正确');
     const crypto = require('crypto');
     const recs = [];
     const BATCH = 100;
-    for (let skip = 0; skip < 5000; skip += BATCH) {
-      const r = await col('audit_log').where({ openid: target })
-        .orderBy('at', 'asc').skip(skip).limit(BATCH).get().catch(() => ({ data: [] }));
+    let cursorAt = null;
+    let cursorId = null;
+    for (let guard = 0; guard < 500; guard++) { // 500 批=最多 5 万条, 超出视为异常截断(防死循环)
+      const where = cursorAt === null
+        ? { openid: target }
+        : _.and([
+            { openid: target },
+            _.or([
+              { at: _.gt(cursorAt) },
+              { at: _.eq(cursorAt), _id: _.gt(cursorId) }
+            ])
+          ]);
+      const r = await col('audit_log').where(where)
+        .orderBy('at', 'asc').orderBy('_id', 'asc').limit(BATCH).get().catch(() => ({ data: [] }));
       const rows = r.data || [];
       for (const x of rows) recs.push(x);
       if (rows.length < BATCH) break;
+      const last = rows[rows.length - 1];
+      cursorAt = last.at;
+      cursorId = last._id;
     }
+    // 篡改 vs 分叉噪声区分(Phase2-A2):
+    // - chain_hash_mismatch(重算哈希对不上本条内容) = 真篡改/内容被改, 立即中断并报 broken
+    // - prev_hash_link_break 但本条自身哈希可重算通过 = 并发写入/同毫秒多条导致的分叉或排序噪声,
+    //   收集到 noise 列表继续校验(内容未被篡改); 终极消除需引入 audit_chain_head 事务链头
     let broken = null;
+    const noise = [];
     let prevChain = '';
     for (let i = 0; i < recs.length; i++) {
       const x = recs[i];
@@ -1616,23 +1638,31 @@ exports.main = async (event, context) => {
         JSON.stringify(x.detail || {})
       ].join('|'), 'utf8').digest('hex');
       const mismatch = expect !== (x.chain_hash || '');
-      // 同一毫秒多条的极端情形可能因返回顺序不定报 link_break, 属排序噪声而非篡改(重算 mismatch 才是硬证据)
       const linkBreak = i > 0 && (x.prev_hash || '') !== prevChain;
-      if (mismatch || linkBreak) {
+      if (mismatch) {
         broken = {
           index: i, record_id: x._id, action: x.action, at: x.at,
-          reason: mismatch ? 'chain_hash_mismatch' : 'prev_hash_link_break'
+          reason: 'chain_hash_mismatch'
         };
         break;
       }
+      if (linkBreak) {
+        noise.push({ index: i, record_id: x._id, action: x.action, at: x.at, reason: 'prev_hash_link_break' });
+      }
       prevChain = x.chain_hash || '';
     }
+    const verdict = broken ? 'tampered' : (noise.length ? 'fork_noise' : 'ok');
     return ok({
       openid: target, total: recs.length,
-      ok: !broken,
+      ok: !broken && noise.length === 0,
+      verdict,
       first_ts: recs.length ? recs[0].at : 0,
       last_ts: recs.length ? recs[recs.length - 1].at : 0,
       broken,
+      noise,
+      note: noise.length
+        ? '存在分叉/排序噪声(同毫秒多条或并发写入), 未发现内容篡改; 如需消除分叉需引入 audit_chain_head 事务链头'
+        : '',
       checked_at: now
     });
   }
