@@ -90,6 +90,7 @@
     <!-- 4. 最大距离 -->
     <view class="ac__card">
       <view class="ac__card-title">最大接单距离</view>
+      <view class="ac__tip">超出此距离的需求不展示、不可接单（平台上限 50km）</view>
       <view class="ac__slider-row">
         <slider min="{{distanceRange[0]}}" max="{{distanceRange[1]}}" value="{{form.maxDistance}}" show-value bindchange="onDistanceChange" activeColor="var(--brand-primary)" />
         <text class="ac__slider-unit">km</text>

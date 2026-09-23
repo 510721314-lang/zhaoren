@@ -216,7 +216,9 @@ Page({
         'form.weeklySlots': slots,
         'form.minPrice': minYuan,
         'form.maxPrice': maxYuan,
-        'form.maxDistance': local.maxDistance || PA.defaultDistance,
+        'form.maxDistance': (p.max_distance_km !== null && p.max_distance_km !== undefined)
+          ? Number(p.max_distance_km)
+          : (local.maxDistance || PA.defaultDistance),
         'form.genderPref': local.genderPref || '不限',
         // 每日上限: 平台统一设定(启动时 config_public 覆盖 PARTNER_ACCEPT.dailyLimit), 耍伴端只读
         'form.dailyLimit': PA.dailyLimit || PA.defaultDailyLimit,
@@ -403,7 +405,8 @@ Page({
         scene_rates: ratesPayload,
         weekly_slots: slotsPayload,
         accept_rate_min_fen: Math.round(minYuan * 100),
-        accept_rate_max_fen: Math.round(maxYuan * 100)
+        accept_rate_max_fen: Math.round(maxYuan * 100),
+        max_distance_km: form.maxDistance
       };
       // 日常位置: 云端 my_profile 只回传 {name,address}(不下发 gcj02 坐标), 回传旧值会被
       // 服务端 sanitizeHomeLocation 判为无效; 仅当本次经 chooseLocation 重选(坐标完整)时提交
