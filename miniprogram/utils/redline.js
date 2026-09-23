@@ -19,6 +19,7 @@ function isInRedline(date) {
   const hhmm = d.getHours() * 60 + d.getMinutes();
   const closeMin = toMinutes(CONFIG.TIME_REDLINE.close); // 1380
   const openMin = toMinutes(CONFIG.TIME_REDLINE.open);   // 360
+  if (closeMin === 0) return false;  // 截止=00:00 表示全天开放(午夜不关闭), 永不命中红线
   return hhmm >= closeMin || hhmm < openMin;
 }
 
@@ -28,7 +29,9 @@ function isServiceTimeAllowed(timeStr) {
   const m = /^(\d{1,2}):(\d{2})/.exec(timeStr.trim());
   if (!m) return false;
   const mins = Number(m[1]) * 60 + Number(m[2]);
-  return mins >= toMinutes(CONFIG.TIME_REDLINE.open) && mins < toMinutes(CONFIG.TIME_REDLINE.close);
+  const closeMin = toMinutes(CONFIG.TIME_REDLINE.close);
+  if (closeMin === 0) return true;  // 全天开放
+  return mins >= toMinutes(CONFIG.TIME_REDLINE.open) && mins < closeMin;
 }
 
 // R9：场景白名单 — 优先全局动态列表(首页/发布页 scene_groups 同步, 元素为完整场景对象), fallback 硬编码 SCENES
