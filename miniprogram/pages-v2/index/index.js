@@ -34,13 +34,21 @@ Page({
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: redline.DISPLAY_CLOSE,
     trafficOrders: CONFIG.NEW_PARTNER.trafficSupportOrders,
-    reserveDiscountText: `${CONFIG.MATCH.reserveDiscount * 10}折`
+    reserveDiscountText: `${CONFIG.MATCH.reserveDiscount * 10}折`,
+    favorited: false   // 首页收藏态(轻提示, 暂无服务端收藏对象)
   },
   onShareAppMessage() {
     return {
       title: '找个人帮忙 · 同城帮忙撮合',
       path: '/pages-v2/index/index'
     };
+  },
+
+  // H9 右侧浮动: 收藏(轻提示, 收藏对象暂未上线)
+  onFloatFavorite() {
+    const v = !this.data.favorited;
+    this.setData({ favorited: v });
+    wx.showToast({ title: v ? '已收藏' : '已取消收藏', icon: 'none' });
   },
 
 

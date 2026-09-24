@@ -151,5 +151,21 @@
   <!-- H8 页脚 -->
   <view class="home__footer">—— 全场景 {{redlineClose}}-{{redlineOpen}} 暂停预约与履约 ——</view>
 
+  <!-- H9 右侧浮动功能组(收藏/分享/客服) -->
+  <view class="home__float">
+    <button class="home__float-btn" hover-class="home__float-btn--hover" bindtap="onFloatFavorite" aria-label="收藏">
+      <text class="home__float-ic">{{favorited ? '★' : '☆'}}</text>
+      <text class="home__float-txt">收藏</text>
+    </button>
+    <button class="home__float-btn" hover-class="home__float-btn--hover" open-type="share" aria-label="分享">
+      <text class="home__float-ic">↗</text>
+      <text class="home__float-txt">分享</text>
+    </button>
+    <button class="home__float-btn" hover-class="home__float-btn--hover" open-type="contact" aria-label="客服">
+      <text class="home__float-ic">🎧</text>
+      <text class="home__float-txt">客服</text>
+    </button>
+  </view>
+
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

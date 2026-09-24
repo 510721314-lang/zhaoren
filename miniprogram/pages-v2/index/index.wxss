@@ -375,3 +375,43 @@
   color: var(--text-disabled);
   padding: 12rpx 0 24rpx;
 }
+
+/* H9 右侧浮动功能组(收藏/分享/客服) */
+.home__float {
+  position: fixed;
+  right: 0;
+  top: 45%;
+  transform: translateY(-50%);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  border-radius: 18rpx 0 0 18rpx;
+  overflow: hidden;
+  box-shadow: var(--shadow-float);
+}
+.home__float-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 92rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  line-height: 1;
+}
+.home__float-btn::after { border: none; }
+.home__float-btn--hover { background: var(--brand-primary-press); }
+.home__float-ic {
+  font-size: var(--font-xl);
+  font-weight: 600;
+  margin-bottom: 6rpx;
+}
+.home__float-txt {
+  font-size: var(--font-xs);
+  color: var(--text-invert);
+}
