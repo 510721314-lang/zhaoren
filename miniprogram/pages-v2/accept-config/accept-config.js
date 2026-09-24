@@ -398,6 +398,18 @@ Page({
       }
     }
 
+    // 保存前二次确认: 汇总本次修改的关键项, 避免误触
+    const confirm = await new Promise((resolve) => {
+      wx.showModal({
+        title: '确认保存配置?',
+        content: `场景${form.scenes.length}个 · 单价${minYuan}-${maxYuan}元/时 · 距离${form.maxDistance}km`,
+        confirmText: '确认保存',
+        cancelText: '再检查',
+        success: (r) => resolve(!!r.confirm)
+      });
+    });
+    if (!confirm) return;
+
     wx.showLoading({ title: '保存中', mask: true });
     try {
       const payload = {
