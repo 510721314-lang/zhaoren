@@ -208,11 +208,7 @@ Page({
 
   // H4 场景宫格 → P06 预选场景
   onSceneTap(e) {
-    const { code, more } = e.currentTarget.dataset;
-    if (more) {
-      wx.showToast({ title: '健身/情绪/宠物陪伴即将上线', icon: 'none' });
-      return;
-    }
+    const { code } = e.currentTarget.dataset;
     this.enterScene(code);
   },
   enterScene(code) {

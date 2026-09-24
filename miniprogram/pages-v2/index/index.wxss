@@ -170,12 +170,6 @@
   font-size: var(--font-sm);
   color: var(--text-2);
 }
-.home__cell--gray .home__cell-ic {
-  background: var(--cell-gray-bg);
-}
-.home__cell--gray .home__cell-name {
-  color: var(--text-disabled);
-}
 .home__gb-badge {
   position: absolute;
   top: -12rpx;
