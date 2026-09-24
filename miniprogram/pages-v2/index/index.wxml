@@ -156,19 +156,16 @@
     <view class="home__float-btn">
       <button class="home__float-inner" hover-class="home__float-inner--hover" bindtap="onFloatFavorite" aria-label="收藏">
         <text class="home__float-ic">{{favorited ? '★' : '☆'}}</text>
-        <text class="home__float-txt">收藏</text>
       </button>
     </view>
     <view class="home__float-btn">
       <button class="home__float-inner" hover-class="home__float-inner--hover" open-type="share" aria-label="分享">
         <text class="home__float-ic">↗</text>
-        <text class="home__float-txt">分享</text>
       </button>
     </view>
     <view class="home__float-btn">
       <button class="home__float-inner" hover-class="home__float-inner--hover" open-type="contact" aria-label="客服">
         <text class="home__float-ic">🎧</text>
-        <text class="home__float-txt">客服</text>
       </button>
     </view>
   </view>

@@ -393,14 +393,13 @@
 /* 外层 view 定宽: 不受 button 组件默认样式影响 */
 .home__float-btn {
   width: 72rpx;
-  height: 112rpx;
+  height: 96rpx;
   background: var(--brand-primary);
   border-radius: 0;
 }
 /* 内层 button 透明占满: 仅承载 open-type / 点击 */
 .home__float-inner {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -417,9 +416,4 @@
 .home__float-ic {
   font-size: var(--font-xxl);
   font-weight: 600;
-  margin-bottom: 8rpx;
-}
-.home__float-txt {
-  font-size: var(--font-base);
-  color: var(--text-invert);
 }
