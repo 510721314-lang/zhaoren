@@ -19,6 +19,7 @@ Page({
   data: {
     balanceYuan: '0.00',
     monthIncomeYuan: '0.00',
+    totalIncomeYuan: '0.00',
     splittingYuan: '0.00',
     // V3 四态 tab
     fundTabs: [
@@ -78,6 +79,7 @@ Page({
         const b = balR.data;
         d.balanceYuan = ((b.withdrawable_fen || 0) / 100).toFixed(2);
         d.monthIncomeYuan = ((b.month_income_fen || 0) / 100).toFixed(2);
+        d.totalIncomeYuan = ((b.total_income_fen || 0) / 100).toFixed(2);
         d.splittingYuan = ((b.splitting_fen || 0) / 100).toFixed(2);
         const amtMap = {
           withdrawable: d.balanceYuan,

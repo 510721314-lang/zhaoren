@@ -567,6 +567,7 @@ exports.main = async (event, context) => {
           splitting_fen: splittingFen,
           processing_fen: processingW,
           month_income_fen: monthIncomeFen,
+          total_income_fen: settledFen,   // 累计收入 = 已结算总收入(2026-09-24 wallet 累计收入显示修复)
           total_completed: countR.total || 0,
           credit_level: creditLevel
         }
