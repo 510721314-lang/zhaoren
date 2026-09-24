@@ -81,7 +81,7 @@ function _locate(demand, opts) {
 // 审计留痕: 统一注入设备摘要(仅接单关键动作, 走本文件 callFunction 的调用携带)
 function _deviceInfo() {
   try {
-    const s = wx.getSystemInfoSync();
+    const s = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync();
     return `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200);
   } catch (e) { return ''; }
 }

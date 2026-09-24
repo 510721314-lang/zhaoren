@@ -92,7 +92,7 @@ function bootstrap() {
   if (!wx.cloud) return Promise.resolve(false);
   // 审计留痕: 登录链路关键调用携带设备摘要
   let device = '';
-  try { const s = wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
+  try { const s = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
   return wx.cloud.callFunction({
     name: 'admin-action',
     data: Object.assign({ action: 'config_public' }, { device })  // 免鉴权公开配置入口(普通用户可调); config_get 需管理员白名单,普通用户必失败
@@ -166,7 +166,7 @@ function isRealnameGateCode(code) {
 function syncLoginUser() {
   try {
     let device = '';
-    try { const s = wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
+    try { const s = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
     return wx.cloud.callFunction({ name: 'user-login', data: Object.assign({ action: 'peek_login' }, { device }) })
       .then((res) => {
         const r = (res && res.result) || {};

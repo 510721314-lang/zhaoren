@@ -58,7 +58,7 @@ App({
         // 避免污染调用方 data 对象: 构造副本
         let sendData = data;
         try {
-          const sys = wx.getSystemInfoSync();
+          const sys = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync();
           const device = `${sys.brand || ''} ${sys.model || ''}|${sys.system || ''}|${sys.platform || ''}`.trim().slice(0, 200);
           sendData = Object.assign({}, data, { device });
         } catch (e) { /* 取不到设备信息则不带 device */ }
