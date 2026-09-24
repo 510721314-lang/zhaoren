@@ -102,7 +102,7 @@
         <button class="sf__btn sf__btn--danger" bindtap="onSilentCancel" hover-class="btn-press">撤销</button>
       </block>
       <block wx:else>
-        <button class="sf__btn sf__btn--ghost" bindtap="onSilentStart" disabled="{{sosActive}}">静默求助（{{sosCountdownSec}}秒后触发）</button>
+        <button class="sf__btn sf__btn--ghost" hover-class="btn-press" bindtap="onSilentStart" disabled="{{sosActive}}">静默求助（{{sosCountdownSec}}秒后触发）</button>
       </block>
     </view>
 

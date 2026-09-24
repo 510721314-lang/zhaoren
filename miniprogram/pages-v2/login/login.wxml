@@ -24,7 +24,7 @@
     </view>
 
     <!-- 微信一键登录 -->
-    <button class="login__btn" loading="{{logging}}" disabled="{{!allChecked || logging}}" bindtap="onLogin">
+    <button class="login__btn" hover-class="btn-press" loading="{{logging}}" disabled="{{!allChecked || logging}}" bindtap="onLogin">
       微信一键登录
     </button>
     <view class="login__tip">登录即代表同意上述协议，未勾选协议无法登录</view>

@@ -41,7 +41,7 @@
         <text class="rn__label">核验方式</text>
         <text class="rn__value">{{faceMode === 'mock' ? '测试期 · 模拟核验' : '微信官方人脸核验'}}</text>
       </view>
-      <button class="rn__btn rn__btn--ghost" wx:if="{{!faceDone}}" bindtap="onFaceVerify">开始人脸核验{{faceMode === 'mock' ? '（测试期模拟）' : ''}}</button>
+      <button class="rn__btn rn__btn--ghost" hover-class="btn-press" wx:if="{{!faceDone}}" bindtap="onFaceVerify">开始人脸核验{{faceMode === 'mock' ? '（测试期模拟）' : ''}}</button>
       <view class="rn__ok rn__ok--inline" wx:else>✅ 人脸核验已通过</view>
     </view>
 

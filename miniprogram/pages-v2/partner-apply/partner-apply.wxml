@@ -37,7 +37,7 @@
     <text>入驻即自动完成实名认证校验, 可立即接单. 更多资质认证后续开放.</text>
   </view>
 
-  <button class="pa__submit" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">
+  <button class="pa__submit" hover-class="btn-press" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">
     提交申请
   </button>
 </view>

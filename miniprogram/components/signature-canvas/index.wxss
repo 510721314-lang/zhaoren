@@ -2,9 +2,9 @@
 .sgc__canvas {
   width: 100%;
   height: 320rpx;
-  background: #FFFFFF;
-  border: 1rpx dashed #D8DEE9;
-  border-radius: 16rpx;
+  background: var(--bg-card);
+  border: 1rpx dashed var(--border-ghost);
+  border-radius: var(--r-sm);
   box-sizing: border-box;
 }
 .sgc__hint {
@@ -14,7 +14,7 @@
   top: 50%;
   transform: translateY(-50%);
   text-align: center;
-  color: #C0C4CC;
+  color: var(--text-disabled);
   font-size: 28rpx;
   pointer-events: none;
 }

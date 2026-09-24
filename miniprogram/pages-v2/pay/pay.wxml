@@ -70,7 +70,7 @@
 
     <!-- Y4 支付按钮 -->
     <view class="pay__bottom">
-      <button class="pay__btn" loading="{{paying}}" disabled="{{paying}}" bindtap="onPay">
+      <button class="pay__btn" hover-class="btn-press" loading="{{paying}}" disabled="{{paying}}" bindtap="onPay">
         微信支付 ¥{{totalFee}}
       </button>
     </view>

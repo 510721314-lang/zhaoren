@@ -14,7 +14,7 @@
 .sheet {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 16px 16px 0 0;
   transform: translateY(100%);
   transition: transform 0.25s ease;
@@ -29,18 +29,18 @@
 .sheet__handle {
   width: 40px;
   height: 4px;
-  background: #e0e0e0;
+  background: var(--sheet-handle);
   border-radius: 2px;
   margin: 8px auto;
 }
 .sheet__header {
   padding: 8px 20px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-2);
 }
 .sheet__title {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-1);
 }
 .sheet__body {
   flex: 1;
@@ -49,5 +49,5 @@
 }
 .sheet__footer {
   padding: 12px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-2);
 }

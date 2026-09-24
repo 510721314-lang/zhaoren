@@ -194,7 +194,7 @@
   font-size: var(--font-sm); color: var(--text-3);
   background: var(--bg-segment); border-radius: var(--r-md);
 }
-.od__hour-chip.is-active { background: var(--brand-primary); color: #fff; }
+.od__hour-chip.is-active { background: var(--brand-primary); color: var(--text-invert); }
 .od__hour-custom { display: flex; gap: 12rpx; margin-left: auto; }
 
 /* 加时在途提示 */

@@ -484,16 +484,16 @@
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #F2F3F5;
+  border-bottom: 1rpx solid var(--border-2);
 }
-.pub__pet-doc-name { font-size: 28rpx; color: #222; }
-.pub__pet-doc-op { font-size: 26rpx; color: #22B573; }
+.pub__pet-doc-name { font-size: var(--font-base); color: var(--text-1); }
+.pub__pet-doc-op { font-size: var(--font-md); color: var(--brand-primary); }
 .pub__pet-agree { margin-top: 16rpx; }
 .pub__pet-agree-label {
   display: flex;
   align-items: flex-start;
-  font-size: 26rpx;
-  color: #606266;
+  font-size: var(--font-md);
+  color: var(--text-2);
   line-height: 1.6;
 }
 .pub__pet-agree-label checkbox { transform: scale(0.8); margin-right: 8rpx; flex-shrink: 0; }
@@ -506,7 +506,7 @@
 }
 .pub__pet-sheet-text {
   font-size: 27rpx;
-  color: #4E5969;
+  color: var(--text-2);
   line-height: 1.85;
   white-space: pre-wrap;
 }
@@ -516,16 +516,16 @@
   text-align: center;
   padding: 22rpx 0;
   border-radius: 44rpx;
-  font-size: 30rpx;
+  font-size: var(--font-xl);
 }
-.pub__sign-btn--cancel { background: #F2F3F5; color: #606266; }
-.pub__sign-btn--ok { background: #22B573; color: #fff; font-weight: 600; }
+.pub__sign-btn--cancel { background: var(--bg-segment); color: var(--text-2); }
+.pub__sign-btn--ok { background: var(--brand-primary); color: var(--text-invert); font-weight: 600; }
 
 /* W9 授权书手写签字窗口(页级浮层; bottom-sheet z-index 999/1000, 此处需更高) */
 .pub__petsign-mask {
   position: fixed;
   left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--bg-mask);
   z-index: 1001;
   display: flex;
   align-items: flex-end;
@@ -533,24 +533,24 @@
 .pub__petsign-panel {
   width: 100%;
   box-sizing: border-box;
-  background: #FFFFFF;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--bg-card);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   padding: 28rpx 32rpx calc(28rpx + env(safe-area-inset-bottom));
 }
 .pub__petsign-head { display: flex; justify-content: space-between; align-items: center; }
-.pub__petsign-title { font-size: 32rpx; font-weight: 600; color: #1D2129; }
-.pub__petsign-close { font-size: 30rpx; color: #86909C; padding: 0 10rpx; }
+.pub__petsign-title { font-size: var(--font-xxl); font-weight: 600; color: var(--text-1); }
+.pub__petsign-close { font-size: var(--font-xl); color: var(--text-4); padding: 0 10rpx; }
 .pub__petsign-tip {
   font-size: 25rpx;
-  color: #86909C;
+  color: var(--text-4);
   line-height: 1.7;
   margin: 16rpx 0;
 }
 .pub__petsign-clear {
   margin-top: 16rpx;
   text-align: center;
-  font-size: 26rpx;
-  color: #22B573;
+  font-size: var(--font-md);
+  color: var(--brand-primary);
   padding: 8rpx 0;
 }
 .pub__petsign-foot { display: flex; gap: 20rpx; margin-top: 20rpx; }

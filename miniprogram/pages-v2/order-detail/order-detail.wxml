@@ -124,7 +124,7 @@
         <view class="od__action-grid">
           <button class="od__action-btn {{order.pending_extend ? 'od__action-btn--disabled' : ''}}" wx:if="{{!order.pending_extend}}" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
           <button class="od__action-btn" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
-          <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
+          <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" hover-class="btn-press" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
         </view>
         <!-- 加时在途: S3 内嵌提示 + 对方确认/拒绝按钮 -->
         <view class="od__extend-pending" wx:if="{{order.pending_extend}}">

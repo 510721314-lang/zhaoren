@@ -180,11 +180,11 @@
   <view class="pub__bottom">
     <block wx:if="{{isEditMode}}">
       <button class="pub__btn pub__btn--ghost" bindtap="onGiveUpEdit" hover-class="btn-press">放弃修改</button>
-      <button class="pub__btn pub__btn--primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">确认修改</button>
+      <button class="pub__btn pub__btn--primary" hover-class="btn-press" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">确认修改</button>
     </block>
     <block wx:else>
       <button class="pub__btn pub__btn--ghost" bindtap="saveDraft" hover-class="btn-press">存草稿</button>
-      <button class="pub__btn pub__btn--primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">发布需求</button>
+      <button class="pub__btn pub__btn--primary" hover-class="btn-press" loading="{{publishing}}" disabled="{{publishing}}" bindtap="onPublish">发布需求</button>
     </block>
   </view>
 
@@ -207,7 +207,7 @@
       </view>
     </view>
     <view slot="footer" class="pub__opt-footer">
-      <button class="pub__btn pub__btn--primary" bindtap="confirmOptions">确定</button>
+      <button class="pub__btn pub__btn--primary" hover-class="btn-press" bindtap="confirmOptions">确定</button>
     </view>
   </bottom-sheet>
 
