@@ -395,7 +395,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 120rpx;
+  width: 72rpx;
   height: 112rpx;
   margin: 0;
   padding: 0;
