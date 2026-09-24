@@ -40,6 +40,7 @@
           <template #title><el-icon><Lock /></el-icon><span>安全与风控</span></template>
           <el-menu-item index="/report">举报处理</el-menu-item>
           <el-menu-item index="/conversation">会话监管</el-menu-item>
+          <el-menu-item index="/audit">行为审计</el-menu-item>
         </el-sub-menu>
 
         <!-- 7. 运营配置(已拆为独立模块) -->

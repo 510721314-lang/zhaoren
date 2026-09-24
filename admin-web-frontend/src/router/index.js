@@ -33,6 +33,7 @@ const routes = [
       // ── 6. 安全与风控 ──
       { path: 'report', component: () => import('../views/Report.vue'), meta: { title: '举报处理' } },
       { path: 'conversation', component: () => import('../views/Conversation.vue'), meta: { title: '会话监管' } },
+      { path: 'audit', component: () => import('../views/Audit.vue'), meta: { title: '行为审计' } },
 
       // ── 7. 运营配置 ──
       { path: 'config', redirect: '/operations' },  // 旧入口跳转
