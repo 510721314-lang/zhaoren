@@ -168,6 +168,20 @@ if ($flips.Count -gt 0) {
     $auditIssues += "dead-code flip detected: $($flips -join ', ')"
 }
 
+# ── data/WXML 一致性扫描(小程序前端; 仅 -Audit 时执行, 由 scan-miniprogram.ps1 判定) ──
+$mpRoot = Join-Path $root "miniprogram"
+if ($Audit -and (Test-Path $mpRoot)) {
+    $scanScript = Join-Path $root ".trae\scripts\scan-miniprogram.ps1"
+    if (Test-Path $scanScript) {
+        $psExe2 = Join-Path $PSHOME "powershell.exe"
+        if (-not (Test-Path $psExe2)) { $psExe2 = "powershell.exe" }
+        & $psExe2 -ExecutionPolicy Bypass -File $scanScript | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            $auditIssues += "miniprogram data/WXML consistency scan FAILED (see scan-miniprogram output above)"
+        }
+    }
+}
+
 if ($auditIssues.Count -eq 0) {
     Write-Host "      clean ($($deployable.Count) deployable, whitelist $($wl.Count))" -ForegroundColor Green
 } else {
