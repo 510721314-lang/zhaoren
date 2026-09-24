@@ -377,6 +377,8 @@ Page({
     // 校验接单价格区间(元/小时; 服务端会按平台边界再校验一次)
     const minYuan = Number(form.minPrice) || 0;
     const maxYuan = Number(form.maxPrice) || 0;
+    const rateLoYuan = this.data.rateMinYuan;
+    const rateHiYuan = this.data.rateMaxYuan;
     if (minYuan < rateLoYuan || minYuan > rateHiYuan || maxYuan < rateLoYuan || maxYuan > rateHiYuan) {
       wx.showToast({ title: `单价区间需在${rateLoYuan}-${rateHiYuan}元/小时之间`, icon: 'none' });
       return;
