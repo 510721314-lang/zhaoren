@@ -24,6 +24,7 @@ Page({
   data: {
     // 初始空壳, onLoad 调云端后覆盖
     user: { avatar: '', nickname: '', phone: '', roles: [], is_realname_done: false, user_credit_score: 0, partner_credit_score: 0 },
+    notice_unread: 0,
     identity: 'user',       // user | partner
     userLevel: '',
     partnerLevel: '',

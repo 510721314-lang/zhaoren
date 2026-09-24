@@ -180,7 +180,9 @@ Page({
       success: (res) => {
         if (!res.confirm && !res.cancel) return;
         // 上报云端 safety-report
-        const orderId = this.data.currentOrderId || this.data.orders[0].order_id;
+        // orders 未加载时判空兜底(undefined[0] 会抛 TypeError 中断后续拨号)
+        const activeOrders = this.data.orders || this.data.todayOrders || [];
+        const orderId = this.data.currentOrderId || (activeOrders[0] && activeOrders[0].order_id) || '';
         if (orderId) {
           callCloud('safety-report', { action: 'sos', order_id: orderId, source: 'workbench' })
             .catch(() => {});  // 上报失败不阻塞拨号
