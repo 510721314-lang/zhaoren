@@ -390,22 +390,30 @@
   overflow: hidden;
   box-shadow: var(--shadow-float);
 }
+/* 外层 view 定宽: 不受 button 组件默认样式影响 */
 .home__float-btn {
+  width: 72rpx;
+  height: 112rpx;
+  background: var(--brand-primary);
+  border-radius: 0;
+}
+/* 内层 button 透明占满: 仅承载 open-type / 点击 */
+.home__float-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 72rpx;
-  height: 112rpx;
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
   border-radius: 0;
-  background: var(--brand-primary);
+  background: transparent;
   color: var(--text-invert);
   line-height: 1;
 }
-.home__float-btn::after { border: none; }
-.home__float-btn--hover { background: var(--brand-primary-press); }
+.home__float-inner::after { border: none; }
+.home__float-inner--hover { opacity: 0.85; }
 .home__float-ic {
   font-size: var(--font-xxl);
   font-weight: 600;
