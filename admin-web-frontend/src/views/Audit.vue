@@ -41,7 +41,7 @@
       <el-table-column type="expand">
         <template #default="{row}">
           <div style="padding:8px 16px;background:#fafafa;font-size:12px;word-break:break-all">
-            <div><b>detail:</b> <code>{{ JSON.stringify(row.detail) }}</code></div>
+            <div><b>detail:</b> <code>{{ fmtDetail(row.detail) }}</code></div>
             <div v-if="row.client_ip || row.device"><b>来源:</b> IP {{ row.client_ip }} · {{ row.device }}</div>
             <div v-if="row.prev_hash"><b>prev_hash:</b> <code style="font-size:11px">{{ row.prev_hash }}</code></div>
             <div v-if="row.chain_hash"><b>chain_hash:</b> <code style="font-size:11px">{{ row.chain_hash }}</code></div>
@@ -128,6 +128,24 @@ const ROLE_MAP = { admin: '管理员', user: '用户', partner: '耍伴' };
 function roleText(r) { return ROLE_MAP[r] || r || '-'; }
 const RESULT_MAP = { ok: '成功', denied: '拒绝', fail: '失败' };
 function resultText(r) { return RESULT_MAP[r] || r || '-'; }
+
+// 安全序列化 detail(防 JSON 循环引用: 历史脏数据或 Proxy 结构会抛错)
+function fmtDetail(detail) {
+  if (detail === null || detail === undefined) return '{}';
+  if (typeof detail !== 'object') return String(detail);
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(detail, (k, v) => {
+      if (typeof v === 'object' && v !== null) {
+        if (seen.has(v)) return '[Circular]';
+        seen.add(v);
+      }
+      return v;
+    });
+  } catch (e) {
+    try { return JSON.stringify(String(detail)); } catch { return '[unserializable]'; }
+  }
+}
 
 function fmtTime(ts) {
   if (!ts) return '-';
