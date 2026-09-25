@@ -831,6 +831,7 @@ exports.main = async (event, context) => {
           publisher: {
             surname,
             real_name_verified: true,
+            credit_score: u.user_credit_score || 800,
             minutes_ago
           },
           created_at: d.created_at,

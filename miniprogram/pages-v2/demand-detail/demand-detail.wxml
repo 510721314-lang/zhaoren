@@ -38,6 +38,7 @@
         <view class="dd__pub-avatar">🧑</view>
         <view class="dd__pub-info">
           <view class="dd__pub-name">{{demand.publisher.surname}}** <text class="dd__pub-verified">已实名✓</text></view>
+          <view class="dd__pub-credit">信用分 {{demand.publisher.credit_score||800}}</view>
           <view class="dd__pub-time">发布于 {{demand.publisher.minutes_ago}}分钟前</view>
         </view>
       </view>
