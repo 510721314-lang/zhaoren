@@ -65,13 +65,13 @@ Page({
   // 发布者端接单感知: 停留详情页期间耍伴接单 → 自动跳转确认页(用 detail_light 轮询, 不自增浏览)
   __scheduleOwnerWatch(demand) {
     const owner = !!(demand && demand.is_owner);
-    if (!owner || this.__ownerJumped || this.__ownerPoll) return;
+    if (!owner || this.__ownerPrompted || this.__ownerPoll) return;
     this.__ownerPollLaunch = Date.now();
     this.__ownerPoll = setInterval(() => { this.__pollOwnerLight(); }, 5000);
     this.__pollOwnerLight();
   },
   __pollOwnerLight() {
-    if (this.__ownerJumped) return;
+    if (this.__ownerPrompted) return;
     const id = this.__lastOptions && this.__lastOptions.id;
     if (!id) return;
     wx.cloud.callFunction({
@@ -82,15 +82,25 @@ Page({
         if (!d || !d.is_owner) { this.stopOwnerPoll(); return; }
         if (d.status && d.status !== 'matching') {
           this.stopOwnerPoll();
-          if (d.order_id) {
-            this.__ownerJumped = true;
-            wx.showToast({ title: '已有人接单，前往核对', icon: 'none', duration: 1500 });
-            setTimeout(() => {
-              wx.redirectTo({
-                url: `/pages-v2/chat/chat?orderId=${d.order_id}`,
-                fail: () => { this.__ownerJumped = false; }
-              });
-            }, 700);
+          if (d.order_id && !this.__ownerPrompted) {
+            this.__ownerPrompted = true;
+            wx.showModal({
+              title: '👥 已有人接单',
+              content: '耍伴已接单并发起确认，是否前往核对确认？',
+              confirmText: '去确认',
+              cancelText: '稍后',
+              confirmColor: '#07C160',
+              success: (res) => {
+                if (res.confirm) {
+                  wx.redirectTo({
+                    url: `/pages-v2/chat/chat?orderId=${d.order_id}`,
+                    fail: () => { this.__ownerPrompted = false; }
+                  });
+                }
+                // 点"稍后": 停轮询, 留在详情页, 不反复弹; 需求发布者之后可从订单/消息进入
+              },
+              fail: () => { this.__ownerPrompted = false; }
+            });
           }
         } else if (this.__ownerPollLaunch && Date.now() - this.__ownerPollLaunch > 90000) {
           this.stopOwnerPoll();
