@@ -1030,6 +1030,11 @@ Page({
   },
 
   _doPublish(f, durationH, pubLoc) {
+    // 幂等键: 弱网重试复用同一 id, 后端据其查重避免重复建需求
+    // 草稿发布固定用草稿 _id; 无草稿用页面级缓存 uuid; 成功后置空供下一单复用新 id, 失败保留供重试
+    if (!this._clientRequestId) {
+      this._clientRequestId = this.__draftId || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
     // 服务内容: 用户在选择窗勾选(≥1 项, ≤3 项); 服务端 demand-publish 还会按场景 options 再校验一次
     const contentOptions = (f.content_options || []).slice(0, 3);
 
@@ -1076,7 +1081,8 @@ Page({
       pet_auth_checked: this.data.petAuthChecked,
       pet_auth_signature_file_id: this.data.petAuthSignFileId || '',
       target_openid: this.invitePartnerOpenid || '',
-      draft_id: this.__draftId || ''
+      draft_id: this.__draftId || '',
+      client_request_id: this._clientRequestId
     };
 
     wx.cloud.callFunction({
@@ -1087,6 +1093,7 @@ Page({
         if (r.ok && r.data) {
           const demandId = r.data._id;
           this.__draftId = null;
+          this._clientRequestId = null;  // 发布成功清除幂等键, 下一单复用新 id
           this.invitePartnerOpenid = '';
           wx.showToast({
             title: this.__editMode

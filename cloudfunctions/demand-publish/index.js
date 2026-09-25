@@ -269,7 +269,8 @@ exports.main = async (event, context) => {
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
-        match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id
+        match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id,
+        client_request_id
       } = event;
 
       // ── 基础校验 ──
@@ -518,6 +519,29 @@ exports.main = async (event, context) => {
         }
       }
 
+      // ── 幂等保护: 弱网重试复用 client_request_id 查重, 绝不新建第二条 ──
+      // 前端草稿发布固定用草稿 _id, 无草稿用页面级缓存 uuid; 成功后清除, 失败/弱网时保留供重试复用
+      if (client_request_id) {
+        try {
+          const dupRes = await col('demand').where({
+            creator_openid: openid,
+            client_request_id,
+            is_deleted: false
+          }).limit(1).get();
+          const dup = (dupRes.data && dupRes.data[0]) || null;
+          // 非删除态(排除已取消/已过期)才幂等直返; 删除态则允许重建新需求
+          if (dup && dup.status && dup.status !== 'cancelled' && dup.status !== 'expired') {
+            log.d(`demand idempotent hit: ${client_request_id} -> ${dup.demand_no}`);
+            return {
+              ok: true,
+              data: { idempotent: true, demand_id: dup._id, demand_no: dup.demand_no, status: dup.status }
+            };
+          }
+        } catch (e) {
+          log.d(`demand idempotent check fail: ${(e && e.message) || e}`);  // 查重失败不阻断主流程
+        }
+      }
+
       // ── 写入 ──
       const now = Date.now();
       const demand_no = genDemandNo();
@@ -525,6 +549,7 @@ exports.main = async (event, context) => {
       const disclaimerType = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
       const doc = {
         demand_no,
+        client_request_id: client_request_id || '',   // 幂等键: 弱网重试据其查重, 避免重复建需求
         creator_openid: openid,
         scene,
         project_attr: 'commercial',
