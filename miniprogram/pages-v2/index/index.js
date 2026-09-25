@@ -19,8 +19,8 @@ Page({
     scenes: SCENES,
     filteredScenes: SCENES,   // 搜索关键词实时过滤后的场景
     searchKey: '',
-    activeUsers: [],          // 活跃用户(头像横滑)
     activePartners: [],       // 活跃耍伴(头像横滑+信用分)
+    banners: [],              // 运营 banner 轮播(home_activity 后台管理)
     activeTab: 'demand',
     demandList: [],
     sceneGroups: [],        // 需求广场按场景分组(每场景8条)
@@ -99,10 +99,42 @@ Page({
       this.setData({
         demandList: r.data.list || [],
         partnerList: r.data.partners || [],
-        activeUsers: r.data.active_users || [],
         activePartners: r.data.active_partners || []
       });
       this.fetchSceneGroups();
+      this.fetchActivities();
+    }
+  },
+
+  // H2b 运营 banner 轮播: 后台 home_activity 配置, 首页展示
+  fetchActivities() {
+    const app = getApp();
+    return app.cloudCall('home-action', { action: 'home_activity_list' }).then((r) => {
+      if (r.ok && r.data) {
+        this.setData({ banners: r.data.banners || [] });
+      }
+    }).catch(() => { /* 拉取失败静默降级, 首页仍可用 */ });
+  },
+
+  onActivityTap(e) {
+    const idx = e.currentTarget.dataset.idx;
+    const act = this.data.banners[idx];
+    if (!act) return;
+    const p = act.jump_param || {};
+    switch (act.jump_to) {
+      case 'demand_publish': {
+        const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
+        wx.navigateTo({ url });
+        break;
+      }
+      case 'scene_list': {
+        const url = '/pages-v2/square/square' + (p.scene_code ? '?scene_code=' + p.scene_code : '');
+        wx.redirectTo({ url });
+        break;
+      }
+      default: {
+        wx.showToast({ title: '活动详情即将上线', icon: 'none' });
+      }
     }
   },
 
@@ -133,7 +165,6 @@ Page({
         filteredScenes: scenes
       });
       // 同步到全局, redline.js R9 白名单校验 + 组件 getScene 动态兜底(存完整场景对象)
-      const app = getApp();
       if (app) app.globalData.availableScenes = scenes;
     }
   },
@@ -149,7 +180,6 @@ Page({
             demandList: r.data.list || [],
             sceneGroups: r.data.scene_groups || [],
             partnerList: r.data.partners || [],
-            activeUsers: r.data.active_users || [],
             activePartners: r.data.active_partners || []
           });
         }
@@ -283,19 +313,6 @@ Page({
     wx.navigateTo({
       url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
       fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
-    });
-  },
-
-  // 活跃用户头像 → 用户公开主页
-  onActiveUserTap(e) {
-    const openid = e.currentTarget.dataset.openid;
-    if (!openid) {
-      wx.showToast({ title: '用户数据异常', icon: 'none' });
-      return;
-    }
-    wx.navigateTo({
-      url: `/pages/user-home/user-home?openid=${openid}`,
-      fail: (err) => { console.error('[index] onActiveUserTap fail:', err); wx.showToast({ title: '用户主页打开失败', icon: 'none' }); }
     });
   },
 

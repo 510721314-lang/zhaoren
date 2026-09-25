@@ -29,6 +29,19 @@
   <!-- H2 卖点条 -->
   <safe-sell-bar></safe-sell-bar>
 
+  <!-- H2b 运营 Banner 轮播（后台 home_activity 管理，0-N 张，可空） -->
+  <view class="home__banner-wrap" wx:if="{{banners.length}}">
+    <swiper class="home__banner" indicator-dots autoplay circular interval="4000" indicator-color="rgba(255,255,255,0.5)" indicator-active-color="#fff">
+      <swiper-item wx:for="{{banners}}" wx:key="id" data-idx="{{index}}" bindtap="onActivityTap">
+        <image class="home__banner-img" src="{{item.banner_image}}" mode="aspectFill" lazy-load="{{true}}"></image>
+        <view class="home__banner-text">
+          <view class="home__banner-title">{{item.title}}</view>
+          <view wx:if="{{item.subtitle}}" class="home__banner-sub">{{item.subtitle}}</view>
+        </view>
+      </swiper-item>
+    </swiper>
+  </view>
+
   <!-- H3 紧急联系人未确认提醒（可关闭不阻断） -->
   <view class="home__emergency" wx:if="{{showEmergency && unconfirmedContact}}">
     <text class="home__emergency-text">您的紧急联系人「{{unconfirmedContact.name}}」尚未完成确认</text>
@@ -72,19 +85,7 @@
     <view class="home__welfare-btn">领取</view>
   </view>
 
-  <!-- H5b 活跃用户(图4): 横滑头像+昵称 -->
-  <view class="home__active-card" wx:if="{{activeUsers.length > 0}}">
-    <view class="home__active-title"><text class="home__title-bar"></text>👥 活跃用户</view>
-    <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
-      <view class="home__active-item" wx:for="{{activeUsers}}" wx:key="openid" data-openid="{{item.openid}}" bindtap="onActiveUserTap">
-        <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill" lazy-load></image>
-        <view wx:else class="home__active-avatar home__active-avatar--ph">👤</view>
-        <view class="home__active-name">{{item.nickname}}</view>
-      </view>
-    </scroll-view>
-  </view>
-
-  <!-- H5c 活跃耍伴(图4): 横滑头像+昵称+信用分胶囊 -->
+  <!-- H5b 活跃耍伴(图4): 横滑头像+昵称+信用分胶囊 -->
   <view class="home__active-card" wx:if="{{activePartners.length > 0}}">
     <view class="home__active-title"><text class="home__title-bar"></text>⭐ 活跃耍伴</view>
     <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
