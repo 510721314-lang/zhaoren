@@ -150,6 +150,7 @@ Page({
     this.__confLoaded = true;
     // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
     const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
+    const prevStatus = this.data.orderStatus;
     this.setData({
       items,
       progress,
@@ -159,10 +160,15 @@ Page({
       orderStatus: nextStatus
     }, () => {
       this.updateMsgStatuses();
+      // 耍伴端: 发布者支付完成(待支付→已支付 S2), 及时弹窗提示"对方已支付"
+      if (this.data.role === 'partner' && nextStatus === 'S2' && prevStatus !== 'S2') {
+        wx.showToast({ title: '对方已支付，请依约履约', icon: 'none', duration: 2000 });
+      }
       if (unlocked && !wasUnlocked) {
         wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
         // 四确认完成瞬间(非重进会话)且当前用户是付款方 → 自动弹出支付窗口;
         // 放弃支付则留在本页, 顶部待支付横幅可再次进入支付
+        console.log('[pay-modal-debug]', { role: this.data.role, nextStatus, unlocked, wasUnlocked, firstLoad });
         if (!firstLoad && this.data.role === 'user' && nextStatus === 'S0') {
           wx.showModal({
             title: '💳 订单支付',
