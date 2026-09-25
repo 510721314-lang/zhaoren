@@ -12,7 +12,7 @@
     <text class="dcard__meta-item">📍 {{distanceText}}</text>
     <text class="dcard__meta-item">🕐 {{demand.service_date}} {{demand.service_time}}</text>
     <text class="dcard__meta-item">👥 {{demand.headcount}}人</text>
-    <text class="dcard__meta-item">👁 {{demand.view_count || 0}}看过</text>
+    <text class="dcard__meta-item" wx:if="{{demand.view_count > 0}}">👁 {{demand.view_count}}看过</text>
   </view>
 
   <view class="dcard__publisher">

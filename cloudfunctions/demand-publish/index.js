@@ -771,13 +771,15 @@ exports.main = async (event, context) => {
           await col('demand').doc(demand_id).update({ data: { view_count: _.inc(1) } });
         } catch (e) { log.d(`view count inc fail: ${e.message}`); }
 
-        // 发布者姓氏(取 surname / real_name / nickname 首字)
+        // 发布者姓氏 + 信用分(取 surname / real_name / nickname 首字; u 仅在此作用域内, 勿外泄引用)
         let surname = '匿';
+        let creditScore = 800;
         try {
           const uR = await col('user_account').where({ openid: d.creator_openid }).limit(1).get();
           const u = (uR.data && uR.data[0]) || {};
           const name = u.surname || u.real_name || u.nickname || '';
           surname = name ? String(name).charAt(0) : '匿';
+          creditScore = u.user_credit_score || 800;
         } catch (e) {}
 
         // 备注拆分: 标题｜描述(full-width ｜)
@@ -831,7 +833,7 @@ exports.main = async (event, context) => {
           publisher: {
             surname,
             real_name_verified: true,
-            credit_score: u.user_credit_score || 800,
+            credit_score: creditScore,
             minutes_ago
           },
           created_at: d.created_at,
@@ -840,8 +842,7 @@ exports.main = async (event, context) => {
         return { ok: true, data };
       } catch (e) {
         log.d(`demand detail fail: ${e.message}`);
-        // 诊断期: 回传真实错误信息(定位用, 定位后改回通用文案)
-        return { ok: false, code: 'detail_fail', msg: `detail_err: ${e.message}` };
+        return { ok: false, code: 'detail_fail', msg: '查询需求详情失败' };
       }
     }
 

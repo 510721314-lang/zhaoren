@@ -16,7 +16,8 @@ Page({
     loadError: false,
     isRedline: false,
     // C 可运营参数（供 WXML 绑定）
-    confirmTimeoutMin: CONFIG.ORDER.confirmTimeoutMin
+    confirmTimeoutMin: CONFIG.ORDER.confirmTimeoutMin,
+    loadErrMsg: ''
   },
 
   onLoad(options) {
@@ -49,11 +50,11 @@ Page({
             loading: false
           });
         } else {
-          this.setData({ loading: false, loadError: true });
+          this.setData({ loading: false, loadError: true, loadErrMsg: (r.msg || r.code || '详情加载失败') });
         }
       },
-      fail: () => {
-        this.setData({ loading: false, loadError: true });
+      fail: (err) => {
+        this.setData({ loading: false, loadError: true, loadErrMsg: (err && err.errMsg) || '详情加载失败' });
       }
     });
   },

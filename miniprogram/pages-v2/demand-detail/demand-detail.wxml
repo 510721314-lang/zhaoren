@@ -6,7 +6,7 @@
     <view class="dd__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
   </view>
   <!-- 网络异常态 -->
-  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
+  <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="{{loadErrMsg || '请检查网络后重试'}}" btnText="重试" bind:btntap="reload" />
   <!-- 正常态 -->
   <block wx:elif="{{demand}}">
   <view class="dd__body">
