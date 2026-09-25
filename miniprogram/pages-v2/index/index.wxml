@@ -165,7 +165,7 @@
     </view>
     <view class="home__float-btn">
       <button class="home__float-inner" hover-class="home__float-inner--hover" open-type="contact" aria-label="客服">
-        <text class="home__float-ic">🎧︎</text>
+        <text class="home__float-ic home__float-ic--cs"></text>
       </button>
     </view>
   </view>

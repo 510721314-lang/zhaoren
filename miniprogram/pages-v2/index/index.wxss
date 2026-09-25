@@ -419,3 +419,13 @@
   font-size: var(--font-xxl);
   font-weight: 600;
 }
+/* 客服图标: 白色 SVG 背景, 规避 emoji 彩色渲染(U+FE0E 真机不可靠) */
+.home__float-ic--cs {
+  width: 44rpx;
+  height: 44rpx;
+  font-size: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23FFFFFF'%3E%3Cpath d='M11.4 1.02C6.62 1.33 3 5.51 3 10.31V20h6v-8H5v-1.71C5 6.45 7.96 3.11 11.79 3A7 7 0 0 1 19 10v2h-4v8h4c1.1 0 2-.9 2-2v-6.33C22.08 6.06 16.36 1.66 11.4 1.02z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
