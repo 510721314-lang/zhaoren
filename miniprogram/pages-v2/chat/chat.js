@@ -160,9 +160,16 @@ Page({
       orderStatus: nextStatus
     }, () => {
       this.updateMsgStatuses();
-      // 耍伴端: 发布者支付完成(待支付→已支付 S2), 及时弹窗提示"对方已支付"
+      // 耍伴端: 发布者支付完成(待支付→已支付 S2), 弹确认框提示"对方已支付"(点确定才消失)
       if (this.data.role === 'partner' && nextStatus === 'S2' && prevStatus !== 'S2') {
-        wx.showToast({ title: '对方已支付，请依约履约', icon: 'none', duration: 2000 });
+        wx.showModal({
+          title: '💰 对方已支付',
+          content: '对方已完成支付，请依约履约',
+          showCancel: false,
+          confirmText: '知道了',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '对方已支付', icon: 'none' })
+        });
       }
       if (unlocked && !wasUnlocked) {
         wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
