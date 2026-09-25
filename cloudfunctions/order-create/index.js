@@ -331,15 +331,6 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_switch_off', msg: '接单开关已关闭' };
   }
 
-  // ── W1 就医陪诊:耍伴需通过国标专项考核(>=80分) ──
-  if (demand.scene === 'W1') {
-    const w1Score = Number(profile.exam_scores && profile.exam_scores.W1);
-    if (!w1Score || w1Score < 80) {
-      await logReject(openid, demand_id, 'w1_exam_failed');
-      return { ok: false, code: 'order_w1_exam_required', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
-    }
-  }
-
   // ── 耍伴信用分 ──
   if ((partnerUser.partner_credit_score || 800) < (config.min_credit_take_order || 600)) {
     await logReject(openid, demand_id, 'partner_credit_low');
@@ -350,6 +341,15 @@ exports.main = async (event, context) => {
   if (!demand) {
     await logReject(openid, demand_id, 'demand_not_found');
     return { ok: false, code: 'order_demand_not_found', msg: '需求不存在' };
+  }
+
+  // ── W1 就医陪诊:耍伴需通过国标专项考核(>=80分)(需求存在后才校验) ──
+  if (demand.scene === 'W1') {
+    const w1Score = Number(profile.exam_scores && profile.exam_scores.W1);
+    if (!w1Score || w1Score < 80) {
+      await logReject(openid, demand_id, 'w1_exam_failed');
+      return { ok: false, code: 'order_w1_exam_required', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
+    }
   }
 
   // 不能接自己的单

@@ -626,13 +626,16 @@ exports.main = async (event, context) => {
       try {
       // 可提现余额 = 已结算收入(S8/S9/S10) - 提现占用(processing+success)
       // 极速提现当日限额查询也合并进同一批(非 fast 时仍执行一次轻量聚合, 无妨)
-      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      // 极速提现当日限额按北京时间(UTC+8)日切分, 与订单/结算 cnDayStart 口径一致
+      const CN_OFFSET_MS = 8 * 3600 * 1000;
+      const DAY_MS = 24 * 3600 * 1000;
+      const dayStart = Math.floor((Date.now() + CN_OFFSET_MS) / DAY_MS) * DAY_MS - CN_OFFSET_MS;
       const [settledR, wUsedR, dayR] = await Promise.all([
         col('order_main').aggregate().match({ partner_openid: openid, status: _.in(['S8', 'S9', 'S10']), is_deleted: _.neq(true) })
           .group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid, is_deleted: false })
           .group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
-        col('withdraw_record').aggregate().match({ openid, type: 'fast', created_at: _.gte(dayStart.getTime()), is_deleted: false })
+        col('withdraw_record').aggregate().match({ openid, type: 'fast', created_at: _.gte(dayStart), is_deleted: false })
           .group({ _id: null, total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }))
       ]);
       const settledFen = (settledR.list && settledR.list[0] && settledR.list[0].total) || 0;

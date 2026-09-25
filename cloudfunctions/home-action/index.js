@@ -80,9 +80,9 @@ function mapDemand(d, now, pad) {
   const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
   const description = remarkParts[1] ? remarkParts[1].trim() : '';
 
-  const dt = new Date(d.start_time);
-  const service_date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-  const service_time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  const dt = new Date(Number(d.start_time) + 8 * 3600 * 1000);
+  const service_date = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+  const service_time = `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
 
   const minutes_ago = Math.max(1, Math.floor((now - (d.created_at || now)) / 60000));
 
