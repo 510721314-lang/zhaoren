@@ -23,6 +23,8 @@ Page({
     banners: [],              // 运营 banner 轮播(home_activity 后台管理)
     activeTab: 'demand',
     demandList: [],
+    nearbyList: [],        // 附近可接单池(仅耍伴端, 就近排序)
+    isPartner: false,      // 当前用户是否为耍伴(决定是否展示附近可接块)
     sceneGroups: [],        // 需求广场按场景分组(每场景8条)
     partnerList: [],       // P2 接云端 partner-profile 列表
     user: {},
@@ -76,7 +78,10 @@ Page({
   fetchUser() {
     callCloud('user-login', { action: 'peek_login' }).then((r) => {
       if (r.ok && r.data && r.data.found && r.data.user) {
-        this.setData({ user: r.data.user });
+        const u = r.data.user;
+        const isPartner = (u.roles || []).indexOf('partner') >= 0;
+        this.setData({ user: u, isPartner });
+        if (isPartner) this.fetchNearby();   // 附近可接单池仅耍伴端拉取
       }
     });
   },
@@ -89,6 +94,16 @@ Page({
     // 首次 onShow 跳过(onLoad 已拉); 之后切回首页/发布返回刷新广场
     if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.fetchSquare();
+    if (this.data.isPartner) this.fetchNearby();
+  },
+
+  // 拉取附近可接单池(仅耍伴端): 复用 nearby action 就近排序的可接需求
+  async fetchNearby() {
+    const app = getApp();
+    const r = await app.cloudCall('home-action', { action: 'nearby', limit: 10 });
+    if (r.ok && r.data) {
+      this.setData({ nearbyList: r.data.list || [] });
+    }
   },
 
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴

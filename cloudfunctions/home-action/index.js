@@ -489,6 +489,79 @@ exports.main = async (event, context) => {
         };
       }
 
+      // ───────── 附近可接单池(耍伴端首页, 按就近排序) ─────────
+      // 过滤: 匹配中 + 场景白名单 + 非定向(match_mode!=='direct') + 未超 take_distance_max_km + 排除已删/自己的需求
+      // 排序: distance_km 升序为主, 同距按 created_at 新优先; 复用 square 的 mapDemand 卡片映射
+      case 'nearby': {
+        const limit = Math.min(Number(event.limit) || 20, 50);
+        const now = Date.now();
+        const pad = (n) => n < 10 ? '0' + n : '' + n;
+
+        // 附近可接单依赖耍伴日常位置(复用接单配置里的 home_location, 不新增定位授权)
+        const openid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
+        const vp = await loadVisitorPartner(openid);
+        if (!vp || !vp.home) {
+          return { ok: true, data: { list: [], need_home_location: true } };
+        }
+
+        // 接单价格区间过滤(与广场同口径; 非耍伴/未设置 → 不过滤)
+        const vRange = vp.range;
+        const rateCond = vRange
+          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
+          : null;
+
+        // 场景白名单(与首页宫格同源 admin_config.scene_list)
+        const { scenes } = await loadSceneList();
+        const sceneCodes = scenes.map((s) => s.code).filter(Boolean);
+        const whitelist = sceneCodes.length ? sceneCodes : SCENE_FALLBACK.map((s) => s.code);
+
+        // 平台最大接单距离阈值(take_distance_max_km)
+        const effMaxKm = await loadTakeDistanceCap();
+
+        const where = Object.assign({
+          is_deleted: false,
+          status: 'matching',
+          match_mode: _.neq('direct'),        // 定向需求不进池
+          creator_openid: _.neq(openid),      // 不展示自己的需求
+          scene: _.in(whitelist)
+        }, rateCond || {});
+
+        const demandR = await col('demand')
+          .where(where)
+          .orderBy('created_at', 'desc')
+          .limit(limit)
+          .get()
+          .catch(() => ({ data: [] }));
+
+        const docs = demandR.data || [];
+        const items = docs.map((d) => mapDemand(d, now, pad));
+
+        // 距离计算并过滤超出 take_distance_max_km 的需求(复用 square 口径)
+        const kept = [];
+        docs.forEach((d, i) => {
+          const site = d.location || {};
+          const lat = Number(site.latitude), lng = Number(site.longitude);
+          if (isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0) {
+            const km = Math.round(haversineKm(vp.home.lat, vp.home.lng, lat, lng) * 10) / 10;
+            items[i].distance_km = km;
+            if (km > effMaxKm) return;
+          }
+          kept.push(items[i]);
+        });
+
+        // 排序: distance_km 升序为主, 同距按 created_at 新优先(无坐标的排最末)
+        let list = kept;
+        list.sort((a, b) => {
+          const ka = a.distance_km === null ? Infinity : a.distance_km;
+          const kb = b.distance_km === null ? Infinity : b.distance_km;
+          if (ka !== kb) return ka - kb;
+          return (b.created_at || 0) - (a.created_at || 0);
+        });
+
+        await fillPublisherSurname(list);
+        return { ok: true, data: { list, has_more: docs.length > limit } };
+      }
+
       // ───────── 用户公开主页 ─────────
       case 'user_home': {
         const targetOpenid = event.openid || '';
