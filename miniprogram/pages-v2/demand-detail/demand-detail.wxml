@@ -30,6 +30,8 @@
         <view class="dd__info-item" wx:if="{{demand.project_attr === 'commercial'}}"><text class="dd__info-label">预算</text><text class="dd__info-val">¥{{demand.budget}}/小时</text></view>
         <view class="dd__info-item"><text class="dd__info-label">AA区间</text><text class="dd__info-val">{{demand.aa_estimate}}</text></view>
       </view>
+      <!-- 耍伴端位置信息: 履约地址 + 距 TA 距离(定位授权后展示; 发布者不展示) -->
+      <view class="dd__loc" wx:if="{{!isOwner && locDisplay}}">{{locDisplay}}</view>
     </view>
 
     <!-- D2 发布者卡 -->

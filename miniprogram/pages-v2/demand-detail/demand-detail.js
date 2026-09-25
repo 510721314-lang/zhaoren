@@ -26,30 +26,28 @@ Page({
     this.fetchData(options);
   },
 
-  fetchData(options) {
+  fetchData(options, needLoading) {
     this.__lastOptions = options || {};
     const id = options && options.id;
     if (!id) {
       this.setData({ loading: false, loadError: true });
       return;
     }
-    this.setData({ loading: true, loadError: false });
+    // 轻量重取(补距离)不闪骨架屏; 首次/手动刷新 showLoading
+    if (needLoading !== false) this.setData({ loading: true, loadError: false });
+    const payload = { action: 'detail', demand_id: id };
+    // 耍伴(非发布者)将实时定位随详情请求带给后端, 用于计算履约地址到 TA 的距离
+    if (this.__viewerCoords) {
+      payload.viewer_lat = this.__viewerCoords.latitude;
+      payload.viewer_lng = this.__viewerCoords.longitude;
+    }
     wx.cloud.callFunction({
       name: 'demand-publish',
-      data: { action: 'detail', demand_id: id },
+      data: payload,
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
-          const demand = r.data;
-          const scene = getScene(demand.scene_code);
-          this.setData({
-            demand,
-            scene,
-            isOwner: !!demand.is_owner,
-            role: demand.is_owner ? 'user' : 'partner',
-            loading: false
-          });
-          this.__scheduleOwnerWatch(demand);
+          this.__renderDemand(r.data);
         } else {
           this.setData({ loading: false, loadError: true, loadErrMsg: (r.msg || r.code || '详情加载失败') });
         }
@@ -58,6 +56,49 @@ Page({
         this.setData({ loading: false, loadError: true, loadErrMsg: (err && err.errMsg) || '详情加载失败' });
       }
     });
+  },
+
+  __renderDemand(demand) {
+    const scene = getScene(demand.scene_code);
+    this.setData({
+      demand,
+      scene,
+      isOwner: !!demand.is_owner,
+      role: demand.is_owner ? 'user' : 'partner',
+      locDisplay: demand.is_owner ? '' : this.__buildLocDisplay(demand),
+      loading: false
+    });
+    // 仅耍伴(非发布者)端触发实时定位: 授权后坐标随详情请求带回, 后端据此返回履约地址到TA的距离
+    if (!demand.is_owner && !this.__viewerCoords) {
+      this.__collectViewerLoc(demand._id);
+    }
+    this.__scheduleOwnerWatch(demand);
+  },
+
+  // 耍伴实时定位(仅非发布者触发; 授权失败/拒绝 → 兜底仅显示地址, 不阻断页面)
+  __collectViewerLoc(id) {
+    wx.getLocation({
+      type: 'wgs84',
+      success: (loc) => {
+        if (!loc || typeof loc.latitude !== 'number' || typeof loc.longitude !== 'number') return;
+        this.__viewerCoords = { latitude: loc.latitude, longitude: loc.longitude };
+        // 轻量重取详情补 distanceKm, 不闪骨架屏(坐标已缓存, 后续 reload 单次请求)
+        if (id && id === (this.__lastOptions && this.__lastOptions.id)) {
+          this.fetchData(this.__lastOptions || {}, false);
+        }
+      },
+      fail: () => { /* 定位拒绝/不可用: 保持显示履约地址, 距离留空 */ }
+    });
+  },
+
+  // 拼展示文案:📍{地址} · 距您 X km(无定位则仅地址; 连地址也无则提示定位不可用)
+  __buildLocDisplay(demand) {
+    const addr = (demand && demand.address_text) || (demand.location && demand.location.name) || '';
+    const dk = demand ? demand.distance_km : null;
+    if (!addr) return '📍 定位不可用';
+    let text = `📍${addr}`;
+    if (typeof dk === 'number' && isFinite(dk)) text += ` · 距您 ${dk} km`;
+    return text;
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },

@@ -782,7 +782,7 @@ exports.main = async (event, context) => {
 
     // 5. 需求详情(公开, 含发布者姓氏)
     case 'detail': {
-      const { demand_id } = event;
+      const { demand_id, viewer_lat, viewer_lng } = event;
       if (!demand_id) return { ok: false, code: 'detail_no_id', msg: '缺少需求 ID' };
       if (!isValidDocId(demand_id)) return { ok: false, code: 'detail_bad_id', msg: '需求 ID 格式不正确' };
 
@@ -834,6 +834,21 @@ exports.main = async (event, context) => {
           } catch (e) { log.d(`detail order reverse lookup fail: ${e.message}`); }
         }
 
+        // 耍伴实时定位到履约地的直线距离(仅非发布者传 viewer_lat/viewer_lng): 需求有履约经纬度时计算
+        let distanceKm = null;
+        const demandLoc = d.location || {};
+        const vLat = Number(viewer_lat);
+        const vLng = Number(viewer_lng);
+        const hasViewer = validLngLat(vLat, vLng);
+        const hasDemandLoc = validLngLat(Number(demandLoc.latitude), Number(demandLoc.longitude));
+        if (hasViewer && hasDemandLoc) {
+          distanceKm = Math.round(haversineKm(
+            vLat, vLng, Number(demandLoc.latitude), Number(demandLoc.longitude)
+          ) * 10) / 10;
+        }
+        // 履约地址文本: demand.location.name(发布/更新均写入 name 作地址串, 兼容 update 落 location.address)
+        const addressText = String(demandLoc.name || demandLoc.address || '').trim();
+
         const data = {
           _id: d._id,
           order_id,
@@ -848,7 +863,8 @@ exports.main = async (event, context) => {
           duration_hours: d.duration_h,
           location: d.location || { name: '', address: '' },
           district: (d.location && d.location.city) || '',
-          distance_km: null,
+          address_text: addressText,
+          distance_km: distanceKm,
           headcount: d.headcount || 1,
           budget: Math.round((d.rate_fen || 0) / 100),
           aa_estimate: d.aa_tier || '0-50',
