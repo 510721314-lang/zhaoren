@@ -49,6 +49,7 @@ Page({
             role: demand.is_owner ? 'user' : 'partner',
             loading: false
           });
+          this.__scheduleOwnerWatch(demand);
         } else {
           this.setData({ loading: false, loadError: true, loadErrMsg: (r.msg || r.code || '详情加载失败') });
         }
@@ -60,6 +61,47 @@ Page({
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },
+
+  // 发布者端接单感知: 停留详情页期间耍伴接单 → 自动跳转确认页(用 detail_light 轮询, 不自增浏览)
+  __scheduleOwnerWatch(demand) {
+    const owner = !!(demand && demand.is_owner);
+    if (!owner || this.__ownerJumped || this.__ownerPoll) return;
+    this.__ownerPollLaunch = Date.now();
+    this.__ownerPoll = setInterval(() => { this.__pollOwnerLight(); }, 5000);
+    this.__pollOwnerLight();
+  },
+  __pollOwnerLight() {
+    if (this.__ownerJumped) return;
+    const id = this.__lastOptions && this.__lastOptions.id;
+    if (!id) return;
+    wx.cloud.callFunction({
+      name: 'demand-publish',
+      data: { action: 'detail_light', demand_id: id },
+      success: (res) => {
+        const d = (res.result && res.result.ok && res.result.data) || null;
+        if (!d || !d.is_owner) { this.stopOwnerPoll(); return; }
+        if (d.status && d.status !== 'matching') {
+          this.stopOwnerPoll();
+          if (d.order_id) {
+            this.__ownerJumped = true;
+            wx.showToast({ title: '已有人接单，前往核对', icon: 'none', duration: 1500 });
+            setTimeout(() => {
+              wx.redirectTo({
+                url: `/pages-v2/chat/chat?orderId=${d.order_id}`,
+                fail: () => { this.__ownerJumped = false; }
+              });
+            }, 700);
+          }
+        } else if (this.__ownerPollLaunch && Date.now() - this.__ownerPollLaunch > 90000) {
+          this.stopOwnerPoll();
+        }
+      },
+      fail: () => {}
+    });
+  },
+  stopOwnerPoll() {
+    if (this.__ownerPoll) { clearInterval(this.__ownerPoll); this.__ownerPoll = null; }
+  },
 
   onShareAppMessage() {
     const d = this.data.demand || {};
@@ -79,6 +121,9 @@ Page({
     if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.reload();
   },
+
+  onHide() { this.stopOwnerPoll(); },
+  onUnload() { this.stopOwnerPoll(); },
 
   onGrab(e) {
     if (this.data.isRedline) {

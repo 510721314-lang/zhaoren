@@ -797,8 +797,21 @@ exports.main = async (event, context) => {
         // 发布于 X 分钟前
         const minutes_ago = Math.max(1, Math.floor((Date.now() - (d.created_at || Date.now())) / 60000));
 
+        // 被接单后反查进行中订单: 用于发布者端"接单后自动跳转确认页"(demand 表不落 order_id)
+        let order_id = null;
+        if (d.status && d.status !== 'matching') {
+          try {
+            const oR = await col('order_main').where({ demand_id, is_deleted: false }).orderBy('created_at', 'desc').limit(1).get();
+            const o = (oR.data && oR.data[0]) || null;
+            if (o && typeof o.status === 'string' && !/^(cancelled|failed|closed|completed|refunded)$/.test(o.status)) {
+              order_id = o._id || o.order_no || null;
+            }
+          } catch (e) { log.d(`detail order reverse lookup fail: ${e.message}`); }
+        }
+
         const data = {
           _id: d._id,
+          order_id,
           demand_no: d.demand_no,
           scene_code: d.scene,
           project_attr: d.project_attr || 'commercial',
@@ -843,6 +856,33 @@ exports.main = async (event, context) => {
       } catch (e) {
         log.d(`demand detail fail: ${e.message}`);
         return { ok: false, code: 'detail_fail', msg: '查询需求详情失败' };
+      }
+    }
+
+    // detail_light: 轻量状态查询(轮询用, 不自增 view_count, 只给状态+order_id)
+    // 用于发布者端"接单后自动跳转确认页", 避免轮询污染浏览计数
+    case 'detail_light': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'detail_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'detail_bad_id', msg: '需求 ID 格式不正确' };
+      try {
+        const r = await col('demand').doc(demand_id).get();
+        const d = r.data;
+        if (!d || d.is_deleted) return { ok: false, code: 'detail_not_found', msg: '需求不存在或已删除' };
+        let order_id = null;
+        if (d.status && d.status !== 'matching') {
+          try {
+            const oR = await col('order_main').where({ demand_id, is_deleted: false }).orderBy('created_at', 'desc').limit(1).get();
+            const o = (oR.data && oR.data[0]) || null;
+            if (o && typeof o.status === 'string' && !/^(cancelled|failed|closed|completed|refunded)$/.test(o.status)) {
+              order_id = o._id || o.order_no || null;
+            }
+          } catch (e) { log.d(`detail_light order lookup fail: ${e.message}`); }
+        }
+        return { ok: true, data: { status: d.status, order_id, is_owner: d.creator_openid === openid } };
+      } catch (e) {
+        log.d(`detail_light fail: ${e.message}`);
+        return { ok: false, code: 'detail_fail', msg: '查询需求状态失败' };
       }
     }
 
