@@ -840,7 +840,8 @@ exports.main = async (event, context) => {
         return { ok: true, data };
       } catch (e) {
         log.d(`demand detail fail: ${e.message}`);
-        return { ok: false, code: 'detail_fail', msg: '查询需求详情失败' };
+        // 诊断期: 回传真实错误信息(定位用, 定位后改回通用文案)
+        return { ok: false, code: 'detail_fail', msg: `detail_err: ${e.message}` };
       }
     }
 
