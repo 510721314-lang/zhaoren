@@ -57,7 +57,7 @@
           <view class="msg__row2">
             <text class="msg__summary">{{item.summary}}</text>
             <view class="msg__right">
-              <text class="msg__time">{{item.last_msg_at}}</text>
+              <text class="msg__time">{{item.last_msg_at_display}}</text>
               <text class="msg__read" wx:if="{{item.is_read}}">✓✓</text>
             </view>
           </view>

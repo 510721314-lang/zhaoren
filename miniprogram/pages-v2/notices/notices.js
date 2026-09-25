@@ -1,17 +1,22 @@
 const callCloud = (name, data) => wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
 
+// 时间戳: 输出 ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
 function fmtAgo(ts) {
   if (!ts) return '';
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m} 分钟前`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} 小时前`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d} 天前`;
-  const dt = new Date(ts);
-  return `${dt.getMonth() + 1}/${dt.getDate()}`;
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n) => (n < 10 ? '0' + n : '' + n);
+  const y = d.getFullYear();
+  const mo = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const h = pad(d.getHours());
+  const mi = pad(d.getMinutes());
+  const s = pad(d.getSeconds());
+  const offMin = -d.getTimezoneOffset(); // 东八区 = 480 -> +08:00
+  const sign = offMin >= 0 ? '+' : '-';
+  const offAbs = Math.abs(offMin);
+  const oz = `${sign}${pad(Math.floor(offAbs / 60))}:${pad(offAbs % 60)}`;
+  return `${y}-${mo}-${day}T${h}:${mi}:${s}${oz}`;
 }
 
 Page({

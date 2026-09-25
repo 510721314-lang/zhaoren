@@ -77,11 +77,31 @@ Page({
         pinned: false,
         is_read: !c.unread
       });
-    });
+    }).map((it) => Object.assign(it, { last_msg_at_display: this.formatTime(it.last_msg_at) }));
     this.setData({
       orderList: decorated,
       entries: { system: null, kefu: null } // 系统通知/客服入口后续接
     });
+  },
+
+  // 消息时间戳格式化: 输出 ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
+  formatTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    const y = d.getFullYear();
+    const mo = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    const s = pad(d.getSeconds());
+    // 本地时区偏移 ±HH:MM
+    const offMin = -d.getTimezoneOffset(); // 东八区 = 480 -> +08:00
+    const sign = offMin >= 0 ? '+' : '-';
+    const offAbs = Math.abs(offMin);
+    const oz = `${sign}${pad(Math.floor(offAbs / 60))}:${pad(offAbs % 60)}`;
+    return `${y}-${mo}-${day}T${h}:${mi}:${s}${oz}`;
   },
 
   // M1 长按：置顶 / 删除

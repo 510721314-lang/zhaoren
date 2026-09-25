@@ -766,6 +766,11 @@ exports.main = async (event, context) => {
         const d = r.data;
         if (!d || d.is_deleted) return { ok: false, code: 'detail_not_found', msg: '需求不存在或已删除' };
 
+        // 展现次数自增(浏览详情一次 +1; 不改动底层数据结果)
+        try {
+          await col('demand').doc(demand_id).update({ data: { view_count: _.inc(1) } });
+        } catch (e) { log.d(`view count inc fail: ${e.message}`); }
+
         // 发布者姓氏(取 surname / real_name / nickname 首字)
         let surname = '匿';
         try {
@@ -828,7 +833,8 @@ exports.main = async (event, context) => {
             real_name_verified: true,
             minutes_ago
           },
-          created_at: d.created_at
+          created_at: d.created_at,
+          view_count: typeof d.view_count === 'number' ? d.view_count : 0
         };
         return { ok: true, data };
       } catch (e) {

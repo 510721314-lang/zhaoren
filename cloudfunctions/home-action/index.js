@@ -104,6 +104,7 @@ function mapDemand(d, now, pad) {
     aa_estimate: d.aa_tier || '0-50',
     status: d.status,
     match_mode: d.match_mode || 'broadcast',
+    view_count: typeof d.view_count === 'number' ? d.view_count : 0,
     publisher: {
       surname: '匿',
       real_name_verified: true,
