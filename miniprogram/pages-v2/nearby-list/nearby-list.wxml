@@ -1,0 +1,41 @@
+<view class="nlist">
+  <!-- 头部 -->
+  <view class="nlist__head">
+    <text class="nlist__head-icon">📍</text>
+    <text class="nlist__head-title">附近可接</text>
+    <text class="nlist__head-sub" wx:if="{{list.length > 0}}">已加载 {{list.length}} 条</text>
+  </view>
+
+  <!-- 需求卡片 -->
+  <view class="nlist__list" wx:if="{{loaded}}">
+    <view class="fade-in-up" style="animation-delay:{{index * 0.04}}s;" wx:for="{{list}}" wx:key="_id">
+      <demand-card
+        demand="{{item}}"
+        role="partner"
+        bind:cardtap="onDemandTap"
+        bind:action="onDemandTap"
+      ></demand-card>
+    </view>
+  </view>
+
+  <!-- 首屏骨架屏 -->
+  <view class="nlist__sk" wx:if="{{!loaded}}">
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:180rpx;margin-bottom:20rpx;"></view>
+  </view>
+
+  <!-- 空态(与首页一致) -->
+  <view class="nlist__empty" wx:if="{{loaded && empty}}">
+    <view class="nlist__empty-icon">📍</view>
+    <view class="nlist__empty-title">附近暂无可接需求</view>
+    <view class="nlist__empty-desc">下拉刷新，或稍后再来看看</view>
+  </view>
+
+  <!-- 底部加载区 -->
+  <view class="nlist__footer" wx:if="{{list.length > 0}}">
+    <button wx:if="{{loading}}" class="nlist__more nlist__more--loading" loading="true" hover-class="btn-press">加载中…</button>
+    <button wx:elif="{{hasMore}}" class="nlist__more" bindtap="onMoreTap" hover-class="btn-press">点击加载更多（每页 20 条）↓</button>
+    <view wx:else class="nlist__nomore">— 已全部加载完 —</view>
+  </view>
+</view>

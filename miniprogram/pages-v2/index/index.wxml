@@ -42,26 +42,6 @@
     </swiper>
   </view>
 
-  <!-- 附近可接单池(仅耍伴端): 就近排序可接需求, 复用 demand-card -->
-  <view class="home__near" wx:if="{{!loading && isPartner}}">
-    <view class="home__near-head">
-      <text class="home__title-bar"></text>
-      <text class="home__near-title">📍 附近可接</text>
-      <text class="home__near-legend">按距离排序</text>
-    </view>
-    <block wx:if="{{nearbyList.length > 0}}">
-      <view class="fade-in-up" style="animation-delay:{{index * 0.05}}s;" wx:for="{{nearbyList}}" wx:key="_id">
-        <demand-card
-          demand="{{item}}"
-          role="partner"
-          bind:cardtap="onDemandTap"
-          bind:action="onDemandTap"
-        ></demand-card>
-      </view>
-    </block>
-    <view wx:else class="home__near-empty">附近暂无可接需求</view>
-  </view>
-
   <!-- H3 紧急联系人未确认提醒（可关闭不阻断） -->
   <view class="home__emergency" wx:if="{{showEmergency && unconfirmedContact}}">
     <text class="home__emergency-text">您的紧急联系人「{{unconfirmedContact.name}}」尚未完成确认</text>
@@ -168,6 +148,26 @@
       <view class="home__partner-tip">下拉加载更多高信用耍伴 · 新耍伴前{{trafficOrders}}单享流量扶持</view>
     </view>
   </block>
+
+  <!-- 附近可接单池(仅耍伴端): 页面最底部, 按发布时间倒序展示前10条, 更多跳附近列表页; 复用 demand-card -->
+  <view class="home__near" wx:if="{{!loading && isPartner}}">
+    <view class="home__near-head">
+      <text class="home__title-bar"></text>
+      <text class="home__near-title">📍 附近可接</text>
+      <view class="home__near-more" hover-class="home__near-more--hover" bindtap="onNearbyMoreTap">更多 ›</view>
+    </view>
+    <block wx:if="{{nearbyList.length > 0}}">
+      <view class="fade-in-up" style="animation-delay:{{index * 0.05}}s;" wx:for="{{nearbyList}}" wx:key="_id">
+        <demand-card
+          demand="{{item}}"
+          role="partner"
+          bind:cardtap="onDemandTap"
+          bind:action="onDemandTap"
+        ></demand-card>
+      </view>
+    </block>
+    <view wx:else class="home__near-empty">附近暂无可接需求</view>
+  </view>
 
   <!-- H8 页脚 -->
   <view class="home__footer">—— 全场景 {{redlineClose}}-{{redlineOpen}} 暂停预约与履约 ——</view>

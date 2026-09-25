@@ -97,13 +97,21 @@ Page({
     if (this.data.isPartner) this.fetchNearby();
   },
 
-  // 拉取附近可接单池(仅耍伴端): 复用 nearby action 就近排序的可接需求
+  // 拉取附近可接单池(仅耍伴端): 复用 nearby action 按发布时间倒序, 首页只取前10条
   async fetchNearby() {
     const app = getApp();
-    const r = await app.cloudCall('home-action', { action: 'nearby', limit: 10 });
+    const r = await app.cloudCall('home-action', { action: 'nearby', page: 1, page_size: 10 });
     if (r.ok && r.data) {
       this.setData({ nearbyList: r.data.list || [] });
     }
+  },
+
+  // 附近可接单「更多」→ 附近列表页(全部可接需求, 分页加载)
+  onNearbyMoreTap() {
+    wx.navigateTo({
+      url: '/pages-v2/nearby-list/nearby-list',
+      fail: () => wx.showToast({ title: '附近列表打开失败', icon: 'none' })
+    });
   },
 
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴

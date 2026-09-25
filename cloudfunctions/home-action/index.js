@@ -489,11 +489,14 @@ exports.main = async (event, context) => {
         };
       }
 
-      // ───────── 附近可接单池(耍伴端首页, 按就近排序) ─────────
+      // ───────── 附近可接单池(耍伴端首页 + 附近列表页, 按发布时间倒序) ─────────
       // 过滤: 匹配中 + 场景白名单 + 非定向(match_mode!=='direct') + 未超 take_distance_max_km + 排除已删/自己的需求
-      // 排序: distance_km 升序为主, 同距按 created_at 新优先; 复用 square 的 mapDemand 卡片映射
+      // 排序: created_at 降序(最新发布在前); 复用 square 的 mapDemand 卡片映射 + 距离过滤(仅剔除阈值外)
+      // 分页: page 从 1 起, page_size 默认 10(首页用), 附近列表页可传 20(≤50)
       case 'nearby': {
-        const limit = Math.min(Number(event.limit) || 20, 50);
+        const page = Math.max(1, parseInt(event.page, 10) || 1);
+        const pageSize = Math.min(Math.max(parseInt(event.page_size, 10) || 10, 1), 50);
+        const skip = (page - 1) * pageSize;
         const now = Date.now();
         const pad = (n) => n < 10 ? '0' + n : '' + n;
 
@@ -501,7 +504,7 @@ exports.main = async (event, context) => {
         const openid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
         const vp = await loadVisitorPartner(openid);
         if (!vp || !vp.home) {
-          return { ok: true, data: { list: [], need_home_location: true } };
+          return { ok: true, data: { list: [], need_home_location: true, page, page_size: pageSize, has_more: false } };
         }
 
         // 接单价格区间过滤(与广场同口径; 非耍伴/未设置 → 不过滤)
@@ -526,17 +529,21 @@ exports.main = async (event, context) => {
           scene: _.in(whitelist)
         }, rateCond || {});
 
+        // 按 created_at 降序分页(多取1条判定是否还有下一页)
         const demandR = await col('demand')
           .where(where)
           .orderBy('created_at', 'desc')
-          .limit(limit)
+          .skip(skip)
+          .limit(pageSize + 1)
           .get()
           .catch(() => ({ data: [] }));
 
-        const docs = demandR.data || [];
+        const rawDocs = demandR.data || [];
+        const hasMore = rawDocs.length > pageSize;
+        const docs = rawDocs.slice(0, pageSize);
         const items = docs.map((d) => mapDemand(d, now, pad));
 
-        // 距离计算并过滤超出 take_distance_max_km 的需求(复用 square 口径)
+        // 距离计算并过滤超出 take_distance_max_km 的需求(复用 square 口径; 仅作过滤, 不改动发布时间倒序)
         const kept = [];
         docs.forEach((d, i) => {
           const site = d.location || {};
@@ -549,17 +556,8 @@ exports.main = async (event, context) => {
           kept.push(items[i]);
         });
 
-        // 排序: distance_km 升序为主, 同距按 created_at 新优先(无坐标的排最末)
-        let list = kept;
-        list.sort((a, b) => {
-          const ka = a.distance_km === null ? Infinity : a.distance_km;
-          const kb = b.distance_km === null ? Infinity : b.distance_km;
-          if (ka !== kb) return ka - kb;
-          return (b.created_at || 0) - (a.created_at || 0);
-        });
-
-        await fillPublisherSurname(list);
-        return { ok: true, data: { list, has_more: docs.length > limit } };
+        await fillPublisherSurname(kept);
+        return { ok: true, data: { list: kept, page, page_size: pageSize, has_more: hasMore } };
       }
 
       // ───────── 用户公开主页 ─────────

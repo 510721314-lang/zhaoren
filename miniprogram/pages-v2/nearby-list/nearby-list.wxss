@@ -1,0 +1,83 @@
+.nlist {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 20rpx 60rpx;
+}
+
+/* 头部 */
+.nlist__head {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 8rpx 12rpx;
+}
+.nlist__head-icon {
+  font-size: 40rpx;
+  margin-right: 12rpx;
+}
+.nlist__head-title {
+  font-size: var(--font-xl, 36rpx);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.nlist__head-sub {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+
+.nlist__list {
+  padding-top: 8rpx;
+}
+
+/* 空态(与首页一致) */
+.nlist__empty {
+  padding: 140rpx 40rpx;
+  text-align: center;
+}
+.nlist__empty-icon {
+  font-size: 96rpx;
+}
+.nlist__empty-title {
+  margin-top: 24rpx;
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.nlist__empty-desc {
+  margin-top: 12rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+
+/* 底部加载区 */
+.nlist__footer {
+  padding: 28rpx 0 20rpx;
+}
+.nlist__more {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-md);
+  font-weight: 700;
+  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.28);
+}
+.nlist__more::after {
+  border: none;
+}
+.nlist__more:active {
+  opacity: 0.85;
+}
+.nlist__more--loading {
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  box-shadow: none;
+}
+.nlist__nomore {
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-disabled);
+  padding: 20rpx 0;
+}

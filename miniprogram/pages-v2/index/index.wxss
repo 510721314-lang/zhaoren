@@ -466,7 +466,7 @@
   background-position: center;
 }
 
-/* 附近可接单池(仅耍伴端): 置于 Banner 之下, 就近排序 */
+/* 附近可接单池(仅耍伴端): 置于页面最底部, 按发布时间倒序 */
 .home__near {
   margin: 20rpx 20rpx 0;
   background: var(--bg-card);
@@ -476,7 +476,7 @@
 }
 .home__near-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   margin-bottom: 20rpx;
 }
 .home__near-title {
@@ -484,10 +484,22 @@
   font-weight: 700;
   color: var(--text-1);
 }
-.home__near-legend {
+.home__near-more {
   margin-left: auto;
-  font-size: var(--font-xs);
-  color: var(--text-disabled);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  padding: 0 28rpx;
+  border-radius: 44rpx;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  box-sizing: border-box;
+}
+.home__near-more--hover {
+  opacity: 0.75;
 }
 .home__near-empty {
   padding: 16rpx 20rpx;
