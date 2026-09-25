@@ -53,10 +53,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;   /* 允许内部收缩, 但不拆行 */
 }
 .dcard__price {
   display: flex;
   align-items: baseline;
+  white-space: nowrap;   /* 价格区整体不拆字("元/小时·AA线下自理"保持一行) */
+  flex-shrink: 0;        /* 不被右侧认证提示挤压而拆行 */
 }
 .dcard__price-num {
   font-size: var(--font-xl);
