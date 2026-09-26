@@ -222,15 +222,24 @@ exports.main = async (event, context) => {
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
 
-  // ── ④ 免责声明·场景级复用: 只读查询耍伴是否已签同场景(无留证/建单) ──
-  // 前端接单前据此跳过免责 modal; create_from_take 双签校验仍是真源, 此处仅减少前端重复弹窗
+  // ── ④⑤ 接单资格只读查询(无留证/建单): signed=同场景免责已签; certified=已开通该场景接单权限 ──
+  // 前端据此分流: certified&&signed → 一键接单单确认; !signed → 免责 modal; 其余维持直走定位
+  // create_from_take 的 certified/signed 校验仍是真源, 此处仅减少前端重复弹窗/确认
   if (action === 'check_signed') {
     const { scene } = event;
     if (!scene) return { ok: false, code: 'check_no_scene', msg: '缺少场景' };
-    const hit = await col('disclaimer_signature').where({
-      openid, role: 'partner', scene, is_deleted: false
-    }).limit(1).get().catch(() => ({ data: [] }));
-    return { ok: true, data: { scene, signed: !!(hit.data && hit.data[0]) } };
+    const [hit, prof] = await Promise.all([
+      col('disclaimer_signature').where({
+        openid, role: 'partner', scene, is_deleted: false
+      }).limit(1).get().catch(() => ({ data: [] })),
+      getUser(openid).then((u) => {
+        if (!u) return { accept_scenes: undefined, is_partner: false };
+        // 直接读 partner_profile.accept_scenes(与 create_from_take 同源, 一处判定)
+        return getPartnerProfile(openid).catch(() => ({ accept_scenes: [] }));
+      }).catch(() => ({ accept_scenes: [] }))
+    ]);
+    const certified = Array.isArray(prof.accept_scenes) && prof.accept_scenes.indexOf(scene) >= 0;
+    return { ok: true, data: { scene, signed: !!(hit.data && hit.data[0]), certified } };
   }
 
   // ── 耍伴签署场景免责声明(code.html 第一道防线·接单前置) ──
