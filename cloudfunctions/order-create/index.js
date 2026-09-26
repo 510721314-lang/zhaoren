@@ -222,6 +222,17 @@ exports.main = async (event, context) => {
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
 
+  // ── ④ 免责声明·场景级复用: 只读查询耍伴是否已签同场景(无留证/建单) ──
+  // 前端接单前据此跳过免责 modal; create_from_take 双签校验仍是真源, 此处仅减少前端重复弹窗
+  if (action === 'check_signed') {
+    const { scene } = event;
+    if (!scene) return { ok: false, code: 'check_no_scene', msg: '缺少场景' };
+    const hit = await col('disclaimer_signature').where({
+      openid, role: 'partner', scene, is_deleted: false
+    }).limit(1).get().catch(() => ({ data: [] }));
+    return { ok: true, data: { scene, signed: !!(hit.data && hit.data[0]) } };
+  }
+
   // ── 耍伴签署场景免责声明(code.html 第一道防线·接单前置) ──
   if (action === 'sign_disclaimer') {
     const { scene } = event;
