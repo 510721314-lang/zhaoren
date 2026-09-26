@@ -105,6 +105,17 @@ async function releaseWithdrawLock(openid) {
   } catch (e) {}
 }
 
+// 普通提现 T+1 惰性到账回写(mock): 到期(expect_arrive_at≤now)仍在途(processing)的记录置 success+arrived_at
+// 纯 mock 闭环,无定时器基建; 在 balance_info/withdraw_list 入口触发,到账即从"处理中"归零并入已提现
+async function settleDueWithdrawals(openid) {
+  try {
+    const due = await col('withdraw_record').where({
+      openid, status: 'processing', expect_arrive_at: _.lte(Date.now()), is_deleted: false
+    }).update({ data: { status: 'success', arrived_at: Date.now(), updated_at: Date.now() } });
+    return !!(due.stats && due.stats.updated > 0);
+  } catch (e) { return false; }
+}
+
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
   const { resolveOpenid, warmEnv, getCachedEnv } = require('./openid');
@@ -535,6 +546,7 @@ exports.main = async (event, context) => {
     case 'balance_info': {
       const partnerOpenid = openid;
       if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
+      await settleDueWithdrawals(openid);  // T+1 到账回写(mock)
       const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const monthMs = monthStart.getTime();
       // 6 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级, 冷启动压到 2s 内
@@ -692,6 +704,7 @@ exports.main = async (event, context) => {
 
     // ───────── 9. 提现记录列表 ─────────
     case 'withdraw_list': {
+      await settleDueWithdrawals(openid);  // T+1 到账回写(mock)
       const limit = Math.min(event.limit || 20, 50);
       const skip = event.skip || 0;
       // 集合尚未创建时返回空列表(不报错)

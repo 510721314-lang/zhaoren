@@ -69,6 +69,23 @@
       </view>
     </view>
 
+    <!-- V6 提现记录 -->
+    <view class="wt__card" wx:if="{{withdrawList.length > 0}}">
+      <view class="wt__card-title">提现记录</view>
+      <view class="wt__wd-item" wx:for="{{withdrawList}}" wx:key="withdraw_no">
+        <view class="wt__wd-left">
+          <view class="wt__wd-name">
+            {{item.typeText}}
+            <text class="wt__wd-status {{item.arrived ? 'is-arrived' : 'is-processing'}}">{{item.statusText}}</text>
+          </view>
+          <view class="wt__income-meta">单号 {{item.withdraw_no}}</view>
+          <view class="wt__income-meta">{{item.created_text}} 申请</view>
+          <view class="wt__income-meta" wx:if="{{item.arrived}}">{{item.arrived_text}} 到账</view>
+        </view>
+        <view class="wt__wd-right">¥{{item.amountYuan}}</view>
+      </view>
+    </view>
+
     <!-- V6 工具行 -->
     <view class="wt__tools">
       <view class="wt__tool" data-name="发票管理" bindtap="onToolTap">发票管理</view>

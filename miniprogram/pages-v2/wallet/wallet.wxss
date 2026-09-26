@@ -40,6 +40,16 @@
 .wt__income-deduct { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
 .wt__income-net { margin-top: 4rpx; font-size: var(--font-sm); color: var(--func-success); font-weight: 600; }
 
+/* V6 提现记录 */
+.wt__wd-item { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }
+.wt__wd-item:last-child { border-bottom: none; }
+.wt__wd-left { flex: 1; }
+.wt__wd-name { font-size: var(--font-sm); color: var(--text-1); font-weight: 600; }
+.wt__wd-right { margin-left: 16rpx; font-size: var(--font-md); color: var(--text-1); font-weight: 600; }
+.wt__wd-status { display: inline-block; margin-left: 12rpx; padding: 2rpx 12rpx; border-radius: 8rpx; font-size: var(--font-xs); font-weight: 400; }
+.wt__wd-status.is-arrived { background: var(--func-success-light); color: var(--func-success); }
+.wt__wd-status.is-processing { background: var(--func-warning-light); color: var(--func-warning); }
+
 /* V6 工具行 */
 .wt__tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12rpx; margin-top: 20rpx; }
 .wt__tool { padding: 24rpx 0; text-align: center; font-size: var(--font-xs); color: var(--text-3); background: var(--bg-card); border-radius: var(--r-lg); box-shadow: var(--shadow-card); }

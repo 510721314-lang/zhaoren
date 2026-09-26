@@ -15,6 +15,14 @@ function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
 }
 
+// 时间戳 → 可读文本(YYYY-MM-DD HH:mm)
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const p = (n) => n < 10 ? '0' + n : '' + n;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 Page({
   data: {
     balanceYuan: '0.00',
@@ -36,6 +44,8 @@ Page({
     fastProgress: 0,
     // V4 收益明细
     incomeList: [],
+    // V6 提现记录
+    withdrawList: [],
     // V5 提现弹窗
     withdrawSheetVisible: false,
     withdrawAmount: '',
@@ -72,8 +82,9 @@ Page({
     this.setData({ loading: true, loadError: false });
     Promise.all([
       callCloud('payment-mock', { action: 'balance_info' }),
-      callCloud('payment-mock', { action: 'income_list' })
-    ]).then(([balR, incR]) => {
+      callCloud('payment-mock', { action: 'income_list' }),
+      callCloud('payment-mock', { action: 'withdraw_list', limit: 20 })
+    ]).then(([balR, incR, wdR]) => {
       const d = {};
       if (balR.ok) {
         const b = balR.data;
@@ -105,6 +116,22 @@ Page({
           created_at: i.created_at,
           service_completed_at: i.service_completed_at
         }));
+      }
+      if (wdR.ok) {
+        d.withdrawList = (wdR.data.list || []).map((w) => {
+          const arrived = w.status === 'success';
+          return {
+            withdraw_no: w.withdraw_no,
+            type: w.type,
+            amountYuan: ((w.amount_fen || 0) / 100).toFixed(2),
+            status: w.status,
+            statusText: arrived ? '已到账' : (w.status === 'processing' ? '处理中' : '其他'),
+            arrived: arrived,
+            typeText: w.type === 'fast' ? '极速提现' : '普通提现',
+            created_text: fmtTime(w.created_at),
+            arrived_text: fmtTime(w.arrived_at || w.expect_arrive_at)
+          };
+        });
       }
       this.setData(Object.assign(d, { loading: false }));
     }).catch(() => {
