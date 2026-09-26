@@ -32,6 +32,11 @@
     <block wx:else>已解锁自由沟通</block>
   </view>
 
+  <!-- C4.0 一键全部确认(需求发布者; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
+  <view class="chat__confirm-all" wx:if="{{role === 'user' && !unlocked && !chatBlocked}}" bindtap="onConfirmAll" hover-class="btn-press">
+    <text>✅ 四项一键全部确认</text>
+  </view>
+
   <!-- C4 消息流 -->
   <scroll-view scroll-y class="chat__flow" scroll-into-view="{{scrollToView}}" scroll-with-animation enhanced>
     <view class="chat__msg-wrap" wx:for="{{messages}}" wx:key="_id" id="{{item._id}}">

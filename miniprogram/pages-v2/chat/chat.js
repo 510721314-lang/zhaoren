@@ -342,6 +342,41 @@ Page({
     });
   },
 
+  // ───────── ⑥ 一键全部确认(需求发布者; 批量置本方四项确认位) ─────────
+  // 后端 confirm_all 原子置本方 4 位 + version+1; 不定向消息, 不破坏"完成前仅模板消息"红线
+  onConfirmAll() {
+    if (this.data.chatBlocked) {
+      wx.showToast({ title: '订单已取消/关闭,无法确认', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '全部确认',
+      content: '将一次性确认 时间/地点/内容/费用 四项。对方已确认的项将即时完成,全部完成即进入待支付。确认后如需修改将全部重置。',
+      confirmText: '全部确认', // 上限 4 字符
+      cancelText: '再想想',
+      confirmColor: '#07C160',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', {
+          action: 'confirm_all', order_id: this.data.orderId
+        }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showModal({ title: '确认失败', content: r.msg || '请稍后重试', showCancel: false });
+            return;
+          }
+          wx.showToast({ title: '已全部确认', icon: 'success' });
+          return this.refreshConfirmation();
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+        });
+      }
+    });
+  },
+
   // ───────── 调整确认项(update_item, 后端重置全部8位) ─────────
   startEdit(field) {
     if (this.data.orderStatus !== 'S1') {
@@ -560,6 +595,7 @@ Page({
   // ───────── 待支付横幅 ─────────
   goPay() {
     if (this.data.orderStatus !== 'S0') return;
+    console.log('[goPay-debug] navigToPay orderId=', this.data.orderId, 'status=', this.data.orderStatus);
     wx.navigateTo({
       url: `/pages-v2/pay/pay?orderId=${this.data.orderId}`,
       fail: () => wx.showToast({ title: '支付页即将开放', icon: 'none' })

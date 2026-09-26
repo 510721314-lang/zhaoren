@@ -24,25 +24,56 @@ function takeOrder(demand, opts) {
   const scene = getScene(demand.scene_code);
   const d = scene && scene.disclaimer;
   if (d) {
-    // 免责声明用 wx.showModal(真机稳定, 与发布侧弹法统一, 禁用 bottom-sheet)
-    // 注意: confirmText 上限 4 字符, 超限真机上弹窗不渲染且无反应(教训已入 skill)
-    wx.showModal({
-      title: d.title,
-      content: d.content,
-      confirmText: '同意接单',
-      cancelText: '不同意',
-      success: (r) => {
-        if (r.confirm) _locate(demand, opts);
-      },
-      fail: (err) => {
-        // 静默失败兜底: 弹窗渲染失败时给出可见反馈, 不允许无反应
-        console.error('[takeOrder] showModal fail:', err);
-        wx.showToast({ title: '弹窗加载失败,请重试', icon: 'none' });
+    // ④⑤ 分流: 单次只读拿到 signed(同场景免责已签) + certified(已开通该场景权限)
+    // - certified && signed → 一键接单: 一次确认(免免责 modal) → 定位 → 建单
+    // - !signed            → 弹免责 modal(首次需签署; 网络异常也走此兜底)
+    // - signed && !certified → 维持 ④ 直走定位(后端 order_scene_not_accepted 清晰拒绝)
+    wx.cloud.callFunction({
+      name: 'order-create',
+      data: { action: 'check_signed', scene: demand.scene_code }
+    }).then((res) => {
+      const r = (res && res.result) || {};
+      const d0 = r.data || {};
+      if (d0.signed && d0.certified) {
+        // 一键接单: 免责已签 + 权限已开 → 单次确认后进入定位+建单
+        wx.showModal({
+          title: scene.name || '一键接单',
+          content: `${scene.name || ''}场景免责声明已签署,接单权限已开通。确认接单后将获取定位并创建订单。`,
+          confirmText: '一键接单', // 上限 4 字符
+          cancelText: '再想想',
+          success: (mr) => { if (mr.confirm) _locate(demand, opts); },
+          fail: () => _showDisclaimer(d, demand, opts) // 弹窗失败兜底回免责(不阻断)
+        });
+      } else if (d0.signed) {
+        _locate(demand, opts);
+      } else {
+        _showDisclaimer(d, demand, opts);
       }
+    }).catch(() => {
+      _showDisclaimer(d, demand, opts);
     });
   } else {
     _locate(demand, opts);
   }
+}
+
+// 免责声明用 wx.showModal(真机稳定, 与发布侧弹法统一, 禁用 bottom-sheet)
+// 注意: confirmText 上限 4 字符, 超限真机上弹窗不渲染且无反应(教训已入 skill)
+function _showDisclaimer(d, demand, opts) {
+  wx.showModal({
+    title: d.title,
+    content: d.content,
+    confirmText: '同意接单',
+    cancelText: '不同意',
+    success: (r) => {
+      if (r.confirm) _locate(demand, opts);
+    },
+    fail: (err) => {
+      // 静默失败兜底: 弹窗渲染失败时给出可见反馈, 不允许无反应
+      console.error('[takeOrder] showModal fail:', err);
+      wx.showToast({ title: '弹窗加载失败,请重试', icon: 'none' });
+    }
+  });
 }
 
 // 真实客户端 create_from_take 必传 partner_location(服务端 50km 距离校验), 定位失败 fallback 到 chooseLocation

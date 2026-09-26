@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $CLOUD_ENV   = 'cloud1-d9gkefwcp5c777088'
-$PROJECT_DIR = 'c:\Users\DC\Desktop\zhaoren'
+$PROJECT_DIR = 'c:\Users\Administrator\Desktop\zhaoren'
 $APPID       = 'wxbc4a4afacdf234f5'
 # Key not hardcoded: pass -AdminKey or set $env:ADMIN_WEB_KEY (get from admin or init-db generate_admin_web_key)
 if (-not $AdminKey) { $AdminKey = $env:ADMIN_WEB_KEY }

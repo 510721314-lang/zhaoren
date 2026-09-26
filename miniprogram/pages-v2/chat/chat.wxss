@@ -163,6 +163,22 @@
   color: var(--text-3);
 }
 
+/* C4.0 一键全部确认(需求发布者) */
+.chat__confirm-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;            /* 点击区 ≥88rpx */
+  margin: 16rpx 24rpx 0;
+  padding: 20rpx 24rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  border-radius: var(--r-md);
+  font-size: var(--font-md);
+  box-shadow: 0 6rpx 20rpx rgba(7, 193, 96, 0.3);
+  flex-shrink: 0;
+}
+
 /* C6 输入 */
 .chat__input-bar {
   display: flex;

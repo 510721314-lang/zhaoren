@@ -40,7 +40,16 @@ Page({
     }
     this.__orderId = orderId;
     this.setData({ loading: true, loadError: false });
+    console.log('[pay-cashier-debug] orderId=', orderId);
+    // 兜底: 云调用 8s 未落定则转入错误态+重试, 避免卡死在永恒空白骨架(pay-modal-debug 留存)
+    this.__cashTimer && clearTimeout(this.__cashTimer);
+    this.__cashTimer = setTimeout(() => {
+      console.error('[pay-cashier-debug] cashier_info timeout(8s)');
+      this.setData({ loading: false, loadError: true, loadErrorMsg: '支付页加载超时,请点击重试' });
+    }, 8000);
     callCloud('payment-mock', { action: 'cashier_info', order_id: orderId }).then((r) => {
+      clearTimeout(this.__cashTimer);
+      console.log('[pay-cashier-debug] cashier_info settled ok=', r && r.ok, 'code=', r && r.code, 'msg=', r && r.msg);
       if (!r.ok) {
         this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
         return;
@@ -68,7 +77,9 @@ Page({
         needAaPromise: !!d.need_aa_promise,
         aaChecked: false
       });
-    }).catch(() => {
+    }).catch((e) => {
+      clearTimeout(this.__cashTimer);
+      console.error('[pay-cashier-debug] cashier_info rejected', e);
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
   },
@@ -82,6 +93,10 @@ Page({
 
   onLoad(options) {
     this.fetchData(options);
+  },
+
+  onUnload() {
+    this.__cashTimer && clearTimeout(this.__cashTimer);
   },
 
   reload() {
