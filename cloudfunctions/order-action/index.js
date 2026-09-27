@@ -216,6 +216,9 @@ exports.main = async (event, context) => {
         order_no: order.order_no,
         status: order.status,
         role,
+        scene: order.scene || '',
+        total_fen: order.total_fen || 0,
+        start_time: order.start_time || 0,
         items: fields,
         confirmed_count: confirmedCount,   // 0-8
         total_count: 8,

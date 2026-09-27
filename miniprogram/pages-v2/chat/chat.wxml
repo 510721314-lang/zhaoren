@@ -39,6 +39,7 @@
 
   <!-- C3.1 加时/改期请求醒目提示(对方发起, 常驻至处理; 点击去订单详情处理) -->
   <view class="chat__pending-banner" wx:if="{{pendingBanner}}" bindtap="goOrderDetail" hover-class="btn-press">
+    <text class="chat__pending-summary" wx:if="{{pendingBanner.summary}}">{{pendingBanner.summary}}</text>
     <text class="chat__pending-title">{{pendingBanner.title}}</text>
     <text class="chat__pending-body">{{pendingBanner.body}}</text>
   </view>

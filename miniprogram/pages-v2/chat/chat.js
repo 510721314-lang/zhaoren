@@ -135,6 +135,17 @@ Page({
     });
   },
 
+  // 订单概要文本(加时/改期横幅用): #订单号 · 场景 · ¥金额 · 服务时间
+  __orderSummary(d) {
+    const scene = getScene(d.scene);
+    const parts = [];
+    if (d.order_no) parts.push(`#${d.order_no}`);
+    if (scene && scene.name) parts.push(scene.name);
+    if (d.total_fen) parts.push(`¥${(d.total_fen / 100).toFixed(0)}`);
+    if (d.start_time) parts.push(this.fmtDateTime(d.start_time));
+    return parts.join(' · ');
+  },
+
   // 首次进入四确认引导: 订单 S1 且双方都未发起过任何确认模板时, 引导先发起「时间」确认
   // 判断依据: 消息流里无 template 卡(发模板不写 order_confirmations, 以消息流为准)
   __maybeGuideConfirm(conf, msgs) {
@@ -175,19 +186,21 @@ Page({
     // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
     const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
     const prevStatus = this.data.orderStatus;
-    // 加时/改期在途请求 → 醒目横幅(对方发起且未处理; 常驻至确认/拒绝/超时)
+    // 加时/改期在途请求 → 醒目横幅(对方发起且未处理; 常驻至确认/拒绝/超时; 先给订单概要)
     const pm = d.pending_modify;
     const pe = d.pending_extend;
     let pendingBanner = null;
     if (pe && pe.can_respond) {
       pendingBanner = {
-        type: 'extend', title: '⏰ 对方申请加时',
+        type: 'extend', summary: this.__orderSummary(d),
+        title: '⏰ 对方申请加时',
         body: `加时 ${pe.add_hours} 小时 · ¥${(pe.add_amount_fen / 100).toFixed(2)} · 点击去处理 ›`,
         canRespond: true
       };
     } else if (pm && pm.can_respond && nextStatus === 'S2_5') {
       pendingBanner = {
-        type: 'modify', title: '📅 对方申请改期',
+        type: 'modify', summary: this.__orderSummary(d),
+        title: '📅 对方申请改期',
         body: `改至 ${this.fmtDateTime(pm.new_start_time)} · 点击去处理 ›`,
         canRespond: true
       };
