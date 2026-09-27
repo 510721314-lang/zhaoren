@@ -252,6 +252,29 @@ Page({
           }
         });
       }
+      // 发布者端: 履约完成 → S5, 引导评价
+      if (this.data.role === 'user' && nextStatus === 'S5' && prevStatus !== 'S5') {
+        wx.showModal({
+          title: '🎉 履约完成',
+          content: `${this.__orderSummary(d)}\n耍伴已完成履约，请对本次服务进行评价`,
+          showCancel: true,
+          confirmText: '去评价',
+          cancelText: '稍后',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '履约完成，请评价', icon: 'none' }),
+          success: (res) => {
+            if (res.confirm) {
+              wx.redirectTo({
+                url: `/pages-v2/evaluate/evaluate?orderId=${this.data.orderId}`,
+                fail: (err) => {
+                  console.error('[chat] redirectTo evaluate fail:', err && err.errMsg);
+                  wx.showToast({ title: '评价页打开失败,请从订单详情进入', icon: 'none', duration: 2500 });
+                }
+              });
+            }
+          }
+        });
+      }
       if (unlocked && !wasUnlocked) {
         wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
         // 四确认完成瞬间(非重进会话)且当前用户是付款方 → 自动弹出支付窗口;
