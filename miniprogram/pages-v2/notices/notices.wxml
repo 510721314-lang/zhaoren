@@ -13,7 +13,12 @@
     >
       <view class="nt__ic">🔔</view>
       <view class="nt__body">
-        <view class="nt__order-summary" wx:if="{{item.order_summary}}">{{item.order_summary}}</view>
+        <!-- 订单概要信息块(结构化三行: 主信息/时间/地点+AA) -->
+        <view class="nt__summary" wx:if="{{item.order_summary && item.order_summary.l1}}">
+          <text class="nt__summary-l1">{{item.order_summary.l1}}</text>
+          <text class="nt__summary-l2" wx:if="{{item.order_summary.l2}}">{{item.order_summary.l2}}</text>
+          <text class="nt__summary-l3" wx:if="{{item.order_summary.l3}}">{{item.order_summary.l3}}</text>
+        </view>
         <view class="nt__head">
           <text class="nt__title">{{item.title}}</text>
           <view class="nt__dot" wx:if="{{!item.read}}"></view>

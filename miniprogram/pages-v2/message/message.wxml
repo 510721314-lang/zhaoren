@@ -54,7 +54,12 @@
             <text class="msg__name">{{item.displayTitle}}</text>
             <status-tag code="{{item.order_status}}"></status-tag>
           </view>
-          <view class="msg__order-summary" wx:if="{{item.order_summary}}">{{item.order_summary}}</view>
+          <!-- 订单概要信息块(结构化三行, 参照消息通知页排版) -->
+          <view class="msg__summary-box" wx:if="{{item.order_summary && item.order_summary.l1}}">
+            <text class="msg__summary-l1">{{item.order_summary.l1}}</text>
+            <text class="msg__summary-l2" wx:if="{{item.order_summary.l2}}">{{item.order_summary.l2}}</text>
+            <text class="msg__summary-l3" wx:if="{{item.order_summary.l3}}">{{item.order_summary.l3}}</text>
+          </view>
           <view class="msg__row2">
             <text class="msg__summary">{{item.summary}}</text>
             <view class="msg__right">

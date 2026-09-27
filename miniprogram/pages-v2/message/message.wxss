@@ -115,15 +115,9 @@
   font-weight: 600;
   color: var(--text-1);
 }
-.msg__order-summary {
-  margin-top: 6rpx;
-  font-size: 20rpx;
-  font-weight: 500;
-  color: var(--func-warning, #ff8f3c);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
+.msg__summary-box { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
+.msg__summary-l1 { font-size: 22rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
+.msg__summary-l2, .msg__summary-l3 { font-size: 20rpx; color: var(--text-3, #999); }
 .msg__row2 {
   margin-top: 10rpx;
   display: flex;

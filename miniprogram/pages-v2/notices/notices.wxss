@@ -16,7 +16,9 @@
 .nt__body { flex: 1; min-width: 0; }
 .nt__head { display: flex; align-items: center; gap: 12rpx; }
 .nt__title { font-size: 28rpx; font-weight: 600; flex: 1; }
-.nt__order-summary { font-size: 22rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); margin-bottom: 6rpx; word-break: break-all; }
+.nt__summary { display: flex; flex-direction: column; gap: 4rpx; margin-bottom: 10rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
+.nt__summary-l1 { font-size: 24rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
+.nt__summary-l2, .nt__summary-l3 { font-size: 20rpx; color: var(--text-3, #999); }
 .nt__dot {
   width: 14rpx; height: 14rpx; border-radius: 50%;
   background: var(--func-danger, #fa5151);

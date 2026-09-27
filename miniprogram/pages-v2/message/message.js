@@ -76,7 +76,7 @@ Page({
         unread_count: c.unread || 0,
         pinned: false,
         is_read: !c.unread,
-        order_summary: c.order_summary || '' // 统一订单概要(my_convs 后端生成)
+        order_summary: c.order_summary || null // 统一订单概要结构化{l1,l2,l3}(my_convs 后端生成)
       });
     }).map((it) => Object.assign(it, { last_msg_at_display: this.formatTime(it.last_msg_at) }));
     this.setData({

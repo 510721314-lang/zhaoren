@@ -28,19 +28,21 @@ function fmtDT(ts) {
   const p = (n) => (n < 10 ? '0' + n : '' + n);
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+// 精简时间: MM-DD HH:mm(概要行内更紧凑)
+function fmtDTShort(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const p = (n) => (n < 10 ? '0' + n : '' + n);
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// 统一订单概要 → 结构化三行(便于排版阅读): l1主信息 / l2时间 / l3地点+AA
 function buildOrderSummary(o) {
-  if (!o) return '';
-  const parts = [];
-  if (o.order_no) parts.push(`#${o.order_no}`);
-  if (o.scene) parts.push(SCENE_CN[o.scene] || o.scene);
-  if (o.total_fen) parts.push(`¥${Math.round(o.total_fen / 100)}`);
-  if (o.created_at) parts.push(`发布时间:${fmtDT(o.created_at)}`);
-  if (o.start_time) parts.push(`服务:${fmtDT(o.start_time)}`);
-  if (o.duration_h) parts.push(`${o.duration_h}小时`);
-  if (o.headcount) parts.push(`${o.headcount}人`);
-  if (o.location && o.location.name) parts.push(`📍${String(o.location.name).slice(0, 20)}`);
-  if (o.aa_tier) parts.push(`AA:${o.aa_tier}`);
-  return parts.join(' · ');
+  if (!o) return { l1: '', l2: '', l3: '' };
+  const l1 = [o.order_no ? `#${o.order_no}` : '', SCENE_CN[o.scene] || o.scene || '', o.total_fen ? `¥${Math.round(o.total_fen / 100)}` : '', o.duration_h ? `${o.duration_h}小时` : '', o.headcount ? `${o.headcount}人` : ''].filter(Boolean).join(' · ');
+  const l2 = [o.created_at ? `发布:${fmtDTShort(o.created_at)}` : '', o.start_time ? `服务:${fmtDTShort(o.start_time)}` : ''].filter(Boolean).join(' · ');
+  const l3 = [o.location && o.location.name ? `📍${String(o.location.name).slice(0, 20)}` : '', o.aa_tier ? `AA:${o.aa_tier}` : ''].filter(Boolean).join(' · ');
+  return { l1, l2, l3 };
 }
 
 async function getConfig() {
