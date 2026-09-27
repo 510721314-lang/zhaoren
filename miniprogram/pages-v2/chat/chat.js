@@ -416,6 +416,7 @@ Page({
   __sendMissingConfirmCards() {
     const missing = Object.keys(TM_FIELD).filter((tmId) =>
       !this.data.messages.some((m) => m && m.msg_type === 'template' && m.tm_id === tmId));
+    console.log('[chat] missing cards:', JSON.stringify(missing), '| have:', JSON.stringify(this.data.messages.filter((m) => m && m.msg_type === 'template').map((m) => m.tm_id)));
     if (!missing.length) return Promise.resolve();
     return missing.reduce((chain, tmId) => chain
       .then(() => new Promise((r) => setTimeout(r, 300))) // 等 confirm_all 落库, 补卡状态取最新 items

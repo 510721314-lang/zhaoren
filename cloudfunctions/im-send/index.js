@@ -85,21 +85,29 @@ function roleOf(order, openid) {
 }
 
 // 写一条系统通知到 system_notice(不阻塞主流程, try-catch 吞掉) · 订单沟通信息同步到「我的-消息通知」
+// 去重合并: 同收件人+订单+type 未读则覆盖(更新正文/时间), 避免 confirm_all/补发卡/连发文本时通知刷屏
 async function writeNotice(opt) {
   try {
-    await col('system_notice').add({
-      data: {
+    const exist = await col('system_notice').where({
+      to_openid: opt.to_openid, order_id: opt.order_id || '', type: opt.type, read: false
+    }).limit(1).get();
+    const data = {
+      title: opt.title, body: opt.body || '',
+      action_key: opt.action_key || 'jump_order',
+      action_payload: opt.action_payload || {},
+      updated_at: Date.now()
+    };
+    if (exist.data && exist.data[0]) {
+      await col('system_notice').doc(exist.data[0]._id).update({ data });
+    } else {
+      await col('system_notice').add({ data: Object.assign({
         to_openid: opt.to_openid,
         order_id: opt.order_id || '',
         type: opt.type || 'custom',
-        title: opt.title,
-        body: opt.body || '',
-        action_key: opt.action_key || 'jump_order',
-        action_payload: opt.action_payload || {},
         created_at: Date.now(),
         read: false
-      }
-    });
+      }, data) });
+    }
   } catch (e) {
     log.d('[notice] write failed:', opt.to_openid, opt.type, e.message);
   }

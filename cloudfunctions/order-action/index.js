@@ -49,19 +49,27 @@ async function getOrder(orderId) {
  */
 async function writeNotice(opt) {
   try {
-    await col('system_notice').add({
-      data: {
+    // 去重合并: 同收件人+订单+type 未读则覆盖(更新正文/时间), 避免 confirm_all/补发卡/连发文本时通知刷屏
+    const exist = await col('system_notice').where({
+      to_openid: opt.to_openid, order_id: opt.order_id || '', type: opt.type, read: false
+    }).limit(1).get();
+    const data = {
+      title: opt.title, body: opt.body || '',
+      action_key: opt.action_key || '',
+      action_payload: opt.action_payload || {},
+      updated_at: Date.now()
+    };
+    if (exist.data && exist.data[0]) {
+      await col('system_notice').doc(exist.data[0]._id).update({ data });
+    } else {
+      await col('system_notice').add({ data: Object.assign({
         to_openid: opt.to_openid,
         order_id: opt.order_id || '',
         type: opt.type || 'custom',
-        title: opt.title,
-        body: opt.body || '',
-        action_key: opt.action_key || '',
-        action_payload: opt.action_payload || {},
         created_at: Date.now(),
         read: false
-      }
-    });
+      }, data) });
+    }
   } catch (e) {
     log.d('[notice] write failed:', opt.to_openid, opt.type, e.message);
   }
@@ -427,7 +435,7 @@ exports.main = async (event, context) => {
     // 订单沟通同步: 通知对端"对方已确认某项"
     writeNotice({
       to_openid: role === 'user' ? order.partner_openid : order.user_openid,
-      order_id, type: 'confirm',
+      order_id, type: `confirm:${item}`,
       title: '订单沟通',
       body: `对方已确认「${FIELD_CN[item] || item}」`,
       action_key: 'jump_chat', action_payload: { order_id }
@@ -512,7 +520,7 @@ exports.main = async (event, context) => {
     // 订单沟通同步: 通知对端"对方一键确认全部"
     writeNotice({
       to_openid: role === 'user' ? order.partner_openid : order.user_openid,
-      order_id, type: 'confirm',
+      order_id, type: 'confirm_all',
       title: '订单沟通',
       body: '对方已一键确认全部四项',
       action_key: 'jump_chat', action_payload: { order_id }
