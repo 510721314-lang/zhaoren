@@ -25,8 +25,8 @@
 - 静态验证：`.trae/scripts/scan-miniprogram.ps1`；miniprogram-automator 与 DevTools 不兼容勿重试
 
 ## 3. 已验收基线（accepted tag，改动必须经用户确认）
-参考 tag（10 个）：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang(12b729f 分账mock)、accepted-20260927-chat-confirm / order-notice。
-最新 HEAD：`8dd684f`（状态提示 catch-up 模式根治提交）。
+参考 tag（12 个）：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang(12b729f 分账mock)、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15。
+最新 HEAD：`5c1ad92`（pay/order-detail 子场景显示）；其下 `36daa77`（admin-web 代理旁路安全修复）。
 改动触及任一 accepted tag 内文件/功能 → 先 `git diff <tag>..HEAD -- <文件>` 列改动计划，**等用户明确说同意才动**。
 
 ## 4. 本次会话（索引数据填充）已完成的成果
@@ -34,24 +34,23 @@
 - 已做（纯云端，未改代码/git）：用 demand-publish mock 发了 8 条 `matching` 需求（W1/W2/W3/W4/W7/W8/W10/W11），标题为业务示例，全部 `ok:true`；截图确认首页 10 分类全显示 ≥1 条。W9 需真机（verifySignatureFile 校验真实签名图）。
 - 方位（重要，避免重复踩坑）：`mock_openid` 必须用真实 openid（编造的 seed_001 → publish_no_openid/publish_no_user）；mock 依赖 env=dev。
 
-## 5. 待办清单（2026-09-27 更新，按优先级）
-1. [tag] 补打 `accepted-20260927-chat-status-notify`（指向 HEAD 8dd684f，覆盖 catch-up 状态引导链路）——打前先与用户确认
-2. [tag] 打 `accepted-20260927-rule15`（规则15 真机双身份全链路验收通过后）
-3. [运维] GitHub 备份 push 同步本轮 commit/tag（`git -c http.proxy= push` 绕过失效代理）
-4. [审计] 终审报告（规则15 全部完成后 8/8 收官）
-5. [长尾] F10 dev-only 打赏入口（env=dev 才显示，满足战略铁律 mock 可达）
-6. [数据] 种子需求 24h 过期：提审当天上午重发/改 expire_at 保证演示有数据；旧「测试」需求（李**）is_deleted=true 下线
-7. [提审] W1 就医陪诊需挂类目+专项资质说明
-8. [遗留] admin-action dispute_list/Dispute.vue 未真机联调；wallet 极速提现「已用0/10」不刷新（pre-existing 未改）；云端 backup.ps1 需 AdminKey（敏感，需用户给）
+## 5. 待办清单（2026-09-27 晚间更新，按优先级）
+1. [审计] 规则15 负向路径收尾：N1（四确认超时15min）/ N2（支付超时30min）/ N4（履约中断，需S3订单）/ N6a（可选，N6b 已覆盖幂等）——其余 N3/N5/N6b/N7/N8/N9 已通过
+2. [审计] 终审报告 8/8 收官（负向完成后；已过：Phase0/10/11/12/13/14/16 + 15正向）
+3. [安全] 轮换 admin_web_key 与 idcard_aes_key（曾明文出现在会话，需用户配合改 admin_config）
+4. [安全长尾] admin-web bootstrap 硬编码 openid 抢先风险 / notice_read 归属校验 / complaint_reason 等自由文本 msgSecCheck / aa_record 金额上限 / isMockAdmin dev-only 分支上线前删除
+5. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
+6. [独立阻塞] W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+7. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
 
 ## 6. 下阶段主线：提审就绪度全量审计（沿用既有审计报告）
 
-### 审计进度快照（2026-09-27 更新）
+### 审计进度快照（2026-09-27 晚间更新）
 - **Phase0 合规红线：✅ 已通过**（check-nightmask 17/17 挂载点 bind:reserve；check-ssot 可疑硬编码 0）
-- **Phase1 安全：⏳ 部分完成**——Phase1-A 预审已出云函数鉴权清单（config_get 无法验证白名单，正确入口 admin_list/云控制台；init-db lookup 白名单为空时 fail-open；order-timer 匿名链路安全）；云端越权回归（匿名调 init-db/order-timer 必须 forbidden）待用户在开发者工具跑
+- **Phase1 安全：✅ 已通过**——规则10 白名单非空（admin_list 返回 1 管理员）+ 规则11 云端越权回归 4/4（init-db 匿名 forbidden / order-timer 匿名 forbidden / admin-action 匿名 admin_no_openid / 代理伪造身份无密钥被拒）；同时完成高危 #1 admin-web 代理旁路修复（commit 36daa77，已部署 admin-action+admin-web）
 - **Phase2 静态：✅ 已通过**（node --check 全量、scan-miniprogram.ps1、predeploy.ps1）
-- **Phase3 终检：⏳ 进行中**——规则15 真机双身份全链路正向已通过（发布→接单→四确认→支付→履约→评价→提现）；剩余：负向路径 N1-N9、TRAE-security-review、mp-pre-release-audit、三重备份 GitHub push
-- 审计只报告不修码；测试数据下线走云数据库手工 is_deleted=true
+- **Phase3 终检：⏳ 进行中**——规则15 正向已通过；负向 6/9 通过（N3/N5/N6b/N7/N8/N9），剩 N1/N2/N4/N6a；规则13 安全扫描 5 项发现（#1 已修复、#2-#5 列长尾）；规则14 审核7项复核通过；规则16 三重备份验证通过（HEAD 已 push，bundle v0.10.5 含全部 refs，快照 worktree_20260927_security@36daa77 落后 1 commit 待补）
+- 审计只报告不修码（例外：高危 #1 经用户确认后修复）；测试数据下线走云数据库手工 is_deleted=true
 
 > 剩余待跑项以「上方审计进度快照」为准（Phase1 云端越权回归、Phase3 负向路径 N1-N9 / 安全扫描 / 审核7项 / 三重备份 GitHub push）。以下旧清单已废弃，勿再参考：
 - ~~Phase1 安全：admin_openids 非空（admin-action config_get）；云端越权回归（init-db/order-timer 匿名必须 forbidden）~~
@@ -114,3 +113,10 @@
 - 根因：遗漏反复出现 = 「凭记忆写提示词」而非「凭清单逐项核对」——事实源在 HANDOFF.md/rules.md/项目记忆里，但生成提示词时未逐条映射验证（两轮专家复核先后查出：文档未入库/§6矛盾/tag未打、云端约束漏在提示词外/W9未单列/未显式指向§9）
 - 强制动作：每次生成/更新衔接提示词前后必跑「7 维度逐项核对 + 10 关键术语反向 Grep 校验 + 出包前三处一致/git 入库自检」，检查结果流出给用户看
 - 清单全文见项目记忆「衔接提示词完整性检查清单」章节
+
+### 9.8 2026-09-27 晚间增量（审计收官 + 安全修复）
+- **安全高危修复**：admin-action `__admin_web_proxy` 旁路（无条件信任 event 可伪造管理员）→ 加 `admin_web_key` 共享密钥校验（openid.js _readProxyKey + admin-web 透传 `_admin_web_proxy_key`），不匹配 fall-through fail-closed；commit 36daa77 已部署 admin-action/admin-web 并验证（伪造身份→admin_no_openid）；该旁路仅存在于 admin-action/openid.js
+- **状态机实证**：S2 已支付不可取消（cancel 仅 S1/S0，oa_cancel_status）；打赏校验按分区间 100-50000（12.5 元合法、0/501 元被拒）；get_confirmation 的 ORD 反查 bug（:217 遮蔽）→ 云端测试一律用 32 位 _id
+- **云端操作避坑**：云开发控制台多实例，必须用微信开发者工具内置控制台（cloud1-d9gkefwcp5c777088），判断标准=order_main 含 status/scene/total_fen/content_options
+- **功能改动**：pay/order-detail 页显示子场景（content_options），commit 5c1ad92
+- **安全提醒**：admin_web_key/idcard_aes_key 曾明文暴露会话 → 需轮换；勿再粘贴完整 admin_config

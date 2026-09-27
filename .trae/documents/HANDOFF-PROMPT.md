@@ -31,15 +31,17 @@
 - 云端读写受限（重要）：本机无 cloudbase CLI / cloudbase MCP 挂载 → AI 无法自动读写云端，需用户配合「微信开发者工具云端测试面板 / 云数据库」
 
 【当前工作状态】
-- 已完成：提审就绪审计、四确认聊天流程、消息通知双向同步（去重合并）、加时/改期横幅、订单概要统一 9 字段三行格式、状态提示 catch-up 模式根治（S0/S2/S5 引导链路）、规则15 真机双身份全链路正向测试通过
+- 已完成：提审就绪审计（Phase0/10/11/12/13/14/16 已过 7/8）、四确认聊天流程、消息通知双向同步（去重合并）、加时/改期横幅、订单概要统一 9 字段三行格式、状态提示 catch-up 模式根治、规则15 真机双身份正向链路通过 + 负向 6/9（N3/N5/N6b/N7/N8/N9）、**admin-web 代理旁路安全修复（36daa77 已部署）**、**pay/order-detail 页子场景显示（5c1ad92）**
 - 已有 12 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15
-- 最新 HEAD：8dd684f（状态提示 catch-up 模式根治提交）；交接文档已入库 commit 4331747 并 push GitHub
+- 最新 HEAD：`5c1ad92`（子场景显示）；已 push GitHub，bundle v0.10.5 含全部 refs；快照 worktree_20260927_security@36daa77 落后 1 commit 待补
 - 工作区：仅 3 个无关未跟踪文件（seed-scene-demands*.md 历史文档、tmp_cf_check_result.txt 临时产物，无需处理）
 
 【待办（按优先级）】
-1. 审计终审报告（规则15 全部完成后 8/8 收官：负向路径 N1-N9 / 安全扫描 / 审核7项 / 三重备份校验）
-2. 独立阻塞项：W9 宠物陪伴需真机发布（verifySignatureFile 校验真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
-3. 长尾：F10 dev-only 打赏入口（env=dev 才显示）、W1 就医陪诊提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现「已用0/10」刷新、云端 backup.ps1 AdminKey
+1. 规则15 负向收尾：N1（四确认超时15min）/ N2（支付超时30min）/ N4（履约中断需S3订单）/ N6a（可选）——其余已通过；完成后 8/8 出终审报告
+2. 安全：轮换 admin_web_key 与 idcard_aes_key（曾明文暴露会话）；admin-web bootstrap 硬编码 openid / notice_read 归属 / complaint_reason 等 msgSecCheck / aa_record 上限 / isMockAdmin 上线前删除
+3. 功能长尾：order-action get_confirmation 的 ORD 反查 bug（index.js:217 遮蔽）
+4. 独立阻塞项：W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+5. 长尾：F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、云端 backup.ps1 AdminKey
 
 【工程纪律（不可违背）】
 - 先读后动；改代码前先给计划
@@ -73,8 +75,9 @@
 
 ## 补充叮嘱（不粘贴给新任务，给你自己）
 - 每次刷新本提示词后，必须跑「衔接提示词完整性检查清单」（7 维度 + 10 关键术语反向 Grep + 出包三处一致/git 入库），清单全文见项目记忆同名字节。
-- 审计 Phase0 已通过，别再重跑；审计阶段只报告不修码。
-- `accepted-20260927-chat-status-notify` 与 `accepted-20260927-rule15` 已打（指向 8dd684f）并 push。
+- 审计 Phase0 已通过，别再重跑；审计阶段只报告不修码（例外：高危安全修复经用户确认后可改，参考 36daa77）。
+- 12 个 accepted tag 已全部 push；HEAD=5c1ad92 已 push。
 - 新账号若读不到记忆/文档（权限/磁盘差异），把本文件「衔接提示词」节人工贴入。
 - W9 真机发布 + 旧「测试」需求下线（is_deleted=true）未完成，提审演示前必须处理。
-- 云端读写受限：本机无 cloudbase CLI/MCP，需用户配合「微信开发者工具云端测试面板 / 云数据库」。
+- 云端读写受限：本机无 cloudbase CLI/MCP，需用户配合「微信开发者工具云端测试面板 / 云数据库」。云开发控制台多实例易混，必须用微信开发者工具内置控制台（cloud1-d9gkefwcp5c777088），判断标准=order_main 含 status/scene/total_fen/content_options。
+- admin_web_key/idcard_aes_key 曾明文暴露会话 → 待用户配合轮换；提醒用户勿再粘贴完整 admin_config。
