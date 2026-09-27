@@ -233,10 +233,23 @@ Page({
         wx.showModal({
           title: '💰 对方已支付',
           content: `${this.__orderSummary(d)}\n对方已完成支付，请依约履约`,
-          showCancel: false,
-          confirmText: '知道了',
+          showCancel: true,
+          confirmText: '去履约',
+          cancelText: '知道了',
           confirmColor: '#07C160',
-          fail: () => wx.showToast({ title: '对方已支付', icon: 'none' })
+          fail: () => wx.showToast({ title: '对方已支付', icon: 'none' }),
+          success: (res) => {
+            if (res.confirm) {
+              // 引导进入履约界面(订单详情页, S2 时可点"开始履约")
+              wx.redirectTo({
+                url: `/pages-v2/order-detail/order-detail?orderId=${this.data.orderId}`,
+                fail: (err) => {
+                  console.error('[chat] redirectTo order-detail fail:', err && err.errMsg);
+                  wx.navigateBack({ fail: () => {} });
+                }
+              });
+            }
+          }
         });
       }
       if (unlocked && !wasUnlocked) {

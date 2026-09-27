@@ -27,6 +27,11 @@
     <text>{{orderSummary ? orderSummary + ' · ' : ''}}⏳ 待对方支付(30分钟内有效)</text>
   </view>
 
+  <!-- 待履约状态提示(耍伴侧; 对方已支付, 点击去履约界面) -->
+  <view class="chat__pay-banner" wx:if="{{orderStatus === 'S2' && role === 'partner'}}" bindtap="goOrderDetail" hover-class="btn-press">
+    <text>{{orderSummary ? orderSummary + ' · ' : ''}}💰 对方已支付，请依约履约 ›</text>
+  </view>
+
   <!-- C2 四确认进度条 -->
   <confirm-progress progress="{{progress}}"></confirm-progress>
 
