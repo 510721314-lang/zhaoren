@@ -13,7 +13,7 @@
 这是跨账号/跨任务的严谨工作衔接，衔接质量直接决定项目进度，请先完整只读吸收以下材料后再回应，不要直接改任何东西。
 
 【第一步 · 必读吸收】
-1. c:\Users\Administrator\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀
+1. c:\Users\Administrator\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀。特别阅读 §9 多轮任务经验沉淀（同类bug根治闭环/catch-up铁律/导航纪律/避坑清单）——即使读不到项目记忆，也能从此节获取全部经验
 2. c:\Users\Administrator\Desktop\zhaoren\.trae\rules.md 第九章（产品战略铁律 + 提审前必跑清单）
 3. c:\Users\Administrator\Desktop\zhaoren\.trae\skills\zhaoren-audit\SKILL.md（审计只报告不修码）
 4. 【可选·路径可能因账号不同而变，读不到可跳过】项目记忆：c:\Users\Administrator\.trae-cn\memory\projects\-c-Users-Administrator-Desktop-zhaoren--p2-2cb386612f3f3552a9c6\project_memory.md（含全部硬性约束/经验教训/2026-09-27 里程碑总结）
@@ -28,6 +28,7 @@
 - 部署门禁：云函数必须走 .trae/predeploy.ps1（--remote-npm-install），逐个单独部署，禁止一条命令串行多个
 - 静态验证：.trae/scripts/scan-miniprogram.ps1（语法+no-undef+data一致性）；改代码先 node --check
 - 备份三通道：GitHub push + git bundle + robocopy；云端备份 .predeploy/backup.ps1
+- 云端读写受限（重要）：本机无 cloudbase CLI / cloudbase MCP 挂载 → AI 无法自动读写云端，需用户配合「微信开发者工具云端测试面板 / 云数据库」
 
 【当前工作状态】
 - 已完成：提审就绪审计、四确认聊天流程、消息通知双向同步（去重合并）、加时/改期横幅、订单概要统一 9 字段三行格式、状态提示 catch-up 模式根治（S0/S2/S5 引导链路）、规则15 真机双身份全链路正向测试通过
@@ -37,7 +38,8 @@
 
 【待办（按优先级）】
 1. 审计终审报告（规则15 全部完成后 8/8 收官：负向路径 N1-N9 / 安全扫描 / 审核7项 / 三重备份校验）
-2. 长尾：F10 dev-only 打赏入口（env=dev 才显示）、W1 就医陪诊提审挂类目资质、种子需求演示数据、旧测试需求置 is_deleted=true、admin-action dispute 真机联调、wallet 极速提现「已用0/10」刷新、云端 backup.ps1 AdminKey
+2. 独立阻塞项：W9 宠物陪伴需真机发布（verifySignatureFile 校验真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+3. 长尾：F10 dev-only 打赏入口（env=dev 才显示）、W1 就医陪诊提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现「已用0/10」刷新、云端 backup.ps1 AdminKey
 
 【工程纪律（不可违背）】
 - 先读后动；改代码前先给计划
