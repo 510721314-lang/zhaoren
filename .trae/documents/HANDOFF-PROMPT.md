@@ -32,16 +32,19 @@
 
 【当前工作状态】
 - 已完成：提审就绪审计（Phase0/10/11/12/13/14/16 已过 7/8）、四确认聊天流程、消息通知双向同步（去重合并）、加时/改期横幅、订单概要统一 9 字段三行格式、状态提示 catch-up 模式根治、规则15 真机双身份正向链路通过 + 负向 6/9（N3/N5/N6b/N7/N8/N9）、**admin-web 代理旁路安全修复（36daa77 已部署）**、**pay/order-detail 页子场景显示（5c1ad92）**
-- 已有 12 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15
-- 最新 HEAD：`5c1ad92`（子场景显示）；已 push GitHub，bundle v0.10.5 含全部 refs；快照 worktree_20260927_security@36daa77 落后 1 commit 待补
+- 已有 13 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15 / security-fix（36daa77）
+- 最新 HEAD：`13c6840`（交接文档）；已 push GitHub，bundle v0.10.6 含全部 refs；robocopy 快照 worktree_20260927_security 停在 36daa77 待补刷（见待办4）
 - 工作区：仅 3 个无关未跟踪文件（seed-scene-demands*.md 历史文档、tmp_cf_check_result.txt 临时产物，无需处理）
 
 【待办（按优先级）】
 1. 规则15 负向收尾：N1（四确认超时15min）/ N2（支付超时30min）/ N4（履约中断需S3订单）/ N6a（可选）——其余已通过；完成后 8/8 出终审报告
-2. 安全：轮换 admin_web_key 与 idcard_aes_key（曾明文暴露会话）；admin-web bootstrap 硬编码 openid / notice_read 归属 / complaint_reason 等 msgSecCheck / aa_record 上限 / isMockAdmin 上线前删除
-3. 功能长尾：order-action get_confirmation 的 ORD 反查 bug（index.js:217 遮蔽）
-4. 独立阻塞项：W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
-5. 长尾：F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、云端 backup.ps1 AdminKey
+2. 【提审阻塞·内容安全】complaint_reason / modify/extend reason / milestone note / sos/checkin note 等自由文本未过 msgSecCheck（审核7项内容安全合规缺口，非普通长尾）——需补 msgSecCheck 后部署 order-action/safety-report/payment-mock
+3. 【数据清理】N8b 测试污染：S9 订单 a9defcfd6aa20230011cfea075899ac6 已被打赏 1250 分（tip_no=TIP202609275612e18196f78237），云数据库手工删除该 tip 流水/标记 is_test，防提审脏数据
+4. 【备份补全】robocopy 快照 worktree_20260927_security 停在 36daa77 落后 2 commit——新电脑克隆后废弃旧 worktree，或补刷到 13c6840
+5. 安全：轮换 admin_web_key 与 idcard_aes_key（曾明文暴露会话）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
+6. 功能长尾：order-action get_confirmation 的 ORD 反查 bug（index.js:217 遮蔽）
+7. 独立阻塞项：W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+8. 长尾：F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
 
 【工程纪律（不可违背）】
 - 先读后动；改代码前先给计划
@@ -76,7 +79,7 @@
 ## 补充叮嘱（不粘贴给新任务，给你自己）
 - 每次刷新本提示词后，必须跑「衔接提示词完整性检查清单」（7 维度 + 10 关键术语反向 Grep + 出包三处一致/git 入库），清单全文见项目记忆同名字节。
 - 审计 Phase0 已通过，别再重跑；审计阶段只报告不修码（例外：高危安全修复经用户确认后可改，参考 36daa77）。
-- 12 个 accepted tag 已全部 push；HEAD=5c1ad92 已 push。
+- 13 个 accepted tag 已全部 push（含 security-fix@36daa77）；HEAD=13c6840 已 push。
 - 新账号若读不到记忆/文档（权限/磁盘差异），把本文件「衔接提示词」节人工贴入。
 - W9 真机发布 + 旧「测试」需求下线（is_deleted=true）未完成，提审演示前必须处理。
 - 云端读写受限：本机无 cloudbase CLI/MCP，需用户配合「微信开发者工具云端测试面板 / 云数据库」。云开发控制台多实例易混，必须用微信开发者工具内置控制台（cloud1-d9gkefwcp5c777088），判断标准=order_main 含 status/scene/total_fen/content_options。

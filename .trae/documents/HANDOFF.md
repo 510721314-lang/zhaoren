@@ -25,8 +25,8 @@
 - 静态验证：`.trae/scripts/scan-miniprogram.ps1`；miniprogram-automator 与 DevTools 不兼容勿重试
 
 ## 3. 已验收基线（accepted tag，改动必须经用户确认）
-参考 tag（12 个）：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang(12b729f 分账mock)、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15。
-最新 HEAD：`5c1ad92`（pay/order-detail 子场景显示）；其下 `36daa77`（admin-web 代理旁路安全修复）。
+参考 tag（13 个）：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang(12b729f 分账mock)、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15 / security-fix(36daa77)。
+最新 HEAD：`13c6840`（交接文档）；功能 HEAD `5c1ad92`（pay/order-detail 子场景显示）；其下 `36daa77`（admin-web 代理旁路安全修复，已打 security-fix tag）。
 改动触及任一 accepted tag 内文件/功能 → 先 `git diff <tag>..HEAD -- <文件>` 列改动计划，**等用户明确说同意才动**。
 
 ## 4. 本次会话（索引数据填充）已完成的成果
@@ -36,12 +36,14 @@
 
 ## 5. 待办清单（2026-09-27 晚间更新，按优先级）
 1. [审计] 规则15 负向路径收尾：N1（四确认超时15min）/ N2（支付超时30min）/ N4（履约中断，需S3订单）/ N6a（可选，N6b 已覆盖幂等）——其余 N3/N5/N6b/N7/N8/N9 已通过
-2. [审计] 终审报告 8/8 收官（负向完成后；已过：Phase0/10/11/12/13/14/16 + 15正向）
-3. [安全] 轮换 admin_web_key 与 idcard_aes_key（曾明文出现在会话，需用户配合改 admin_config）
-4. [安全长尾] admin-web bootstrap 硬编码 openid 抢先风险 / notice_read 归属校验 / complaint_reason 等自由文本 msgSecCheck / aa_record 金额上限 / isMockAdmin dev-only 分支上线前删除
-5. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
-6. [独立阻塞] W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
-7. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
+2. [提审阻塞·内容安全] complaint_reason / modify/extend reason / milestone note / sos/checkin note 等自由文本未过 msgSecCheck（审核7项内容安全合规缺口）——需补 msgSecCheck 后部署 order-action/safety-report/payment-mock
+3. [数据清理] N8b 测试污染：S9 订单 a9defcfd6aa20230011cfea075899ac6 已被打赏 1250 分（tip_no=TIP202609275612e18196f78237），云数据库手工删除该 tip 流水/标记 is_test
+4. [备份补全] robocopy 快照 worktree_20260927_security 停在 36daa77 落后 2 commit——新电脑克隆后废弃旧 worktree 或补刷到 13c6840
+5. [审计] 终审报告 8/8 收官（负向完成后；已过：Phase0/10/11/12/13/14/16 + 15正向）
+6. [安全] 轮换 admin_web_key 与 idcard_aes_key（曾明文出现在会话，需用户配合改 admin_config）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
+7. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
+8. [独立阻塞] W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+9. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
 
 ## 6. 下阶段主线：提审就绪度全量审计（沿用既有审计报告）
 
@@ -49,7 +51,7 @@
 - **Phase0 合规红线：✅ 已通过**（check-nightmask 17/17 挂载点 bind:reserve；check-ssot 可疑硬编码 0）
 - **Phase1 安全：✅ 已通过**——规则10 白名单非空（admin_list 返回 1 管理员）+ 规则11 云端越权回归 4/4（init-db 匿名 forbidden / order-timer 匿名 forbidden / admin-action 匿名 admin_no_openid / 代理伪造身份无密钥被拒）；同时完成高危 #1 admin-web 代理旁路修复（commit 36daa77，已部署 admin-action+admin-web）
 - **Phase2 静态：✅ 已通过**（node --check 全量、scan-miniprogram.ps1、predeploy.ps1）
-- **Phase3 终检：⏳ 进行中**——规则15 正向已通过；负向 6/9 通过（N3/N5/N6b/N7/N8/N9），剩 N1/N2/N4/N6a；规则13 安全扫描 5 项发现（#1 已修复、#2-#5 列长尾）；规则14 审核7项复核通过；规则16 三重备份验证通过（HEAD 已 push，bundle v0.10.5 含全部 refs，快照 worktree_20260927_security@36daa77 落后 1 commit 待补）
+- **Phase3 终检：⏳ 进行中**——规则15 正向已通过；负向 6/9 通过（N3/N5/N6b/N7/N8/N9），剩 N1/N2/N4/N6a；规则13 安全扫描 5 项发现（#1 已修复并打 security-fix tag、#2-#5 列待办）；规则14 审核7项复核通过（#4 内容安全缺口提升为提审阻塞，见待办2）；规则16 三重备份验证通过（HEAD 13c6840 已 push，bundle v0.10.6 含全部 refs，快照 worktree_20260927_security@36daa77 落后 2 commit 待补，见待办4）
 - 审计只报告不修码（例外：高危 #1 经用户确认后修复）；测试数据下线走云数据库手工 is_deleted=true
 
 > 剩余待跑项以「上方审计进度快照」为准（Phase1 云端越权回归、Phase3 负向路径 N1-N9 / 安全扫描 / 审核7项 / 三重备份 GitHub push）。以下旧清单已废弃，勿再参考：
