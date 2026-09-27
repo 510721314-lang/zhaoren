@@ -39,9 +39,9 @@ function fmtDTShort(ts) {
 // 统一订单概要 → 结构化三行(便于排版阅读): l1主信息 / l2时间 / l3地点+AA
 function buildOrderSummary(o) {
   if (!o) return { l1: '', l2: '', l3: '' };
-  // 场景名(子场景: content_options 多选, 截断避免过长)
+  // 场景名(子场景: content_options 多选, 全量以 / 分隔一并展示)
   const sub = Array.isArray(o.content_options) && o.content_options.length ? o.content_options.join('/') : '';
-  const sceneTxt = (SCENE_CN[o.scene] || o.scene || '') + (sub ? `(${sub.length > 24 ? sub.slice(0, 24) + '…' : sub})` : '');
+  const sceneTxt = (SCENE_CN[o.scene] || o.scene || '') + (sub ? `(${sub})` : '');
   const l1 = [o.order_no ? `#${o.order_no}` : '', sceneTxt, o.total_fen ? `¥${Math.round(o.total_fen / 100)}` : '', o.duration_h ? `${o.duration_h}小时` : '', o.headcount ? `${o.headcount}人` : ''].filter(Boolean).join(' · ');
   const l2 = [o.created_at ? `发布:${fmtDTShort(o.created_at)}` : '', o.start_time ? `服务:${fmtDTShort(o.start_time)}` : ''].filter(Boolean).join(' · ');
   const l3 = [o.location && o.location.name ? `📍${String(o.location.name)}` : '', o.aa_tier ? `AA:${o.aa_tier}` : ''].filter(Boolean).join(' · ');
