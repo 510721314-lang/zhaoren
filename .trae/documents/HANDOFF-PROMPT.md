@@ -31,16 +31,13 @@
 
 【当前工作状态】
 - 已完成：提审就绪审计、四确认聊天流程、消息通知双向同步（去重合并）、加时/改期横幅、订单概要统一 9 字段三行格式、状态提示 catch-up 模式根治（S0/S2/S5 引导链路）、规则15 真机双身份全链路正向测试通过
-- 已有 10 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice
-- 最新 HEAD：8dd684f（状态提示 catch-up 模式根治提交）
-- 工作区：仅 .trae/documents/ 下几个未跟踪文档（非代码，无需处理）
+- 已有 12 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15
+- 最新 HEAD：8dd684f（状态提示 catch-up 模式根治提交）；交接文档已入库 commit 4331747 并 push GitHub
+- 工作区：仅 3 个无关未跟踪文件（seed-scene-demands*.md 历史文档、tmp_cf_check_result.txt 临时产物，无需处理）
 
 【待办（按优先级）】
-1. 补打 tag accepted-20260927-chat-status-notify（指向 8dd684f，覆盖 catch-up+引导链路）——打前先向用户确认
-2. 打 tag accepted-20260927-rule15（规则15 全链路验收通过后）
-3. GitHub 备份 push 同步本轮 commit/tag
-4. 审计终审报告（规则15 全部完成后 8/8 收官）
-5. 长尾：F10 dev-only 打赏入口（env=dev 才显示）、W1 就医陪诊提审挂类目资质、种子需求演示数据、旧测试需求置 is_deleted=true、admin-action dispute 真机联调、wallet 极速提现「已用0/10」刷新、云端 backup.ps1 AdminKey
+1. 审计终审报告（规则15 全部完成后 8/8 收官：负向路径 N1-N9 / 安全扫描 / 审核7项 / 三重备份校验）
+2. 长尾：F10 dev-only 打赏入口（env=dev 才显示）、W1 就医陪诊提审挂类目资质、种子需求演示数据、旧测试需求置 is_deleted=true、admin-action dispute 真机联调、wallet 极速提现「已用0/10」刷新、云端 backup.ps1 AdminKey
 
 【工程纪律（不可违背）】
 - 先读后动；改代码前先给计划
@@ -63,13 +60,18 @@
 - 订单概要统一格式：结构化三行 9 字段（单号·场景含子场景全量·金额·时长·人数 / 时间 / 📍地址不截断·AA），order-action/im-conv 两处 buildOrderSummary 保持一致
 - PowerShell 5 不支持 &&，用 ; 分隔；git push 可加 -c http.proxy= 绕过失效代理
 
+【经验沉淀机制（强制执行）】
+- 每逢里程碑收尾（用户说「总结/沉淀」「测试通过」）主动执行，不提醒
+- 沉淀三处：项目记忆 project_memory.md 追加经验章节 + HANDOFF.md 更新基线/待办/快照/§9 + HANDOFF-PROMPT.md 刷新衔接提示词
+- 沉淀后 Grep 自检落盘，并向用户流出写入原文
+
 【下一步动作】
 先读取上述必读材料并核对 git log/tag 状态，再向用户确认待办顺序后开始。
 ```
 
 ## 补充叮嘱（不粘贴给新任务，给你自己）
 - 审计 Phase0 已通过，别再重跑；审计阶段只报告不修码。
-- `accepted-20260927-chat-status-notify` 与 `accepted-20260927-rule15` 两个 tag 均未打，打前先与用户确认。
+- `accepted-20260927-chat-status-notify` 与 `accepted-20260927-rule15` 已打（指向 8dd684f）并 push。
 - 新账号若读不到记忆/文档（权限/磁盘差异），把本文件「衔接提示词」节人工贴入。
 - W9 真机发布 + 旧「测试」需求下线（is_deleted=true）未完成，提审演示前必须处理。
 - 云端读写受限：本机无 cloudbase CLI/MCP，需用户配合「微信开发者工具云端测试面板 / 云数据库」。
