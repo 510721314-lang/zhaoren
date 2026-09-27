@@ -150,11 +150,14 @@ Page({
         wx.showModal({ title: '支付失败', content: r.msg || '请稍后重试', showCancel: false });
         return;
       }
-      // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
-      wx.navigateBack({
-        success: () => wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 }),
+      // 导航先行、反馈后置: 支付成功直接引导进入履约界面(订单详情页), toast 放 success 回调
+      wx.redirectTo({
+        url: `/pages-v2/order-detail/order-detail?orderId=${this.__orderId}`,
+        success: () => wx.showToast({ title: '支付成功，进入履约', icon: 'success', duration: 1800 }),
         fail: (err) => {
-          console.error('[pay] navigateBack fail:', err && err.errMsg);
+          console.error('[pay] redirectTo order-detail fail:', err && err.errMsg);
+          // 兜底: 返回上一页, 仍提示支付成功
+          wx.navigateBack({ fail: () => {} });
           wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 });
         }
       });
