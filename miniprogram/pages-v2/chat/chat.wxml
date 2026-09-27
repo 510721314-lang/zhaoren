@@ -37,6 +37,12 @@
     <block wx:else>已解锁自由沟通</block>
   </view>
 
+  <!-- C3.1 加时/改期请求醒目提示(对方发起, 常驻至处理; 点击去订单详情处理) -->
+  <view class="chat__pending-banner" wx:if="{{pendingBanner}}" bindtap="goOrderDetail" hover-class="btn-press">
+    <text class="chat__pending-title">{{pendingBanner.title}}</text>
+    <text class="chat__pending-body">{{pendingBanner.body}}</text>
+  </view>
+
   <!-- C4.0 一键全部确认(双方均可; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
   <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked}}" bindtap="onConfirmAll" hover-class="btn-press">
     <text>✅ 四项一键全部确认</text>

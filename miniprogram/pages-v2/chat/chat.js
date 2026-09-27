@@ -31,6 +31,7 @@ Page({
     freeChat: false,     // 后端允许自由文本
     chatBlocked: false,  // S6/S10
     orderStatus: '',
+    pendingBanner: null, // 加时/改期在途请求醒目横幅
     messages: [],
     // C5 模板快捷键
     quickKeys: [
@@ -174,13 +175,31 @@ Page({
     // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
     const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
     const prevStatus = this.data.orderStatus;
+    // 加时/改期在途请求 → 醒目横幅(对方发起且未处理; 常驻至确认/拒绝/超时)
+    const pm = d.pending_modify;
+    const pe = d.pending_extend;
+    let pendingBanner = null;
+    if (pe && pe.can_respond) {
+      pendingBanner = {
+        type: 'extend', title: '⏰ 对方申请加时',
+        body: `加时 ${pe.add_hours} 小时 · ¥${(pe.add_amount_fen / 100).toFixed(2)} · 点击去处理 ›`,
+        canRespond: true
+      };
+    } else if (pm && pm.can_respond && nextStatus === 'S2_5') {
+      pendingBanner = {
+        type: 'modify', title: '📅 对方申请改期',
+        body: `改至 ${this.fmtDateTime(pm.new_start_time)} · 点击去处理 ›`,
+        canRespond: true
+      };
+    }
     this.setData({
       items,
       progress,
       confirmedCount: count,
       unlocked,
       freeChat: unlocked || this.data.freeChat,
-      orderStatus: nextStatus
+      orderStatus: nextStatus,
+      pendingBanner
     }, () => {
       this.updateMsgStatuses();
       // 耍伴端: 需求方确认完成 → S0 待支付, 提示"对方已确认, 待付款"(点确定才消失)

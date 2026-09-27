@@ -206,6 +206,9 @@ exports.main = async (event, context) => {
       fields[f] = { value: it.value, user_ok: !!it.user_ok, partner_ok: !!it.partner_ok };
     }
 
+    // 改期/加时在途请求摘要(供聊天页醒目提示; can_respond=当前查看者是否需要响应)
+    const pm = order.pending_modify;
+    const pe = order.pending_extend;
     return {
       ok: true,
       data: {
@@ -217,7 +220,22 @@ exports.main = async (event, context) => {
         confirmed_count: confirmedCount,   // 0-8
         total_count: 8,
         all_confirmed: allConfirmed(conf.items),
-        version: conf.version || 1
+        version: conf.version || 1,
+        pending_modify: pm ? {
+          by_openid: pm.by_openid,
+          by_role: pm.by_role,
+          new_start_time: pm.new_start_time,
+          reason: (pm.reason || '').slice(0, 60),
+          can_respond: pm.by_openid !== openid
+        } : null,
+        pending_extend: pe ? {
+          by_openid: pe.by_openid,
+          by_role: pe.by_role,
+          add_hours: pe.add_hours,
+          add_amount_fen: pe.add_amount_fen,
+          reason: (pe.reason || '').slice(0, 60),
+          can_respond: pe.by_openid !== openid
+        } : null
       }
     };
   }
