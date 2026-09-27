@@ -588,6 +588,7 @@ exports.main = async (event, context) => {
     total_fen: totalFen,
     fee_fen: feeFen,
     partner_income_fen: partnerIncomeFen,
+    headcount: demand.headcount || 1,   // 人数(统一订单概要用)
     aa_tier: demand.aa_tier,
     aa_promise_signed: !!demand.aa_promise_signed,
     status: 'S1',               // 待确认(四确认阶段)

@@ -19,6 +19,29 @@ const { writeAudit } = require('./audit');
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
 const FIELD_CN = { time: '时间', location: '地点', content: '内容', fee: '费用' };
+// ── 统一订单概要(所有涉及订单信息的提示/通知前置): #订单号 · 场景名 · ¥金额 · 发布时间 · 服务时间 · 履约时长 · 人数 · 履约地点 · AA区间 ──
+const SCENE_CN = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+function fmtDT(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const p = (n) => (n < 10 ? '0' + n : '' + n);
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function buildOrderSummary(o) {
+  if (!o) return '';
+  const parts = [];
+  if (o.order_no) parts.push(`#${o.order_no}`);
+  if (o.scene) parts.push(SCENE_CN[o.scene] || o.scene);
+  if (o.total_fen) parts.push(`¥${Math.round(o.total_fen / 100)}`);
+  if (o.created_at) parts.push(`发布时间:${fmtDT(o.created_at)}`);
+  if (o.start_time) parts.push(`服务:${fmtDT(o.start_time)}`);
+  if (o.duration_h) parts.push(`${o.duration_h}小时`);
+  if (o.headcount) parts.push(`${o.headcount}人`);
+  if (o.location && o.location.name) parts.push(`📍${String(o.location.name).slice(0, 20)}`);
+  if (o.aa_tier) parts.push(`AA:${o.aa_tier}`);
+  return parts.join(' · ');
+}
 
 async function getConfig() {
   try {
@@ -1520,8 +1543,7 @@ exports.main = async (event, context) => {
       .get();
     // 未读数
     const unread = await col('system_notice').where({ to_openid: openid, read: false }).count();
-    // 订单概要(所有订单类通知前置概要信息): 批量关联 order_main
-    const SCENE_CN = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+    // 订单概要(所有订单类通知前置统一概要): 批量关联 order_main
     const orderIds = Array.from(new Set((list.data || []).map((n) => n.order_id).filter(Boolean)));
     const orderMap = {};
     if (orderIds.length) {
@@ -1530,11 +1552,9 @@ exports.main = async (event, context) => {
         (orders.data || []).forEach((o) => { orderMap[o._id] = o; });
       } catch (e) { log.d('notice order join fail:', e.message); }
     }
-    const decorated = (list.data || []).map((n) => {
-      const o = n.order_id ? orderMap[n.order_id] : null;
-      const summary = o ? [o.order_no || '', SCENE_CN[o.scene] || o.scene || '', o.total_fen ? `¥${Math.round(o.total_fen / 100)}` : ''].filter(Boolean).join(' · ') : '';
-      return Object.assign({}, n, { order_summary: summary });
-    });
+    const decorated = (list.data || []).map((n) => Object.assign({}, n, {
+      order_summary: n.order_id ? buildOrderSummary(orderMap[n.order_id]) : ''
+    }));
     return { ok: true, data: { list: decorated, unread: unread.total } };
   }
 

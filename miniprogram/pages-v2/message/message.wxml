@@ -54,6 +54,7 @@
             <text class="msg__name">{{item.displayTitle}}</text>
             <status-tag code="{{item.order_status}}"></status-tag>
           </view>
+          <view class="msg__order-summary" wx:if="{{item.order_summary}}">{{item.order_summary}}</view>
           <view class="msg__row2">
             <text class="msg__summary">{{item.summary}}</text>
             <view class="msg__right">
