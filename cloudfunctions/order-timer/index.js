@@ -98,6 +98,17 @@ exports.main = async (event, context) => {
       s1OK.push(o);
     }));
     await Promise.allSettled(s1OK.map(o => logStatus(o._id, 'S1', 'S6', 'timeout_s1_cancel', 'system')));
+    // 通知双方: 四确认超时自动取消
+    await Promise.allSettled(s1OK.flatMap(o => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'timeout_cancel',
+        title: '四确认超时,订单已取消',
+        body: '双方未在15分钟内完成四确认,订单已自动取消,需求已重新开放',
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
     s1OK.forEach(o => { out.s1_cancel.push(o.order_no); log.d(`timeout S1→S6: ${o.order_no}`); });
   } catch (e) { log.d(`s1 scan fail: ${e.message}`); }
 
@@ -113,6 +124,17 @@ exports.main = async (event, context) => {
       s0OK.push(o);
     }));
     await Promise.allSettled(s0OK.map(o => logStatus(o._id, 'S0', 'S6', 'timeout_s0_close', 'system')));
+    // 通知双方: 支付超时自动取消
+    await Promise.allSettled(s0OK.flatMap(o => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'timeout_cancel',
+        title: '支付超时,订单已取消',
+        body: '未在30分钟内完成支付,订单已自动取消',
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
     s0OK.forEach(o => { out.s0_close.push(o.order_no); log.d(`timeout S0→S6: ${o.order_no}`); });
   } catch (e) { log.d(`s0 scan fail: ${e.message}`); }
 
@@ -129,6 +151,17 @@ exports.main = async (event, context) => {
       s35OK.push(o);
     }));
     await Promise.allSettled(s35OK.map(o => logStatus(o._id, 'S3.5', 'S4', 'timeout_interrupt_partial', 'system')));
+    // 通知双方: 履约中断超时, 转部分完成待协商
+    await Promise.allSettled(s35OK.flatMap(o => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'interrupt_partial',
+        title: '履约中断超时',
+        body: '服务中断已超24小时,订单转部分完成,请双方协商确认',
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
     s35OK.forEach(o => { out.interrupt_partial.push(o.order_no); log.d(`timeout S3.5→S4: ${o.order_no}`); });
   } catch (e) { log.d(`s3.5 scan fail: ${e.message}`); }
 

@@ -448,6 +448,14 @@ exports.main = async (event, context) => {
         const tipTotal = after ? (after.tip_total_fen || 0) : amount;
 
         log.d(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
+        // 订单沟通同步: 通知耍伴收到打赏
+        col('system_notice').add({ data: {
+          to_openid: order.partner_openid, order_id, type: 'tip',
+          title: '收到打赏',
+          body: `发单人打赏了你 ¥${(amount / 100).toFixed(2)}`,
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }}).catch(e => log.d('[notice] tip fail:', e.message));
         await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_tip', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, tip_no: tipNo, amount_fen: amount }, result: 'ok', client_ip: clientIp, device });
         return {
           ok: true,

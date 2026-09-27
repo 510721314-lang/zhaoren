@@ -399,6 +399,19 @@ exports.main = async (event, context) => {
       if (won) {
         await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
         newStatus = 'S0';
+        // 订单状态同步: 四确认全部完成进入待支付, 通知双方
+        writeNotice({
+          to_openid: order.user_openid, order_id, type: 'confirm_done',
+          title: '四确认全部完成',
+          body: '订单已进入待支付,请在30分钟内完成支付',
+          action_key: 'jump_pay', action_payload: { order_id }
+        });
+        writeNotice({
+          to_openid: order.partner_openid, order_id, type: 'confirm_done',
+          title: '四确认全部完成',
+          body: '订单已进入待支付,等待发单人付款',
+          action_key: 'jump_order', action_payload: { order_id }
+        });
         log.d(`four confirm done: order=${order.order_no} → S0, pay_expire=${payExpire}`);
       } else {
         // 未抢到: 多为并发确认/定时器取消; S0 视为幂等成功, 其余报冲突
@@ -474,6 +487,19 @@ exports.main = async (event, context) => {
       if (won) {
         await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
         newStatus = 'S0';
+        // 订单状态同步: 四确认全部完成进入待支付, 通知双方
+        writeNotice({
+          to_openid: order.user_openid, order_id, type: 'confirm_done',
+          title: '四确认全部完成',
+          body: '订单已进入待支付,请在30分钟内完成支付',
+          action_key: 'jump_pay', action_payload: { order_id }
+        });
+        writeNotice({
+          to_openid: order.partner_openid, order_id, type: 'confirm_done',
+          title: '四确认全部完成',
+          body: '订单已进入待支付,等待发单人付款',
+          action_key: 'jump_order', action_payload: { order_id }
+        });
       } else {
         const latest = await getOrder(order_id);
         newStatus = latest ? latest.status : 'S1';
@@ -1221,6 +1247,14 @@ exports.main = async (event, context) => {
     }
 
     log.d(`complaint filed: ${order.order_no} ${fromStatus}→S10.5 by=${role}`);
+    // 订单沟通同步: 通知对端"对方发起投诉"
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'complaint',
+      title: '对方发起投诉',
+      body: `${role === 'user' ? '发单人' : '耍伴'}已发起投诉/争议,平台将介入处理`,
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complaint_open', target_type: 'order', target_id: order_id, detail: { from_status: fromStatus, status: 'S10.5', reason_type: String(reason || '').slice(0, 20) }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S10.5' } };
   }
