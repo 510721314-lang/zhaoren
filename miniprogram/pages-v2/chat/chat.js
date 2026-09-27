@@ -186,7 +186,6 @@ Page({
     this.__confLoaded = true;
     // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
     const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
-    const prevStatus = this.data.orderStatus;
     // 加时/改期在途请求 → 醒目横幅(对方发起且未处理; 常驻至确认/拒绝/超时; 先给订单概要)
     const pm = d.pending_modify;
     const pe = d.pending_extend;
@@ -217,8 +216,14 @@ Page({
       orderSummary: this.__orderSummary(d)
     }, () => {
       this.updateMsgStatuses();
-      // 耍伴端: 需求方确认完成 → S0 待支付, 提示"对方已确认, 待付款"(点确定才消失)
-      if (this.data.role === 'partner' && nextStatus === 'S0' && prevStatus !== 'S0') {
+      // ── 状态提示 catch-up 模式: 每状态只提示一次, 不依赖轮询跳变/瞬时窗口(根治"提示不跳出/丢失"类问题) ──
+      if (!this.__shownStatus) this.__shownStatus = new Set();
+      const shown = (k) => this.__shownStatus.has(k);
+      const mark = (k) => this.__shownStatus.add(k);
+
+      // 1) S0 耍伴端: 对方已确认, 待付款
+      if (this.data.role === 'partner' && nextStatus === 'S0' && !shown('partner_S0')) {
+        mark('partner_S0');
         wx.showModal({
           title: '📋 对方已确认',
           content: `${this.__orderSummary(d)}\n需求方已完成四项确认,订单进入待支付,等待需求方付款`,
@@ -228,8 +233,9 @@ Page({
           fail: () => wx.showToast({ title: '对方已确认,待付款', icon: 'none' })
         });
       }
-      // 耍伴端: 发布者支付完成(待支付→已支付 S2), 弹确认框提示"对方已支付"(点确定才消失)
-      if (this.data.role === 'partner' && nextStatus === 'S2' && prevStatus !== 'S2') {
+      // 2) S2 耍伴端: 对方已支付, 去履约
+      if (this.data.role === 'partner' && nextStatus === 'S2' && !shown('partner_S2')) {
+        mark('partner_S2');
         wx.showModal({
           title: '💰 对方已支付',
           content: `${this.__orderSummary(d)}\n对方已完成支付，请依约履约`,
@@ -252,8 +258,9 @@ Page({
           }
         });
       }
-      // 发布者端: 履约完成 → S5, 引导评价
-      if (this.data.role === 'user' && nextStatus === 'S5' && prevStatus !== 'S5') {
+      // 3) S5 发布者端: 履约完成, 去评价
+      if (this.data.role === 'user' && nextStatus === 'S5' && !shown('user_S5')) {
+        mark('user_S5');
         wx.showModal({
           title: '🎉 履约完成',
           content: `${this.__orderSummary(d)}\n耍伴已完成履约，请对本次服务进行评价`,
@@ -275,24 +282,23 @@ Page({
           }
         });
       }
+      // 4) S0 发布者端: 订单支付(catch-up: 进入/轮询即弹, 不再限定"确认完成瞬间"或"非首次加载")
+      if (this.data.role === 'user' && nextStatus === 'S0' && !shown('user_S0')) {
+        mark('user_S0');
+        wx.showModal({
+          title: '💳 订单支付',
+          content: `${this.__orderSummary(d)}\n四项确认已全部完成,订单进入待支付\n请在 30 分钟内完成支付,超时订单将自动取消`,
+          confirmText: '支付',
+          cancelText: '放弃支付',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+          success: (res) => {
+            if (res.confirm) this.goPay(); // 放弃支付 → 留在四确认完成窗口(顶部横幅可再次进入支付)
+          }
+        });
+      }
       if (unlocked && !wasUnlocked) {
         wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
-        // 四确认完成瞬间(非重进会话)且当前用户是付款方 → 自动弹出支付窗口;
-        // 放弃支付则留在本页, 顶部待支付横幅可再次进入支付
-        console.log('[pay-modal-debug]', { role: this.data.role, nextStatus, unlocked, wasUnlocked, firstLoad });
-        if (!firstLoad && this.data.role === 'user' && nextStatus === 'S0') {
-          wx.showModal({
-            title: '💳 订单支付',
-            content: `${this.__orderSummary(d)}\n四项确认已全部完成,订单进入待支付\n请在 30 分钟内完成支付,超时订单将自动取消`,
-            confirmText: '支付',
-            cancelText: '放弃支付',
-            confirmColor: '#07C160',
-            fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-            success: (res) => {
-              if (res.confirm) this.goPay(); // 放弃支付 → 留在四确认完成窗口
-            }
-          });
-        }
       }
     });
   },
