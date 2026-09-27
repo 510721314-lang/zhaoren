@@ -126,10 +126,33 @@ Page({
           if (conf.ok) this.applyConfirmation(conf.data);
           if (msgs.ok) this.renderMessages(msgs.data.messages);
           this.scrollBottom();
+          this.__maybeGuideConfirm(conf, msgs);
         });
       });
     }).catch(() => {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请检查网络后重试' });
+    });
+  },
+
+  // 首次进入四确认引导: 订单 S1 且双方都未发起过任何确认模板时, 引导先发起「时间」确认
+  // 判断依据: 消息流里无 template 卡(发模板不写 order_confirmations, 以消息流为准)
+  __maybeGuideConfirm(conf, msgs) {
+    if (this.__guideShown) return;
+    const d = (conf && conf.ok && conf.data) || null;
+    const list = (msgs && msgs.ok && msgs.data && msgs.data.messages) || [];
+    if (!d || d.status !== 'S1' || d.all_confirmed) return;
+    if (list.some((m) => m && m.type === 'template')) return; // 已有确认卡, 不重复引导
+    this.__guideShown = true;
+    wx.showModal({
+      title: '开始四确认',
+      content: '订单已创建。请先与对方确认「时间」: 点确定发送时间确认卡, 双方逐项确认后进入待支付。',
+      confirmText: '去确认',
+      cancelText: '稍后',
+      confirmColor: '#07C160',
+      fail: () => {},
+      success: (res) => {
+        if (res.confirm) this.sendTemplate('TM1'); // 发送后消息区出现时间确认卡, 双方在卡上确认/修改
+      }
     });
   },
 
@@ -160,6 +183,17 @@ Page({
       orderStatus: nextStatus
     }, () => {
       this.updateMsgStatuses();
+      // 耍伴端: 需求方确认完成 → S0 待支付, 提示"对方已确认, 待付款"(点确定才消失)
+      if (this.data.role === 'partner' && nextStatus === 'S0' && prevStatus !== 'S0') {
+        wx.showModal({
+          title: '📋 对方已确认',
+          content: '需求方已完成四项确认,订单进入待支付,等待需求方付款',
+          showCancel: false,
+          confirmText: '知道了',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '对方已确认,待付款', icon: 'none' })
+        });
+      }
       // 耍伴端: 发布者支付完成(待支付→已支付 S2), 弹确认框提示"对方已支付"(点确定才消失)
       if (this.data.role === 'partner' && nextStatus === 'S2' && prevStatus !== 'S2') {
         wx.showModal({
@@ -368,13 +402,24 @@ Page({
             return;
           }
           wx.showToast({ title: '已全部确认', icon: 'success' });
-          return this.refreshConfirmation();
+          // 一键确认只置数据层确认位, 不生成消息卡 → 补齐消息流缺失的确认卡, 让双方都看到全部4项
+          this.__sendMissingConfirmCards().then(() => this.refreshConfirmation());
         }).catch(() => {
           wx.hideLoading();
           wx.showToast({ title: '网络异常,请重试', icon: 'none' });
         });
       }
     });
+  },
+
+  // 一键确认后补齐消息流缺失的确认卡(confirm_all 只置确认位不产生消息卡; 串行补发, 避免消息乱序)
+  __sendMissingConfirmCards() {
+    const missing = Object.keys(TM_FIELD).filter((tmId) =>
+      !this.data.messages.some((m) => m && m.msg_type === 'template' && m.tm_id === tmId));
+    if (!missing.length) return Promise.resolve();
+    return missing.reduce((chain, tmId) => chain
+      .then(() => new Promise((r) => setTimeout(r, 300))) // 等 confirm_all 落库, 补卡状态取最新 items
+      .then(() => this.sendTemplate(tmId)), Promise.resolve());
   },
 
   // ───────── 调整确认项(update_item, 后端重置全部8位) ─────────
@@ -503,8 +548,8 @@ Page({
 
   sendTemplate(tmId) {
     const { guardSwitch } = require('../../utils/bootstrap.js');
-    if (!guardSwitch('im')) return;
-    callCloud('im-send', {
+    if (!guardSwitch('im')) return Promise.resolve();
+    return callCloud('im-send', {
       action: 'send_template', order_id: this.data.orderId, template_id: tmId
     }).then((r) => {
       if (!r.ok) {

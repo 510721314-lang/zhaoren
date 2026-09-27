@@ -205,13 +205,15 @@ Page({
     if (!demand) return;
     takeOrder(demand, {
       onSuccess: (data) => {
-        wx.showToast({ title: '抢单成功,已进入待确认(S1)', icon: 'success', duration: 1500 });
-        setTimeout(() => {
-          wx.redirectTo({
-            url: `/pages-v2/chat/chat?orderId=${data.order_id}`,
-            fail: () => wx.showToast({ title: '聊天页打开失败', icon: 'none' })
-          });
-        }, 700);
+        // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
+        wx.redirectTo({
+          url: `/pages-v2/chat/chat?orderId=${data.order_id}`,
+          success: () => wx.showToast({ title: '抢单成功,已进入待确认(S1)', icon: 'success', duration: 1500 }),
+          fail: (err) => {
+            console.error('[onGrab] redirectTo chat fail:', err && err.errMsg);
+            wx.showToast({ title: '聊天页打开失败,请从「消息」进入', icon: 'none', duration: 2500 });
+          }
+        });
       },
       onError: (r) => {
         // 需求已被抢/过期 → 刷新广场同步状态

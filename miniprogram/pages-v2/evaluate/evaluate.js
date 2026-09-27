@@ -168,10 +168,15 @@ Page({
         return;
       }
       this.clearTimers();
-      wx.showToast({ title: `评价成功！${CONFIG.ORDER.evalRewardYuan}元优惠券已到账`, icon: 'none', duration: 2000 });
-      setTimeout(() => {
-        wx.redirectTo({ url: '/pages-v2/order-detail/order-detail?orderId=' + this.__orderId, fail: () => wx.navigateBack({ fail: () => {} }) });
-      }, 1500);
+      // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
+      wx.redirectTo({
+        url: '/pages-v2/order-detail/order-detail?orderId=' + this.__orderId,
+        success: () => wx.showToast({ title: `评价成功！${CONFIG.ORDER.evalRewardYuan}元优惠券已到账`, icon: 'none', duration: 2000 }),
+        fail: (err) => {
+          console.error('[evaluate] redirectTo order-detail fail:', err && err.errMsg);
+          wx.navigateBack({ fail: () => {} });
+        }
+      });
     }).catch(() => {
       wx.hideLoading();
       this.setData({ submitting: false });

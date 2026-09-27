@@ -22,6 +22,11 @@
     <text class="chat__pay-go">去支付 ›</text>
   </view>
 
+  <!-- 待支付状态提示(耍伴侧; 需求方确认完成未付款时显示) -->
+  <view class="chat__pay-banner" wx:if="{{orderStatus === 'S0' && role === 'partner'}}">
+    <text>⏳ 待对方支付(30分钟内有效)</text>
+  </view>
+
   <!-- C2 四确认进度条 -->
   <confirm-progress progress="{{progress}}"></confirm-progress>
 
@@ -32,8 +37,8 @@
     <block wx:else>已解锁自由沟通</block>
   </view>
 
-  <!-- C4.0 一键全部确认(需求发布者; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
-  <view class="chat__confirm-all" wx:if="{{role === 'user' && !unlocked && !chatBlocked}}" bindtap="onConfirmAll" hover-class="btn-press">
+  <!-- C4.0 一键全部确认(双方均可; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
+  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked}}" bindtap="onConfirmAll" hover-class="btn-press">
     <text>✅ 四项一键全部确认</text>
   </view>
 

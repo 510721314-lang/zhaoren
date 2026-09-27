@@ -374,10 +374,15 @@ Page({
           wx.removeStorageSync('partner_local_cfg');
           wx.removeStorageSync('current_identity');
         } catch (e) {}
-        wx.showToast({ title: '已退出登录', icon: 'success' });
-        setTimeout(() => {
-          wx.reLaunch({ url: '/pages-v2/login/login', fail: () => {} });
-        }, 800);
+        // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
+        wx.reLaunch({
+          url: '/pages-v2/login/login',
+          success: () => wx.showToast({ title: '已退出登录', icon: 'success' }),
+          fail: (err) => {
+            console.error('[profile] reLaunch login fail:', err && err.errMsg);
+            wx.showToast({ title: '已退出登录', icon: 'success' });
+          }
+        });
       }
     });
   },
@@ -402,10 +407,15 @@ Page({
               wx.removeStorageSync('partner_local_cfg');
               wx.removeStorageSync('current_identity');
             } catch (e) {}
-            wx.showToast({ title: '账号已注销', icon: 'success' });
-            setTimeout(() => {
-              wx.reLaunch({ url: '/pages-v2/login/login', fail: () => {} });
-            }, 800);
+            // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
+            wx.reLaunch({
+              url: '/pages-v2/login/login',
+              success: () => wx.showToast({ title: '账号已注销', icon: 'success' }),
+              fail: (err) => {
+                console.error('[profile] reLaunch login fail:', err && err.errMsg);
+                wx.showToast({ title: '账号已注销', icon: 'success' });
+              }
+            });
           } else {
             // 典型: close_has_active_orders(还有 N 笔进行中订单)
             wx.showToast({ title: r.msg || '注销失败', icon: 'none', duration: 2500 });

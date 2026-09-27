@@ -150,8 +150,14 @@ Page({
         wx.showModal({ title: '支付失败', content: r.msg || '请稍后重试', showCancel: false });
         return;
       }
-      wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 });
-      setTimeout(() => { wx.navigateBack({ fail: () => {} }); }, 1500);
+      // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
+      wx.navigateBack({
+        success: () => wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 }),
+        fail: (err) => {
+          console.error('[pay] navigateBack fail:', err && err.errMsg);
+          wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 });
+        }
+      });
     }).catch(() => {
       wx.hideLoading();
       this.setData({ paying: false });

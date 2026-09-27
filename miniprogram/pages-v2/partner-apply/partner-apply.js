@@ -103,10 +103,15 @@ Page({
             success: () => { wx.switchTab({ url: '/pages-v2/profile/profile' }); }
           });
         } else {
-          wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' });
-          setTimeout(() => {
-            wx.switchTab({ url: '/pages-v2/profile/profile' });
-          }, 800);
+          // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
+          wx.switchTab({
+            url: '/pages-v2/profile/profile',
+            success: () => wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' }),
+            fail: (err) => {
+              console.error('[partner-apply] switchTab profile fail:', err && err.errMsg);
+              wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' });
+            }
+          });
         }
       } else {
         // 服务端实名门禁(apply_not_realname): 给「去实名」按钮引导
