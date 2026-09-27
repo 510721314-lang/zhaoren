@@ -70,6 +70,7 @@ Page({
           duration_hours: hours
         },
         scene: { code: d.scene_code },
+        sceneContentText: (d.content_options || []).join('/'),
         serviceFee: (totalFen / 100).toFixed(2),
         unitPriceYuan: (totalFen / hours / 100).toFixed(2),
         totalFee: (totalFen / 100).toFixed(2),

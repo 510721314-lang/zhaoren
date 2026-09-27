@@ -281,6 +281,7 @@ Page({
       pending_modify: pendingModify,
       pending_extend: pendingExtend,
       scene_code: d.scene,
+      scene_content_text: (d.content_options || []).join('/'),
       partner_name: d.partner_nickname,
       location: d.location || {},
       service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',

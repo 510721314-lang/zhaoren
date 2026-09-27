@@ -15,6 +15,7 @@
     <view class="pay__card">
       <view class="pay__card-title">订单摘要</view>
       <view class="pay__summary-row"><text class="pay__s-label">场景</text><tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip></view>
+      <view class="pay__summary-row" wx:if="{{sceneContentText}}"><text class="pay__s-label">子场景</text><text class="pay__s-val">{{sceneContentText}}</text></view>
       <view class="pay__summary-row"><text class="pay__s-label">时间</text><text class="pay__s-val">{{order.service_date}} {{order.service_time}}</text></view>
       <view class="pay__summary-row"><text class="pay__s-label">地点</text><text class="pay__s-val">{{order.location.name}}</text></view>
       <view class="pay__summary-row"><text class="pay__s-label">订单号</text><text class="pay__s-val">{{order.order_no}}</text></view>

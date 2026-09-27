@@ -39,6 +39,7 @@
         <tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip>
         <tag-chip type="gongyi" wx:if="{{order.project_attr === 'public_welfare'}}" />
       </view>
+      <view class="od__row" wx:if="{{order.scene_content_text}}"><text class="od__label">子场景</text><text class="od__val">{{order.scene_content_text}}</text></view>
       <view class="od__row"><text class="od__label">时间</text><text class="od__val">{{order.service_date}} {{order.service_time}}</text></view>
       <view class="od__row"><text class="od__label">地点</text><text class="od__val">{{order.location.name}}</text></view>
       <view class="od__row"><text class="od__label">耍伴</text><text class="od__val">{{order.partner_name}}</text></view>
