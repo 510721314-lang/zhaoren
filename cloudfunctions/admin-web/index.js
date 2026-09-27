@@ -228,7 +228,7 @@ exports.main = async (event, context) => {
   }
 
   // proxy admin-action: 带 2.5s 超时保护 + 超时降级
-  const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid };
+  const proxyData = { ...body, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid, _admin_web_proxy_key: cfg.admin_web_key || '' };
   try {
     const r = await withTimeout(cloud.callFunction({ name: 'admin-action', data: proxyData }), PROXY_TIMEOUT_MS);
     return makeJson(r.result || { ok: false, code: 'no_result' });

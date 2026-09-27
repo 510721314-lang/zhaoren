@@ -37,15 +37,40 @@ function getCachedEnv() {
   return _cachedEnv;
 }
 
+// 代理密钥缓存(admin_web 网关共享密钥, 防客户端直调 admin-action 冒充管理员)
+let _cachedProxyKey = null;
+let _proxyKeyCacheUntil = 0;
+
+async function _readProxyKey(cloud) {
+  const now = Date.now();
+  if (_cachedProxyKey !== null && now < _proxyKeyCacheUntil) return _cachedProxyKey;
+  try {
+    const db = cloud.database();
+    const r = await db.collection('admin_config').doc('global').get();
+    _cachedProxyKey = (r.data && r.data.admin_web_key) || '';
+    _proxyKeyCacheUntil = now + CACHE_TTL_MS;
+  } catch (e) {
+    // fail-closed: 读不到配置时空字符串, 代理旁路不生效
+    _cachedProxyKey = '';
+    _proxyKeyCacheUntil = now + FAIL_CACHE_TTL_MS;
+  }
+  return _cachedProxyKey;
+}
+
 // 主入口: 云函数统一用这个
 async function resolveOpenid(cloud, event) {
   const wxCtx = cloud.getWXContext();
   const realOpenid = wxCtx.OPENID;
   const mockOpenid = event && event.mock_openid;
 
-  // admin-web HTTP 代理链路: X-Admin-Key 已验, 信它带的 openid (安全边界)
+  // admin-web HTTP 代理链路: 必须校验网关共享密钥 admin_web_key, 防客户端直接 callFunction 冒充
   if (event && event.__admin_web_proxy && event._admin_web_proxy_openid) {
-    return event._admin_web_proxy_openid;
+    const proxyKey = event._admin_web_proxy_key || '';
+    const storedKey = await _readProxyKey(cloud);
+    if (storedKey && proxyKey && proxyKey === storedKey) {
+      return event._admin_web_proxy_openid;
+    }
+    // 密钥不匹配/为空: fall-through 到正常身份解析 (fail-closed)
   }
 
   // 无条件预热环境缓存(顺带供 logger 门控), 有缓存时仅一次内存读取
