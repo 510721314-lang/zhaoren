@@ -84,6 +84,27 @@ function roleOf(order, openid) {
   return null;
 }
 
+// 写一条系统通知到 system_notice(不阻塞主流程, try-catch 吞掉) · 订单沟通信息同步到「我的-消息通知」
+async function writeNotice(opt) {
+  try {
+    await col('system_notice').add({
+      data: {
+        to_openid: opt.to_openid,
+        order_id: opt.order_id || '',
+        type: opt.type || 'custom',
+        title: opt.title,
+        body: opt.body || '',
+        action_key: opt.action_key || 'jump_order',
+        action_payload: opt.action_payload || {},
+        created_at: Date.now(),
+        read: false
+      }
+    });
+  } catch (e) {
+    log.d('[notice] write failed:', opt.to_openid, opt.type, e.message);
+  }
+}
+
 // 懒获取会话(与 im-conv 同构;发送方先于对方打开会话时创建)
 async function getOrCreateConv(order) {
   const existing = await col('im_conversation')
@@ -238,6 +259,14 @@ exports.main = async (event, context) => {
         detail: { conv_id: msg.conv_id, template_id: tpl.id, msg_id: msg.msg_id },
         result: 'ok', client_ip: clientIp, device
       });
+      // 订单沟通同步: 通知对端收到确认请求
+      writeNotice({
+        to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+        order_id, type: 'im_template',
+        title: '订单沟通',
+        body: `对方发来确认请求:${(tpl.text || '').slice(0, 30)}`,
+        action_key: 'jump_chat', action_payload: { order_id }
+      });
       return { ok: true, data: { msg, free_chat: FREE_CHAT_STATUS.indexOf(order.status) >= 0 } };
     } catch (e) {
       log.d(`send_template fail: ${e.message}`);
@@ -316,6 +345,14 @@ exports.main = async (event, context) => {
         target_type: 'im_message', target_id: msg.msg_id || '',
         detail: { conv_id: msg.conv_id, msg_id: msg.msg_id, text_len: text.length, free_chat: true },
         result: 'ok', client_ip: clientIp, device
+      });
+      // 订单沟通同步: 通知对端收到新消息
+      writeNotice({
+        to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+        order_id, type: 'im_text',
+        title: '订单沟通',
+        body: `对方发来新消息:${text.slice(0, 30)}`,
+        action_key: 'jump_chat', action_payload: { order_id }
       });
       return { ok: true, data: { msg, free_chat: true } };
     } catch (e) {

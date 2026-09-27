@@ -17,6 +17,8 @@ const log = require('./logger');
 const { writeAudit } = require('./audit');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
+// 确认项中文名(通知文案用)
+const FIELD_CN = { time: '时间', location: '地点', content: '内容', fee: '费用' };
 
 async function getConfig() {
   try {
@@ -317,6 +319,14 @@ exports.main = async (event, context) => {
     }
 
     log.d(`confirm item updated: order=${order.order_no} item=${item} by=${role}, all reset`);
+    // 订单沟通同步: 通知对端"对方修改了某项, 需重新确认"
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'modify',
+      title: '订单沟通',
+      body: `对方修改了「${FIELD_CN[item] || item}」,需重新确认`,
+      action_key: 'jump_chat', action_payload: { order_id }
+    });
     return {
       ok: true,
       data: { item, reset: true, version: v + 1, confirmed_count: 0, total_count: 8 }
@@ -401,6 +411,14 @@ exports.main = async (event, context) => {
     }
 
     await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_item', target_type: 'order', target_id: order_id, detail: { item, role, confirmed_count: cnt, status: newStatus }, result: 'ok', client_ip: clientIp, device });
+    // 订单沟通同步: 通知对端"对方已确认某项"
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'confirm',
+      title: '订单沟通',
+      body: `对方已确认「${FIELD_CN[item] || item}」`,
+      action_key: 'jump_chat', action_payload: { order_id }
+    });
     return {
       ok: true,
       data: {
@@ -465,6 +483,14 @@ exports.main = async (event, context) => {
       }
     }
     await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_all', target_type: 'order', target_id: order_id, detail: { role, confirmed_count: cnt, status: newStatus }, result: 'ok', client_ip: clientIp, device });
+    // 订单沟通同步: 通知对端"对方一键确认全部"
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'confirm',
+      title: '订单沟通',
+      body: '对方已一键确认全部四项',
+      action_key: 'jump_chat', action_payload: { order_id }
+    });
     return { ok: true, data: { role, confirmed_count: cnt, total_count: 8, all_confirmed: done, status: newStatus } };
   }
 

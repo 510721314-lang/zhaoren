@@ -59,7 +59,9 @@ Page({
     // 跳转
     const key = n.action_key;
     const payload = n.action_payload || {};
-    if (key === 'jump_order' || key === 'jump_accept_modify') {
+    if (key === 'jump_chat') {
+      wx.navigateTo({ url: `/pages-v2/chat/chat?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
+    } else if (key === 'jump_order' || key === 'jump_accept_modify') {
       wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
     } else if (key === 'jump_pay') {
       wx.navigateTo({ url: `/pages-v2/pay/pay?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
