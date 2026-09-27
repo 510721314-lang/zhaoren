@@ -13,6 +13,7 @@
     >
       <view class="nt__ic">🔔</view>
       <view class="nt__body">
+        <view class="nt__order-summary" wx:if="{{item.order_summary}}">{{item.order_summary}}</view>
         <view class="nt__head">
           <text class="nt__title">{{item.title}}</text>
           <view class="nt__dot" wx:if="{{!item.read}}"></view>

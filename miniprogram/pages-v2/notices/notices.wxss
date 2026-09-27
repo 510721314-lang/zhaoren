@@ -16,6 +16,7 @@
 .nt__body { flex: 1; min-width: 0; }
 .nt__head { display: flex; align-items: center; gap: 12rpx; }
 .nt__title { font-size: 28rpx; font-weight: 600; flex: 1; }
+.nt__order-summary { font-size: 22rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); margin-bottom: 6rpx; word-break: break-all; }
 .nt__dot {
   width: 14rpx; height: 14rpx; border-radius: 50%;
   background: var(--func-danger, #fa5151);

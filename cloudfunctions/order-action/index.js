@@ -1520,7 +1520,22 @@ exports.main = async (event, context) => {
       .get();
     // 未读数
     const unread = await col('system_notice').where({ to_openid: openid, read: false }).count();
-    return { ok: true, data: { list: list.data, unread: unread.total } };
+    // 订单概要(所有订单类通知前置概要信息): 批量关联 order_main
+    const SCENE_CN = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+    const orderIds = Array.from(new Set((list.data || []).map((n) => n.order_id).filter(Boolean)));
+    const orderMap = {};
+    if (orderIds.length) {
+      try {
+        const orders = await col('order_main').where({ _id: _.in(orderIds) }).limit(100).get();
+        (orders.data || []).forEach((o) => { orderMap[o._id] = o; });
+      } catch (e) { log.d('notice order join fail:', e.message); }
+    }
+    const decorated = (list.data || []).map((n) => {
+      const o = n.order_id ? orderMap[n.order_id] : null;
+      const summary = o ? [o.order_no || '', SCENE_CN[o.scene] || o.scene || '', o.total_fen ? `¥${Math.round(o.total_fen / 100)}` : ''].filter(Boolean).join(' · ') : '';
+      return Object.assign({}, n, { order_summary: summary });
+    });
+    return { ok: true, data: { list: decorated, unread: unread.total } };
   }
 
   // ───────── 通知:标记已读(单条或全部) ─────────

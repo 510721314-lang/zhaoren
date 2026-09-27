@@ -32,6 +32,7 @@ Page({
     chatBlocked: false,  // S6/S10
     orderStatus: '',
     pendingBanner: null, // 加时/改期在途请求醒目横幅
+    orderSummary: '',    // 订单概要(弹窗/横幅前置)
     messages: [],
     // C5 模板快捷键
     quickKeys: [
@@ -212,14 +213,15 @@ Page({
       unlocked,
       freeChat: unlocked || this.data.freeChat,
       orderStatus: nextStatus,
-      pendingBanner
+      pendingBanner,
+      orderSummary: this.__orderSummary(d)
     }, () => {
       this.updateMsgStatuses();
       // 耍伴端: 需求方确认完成 → S0 待支付, 提示"对方已确认, 待付款"(点确定才消失)
       if (this.data.role === 'partner' && nextStatus === 'S0' && prevStatus !== 'S0') {
         wx.showModal({
           title: '📋 对方已确认',
-          content: '需求方已完成四项确认,订单进入待支付,等待需求方付款',
+          content: `${this.__orderSummary(d)}\n需求方已完成四项确认,订单进入待支付,等待需求方付款`,
           showCancel: false,
           confirmText: '知道了',
           confirmColor: '#07C160',
@@ -230,7 +232,7 @@ Page({
       if (this.data.role === 'partner' && nextStatus === 'S2' && prevStatus !== 'S2') {
         wx.showModal({
           title: '💰 对方已支付',
-          content: '对方已完成支付，请依约履约',
+          content: `${this.__orderSummary(d)}\n对方已完成支付，请依约履约`,
           showCancel: false,
           confirmText: '知道了',
           confirmColor: '#07C160',
@@ -245,7 +247,7 @@ Page({
         if (!firstLoad && this.data.role === 'user' && nextStatus === 'S0') {
           wx.showModal({
             title: '💳 订单支付',
-            content: '四项确认已全部完成,订单进入待支付\n请在 30 分钟内完成支付,超时订单将自动取消',
+            content: `${this.__orderSummary(d)}\n四项确认已全部完成,订单进入待支付\n请在 30 分钟内完成支付,超时订单将自动取消`,
             confirmText: '支付',
             cancelText: '放弃支付',
             confirmColor: '#07C160',
