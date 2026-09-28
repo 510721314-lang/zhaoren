@@ -40,12 +40,19 @@
 3. ~~[数据清理] N8b 测试污染~~ ✅ **已完成（2026-09-28，双证）**：zz-clean-n8b clean 软删 tip 流水+回滚 tip_total_fen 1250→0+软删通知；CLI 直读订单 a9defcfd6aa20230011cfea075899ac6 确认 tip_total_fen=0；audit_log 保留（保链）
 4. ~~[备份补全]~~ ✅ **已完成（2026-09-28）**：GitHub push 同步（9 commit `a822e8c..dbbbd48`，ahead=0）；bundle 新建 `zhaoren_v0.10.7_20260928.bundle`（10.7MB，verify is okay，含全部 refs+旧 worktree HEAD）；旧 worktree `worktree_20260927_security` 位于旧机器路径（Administrator 账号），本机无实体 → **废弃 + git worktree prune**；L3 云端导出通道验证：order_main dump 164 条 0 失败（jobId 111487620，落 `C:\Users\DC\Desktop\zhaoren_backup_20260928_verify\`）
 5. ~~[审计] 终审报告 8/8~~ ✅ **已收官（2026-09-28）**，见 §6 审计进度快照
-6. [安全] admin_web_key / idcard_aes_key **已轮换完成（2026-09-28）**：新密钥已写入 admin_config（idcard 无存量加密数据零迁移；test_partner_001 明文 idcard 已清）；admin-web 重新部署（serveStatic 版，公网可访问 `https://cloud1-...tcloudbase.com/`）；**新 key 已确认公网+本机双登成功**。**遗留**：bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
+6. ~~[安全] admin_web_key / idcard_aes_key 轮换~~ ✅ **已完成（2026-09-28）**：新密钥已写入 admin_config（idcard 无存量加密数据零迁移；test_partner_001 明文 idcard 已清）；admin-web 重新部署（serveStatic 版，公网可访问 `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com`）；**新 key 已确认公网+本机双登成功**。**遗留 4 项 → 已由会话 P0-2 完成（见 §5.6）**
 7. ~~[功能长尾] order-action get_confirmation 的 ORD 反查 bug~~ ✅ **已修复（2026-09-28，commit 4ad1cc5 已部署）**：17 个 action 内层 `const { order_id }=event` 遮蔽外层 ORD 反查 → 改为从解构中移除 order_id（保留 reason/note/location 等字段），改用外层已反查变量；ORD 单号调用不再 oa_not_found
 8. ~~[独立阻塞] W9 宠物陪伴真机发布~~ ✅ **已完成（2026-09-28）**：真机发布成功（需求 `3d00e15d...ab4` status=matching，pet_auth_signed=true）；留证落库 kind=pet_authorization + agree_type=handwritten + verify_method=handwritten + signature_hash+SHA-256+size 18260（verifySignatureFile 真实校验通过）；旧「测试」需求云端已无活跃项（历史单均 expired/cancelled）——待办7 子项全清
-9. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
+9. ~~[长尾] F10 dev-only 打赏入口~~ ✅ **已完成（2026-09-28，commit 9a647f7 已部署 admin-action）**：前端打赏入口已实现（config_public 下发 `payment.tip_enabled`(env===dev fail-closed)+order-detail S5/S8 打赏按钮+mock_tip 调用），云端实测 `tip_enabled:true`；**W1 提审挂类目资质 / 种子需求演示数据 / dispute 真机联调 / wallet 极速提现刷新 / backup.ps1 AdminKey 仍为长尾**
 10. 【2026-09-28 产品拍板·公益冻结基线】公益（公益需求/公益单/公益补贴结算）整体暂缓：代码零实现保持，禁止按 PRD §1.5 公益章节开建；将来实现须满足 后台默认关闭(welfare_switch=false)+前端不显示公益入口+服务端 fail-closed 拒绝公益发布。已同步记入项目记忆「硬性约束」
 11. 【提审后功能库·2026-09-28 已深化设计+专家复核】③耍伴技能维护 ④地图找周边(需求+耍伴,按场景/距离) ⑤到达履约点拍照打卡+发布者确认后开始履约——完整设计（含专家修正：③bio 依赖 msgSecCheck 基建、portfolio 限资质用途；④位置暴露审核高风险须隐私声明+home_location_public 可见性开关；⑤建议 arrival 并入 milestone step0 评估、order-timer 性能）见 `.trae/documents/features-post-launch.md`
+12. ~~[P0 提审前配置回正]~~ ✅ **已完成（2026-09-28，commit 7a351f9/65d6d4e）**：①admin_config `auto_approve_partner: true→false`（硬规则 prod 必须 false）、`modify_config.confirmHours: 24→2`（与前端 MODIFY 对齐）；②前端 config/index.js `PARTNER_ACCEPT.rateMinFen/MaxFen 3000/10000→1000/50000`、`defaultSceneRateFen 5000→10000` 跟随云端；③云端实测确认（tcb CLI 直调 admin-action config_public，`tip_enabled:true`、rate_range 1000/50000、confirmHours 2 直出）。**遗留**：`city_enabled=['成都','重庆']` 保留（用户确认）、`scene_default_rate_fen` 保持 10000（用户确认）
+
+## 5.6 P0-2 安全遗留 4 项 ✅（2026-09-28 完成，commit 267deb3 已部署）
+- **① admin-web bootstrap 硬编码 openid 清除**：admin-web/index.js L208-217/L224 两处 `'oLDJ...'` 硬编码 → 改 `adminOpenid`（取 admin_openids[0]，空则拒 `no_admin_openid`）；不再留死兜底
+- **② notice_read 归属校验**：order-action L1609-1615 单条 `doc(notice_id).update` 无条件 → 改 `where({_id, to_openid: openid, read:false})` 条件更新，不匹配静默 ok（防枚举）；批量不变
+- **③ aa_record 防滥用上限（后台可配）**：admin-action CONFIG_SCHEMA 新增 `aa_record_max_fen`(def 100000=1000元)/`aa_ledger_max_fen`(def 300000=3000元)/`aa_ledger_max_records`(def 50)，自动走 intFields 区间校验+config_public 不外泄；payment-mock L531-546 读取 3 上限，超限返 `aa_over_*`
+- **④ isMockAdmin 保留**（用户拍板：保留代码，dev 云端测试需 mock 身份）：仅提审核查项——上线前确认 `admin_config.env=='prod'`（openid.js 已证 fail-closed：读失败/非 dev → prod，mock 旁路自动关闭）
 
 ## 5.5 工作计划总览（2026-09-28 新增 · 5 条需求立项跟踪，随实施滚动更新状态）
 
