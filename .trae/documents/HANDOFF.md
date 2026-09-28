@@ -41,8 +41,8 @@
 4. ~~[备份补全]~~ ✅ **已完成（2026-09-28）**：GitHub push 同步（9 commit `a822e8c..dbbbd48`，ahead=0）；bundle 新建 `zhaoren_v0.10.7_20260928.bundle`（10.7MB，verify is okay，含全部 refs+旧 worktree HEAD）；旧 worktree `worktree_20260927_security` 位于旧机器路径（Administrator 账号），本机无实体 → **废弃 + git worktree prune**；L3 云端导出通道验证：order_main dump 164 条 0 失败（jobId 111487620，落 `C:\Users\DC\Desktop\zhaoren_backup_20260928_verify\`）
 5. ~~[审计] 终审报告 8/8~~ ✅ **已收官（2026-09-28）**，见 §6 审计进度快照
 6. [安全] admin_web_key / idcard_aes_key **已轮换完成（2026-09-28）**：新密钥已写入 admin_config（idcard 无存量加密数据零迁移；test_partner_001 明文 idcard 已清）；admin-web 重新部署（serveStatic 版，公网可访问 `https://cloud1-...tcloudbase.com/`）；**新 key 已确认公网+本机双登成功**。**遗留**：bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
-7. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
-8. [独立阻塞] W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+7. ~~[功能长尾] order-action get_confirmation 的 ORD 反查 bug~~ ✅ **已修复（2026-09-28，commit 4ad1cc5 已部署）**：17 个 action 内层 `const { order_id }=event` 遮蔽外层 ORD 反查 → 改为从解构中移除 order_id（保留 reason/note/location 等字段），改用外层已反查变量；ORD 单号调用不再 oa_not_found
+8. ~~[独立阻塞] W9 宠物陪伴真机发布~~ ✅ **已完成（2026-09-28）**：真机发布成功（需求 `3d00e15d...ab4` status=matching，pet_auth_signed=true）；留证落库 kind=pet_authorization + agree_type=handwritten + verify_method=handwritten + signature_hash+SHA-256+size 18260（verifySignatureFile 真实校验通过）；旧「测试」需求云端已无活跃项（历史单均 expired/cancelled）——待办7 子项全清
 9. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
 10. 【2026-09-28 产品拍板·公益冻结基线】公益（公益需求/公益单/公益补贴结算）整体暂缓：代码零实现保持，禁止按 PRD §1.5 公益章节开建；将来实现须满足 后台默认关闭(welfare_switch=false)+前端不显示公益入口+服务端 fail-closed 拒绝公益发布。已同步记入项目记忆「硬性约束」
 11. 【提审后功能库·2026-09-28 已深化设计+专家复核】③耍伴技能维护 ④地图找周边(需求+耍伴,按场景/距离) ⑤到达履约点拍照打卡+发布者确认后开始履约——完整设计（含专家修正：③bio 依赖 msgSecCheck 基建、portfolio 限资质用途；④位置暴露审核高风险须隐私声明+home_location_public 可见性开关；⑤建议 arrival 并入 milestone step0 评估、order-timer 性能）见 `.trae/documents/features-post-launch.md`
