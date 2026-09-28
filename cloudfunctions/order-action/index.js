@@ -48,6 +48,37 @@ function buildOrderSummary(o) {
   return { l1, l2, l3 };
 }
 
+// 自由文本安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词, 与 demand-publish/im-send 同款)
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+
+// 内容安全: msgSecCheck v2; 87014 明确违规; 其他异常(未开通/网络)降级本地违禁词 —— 失败不阻断主流程, 仅拦明确违规
+async function checkText(openid, text, blockWords) {
+  const t = String(text || '');
+  if (!t) return { pass: true };
+  try {
+    await cloud.openapi.security.msgSecCheck({
+      content: t.length > 2500 ? t.slice(0, 2500) : t,
+      version: 2,
+      scene: 2,   // 2=评论/留言场景
+      openid
+    });
+    return { pass: true };
+  } catch (e) {
+    if (e && (e.errCode === 87014 || e.errCode === '87014')) {
+      return { pass: false, reason: '内容包含违规信息,请修改后重试' };
+    }
+    // 降级:本地违禁词库
+    const words = (blockWords && blockWords.length) ? blockWords : BLOCK_WORDS_FALLBACK;
+    const lower = t.toLowerCase();
+    for (const w of words) {
+      if (w && lower.indexOf(String(w).toLowerCase()) >= 0) {
+        return { pass: false, reason: '内容包含平台禁止的内容(如联系方式/转账),请修改后重试' };
+      }
+    }
+    return { pass: true };
+  }
+}
+
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
@@ -735,6 +766,11 @@ exports.main = async (event, context) => {
     if (ms.current >= 3) return { ok: false, code: 'oa_ms_done', msg: '履约进度已提交到100%,无需重复提交' };
 
     const next = ms.current + 1;
+    // 进度说明内容安全(rules.md 六): 违规文本不入库
+    if (note) {
+      const chk = await checkText(openid, note);
+      if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+    }
     const evidence = Array.isArray(ms.evidence) ? ms.evidence : [];
     evidence.push({
       milestone: next,
@@ -869,6 +905,11 @@ exports.main = async (event, context) => {
     const fromStatus = order.status;
     const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
     const device = String(event.device || '').slice(0, 200);
+    // 改期理由内容安全(rules.md 六): 违规文本不入库
+    if (reason) {
+      const chk = await checkText(openid, reason);
+      if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+    }
     const won = await casStatus(order_id, ['S2', 'S3'], {
       status: 'S2_5',
       pending_modify: {
@@ -1016,6 +1057,11 @@ exports.main = async (event, context) => {
     const confirmHours = (config.modify_config && config.modify_config.confirmHours) || 24;
     const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
     const device = String(event.device || '').slice(0, 200);
+    // 加时理由内容安全(rules.md 六): 违规文本不入库
+    if (reason) {
+      const chk = await checkText(openid, reason);
+      if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+    }
 
     const won = await casStatus(order_id, 'S3', {
       pending_extend: {
@@ -1271,6 +1317,11 @@ exports.main = async (event, context) => {
     const fromStatus = order.status;
     const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
     const device = String(event.device || '').slice(0, 200);
+    // 投诉理由内容安全(rules.md 六): 违规文本不发争议单
+    if (reason) {
+      const chk = await checkText(openid, reason);
+      if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+    }
     const won = await casStatus(order_id, ['S5', 'S8', 'S9'], {
       status: 'S10.5',
       help_flag: true,

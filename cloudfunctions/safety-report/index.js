@@ -20,6 +20,37 @@ const { writeAudit } = require('./audit');
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
 const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
 
+// 自由文本安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词, 与 demand-publish/im-send 同款)
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+
+// 内容安全: msgSecCheck v2; 87014 明确违规; 其他异常(未开通/网络)降级本地违禁词 —— 失败不阻断主流程, 仅拦明确违规
+async function checkText(openid, text, blockWords) {
+  const t = String(text || '');
+  if (!t) return { pass: true };
+  try {
+    await cloud.openapi.security.msgSecCheck({
+      content: t.length > 2500 ? t.slice(0, 2500) : t,
+      version: 2,
+      scene: 2,   // 2=评论/留言场景
+      openid
+    });
+    return { pass: true };
+  } catch (e) {
+    if (e && (e.errCode === 87014 || e.errCode === '87014')) {
+      return { pass: false, reason: '内容包含违规信息,请修改后重试' };
+    }
+    // 降级:本地违禁词库
+    const words = (blockWords && blockWords.length) ? blockWords : BLOCK_WORDS_FALLBACK;
+    const lower = t.toLowerCase();
+    for (const w of words) {
+      if (w && lower.indexOf(String(w).toLowerCase()) >= 0) {
+        return { pass: false, reason: '内容包含平台禁止的内容(如联系方式/转账),请修改后重试' };
+      }
+    }
+    return { pass: true };
+  }
+}
+
 // 管理员白名单只认 admin_config.admin_openids; 读不到/为空一律返回空列表(fail-closed, 禁止硬编码兜底)
 async function getAdminOpenids() {
   try {
@@ -149,6 +180,12 @@ exports.main = async (event, context) => {
     const location = validLocation(event.location);
     const note = String(event.note || '').slice(0, 200);
     const subType = action === 'silent_sos' ? 'silent' : '';  // silent=静默求助(可被本人撤销)
+
+    // 求助备注内容安全(rules.md 六): 违规文本不入库
+    if (note) {
+      const chk = await checkText(openid, note);
+      if (!chk.pass) return { ok: false, code: 'sr_text_unsafe', msg: chk.reason };
+    }
 
     let reportId = '';
     try {
@@ -323,6 +360,12 @@ exports.main = async (event, context) => {
     }
     const location = validLocation(event.location);
     const note = String(event.note || '').slice(0, 200);
+
+    // 报备备注内容安全(rules.md 六): 违规文本不入库
+    if (note) {
+      const chk = await checkText(openid, note);
+      if (!chk.pass) return { ok: false, code: 'sr_text_unsafe', msg: chk.reason };
+    }
 
     try {
       const r = await col('safety_report').add({ data: {
