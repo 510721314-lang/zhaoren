@@ -13,7 +13,7 @@
 这是跨账号/跨任务的严谨工作衔接，衔接质量直接决定项目进度，请先完整只读吸收以下材料后再回应，不要直接改任何东西。
 
 【第一步 · 必读吸收】
-1. c:\Users\DC\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀 §9。本机项目在 `c:\Users\DC\Desktop\zhaoren`（旧记账用的 Administrator 路径已废弃）
+1. c:\Users\DC\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀。**特别阅读 §9 多轮任务经验沉淀（§9.9 为本会话 2026-09-28 经验：tcb CLI 直调/负向测试秒级化/zz- 三坑/遮蔽 bug 纪律/密钥轮换三查）——即使读不到项目记忆，也能从此节获取全部经验**。本机项目在 `c:\Users\DC\Desktop\zhaoren`（旧记账用的 Administrator 路径已废弃）
 2. c:\Users\DC\Desktop\zhaoren\.trae\rules.md 第九章（产品战略铁律 + 提审前必跑清单）
 3. c:\Users\DC\Desktop\zhaoren\.trae\skills\zhaoren-audit\SKILL.md（审计只报告不修码）
 4. 【可选】项目记忆：c:\Users\DC\.trae-cn\memory\projects\-c-Users-DC-Desktop-zhaoren--p2-a4956b0653f77d53625f\project_memory.md（含 2026-09-28 全量经验/能力基线）
@@ -25,7 +25,7 @@
 - 页面：miniprogram/pages-v2/（index、square、demand-detail、chat、pay、order-detail、evaluate、profile、partner-apply、notices、message）
 - 云函数：cloudfunctions/（im-conv、im-send、order-action、order-timer、payment-mock、demand、admin-action 等 18 个）
 - 配置：miniprogram/config/index.js、enums.js；样式 SSOT：miniprogram/styles/tokens.wxss（绿色主题，页面禁硬编码色值）
-- 部署门禁：云函数必须走 .trae/predeploy.ps1，逐个单独部署（禁串行）；新建临时函数需 package.json + zz- 注册 + 白名单临时加入
+- 部署门禁：云函数必须走 .trae/predeploy.ps1，逐个单独部署（禁串行）；新建临时函数需 package.json + zz- 注册 + 白名单临时加入；**新建函数的 remote-npm-install 不可靠时，本地 npm install 后不带 -r 上传 node_modules**
 - 静态验证：.trae/scripts/scan-miniprogram.ps1；改代码先 node --check
 - 备份三通道：GitHub push（git -c http.proxy= 绕过失效代理）+ git bundle + robocopy
 - **云端读写（本会话已打通）**：tcb CLI 已登录 cloud1 直读直写 —— 调用方式必须 `node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>`（.ps1 包装器被 PS 执行策略挡，勿直接 `tcb`）；NoSQL 命令 JSON 用 node 脚本 execSync 传参（PS5 内联必炸）；cloud1 环境 ID `cloud1-d9gkefwcp5c777088`；腾讯云 SCF 官网控制台是其他环境（st_forbidden），勿用

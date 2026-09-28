@@ -128,3 +128,13 @@
 - **云端操作避坑**：云开发控制台多实例，必须用微信开发者工具内置控制台（cloud1-d9gkefwcp5c777088），判断标准=order_main 含 status/scene/total_fen/content_options
 - **功能改动**：pay/order-detail 页显示子场景（content_options），commit 5c1ad92
 - **安全提醒**：admin_web_key/idcard_aes_key 曾明文暴露会话 → 需轮换；勿再粘贴完整 admin_config
+
+### 9.9 2026-09-28 提审冲刺日经验（待办 1-8 全完成 · 与项目记忆同步）
+- **tcb CLI 打通 cloud1 直读直写**（重大能力）：`tcb login` 用 cloud1 所属账号扫码后 `tcb env list` 可见 cloud1-d9gkefwcp5c777088；**调用必须 `node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>`**（.ps1 包装器被 PS 执行策略挡，直接 `tcb` 报 UnauthorizedAccess）；NoSQL 命令 JSON 在 PS5 传参必炸 → **统一用 node 脚本 execSync 跑**；`db nosql execute` 支持 QUERY/UPDATE/INSERT/DELETE/COMMAND
+- **负向超时测试秒级化**：不必真等 15min/30min/24h——造好数据后以管理员身份（Vl openid 在 admin_openids 内）手动触发 `order-timer {"action":"run"}`，返回 counts 直接判定（本会话 N1/N2/N4 一次通过）
+- **zz- 临时函数三坑**：① 目录必须含 package.json（否则云端 Cannot find module 'wx-server-sdk'）② 首次部署遇「函数处于 Creating 状态」失败 → 等 15s 重试 ③ 微信开发者工具 CLI 的 `--remote-npm-install` 对新建函数不可靠 → **本地 npm install 后不带 -r 上传 node_modules**（6.7MB/5820 文件）
+- **order_id 遮蔽 bug 模式（修复纪律）**：外层预检已把 ORD 反查为 _id，内层 action 又 `const { order_id }=event` 覆盖 → 修复时**不能删整行**（多字段解构含 reason/note/location 等），先逐行核实解构内容、仅摘除被覆盖的 order_id 字段；本次 17 处全改（4ad1cc5）
+- **密钥轮换三查**：① 查存量加密数据（idcard_aes_key 轮换前先查 user_account.idcard 非空数，有则需迁移脚本）② 查前端 Key 存储方式（admin-web 是运行时登录输入+localStorage，**非编译期硬编码** → 轮换无需 rebuild 前端）③ 查后端读取方式（admin-web/index.js 运行时读 admin_config → 写库即生效）；密钥由用户生成（node -e randomBytes），AI 不生成不落会话
+- **运维环境误入识别**：腾讯云官网 SCF 控制台的 order-timer 是其他环境同名函数（返回 `st_forbidden`，本项目无此码）→ 出现即看错控制台，cloud1 一律走微信开发者工具内置控制台或 tcb CLI
+- **W9 真机验收四证**：cloud1 查 demand.pet_auth_signed=true + disclaimer_signature.kind=pet_authorization + agree_type/verify_method=handwritten + signature_hash(SHA-256)/signature_size
+- **openid 反向核对**：交接单曾把 Vl 誊写成 VF（F/l 混淆）→ 首次使用任何 openid 先用 quick_check/order-timer 实测放行再依赖
