@@ -70,6 +70,18 @@
     <view class="pd__intro">{{partner.intro || '这个耍伴还没写自我介绍~'}}</view>
   </view>
 
+  <!-- T3.5 动态入口: 条数 + 最新更新时间, 点击进 TA 的动态流 -->
+  <view class="pd__card pd__blog-entry" wx:if="{{blogInfo}}" bindtap="goBlog" hover-class="pd__blog-entry--hover">
+    <view class="pd__blog-left">
+      <text class="pd__blog-icon">📝</text>
+      <view class="pd__blog-text">
+        <view class="pd__blog-title">动态 <text class="pd__blog-count">{{blogInfo.count}} 条</text></view>
+        <view class="pd__blog-sub" wx:if="{{blogTimeText}}">最新更新于 {{blogTimeText}}</view>
+      </view>
+    </view>
+    <text class="pd__blog-arrow">›</text>
+  </view>
+
   <!-- T4 tab -->
   <view class="pd__tabs">
     <view class="pd__tab {{activeTab === 'intro' ? 'is-on' : ''}}" data-tab="intro" bindtap="switchTab">介绍</view>

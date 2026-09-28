@@ -358,3 +358,13 @@
 .pd__loading { padding: 16rpx; }
 .pd__skeleton { height: 120rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: pd-skeleton-pulse 1.2s ease-in-out infinite; }
 @keyframes pd-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* 动态入口 */
+.pd__blog-entry { display: flex; align-items: center; justify-content: space-between; }
+.pd__blog-entry--hover { background: var(--bg-segment); }
+.pd__blog-left { display: flex; align-items: center; gap: 16rpx; }
+.pd__blog-icon { font-size: 40rpx; }
+.pd__blog-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); }
+.pd__blog-count { color: var(--brand-primary); font-weight: 700; }
+.pd__blog-sub { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
+.pd__blog-arrow { font-size: 36rpx; color: var(--text-3); }

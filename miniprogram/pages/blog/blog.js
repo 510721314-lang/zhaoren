@@ -16,7 +16,8 @@ const MAX_IMAGES = 9;
 
 Page({
   data: {
-    scope: 'feed',        // feed=广场 / my=我的动态
+    scope: 'feed',        // feed=广场 / my=我的动态 / author=TA的动态(authorOpenid)
+    authorOpenid: '',
     sceneOpts: SCENE_OPTS,
     topicOpts: TOPIC_OPTS,
     activeScene: '',
@@ -37,11 +38,14 @@ Page({
 
 
   onLoad(opts) {
-    const scope = opts && opts.scope === 'my' ? 'my' : 'feed';
+    let scope = 'feed';
+    let authorOpenid = '';
+    if (opts && opts.scope === 'my') scope = 'my';
+    else if (opts && opts.scope === 'author' && opts.authorOpenid) { scope = 'author'; authorOpenid = opts.authorOpenid; }
     // 从详情话题标签跳入时预设话题筛选
     let topic = '';
     if (opts && opts.tag && TOPIC_NAMES.indexOf(opts.tag) >= 0) topic = opts.tag;
-    this.setData({ scope, activeTopic: topic });
+    this.setData({ scope, authorOpenid, activeTopic: topic });
   },
 
   onShow() {
@@ -62,7 +66,8 @@ Page({
   switchScope(e) {
     const scope = e.currentTarget.dataset.scope;
     if (scope === this.data.scope) return;
-    this.setData({ scope, activeScene: '', activeTopic: '', list: [], page: 1, showEmpty: false, loading: true });
+    // 从 TA的动态 切回广场/我的时清除作者过滤
+    this.setData({ scope, authorOpenid: '', activeScene: '', activeTopic: '', list: [], page: 1, showEmpty: false, loading: true });
     this.loadList(true);
   },
 
@@ -92,6 +97,9 @@ Page({
     if (this.data.scope === 'feed') {
       if (this.data.activeScene) data.scene = this.data.activeScene;
       if (this.data.activeTopic) data.tag = this.data.activeTopic;
+    } else if (this.data.scope === 'author' && this.data.authorOpenid) {
+      // TA的动态: 按作者过滤(服务端 feed_list 支持 author_openid)
+      data.author_openid = this.data.authorOpenid;
     }
 
     wx.cloud.callFunction({

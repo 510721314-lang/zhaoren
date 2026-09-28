@@ -410,13 +410,14 @@ exports.main = async (event, context) => {
       case 'author_home': {
         const target = event.author_openid;
         if (!isOpenid(target)) return { ok: false, code: 'bad_openid', msg: '用户不存在' };
-        const [uR, pR, ordTotalR, ordDoneR, evR, postCntR] = await Promise.all([
+        const [uR, pR, ordTotalR, ordDoneR, evR, postCntR, lastPostR] = await Promise.all([
           col('user_account').where({ openid: target }).limit(1).get().catch(() => ({ data: [] })),
           col('partner_profile').where({ openid: target, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] })),
           col('order_main').where({ partner_openid: target, is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
           col('order_main').where({ partner_openid: target, status: _.in(DONE_STATUS), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
           col('evaluation').where({ to_openid: target, is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] })),
-          col('blog_post').where({ author_openid: target, status: 'normal', is_deleted: false }).count().catch(() => ({ total: 0 }))
+          col('blog_post').where({ author_openid: target, status: 'normal', is_deleted: false }).count().catch(() => ({ total: 0 })),
+          col('blog_post').where({ author_openid: target, status: 'normal', is_deleted: false }).orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }))
         ]);
         const u = uR.data && uR.data[0];
         if (!u || u.status === 'closed') return { ok: false, code: 'user_gone', msg: '该用户不存在或已注销' };
@@ -443,7 +444,8 @@ exports.main = async (event, context) => {
               done_orders: ordDoneR.total || 0,
               eval_count: evs.length,
               avg_star: avgStar,
-              post_count: postCntR.total || 0
+              post_count: postCntR.total || 0,
+              last_post_at: (lastPostR.data && lastPostR.data[0] && lastPostR.data[0].created_at) || 0
             }
           }
         };

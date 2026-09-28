@@ -1,8 +1,11 @@
 <view class="page-blog">
-  <!-- 顶部 推荐/我的 切换 -->
-  <view class="scope-bar">
+  <!-- 顶部 推荐/我的 切换(TA的动态隐藏切换/筛选) -->
+  <view class="scope-bar" wx:if="{{scope !== 'author'}}">
     <view class="scope-item {{scope==='feed'?'scope-on':''}}" bindtap="switchScope" data-scope="feed">推荐</view>
     <view class="scope-item {{scope==='my'?'scope-on':''}}" bindtap="switchScope" data-scope="my">我的动态</view>
+  </view>
+  <view class="scope-bar scope-bar--author" wx:else>
+    <view class="scope-item scope-on">TA的动态</view>
   </view>
 
   <!-- 场景筛选(仅广场) -->
@@ -40,9 +43,9 @@
     <block wx:elif="{{showEmpty}}">
       <view class="empty-state">
         <view class="empty-icon">📭</view>
-        <view class="empty-text">{{scope==='my' ? '你还没有发布动态' : '还没有动态'}}</view>
-        <view class="empty-sub">{{scope==='my' ? '点右下角写一条吧' : '来发布第一条吧'}}</view>
-        <view class="empty-btn">
+        <view class="empty-text">{{scope==='my' ? '你还没有发布动态' : scope==='author' ? 'TA 还没有发布动态' : '还没有动态'}}</view>
+        <view class="empty-sub">{{scope==='my' ? '点右下角写一条吧' : scope==='author' ? 'TA 的动态会在这里展示' : '来发布第一条吧'}}</view>
+        <view class="empty-btn" wx:if="{{scope !== 'author'}}">
           <button class="btn-primary" hover-class="btn-press" bindtap="goPublish">写动态</button>
         </view>
       </view>
@@ -101,5 +104,5 @@
   </view>
 
   <!-- 悬浮发布按钮 -->
-  <view class="fab" bindtap="goPublish">＋ 发布</view>
+  <view class="fab" wx:if="{{scope !== 'author'}}" bindtap="goPublish">＋ 发布</view>
 </view>
