@@ -149,6 +149,8 @@ Page({
     modifyRuleText: `规则：提前${CONFIG.MODIFY.minLeadHours}小时以上/最多${CONFIG.MODIFY.maxTimes}次/${CONFIG.MODIFY.freeFirst ? '首次免费/' : ''}第二次收${CONFIG.MODIFY.secondFeeRate * 100}%手续费/幅度≤${CONFIG.MODIFY.maxSpanH}小时`,
     s35ResponseMin: CONFIG.SAFETY.s35ResponseMin,
     modifyConfirmH: CONFIG.MODIFY.confirmHours,
+    tipNotice: '',        // 到账提示横幅(有值时显示, 空隐藏)
+    tipNoticeId: '',      // 横幅对应通知 id(点击后标记已读)
     insuranceWan: '',
     afterSaleDays: CONFIG.ORDER.afterSaleDays,
     // 安全中心: 进行中求助/最近报备/我的紧急联系人(由 safety-report status 填充)
@@ -182,6 +184,8 @@ Page({
       this.refreshOrder(r.data);
       this.setData({ loading: false });
       this.startCountdown();
+      // 完成态停留时轮询到账通知(被打赏等)
+      this.startTipPoll();
       // 履约活跃状态拉取安全中心(求助/报备/紧急联系人), 其余状态不查
       const st = normalizeStatus(r.data.status);
       if (['S2', 'S3', 'S3_5', 'S4'].indexOf(st) >= 0) {
@@ -329,6 +333,39 @@ Page({
 
   clearTimers() {
     if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
+  },
+
+  // 到账通知轮询: 商品页停留时每 15s 查一次本人该订单未读通知, 发现新到账(tip)弹横幅
+  // 幂等去重: 已展示过的通知 id 不再重复弹(本地 Set 记忆)
+  startTipPoll() {
+    const o = this.data.order || {};
+    // 仅完成态(可被打赏)才需要轮询
+    if (['S5', 'S8', 'S9', 'S10'].indexOf(o.status) < 0) return;
+    this.stopTipPoll();
+    this.__shownTipIds = this.__shownTipIds || {};
+    this._tipTimer = setInterval(() => {
+      callCloud('order-action', { action: 'notice_poll', order_id: this.data.order.order_id }).then((r) => {
+        const d = r && r.ok && r.data;
+        if (!d || !d.has_new) return;
+        // 已展示过则跳过
+        if (this.__shownTipIds[d.id]) return;
+        this.__shownTipIds[d.id] = 1;
+        const icon = d.type === 'tip' ? '💝' : '🔔';
+        this.setData({ tipNotice: `${icon} ${d.type === 'tip' ? (d.body || '收到打赏') : (d.body || d.title || '新通知')}`, tipNoticeId: d.id });
+      }).catch(() => {});
+    }, 15000);
+  },
+
+  stopTipPoll() {
+    if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
+  },
+
+  // 点击横幅 → 标记该通知已读 + 收起横幅(避免再次轮询提示)
+  onTipNoticeTap() {
+    const id = this.data.tipNoticeId;
+    this.setData({ tipNotice: '', tipNoticeId: '' });
+    if (id) callCloud('order-action', { action: 'notice_read', notice_id: id }).catch(() => {});
   },
 
   startCountdown() {

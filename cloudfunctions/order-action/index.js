@@ -1605,6 +1605,18 @@ exports.main = async (event, context) => {
     return { ok: true, data: { list: decorated, unread: unread.total } };
   }
 
+  // ───────── 通知:轻量轮询(订单详情页停留时检测新到账通知, 如被打赏) ─────────
+  if (action === 'notice_poll') {
+    if (!/^[a-f0-9]{32}$/i.test(String(event.order_id || ''))) {
+      return { ok: false, code: 'oa_bad_order', msg: '缺少有效订单 ID' };
+    }
+    // 只查本人该订单未读通知, 最新 1 条即可(到账提示用)
+    const r = await col('system_notice').where({ to_openid: openid, order_id: event.order_id, read: false })
+      .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
+    const n = (r.data && r.data[0]) || null;
+    return { ok: true, data: { has_new: !!n, id: n ? n._id : '', type: n ? n.type : '', title: n ? n.title : '', body: n ? n.body : '' } };
+  }
+
   // ───────── 通知:标记已读(单条或全部) ─────────
   if (action === 'notice_read') {
     if (event.notice_id) {
