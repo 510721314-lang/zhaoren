@@ -46,19 +46,19 @@
       <order-progress status="{{order.status}}"></order-progress>
     </view>
 
-    <!-- 订单信息 -->
+    <!-- 订单信息(概要三行沿用消息页 order_summary l1/l2/l3; 金额/场景标签保留) -->
     <view class="od__card">
       <view class="od__card-title">订单信息</view>
       <view class="od__tags">
         <tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip>
         <tag-chip type="gongyi" wx:if="{{order.project_attr === 'public_welfare'}}" />
       </view>
-      <view class="od__row" wx:if="{{order.scene_content_text}}"><text class="od__label">子场景</text><text class="od__val">{{order.scene_content_text}}</text></view>
-      <view class="od__row"><text class="od__label">时间</text><text class="od__val">{{order.service_date}} {{order.service_time}}</text></view>
-      <view class="od__row"><text class="od__label">地点</text><text class="od__val">{{order.location.name}}</text></view>
-      <view class="od__row"><text class="od__label">耍伴</text><text class="od__val">{{order.partner_name}}</text></view>
-      <view class="od__row"><text class="od__label">时长</text><text class="od__val">{{order.duration_hours}}小时</text></view>
-      <view class="od__row"><text class="od__label">金额</text><text class="od__val od__val--strong">¥{{amountYuan}}</text></view>
+      <view class="od__summary-box" wx:if="{{orderSummary && orderSummary.l1}}">
+        <view class="od__summary-line od__summary-line--l1">{{orderSummary.l1}}</view>
+        <view class="od__summary-line" wx:if="{{orderSummary.l2}}">{{orderSummary.l2}}</view>
+        <view class="od__summary-line" wx:if="{{orderSummary.l3}}">{{orderSummary.l3}}</view>
+      </view>
+      <view class="od__row" wx:if="{{order.partner_name}}"><text class="od__label">耍伴</text><text class="od__val">{{order.partner_name}}</text></view>
     </view>
 
     <!-- O2 安全中心(图5): 履约活跃状态双方可见, 紧急求助+安全报备+最近报备记录 -->

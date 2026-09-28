@@ -149,6 +149,7 @@ Page({
     modifyRuleText: `规则：提前${CONFIG.MODIFY.minLeadHours}小时以上/最多${CONFIG.MODIFY.maxTimes}次/${CONFIG.MODIFY.freeFirst ? '首次免费/' : ''}第二次收${CONFIG.MODIFY.secondFeeRate * 100}%手续费/幅度≤${CONFIG.MODIFY.maxSpanH}小时`,
     s35ResponseMin: CONFIG.SAFETY.s35ResponseMin,
     modifyConfirmH: CONFIG.MODIFY.confirmHours,
+    orderSummary: null,  // 订单概要三行(沿用消息页 l1/l2/l3)
     tipNotices: [],      // 到账通知列表(多条依次展示, 每条含 text+time; 空列表不渲染)
     insuranceWan: '',
     afterSaleDays: CONFIG.ORDER.afterSaleDays,
@@ -323,6 +324,7 @@ Page({
       modifyUsedUp,
       currentCancelIdx,
       tipEnabled: !!(CONFIG.PAYMENT && CONFIG.PAYMENT.tipEnabled),
+      orderSummary: d.order_summary || null,
       amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
       modifyDateMin: this.fmtDate(new Date()),
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),

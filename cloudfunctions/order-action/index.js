@@ -1443,7 +1443,8 @@ exports.main = async (event, context) => {
         milestone: order.milestone || null,
         modify_count: Number(order.modify_count) || 0,
         pending_modify: order.pending_modify || null,
-        pending_extend: order.pending_extend || null
+        pending_extend: order.pending_extend || null,
+        order_summary: buildOrderSummary(order)
       }
     };
   }
