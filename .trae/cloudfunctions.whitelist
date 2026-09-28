@@ -26,9 +26,6 @@ home-action
 blog-action
 admin-web
 
-# ── 临时（2026-09-28 规则15 负向测试数据生成；验证完成后即删除并从本清单移除）──
-zz-test-fixture
-
 # 说明：
 # - cloudfunctions/_shared/ 为共享代码暂存目录（无 index.js，不可部署，不列入本清单）
 # - 调试类临时云函数一律不列入白名单（rules 第 5 章：临时函数需 zz- 前缀 + 守卫 + 登记

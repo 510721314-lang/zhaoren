@@ -10,11 +10,7 @@
 - 有 `index.js` 却在两个清单均无登记 = predeploy -Audit 会拒绝部署
 
 ## 当前已登记临时函数
-- 函数名: zz-test-fixture
-  用途: 规则15 负向测试数据生成 —— create(修复 f9ecc4af interrupted_at 为纯数字 + 新建 N1/S1、N2/S0 文档) / verify(查 3 单 status)
-  创建: 2026-09-28
-  云端部署: 是(验证完成后删除)
-  状态: 待删除
+（空 —— zz-test-fixture 已于 2026-09-28 验证完成并撤销）
 
 ## 登记格式示例
 ```

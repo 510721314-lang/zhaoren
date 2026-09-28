@@ -1,9 +1,0 @@
-{
-  "name": "zz-test-fixture",
-  "version": "1.0.0",
-  "description": "zz-test-fixture cloud function (temp test data generator)",
-  "main": "index.js",
-  "dependencies": {
-    "wx-server-sdk": "latest"
-  }
-}
