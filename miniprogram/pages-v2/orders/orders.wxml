@@ -53,6 +53,12 @@
       </view>
     </view>
 
+    <!-- 加载更多 / 没有更多了 -->
+    <view class="ol__more" wx:if="{{orders.length > 0}}">
+      <button class="ol__more-btn" wx:if="{{hasMore}}" bindtap="loadMore" hover-class="btn-press">{{loadingMore ? '加载中…' : '加载更多'}}</button>
+      <text class="ol__more-end" wx:else>没有更多了</text>
+    </view>
+
     <!-- 空态 -->
     <empty-state
       wx:if="{{orders.length === 0}}"

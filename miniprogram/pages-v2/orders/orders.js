@@ -11,13 +11,7 @@ const TABS = [
   { key: 'after', name: '售后' }
 ];
 
-// 状态键一律使用下划线(经 normalizeStatus 归一化云端点号字面量)
-const TAB_STATUS = {
-  pay: ['S0'],
-  doing: ['S1', 'S2', 'S2_5', 'S3', 'S3_5'],
-  eval: ['S5'],
-  after: ['S6', 'S7', 'S9', 'S10', 'S10_5']
-};
+// 状态过滤已下推服务端(my_orders 的 filter 参数, 点号字面量 S3.5/S10.5/S2.5) —— 本地不再二次过滤
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -43,7 +37,10 @@ Page({
     role: 'user',
     orders: [],
     loading: false,
-    loaded: false
+    loaded: false,
+    // 分页「加载更多」: has_more=true 显示按钮
+    hasMore: false,
+    loadingMore: false
   },
   onShareAppMessage() {
     return {
@@ -71,7 +68,7 @@ Page({
     const key = e.currentTarget.dataset.key;
     if (key === this.data.activeTab) return;
     this.setData({ activeTab: key });
-    this.applyFilter();
+    this.loadOrders();
   },
 
   switchRole(e) {
@@ -81,17 +78,59 @@ Page({
     this.loadOrders();
   },
 
+  // 每页 20(服务端上限 50); 直接传 filter 让服务端过滤, 本地不再二次过滤
   loadOrders(done) {
-    this.setData({ loading: true });
-    callCloud('order-action', { action: 'my_orders', role: this.data.role }).then((r) => {
+    this.__page = 1;
+    this.setData({ loading: true, hasMore: false, loadingMore: false });
+    callCloud('order-action', {
+      action: 'my_orders',
+      role: this.data.role,
+      filter: this.data.activeTab,
+      page: 1,
+      page_size: 20
+    }).then((r) => {
       const list = (r.ok && r.data && r.data.list) || [];
       this._all = list.map((o) => this.decorate(o));
-      this.applyFilter();
-      this.setData({ loading: false, loaded: true });
+      this.setData({
+        orders: this._all,
+        loading: false,
+        loaded: true,
+        hasMore: !!(r.data && r.data.has_more),
+        loadingMore: false
+      });
     }).catch(() => {
       this.setData({ loading: false });
       wx.showToast({ title: '加载失败,下拉重试', icon: 'none' });
     }).then(() => { if (done) done(); });
+  },
+
+  // 「加载更多」/ 触底: 下一页追加
+  loadMore() {
+    if (this.data.loadingMore || !this.data.hasMore) return;
+    this.setData({ loadingMore: true });
+    callCloud('order-action', {
+      action: 'my_orders',
+      role: this.data.role,
+      filter: this.data.activeTab,
+      page: (this.__page || 1) + 1,
+      page_size: 20
+    }).then((r) => {
+      const extra = (r.ok && r.data && r.data.list) || [];
+      this.__page = (this.__page || 1) + 1;
+      const merged = [...this.data.orders, ...extra.map((o) => this.decorate(o))];
+      this.setData({
+        orders: merged,
+        loadingMore: false,
+        hasMore: !!(r.data && r.data.has_more)
+      });
+    }).catch(() => {
+      this.setData({ loadingMore: false });
+      wx.showToast({ title: '加载失败,请重试', icon: 'none' });
+    });
+  },
+
+  onReachBottom() {
+    this.loadMore();
   },
 
   decorate(o) {
@@ -111,20 +150,6 @@ Page({
       time_str: fmtTime(o.start_time),
       total_yuan: fmtFen(o.total_fen)
     };
-  },
-
-  applyFilter() {
-    const all = this._all || [];
-    const tab = this.data.activeTab;
-    if (tab === 'all') {
-      this.setData({ orders: all });
-      return;
-    }
-    const allow = TAB_STATUS[tab] || [];
-    // 待接单需求(PENDING) 归入"进行中"
-    this.setData({
-      orders: all.filter((o) => o.status === 'PENDING' ? tab === 'doing' : allow.indexOf(o.status) >= 0)
-    });
   },
 
   goItem(e) {

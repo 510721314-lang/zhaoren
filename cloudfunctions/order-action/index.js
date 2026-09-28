@@ -1454,11 +1454,26 @@ exports.main = async (event, context) => {
     const queryField = role === 'partner' ? 'partner_openid' : 'user_openid';
     const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
+    // tab 过滤(与前端 TAB_STATUS 同口径; 云端字面量一律点号 S3.5/S10.5/S2.5)
+    const FILTER_STATUS = {
+      pay: ['S0'],
+      doing: ['S1', 'S2', 'S2.5', 'S3', 'S3.5'],
+      eval: ['S5'],
+      after: ['S6', 'S7', 'S9', 'S10', 'S10.5']
+    };
+    const filter = (['all', 'pay', 'doing', 'eval', 'after'].indexOf(event.filter) >= 0) ? event.filter : 'all';
+    // 分页: 倒序(created_at desc), 每页最多 50
+    const page = Math.max(1, Number(event.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(event.page_size) || 20));
+
+    const where = { [queryField]: openid, is_deleted: false };
+    if (filter !== 'all') where.status = _.in(FILTER_STATUS[filter]);
+
     let orders = [];
     try {
-      const r = await col('order_main').where({
-        [queryField]: openid, is_deleted: false
-      }).orderBy('start_time', 'asc').limit(50).get();
+      const r = await col('order_main').where(where)
+        .orderBy('created_at', 'desc')
+        .skip((page - 1) * pageSize).limit(pageSize).get();
       orders = r.data || [];
     } catch (e) {
       log.d(`my_orders query fail: ${e.message}`);
@@ -1512,8 +1527,8 @@ exports.main = async (event, context) => {
         end_time: o.start_time + (o.duration_h || 1) * 3600 * 1000,
         total_fen: o.total_fen,
         status: o.status,
-        // 改期待确认红点: 订单处于 S2_5 且改期发起人不是当前查看者
-        need_confirm: o.status === 'S2_5' && !!(o.pending_modify && o.pending_modify.by_openid !== openid),
+        // 改期待确认红点: 订单处于 S2.5 且改期发起人不是当前查看者
+        need_confirm: o.status === 'S2.5' && !!(o.pending_modify && o.pending_modify.by_openid !== openid),
         commute: null
       };
 
@@ -1543,9 +1558,11 @@ exports.main = async (event, context) => {
       return item;
     });
 
-    // 待接单需求置顶, 其后为订单(按开始时间升序)
-    const list = [...pendingDemands, ...orderItems];
-    return { ok: true, data: { role, list } };
+    // PENDING 待接单需求: 仅 user+all+第一页 置顶拼接(不参与分页计数)
+    const list = (pendingDemands.length && filter === 'all' && page === 1)
+      ? [...pendingDemands, ...orderItems]
+      : orderItems;
+    return { ok: true, data: { role, list, page, page_size: pageSize, has_more: orders.length === pageSize } };
   }
 
   // ───────── my_counts: 订单四宫格计数 ─────────
