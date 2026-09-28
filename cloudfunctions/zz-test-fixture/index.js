@@ -73,5 +73,38 @@ exports.main = async (event, context) => {
     return { ok: true, data: out };
   }
 
-  return { ok: false, code: 'unknown_action', msg: '仅支持 create / verify' };
+  // ── inspect: 诊断 3 单字段类型 + 按 order-timer 判定逻辑计算命中 (定位"定时器为何未处理") ──
+  if (action === 'inspect') {
+    const out = { now: Date.now(), orders: {} };
+    const docs = {};
+    const d4 = await col('order_main').doc(N4_ID).get().catch(() => ({ data: null }));
+    docs.n4 = d4.data;
+    for (const no of ['ORD20260928000001', 'ORD20260928000002']) {
+      const r = await col('order_main').where({ order_no: no, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
+      docs[no] = (r.data && r.data[0]) || null;
+    }
+    const now = Date.now();
+    for (const k of Object.keys(docs)) {
+      const d = docs[k];
+      if (!d) { out.orders[k] = 'not_found'; continue; }
+      const it = d.interrupted_at;
+      const pa = d.pay_expire_at;
+      const ca = d.created_at;
+      const entry = {
+        _id: d._id, status: d.status,
+        created_at: ca, created_at_type: typeof ca,
+        pay_expire_at: pa, pay_expire_at_type: typeof pa,
+        interrupted_at: it, interrupted_at_type: typeof it,
+        order_no: d.order_no, is_deleted: d.is_deleted
+      };
+      // 模拟 order-timer 判定
+      if (d.status === 'S1') entry.hit_s1 = !!ca && Number(ca) < now - 15 * 60 * 1000;
+      if (d.status === 'S0') entry.hit_s0 = !!pa && Number(pa) < now;
+      if (d.status === 'S3.5') entry.hit_s35 = !!it && Number(it) < now - 24 * 3600 * 1000;
+      out.orders[k] = entry;
+    }
+    return { ok: true, data: out };
+  }
+
+  return { ok: false, code: 'unknown_action', msg: '仅支持 create / verify / inspect' };
 };
