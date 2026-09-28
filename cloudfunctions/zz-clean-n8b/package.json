@@ -1,9 +1,0 @@
-{
-  "name": "zz-clean-n8b",
-  "version": "1.0.0",
-  "description": "zz-clean-n8b cloud function (temp N8b tip pollution cleanup)",
-  "main": "index.js",
-  "dependencies": {
-    "wx-server-sdk": "latest"
-  }
-}
