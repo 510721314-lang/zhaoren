@@ -1627,11 +1627,11 @@ exports.main = async (event, context) => {
     if (!/^[a-f0-9]{32}$/i.test(String(event.order_id || ''))) {
       return { ok: false, code: 'oa_bad_order', msg: '缺少有效订单 ID' };
     }
-    // 只查本人该订单未读通知, 最新 1 条即可(到账提示用)
+    // 该订单全部未读通知(limit 20, 倒序); 多次打赏会依次追加, 由前端去重递增展示
     const r = await col('system_notice').where({ to_openid: openid, order_id: event.order_id, read: false })
-      .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
-    const n = (r.data && r.data[0]) || null;
-    return { ok: true, data: { has_new: !!n, id: n ? n._id : '', type: n ? n.type : '', title: n ? n.title : '', body: n ? n.body : '' } };
+      .orderBy('created_at', 'desc').limit(20).get().catch(() => ({ data: [] }));
+    const list = (r.data || []).map((n) => ({ id: n._id, type: n.type || '', title: n.title || '', body: n.body || '', created_at: n.created_at || 0 }));
+    return { ok: true, data: { has_new: list.length > 0, list } };
   }
 
   // ───────── 通知:标记已读(单条或全部) ─────────

@@ -9,21 +9,23 @@
 .od__status-count { margin-top: 8rpx; font-size: var(--font-sm); color: var(--text-2); }
 .od__order-no { margin-top: 12rpx; font-size: var(--font-xs); color: var(--text-4); }
 
-/* 到账提示横幅(被打赏等新通知) */
+/* 到账通知列表(被打赏等多条依次展示) */
+.od__tip-list { margin-bottom: 20rpx; }
 .od__tip-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16rpx;
   padding: 20rpx 24rpx;
   border-radius: var(--r-md);
-  margin-bottom: 20rpx;
+  margin-bottom: 12rpx;
   background: rgba(251, 158, 63, 0.12);
   border: 1rpx solid var(--func-warning, #fba13f);
-  font-size: var(--font-sm);
-  color: var(--text-1);
 }
+.od__tip-banner:last-child { margin-bottom: 0; }
 .od__tip-banner--hover { opacity: 0.85; }
-.od__tip-banner-close { font-size: 32rpx; color: var(--func-warning, #fba13f); margin-left: 16rpx; }
+.od__tip-text { flex: 1; min-width: 0; font-size: var(--font-sm); color: var(--text-1); }
+.od__tip-time { flex-shrink: 0; font-size: var(--font-xs); color: var(--text-3); }
 
 /* 引导横幅: 下一步做什么 */
 .od__next-step {

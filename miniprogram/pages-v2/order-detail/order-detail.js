@@ -149,8 +149,7 @@ Page({
     modifyRuleText: `规则：提前${CONFIG.MODIFY.minLeadHours}小时以上/最多${CONFIG.MODIFY.maxTimes}次/${CONFIG.MODIFY.freeFirst ? '首次免费/' : ''}第二次收${CONFIG.MODIFY.secondFeeRate * 100}%手续费/幅度≤${CONFIG.MODIFY.maxSpanH}小时`,
     s35ResponseMin: CONFIG.SAFETY.s35ResponseMin,
     modifyConfirmH: CONFIG.MODIFY.confirmHours,
-    tipNotice: '',        // 到账提示横幅(有值时显示, 空隐藏)
-    tipNoticeId: '',      // 横幅对应通知 id(点击后标记已读)
+    tipNotices: [],      // 到账通知列表(多条依次展示, 每条含 text+time; 空列表不渲染)
     insuranceWan: '',
     afterSaleDays: CONFIG.ORDER.afterSaleDays,
     // 安全中心: 进行中求助/最近报备/我的紧急联系人(由 safety-report status 填充)
@@ -336,8 +335,8 @@ Page({
     if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
   },
 
-  // 到账通知轮询: 商品页停留时每 15s 查一次本人该订单未读通知, 发现新到账(tip)弹横幅
-  // 幂等去重: 已展示过的通知 id 不再重复弹(本地 Set 记忆)
+  // 到账通知轮询: 商品页停留时每 15s 查本人该订单未读通知(多条递增展示, 如多次打赏)
+  // 幂等去重: 已展示过的通知 id 不再重复追加(本地 Map 记忆)
   startTipPoll() {
     const o = this.data.order || {};
     // 仅完成态(可被打赏)才需要轮询
@@ -347,12 +346,19 @@ Page({
     this._tipTimer = setInterval(() => {
       callCloud('order-action', { action: 'notice_poll', order_id: this.data.order.order_id }).then((r) => {
         const d = r && r.ok && r.data;
-        if (!d || !d.has_new) return;
-        // 已展示过则跳过
-        if (this.__shownTipIds[d.id]) return;
-        this.__shownTipIds[d.id] = 1;
-        const icon = d.type === 'tip' ? '💝' : '🔔';
-        this.setData({ tipNotice: `${icon} ${d.type === 'tip' ? (d.body || '收到打赏') : (d.body || d.title || '新通知')}`, tipNoticeId: d.id });
+        if (!d || !d.list || !d.list.length) return;
+        // 多次打赏/多通知: 依次追加到列表, 已展示过的不再重复
+        const fresh = d.list.filter((n) => n && n.id && !this.__shownTipIds[n.id]);
+        if (!fresh.length) return;
+        fresh.forEach((n) => { this.__shownTipIds[n.id] = 1; });
+        const iconOf = (type) => (type === 'tip' ? '💝' : '🔔');
+        const textOf = (n) => (n.type === 'tip' ? (n.body || '收到打赏') : (n.body || n.title || '新通知'));
+        const items = fresh.map((n) => ({
+          id: n.id,
+          text: `${iconOf(n.type)} ${textOf(n)}`,
+          time: n.created_at ? this.__fmtNoticeTime(n.created_at) : ''
+        }));
+        this.setData({ tipNotices: [...items, ...this.data.tipNotices] });
       }).catch(() => {});
     }, 15000);
   },
@@ -361,11 +367,12 @@ Page({
     if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
   },
 
-  // 点击横幅 → 标记该通知已读 + 收起横幅(避免再次轮询提示)
-  onTipNoticeTap() {
-    const id = this.data.tipNoticeId;
-    this.setData({ tipNotice: '', tipNoticeId: '' });
-    if (id) callCloud('order-action', { action: 'notice_read', notice_id: id }).catch(() => {});
+  // 点击单条横幅 → 标记该通知已读 + 移除(后续轮询不再带回)
+  onTipNoticeTap(e) {
+    const id = e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id;
+    if (!id) return;
+    this.setData({ tipNotices: this.data.tipNotices.filter((n) => n.id !== id) });
+    callCloud('order-action', { action: 'notice_read', notice_id: id }).catch(() => {});
   },
 
   startCountdown() {
@@ -384,6 +391,14 @@ Page({
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  },
+
+  // 到账通知时间戳(毫秒 → MM-DD HH:mm)
+  __fmtNoticeTime(ts) {
+    const d = new Date(Number(ts));
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   },
 
   // O3 操作区

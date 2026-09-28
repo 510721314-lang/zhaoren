@@ -17,9 +17,18 @@
       <view class="od__order-no">订单号 #{{order.order_no}}</view>
     </view>
 
-    <!-- 到账提示横幅(被打赏等新通知, 点按标记已读) -->
-    <view class="od__tip-banner" wx:if="{{tipNotice}}" bindtap="onTipNoticeTap" hover-class="od__tip-banner--hover">
-      {{tipNotice}} <text class="od__tip-banner-close">›</text>
+    <!-- 到账通知列表(被打赏等多条依次展示; 点单条标记已读并移除) -->
+    <view class="od__tip-list" wx:if="{{tipNotices.length > 0}}">
+      <view
+        class="od__tip-banner"
+        wx:for="{{tipNotices}}" wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="onTipNoticeTap"
+        hover-class="od__tip-banner--hover"
+      >
+        <text class="od__tip-text">{{item.text}}</text>
+        <text class="od__tip-time">{{item.time}}</text>
+      </view>
     </view>
 
     <!-- 引导横幅: 下一步做什么 -->
