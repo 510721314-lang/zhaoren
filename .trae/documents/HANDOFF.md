@@ -40,7 +40,7 @@
 3. ~~[数据清理] N8b 测试污染~~ ✅ **已完成（2026-09-28，双证）**：zz-clean-n8b clean 软删 tip 流水+回滚 tip_total_fen 1250→0+软删通知；CLI 直读订单 a9defcfd6aa20230011cfea075899ac6 确认 tip_total_fen=0；audit_log 保留（保链）
 4. ~~[备份补全]~~ ✅ **已完成（2026-09-28）**：GitHub push 同步（9 commit `a822e8c..dbbbd48`，ahead=0）；bundle 新建 `zhaoren_v0.10.7_20260928.bundle`（10.7MB，verify is okay，含全部 refs+旧 worktree HEAD）；旧 worktree `worktree_20260927_security` 位于旧机器路径（Administrator 账号），本机无实体 → **废弃 + git worktree prune**；L3 云端导出通道验证：order_main dump 164 条 0 失败（jobId 111487620，落 `C:\Users\DC\Desktop\zhaoren_backup_20260928_verify\`）
 5. ~~[审计] 终审报告 8/8~~ ✅ **已收官（2026-09-28）**，见 §6 审计进度快照
-6. [安全] 轮换 admin_web_key 与 idcard_aes_key（曾明文出现在会话，需用户配合改 admin_config）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
+6. [安全] admin_web_key / idcard_aes_key **已轮换完成（2026-09-28）**：新密钥已写入 admin_config（idcard 无存量加密数据零迁移；test_partner_001 明文 idcard 已清）；admin-web 重新部署（serveStatic 版，公网可访问 `https://cloud1-...tcloudbase.com/`）；**新 key 已确认公网+本机双登成功**。**遗留**：bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
 7. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
 8. [独立阻塞] W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
 9. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
