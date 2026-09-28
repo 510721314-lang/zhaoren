@@ -34,25 +34,31 @@
 - 已做（纯云端，未改代码/git）：用 demand-publish mock 发了 8 条 `matching` 需求（W1/W2/W3/W4/W7/W8/W10/W11），标题为业务示例，全部 `ok:true`；截图确认首页 10 分类全显示 ≥1 条。W9 需真机（verifySignatureFile 校验真实签名图）。
 - 方位（重要，避免重复踩坑）：`mock_openid` 必须用真实 openid（编造的 seed_001 → publish_no_openid/publish_no_user）；mock 依赖 env=dev。
 
-## 5. 待办清单（2026-09-27 晚间更新，按优先级）
-1. [审计] 规则15 负向路径收尾：N1（四确认超时15min）/ N2（支付超时30min）/ N4（履约中断，需S3订单）/ N6a（可选，N6b 已覆盖幂等）——其余 N3/N5/N6b/N7/N8/N9 已通过
-2. [提审阻塞·内容安全] complaint_reason / modify/extend reason / milestone note / sos/checkin note 等自由文本未过 msgSecCheck（审核7项内容安全合规缺口）——需补 msgSecCheck 后部署 order-action/safety-report/payment-mock
+## 5. 待办清单（2026-09-28 更新，按优先级）
+1. ~~[审计] 规则15 负向收尾~~ ✅ **已完成（2026-09-28，负向 9/9）**：N1(ORD...00001 S1→S6+释放需求)/N2(ORD...00002 S0→S6)/N4(ORD...00004 S3.5→S4) 实测通过；N6a 跳过（N6b 覆盖幂等）
+2. ~~[提审阻塞·内容安全] 自由文本 msgSecCheck~~ ✅ **已完成（2026-09-28）**：6 入口补 msgSecCheck+降级词库，commit 3fd7679 已部署 order-action/safety-report，sr_text_unsafe 实测拦截
 3. [数据清理] N8b 测试污染：S9 订单 a9defcfd6aa20230011cfea075899ac6 已被打赏 1250 分（tip_no=TIP202609275612e18196f78237），云数据库手工删除该 tip 流水/标记 is_test
-4. [备份补全] robocopy 快照 worktree_20260927_security 停在 36daa77 落后 2 commit——新电脑克隆后废弃旧 worktree 或补刷到 13c6840
-5. [审计] 终审报告 8/8 收官（负向完成后；已过：Phase0/10/11/12/13/14/16 + 15正向）
+4. [备份补全] robocopy 快照 worktree_20260927_security 停在 36daa77 落后多 commit——新电脑克隆后废弃旧 worktree 或补刷到 HEAD（现 a822e8c 后又有 3fd7679/40c059d/e0b2b52/2f89d0f 等新 commit；引入 test_openid 誊写教训时一并刷）
+5. ~~[审计] 终审报告 8/8~~ ✅ **已收官（2026-09-28）**，见 §6 审计进度快照
 6. [安全] 轮换 admin_web_key 与 idcard_aes_key（曾明文出现在会话，需用户配合改 admin_config）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
 7. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
 8. [独立阻塞] W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
 9. [长尾] F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
+10. 【2026-09-28 产品拍板·公益冻结基线】公益（公益需求/公益单/公益补贴结算）整体暂缓：代码零实现保持，禁止按 PRD §1.5 公益章节开建；将来实现须满足 后台默认关闭(welfare_switch=false)+前端不显示公益入口+服务端 fail-closed 拒绝公益发布。已同步记入项目记忆「硬性约束」
+11. 【提审后功能库·2026-09-28 已深化设计+专家复核】③耍伴技能维护 ④地图找周边(需求+耍伴,按场景/距离) ⑤到达履约点拍照打卡+发布者确认后开始履约——完整设计（含专家修正：③bio 依赖 msgSecCheck 基建、portfolio 限资质用途；④位置暴露审核高风险须隐私声明+home_location_public 可见性开关；⑤建议 arrival 并入 milestone step0 评估、order-timer 性能）见 `.trae/documents/features-post-launch.md`
 
 ## 6. 下阶段主线：提审就绪度全量审计（沿用既有审计报告）
 
-### 审计进度快照（2026-09-27 晚间更新）
-- **Phase0 合规红线：✅ 已通过**（check-nightmask 17/17 挂载点 bind:reserve；check-ssot 可疑硬编码 0）
-- **Phase1 安全：✅ 已通过**——规则10 白名单非空（admin_list 返回 1 管理员）+ 规则11 云端越权回归 4/4（init-db 匿名 forbidden / order-timer 匿名 forbidden / admin-action 匿名 admin_no_openid / 代理伪造身份无密钥被拒）；同时完成高危 #1 admin-web 代理旁路修复（commit 36daa77，已部署 admin-action+admin-web）
-- **Phase2 静态：✅ 已通过**（node --check 全量、scan-miniprogram.ps1、predeploy.ps1）
-- **Phase3 终检：⏳ 进行中**——规则15 正向已通过；负向 6/9 通过（N3/N5/N6b/N7/N8/N9），剩 N1/N2/N4/N6a；规则13 安全扫描 5 项发现（#1 已修复并打 security-fix tag、#2-#5 列待办）；规则14 审核7项复核通过（#4 内容安全缺口提升为提审阻塞，见待办2）；规则16 三重备份验证通过（HEAD 13c6840 已 push，bundle v0.10.6 含全部 refs，快照 worktree_20260927_security@36daa77 落后 2 commit 待补，见待办4）
-- 审计只报告不修码（例外：高危 #1 经用户确认后修复）；测试数据下线走云数据库手工 is_deleted=true
+### 审计进度快照（2026-09-28 更新 · 8/8 收官）
+- **Phase0 合规红线：✅**（check-nightmask 17/17 挂载点 bind:reserve；check-ssot 可疑硬编码 0）
+- **Phase1 安全：✅**——规则10 白名单非空 + 规则11 云端越权回归 4/4；高危 #1 admin-web 代理旁路已修复（36daa77 security-fix tag）
+- **Phase2 静态：✅**（node --check 全量、scan-miniprogram.ps1、predeploy.ps1）
+- **Phase3 终检：✅ 8/8 收官**
+  - **规则15 正向 ✅ + 负向 9/9 全过**（2026-09-28）：N1 四确认超时15min→S6+需求释放（ORD20260928000001 ✅）、N2 支付超时30min→S6（ORD20260928000002 ✅）、N4 S3.5 中断24h→S4（ORD20260928000004 ✅）；N3/N5/N6b/N7/N8/N9 此前已过；N6a 跳过（N6b 已覆盖幂等）
+  - 规则13 安全扫描：#1 已修复打 tag；#2-#5 列待办
+  - 规则14 审核7项：#4 内容安全缺口 **已闭环**——自由文本 6 入口（milestone_note/modify/extend/complaint/sos/checkin）补 msgSecCheck+降级词库（commit 3fd7679，已部署 order-action/safety-report，sr_text_unsafe 实测拦截 ✅）
+  - 规则16 三重备份验证通过（bundle v0.10.6 含全部 refs；robocopy 快照待办4）
+- **审计只报告不修码**（例外：高危安全修复经用户确认后可改）；测试数据下线走云数据库手工 is_deleted=true
 
 > 剩余待跑项以「上方审计进度快照」为准（Phase1 云端越权回归、Phase3 负向路径 N1-N9 / 安全扫描 / 审核7项 / 三重备份 GitHub push）。以下旧清单已废弃，勿再参考：
 - ~~Phase1 安全：admin_openids 非空（admin-action config_get）；云端越权回归（init-db/order-timer 匿名必须 forbidden）~~
