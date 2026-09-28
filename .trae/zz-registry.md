@@ -10,7 +10,11 @@
 - 有 `index.js` 却在两个清单均无登记 = predeploy -Audit 会拒绝部署
 
 ## 当前已登记临时函数
-（空 —— zz-test-fixture 已于 2026-09-28 验证完成并撤销）
+- 函数名: zz-clean-n8b
+  用途: N8b 打赏污染清理 —— clean(①pay_transaction tip 流水软删 ②order_main.tip_total_fen 回滚-1250 ③system_notice type=tip 软删 ④audit_log 保留) / verify(清理后核对)
+  创建: 2026-09-28
+  云端部署: 是(验证完成后删除)
+  状态: 待删除
 
 ## 登记格式示例
 ```
