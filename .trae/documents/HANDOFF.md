@@ -47,6 +47,18 @@
 10. 【2026-09-28 产品拍板·公益冻结基线】公益（公益需求/公益单/公益补贴结算）整体暂缓：代码零实现保持，禁止按 PRD §1.5 公益章节开建；将来实现须满足 后台默认关闭(welfare_switch=false)+前端不显示公益入口+服务端 fail-closed 拒绝公益发布。已同步记入项目记忆「硬性约束」
 11. 【提审后功能库·2026-09-28 已深化设计+专家复核】③耍伴技能维护 ④地图找周边(需求+耍伴,按场景/距离) ⑤到达履约点拍照打卡+发布者确认后开始履约——完整设计（含专家修正：③bio 依赖 msgSecCheck 基建、portfolio 限资质用途；④位置暴露审核高风险须隐私声明+home_location_public 可见性开关；⑤建议 arrival 并入 milestone step0 评估、order-timer 性能）见 `.trae/documents/features-post-launch.md`
 
+## 5.5 工作计划总览（2026-09-28 新增 · 5 条需求立项跟踪，随实施滚动更新状态）
+
+| # | 需求 | 立项状态 | 承载 | 备注 |
+|---|------|----------|------|------|
+| ① | 公益需求前端显示/后台控制 | 🔒 冻结 | HANDOFF #10 + 项目记忆硬性约束 | 已拍板落实：后台 welfare_switch=false、前端不显示、服务端 fail-closed；防未来误开发 |
+| ② | 公益结算模式（营销转账/补贴） | 🔒 冻结 | 随①冻结 | 不再设计/实现 |
+| ③ | 耍伴资料维护·技能设计（skills/bio/portfolio） | ⏳ 仅设计未实现 | features-post-launch.md §③ | 提审后功能库；依赖 msgSecCheck 基建 |
+| ④ | 地图找周边（场景/距离） | ⏳ 仅设计未实现 | features-post-launch.md §④ | 提审后功能库；nearby 扩展+partner_nearby+map 页；含位置暴露合规修正 |
+| ⑤ | 到达拍照打卡+确认后履约 | ⏳ 仅设计未实现 | features-post-launch.md §⑤ | 提审后功能库；arrival_checkin/confirm 门禁；触 accepted-20260927-rule15 需先 diff 同计划 |
+
+> 状态标记：🔒=冻结（禁止开发）｜ ⏳=设计完待排期 ｜ 🚧=实施中 ｜ ✅=已验收。实施顺序见 features-post-launch.md「实施顺序建议」。
+
 ## 6. 下阶段主线：提审就绪度全量审计（沿用既有审计报告）
 
 ### 审计进度快照（2026-09-28 更新 · 8/8 收官）
