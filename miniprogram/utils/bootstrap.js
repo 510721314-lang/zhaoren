@@ -50,7 +50,9 @@ const CLOUD_MAP = {
   // ── 平台总开关(维护态) ──
   'switches.switch_access': 'SWITCH.access',
   'switches.switch_blog': 'SWITCH.blog',
-  'switches.switch_im': 'SWITCH.im'
+  'switches.switch_im': 'SWITCH.im',
+  // ── 支付/资金能力(打赏等 mock 能力仅 dev 下发) ──
+  'payment.tip_enabled': 'PAYMENT.tipEnabled'
 };
 
 // 深合并: 把 cloud 返回的嵌套结构展平后按映射表写入 CONFIG

@@ -166,12 +166,14 @@
       <!-- S5 已完成 -->
       <block wx:elif="{{order.status === 'S5'}}">
         <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'user'}}" bindtap="onEvaluate" hover-class="btn-press">去评价</button>
-        <button class="od__btn od__btn--ghost" wx:else disabled>⏳ 等待用户评价</button>
+        <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
+        <button class="od__btn od__btn--ghost" wx:elif="{{order.my_role !== 'user'}}" disabled>⏳ 等待用户评价</button>
       </block>
 
       <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
       <block wx:elif="{{order.status === 'S8'}}">
         <view class="od__after-sale-tip">售后窗口{{afterSaleDays}}天</view>
+        <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
         <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 

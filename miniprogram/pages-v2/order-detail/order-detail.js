@@ -319,6 +319,7 @@ Page({
       statusInfo,
       modifyUsedUp,
       currentCancelIdx,
+      tipEnabled: !!(CONFIG.PAYMENT && CONFIG.PAYMENT.tipEnabled),
       amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
       modifyDateMin: this.fmtDate(new Date()),
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),
@@ -898,6 +899,44 @@ Page({
       url: `/pages-v2/evaluate/evaluate?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '评价页待接入', icon: 'none' })
     });
+  },
+
+  // 💝 打赏耍伴(仅 dev 下发 tipEnabled 时显示; 服务端 mock_tip 限 100-50000 分整)
+  onTip() {
+    const that = this;
+    const orderId = this.data.order._id;
+    const amountYuan = Number(this.data.amountYuan) || 0;
+    wx.showActionSheet({
+      itemList: ['6 元', '12 元', '25 元', '50 元', '自定义金额'],
+      success(res) {
+        if (res.tapIndex < 4) return that.__doTip(orderId, [6, 12, 25, 50][res.tapIndex] * 100, '');
+        wx.showModal({
+          title: '自定义打赏金额',
+          editable: true,
+          placeholderText: `1-500 元（建议不超过订单金额 ¥${amountYuan}）`,
+          success(m) {
+            if (!m.confirm) return;
+            const v = Number(m.content);
+            if (!Number.isFinite(v) || v < 1 || v > 500) {
+              wx.showToast({ title: '请输入 1-500 元', icon: 'none' });
+              return;
+            }
+            that.__doTip(orderId, Math.round(v * 100), '');
+          }
+        });
+      }
+    });
+  },
+
+  __doTip(orderId, amountFen, note) {
+    wx.showLoading({ title: '打赏中', mask: true });
+    callCloud('payment-mock', { action: 'mock_tip', order_id: orderId, amount_fen: amountFen, note }).then((r) => {
+      wx.hideLoading();
+      if (!r.ok) { wx.showToast({ title: r.msg || '打赏失败', icon: 'none' }); return; }
+      wx.showToast({ title: '打赏已送达，感谢支持', icon: 'success' });
+      // 刷新订单以回显 tip_total_fen
+      this.fetchData({ orderId });
+    }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常，请重试', icon: 'none' }); });
   },
 
   // S8 售后

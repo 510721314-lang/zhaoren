@@ -7,6 +7,9 @@ module.exports = {
   // 平台总开关（云端 admin_config.switches 同步；false=维护态，bootstrap 覆盖）
   SWITCH: { access: true, blog: true, im: true },
 
+  // 支付/资金能力开关（打赏等 mock 能力仅 dev 下发; 由 admin_config config_public payment.tip_enabled 派生覆盖, 兜底关闭）
+  PAYMENT: { tipEnabled: false },
+
   // R1 夜间红线
   TIME_REDLINE: { close: '24:00', open: '06:00' },
 

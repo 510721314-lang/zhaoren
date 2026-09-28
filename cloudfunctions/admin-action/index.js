@@ -302,6 +302,10 @@ exports.main = async (event, context) => {
         service_agreement: cfgRaw.legal_service_agreement || '',
         aa_promise: cfgRaw.legal_aa_promise || '',
         pet_authorization: cfgRaw.legal_pet_authorization || ''
+      },
+      // 支付/资金(dev 才下发真实能力; prod fail-closed) —— tip_enabled 派生自 env, 不暴露 env 原值
+      payment: {
+        tip_enabled: cfgRaw.env === 'dev'
       }
     } };
   }
