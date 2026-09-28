@@ -31,20 +31,23 @@
 - 云端读写受限（重要）：本机无 cloudbase CLI / cloudbase MCP 挂载 → AI 无法自动读写云端，需用户配合「微信开发者工具云端测试面板 / 云数据库」
 
 【当前工作状态】
-- 已完成：提审就绪审计（Phase0/10/11/12/13/14/16 已过 7/8）、四确认聊天流程、消息通知双向同步（去重合并）、加时/改期横幅、订单概要统一 9 字段三行格式、状态提示 catch-up 模式根治、规则15 真机双身份正向链路通过 + 负向 6/9（N3/N5/N6b/N7/N8/N9）、**admin-web 代理旁路安全修复（36daa77 已部署）**、**pay/order-detail 页子场景显示（5c1ad92）**
-- 已有 13 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15 / security-fix（36daa77）
-- 最新 HEAD：`13c6840`（交接文档）；已 push GitHub，bundle v0.10.6 含全部 refs；robocopy 快照 worktree_20260927_security 停在 36daa77 待补刷（见待办4）
-- 工作区：仅 3 个无关未跟踪文件（seed-scene-demands*.md 历史文档、tmp_cf_check_result.txt 临时产物，无需处理）
+- 已完成：**提审审计 8/8 收官（2026-09-28）**——Phase0/10/11/12/13/14/16 全过 + 规则15 正向✅负向 9/9（N1/N2/N4 实测：S1→S6含需求释放 / S0→S6 / S3.5→S4）；**内容安全闭环**：自由文本 6 入口 msgSecCheck（3fd7679 已部署 order-action/safety-report，sr_text_unsafe 实测）；四确认流程/通知双向同步/订单概要 9 字段/catch-up 状态提示/admin-web 代理旁路修复(36daa77)/pay-order-detail 子场景 全部完成
+- 环境事实修正：真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl，交接单曾誊写 VF)；**cloud1 只能走微信开发者工具内置控制台**（tcb CLI 无 cloud1 权限；腾讯云官网 SCF 控制台是另一个环境的同名函数，返回 st_forbidden 是误入，本项目无此码）
+- 已有 13 个 accepted tag：accepted-20260925-detail-link / flow / bugfix / weaknet / nearby / nearby-loc、accepted-20260926-batch456 / fenzhang、accepted-20260927-chat-confirm / order-notice / chat-status-notify / rule15 / security-fix（36daa77）；HEAD=cdb241c；`zz-test-fixture` 临时函数已用后删除
+- 工作区：仅历史 seed 文档 + tmp 产物未跟踪，无需处理
 
 【待办（按优先级）】
-1. 规则15 负向收尾：N1（四确认超时15min）/ N2（支付超时30min）/ N4（履约中断需S3订单）/ N6a（可选）——其余已通过；完成后 8/8 出终审报告
-2. 【提审阻塞·内容安全】complaint_reason / modify/extend reason / milestone note / sos/checkin note 等自由文本未过 msgSecCheck（审核7项内容安全合规缺口，非普通长尾）——需补 msgSecCheck 后部署 order-action/safety-report/payment-mock
+1. ~~规则15 负向收尾~~ ✅ **已完成（2026-09-28，负向 9/9）**；8/8 终审报告已出（HANDOFF §6）
+2. ~~提审阻塞·内容安全 msgSecCheck~~ ✅ **已完成（2026-09-28）**：6 入口补检，3fd7679 已部署，sr_text_unsafe 实测
 3. 【数据清理】N8b 测试污染：S9 订单 a9defcfd6aa20230011cfea075899ac6 已被打赏 1250 分（tip_no=TIP202609275612e18196f78237），云数据库手工删除该 tip 流水/标记 is_test，防提审脏数据
-4. 【备份补全】robocopy 快照 worktree_20260927_security 停在 36daa77 落后 2 commit——新电脑克隆后废弃旧 worktree，或补刷到 13c6840
-5. 安全：轮换 admin_web_key 与 idcard_aes_key（曾明文暴露会话）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
-6. 功能长尾：order-action get_confirmation 的 ORD 反查 bug（index.js:217 遮蔽）
-7. 独立阻塞项：W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
-8. 长尾：F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
+4. 【备份补全】robocopy 快照 worktree_20260927_security 落后多 commit——新电脑克隆后废弃旧 worktree 或补刷到 HEAD（cdb241c；顺带含本次 openid 誊写修正）
+5. ~~[审计] 终审报告 8/8 收官~~ ✅ 已收官
+6. 安全：轮换 admin_web_key 与 idcard_aes_key（曾明文暴露会话）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
+7. 功能长尾：order-action get_confirmation 的 ORD 反查 bug（index.js:217 遮蔽；纯代码项可先行）
+8. 独立阻塞项：W9 宠物陪伴真机发布（verifySignatureFile 真实手写签名 PNG）+ 旧「测试」需求 is_deleted=true 下线
+9. 长尾：F10 dev-only 打赏入口、W1 提审挂类目资质、种子需求演示数据、admin-action dispute 真机联调、wallet 极速提现刷新、backup.ps1 AdminKey
+10. 【2026-09-28 产品拍板·公益冻结基线】公益整体暂缓：后台默认关闭(welfare_switch=false)+前端不显示+服务端 fail-closed，禁止按 PRD §1.5 开建
+11. 【提审后功能库】③技能维护 ④地图周边 ⑤到达打卡——完整设计（含专家修正）见 `.trae/documents/features-post-launch.md`
 
 【工程纪律（不可违背）】
 - 先读后动；改代码前先给计划
@@ -78,9 +81,9 @@
 
 ## 补充叮嘱（不粘贴给新任务，给你自己）
 - 每次刷新本提示词后，必须跑「衔接提示词完整性检查清单」（7 维度 + 10 关键术语反向 Grep + 出包三处一致/git 入库），清单全文见项目记忆同名字节。
-- 审计 Phase0 已通过，别再重跑；审计阶段只报告不修码（例外：高危安全修复经用户确认后可改，参考 36daa77）。
-- 13 个 accepted tag 已全部 push（含 security-fix@36daa77）；HEAD=13c6840 已 push。
+- 审计 Phase0 已通过且 8/8 收官（2026-09-28），别再重跑已过项；审计阶段只报告不修码（例外：高危安全修复经用户确认后可改，参考 36daa77）。
+- 13 个 accepted tag 已全部 push（含 security-fix@36daa77）；HEAD=cdb241c 已本地提交（push 待网络/确认）。
 - 新账号若读不到记忆/文档（权限/磁盘差异），把本文件「衔接提示词」节人工贴入。
 - W9 真机发布 + 旧「测试」需求下线（is_deleted=true）未完成，提审演示前必须处理。
-- 云端读写受限：本机无 cloudbase CLI/MCP，需用户配合「微信开发者工具云端测试面板 / 云数据库」。云开发控制台多实例易混，必须用微信开发者工具内置控制台（cloud1-d9gkefwcp5c777088），判断标准=order_main 含 status/scene/total_fen/content_options。
+- 云端读写受限：本机无 cloudbase CLI/MCP，需用户配合「微信开发者工具云端测试面板 / 云数据库」。云开发控制台多实例易混，必须用微信开发者工具内置控制台（cloud1-d9gkefwcp5c777088），判断标准=order_main 含 status/scene/total_fen/content_options；**腾讯云官网 SCF 控制台里的 order-timer 是其他环境的同名函数（返回 st_forbidden），勿误用**。
 - admin_web_key/idcard_aes_key 曾明文暴露会话 → 待用户配合轮换；提醒用户勿再粘贴完整 admin_config。
