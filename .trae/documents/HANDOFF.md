@@ -37,8 +37,8 @@
 ## 5. 待办清单（2026-09-28 更新，按优先级）
 1. ~~[审计] 规则15 负向收尾~~ ✅ **已完成（2026-09-28，负向 9/9）**：N1(ORD...00001 S1→S6+释放需求)/N2(ORD...00002 S0→S6)/N4(ORD...00004 S3.5→S4) 实测通过；N6a 跳过（N6b 覆盖幂等）
 2. ~~[提审阻塞·内容安全] 自由文本 msgSecCheck~~ ✅ **已完成（2026-09-28）**：6 入口补 msgSecCheck+降级词库，commit 3fd7679 已部署 order-action/safety-report，sr_text_unsafe 实测拦截
-3. [数据清理] N8b 测试污染：S9 订单 a9defcfd6aa20230011cfea075899ac6 已被打赏 1250 分（tip_no=TIP202609275612e18196f78237），云数据库手工删除该 tip 流水/标记 is_test
-4. [备份补全] robocopy 快照 worktree_20260927_security 停在 36daa77 落后多 commit——新电脑克隆后废弃旧 worktree 或补刷到 HEAD（现 a822e8c 后又有 3fd7679/40c059d/e0b2b52/2f89d0f 等新 commit；引入 test_openid 誊写教训时一并刷）
+3. ~~[数据清理] N8b 测试污染~~ ✅ **已完成（2026-09-28，双证）**：zz-clean-n8b clean 软删 tip 流水+回滚 tip_total_fen 1250→0+软删通知；CLI 直读订单 a9defcfd6aa20230011cfea075899ac6 确认 tip_total_fen=0；audit_log 保留（保链）
+4. ~~[备份补全]~~ ✅ **已完成（2026-09-28）**：GitHub push 同步（9 commit `a822e8c..dbbbd48`，ahead=0）；bundle 新建 `zhaoren_v0.10.7_20260928.bundle`（10.7MB，verify is okay，含全部 refs+旧 worktree HEAD）；旧 worktree `worktree_20260927_security` 位于旧机器路径（Administrator 账号），本机无实体 → **废弃 + git worktree prune**；L3 云端导出通道验证：order_main dump 164 条 0 失败（jobId 111487620，落 `C:\Users\DC\Desktop\zhaoren_backup_20260928_verify\`）
 5. ~~[审计] 终审报告 8/8~~ ✅ **已收官（2026-09-28）**，见 §6 审计进度快照
 6. [安全] 轮换 admin_web_key 与 idcard_aes_key（曾明文出现在会话，需用户配合改 admin_config）；admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
 7. [功能长尾] order-action get_confirmation 的 ORD 反查 bug（index.js:217 const {order_id}=event 遮蔽反查，ORD 单号该 action 下必 oa_not_found）
