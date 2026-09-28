@@ -205,8 +205,10 @@ exports.main = async (event, context) => {
   const adminOpenid = (cfg.admin_openids && cfg.admin_openids[0]) || null;
 
   // Bootstrap generate_admin_web_key → init-db 直调 (无鉴权)
+  // 身份取 admin_openids[0]，不再硬编码；空则拒绝(不留死兜底)
   if (action === 'generate_admin_web_key') {
-    const oid = 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c';
+    const oid = adminOpenid || '';
+    if (!oid) return makeJson({ ok: false, code: 'no_admin_openid', msg: '后台未初始化管理员' }, 400);
     const proxyData = { ...body, mock_openid: oid, __admin_web_proxy: true, _admin_web_proxy_openid: oid };
     try {
       const r = await cloud.callFunction({ name: 'init-db', data: proxyData });
@@ -219,7 +221,7 @@ exports.main = async (event, context) => {
   //    所以 init_db proxy 的真实 init-db action 放在 __init_db_action 里
   if (action === 'init_db') {
     const realAction = body.__init_db_action || 'quick_check';
-    const proxyData = { ...body, action: realAction, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid, mock_openid: adminOpenid || 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c' };
+    const proxyData = { ...body, action: realAction, __admin_web_proxy: true, _admin_web_proxy_openid: adminOpenid, mock_openid: adminOpenid || '' };
     delete proxyData.__init_db_action;
     try {
       const r = await withTimeout(cloud.callFunction({ name: 'init-db', data: proxyData }), PROXY_TIMEOUT_MS);

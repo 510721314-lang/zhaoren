@@ -1608,8 +1608,10 @@ exports.main = async (event, context) => {
   // ───────── 通知:标记已读(单条或全部) ─────────
   if (action === 'notice_read') {
     if (event.notice_id) {
-      await col('system_notice').doc(event.notice_id).update({ data: { read: true, read_at: Date.now() } });
-      return { ok: true };
+      // 归属校验: 仅本人通知可标记; 不匹配静默 ok(防他人枚举 notice_id)
+      const r = await col('system_notice').where({ _id: event.notice_id, to_openid: openid, read: false })
+        .update({ data: { read: true, read_at: Date.now() } });
+      return { ok: true, data: { updated: (r.stats && r.stats.updated) || 0 } };
     }
     // 批量标记: not_empty
     await col('system_notice').where({ to_openid: openid, read: false })

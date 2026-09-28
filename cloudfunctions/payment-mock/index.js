@@ -528,6 +528,23 @@ exports.main = async (event, context) => {
       const role = order.user_openid === openid ? 'user' : (order.partner_openid === openid ? 'partner' : null);
       if (!role) return { ok: false, code: 'aa_not_participant', msg: '你不是该订单参与方' };
 
+      // 防滥用上限(后台 admin_config 可调, 超限拒绝; 台账仅记账, 上限目的防刷)
+      const acfg = await getConfig();
+      const recMax = Number(acfg.aa_record_max_fen) || 100000;
+      const totalMax = Number(acfg.aa_ledger_max_fen) || 300000;
+      const recCountMax = Number(acfg.aa_ledger_max_records) || 50;
+      if (amount > recMax) {
+        return { ok: false, code: 'aa_over_record_limit', msg: `单笔 AA 记账上限 ¥${(recMax / 100).toFixed(0)} 元` };
+      }
+      const ledger = order.aa_ledger || {};
+      const rows = (ledger.records && ledger.records.length) || 0;
+      if ((rows + 1) > recCountMax) {
+        return { ok: false, code: 'aa_over_records_limit', msg: `该订单 AA 记账已达 ${recCountMax} 条上限` };
+      }
+      if ((Number(ledger.total_fen) || 0) + amount > totalMax) {
+        return { ok: false, code: 'aa_over_ledger_limit', msg: `该订单 AA 累计记账已达上限 ¥${(totalMax / 100).toFixed(0)} 元` };
+      }
+
       const now = Date.now();
       const record = {
         record_id: genPayNo('AA'),  // 日期+6位随机, 避免同毫秒并发 AA 记录 ID 碰撞
