@@ -245,7 +245,6 @@ exports.main = async (event, context) => {
 
   // ───────── 1. 查询四确认状态 ─────────
   if (action === 'get_confirmation') {
-    const { order_id } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -302,9 +301,9 @@ exports.main = async (event, context) => {
     };
   }
 
-  // ───────── 2. 修改某一项(8 位全重置) ─────────
+  // ───────── 2. 修改四确认项(任一方) ─────────
   if (action === 'update_item') {
-    const { order_id, item, value } = event;
+    const { item, value } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     if (CONFIRM_FIELDS.indexOf(item) < 0) {
       return { ok: false, code: 'oa_bad_item', msg: '确认项只能是 时间/地点/内容/费用' };
@@ -421,9 +420,9 @@ exports.main = async (event, context) => {
     };
   }
 
-  // ───────── 3. 确认某一项(置本方 ok) ─────────
+  // ───────── 3. 单项确认 ─────────
   if (action === 'confirm_item') {
-    const { order_id, item } = event;
+    const { item } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     if (CONFIRM_FIELDS.indexOf(item) < 0) {
       return { ok: false, code: 'oa_bad_item', msg: '确认项只能是 时间/地点/内容/费用' };
@@ -531,7 +530,6 @@ exports.main = async (event, context) => {
 
   // ───────── 3.5 一键确认本方全部 4 项(测试便捷用) ─────────
   if (action === 'confirm_all') {
-    const { order_id } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -610,7 +608,7 @@ exports.main = async (event, context) => {
 
   // ───────── 4. 取消订单(S1/S0 → S6) ─────────
   if (action === 'cancel') {
-    const { order_id, reason } = event;
+    const { reason } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -670,7 +668,6 @@ exports.main = async (event, context) => {
 
   // 开始履约:S2 → S3(耍伴发起)
   if (action === 'start_service') {
-    const { order_id } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -708,7 +705,6 @@ exports.main = async (event, context) => {
 
   // 完成履约:S3 → S5(耍伴发起)
   if (action === 'complete_service') {
-    const { order_id } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -753,7 +749,7 @@ exports.main = async (event, context) => {
   // current: 0=待开始 1=30% 2=60% 3=100%待验收; complete_service 要求 current===3
   const MS_LABEL = { 1: '30%', 2: '60%', 3: '100%' };
   if (action === 'milestone_submit') {
-    const { order_id, note, location } = event;
+    const { note, location } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -809,7 +805,7 @@ exports.main = async (event, context) => {
 
   // 需求者确认里程碑(可手动确认;15分钟自动确认由 order-timer 处理)
   if (action === 'milestone_confirm') {
-    const { order_id, milestone } = event;
+    const { milestone } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     if (![1, 2, 3].includes(milestone)) return { ok: false, code: 'oa_ms_invalid', msg: 'milestone 须为 1/2/3' };
     const order = await getOrder(order_id);
@@ -866,7 +862,7 @@ exports.main = async (event, context) => {
   // 改期发起:S2/S3 → S2_5(改期处理中, 等待对方确认; 超时由 order-timer 自动拒绝)
   // 注意: 确认前不改写 start_time, 新时间暂存 pending_modify; modify_count 在确认通过时才消耗
   if (action === 'modify') {
-    const { order_id, new_start_time, reason } = event;
+    const { new_start_time, reason } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const newTs = Number(new_start_time);
     if (!newTs || newTs <= Date.now()) {
@@ -946,8 +942,7 @@ exports.main = async (event, context) => {
 
   // 改期确认: 仅对方(非发起人)可操作, S2_5 → pending.from_status, 通过才改写 start_time/消耗次数
   if (action === 'modify_confirm' || action === 'modify_reject') {
-    const { order_id } = event;
-    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+      if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
     const role = roleOf(order, openid);
@@ -1026,7 +1021,7 @@ exports.main = async (event, context) => {
   // ───────── 加时申请: S3 履约中发起, 对方确认后金额+时长合并进订单 ─────────
   // 算价: add_amount_fen = Math.round(total_fen / duration_h × add_hours)
   if (action === 'extend') {
-    const { order_id, add_hours, reason } = event;
+    const { add_hours, reason } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -1099,8 +1094,7 @@ exports.main = async (event, context) => {
 
   // 加时确认/拒绝: 仅对方(非发起人)可操作
   if (action === 'extend_confirm' || action === 'extend_reject') {
-    const { order_id } = event;
-    if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+      if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
     const role = roleOf(order, openid);
@@ -1170,7 +1164,6 @@ exports.main = async (event, context) => {
 
   // 恢复履约:S3.5 → S3(双向确认, 任一方发起即可)
   if (action === 'resume_service') {
-    const { order_id } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -1207,7 +1200,6 @@ exports.main = async (event, context) => {
 
   // 转部分完成:S3.5 → S4(双向确认, 任一方发起即可)
   if (action === 'partial_confirm') {
-    const { order_id } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -1249,7 +1241,7 @@ exports.main = async (event, context) => {
 
   // 比例确认:S4 → S5(一般用户确认, 也允许耍伴确认)
   if (action === 'ratio_confirm') {
-    const { order_id, ratio } = event;
+    const { ratio } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -1304,7 +1296,7 @@ exports.main = async (event, context) => {
 
   // 发起争议:S5/S8/S9 → S10.5(售后窗口内, 双方可发起)
   if (action === 'complaint') {
-    const { order_id, reason } = event;
+    const { reason } = event;
     if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -1369,7 +1361,6 @@ exports.main = async (event, context) => {
 
   // ───────── 订单详情(全字段 + 四确认状态 + 评价, 仅参与方可读) ─────────
   if (action === 'detail') {
-    const { order_id } = event;
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
     const role = roleOf(order, openid);
@@ -1628,7 +1619,6 @@ exports.main = async (event, context) => {
 
   // 用户催促耍伴 (S2/S3 状态下, 用户发给耍伴)
   if (action === 'nudge_partner') {
-    const { order_id } = event;
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
     if (order.user_openid !== openid) return { ok: false, code: 'oa_not_owner', msg: '仅用户可催促' };
