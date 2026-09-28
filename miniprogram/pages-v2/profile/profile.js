@@ -3,7 +3,7 @@
 const redline = require('../../utils/redline.js');
 const { maskPhone } = require('../../utils/util.js');
 const CONFIG = require('../../config/index.js');
-const { CREDIT_LEVEL, normalizeStatus } = require('../../config/enums.js');
+const { CREDIT_LEVEL, ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -165,56 +165,43 @@ Page({
     if (this.data.identity === 'partner') {
       callCloud('order-action', { action: 'my_orders', role: 'partner' }).then((r) => {
         if (!r || !r.ok || !r.data) return;
+        // my_orders 已按 created_at 倒序且分页; 工作台只取最近 3 条
         const list = (r.data.list || [])
           .filter((o) => o.item_type === 'order')
           .slice(0, 3)
-          .map((o) => ({
-            order_id: o.order_id,
-            scene_name: o.scene_name || o.scene,
-            time_str: fmtDate(o.start_time),
-            location_name: o.location_name || '地点待确认',
-            status: o.status,
-            status_name: ({ S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[normalizeStatus(o.status)] || o.status,
-            total_fen: o.total_fen || 0,
-            price_str: Math.round((o.total_fen || 0) / 100)
-          }));
+          .map((o) => {
+            const st = ORDER_STATUS[normalizeStatus(o.status)];
+            return {
+              order_id: o.order_id,
+              scene_name: o.scene_name || o.scene,
+              time_str: fmtDate(o.start_time),
+              location_name: o.location_name || '地点待确认',
+              status: o.status,
+              status_name: st ? st.name : o.status,
+              total_fen: o.total_fen || 0,
+              price_str: Math.round((o.total_fen || 0) / 100)
+            };
+          });
         this.setData({ partnerRecentOrders: list });
       }).catch(() => {});
     } else {
-      // 用户视角: 合并 my_orders 里的已接单订单 + demand-publish my_demands
-      Promise.all([
-        callCloud('order-action', { action: 'my_orders', role: 'user' }),
-        callCloud('demand-publish', { action: 'my_demands' })
-      ]).then(([ordersR, demandsR]) => {
-        // 活跃订单: 排除已取消(S6)/已完成(S7)/售后(S10/S10.5)终态
-        const ACTIVE_ORDER_STATUSES = ['S0', 'S1', 'S2', 'S2_5', 'S3', 'S3_5', 'S4', 'S5'];
-        const orderList = (ordersR && ordersR.ok && ordersR.data && ordersR.data.list || [])
-          .filter((o) => o.item_type === 'order' && ACTIVE_ORDER_STATUSES.indexOf(normalizeStatus(o.status)) >= 0)
+      // 用户视角: 展示最近发布的 3 个需求(created_at 倒序), 含自身状态
+      callCloud('demand-publish', { action: 'my_demands' }).then((r) => {
+        if (!r || !r.ok || !r.data) return;
+        const DEMAND_STATUS_NAME = { matching: '等待接单', matched: '已被接单', cancelled: '已取消', expired: '已过期' };
+        const list = (r.data.list || [])
           .slice(0, 3)
-          .map((o) => ({
-            item_type: 'order',
-            order_id: o.order_id,
-            demand_id: o.order_id,
-            scene_name: o.scene_name || o.scene,
-            time_str: fmtDate(o.start_time),
-            location_name: o.location_name || '地点待确认',
-            status_name: ({ S0: '待支付', S1: '待确认', S2: '待履约', S2_5: '改期中', S3: '履约中', S3_5: '中断', S5: '待评价' })[o.status] || o.status,
-            price_str: Math.round((o.total_fen || 0) / 100)
-          }));
-        // 活跃需求: 只显示 matching(等待接单) 状态
-        const demandList = (demandsR && demandsR.ok && demandsR.data && demandsR.data.list || [])
-          .filter((d) => d.status === 'matching')
-          .slice(0, 3 - orderList.length)
           .map((d) => ({
             item_type: 'demand',
             demand_id: d._id || d.demand_id,
             scene_name: d.scene_name || d.scene,
             time_str: fmtDate(d.start_time),
             location_name: (d.location && d.location.name) || '地点待确认',
-            status_name: '等待接单',
+            status: d.status,
+            status_name: DEMAND_STATUS_NAME[d.status] || d.status,
             price_str: d.duration_h ? Math.round(((d.total_fen || 0) / 100) / d.duration_h) : Math.round((d.total_fen || 0) / 100)
           }));
-        this.setData({ userRecentDemands: [...orderList, ...demandList].slice(0, 3) });
+        this.setData({ userRecentDemands: list });
       }).catch(() => {});
     }
     // 通知未读数(始终拉, 与身份无关)

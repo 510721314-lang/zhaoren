@@ -752,6 +752,7 @@ exports.main = async (event, context) => {
 
     // 3. 我的需求列表(含候选耍伴摘要)
     case 'my_demands': {
+      const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
       // 先懒过期
       await lazyExpire();
       try {
@@ -761,6 +762,8 @@ exports.main = async (event, context) => {
 
         const list = (r.data || []).map(d => ({
           _id: d._id, demand_no: d.demand_no, scene: d.scene,
+          scene_name: SCENE_NAME[d.scene] || d.scene,
+          location: (d.location && { name: d.location.name, address: d.location.address }) || null,
           start_time: d.start_time, duration_h: d.duration_h,
           total_fen: d.total_fen, status: d.status,
           match_candidates: (d.match_candidates || []).slice(0, 5),
