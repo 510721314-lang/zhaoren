@@ -27,28 +27,32 @@ exports.main = async (event) => {
   const prompt = action === 'polish'
     ? '请将下面这段需求描述改写得更清晰通顺（保持原意，不改事实，不超过50字）：「' + String(event.text || '').slice(0, 100) + '」'
     : '请回答：这是 CloudBase AI 通道连通性测试，只回复OK';
+  // 模型名：deepseek-v4-flash 预览版已于 2026-09-27 下线 → 新版 id 为 deepseek-v4-flash-0731（官方公告）
+  const modelId = event.model || 'deepseek-v4-flash-0731';
 
   try {
     const tcb = require('@cloudbase/node-sdk');
     const app = tcb.init({ env: cloud.DYNAMIC_CURRENT_ENV, timeout: 60000 });
     const model = app.ai().createModel('cloudbase');
     const result = await model.generateText({
-      model: 'deepseek-v4-flash',
+      model: modelId,
       messages: [
         { role: 'system', content: action === 'polish' ? '你是文案润色助手。' : '你是连通性测试助手。' },
         { role: 'user', content: prompt }
       ]
     });
     return {
-      ok: true, action,
+      ok: true, action, model: modelId,
       text: String(result.text || '').slice(0, 300),
       usage: result.usage || null
     };
   } catch (e) {
+    const raw = (e && (e.response && e.response.data) ? JSON.stringify(e.response.data) : '') ||
+      String(e && e.message || e);
     return {
-      ok: false, code: 'ai_unavailable',
-      msg: 'AI 通道调用失败: ' + String(e && e.message || e).slice(0, 200),
-      hint: '确认控制台已开通 AI+ 并启用生文模型(deepseek-v4-flash)'
+      ok: false, code: 'ai_unavailable', model: modelId,
+      msg: 'AI 通道调用失败: ' + raw.slice(0, 300),
+      hint: '若为 429/模型未启用：控制台 AI+ → 生文模型，确认 deepseek-v4-flash-0731 已开通'
     };
   }
 };
