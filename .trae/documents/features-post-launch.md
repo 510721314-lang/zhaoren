@@ -234,3 +234,10 @@ arrival_confirm    事件 { order_id }
 
 ### 6.5 验收要点
 AI 预审：msgSecCheck 不通过仍拦截（主防线不回退）；high 风险文本被 AI 层拦；AI 接口不可用时不阻断发布（降级词库兜底）。文案润色：结果仅填充草稿，不直接入库；频控生效。撮合推荐：排序变化不影响成交链路；无 AI 时不降级（沿用原排序）。
+
+### 6.6 通道可用性验证结论（2026-09-29 实测）
+- **验证路径已打通**：云函数 `@cloudbase/node-sdk`（3.18.3/@cloudbase/ai 2.30.0）→ `app.ai().createModel('cloudbase')` → `generateText({model})`；守卫 mock_openid+Vl 可过；tcb CLI 直调验证可行（无需切 env）
+- **拦阻点 = 计费模式门槛（非代码问题）**：该环境（cloud1 个人版/旧套餐）**非资源点计费**，控制台启用任意生文模型即弹「当前环境不是资源点计费，切换后支持在套餐中抵扣」→ 429。**用户拍板暂缓（B），提审后再评估**
+- **模型 ID 实证（该环境主文模型列表 2026-09-29）**：DeepSeek 正式版为 `deepseek-v4-clash-0731`（注意是 clash 非 flash）`/deepseek-v4-pro-0813`；`deepseek-v4-flash` 预览版已于 09-27 下线勿用；另有 glm-5.3/kimi-k3/minimax-m3 可用
+- **续接条件**：控制台切换资源点计费 → 启用 deepseek-v4-clash-0731 → 重建 zz-ai-guard（git 历史有完整代码）即恢复验证
+- **费用**：开通/启用免费；1000 资源点≈¥1，个人版含 4 万点/月，验证 ping 可忽略；正式 AI 预审按量极小
