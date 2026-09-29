@@ -1,4 +1,4 @@
-# zhaoren 项目 · 跨账号/跨任务衔接提示词（可直接复制）· 2026-09-28 版
+# zhaoren 项目 · 跨账号/跨任务衔接提示词（可直接复制）· 2026-09-29 版
 
 > 用法：换账号登录 TRAE 后，新建任务首条消息直接粘贴本文件「衔接提示词」节。
 > 若新账号读不到本文件，请人工把该节内容粘给新任务。
@@ -32,13 +32,13 @@
 
 【当前工作状态】
 - **提审就绪度 8/8 全达标（2026-09-28 收官）+ 2026-09-29 会话增收**：配置回正/auto_approve_partner 已 false、P0-2 安全遗留 4 项完成、6 项功能交付（订单分页倒序/多打赏/工作台/订单三行概要/耍伴动态入口）+ 三重备份通过
-- **最新 HEAD：本地=`6b0d1b3`**（GitHub 已同步至 `16b909f`，业务代码全同步）；`6b0d1b3`（HANDOFF 文档）本地已 commit + 入 bundle/热备，**仅 GitHub 未推**（网络时断，恢复后 `git -c http.proxy= push origin master` 补推）；bundle `zhaoren_v0.11.0_20260929.bundle`（verify ok + clone HEAD 一致）；robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）
+- **最新 HEAD：本地=`f1faf38`**（GitHub 已同步至 `16b909f`，业务代码全同步）；**未推 2 个文档 commit**：`6b0d1b3`（HANDOFF 备份基线）+ `f1faf38`（HANDOFF §9.10 + 本提示词刷新）——网络恢复后 `git -c http.proxy= push origin master` 一并补推；bundle `zhaoren_v0.11.0_20260929.bundle`（verify ok + clone HEAD 一致）；robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）
 - 环境事实：真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl，曾誊写 VF)；tcb CLI 打通 cloud1 直读直写（node 直调 bin/tcb）；云端测试面板仍可用（env=dev mock 放行）
 - 13 个 accepted tag 全在；W9 已真机发布验收通过；admin-web 公网可访问（serveStatic 版）
 - 密钥已轮换（admin_web_key/idcard_aes_key 新值仅用户持有，勿再粘贴会话）；git push 网络时通时断
 
 【待办（按优先级，非阻塞长尾）】
-1. **补推 `6b0d1b3` 到 GitHub**（网络恢复后 `git -c http.proxy= push origin master`；本地/备份已安全）
+1. **补推 2 个文档 commit 到 GitHub**（`6b0d1b3`+`f1faf38`；网络恢复后 `git -c http.proxy= push origin master`；本地/备份已安全）
 2. [长尾] backup.ps1 AdminKey 通道补跑（`.\backup.ps1 -AdminKey <key>`；云端备份已用 tcb CLI 通道替代完成）
 3. [长尾] W1 提审挂类目资质（mp.weixin.qq.com 运营动作，AI 不可代做）
 4. [长尾] 种子需求演示数据核对（CLI 可查；现 6 条 matching 可能够演示）
