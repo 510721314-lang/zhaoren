@@ -26,6 +26,7 @@ $COLLECTIONS = @(
   'blog_post', 'blog_like', 'blog_comment',
   'safety_report',
   'im_conversation', 'im_message',
+  'withdraw_record',
   # ── 旧表/低频(不存在自动 SKIP) ──
   'user_profile', 'partner_exam', 'partner_apply',
   'dispute', 'withdraw_request', 'credit_log',

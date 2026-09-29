@@ -1830,6 +1830,7 @@ exports.main = async (event, context) => {
     'blog_post', 'blog_like', 'blog_comment',
     'safety_report',
     'im_conversation', 'im_message',
+    'withdraw_record',
     // ── 旧表/低频(保留兼容, 不存在返回空) ──
     'user_profile', 'partner_exam', 'partner_apply',
     'dispute', 'withdraw_request', 'credit_log',
