@@ -18,7 +18,7 @@
 3. C:\zhaoren\.trae\skills\zhaoren-audit\SKILL.md（审计只报告不修码）
 4. 【可选】项目记忆：c:\Users\DC\.trae-cn\memory\projects\-c-Users-DC-Desktop-zhaoren--p2-a4956b0653f77d53625f\project_memory.md（含 2026-09-28/29 全量经验/能力基线；含「衔接提示词完整性检查清单」章节）
 
-【第二步】按 zhaoren-audit skill 输出「方向校准自检」：**先做第 0 步工作目录验证（见 §9.11）**，再输出规则来源/当前 Phase/进度/本会话计划/禁止偏离提醒。等用户确认后再动工。
+【第二步】按 zhaoren-audit skill 输出「方向校准自检」：**先做第 0 步工作目录验证（见 §9.11）并展示校验结果（目录/git remote/HEAD/appid）请求用户明确确认，确认后才动工**，再输出规则来源/当前 Phase/进度/本会话计划/禁止偏离提醒。等用户确认后再动工。
 
 【环境配置】
 - 项目根目录：**C:\zhaoren**（唯一工作目录）；纯原生微信小程序 + 微信云开发（云函数 wx-server-sdk）
@@ -27,7 +27,7 @@
 - 配置：miniprogram/config/index.js、enums.js；样式 SSOT：miniprogram/styles/tokens.wxss（绿色主题，页面禁硬编码色值）
 - 部署门禁：云函数必须走 .trae/predeploy.ps1，逐个单独部署（禁串行）；新建临时函数需 package.json + zz- 注册 + 白名单临时加入；**新建函数的 remote-npm-install 不可靠时，本地 npm install 后不带 -r 上传 node_modules**
 - 静态验证：.trae/scripts/scan-miniprogram.ps1；改代码先 node --check
-- 备份三通道：GitHub push（git -c http.proxy= 绕过失效代理）+ git bundle + robocopy
+- 备份三通道：GitHub push（git -c http.proxy= 绕过失效代理）+ git bundle + robocopy；**所有备份文件统一存 c:\zhaoren-bak\（用户拍板；backup.ps1 默认目标已改）**
 - **云端读写（已打通）**：tcb CLI 已登录 cloud1 直读直写 —— 调用方式必须 `node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>`（.ps1 包装器被 PS 执行策略挡，勿直接 `tcb`）；NoSQL 命令 JSON 用 node 脚本 execSync 传参（PS5 内联必炸）；cloud1 环境 ID `cloud1-d9gkefwcp5c777088`；腾讯云 SCF 官网控制台是其他环境（st_forbidden），勿用；**`fn invoke` 用 `-e`，`db nosql execute`/`db nosql dump` 用 `--envId`（参数风格不同）；`db nosql dump` 产物为 NDJSON 行格式（文件名带时间戳前缀）**
 
 【当前工作状态】

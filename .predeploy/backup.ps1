@@ -41,8 +41,8 @@ if ($cliDir) { $cli = Join-Path $cliDir.FullName 'cli.bat' }
 if (-not $cli) { Write-Host '[WARN] cli.bat not found, L5 skip' -ForegroundColor Magenta }
 Write-Host "[INFO] CLI: $cli" -ForegroundColor Cyan
 
-# Backup dir
-if (-not $BackupDir) { $BackupDir = "C:\zhaoren_backup_$(Get-Date -Format 'yyyyMMdd-HHmm')" }
+# Backup dir（统一根目录 c:\zhaoren-bak，用户 2026-09-29 拍板）
+if (-not $BackupDir) { $BackupDir = "C:\zhaoren-bak\zhaoren_backup_$(Get-Date -Format 'yyyyMMdd-HHmm')" }
 New-Item -ItemType Directory -Force -Path $BackupDir, "$BackupDir\admin_config", "$BackupDir\db", "$BackupDir\meta" | Out-Null
 Write-Host "[INFO] BackupDir: $BackupDir" -ForegroundColor Cyan
 

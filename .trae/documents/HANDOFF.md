@@ -102,7 +102,8 @@
 - 仅 rpx；button 用外层 view 定宽 + 内 layer button 透明（内置 min-width 坑）
 - 样式 SSOT = `miniprogram/styles/tokens.wxss`（绿），页面 wxss 禁硬编码色值，工具类挂 .v2
 - commit 格式 `feat(模块名): [Phase X] ...`，禁词：砍场景/MVP/精简
-- 备份命名：bundle `zhaoren_v<版本>_<YYYYMMDD>.bundle` / 热备 `zhaoren_backup_<YYYYMMDD>`，桌面上
+- 备份命名：bundle `zhaoren_v<版本>_<YYYYMMDD>.bundle` / 热备 `zhaoren_backup_<YYYYMMDD>`，**统一存 `c:\zhaoren-bak\`（用户 2026-09-29 拍板；backup.ps1 默认目标已改）**
+- AI 应用强化：AI 应用趋势纳入工作，新开任务先做 AI 可用性评估（详见 §10 P4+）
 
 ## 8. 记忆文件位置（新任务可读，但依赖账号/磁盘环境)
 `c:\Users\Administrator\.trae-cn\memory\projects\-c-Users-Administrator-Desktop-zhaoren--p2-2cb386612f3f3552a9c6\project_memory.md`（含全部硬性约束/经验教训/2026-09-27 里程碑总结）
@@ -183,12 +184,19 @@
   ③ HANDOFF §2 环境事实新增「DevTools 项目路径」字段（与 git 仓库路径分离记录——两者可能不同）
   ④ 衔接提示词中路径改为「以方向校准第 0 步实测结果为准」，不硬编码绝对路径
   ⑤ **唯一工作目录 = C:\zhaoren**（用户拍板 2026-09-29）；Desktop 版为废弃副本不再操作
+- **用户确认环节（2026-09-29 拍板强化）**：新开任务方向校准第 0 步校验完成后，**必须把校验结果（目录路径/git remote/HEAD/appid）展示给用户并要求确认**，用户明确同意后才动工——不只自检，还要人工确认
 - **运行时一致性 ≠ git 一致性**：同一仓库多克隆时必须以 DevTools 实际打开路径为 SSOT；改动生效验证 = 「改的目录 = IDE 打开目录 = 部署 env」三元一致
 
 ### 9.12 2026-09-29 场景中文映射散落遗漏经验（专家审核后沉淀）
 - **现象**：订单列表 W4 场景显示原始码而非「游玩陪伴」；全仓 grep `W11: '线上陪伴'` 发现 **SCENE_NAME 常量散落 5+ 云函数**（order-action ×3/im-conv/im-send/payment-mock/home-action），多数缺 W4
 - **教训**：同义常量各自硬编码 → 遗漏必然；本次按「一处改处处查」（grep 全仓同模式）批量修复（commit fb6317c 已部署）。提审后建议重构为共享模块或 init-db 下发（专家建议 P4 项）
 - **同源风险**：`partner_profile.credit_score`（静态 800）与 `user_account.partner_credit_score`（动态）双源分裂——本次仅修 partner-action detail；admin-action/home-action 等仍读旧源，属同类待重构项
+
+### 9.13 2026-09-29 用户 4 项拍板（需长期执行）
+1. **AI 应用强化**：AI 应用趋势建议纳入工作，新开任务先做 AI 可用性评估（近程内容安全预审/文案润色 → 中程撮合/争议初筛 → 远程履约质量/AI 助手），详见 §10 P5
+2. **工作目录确认环节**：凡是新开任务均需检查确认当前工作目录，**校验结果展示给用户并获明确确认后才动工**（不只自检）
+3. **弱点逐步改善**：技术架构/安全/性能评价中列出的弱点需逐步改善（SCENE_NAME 重构/credit_score 双源统一/深分页/轮询/防刷），见 §10 P4
+4. **备份根目录**：所有备份文件统一存 `c:\zhaoren-bak\`（bundle/robocopy/backup.ps1 默认目标已改）
 
 ## 10. 上线提交前工作清单（2026-09-29 专家审核后版本，按优先级）
 
@@ -220,3 +228,10 @@
 - [ ] SCENE_NAME 重构为共享模块（消除散落硬编码）
 - [ ] partner_profile.credit_score 全仓统一改读 user_account（消除双源）
 - [ ] 性能：order 深分页 cursor 化 / notice_poll 长连接评估 / blog view_count 防刷
+
+### P5 AI 应用强化（用户 2026-09-29 拍板 · 逐步落地）
+- [ ] AI 可用性评估：新开任务在方案阶段先过一遍「可否用 AI 增强」清单（内容安全预审 / 撮合推荐 / dispute 初筛分类 / 文案润色 / 情感分析）
+- [ ] 近程（提审后第一批）：内容安全 AI 预审（语义理解+风险评分，前置拦截）、需求/简介文案润色
+- [ ] 中程：接单撮合（embedding 技能×需求 cosine 相似度）、争议初筛（LLM 分类+证据摘要+调解草案，人工终裁）
+- [ ] 远程：履约质量评估（评价情感分析+异常检测）、AI 陪伴助手（ASR/摘要）
+- [ ] 基建：评估云开发 AI 能力接入成本（微信对话开放平台等，免自建服务器）
