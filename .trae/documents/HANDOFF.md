@@ -199,18 +199,25 @@
 4. **备份根目录**：所有备份文件统一存 `c:\zhaoren-bak\`（bundle/robocopy/backup.ps1 默认目标已改）
 5. 【补充 2026-09-29】**提审演示支付 = 方案 A（临时回 dev）**：演示窗口 force_set_env dev → mock 支付/打赏恢复 → 演示完立即回 prod；见 §10 P3
 
+### 9.14 2026-09-29 晚场经验（备份导出白名单同步缺口 + 距离口径）
+- **备份导出白名单缺口**：`withdraw_record`（钱包功能后加的表）不在 admin-action `EXPORT_COLLECTIONS` 白名单 → 收工 DB 导出 32/33 失败 1 表。已修（commit 5777100 部署）。**教训**：新增 collection 必须同步两处白名单——admin-action `EXPORT_COLLECTIONS` + .predeploy/backup.ps1 `$COLLECTIONS`（与 §9.12 场景映射同源问题：「一处改处处查」）
+- **耍伴推荐距离口径**：`distance_km` = 观看者(耍伴) home_location ↔ 目标耍伴 home_location（haversine 1 位小数，与 nearby/广场需求同口径）；普通用户无 home_location **不显示距离**（前端 wx:if 兜底），如需支持需首页 GPS 授权（隐私面扩大，提审后再议）。数据前提：耍伴须在接单配置设 home_location，否则该卡片无距离
+- **今日晚场交付**：①耍伴推荐距离（home-action square/overview 回填 + partner-card 占位修复，已部署）②10 条附近可接测试需求（creator=seed_nearby_pub_01，盐道街周边 10 场景，下线走 is_deleted=true）③HANDOFF-PROMPT 新电脑终版入库 ④blog 图片不显示闭环（旧编译包同源问题，清缓存重编译恢复）
+- **测试数据登记**：seed_nearby_pub_01（user_account+emergency_contact）+ 其名下 10 条 demand；测试耍伴 oLDJ73W5XZjGD1SmlQ5Ierxy5kEo / test_partner_001 已补 home_location（春熙路/东门大街）
+
 ## 10. 上线提交前工作清单（2026-09-29 专家审核后版本，按优先级）
 
 ### P0 阻塞提审（必须完成）
-- [ ] GitHub push 补推 `fb6317c`（网络恢复后 `git -C c:\zhaoren -c http.proxy= push origin master`）
+- [x] GitHub push 补推（2026-09-29 晚已全部同步，HEAD=5777100，ahead=0）
 - [ ] 订单列表 W4 场景名真机确认（重新编译后「游玩陪伴」替代「W4」）
+- [ ] 耍伴推荐距离真机确认（重新编译后卡片显示「距你 X.Xkm」，§9.14）
 - [ ] `admin_config.env === 'prod'` 提审前最终复核（已切，最后确认一次）
 
 ### P1 上线前必须
-- [ ] dispute / wallet 真机联调（数据已就绪）
-- [ ] 新功能双身份回归收尾（订单三行概况、信用分显示）
-- [ ] backup.ps1 AdminKey 通道补跑（需用户密钥）
-- [ ] 三重备份基线刷新（bundle v0.12 + robocopy + 云端 DB dump，含 fb6317c）
+- [x] dispute / wallet 真机联调（2026-09-29 完成）
+- [x] 新功能双身份回归收尾（订单三行概况、信用分显示，2026-09-29 完成）
+- [ ] backup.ps1 AdminKey 通道补跑（需用户密钥；dev+mock 导出通道已验证可用，见 §9.14）
+- [x] 三重备份基线刷新（2026-09-29 晚：GitHub 5777100 + bundle 20260929-2314 + robocopy 20260929-2256 + DB 导出 33 表，c:\zhaoren-bak）
 
 ### P2 提审前复检（rules.md 第 9-16 条）
 - [ ] scan-miniprogram.ps1 全量
