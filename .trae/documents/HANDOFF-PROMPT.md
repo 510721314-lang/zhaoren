@@ -79,6 +79,7 @@
 
 【下一步动作】
 先读取上述必读材料并核对 git log/tag 状态，再向用户确认待办顺序后开始。
+注意：正式开始前先执行 `git -c http.proxy= push origin master`（若 `git log origin/master..HEAD --oneline` 非空则先生成补推，确保 GitHub 上的 HANDOFF 与本地一致，避免读到过期文档）；再核对 `git tag | grep accepted` 的 13 个 accepted tag 与工作区状态。
 ```
 
 ## 补充叮嘱（不粘贴给新任务，给你自己）
