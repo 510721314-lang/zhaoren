@@ -20,7 +20,7 @@ const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
 const FIELD_CN = { time: '时间', location: '地点', content: '内容', fee: '费用' };
 // ── 统一订单概要(所有涉及订单信息的提示/通知前置): #订单号 · 场景名 · ¥金额 · 发布时间 · 服务时间 · 履约时长 · 人数 · 履约地点 · AA区间 ──
-const SCENE_CN = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+const SCENE_CN = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 function fmtDT(ts) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -1366,7 +1366,7 @@ exports.main = async (event, context) => {
     const role = roleOf(order, openid);
     if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
 
-    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
     // 并行:6 个独立查询(确认单 + 评价 + 双昵称 + sos + checkin)合并为 1 批, 冷启动压到 2s 内
     const [conf, evR, uR, pR, sosR, ckR] = await Promise.all([
@@ -1453,7 +1453,7 @@ exports.main = async (event, context) => {
   if (action === 'my_orders') {
     const role = event.role === 'user' ? 'user' : 'partner';
     const queryField = role === 'partner' ? 'partner_openid' : 'user_openid';
-    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+    const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
     // tab 过滤(与前端 TAB_STATUS 同口径; 云端字面量一律点号 S3.5/S10.5/S2.5)
     const FILTER_STATUS = {
