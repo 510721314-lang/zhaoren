@@ -192,11 +192,12 @@
 - **教训**：同义常量各自硬编码 → 遗漏必然；本次按「一处改处处查」（grep 全仓同模式）批量修复（commit fb6317c 已部署）。提审后建议重构为共享模块或 init-db 下发（专家建议 P4 项）
 - **同源风险**：`partner_profile.credit_score`（静态 800）与 `user_account.partner_credit_score`（动态）双源分裂——本次仅修 partner-action detail；admin-action/home-action 等仍读旧源，属同类待重构项
 
-### 9.13 2026-09-29 用户 4 项拍板（需长期执行）
+### 9.13 2026-09-29 用户 4 项拍板（需长期执行）+ 补充决策
 1. **AI 应用强化**：AI 应用趋势建议纳入工作，新开任务先做 AI 可用性评估（近程内容安全预审/文案润色 → 中程撮合/争议初筛 → 远程履约质量/AI 助手），详见 §10 P5
 2. **工作目录确认环节**：凡是新开任务均需检查确认当前工作目录，**校验结果展示给用户并获明确确认后才动工**（不只自检）
 3. **弱点逐步改善**：技术架构/安全/性能评价中列出的弱点需逐步改善（SCENE_NAME 重构/credit_score 双源统一/深分页/轮询/防刷），见 §10 P4
 4. **备份根目录**：所有备份文件统一存 `c:\zhaoren-bak\`（bundle/robocopy/backup.ps1 默认目标已改）
+5. 【补充 2026-09-29】**提审演示支付 = 方案 A（临时回 dev）**：演示窗口 force_set_env dev → mock 支付/打赏恢复 → 演示完立即回 prod；见 §10 P3
 
 ## 10. 上线提交前工作清单（2026-09-29 专家审核后版本，按优先级）
 
@@ -221,6 +222,7 @@
 ### P3 运营/配置动作
 - [ ] W1 提审挂类目资质（运营动作，AI 不可代做）
 - [ ] 隐私保护指引更新（位置 nearby 用 home_location 的声明；实名/信用功能）
+- [ ] **提审演示支付链路策略 = 临时回 dev（用户 2026-09-29 拍板，方案 A）**：提审演示/截图期间用 `init-db force_set_env {env:'dev', reason:'提审演示临时'}`（管理员 mock_openid=Vl 通过；prod→dev 需 force 加 reason）→ 支付/打赏 mock 恢复可走 → **演示完立即切回 prod**（set_env prod）。提审后正式态 = prod。已实测：prod 下 payment-mock 模拟支付 fail-closed（真机弹「模拟支付已关闭」属预期）
 
 ### P4 提审后功能库
 - [ ] 公益①②冻结维持（welfare_switch=false+fail-closed 复核）
