@@ -52,7 +52,7 @@
 14. ~~[P0 提审前配置回正]~~ ✅ **已完成（2026-09-28，commit 7a351f9/65d6d4e）**：①admin_config `auto_approve_partner: true→false`（硬规则 prod 必须 false）、`modify_config.confirmHours: 24→2`（与前端 MODIFY 对齐）；②前端 config/index.js `PARTNER_ACCEPT.rateMinFen/MaxFen 3000/10000→1000/50000`、`defaultSceneRateFen 5000→10000` 跟随云端；③云端实测确认（tcb CLI 直调 admin-action config_public，`tip_enabled:true`、rate_range 1000/50000、confirmHours 2 直出）。**遗留**：`city_enabled=['成都','重庆']` 保留（用户确认）、`scene_default_rate_fen` 保持 10000（用户确认）
 15. ~~[2026-09-29 本会话新交付]~~ ✅ ①测试动态发布（blog-post `d83520e2...`）②点赞/评论链路云端 6/6（like 幂等/comment_add/list/delete/unlike）③动态入口 author_home 核实（真实 openid 返 post_count=5）④信用分修复（0c2655b，detail 改读 user_account.partner_credit_score + creditLevelOf 推导；3 账号实测 820/L2、746/L1、806/L2）⑤V1 种子需求补造（软删 8 条 expired 旧 seed 后重发 8 场景业务示例，9 场景 matching 全覆盖）⑥订单列表三行概况对齐消息页（fb03ee6/a5b9c34，my_orders 补 order_summary 复用 buildOrderSummary；PENDING 补 aa_tier）⑦env 切 prod + mock fail-closed 实测 ✅⑧W4 场景中文映射全仓修复（fb6317c，order/im-conv/im-send/payment-mock/home-action 五处 SCENE_NAME 补 W4）⑨双目录事故诊断与同步（bundle 通道同步 C:\zhaoren → a5b9c34，见 §9.11）
 16. 【待推】GitHub push 补推 `fb6317c`（2026-09-29 网络代理重置未成功；网络恢复后 `git -C c:\zhaoren -c http.proxy= push origin master`）
-17. 【长尾】dispute/wallet 真机联调（数据已就绪：S10.5×3 + withdraw_record 8+1；待用户真机操作）
+17. ~~[长尾] dispute/wallet 真机联调~~ ✅ **已完成（2026-09-29，双身份全链路通过）**：临时 force_set_env dev（4h 自动回 prod 兜底）→ dispute S10.5 售后视图/钱包极速提现(T+0)/普通提现(T+1)/余额核对全过 → 已主动切回 prod（DB 直读 env=prod 确认）。dev 窗口产生的提现单为 mock 数据，无真实资金
 18. 【长尾】DevTools 真机调试冲突 `remote debug instance already exists`（多种常规方法无效，挂起后续处理；可用模拟器/预览替代验证）
 19. 【提审前 P0-P1 清单见 §10】
 
