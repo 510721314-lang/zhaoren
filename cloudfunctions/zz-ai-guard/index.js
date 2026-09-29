@@ -6,8 +6,9 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 exports.main = async (event) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
-  if (!openid) return { ok: false, code: 'ai_no_openid', msg: '未获取到登录身份' };
+  // 云端测试面板无真实 OPENID → 走 mock_openid（管理员显式传身份）；与 resolveOpenid 语义一致，仅临时验证函数用
+  const openid = wxCtx.OPENID || event.mock_openid || null;
+  if (!openid) return { ok: false, code: 'ai_no_openid', msg: '未获取到登录身份（请传 mock_openid 或真机调用）' };
 
   const db = cloud.database();
   let cfg = { admin_openids: [] };
