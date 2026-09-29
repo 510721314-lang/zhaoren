@@ -184,3 +184,53 @@ arrival_confirm    事件 { order_id }
 ## 实施顺序建议（供后续会话）
 1. 待办2 msgSecCheck 基建（前置·提审阻塞）→ 2. payment-mock prod 闸门补丁（提审阻塞）→ 3. 提审 8/8 终审 → 4. ③④⑤（按产品优先级实施；③④无依赖可先，⑤最后且需先 git diff 列计划确认）
 - 每条实施完附：文件路径/改前改后/复检项；云函数走 .trae/predeploy.ps1 逐个部署；静态验证 scan-miniprogram.ps1 + node --check
+
+---
+
+## ⑥ AI 应用强化（用户 2026-09-29 拍板 · 设计审批稿）
+
+> 立项：AI 应用趋势纳入工作，新开任务先做 AI 可用性评估。本设计只规划提审后实施，不触碰提审链路。
+> 原则：**AI 只做辅助建议，不做业务决策**；所有 AI 输出必须人工确认后生效（撮合建议/文案草稿），内容安全 AI 预审仅作为 msgSecCheck 之上的加分层（msgSecCheck 仍为主防线）。AI 服务失败一律 fail-closed 降级（不影响主流程）。
+> 基建：优先复用微信云开发 AI 通道（云调用 openai 等或对话开放平台），免自建服务器、免额外域名。
+
+### 6.1 近程第一批（提审后立即可实施，风险低）
+
+**A. 内容安全 AI 预审层（enhanced content guard）**
+- 场景：demand-publish remark、blog-publish 正文、evaluation 评价、dispute 申诉文本
+- 现状：msgSecCheck（官方接口）已在 6 入口接入，为主防线；**AI 层作为第二层语义审核**，识别 msgSecCheck 可能漏掉的隐晦违规（诱导/软色情边缘/引流变体）
+- 接口：新云函数 `ai-guard`（或复用 safety-report）action=precheck，入参 {text, scene} → 返 {risk: 'pass'|'low'|'high', reason?}
+- 落地：云函数内调微信 AI 文本理解接口；**返回 high 才拦截**（主流程仍校验 msgSecCheck），low 仅前端提示不强拦
+- 可配置：admin_config `ai_guard_enabled`（默认 false，灰度开启）
+
+**B. 文案润色辅助（write assist）**
+- 场景：发布需求备注、耍伴自我介绍（accept-config intro）输入框旁「AI 优化」按钮
+- 接口：ai-guard action=polish，入参 {text, scene} → 返 {ok, improved}
+- 前端：结果填充为可编辑草稿，**用户确认后才提交**（不经 AI 直接写入 DB）
+- 限制：单次文本 ≤200 字；每日调用频控（后台可配），防滥用
+
+### 6.2 中程第二批（提审后 1-2 里程碑）
+
+**C. 撮合推荐增强（match assist）**
+- demand-match 现按距离+信用分排序；AI 层加**语义相关度**：需求文本（remark/options）↔ 耍伴技能（skills/bio）embedding cosine 相似度，作为排序权重之一（权重后台可配）
+- 实现：技能/需求 embedding 缓存于集合（admin_config 或专用 collection），批量刷新，避免每请求调模型
+- 展示：接单推荐列表顶部「AI 猜你喜欢」卡；**不改变规则匹配主链路**，仅调整展示顺序
+
+**D. dispute 争议初筛**
+- 场景：S10.5 争议单提交申诉文本 → LLM 分类（{类型: 服务质量|未履约|费用|其他}）+ 证据摘要 + 调解建议草案
+- 输出仅供运营后台参考（advice 字段），**人工终裁决**；不自动升级/退款
+- 落地：admin-action 增加只读建议字段
+
+### 6.3 远程规划（探索）
+
+- 履约质量评估：评价文本情感分析 + 异常检测（信用分调整参考）
+- AI 陪伴助手：语音实时陪伴（ASR+摘要），需前置隐私/资质评估
+
+### 6.4 实施前置检查（每项动工前必做）
+- [ ] 微信云开发 AI 通道可用性验证（开通/配额/计费）
+- [ ] `ai_guard_enabled` 等开关加入 CONFIG_SCHEMA 出口四件套（admin-action）
+- [ ] 私有数据红线：AI 请求不携带全量订单/位置/联系方式；仅取最小必要文本
+- [ ] 降级与限流：AI 接口异常 fail-open→fail-closed（按开关）；单用户频控
+- [ ] 提审合规：AI 输出标注「AI 建议」；不改变核心交易链路；隐私指引无新增位置/生物信息收集
+
+### 6.5 验收要点
+AI 预审：msgSecCheck 不通过仍拦截（主防线不回退）；high 风险文本被 AI 层拦；AI 接口不可用时不阻断发布（降级词库兜底）。文案润色：结果仅填充草稿，不直接入库；频控生效。撮合推荐：排序变化不影响成交链路；无 AI 时不降级（沿用原排序）。
