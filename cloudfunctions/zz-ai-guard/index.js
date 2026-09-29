@@ -27,8 +27,9 @@ exports.main = async (event) => {
   const prompt = action === 'polish'
     ? '请将下面这段需求描述改写得更清晰通顺（保持原意，不改事实，不超过50字）：「' + String(event.text || '').slice(0, 100) + '」'
     : '请回答：这是 CloudBase AI 通道连通性测试，只回复OK';
-  // 模型名：deepseek-v4-flash 预览版已于 2026-09-27 下线 → 新版 id 为 deepseek-v4-flash-0731（官方公告）
-  const modelId = event.model || 'deepseek-v4-flash-0731';
+  // 模型名：以控制台「主文模型」实际列表为准(截图实证 2026-09-29)；
+  // deepseek-v4-clash-0731(正式版) 为该环境可用的 DeepSeek 正式版；可经 event.model 覆盖
+  const modelId = event.model || 'deepseek-v4-clash-0731';
 
   try {
     const tcb = require('@cloudbase/node-sdk');
