@@ -42,6 +42,7 @@ Page({
     ],
     partnerEntries: [
       { key: 'accept-config', icon: '⚙️', name: '接单配置' },
+      { key: 'partner-profile-edit', icon: '📝', name: '资料维护' },
       { key: 'wallet', icon: '💰', name: '收入钱包' }
     ],
     partnerRecentOrders: [],

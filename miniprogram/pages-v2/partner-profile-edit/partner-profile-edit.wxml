@@ -1,0 +1,49 @@
+<view class="ppe">
+  <!-- 审核状态提示 -->
+  <view class="ppe__banner ppe__banner--pending" wx:if="{{auditStatus === 'pending'}}">
+    资料审核中，通过后将自动展示。审核期间不可重复提交。
+  </view>
+  <view class="ppe__banner ppe__banner--rejected" wx:if="{{auditStatus === 'rejected'}}">
+    上次提交未通过{{rejectReason ? '：' + rejectReason : ''}}，请修改后重新提交。
+  </view>
+
+  <!-- 个人简介 -->
+  <view class="ppe__card">
+    <view class="ppe__label">个人简介 <text class="ppe__count">{{bio.length}}/200</text></view>
+    <textarea class="ppe__textarea" value="{{bio}}" maxlength="200" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" bindinput="onBioInput" />
+  </view>
+
+  <!-- 技能标签 -->
+  <view class="ppe__card">
+    <view class="ppe__label">技能标签 <text class="ppe__count">{{skills.length}}/10</text></view>
+    <view class="ppe__hint">每个标签不超过 12 字，审核通过后展示在耍伴卡片与详情页</view>
+    <view class="ppe__tags">
+      <view class="ppe__tag" wx:for="{{skills}}" wx:key="index">
+        {{item}}<text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveSkill">×</text>
+      </view>
+    </view>
+    <view class="ppe__addrow" wx:if="{{skills.length < 10}}">
+      <input class="ppe__input" value="{{skillInput}}" maxlength="12" placeholder="如：持证护士" bindinput="onSkillInput" />
+      <button class="ppe__addbtn" bindtap="onAddSkill">添加</button>
+    </view>
+  </view>
+
+  <!-- 服务亮点 -->
+  <view class="ppe__card">
+    <view class="ppe__label">服务亮点 <text class="ppe__count">{{highlights.length}}/3</text></view>
+    <view class="ppe__hint">每条不超过 30 字，展示在耍伴详情页</view>
+    <view class="ppe__hl" wx:for="{{highlights}}" wx:key="index">
+      <text class="ppe__hl-text">{{item}}</text>
+      <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveHighlight">×</text>
+    </view>
+    <view class="ppe__addrow" wx:if="{{highlights.length < 3}}">
+      <input class="ppe__input" value="{{highlightInput}}" maxlength="30" placeholder="如：全程陪同不玩手机" bindinput="onHighlightInput" />
+      <button class="ppe__addbtn" bindtap="onAddHighlight">添加</button>
+    </view>
+  </view>
+
+  <button class="ppe__submit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" bindtap="onSubmit" disabled="{{submitting || auditStatus === 'pending'}}">
+    {{submitting ? '提交中…' : (auditStatus === 'pending' ? '审核中' : '提交审核')}}
+  </button>
+  <view class="ppe__safe">资料经平台审核后展示；禁止填写联系方式/链接，违者将影响信用分。</view>
+</view>

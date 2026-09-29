@@ -1,6 +1,6 @@
 // 对应 PRD 章节：PRD 3.6 标准化安全报备系统
 // safety-report 安全报备与紧急求助 · 身份取自 getWXContext().OPENID
-// 7 个 action:
+// 8 个 action(含 UGC 举报 report_user):
 //   sos               紧急求助:写 safety_report(active) + order_main.help_flag=true + platform_event(P0),返回本人紧急联系人
 //   silent_sos        静默求助:同 sos,另存 sub_type='silent'(可被发起人本人撤销)
 //   cancel_silent_sos 撤销静默求助:仅发起人本人且 sub_type='silent',active→cancelled + help_flag=false
@@ -134,8 +134,51 @@ exports.main = async (event, context) => {
   const { action } = event;
   log.d(`safety-report action=${action} openid=${openid}`);
 
-  if (['sos', 'silent_sos', 'cancel_silent_sos', 'resolve_sos', 'resolve', 'checkin', 'status'].indexOf(action) < 0) {
+  if (['sos', 'silent_sos', 'cancel_silent_sos', 'resolve_sos', 'resolve', 'checkin', 'status', 'report_user'].indexOf(action) < 0) {
     return { ok: false, code: 'sr_unknown_action', msg: '未知动作' };
+  }
+
+  // ───────── 0. UGC 举报(不绑定订单; 耍伴资料/动态等用户内容违规举报) ─────────
+  // 微信提审合规: UGC 功能必须提供举报入口; target_type=partner_profile 等
+  if (action === 'report_user') {
+    const now0 = Date.now();
+    const targetType = String(event.target_type || '');
+    const targetId = String(event.target_id || '').slice(0, 64);
+    const reason = String(event.reason || '').slice(0, 200);
+    const targetOpenid = String(event.target_openid || '').slice(0, 64);
+    if (['partner_profile', 'blog_post'].indexOf(targetType) < 0) {
+      return { ok: false, code: 'sr_bad_target', msg: '举报对象类型不正确' };
+    }
+    if (!targetId || !reason) return { ok: false, code: 'sr_report_missing', msg: '请填写举报原因' };
+    // 内容安全(复用现有 checkText)
+    const chk = await checkText(openid, reason);
+    if (!chk.pass) return { ok: false, code: 'sr_text_unsafe', msg: chk.reason };
+    // 幂等: 同人同对象未处理举报不重复建单(10 分钟内)
+    const dup = await col('safety_report').where({
+      reporter_openid: openid, target_type: targetType, target_id: targetId,
+      type: 'user_report', is_deleted: false,
+      created_at: _.gte(now0 - 10 * 60 * 1000)
+    }).limit(1).get();
+    if (dup.data && dup.data.length > 0) {
+      return { ok: true, data: { idempotent: true, report_id: dup.data[0]._id, msg: '已收到你的举报,平台会尽快处理' } };
+    }
+    const addR = await col('safety_report').add({ data: {
+      order_id: '', order_no: '',
+      reporter_openid: openid, reporter_role: 'user',
+      type: 'user_report', sub_type: targetType,
+      status: 'active',
+      target_type: targetType, target_id: targetId, target_openid: targetOpenid,
+      note: reason, location: null,
+      resolved_at: null, resolved_by: '',
+      created_at: now0, updated_at: now0, is_deleted: false
+    }});
+    await writeAudit(db, log, {
+      openid, role: 'user', category: 'security', action: 'user_report',
+      target_type: 'safety_report', target_id: addR._id,
+      detail: { target_type: targetType, target_id: targetId, target_openid: targetOpenid },
+      result: 'ok', client_ip: clientIp, device
+    });
+    return { ok: true, data: { report_id: addR._id, msg: '举报已提交,平台会尽快处理' } };
   }
 
   const { order_id } = event;

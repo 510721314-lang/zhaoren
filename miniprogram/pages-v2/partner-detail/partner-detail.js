@@ -216,6 +216,39 @@ Page({
     });
   },
 
+  // UGC 合规举报: 举报该耍伴资料(简介/技能/亮点), 云端 safety-report report_user
+  onReport() {
+    const p = this.data.partner;
+    if (!p || !p._id) {
+      wx.showToast({ title: '耍伴信息加载中，请稍后', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '举报该耍伴',
+      editable: true,
+      placeholderText: '请填写举报原因（如资料含联系方式、虚假信息）',
+      confirmText: '提交',
+      success: (res) => {
+        if (!res.confirm) return;
+        const reason = (res.content || '').trim();
+        if (!reason) {
+          wx.showToast({ title: '请填写举报原因', icon: 'none' });
+          return;
+        }
+        callCloud('safety-report', {
+          action: 'report_user',
+          target_type: 'partner_profile',
+          target_id: p._id,
+          target_openid: p.openid || '',
+          reason
+        }).then((r) => {
+          wx.showToast({ title: (r && r.data && r.data.msg) || '举报已提交', icon: 'none' });
+        });
+      },
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' })
+    });
+  },
+
   onInvite() {
     const openid = this.data.partner && this.data.partner.openid;
     if (!openid) return;

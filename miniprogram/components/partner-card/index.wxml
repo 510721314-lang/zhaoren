@@ -21,6 +21,9 @@
     <tag-chip type="scene" scene-code="{{item.code}}" wx:for="{{sceneList}}" wx:key="code" />
   </view>
 
+  <!-- 耍伴 bio(审核通过快照; 卡片只显示一行, 无内容不渲染) -->
+  <view class="pcard__bio" wx:if="{{normalized.bio}}">{{normalized.bio}}</view>
+
   <block wx:if="{{statsText}}">
     <view class="pcard__stats pcard__stats--dim">{{statsText}}</view>
   </block>

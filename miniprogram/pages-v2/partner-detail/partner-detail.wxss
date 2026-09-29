@@ -368,3 +368,9 @@
 .pd__blog-count { color: var(--brand-primary); font-weight: 700; }
 .pd__blog-sub { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
 .pd__blog-arrow { font-size: 36rpx; color: var(--text-3); }
+
+/* 耍伴资料三区块(审核通过快照) */
+.pd__profile-title { font-size: 30rpx; font-weight: 600; color: #1F2329; margin-bottom: 16rpx; }
+.pd__skills { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.pd__skill { background: #E8F5E9; color: #07C160; font-size: 26rpx; padding: 8rpx 20rpx; border-radius: 24rpx; }
+.pd__hl { font-size: 28rpx; color: #4E5969; line-height: 1.8; }

@@ -257,7 +257,9 @@ exports.main = async (event, context) => {
               avatar: u.avatar || '',
               city: (p.city && p.city[0]) || '',
               accept_scenes: p.accept_scenes || [],
-              partner_credit_score: u.partner_credit_score || 0
+              partner_credit_score: u.partner_credit_score || 0,
+              bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
+              skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || []
             };
             // 距离: 观看者(耍伴)home_location ↔ 目标耍伴home_location
             if (vPartner && vPartner.home) {
@@ -395,7 +397,10 @@ exports.main = async (event, context) => {
                 city: (p.city && p.city[0]) || '',
                 accept_scenes: p.accept_scenes || [],
                 partner_credit_score: u.partner_credit_score || 0,
-                certified_scenes: p.certified_scenes || []
+                certified_scenes: p.certified_scenes || [],
+                // 耍伴资料: 只读审核通过快照(fail-closed); 卡片只取 bio, 详情页另有 detail 接口给全量
+                bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
+                skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || []
               };
               // 距离: 观看者(耍伴)home_location ↔ 目标耍伴home_location, 与 nearby/广场需求同口径
               if (vp && vp.home) {

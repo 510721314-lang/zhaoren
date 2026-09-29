@@ -61,7 +61,27 @@
     <view class="pd__route-hint" wx:elif="{{locDenied}}">开启定位授权后，可查看距你的距离与到达耗时</view>
   </view>
 
-  <!-- T3 自我介绍 -->
+  <!-- T3 个人简介(审核通过快照; 无内容不渲染) -->
+  <view class="pd__card" wx:if="{{partner.bio}}">
+    <view class="pd__profile-title">个人简介</view>
+    <view class="pd__intro">{{partner.bio}}</view>
+  </view>
+
+  <!-- T3a 技能标签 -->
+  <view class="pd__card" wx:if="{{partner.skills && partner.skills.length > 0}}">
+    <view class="pd__profile-title">技能标签</view>
+    <view class="pd__skills">
+      <text class="pd__skill" wx:for="{{partner.skills}}" wx:key="*this">{{item}}</text>
+    </view>
+  </view>
+
+  <!-- T3b 服务亮点 -->
+  <view class="pd__card" wx:if="{{partner.service_highlights && partner.service_highlights.length > 0}}">
+    <view class="pd__profile-title">服务亮点</view>
+    <view class="pd__hl" wx:for="{{partner.service_highlights}}" wx:key="*this">✦ {{item}}</view>
+  </view>
+
+  <!-- T3c 自我介绍 -->
   <view class="pd__card">
     <view class="pd__fold-header" bindtap="toggleExpand">
       <text class="pd__fold-title">服务介绍</text>
@@ -118,6 +138,7 @@
 
   <!-- T5 底部栏 -->
   <view class="pd__bottom">
+    <button class="pd__btn pd__btn--ghost" bindtap="onReport" hover-class="btn-press">🛟 举报</button>
     <button class="pd__btn pd__btn--ghost" bindtap="onConsult" hover-class="btn-press">💬 咨询</button>
     <button class="pd__btn pd__btn--primary" bindtap="onInvite" hover-class="btn-press">邀TA帮忙</button>
   </view>
