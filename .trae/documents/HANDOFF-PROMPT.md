@@ -13,39 +13,39 @@
 这是跨账号/跨任务的严谨工作衔接，衔接质量直接决定项目进度，请先完整只读吸收以下材料后再回应，不要直接改任何东西。
 
 【第一步 · 必读吸收】
-1. c:\Users\DC\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀。**特别阅读 §9 多轮任务经验沉淀（§9.9 为本会话 2026-09-28 经验：tcb CLI 直调/负向测试秒级化/zz- 三坑/遮蔽 bug 纪律/密钥轮换三查）——即使读不到项目记忆，也能从此节获取全部经验**。本机项目在 `c:\Users\DC\Desktop\zhaoren`（旧记账用的 Administrator 路径已废弃）
+1. c:\Users\DC\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀。**特别阅读 §9 多轮任务经验沉淀（§9.9 2026-09-28 经验：tcb CLI 直调/负向测试秒级化/zz- 三坑/遮蔽 bug 纪律/密钥轮换三查；§9.10 2026-09-29 经验：配置回正/P0-2 安全/6 项功能交付/tcb dump 语法/备份基线）——即使读不到项目记忆，也能从此节获取全部经验**。本机项目在 `c:\Users\DC\Desktop\zhaoren`（旧记账用的 Administrator 路径已废弃）
 2. c:\Users\DC\Desktop\zhaoren\.trae\rules.md 第九章（产品战略铁律 + 提审前必跑清单）
 3. c:\Users\DC\Desktop\zhaoren\.trae\skills\zhaoren-audit\SKILL.md（审计只报告不修码）
-4. 【可选】项目记忆：c:\Users\DC\.trae-cn\memory\projects\-c-Users-DC-Desktop-zhaoren--p2-a4956b0653f77d53625f\project_memory.md（含 2026-09-28 全量经验/能力基线）
+4. 【可选】项目记忆：c:\Users\DC\.trae-cn\memory\projects\-c-Users-DC-Desktop-zhaoren--p2-a4956b0653f77d53625f\project_memory.md（含 2026-09-28/29 全量经验/能力基线；含「衔接提示词完整性检查清单」章节）
 
 【第二步】按 zhaoren-audit skill 输出「方向校准自检」：规则来源/当前 Phase/进度/本会话计划/禁止偏离提醒。等用户确认后再动工。
 
 【环境配置】
 - 项目根目录：c:\Users\DC\Desktop\zhaoren；纯原生微信小程序 + 微信云开发（云函数 wx-server-sdk）
 - 页面：miniprogram/pages-v2/（index、square、demand-detail、chat、pay、order-detail、evaluate、profile、partner-apply、notices、message）
-- 云函数：cloudfunctions/（im-conv、im-send、order-action、order-timer、payment-mock、demand、admin-action 等 18 个）
+- 云函数：cloudfunctions/（im-conv、im-send、order-action、order-timer、payment-mock、demand、blog-action、admin-action 等 18 个）
 - 配置：miniprogram/config/index.js、enums.js；样式 SSOT：miniprogram/styles/tokens.wxss（绿色主题，页面禁硬编码色值）
 - 部署门禁：云函数必须走 .trae/predeploy.ps1，逐个单独部署（禁串行）；新建临时函数需 package.json + zz- 注册 + 白名单临时加入；**新建函数的 remote-npm-install 不可靠时，本地 npm install 后不带 -r 上传 node_modules**
 - 静态验证：.trae/scripts/scan-miniprogram.ps1；改代码先 node --check
 - 备份三通道：GitHub push（git -c http.proxy= 绕过失效代理）+ git bundle + robocopy
-- **云端读写（本会话已打通）**：tcb CLI 已登录 cloud1 直读直写 —— 调用方式必须 `node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>`（.ps1 包装器被 PS 执行策略挡，勿直接 `tcb`）；NoSQL 命令 JSON 用 node 脚本 execSync 传参（PS5 内联必炸）；cloud1 环境 ID `cloud1-d9gkefwcp5c777088`；腾讯云 SCF 官网控制台是其他环境（st_forbidden），勿用
+- **云端读写（已打通）**：tcb CLI 已登录 cloud1 直读直写 —— 调用方式必须 `node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>`（.ps1 包装器被 PS 执行策略挡，勿直接 `tcb`）；NoSQL 命令 JSON 用 node 脚本 execSync 传参（PS5 内联必炸）；cloud1 环境 ID `cloud1-d9gkefwcp5c777088`；腾讯云 SCF 官网控制台是其他环境（st_forbidden），勿用；**`fn invoke` 用 `-e`，`db nosql execute`/`db nosql dump` 用 `--envId`（参数风格不同）；`db nosql dump` 产物为 NDJSON 行格式（文件名带时间戳前缀）**
 
 【当前工作状态】
-- **提审就绪度 8/8 全达标（2026-09-28 收官）**：Phase0/规则10-16 全过 + 规则15 正向✅负向 9/9；***待办 1-8 已全部完成**（负向收尾 / msgSecCheck / N8b 清理 / 备份 / 终审 / 密钥轮换 / W9 真机 / ORD 反查 bug）——详见 HANDOFF §5
-- 环境事实：真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl，交接单曾誊写 VF)；**tcb CLI 已打通 cloud1 直读直写**（node 直调 bin/tcb）；云端测试面板仍可用（env=dev mock 放行）
-- 13 个 accepted tag 全在；HEAD=`8937ea0` 已 push GitHub；bundle `zhaoren_v0.10.7_20260928.bundle` 已建 verify ok；工作区仅历史 seed 文档+tmp 产物未跟踪
-- W9 已真机发布验收通过（pet_authorization 手写签名留证）；admin-web 公网可访问（serveStatic 版）
+- **提审就绪度 8/8 全达标（2026-09-28 收官）+ 2026-09-29 会话增收**：配置回正/auto_approve_partner 已 false、P0-2 安全遗留 4 项完成、6 项功能交付（订单分页倒序/多打赏/工作台/订单三行概要/耍伴动态入口）+ 三重备份通过
+- **最新 HEAD：本地=`6b0d1b3`**（GitHub 已同步至 `16b909f`，业务代码全同步）；`6b0d1b3`（HANDOFF 文档）本地已 commit + 入 bundle/热备，**仅 GitHub 未推**（网络时断，恢复后 `git -c http.proxy= push origin master` 补推）；bundle `zhaoren_v0.11.0_20260929.bundle`（verify ok + clone HEAD 一致）；robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）
+- 环境事实：真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl，曾誊写 VF)；tcb CLI 打通 cloud1 直读直写（node 直调 bin/tcb）；云端测试面板仍可用（env=dev mock 放行）
+- 13 个 accepted tag 全在；W9 已真机发布验收通过；admin-web 公网可访问（serveStatic 版）
 - 密钥已轮换（admin_web_key/idcard_aes_key 新值仅用户持有，勿再粘贴会话）；git push 网络时通时断
 
 【待办（按优先级，非阻塞长尾）】
-1. **提审前配置回正**（HANDOFF §9.8/9.5 遗留）：`auto_approve_partner` 线上仍 true（违反硬规则 prod 必须 false）；`rate_min/max`、`legal_disclaimer_text` 占位等配置项复核回正——**建议下一会话优先**（CLI 可查可改）
-2. [长尾9] F10 dev-only 打赏入口 + payment-mock prod 闸门（C3 翻转 `if(false && env==='prod')` 待决策恢复 fail-closed）
-3. [长尾9] W1 提审挂类目资质（mp.weixin.qq.com 运营动作，AI 不可代做）
-4. [长尾9] 种子需求演示数据（CLI 可造；现 6 条 matching 可能够演示）
-5. [长尾9] admin-action dispute 真机联调（complaint→S10.5→人工处理）
-6. [长尾9] wallet 极速提现刷新（拉新后是否未刷新，待核查）
-7. [长尾9] backup.ps1 AdminKey 传参核验
-8. 【安全遗留】admin-web bootstrap 硬编码 openid / notice_read 归属 / aa_record 上限 / isMockAdmin 上线前删除
+1. **补推 `6b0d1b3` 到 GitHub**（网络恢复后 `git -c http.proxy= push origin master`；本地/备份已安全）
+2. [长尾] backup.ps1 AdminKey 通道补跑（`.\backup.ps1 -AdminKey <key>`；云端备份已用 tcb CLI 通道替代完成）
+3. [长尾] W1 提审挂类目资质（mp.weixin.qq.com 运营动作，AI 不可代做）
+4. [长尾] 种子需求演示数据核对（CLI 可查；现 6 条 matching 可能够演示）
+5. [长尾] admin-action dispute 真机联调（complaint→S10.5→人工处理）
+6. [长尾] wallet 极速提现刷新（拉新后是否未刷新，待核查）
+7. [核查项] 提审前 `admin_config.env` 切 `prod`（届时 mock_openid/打赏入口自动 fail-closed；切前需用户确认）
+8. [复检项] 本会话新功能真机回归：打赏入口/多打赏列表/订单分页/工作台/订单三行概要/耍伴动态入口（微信开发者工具双身份走一遍）
 9. 【2026-09-28 产品拍板·公益冻结基线】公益整体暂缓：后台默认关闭(welfare_switch=false)+前端不显示+服务端 fail-closed，禁止按 PRD §1.5 开建
 10. 【提审后功能库】③技能维护 ④地图周边 ⑤到达打卡——完整设计（含专家修正）见 `.trae/documents/features-post-launch.md`
 
@@ -68,6 +68,8 @@
 - 微信 <button> 有内置 min-width，需外层 view 定宽 + 内层 button 透明或强制 min-width/max-width:100%
 - 通知去重合并：同收件人+订单+type 未读覆盖更新；confirm_item 用 confirm:{item} 区分四项
 - 订单概要统一格式：结构化三行 9 字段（单号·场景含子场景全量·金额·时长·人数 / 时间 / 📍地址不截断·AA），order-action/im-conv 两处 buildOrderSummary 保持一致
+- 云端 status 字面量用点号 S3.5/S10.5（前端 normalizeStatus 转下划线）；my_orders/filter 匹配须用点号
+- 前端无 env 感知：能力开关由 config_public 下发派生布尔（tip_enabled 等），经 bootstrap CLOUD_MAP 写入 CONFIG，fail-closed 兜底
 - PowerShell 5 不支持 &&，用 ; 分隔；git push 可加 -c http.proxy= 绕过失效代理
 
 【经验沉淀机制（强制执行）】
@@ -82,8 +84,9 @@
 ## 补充叮嘱（不粘贴给新任务，给你自己）
 - 每次刷新本提示词后，必须跑「衔接提示词完整性检查清单」（7 维度 + 10 关键术语反向 Grep + 出包三处一致/git 入库）。
 - 审计 8/8 已收官（2026-09-28），别再重跑已过项；审计阶段只报告不修码（例外：高危安全修复经用户确认后可改）。
-- 13 个 accepted tag 全在；HEAD=8937ea0 已 push；数据库写操作（造种子数据/清理）可用 tcb CLI 直读写（node 直调），但仍守「用户确认才动业务数据」。
+- 13 个 accepted tag 全在；HEAD 本地=`6b0d1b3`（GitHub=`16b909f`，`6b0d1b3` 待网络恢复补推）；数据库写操作（造种子数据/清理）可用 tcb CLI 直读写（node 直调），但仍守「用户确认才动业务数据」。
 - 新账号若读不到记忆/文档（权限/磁盘差异），把本文件「衔接提示词」节人工贴入。
-- 提审前必复核：auto_approve_partner=false、配置回正、测试账号清理；W9 已发布验收通过。
-- 云端通道：tcb CLI 直调 cloud1（node 直调 bin/tcb；NoSQL JSON 用 node execSync）；腾讯云 SCF 官网控制台（st_forbidden）勿用；云端测试面板 env=dev mock 可用。
+- 提审前必复核：auto_approve_partner=false ✅、配置回正 ✅、测试账号清理、env 切 prod；W9 已发布验收通过。
+- 云端通道：tcb CLI 直调 cloud1（node 直调 bin/tcb；NoSQL JSON 用 node execSync；fn invoke 用 -e，db nosql 用 --envId；db nosql dump --output-dir）；腾讯云 SCF 官网控制台（st_forbidden）勿用；云端测试面板 env=dev mock 可用。
 - 密钥已轮换（admin_web_key/idcard_aes_key 新值仅用户持有）；提醒用户勿再粘贴完整 admin_config/密钥。
+- 备份基线 2026-09-29：bundle v0.11.0 + robocopy 热备已含最新 HEAD；backup.ps1 AdminKey 通道待用户用密钥补跑。

@@ -159,3 +159,12 @@
 - **运维环境误入识别**：腾讯云官网 SCF 控制台的 order-timer 是其他环境同名函数（返回 `st_forbidden`，本项目无此码）→ 出现即看错控制台，cloud1 一律走微信开发者工具内置控制台或 tcb CLI
 - **W9 真机验收四证**：cloud1 查 demand.pet_auth_signed=true + disclaimer_signature.kind=pet_authorization + agree_type/verify_method=handwritten + signature_hash(SHA-256)/signature_size
 - **openid 反向核对**：交接单曾把 Vl 誊写成 VF（F/l 混淆）→ 首次使用任何 openid 先用 quick_check/order-timer 实测放行再依赖
+
+### 9.10 2026-09-29 经验（配置回正 + P0-2 安全 + 6 项功能交付 + 三重备份 · 与项目记忆同步）
+- **提审前配置回正**（7a351f9/65d6d4e）：①admin_config `auto_approve_partner:true→false`（硬规则 prod 必须 false）、`modify_config.confirmHours:24→2`（与前端 MODIFY 对齐）②前端 `PARTNER_ACCEPT.rateMinFen/MaxFen 3000/10000→1000/50000`、`defaultSceneRateFen 5000→10000` 跟随云端——**改前端 config 前先 `choke` 云端实测 config_public 直出**；rate 边界/默认时薪/城市口径均用户拍板
+- **P0-2 安全遗留 4 项**（267deb3）：①admin-web bootstrap 硬编码 openid → `adminOpenid`（取 admin_openids[0]，空则拒 no_admin_openid）②order-action notice_read 单条归属校验（`where({_id,to_openid,read:false})`，不匹配静默 ok 防枚举）③aa_record 防滥用上限（admin-action CONFIG_SCHEMA 3 字段后台可配 + payment-mock 读取校验）④isMockAdmin 保留（dev 云端测试需要；仅提审核查 env=prod）
+- **6 项功能交付**（16b909f 已 push）：①订单列表双身份分页倒序（my_orders 加 filter/page/page_size/created_at desc/has_more；**云端 status 字面量点号 S3.5/S10.5** 7b91c85）②打赏多条目按序+时间戳（notice_poll 返 list + tipNotices[] 递增去重 221f9ab）③工作台改造（耍伴状态名全量中文复用 ORDER_STATUS + 用户工作台改 my_demands 最近3需求，**my_demands 需补 scene_name/location 字段** 9ce8ee5）④backup.ps1 PROJECT_DIR 改 PSScriptRoot 推导（99fbca1）⑤订单详情信息卡改消息页同款三行概要（detail 补 order_summary 复用 buildOrderSummary → 与 my_convs 同源 6d9b648）⑥耍伴详情「动态 N 条·最新更新」入口→blog author 模式（author_home 补 last_post_at + blog.js scope=author 透传 author_openid 16b909f）
+- **前端无 env 感知的通用解法**：能力开关（如打赏 dev-only）由 config_public 下发**派生布尔**（`payment.tip_enabled = env==='dev'`）经 bootstrap CLOUD_MAP 写入 CONFIG——不暴露 env 原值（config_public 白名单红线），fail-closed 兜底 false
+- **tcb CLI 云端备份语法**：`tcb db nosql dump`（**不是** `tcb db dump`）参数 `--file-type json --output-dir <dir> --envId`，产物 **NDJSON 行格式**（每行一条文档，文件名 `database_export-{env}-{col}-{ts}.json`）；`fn invoke` 用 `-e`（db nosql execute 用 `--envId`）——**两命令参数风格不同**
+- **三重备份基线（2026-09-29 全过）**：GitHub push 至 `16b909f`（ahead=0）✅ + bundle `zhaoren_v0.11.0_20260929.bundle`（verify is okay + clone 501 文件 + HEAD/tag 35 一致）✅ + robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）✅ + 云端 DB tcb 直导 7 集合 ✅；**backup.ps1 的 AdminKey 通道待用户用密钥补跑**（密钥不硬编码符合红线）
+- **backup.ps1 修复**：`$PROJECT_DIR` 必须从 `$PSScriptRoot` 推导（.predeploy/ 上级=项目根），不硬编码绝对路径（跨机器/账号迁移即失效）；restore.ps1 已为 DC 路径正常
