@@ -11,6 +11,18 @@ const { writeAudit } = require('./audit');
 
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 耍伴信用等级映射(SSOT 与 miniprogram/config/enums.js CREDIT_LEVEL 一致)
+const CREDIT_LEVELS = [
+  { level: 'L1', min: 600, max: 799 },
+  { level: 'L2', min: 800, max: 899 },
+  { level: 'L3', min: 900, max: 949 },
+  { level: 'L4', min: 950, max: 1000 }
+];
+function creditLevelOf(score) {
+  if (!Number.isFinite(score)) return 'L1';
+  const lv = CREDIT_LEVELS.find((l) => score >= l.min && score <= l.max);
+  return lv ? lv.level : 'L1';
+}
 // 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
 let _sceneCodesCache = null;
@@ -536,13 +548,15 @@ exports.main = async (event, context) => {
       if (!r.data || !r.data[0]) return { ok: false, code: 'pa_not_found', msg: '耍伴不存在或未认证' };
       const p = r.data[0];
 
-      // 拉 user_account 拿昵称头像
-      let nickname = p.nickname || '微信用户', avatar = '';
+      // 拉 user_account 拿昵称头像 + 动态信用分(partner_credit_score 为真值源)
+      let nickname = p.nickname || '微信用户', avatar = '', creditScore = 800;
       try {
         const ua = await col('user_account').where({ openid: partner_openid }).limit(1).get();
         if (ua.data && ua.data[0]) {
           nickname = ua.data[0].nickname || nickname;
           avatar = ua.data[0].avatar || '';
+          const cs = Number(ua.data[0].partner_credit_score);
+          if (Number.isFinite(cs) && cs > 0) creditScore = cs;
         }
       } catch (e) {}
 
@@ -580,8 +594,8 @@ exports.main = async (event, context) => {
               name: p.home_location.name || '',
               address: p.home_location.address || ''
             } : null,
-            score: p.score || 0,
-            level: p.level || 'L1',
+            score: creditScore,
+            level: creditLevelOf(creditScore),
             accept_switch: p.accept_switch !== false,
             real_name_verified: !!p.real_name_verified,
             face_verified: !!p.face_verified,
