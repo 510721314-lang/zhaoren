@@ -32,13 +32,13 @@
 
 【当前工作状态】
 - **提审就绪度 8/8 全达标（2026-09-28 收官）+ 2026-09-29 会话增收**：配置回正/auto_approve_partner 已 false、P0-2 安全遗留 4 项完成、6 项功能交付（订单分页倒序/多打赏/工作台/订单三行概要/耍伴动态入口）+ 三重备份通过
-- **最新 HEAD：本地=`f1faf38`**（GitHub 已同步至 `16b909f`，业务代码全同步）；**未推 2 个文档 commit**：`6b0d1b3`（HANDOFF 备份基线）+ `f1faf38`（HANDOFF §9.10 + 本提示词刷新）——网络恢复后 `git -c http.proxy= push origin master` 一并补推；bundle `zhaoren_v0.11.0_20260929.bundle`（verify ok + clone HEAD 一致）；robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）
+- **最新 HEAD：本地=`54427bc`**（业务代码已全量 GitHub 同步至 `16b909f`）；**未推 commit = 最近 3 个文档 commit（`6b0d1b3`/`f1faf38`/`54427bc`，均为 .trae/docs 文档，无业务代码）——网络恢复后 `git -c http.proxy= push origin master` 一并补推；请以 `git log origin/master..HEAD` 实际输出为准**；bundle `zhaoren_v0.11.0_20260929.bundle`（verify ok + clone HEAD 一致）；robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）
 - 环境事实：真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl，曾誊写 VF)；tcb CLI 打通 cloud1 直读直写（node 直调 bin/tcb）；云端测试面板仍可用（env=dev mock 放行）
 - 13 个 accepted tag 全在；W9 已真机发布验收通过；admin-web 公网可访问（serveStatic 版）
 - 密钥已轮换（admin_web_key/idcard_aes_key 新值仅用户持有，勿再粘贴会话）；git push 网络时通时断
 
 【待办（按优先级，非阻塞长尾）】
-1. **补推 2 个文档 commit 到 GitHub**（`6b0d1b3`+`f1faf38`；网络恢复后 `git -c http.proxy= push origin master`；本地/备份已安全）
+1. **补推文档 commit 到 GitHub**（网络恢复后 `git -c http.proxy= push origin master`，数量以 `git log origin/master..HEAD` 为准；本地/备份已安全）
 2. [长尾] backup.ps1 AdminKey 通道补跑（`.\backup.ps1 -AdminKey <key>`；云端备份已用 tcb CLI 通道替代完成）
 3. [长尾] W1 提审挂类目资质（mp.weixin.qq.com 运营动作，AI 不可代做）
 4. [长尾] 种子需求演示数据核对（CLI 可查；现 6 条 matching 可能够演示）
@@ -84,7 +84,7 @@
 ## 补充叮嘱（不粘贴给新任务，给你自己）
 - 每次刷新本提示词后，必须跑「衔接提示词完整性检查清单」（7 维度 + 10 关键术语反向 Grep + 出包三处一致/git 入库）。
 - 审计 8/8 已收官（2026-09-28），别再重跑已过项；审计阶段只报告不修码（例外：高危安全修复经用户确认后可改）。
-- 13 个 accepted tag 全在；HEAD 本地=`6b0d1b3`（GitHub=`16b909f`，`6b0d1b3` 待网络恢复补推）；数据库写操作（造种子数据/清理）可用 tcb CLI 直读写（node 直调），但仍守「用户确认才动业务数据」。
+- 13 个 accepted tag 全在；HEAD 本地=`54427bc`（GitHub 已同步至业务 `16b909f`，未推最近 3 个 docs commit 以 `git log origin/master..HEAD` 为准）；数据库写操作（造种子数据/清理）可用 tcb CLI 直读写（node 直调），但仍守「用户确认才动业务数据」。
 - 新账号若读不到记忆/文档（权限/磁盘差异），把本文件「衔接提示词」节人工贴入。
 - 提审前必复核：auto_approve_partner=false ✅、配置回正 ✅、测试账号清理、env 切 prod；W9 已发布验收通过。
 - 云端通道：tcb CLI 直调 cloud1（node 直调 bin/tcb；NoSQL JSON 用 node execSync；fn invoke 用 -e，db nosql 用 --envId；db nosql dump --output-dir）；腾讯云 SCF 官网控制台（st_forbidden）勿用；云端测试面板 env=dev mock 可用。
