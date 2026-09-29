@@ -203,6 +203,9 @@ exports.main = async (event, context) => {
 
       // ───────── 首页概览(一次返回四块) ─────────
       case 'overview': {
+        // 观看者(耍伴)身份: 供耍伴推荐卡计算距离(与 square/nearby 同口径)
+        const vOpenid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
+        const vPartner = await loadVisitorPartner(vOpenid);
         // 4 个独立查询并行执行(原串行 250-500ms → 并行 ~100ms)
         const [blogR, demandR, userR, partnerR] = await Promise.all([
           col('blog_post')
@@ -248,7 +251,7 @@ exports.main = async (event, context) => {
         const partnerList = (partnerR.data || [])
           .map((p) => {
             const u = partnerUserMap[p.openid] || {};
-            return {
+            const item = {
               openid: p.openid,
               nickname: u.nickname || '耍伴',
               avatar: u.avatar || '',
@@ -256,6 +259,15 @@ exports.main = async (event, context) => {
               accept_scenes: p.accept_scenes || [],
               partner_credit_score: u.partner_credit_score || 0
             };
+            // 距离: 观看者(耍伴)home_location ↔ 目标耍伴home_location
+            if (vPartner && vPartner.home) {
+              const hl = p.home_location || {};
+              const lat = Number(hl.latitude), lng = Number(hl.longitude);
+              if (isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0) {
+                item.distance_km = Math.round(haversineKm(vPartner.home.lat, vPartner.home.lng, lat, lng) * 10) / 10;
+              }
+            }
+            return item;
           })
           .sort((a, b) => b.partner_credit_score - a.partner_credit_score)
           .slice(0, 5);
@@ -376,7 +388,7 @@ exports.main = async (event, context) => {
             .map((p) => {
               const u = partnerUserMap[p.openid] || {};
               const avatar = (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '';
-              return {
+              const item = {
                 openid: p.openid,
                 nickname: u.nickname || '耍伴',
                 avatar,
@@ -385,6 +397,15 @@ exports.main = async (event, context) => {
                 partner_credit_score: u.partner_credit_score || 0,
                 certified_scenes: p.certified_scenes || []
               };
+              // 距离: 观看者(耍伴)home_location ↔ 目标耍伴home_location, 与 nearby/广场需求同口径
+              if (vp && vp.home) {
+                const hl = p.home_location || {};
+                const lat = Number(hl.latitude), lng = Number(hl.longitude);
+                if (isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0) {
+                  item.distance_km = Math.round(haversineKm(vp.home.lat, vp.home.lng, lat, lng) * 10) / 10;
+                }
+              }
+              return item;
             })
             .filter((p) => !!p.openid)
             .sort((a, b) => b.partner_credit_score - a.partner_credit_score);
