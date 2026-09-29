@@ -42,9 +42,23 @@ async function getSceneCodes() {
   }
 }
 
-// 腾讯地图 WebService Key（服务端路线规划调用；失败时降级直线估算）
-const TENCENT_MAP_KEY = 'I2DBZ-2RJCC-7RC2K-ACPMG-35LBF-LUB3D';
+// 腾讯地图 WebService Key: 运行时从 admin_config.tencent_map_key 读取(安全基线: 密钥不硬编码)
+// 读取失败/未配置时返回空串, 路线规划降级直线估算(fail-closed); 模块级缓存 5 分钟
 const ROUTE_TIMEOUT_MS = 3500;
+let _cachedMapKey = null;
+let _mapKeyCacheUntil = 0;
+async function getTencentMapKey() {
+  const now = Date.now();
+  if (_cachedMapKey !== null && now < _mapKeyCacheUntil) return _cachedMapKey;
+  try {
+    const r = await col('admin_config').doc('global').get();
+    _cachedMapKey = (r.data && r.data.tencent_map_key) || '';
+  } catch (e) {
+    _cachedMapKey = ''; // fail-closed: 读不到按未配置处理, 走估算降级
+  }
+  _mapKeyCacheUntil = now + 5 * 60 * 1000;
+  return _cachedMapKey;
+}
 
 // 耍伴日常位置清洗(wx.chooseLocation gcj02 坐标; 中国范围粗校验防脏数据)
 function sanitizeHomeLocation(loc) {
@@ -113,11 +127,11 @@ function httpsGetJson(url) {
 }
 
 // 腾讯路线规划: mode=driving/transit/bicycling, 坐标 lat,lng(gcj02); 返回 {distance_m, minutes}
-async function fetchTencentRoute(mode, from, to) {
+async function fetchTencentRoute(mode, from, to, mapKey) {
   const url = 'https://apis.map.qq.com/ws/direction/v1/' + mode +
     '/?from=' + from.lat + ',' + from.lng +
     '&to=' + to.lat + ',' + to.lng +
-    '&key=' + encodeURIComponent(TENCENT_MAP_KEY);
+    '&key=' + encodeURIComponent(mapKey);
   const j = await httpsGetJson(url);
   const route = j && j.result && j.result.routes && j.result.routes[0];
   if (j.status !== 0 || !route) throw new Error('map_status_' + (j && j.status));
@@ -630,13 +644,14 @@ exports.main = async (event, context) => {
       const to = { lat: myLat, lng: myLng };
       const straightM = Math.round(haversineMeters(h.latitude, h.longitude, myLat, myLng));
 
+      const mapKey = await getTencentMapKey();
       const modeDefs = [['drive', 'driving'], ['transit', 'transit'], ['bike', 'bicycling']];
       const results = await Promise.all(modeDefs.map(async ([key, mode]) => {
-        if (!TENCENT_MAP_KEY) {
+        if (!mapKey) {
           return { key, minutes: estimateMinutes(key, straightM), source: 'estimate', distance_m: null };
         }
         try {
-          const rr = await fetchTencentRoute(mode, from, to);
+          const rr = await fetchTencentRoute(mode, from, to, mapKey);
           return { key, minutes: rr.minutes, source: 'tencent', distance_m: rr.distance_m };
         } catch (e) {
           log.d(`route_plan ${mode} fail: ${e.message}`);

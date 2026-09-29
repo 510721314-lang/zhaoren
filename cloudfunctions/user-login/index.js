@@ -174,10 +174,13 @@ function safeUserDoc(u) {
 // ─────────────── 短信验证码 / 手机号解析辅助(模块级, 禁止放进 switch 内) ───────────────
 // 手机号 11 位校验
 const PHONE_RE = /^1\d{10}$/;
-// 生成 6 位数字验证码
+// 生成 6 位数字验证码(CSPRNG, 安全基线: 禁止 Math.random)
 function genSmsCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
+// 短信验证码防爆破: 连续失败 5 次锁定 10 分钟
+const SMS_MAX_FAIL = 5;
+const SMS_LOCK_MS = 10 * 60 * 1000;
 // 从前端入参拿到真实手机号: 路径A phone_code(getPhoneNumber 授权) / 路径B phone+sms_code(短信验证码)
 // callerOpenid 必须传 resolveOpenid 解析后的身份(不能内部取 wxCtx.OPENID, 否则 dev mock 链路断裂)
 async function resolvePhone(event, callerOpenid) {
@@ -199,6 +202,10 @@ async function resolvePhone(event, callerOpenid) {
       const r = await col('user_account').where({ openid: callerOpenid }).limit(1).get();
       const u = r.data && r.data.length > 0 ? r.data[0] : null;
       if (!u) return { ok: false, code: 'sms_no_user', msg: '请先获取验证码' };
+      // 防爆破锁定检查放最前(fail-closed: 锁定中一律拒绝, 提示明确)
+      if (u.sms_lock_until && u.sms_lock_until > Date.now()) {
+        return { ok: false, code: 'sms_locked', msg: '验证码错误次数过多,请10分钟后再试' };
+      }
       if (!u.sms_code || !u.sms_target || u.sms_target !== phone) {
         return { ok: false, code: 'sms_no_code', msg: '未发送验证码或手机号不匹配' };
       }
@@ -206,11 +213,19 @@ async function resolvePhone(event, callerOpenid) {
         return { ok: false, code: 'sms_expired', msg: '验证码已过期' };
       }
       if (u.sms_code !== sms_code) {
+        // 失败计数+1, 达上限锁定并作废验证码(防继续试)
+        const fails = (u.sms_fail_count || 0) + 1;
+        const patch = { sms_fail_count: fails, updated_at: Date.now() };
+        if (fails >= SMS_MAX_FAIL) {
+          patch.sms_lock_until = Date.now() + SMS_LOCK_MS;
+          patch.sms_code = ''; patch.sms_expire_at = 0; patch.sms_target = '';
+        }
+        await col('user_account').doc(u._id).update({ data: patch });
         return { ok: false, code: 'sms_wrong', msg: '验证码错误' };
       }
-      // 验证通过, 消耗验证码并写入手机号
+      // 验证通过, 消耗验证码、清零失败计数并写入手机号
       await col('user_account').doc(u._id).update({
-        data: { sms_code: '', sms_expire_at: 0, sms_target: '', phone, updated_at: Date.now() }
+        data: { sms_code: '', sms_expire_at: 0, sms_target: '', sms_fail_count: 0, sms_lock_until: 0, phone, updated_at: Date.now() }
       });
       return { ok: true, phone };
     } catch (e) {
@@ -671,11 +686,18 @@ exports.main = async (event, context) => {
     case 'send_sms_code': {
       const { phone } = event;
       if (!PHONE_RE.test(phone)) return { ok: false, code: 'phone_format', msg: '手机号格式有误' };
-      const code = genSmsCode();
-      const expireAt = Date.now() + 5 * 60 * 1000; // 5 分钟
       try {
         // 查 openid 下是否已有 user_account: 没有就建空壳(phone_register/login 会填充完整数据)
         let r = await col('user_account').where({ openid }).limit(1).get();
+        // 重发冷却 60s(安全基线: 防短信轰炸/刷码); 以 sms_expire_at 倒推上次发送时间
+        if (r.data && r.data.length > 0) {
+          const lastSentAt = (r.data[0].sms_expire_at || 0) - 5 * 60 * 1000;
+          if (lastSentAt > 0 && Date.now() - lastSentAt < 60 * 1000) {
+            return { ok: false, code: 'sms_too_frequent', msg: '发送太频繁,请60秒后再试' };
+          }
+        }
+        const code = genSmsCode();
+        const expireAt = Date.now() + 5 * 60 * 1000; // 5 分钟
         let docId;
         if (r.data && r.data.length > 0) {
           docId = r.data[0]._id;
