@@ -1507,7 +1507,7 @@ exports.main = async (event, context) => {
           order_summary: buildOrderSummary({
             order_no: d.demand_no, scene: d.scene, content_options: d.content_options || (d.content_option ? [d.content_option] : []),
             total_fen: d.total_fen, duration_h: d.duration_h, headcount: d.headcount,
-            created_at: d.created_at, start_time: d.start_time, location: d.location || null
+            created_at: d.created_at, start_time: d.start_time, location: d.location || null, aa_tier: d.aa_tier
           })
         }));
       } catch (e) {
