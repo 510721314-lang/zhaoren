@@ -1503,7 +1503,12 @@ exports.main = async (event, context) => {
           duration_h: d.duration_h,
           total_fen: d.total_fen,
           status: 'PENDING',   // 前端映射为"待接单"
-          commute: null
+          commute: null,
+          order_summary: buildOrderSummary({
+            order_no: d.demand_no, scene: d.scene, content_options: d.content_options || (d.content_option ? [d.content_option] : []),
+            total_fen: d.total_fen, duration_h: d.duration_h, headcount: d.headcount,
+            created_at: d.created_at, start_time: d.start_time, location: d.location || null
+          })
         }));
       } catch (e) {
         log.d(`my_orders pending demands query fail: ${e.message}`);
@@ -1530,7 +1535,8 @@ exports.main = async (event, context) => {
         status: o.status,
         // 改期待确认红点: 订单处于 S2.5 且改期发起人不是当前查看者
         need_confirm: o.status === 'S2.5' && !!(o.pending_modify && o.pending_modify.by_openid !== openid),
-        commute: null
+        commute: null,
+        order_summary: buildOrderSummary(o)
       };
 
       // 计算到下一单的通勤(当前单结束 → 下一单开始)

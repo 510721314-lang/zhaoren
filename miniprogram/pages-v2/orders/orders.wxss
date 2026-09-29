@@ -102,6 +102,25 @@
 .ol__card-body {
   margin-top: 16rpx;
 }
+.ol__summary-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  padding: 12rpx 14rpx;
+  background: var(--bg-segment, rgba(0,0,0,0.03));
+  border-radius: 10rpx;
+}
+.ol__summary-l1 {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.6;
+}
+.ol__summary-line {
+  font-size: var(--font-xs);
+  color: var(--text-3);
+  line-height: 1.8;
+}
 .ol__row {
   font-size: var(--font-sm);
   color: var(--text-3);

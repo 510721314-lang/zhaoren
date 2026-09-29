@@ -43,9 +43,16 @@
         <text class="ol__status" style="color:{{item.status_color}};background:{{item.status_bg}};">{{item.status_name}}</text>
       </view>
       <view class="ol__card-body">
-        <view class="ol__row">📋 {{item.content_str}}</view>
-        <view class="ol__row">📍 {{item.location_name || '地点待确认'}}</view>
-        <view class="ol__row">🕐 {{item.time_str}}<text wx:if="{{item.duration_h}}"> · {{item.duration_h}}小时</text></view>
+        <view class="ol__summary-box" wx:if="{{item.order_summary && item.order_summary.l1}}">
+          <view class="ol__summary-l1">{{item.order_summary.l1}}</view>
+          <view class="ol__summary-line" wx:if="{{item.order_summary.l2}}">{{item.order_summary.l2}}</view>
+          <view class="ol__summary-line" wx:if="{{item.order_summary.l3}}">{{item.order_summary.l3}}</view>
+        </view>
+        <block wx:else>
+          <view class="ol__row">📋 {{item.content_str}}</view>
+          <view class="ol__row">📍 {{item.location_name || '地点待确认'}}</view>
+          <view class="ol__row">🕐 {{item.time_str}}<text wx:if="{{item.duration_h}}"> · {{item.duration_h}}小时</text></view>
+        </block>
       </view>
       <view class="ol__card-foot">
         <text class="ol__no">{{item.item_type === 'demand' ? '⏳ 等待耍伴接单，点击查看进展' : item.order_no}}</text>
