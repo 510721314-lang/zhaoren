@@ -13,15 +13,15 @@
 这是跨账号/跨任务的严谨工作衔接，衔接质量直接决定项目进度，请先完整只读吸收以下材料后再回应，不要直接改任何东西。
 
 【第一步 · 必读吸收】
-1. c:\Users\DC\Desktop\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀。**特别阅读 §9 多轮任务经验沉淀（§9.9 2026-09-28 经验：tcb CLI 直调/负向测试秒级化/zz- 三坑/遮蔽 bug 纪律/密钥轮换三查；§9.10 2026-09-29 经验：配置回正/P0-2 安全/6 项功能交付/tcb dump 语法/备份基线）——即使读不到项目记忆，也能从此节获取全部经验**。本机项目在 `c:\Users\DC\Desktop\zhaoren`（旧记账用的 Administrator 路径已废弃）
-2. c:\Users\DC\Desktop\zhaoren\.trae\rules.md 第九章（产品战略铁律 + 提审前必跑清单）
-3. c:\Users\DC\Desktop\zhaoren\.trae\skills\zhaoren-audit\SKILL.md（审计只报告不修码）
+1. C:\zhaoren\.trae\documents\HANDOFF.md —— 交接单：项目定位/技术栈/环境事实/已验收基线/待办/铁律/审计进度快照/经验沉淀。**特别阅读 §9 多轮任务经验沉淀（§9.9 2026-09-28 经验；§9.10 2026-09-29 经验；§9.11 双目录陷阱+防复发机制[重要]；§9.12 场景映射散落遗漏经验）——即使读不到项目记忆，也能从此节获取全部经验**。本机项目唯一工作目录 = `C:\zhaoren`（用户 2026-09-29 拍板；旧 `c:\Users\DC\Desktop\zhaoren` 为废弃副本勿操作；**新会话首条命令先做工作目录校验：Test-Path + git remote -v + project.config.json appid 三合一，见 §9.11**）
+2. C:\zhaoren\.trae\rules.md 第九章（产品战略铁律 + 提审前必跑清单）
+3. C:\zhaoren\.trae\skills\zhaoren-audit\SKILL.md（审计只报告不修码）
 4. 【可选】项目记忆：c:\Users\DC\.trae-cn\memory\projects\-c-Users-DC-Desktop-zhaoren--p2-a4956b0653f77d53625f\project_memory.md（含 2026-09-28/29 全量经验/能力基线；含「衔接提示词完整性检查清单」章节）
 
-【第二步】按 zhaoren-audit skill 输出「方向校准自检」：规则来源/当前 Phase/进度/本会话计划/禁止偏离提醒。等用户确认后再动工。
+【第二步】按 zhaoren-audit skill 输出「方向校准自检」：**先做第 0 步工作目录验证（见 §9.11）**，再输出规则来源/当前 Phase/进度/本会话计划/禁止偏离提醒。等用户确认后再动工。
 
 【环境配置】
-- 项目根目录：c:\Users\DC\Desktop\zhaoren；纯原生微信小程序 + 微信云开发（云函数 wx-server-sdk）
+- 项目根目录：**C:\zhaoren**（唯一工作目录）；纯原生微信小程序 + 微信云开发（云函数 wx-server-sdk）
 - 页面：miniprogram/pages-v2/（index、square、demand-detail、chat、pay、order-detail、evaluate、profile、partner-apply、notices、message）
 - 云函数：cloudfunctions/（im-conv、im-send、order-action、order-timer、payment-mock、demand、blog-action、admin-action 等 18 个）
 - 配置：miniprogram/config/index.js、enums.js；样式 SSOT：miniprogram/styles/tokens.wxss（绿色主题，页面禁硬编码色值）
@@ -31,11 +31,12 @@
 - **云端读写（已打通）**：tcb CLI 已登录 cloud1 直读直写 —— 调用方式必须 `node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>`（.ps1 包装器被 PS 执行策略挡，勿直接 `tcb`）；NoSQL 命令 JSON 用 node 脚本 execSync 传参（PS5 内联必炸）；cloud1 环境 ID `cloud1-d9gkefwcp5c777088`；腾讯云 SCF 官网控制台是其他环境（st_forbidden），勿用；**`fn invoke` 用 `-e`，`db nosql execute`/`db nosql dump` 用 `--envId`（参数风格不同）；`db nosql dump` 产物为 NDJSON 行格式（文件名带时间戳前缀）**
 
 【当前工作状态】
-- **提审就绪度 8/8 全达标（2026-09-28 收官）+ 2026-09-29 会话增收**：配置回正/auto_approve_partner 已 false、P0-2 安全遗留 4 项完成、6 项功能交付（订单分页倒序/多打赏/工作台/订单三行概要/耍伴动态入口）+ 三重备份通过
-- **最新 HEAD：本地=`54427bc`**（业务代码已全量 GitHub 同步至 `16b909f`）；**未推 commit = 最近 3 个文档 commit（`6b0d1b3`/`f1faf38`/`54427bc`，均为 .trae/docs 文档，无业务代码）——网络恢复后 `git -c http.proxy= push origin master` 一并补推；请以 `git log origin/master..HEAD` 实际输出为准**；bundle `zhaoren_v0.11.0_20260929.bundle`（verify ok + clone HEAD 一致）；robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）
-- 环境事实：真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl，曾誊写 VF)；tcb CLI 打通 cloud1 直读直写（node 直调 bin/tcb）；云端测试面板仍可用（env=dev mock 放行）
+- **提审就绪度高水位（2026-09-29 全会话）**：审计 8/8；信用分修复/订单三行概况/W4 场景映射/env=prod 均已部署；V1 种子需求 9 场景 matching 全覆盖；测试动态已发（点赞/评论链路云端 6/6 闭环验证）
+- **最新 HEAD：本地=`a5b9c34`→`fb6317c`**（GitHub 已同步至业务 `8a693be`，**待补推 `fb6317c`：网络恢复后 `git -c http.proxy= push origin master` 以 `git log origin/master..HEAD` 实际为准**）；工作目录 = C:\zhaoren（Desktop 副本废弃勿操作）
+- 环境事实：**`admin_config.env === 'prod'`（已切，mock_openid 全面 fail-closed）**；真实管理员/发单 openid = `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`(Vl)；tcb CLI 打通 cloud1 直读直写（node 直调 bin/tcb）
 - 13 个 accepted tag 全在；W9 已真机发布验收通过；admin-web 公网可访问（serveStatic 版）
 - 密钥已轮换（admin_web_key/idcard_aes_key 新值仅用户持有，勿再粘贴会话）；git push 网络时通时断
+- **上线前 P0-P1 清单见 HANDOFF §10（含规则 9-16 复检项）**
 
 【待办（按优先级，非阻塞长尾）】
 1. **补推文档 commit 到 GitHub**（网络恢复后 `git -c http.proxy= push origin master`，数量以 `git log origin/master..HEAD` 为准；本地/备份已安全）

@@ -13,14 +13,15 @@
 
 ## 1. 项目与技术栈
 - 微信原生小程序（WXML/WXSS/JS/JSON）+ 云开发 CloudBase（wx-server-sdk，Node18）
-- 路径 `c:\Users\Administrator\Desktop\zhaoren`；云环境 ID 唯一常量在 `miniprogram/envList.js`
+- 路径 `C:\zhaoren`（**唯一工作目录，用户拍板 2026-09-29**；旧 c:\Users\DC\Desktop\zhaoren 为废弃副本，勿操作）；云环境 ID 唯一常量在 `miniprogram/envList.js`
 - 业务：同城功能性陪伴服务撮合（非社交），成都首发；PRD V15 正式版
 - 21 个云函数 + 19 业务集合；9 个场景 W1/W2/W3/W4/W7/W8/W9/W10/W11 全开
 
 ## 2. 环境事实（本次已核验）
-- `admin_config.env === 'dev'`（quick_check 返过 dev）→ mock_openid 放行；prod 会 fail-closed
+- **DevTools 项目路径 = C:\zhaoren**（与 git 仓库路径一致；发现双目录事故后统一——见 §9.11）
+- `admin_config.env === 'prod'`（2026-09-29 已切换 ✅）→ mock_openid 全面 fail-closed；提审前最终复核一次
 - 云端测试面板 mock 发布者身份：发单人 A=`oLDJ73Yz_Yy_6yN5MrxhVFDTw9c`（真实存在于 user_account）
-- **challenge**：本机无 cloudbase CLI，无 computer-use/cloudbase MCP 挂载 → AI 无法自动读写云端，需用户配合云端测试面板 / 云数据库
+- **tcb CLI 已打通（2026-09-29 验证）**：`node "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" <cmd>` 可直调云端（fn invoke 用 `--env-id` + `-d @file`；db nosql execute 用 `--env-id` + `--command` 数组，spawnSync 传参避 shell 转义）
 - 部署：云函数改必须 `.trae/predeploy.ps1 -Deploy <单函数>`（单个串行，`--remote-npm-install`），禁串行
 - 静态验证：`.trae/scripts/scan-miniprogram.ps1`；miniprogram-automator 与 DevTools 不兼容勿重试
 
@@ -49,6 +50,11 @@
 12. 【2026-09-28 产品拍板·公益冻结基线】公益（公益需求/公益单/公益补贴结算）整体暂缓：代码零实现保持，禁止按 PRD §1.5 公益章节开建；将来实现须满足 后台默认关闭(welfare_switch=false)+前端不显示公益入口+服务端 fail-closed 拒绝公益发布。已同步记入项目记忆「硬性约束」
 13. 【提审后功能库·2026-09-28 已深化设计+专家复核】③耍伴技能维护 ④地图找周边(需求+耍伴,按场景/距离) ⑤到达履约点拍照打卡+发布者确认后开始履约——完整设计（含专家修正：③bio 依赖 msgSecCheck 基建、portfolio 限资质用途；④位置暴露审核高风险须隐私声明+home_location_public 可见性开关；⑤建议 arrival 并入 milestone step0 评估、order-timer 性能）见 `.trae/documents/features-post-launch.md`
 14. ~~[P0 提审前配置回正]~~ ✅ **已完成（2026-09-28，commit 7a351f9/65d6d4e）**：①admin_config `auto_approve_partner: true→false`（硬规则 prod 必须 false）、`modify_config.confirmHours: 24→2`（与前端 MODIFY 对齐）；②前端 config/index.js `PARTNER_ACCEPT.rateMinFen/MaxFen 3000/10000→1000/50000`、`defaultSceneRateFen 5000→10000` 跟随云端；③云端实测确认（tcb CLI 直调 admin-action config_public，`tip_enabled:true`、rate_range 1000/50000、confirmHours 2 直出）。**遗留**：`city_enabled=['成都','重庆']` 保留（用户确认）、`scene_default_rate_fen` 保持 10000（用户确认）
+15. ~~[2026-09-29 本会话新交付]~~ ✅ ①测试动态发布（blog-post `d83520e2...`）②点赞/评论链路云端 6/6（like 幂等/comment_add/list/delete/unlike）③动态入口 author_home 核实（真实 openid 返 post_count=5）④信用分修复（0c2655b，detail 改读 user_account.partner_credit_score + creditLevelOf 推导；3 账号实测 820/L2、746/L1、806/L2）⑤V1 种子需求补造（软删 8 条 expired 旧 seed 后重发 8 场景业务示例，9 场景 matching 全覆盖）⑥订单列表三行概况对齐消息页（fb03ee6/a5b9c34，my_orders 补 order_summary 复用 buildOrderSummary；PENDING 补 aa_tier）⑦env 切 prod + mock fail-closed 实测 ✅⑧W4 场景中文映射全仓修复（fb6317c，order/im-conv/im-send/payment-mock/home-action 五处 SCENE_NAME 补 W4）⑨双目录事故诊断与同步（bundle 通道同步 C:\zhaoren → a5b9c34，见 §9.11）
+16. 【待推】GitHub push 补推 `fb6317c`（2026-09-29 网络代理重置未成功；网络恢复后 `git -C c:\zhaoren -c http.proxy= push origin master`）
+17. 【长尾】dispute/wallet 真机联调（数据已就绪：S10.5×3 + withdraw_record 8+1；待用户真机操作）
+18. 【长尾】DevTools 真机调试冲突 `remote debug instance already exists`（多种常规方法无效，挂起后续处理；可用模拟器/预览替代验证）
+19. 【提审前 P0-P1 清单见 §10】
 
 ## 5.6 P0-2 安全遗留 4 项 ✅（2026-09-28 完成，commit 267deb3 已部署）
 - **① admin-web bootstrap 硬编码 openid 清除**：admin-web/index.js L208-217/L224 两处 `'oLDJ...'` 硬编码 → 改 `adminOpenid`（取 admin_openids[0]，空则拒 `no_admin_openid`）；不再留死兜底
@@ -168,3 +174,49 @@
 - **tcb CLI 云端备份语法**：`tcb db nosql dump`（**不是** `tcb db dump`）参数 `--file-type json --output-dir <dir> --envId`，产物 **NDJSON 行格式**（每行一条文档，文件名 `database_export-{env}-{col}-{ts}.json`）；`fn invoke` 用 `-e`（db nosql execute 用 `--envId`）——**两命令参数风格不同**
 - **三重备份基线（2026-09-29 全过）**：GitHub push 至 `16b909f`（ahead=0）✅ + bundle `zhaoren_v0.11.0_20260929.bundle`（verify is okay + clone 501 文件 + HEAD/tag 35 一致）✅ + robocopy 热备 `zhaoren_backup_20260929`（SHA256 509 文件 diff=0）✅ + 云端 DB tcb 直导 7 集合 ✅；**backup.ps1 的 AdminKey 通道待用户用密钥补跑**（密钥不硬编码符合红线）
 - **backup.ps1 修复**：`$PROJECT_DIR` 必须从 `$PSScriptRoot` 推导（.predeploy/ 上级=项目根），不硬编码绝对路径（跨机器/账号迁移即失效）；restore.ps1 已为 DC 路径正常
+
+### 9.11 2026-09-29 双目录陷阱经验（专家审核后沉淀 · 重要）
+- **根因链条**：HANDOFF 记载路径（c:\Users\DC\Desktop\zhaoren）与开发者工具实际打开路径（C:\zhaoren）不一致 → 所有代码改在「非 DevTools 编译目录」→ 前端样式修复假性失败多轮后方被发现。同一 GitHub 仓库**双克隆**（不同路径），git 状态相似（同 remote/近 HEAD）常规检查无法发现差异。
+- **保障机制（新会话硬性执行）**：
+  ① 方向校准自检新增**第 0 步「工作目录验证」**：读取 `project.config.json` 的 appid/miniprogramRoot，确认与 DevTools 实际打开项目一致；不一致立即向用户确认实际路径后再动工
+  ② 每会话首条 Shell 命令执行「`Test-Path` + `git remote -v` + project.config.json appid」三合一校验，三要素全过才继续
+  ③ HANDOFF §2 环境事实新增「DevTools 项目路径」字段（与 git 仓库路径分离记录——两者可能不同）
+  ④ 衔接提示词中路径改为「以方向校准第 0 步实测结果为准」，不硬编码绝对路径
+  ⑤ **唯一工作目录 = C:\zhaoren**（用户拍板 2026-09-29）；Desktop 版为废弃副本不再操作
+- **运行时一致性 ≠ git 一致性**：同一仓库多克隆时必须以 DevTools 实际打开路径为 SSOT；改动生效验证 = 「改的目录 = IDE 打开目录 = 部署 env」三元一致
+
+### 9.12 2026-09-29 场景中文映射散落遗漏经验（专家审核后沉淀）
+- **现象**：订单列表 W4 场景显示原始码而非「游玩陪伴」；全仓 grep `W11: '线上陪伴'` 发现 **SCENE_NAME 常量散落 5+ 云函数**（order-action ×3/im-conv/im-send/payment-mock/home-action），多数缺 W4
+- **教训**：同义常量各自硬编码 → 遗漏必然；本次按「一处改处处查」（grep 全仓同模式）批量修复（commit fb6317c 已部署）。提审后建议重构为共享模块或 init-db 下发（专家建议 P4 项）
+- **同源风险**：`partner_profile.credit_score`（静态 800）与 `user_account.partner_credit_score`（动态）双源分裂——本次仅修 partner-action detail；admin-action/home-action 等仍读旧源，属同类待重构项
+
+## 10. 上线提交前工作清单（2026-09-29 专家审核后版本，按优先级）
+
+### P0 阻塞提审（必须完成）
+- [ ] GitHub push 补推 `fb6317c`（网络恢复后 `git -C c:\zhaoren -c http.proxy= push origin master`）
+- [ ] 订单列表 W4 场景名真机确认（重新编译后「游玩陪伴」替代「W4」）
+- [ ] `admin_config.env === 'prod'` 提审前最终复核（已切，最后确认一次）
+
+### P1 上线前必须
+- [ ] dispute / wallet 真机联调（数据已就绪）
+- [ ] 新功能双身份回归收尾（订单三行概况、信用分显示）
+- [ ] backup.ps1 AdminKey 通道补跑（需用户密钥）
+- [ ] 三重备份基线刷新（bundle v0.12 + robocopy + 云端 DB dump，含 fb6317c）
+
+### P2 提审前复检（rules.md 第 9-16 条）
+- [ ] scan-miniprogram.ps1 全量
+- [ ] check-nightmask.js exit 0
+- [ ] admin_openids 含产品负责人 openid 最终确认
+- [ ] 云端越权回归（匿名调 init-db/order-timer 必须 forbidden，prod 下重验）
+- [ ] 真机双身份核心链路（发布→接单→四确认→支付→履约→评价，prod 环境）
+
+### P3 运营/配置动作
+- [ ] W1 提审挂类目资质（运营动作，AI 不可代做）
+- [ ] 隐私保护指引更新（位置 nearby 用 home_location 的声明；实名/信用功能）
+
+### P4 提审后功能库
+- [ ] 公益①②冻结维持（welfare_switch=false+fail-closed 复核）
+- [ ] features-post-launch ③④⑤按序排期
+- [ ] SCENE_NAME 重构为共享模块（消除散落硬编码）
+- [ ] partner_profile.credit_score 全仓统一改读 user_account（消除双源）
+- [ ] 性能：order 深分页 cursor 化 / notice_poll 长连接评估 / blog view_count 防刷
