@@ -53,6 +53,7 @@
   align-items: center;
   flex-wrap: wrap;
 }
+.pd__score-line .pd__score { font-size: var(--font-xs); color: var(--text-4); }
 .pd__score-num {
   font-size: var(--font-sm);
   color: var(--func-warning);
@@ -186,6 +187,14 @@
   justify-content: space-between;
   align-items: center;
 }
+.pd__fold-left {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+.pd__fold-icon {
+  font-size: 32rpx;
+}
 .pd__fold-title {
   font-size: var(--font-md);
   font-weight: 600;
@@ -198,6 +207,26 @@
 }
 .pd__fold-arrow.is-open {
   transform: rotate(180deg);
+}
+.pd__fold-empty {
+  margin-top: 24rpx;
+  padding: 28rpx 0;
+  text-align: center;
+  background: var(--bg-segment);
+  border-radius: var(--r-md);
+}
+.pd__fold-empty-icon {
+  font-size: 56rpx;
+}
+.pd__fold-empty-text {
+  margin-top: 12rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+}
+.pd__fold-empty-sub {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
 }
 .pd__detail-row {
   margin-top: 16rpx;
@@ -236,19 +265,25 @@
 .pd__tabs {
   margin-top: 20rpx;
   display: flex;
-  border-bottom: 1rpx solid var(--border-2);
+  gap: 12rpx;
+  padding: 8rpx;
+  background: var(--bg-segment);
+  border-radius: var(--r-lg);
 }
 .pd__tab {
   flex: 1;
   text-align: center;
-  padding: 20rpx 0;
+  padding: 16rpx 0;
   font-size: var(--font-sm);
   color: var(--text-4);
+  border-radius: var(--r-md);
+  transition: all 0.2s;
 }
 .pd__tab.is-on {
   color: var(--brand-primary);
   font-weight: 700;
-  border-bottom: 3rpx solid var(--brand-primary);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
 .pd__tab-content {
   min-height: 200rpx;
@@ -320,6 +355,21 @@
   font-size: var(--font-sm);
   color: var(--func-success);
 }
+.pd__cert-status.pending {
+  color: var(--text-4);
+}
+.pd__cert-status.ok {
+  color: var(--func-success);
+}
+.pd__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 0;
+  color: var(--text-5);
+  font-size: var(--font-sm);
+}
 .pd__bottom {
   position: fixed;
   left: 0;
@@ -339,6 +389,7 @@
   border-radius: 40rpx;
   font-size: var(--font-md);
   margin: 0;
+  padding: 0;
 }
 .pd__btn::after {
   border: none;
@@ -349,9 +400,10 @@
   border: 1rpx solid var(--border-ghost);
 }
 .pd__btn--primary {
-  background: var(--brand-primary);
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-press));
   color: var(--text-invert);
   font-weight: 600;
+  box-shadow: 0 6rpx 16rpx rgba(7, 193, 96, 0.3);
 }
 
 /* 三态骨架屏 */

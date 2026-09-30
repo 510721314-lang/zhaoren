@@ -16,7 +16,7 @@ Page({
     stats: { total_orders: 0, completed_orders: 0 },
     showStats: true,
     expanded: false,
-    activeTab: 'intro',
+    activeTab: 'eval',
     loading: false,
     loadError: false,
     isRedline: false,

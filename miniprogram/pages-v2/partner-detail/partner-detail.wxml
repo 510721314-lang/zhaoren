@@ -106,10 +106,20 @@
   <!-- T3c 自我介绍 -->
   <view class="pd__card">
     <view class="pd__fold-header" bindtap="toggleExpand">
-      <text class="pd__fold-title">服务介绍</text>
+      <view class="pd__fold-left">
+        <text class="pd__fold-icon">📝</text>
+        <text class="pd__fold-title">服务介绍</text>
+      </view>
       <text class="pd__fold-arrow {{expanded ? 'is-open' : ''}}">▾</text>
     </view>
-    <view class="pd__intro">{{partner.intro || '这个耍伴还没写自我介绍~'}}</view>
+    <block wx:if="{{partner.intro}}">
+      <view class="pd__intro" wx:if="{{expanded}}">{{partner.intro}}</view>
+    </block>
+    <view class="pd__fold-empty" wx:else>
+      <view class="pd__fold-empty-icon">🙋</view>
+      <view class="pd__fold-empty-text">还没填写自我介绍~</view>
+      <view class="pd__fold-empty-sub">去聊聊，更了解 TA 的服务</view>
+    </view>
   </view>
 
   <!-- T3.5 动态入口: 条数 + 最新更新时间, 点击进 TA 的动态流 -->
@@ -126,15 +136,11 @@
 
   <!-- T4 tab -->
   <view class="pd__tabs">
-    <view class="pd__tab {{activeTab === 'intro' ? 'is-on' : ''}}" data-tab="intro" bindtap="switchTab">介绍</view>
     <view class="pd__tab {{activeTab === 'eval' ? 'is-on' : ''}}" data-tab="eval" bindtap="switchTab">评价({{evaluations.length}})</view>
     <view class="pd__tab {{activeTab === 'cert' ? 'is-on' : ''}}" data-tab="cert" bindtap="switchTab">认证</view>
   </view>
 
   <view class="pd__card pd__tab-content">
-    <block wx:if="{{activeTab === 'intro'}}">
-      <view class="pd__intro">{{partner.intro || '这个耍伴还没写自我介绍~'}}</view>
-    </block>
     <block wx:if="{{activeTab === 'eval'}}">
       <block wx:if="{{evaluations.length > 0}}">
         <view class="pd__eval-item" wx:for="{{evaluations}}" wx:key="at">
