@@ -25,6 +25,8 @@
 .ppe__ts-tag--inline { vertical-align: top; }
 .ppe__tag--pending { background: #fdf6ec; color: #e6a23c; }
 .ppe__hl-item { font-size: 26rpx; color: #4E5969; line-height: 1.7; }
+/* 已添加条目文字(服务亮点/资质标题/荣誉标题): 显式黑色防止夜间/深色模式隐形 */
+.ppe__hl-text { font-size: 28rpx; color: #000; line-height: 1.5; }
 .ppe__hist { border-bottom: 1rpx dashed #eee; padding: 14rpx 0; }
 .ppe__hist-badge { display: inline-block; font-size: 22rpx; border-radius: 8rpx; padding: 2rpx 14rpx; margin-right: 14rpx; }
 .ppe__hist-badge.is-ok { background: #f0f9eb; color: #67c23a; }
