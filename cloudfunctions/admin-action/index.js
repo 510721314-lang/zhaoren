@@ -626,7 +626,8 @@ exports.main = async (event, context) => {
         highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || []
       },
       reject_reason: p.profile_reject_reason || '',
-      submitted_at: p.profile_submit_at
+      submitted_at: p.profile_submit_at,
+      audit_history: (p.profile_audit_history || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
     }));
     return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
   }
@@ -645,12 +646,14 @@ exports.main = async (event, context) => {
         profile_audited_snapshot_prev: p.profile_audited_snapshot || null,
         profile_audited_snapshot: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [], audited_at: _n, audited_by: openid },
         bio_pending: '', skills_pending: [], highlights_pending: [],
-        profile_audit_status: 'approved', profile_reject_reason: '', updated_at: _n
+        profile_audit_status: 'approved', profile_reject_reason: '', updated_at: _n,
+        profile_audit_history: _.push({ at: _n, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '' })
       }});
     } else {
       await col('partner_profile').doc(p._id).update({ data: {
         bio_pending: '', skills_pending: [], highlights_pending: [],
-        profile_audit_status: 'rejected', profile_reject_reason: String(reason || '').slice(0, 100), updated_at: _n
+        profile_audit_status: 'rejected', profile_reject_reason: String(reason || '').slice(0, 100), updated_at: _n,
+        profile_audit_history: _.push({ at: _n, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
       }});
     }
     try {

@@ -685,13 +685,15 @@ exports.main = async (event, context) => {
             highlights: profile.highlights_pending || [], audited_at: now, audited_by: openid
           },
           bio_pending: '', skills_pending: [], highlights_pending: [],
-          profile_audit_status: 'approved', profile_reject_reason: '', updated_at: now
+          profile_audit_status: 'approved', profile_reject_reason: '', updated_at: now,
+          profile_audit_history: _.push({ at: now, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '' })
         }});
       } else {
         await col('partner_profile').doc(profile._id).update({ data: {
           bio_pending: '', skills_pending: [], highlights_pending: [],
           profile_audit_status: 'rejected',
-          profile_reject_reason: String(reason || '').slice(0, 100), updated_at: now
+          profile_reject_reason: String(reason || '').slice(0, 100), updated_at: now,
+          profile_audit_history: _.push({ at: now, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
         }});
       }
       await writeAudit(db, log, {

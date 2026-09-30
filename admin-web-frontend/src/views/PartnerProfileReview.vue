@@ -26,7 +26,7 @@
               </div>
             </div>
             <!-- 待审新内容 -->
-            <div style="flex:1;min-width:200px">
+            <div style="flex:1;min-width:220px">
               <div style="font-weight:600;margin-bottom:6px;color:#e6a23c">待审新内容</div>
               <div style="font-size:13px;color:#333">
                 <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length">（空）</div>
@@ -35,6 +35,16 @@
                   <div v-if="row.pending.skills.length"><b>技能：</b><el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:6px">{{ s }}</el-tag></div>
                   <div v-if="row.pending.highlights.length"><b>亮点：</b><el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:6px">{{ h }}</el-tag></div>
                 </template>
+              </div>
+            </div>
+            <!-- 审核历史 -->
+            <div style="flex:1;min-width:220px">
+              <div style="font-weight:600;margin-bottom:6px;color:#409EFF">审核历史</div>
+              <div v-if="!row.audit_history || !row.audit_history.length" style="font-size:12px;color:#999">暂无审核记录</div>
+              <div v-for="(h, i) in row.audit_history" :key="i" style="font-size:12px;line-height:1.9;color:#333;border-bottom:1px dashed #eee">
+                <el-tag size="small" :type="h.result === 'approved' ? 'success' : 'danger'" style="margin-right:6px">{{ h.result === 'approved' ? '通过' : '驳回' }}</el-tag>
+                {{ formatTime(h.at) }} · 操作人 {{ h.by || '-' }}
+                <span v-if="h.reason" style="color:#c45656">理由：{{ h.reason }}</span>
               </div>
             </div>
           </div>
@@ -47,6 +57,20 @@
       </el-table-column>
       <el-table-column label="提交时间" width="170">
         <template #default="{ row }">{{ formatTime(row.submitted_at) }}</template>
+      </el-table-column>
+      <el-table-column label="待审内容" min-width="240">
+        <template #default="{ row }">
+          <div v-if="row.pending.bio" style="font-size:12px;color:#666;margin-bottom:2px"><b>简介：</b>{{ row.pending.bio.slice(0, 30) }}</div>
+          <template v-if="row.pending.skills.length">
+            <el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:4px">{{ s }}</el-tag>
+          </template>
+          <template v-if="row.pending.highlights.length">
+            <div style="margin-top:3px">
+              <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:4px">{{ h }}</el-tag>
+            </div>
+          </template>
+          <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length" style="color:#999">（空）</div>
+        </template>
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
@@ -66,7 +90,15 @@
     <el-dialog v-model="rejectDialog" title="驳回耍伴资料" width="480px">
       <el-form label-position="top">
         <el-form-item label="被驳回耍伴"><span>{{ rejectTarget?.nickname || rejectTarget?.openid }}</span></el-form-item>
-        <el-form-item label="驳回原因" required>
+        <el-form-item label="常用原因">
+          <el-select v-model="rejectPreset" placeholder="选择快捷原因" clearable style="width:100%" @change="onPresetChange">
+            <el-option label="含联系方式/链接（引流）" value="资料含联系方式/链接，请移除后重提" />
+            <el-option label="内容不实/疑似虚假" value="资料内容不实，请核实后重提" />
+            <el-option label="含敏感词/违规内容" value="资料含违规内容，请修改后重提" />
+            <el-option label="表述不完整/过于简短" value="资料表述不完整，请补充完善后重提" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="驳回原因（必填）" required>
           <el-input v-model="rejectNote" type="textarea" :rows="3" placeholder="请填写驳回原因，将反馈给耍伴" />
         </el-form-item>
       </el-form>
@@ -92,8 +124,13 @@ const loading = ref(false);
 const busy = ref('');
 const rejectDialog = ref(false);
 const rejectNote = ref('');
+const rejectPreset = ref('');
 const rejectTarget = ref(null);
 const submitting = ref(false);
+
+function onPresetChange(v) {
+  if (v) rejectNote.value = v;
+}
 
 function maskOpenid(openid) {
   if (!openid) return '-';
