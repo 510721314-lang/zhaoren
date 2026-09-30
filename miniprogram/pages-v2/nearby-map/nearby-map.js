@@ -7,7 +7,8 @@ function fmtDist(m) {
   if (!Number.isFinite(m) || m < 0) return '';
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
 }
-const ICON_MARKER = '/images/marker.png';
+const ICON_MARKER_PARTNER = '/images/marker.png';      // 🟢 耍伴: 绿色定位针
+const ICON_MARKER_USER = '/images/marker-user.png';      // 🔵 需求发布者: 蓝色定位针
 
 Page({
   data: {
@@ -71,7 +72,8 @@ Page({
     const markers = (list || []).filter((p) => p.lat && p.lng).map((p) => ({
       id: Number(p.openid.replace(/\D/g, '').slice(-8)) || Math.floor(Math.random() * 1e8),
       latitude: p.lat, longitude: p.lng,
-      iconPath: ICON_MARKER, width: 36, height: 36,
+      // 角色区分: 耍伴绿色针 / 需求发布者蓝色针
+      iconPath: p.is_partner ? ICON_MARKER_PARTNER : ICON_MARKER_USER, width: 36, height: 36,
       callout: { content: p.nickname || 'TA', color: '#1F2329', bgColor: '#FFFFFF', borderRadius: 8, padding: 6, display: 'BYCLICK' },
       openid: p.openid, is_partner: p.is_partner, distanceText: fmtDist(p.distance_m), nickname: p.nickname || 'TA', avatar: p.avatar || ''
     }));
