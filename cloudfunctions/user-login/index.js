@@ -611,10 +611,10 @@ exports.main = async (event, context) => {
         });
         try {
           await col('system_notice').add({ data: {
-            openid, type: 'emergency_contact_changed',
+            to_openid: openid, type: 'emergency_contact_changed',
             title: '紧急联系人已变更',
-            content: `您的紧急联系人已变更为 ${contacts.map((c) => c.name).join('、')}; 原联系人已收到变更通知(短信通道接入后发送)。`,
-            is_read: false, created_at: now, updated_at: now, is_deleted: false
+            content: `您的紧急联系人已变更为 ${contacts.map((c) => c.name).join('、')}。`,
+            read: false, created_at: now, updated_at: now, is_deleted: false
           }});
         } catch (e) { log.d(`emergency notice fail: ${e.message}`); }
         const safe = contacts.map(c => ({ name: c.name, phone: maskPhone(c.phone), relation: c.relation }));
