@@ -21,6 +21,7 @@ const routes = [
       { path: 'users', component: () => import('../views/Users.vue'), meta: { title: '发单用户' } },
       { path: 'partners', component: () => import('../views/Partners.vue'), meta: { title: '耍伴管理' } },
       { path: 'review', component: () => import('../views/Review.vue'), meta: { title: '耍伴审核' } },
+      { path: 'partner-profile-review', component: () => import('../views/PartnerProfileReview.vue'), meta: { title: '资料审核' } },
 
       // ── 4. 财务与资产 ──
       { path: 'finance', component: () => import('../views/Finance.vue'), meta: { title: '财务与资产' } },

@@ -601,6 +601,71 @@ exports.main = async (event, context) => {
     return ok({ openid: target_openid, accept_switch: online });
   }
 
+  // 耍伴资料审核待审列表(profile_audit_status='pending'; 返回待审内容 + 现快照对比)
+  if (action === 'partner_profile_pending_list') {
+    const pg = pager(event);
+    const query = col('partner_profile').where({ profile_audit_status: 'pending', is_deleted: _.neq(true) });
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('profile_submit_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    const openids = (rows.data || []).map((p) => p.openid);
+    const userMap = {};
+    if (openids.length) {
+      const ur = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get().catch(() => ({ data: [] }));
+      for (const u of (ur.data || [])) userMap[u.openid] = { nickname: u.nickname || '', avatar: u.avatar || '' };
+    }
+    const list = (rows.data || []).map((p) => ({
+      openid: p.openid,
+      nickname: p.nickname || (userMap[p.openid] && userMap[p.openid].nickname) || '耍伴',
+      avatar: p.avatar || (userMap[p.openid] && userMap[p.openid].avatar) || '',
+      pending: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [] },
+      current: {
+        bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
+        skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || [],
+        highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || []
+      },
+      reject_reason: p.profile_reject_reason || '',
+      submitted_at: p.profile_submit_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  // 耍伴资料审核(approve 覆盖快照+留 prev / reject 留原因), 并推送 system_notice 给耍伴
+  if (action === 'partner_profile_review') {
+    const { target_openid, pass, reason } = event;
+    if (!isOpenid(target_openid)) return fail('pp_bad_openid', 'openid 格式不正确');
+    const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
+    const p = pr.data && pr.data[0];
+    if (!p) return fail('pp_not_found', '耍伴不存在');
+    if (p.profile_audit_status !== 'pending') return fail('pp_no_pending', '该耍伴资料不在审核队列');
+    const _n = Date.now();
+    if (pass) {
+      await col('partner_profile').doc(p._id).update({ data: {
+        profile_audited_snapshot_prev: p.profile_audited_snapshot || null,
+        profile_audited_snapshot: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [], audited_at: _n, audited_by: openid },
+        bio_pending: '', skills_pending: [], highlights_pending: [],
+        profile_audit_status: 'approved', profile_reject_reason: '', updated_at: _n
+      }});
+    } else {
+      await col('partner_profile').doc(p._id).update({ data: {
+        bio_pending: '', skills_pending: [], highlights_pending: [],
+        profile_audit_status: 'rejected', profile_reject_reason: String(reason || '').slice(0, 100), updated_at: _n
+      }});
+    }
+    try {
+      await col('system_notice').add({ data: {
+        to_openid: target_openid, order_id: '', type: pass ? 'partner_profile_approved' : 'partner_profile_rejected',
+        title: pass ? '资料审核通过' : '资料审核未通过',
+        body: pass ? '你的耍伴资料已通过审核，简介/技能/服务亮点已在耍伴卡片与详情页展示。'
+          : '你的耍伴资料未通过审核' + (reason ? '：' + String(reason).slice(0, 100) : '') + '。请修改后重新提交。',
+        action_key: 'partner_profile_edit', action_payload: {}, created_at: _n, updated_at: _n, read: false
+      }});
+    } catch (e) {}
+    await logEvent('P2', pass ? 'pp_profile_approved' : 'pp_profile_rejected', openid, { target_openid, reason: reason || '' });
+    return ok({ target_openid, profile_audit_status: pass ? 'approved' : 'rejected' });
+  }
+
   // 耍伴审核(通过/驳回)
   if (action === 'review') {
     const { target_openid, decision, note } = event;

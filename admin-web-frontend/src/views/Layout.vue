@@ -22,6 +22,7 @@
           <el-menu-item index="/users">发单用户</el-menu-item>
           <el-menu-item index="/partners">耍伴管理</el-menu-item>
           <el-menu-item index="/review">耍伴审核</el-menu-item>
+          <el-menu-item index="/partner-profile-review">资料审核</el-menu-item>
         </el-sub-menu>
 
         <!-- 4. 财务与资产 -->
