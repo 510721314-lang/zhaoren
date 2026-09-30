@@ -64,3 +64,34 @@ test('查询失败 → 容错返回 null(不抛)', async () => {
   const r = await getHealedPartnerProfile(f.col, f._, 'o');
   assert.strictEqual(r, null);
 });
+
+// ── 审核死锁治愈: status=pending 但所有 pending 字段空 → 自动解锁 approved ──
+test('死锁治愈: pending 但待审内容全空 → 解锁 approved 并写 update', async () => {
+  const p = { _id: 'x7', openid: 'o', profile_audit_status: 'pending', profile_reject_reason: 'x',
+    bio_pending: '', skills_pending: [], highlights_pending: [],
+    qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] } };
+  const f = makeFake([p]);
+  const r = await getHealedPartnerProfile(f.col, f._, 'o');
+  assert.strictEqual(r.profile_audit_status, 'approved');
+  assert.strictEqual(r.profile_reject_reason, '');
+  const up = f.updateCalls.find((c) => c.payload.profile_audit_status === 'approved');
+  assert.ok(up, '应写入解锁 update');
+});
+
+test('非死锁: pending 且有待审内容 → 保持 pending 不治愈', async () => {
+  const p = { _id: 'x8', openid: 'o', profile_audit_status: 'pending',
+    bio_pending: '简介A', skills_pending: [], highlights_pending: [],
+    qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] } };
+  const f = makeFake([p]);
+  const r = await getHealedPartnerProfile(f.col, f._, 'o');
+  assert.strictEqual(r.profile_audit_status, 'pending');
+  assert.ok(!f.updateCalls.some((c) => c.payload.profile_audit_status === 'approved'));
+});
+
+test('非死锁: approved 状态 → 不治愈', async () => {
+  const p = { _id: 'x9', openid: 'o', is_deleted: false, profile_audit_status: 'approved', bio_pending: '' };
+  const f = makeFake([p]);
+  const r = await getHealedPartnerProfile(f.col, f._, 'o');
+  assert.strictEqual(r.profile_audit_status, 'approved');
+  assert.strictEqual(f.updateCalls.length, 0);
+});

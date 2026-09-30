@@ -9,7 +9,7 @@ const _ = db.command;
 const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命名空间下)
 const col = (n) => db.collection(n);
 const log = require('./logger');
-const { buildAuditPatch } = require('./partner_audit');
+const { buildAuditPatch, FIELD_PENDING, isFieldEmpty } = require('./partner_audit');
 
 // 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
 async function resolveTempUrls(fileIDs) {
@@ -630,6 +630,24 @@ exports.main = async (event, context) => {
       query.count().catch(() => ({ total: 0 })),
       query.orderBy('profile_submit_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
     ]);
+    // 死锁治愈: status=pending 但所有栏目待审内容为空(旧版"部分通过"锁判定 bug 遗留)
+    //   → 自动解锁 approved 并移出队列, 避免后台队列显示空待审且前端永久锁定
+    const healedNow = Date.now();
+    const rowsAll = rows.data || [];
+    const stillPending = [];
+    for (const p of rowsAll) {
+      const allEmpty = Object.keys(FIELD_PENDING).every((f) => isFieldEmpty(f, p[FIELD_PENDING[f]]));
+      if (allEmpty) {
+        col('partner_profile').doc(p._id).update({ data: { profile_audit_status: 'approved', profile_reject_reason: '', updated_at: healedNow } }).catch(() => {});
+        log.d('heal deadlock audit lock:', p.openid);
+      } else {
+        stillPending.push(p);
+      }
+    }
+    rows.data = stillPending;
+    if (stillPending.length !== rowsAll.length) {
+      totalR.total = Math.max(0, (totalR.total || 0) - (rowsAll.length - stillPending.length));
+    }
     const openids = (rows.data || []).map((p) => p.openid);
     const userMap = {};
     if (openids.length) {

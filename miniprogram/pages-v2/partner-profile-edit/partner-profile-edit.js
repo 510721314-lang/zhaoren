@@ -250,7 +250,11 @@ Page({
     this.doSubmit(base);
   },
   doSubmit(payload) {
-    if (this.data.submitting || this.data.auditStatus === 'pending') return;
+    if (this.data.submitting) return;
+    if (this.data.auditStatus === 'pending') {
+      wx.showToast({ title: '资料正在审核中,请耐心等待', icon: 'none' });
+      return;
+    }
     this.setData({ submitting: true }); // debounce: 防双击
     callCloud('partner-action', {
       action: 'update_partner_profile',
