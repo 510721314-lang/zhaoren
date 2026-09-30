@@ -192,6 +192,14 @@ Page({
     this.setData({ activeTab: e.currentTarget.dataset.tab });
   },
 
+  // 资质证书/荣誉图片点击预览大图(证件类刚需)
+  previewMedia(e) {
+    const urls = (e.currentTarget.dataset.list || []).map(String);
+    const i = Number(e.currentTarget.dataset.index);
+    if (!urls.length) return;
+    wx.previewImage({ current: urls[i] || urls[0], urls });
+  },
+
   // 咨询: 成单前 IM 仅对订单参与方开放, 复用定向发布链路
   // (说明后跳发布页, TA 会收到定向邀约通知 = "咨询/邀TA接单")
   onConsult() {

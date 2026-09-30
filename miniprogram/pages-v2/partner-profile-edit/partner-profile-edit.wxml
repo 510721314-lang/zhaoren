@@ -44,13 +44,55 @@
     </view>
   </view>
 
+  <!-- 资质证书: 标题 + 栏目级多图 -->
+  <view class="ppe__card">
+    <view class="ppe__label">资质证书 <text class="ppe__count">标题 {{qualTitles.length}}/20 · 图片 {{qualPhotos.length}}/6</text></view>
+    <view class="ppe__hint">每条不超过 20 字，可配证件/资质照片，审核通过后展示在详情页</view>
+    <view class="ppe__hl" wx:for="{{qualTitles}}" wx:key="index">
+      <text class="ppe__hl-text">{{item}}</text>
+      <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveQual">×</text>
+    </view>
+    <view class="ppe__addrow">
+      <input class="ppe__input" value="{{qualInput}}" maxlength="20" placeholder="如：护士执业资格证" bindinput="onQualInput" />
+      <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddQual">添加</view>
+    </view>
+    <view class="ppe__media">
+      <view class="ppe__media-item" wx:for="{{qualPhotos}}" wx:key="*this">
+        <image class="ppe__media-img" src="{{item}}" mode="aspectFill" data-index="{{index}}" data-list="{{qualPhotos}}" bindtap="previewQualPhoto" />
+        <view class="ppe__media-del" data-index="{{index}}" catchtap="onRemoveQualPhoto">×</view>
+      </view>
+      <view class="ppe__media-add" wx:if="{{qualPhotos.length < 6}}" hover-class="btn-press" bindtap="chooseQualPhotos">+<text>添加图片</text></view>
+    </view>
+  </view>
+
+  <!-- 荣誉 其他: 标题 + 栏目级多图 -->
+  <view class="ppe__card">
+    <view class="ppe__label">荣誉 其他 <text class="ppe__count">标题 {{honTitles.length}}/20 · 图片 {{honPhotos.length}}/6</text></view>
+    <view class="ppe__hint">每条不超过 20 字，可配荣誉/奖状照片，审核通过后展示在详情页</view>
+    <view class="ppe__hl" wx:for="{{honTitles}}" wx:key="index">
+      <text class="ppe__hl-text">{{item}}</text>
+      <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveHon">×</text>
+    </view>
+    <view class="ppe__addrow">
+      <input class="ppe__input" value="{{honInput}}" maxlength="20" placeholder="如：年度优秀服务者" bindinput="onHonInput" />
+      <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddHon">添加</view>
+    </view>
+    <view class="ppe__media">
+      <view class="ppe__media-item" wx:for="{{honPhotos}}" wx:key="*this">
+        <image class="ppe__media-img" src="{{item}}" mode="aspectFill" data-index="{{index}}" data-list="{{honPhotos}}" bindtap="previewHonPhoto" />
+        <view class="ppe__media-del" data-index="{{index}}" catchtap="onRemoveHonPhoto">×</view>
+      </view>
+      <view class="ppe__media-add" wx:if="{{honPhotos.length < 6}}" hover-class="btn-press" bindtap="chooseHonPhotos">+<text>添加图片</text></view>
+    </view>
+  </view>
+
   <button class="ppe__submit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" bindtap="onSubmit" disabled="{{submitting || auditStatus === 'pending'}}">
     {{submitting ? '提交中…' : (auditStatus === 'pending' ? '审核中' : '提交审核')}}
   </button>
   <view class="ppe__safe">资料经平台审核后展示；禁止填写联系方式/链接，违者将影响信用分。</view>
 
   <!-- 本次待审核事项 -->
-  <view class="ppe__card" wx:if="{{pendingBio || pendingSkills.length || pendingHighlights.length}}">
+  <view class="ppe__card" wx:if="{{pendingBio || pendingSkills.length || pendingHighlights.length || qualPending.titles.length || qualPending.photos.length || honPending.titles.length || honPending.photos.length}}">
     <view class="ppe__label">本次待审核事项 <text class="ppe__pending-badge">待审核</text></view>
     <view class="ppe__ts" wx:if="{{pendingBio}}"><text class="ppe__ts-tag">简介</text>{{pendingBio}}</view>
     <view class="ppe__tags" wx:if="{{pendingSkills.length}}">
@@ -60,6 +102,16 @@
     <view class="ppe__hl" wx:if="{{pendingHighlights.length}}">
       <text class="ppe__jsx-tt">亮点</text>
       <view wx:for="{{pendingHighlights}}" wx:key="*this" class="ppe__hl-item">{{item}}</view>
+    </view>
+    <view class="ppe__ts" wx:if="{{qualPending.titles.length || qualPending.photos.length}}">
+      <text class="ppe__ts-tag">资质证书</text>
+      <block wx:for="{{qualPending.titles}}" wx:key="*this">{{item}}<text wx:if="{{index < qualPending.titles.length - 1}}">、</text></block>
+      <text wx:if="{{qualPending.photos.length}}" class="ppe__ts-mut">（图片 {{qualPending.photos.length}} 张）</text>
+    </view>
+    <view class="ppe__ts" wx:if="{{honPending.titles.length || honPending.photos.length}}">
+      <text class="ppe__ts-tag">荣誉 其他</text>
+      <block wx:for="{{honPending.titles}}" wx:key="*this">{{item}}<text wx:if="{{index < honPending.titles.length - 1}}">、</text></block>
+      <text wx:if="{{honPending.photos.length}}" class="ppe__ts-mut">（图片 {{honPending.photos.length}} 张）</text>
     </view>
   </view>
 

@@ -537,6 +537,11 @@ exports.main = async (event, context) => {
             bio_pending: profile.bio_pending || '',
             skills_pending: profile.skills_pending || [],
             highlights_pending: profile.highlights_pending || [],
+            // 资质证书 / 荣誉 其他: 已审展示快照 + 待审
+            qualifications: (profile.profile_audited_snapshot && profile.profile_audited_snapshot.qualifications) || { titles: [], photos: [] },
+            honors: (profile.profile_audited_snapshot && profile.profile_audited_snapshot.honors) || { titles: [], photos: [] },
+            qualifications_pending: profile.qualifications_pending || { titles: [], photos: [] },
+            honors_pending: profile.honors_pending || { titles: [], photos: [] },
             audit_history: (profile.profile_audit_history || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
           },
           stats: {
@@ -618,13 +623,21 @@ exports.main = async (event, context) => {
       const highlights = (Array.isArray(event.service_highlights) ? event.service_highlights : [])
         .map((s) => String(s || '').trim()).filter(Boolean).slice(0, 3)
         .map((s) => s.slice(0, 30));
-      if (!bio && !skills.length && !highlights.length) {
+      // 资质证书 / 荣誉 其他: 每条仅标题(上限20条每条≤20字), 图片为栏目级多图(上限6张, 存云存储 fileID)
+      const sanitizeMedia = (titles, photos) => ({
+        titles: (Array.isArray(titles) ? titles : []).map((s) => String(s || '').trim()).filter(Boolean).slice(0, 20).map((s) => s.slice(0, 20)),
+        photos: (Array.isArray(photos) ? photos : []).map((f) => String(f || '')).filter(Boolean).slice(0, 6)
+      });
+      const qualifications = sanitizeMedia(event.qual_titles, event.qual_photos);
+      const honors = sanitizeMedia(event.hon_titles, event.hon_photos);
+      const hasMedia = (m) => m.titles.length > 0 || m.photos.length > 0;
+      if (!bio && !skills.length && !highlights.length && !hasMedia(qualifications) && !hasMedia(honors)) {
         return { ok: false, code: 'pa_profile_empty', msg: '请至少填写一项资料内容' };
       }
 
       // 硬拦截(零延迟, 先于 msgSecCheck): URL/微信号/联系方式/转账引流
       const CONTACT_RE = /(https?:\/\/|www\.|wxid|微信号|加微信|加V|转账|支付宝|QQ号|手机号1[3-9]\d{9})/i;
-      const allText = [bio, ...skills, ...highlights].join(' ');
+      const allText = [bio, ...skills, ...highlights, ...qualifications.titles, ...honors.titles].join(' ');
       if (CONTACT_RE.test(allText)) {
         return { ok: false, code: 'pa_profile_contact', msg: '资料不能包含联系方式/链接,请修改后重试' };
       }
@@ -646,12 +659,15 @@ exports.main = async (event, context) => {
       // 写入待审区(不动快照, 展示端仍读旧快照)
       await col('partner_profile').doc(me._id).update({ data: {
         bio_pending: bio, skills_pending: skills, highlights_pending: highlights,
+        qualifications_pending: qualifications, honors_pending: honors,
         profile_audit_status: 'pending', profile_submit_at: Date.now(), updated_at: Date.now()
       }});
       await writeAudit(db, log, {
         openid, role: 'partner', category: 'business', action: 'partner_profile_update',
         target_type: 'partner_profile', target_id: me._id,
-        detail: { bio_len: bio.length, skills_count: skills.length, highlights_count: highlights.length },
+        detail: { bio_len: bio.length, skills_count: skills.length, highlights_count: highlights.length,
+          qual_titles: qualifications.titles.length, qual_photos: qualifications.photos.length,
+          hon_titles: honors.titles.length, hon_photos: honors.photos.length },
         result: 'ok', client_ip: clientIp, device
       });
       // 推送审核中提醒给耍伴
@@ -687,15 +703,20 @@ exports.main = async (event, context) => {
           profile_audited_snapshot_prev: profile.profile_audited_snapshot || null,
           profile_audited_snapshot: {
             bio: profile.bio_pending || '', skills: profile.skills_pending || [],
-            highlights: profile.highlights_pending || [], audited_at: now, audited_by: openid
+            highlights: profile.highlights_pending || [],
+            qualifications: profile.qualifications_pending || { titles: [], photos: [] },
+            honors: profile.honors_pending || { titles: [], photos: [] },
+            audited_at: now, audited_by: openid
           },
           bio_pending: '', skills_pending: [], highlights_pending: [],
+          qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
           profile_audit_status: 'approved', profile_reject_reason: '', updated_at: now,
           profile_audit_history: _.push({ at: now, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '' })
         }});
       } else {
         await col('partner_profile').doc(profile._id).update({ data: {
           bio_pending: '', skills_pending: [], highlights_pending: [],
+          qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
           profile_audit_status: 'rejected',
           profile_reject_reason: String(reason || '').slice(0, 100), updated_at: now,
           profile_audit_history: _.push({ at: now, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
@@ -793,7 +814,10 @@ exports.main = async (event, context) => {
             // 耍伴资料: 展示端只读审核通过快照(未过审/审核中一律不上线, fail-closed)
             bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
             skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || [],
-            service_highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || []
+            service_highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || [],
+            // 资质证书 / 荣誉 其他(展示端只读审核通过快照)
+            qualifications: (p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications) || { titles: [], photos: [] },
+            honors: (p.profile_audited_snapshot && p.profile_audited_snapshot.honors) || { titles: [], photos: [] }
           },
           stats: { total_orders: totalOrders, completed_orders: completedOrders },
           evaluations

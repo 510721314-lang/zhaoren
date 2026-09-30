@@ -619,11 +619,14 @@ exports.main = async (event, context) => {
       openid: p.openid,
       nickname: p.nickname || (userMap[p.openid] && userMap[p.openid].nickname) || '耍伴',
       avatar: p.avatar || (userMap[p.openid] && userMap[p.openid].avatar) || '',
-      pending: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [] },
+      pending: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [],
+        qualifications: p.qualifications_pending || { titles: [], photos: [] }, honors: p.honors_pending || { titles: [], photos: [] } },
       current: {
         bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
         skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || [],
-        highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || []
+        highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || [],
+        qualifications: (p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications) || { titles: [], photos: [] },
+        honors: (p.profile_audited_snapshot && p.profile_audited_snapshot.honors) || { titles: [], photos: [] }
       },
       reject_reason: p.profile_reject_reason || '',
       submitted_at: p.profile_submit_at,
@@ -644,14 +647,17 @@ exports.main = async (event, context) => {
     if (pass) {
       await col('partner_profile').doc(p._id).update({ data: {
         profile_audited_snapshot_prev: p.profile_audited_snapshot || null,
-        profile_audited_snapshot: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [], audited_at: _n, audited_by: openid },
+        profile_audited_snapshot: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [],
+          qualifications: p.qualifications_pending || { titles: [], photos: [] }, honors: p.honors_pending || { titles: [], photos: [] }, audited_at: _n, audited_by: openid },
         bio_pending: '', skills_pending: [], highlights_pending: [],
+        qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
         profile_audit_status: 'approved', profile_reject_reason: '', updated_at: _n,
         profile_audit_history: _.push({ at: _n, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '' })
       }});
     } else {
       await col('partner_profile').doc(p._id).update({ data: {
         bio_pending: '', skills_pending: [], highlights_pending: [],
+        qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
         profile_audit_status: 'rejected', profile_reject_reason: String(reason || '').slice(0, 100), updated_at: _n,
         profile_audit_history: _.push({ at: _n, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
       }});

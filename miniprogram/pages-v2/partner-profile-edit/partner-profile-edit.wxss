@@ -31,3 +31,11 @@
 .ppe__hist-badge.is-bad { background: #fef0f0; color: #f56c6c; }
 .ppe__hist-time { font-size: 24rpx; color: #9AA0A6; }
 .ppe__hist-reason { font-size: 24rpx; color: #c45656; margin-top: 6rpx; }
+.ppe__ts-mut { margin-left: 12rpx; color: #909399; }
+/* 资质证书 / 荣誉 其他: 栏目级多图 grid */
+.ppe__media { display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 20rpx; }
+.ppe__media-item { position: relative; width: 168rpx; height: 168rpx; border-radius: 12rpx; overflow: hidden; border: 1rpx solid #eee; }
+.ppe__media-img { width: 100%; height: 100%; }
+.ppe__media-del { position: absolute; top: 0; right: 0; width: 40rpx; height: 40rpx; line-height: 36rpx; text-align: center; background: rgba(0,0,0,0.5); color: #fff; border-radius: 0 0 0 12rpx; font-size: 30rpx; }
+.ppe__media-add { width: 168rpx; height: 168rpx; border: 2rpx dashed #07C160; border-radius: 12rpx; background: rgba(7,193,96,0.05); color: #07C160; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 52rpx; }
+.ppe__media-add text { font-size: 22rpx; margin-top: 4rpx; }

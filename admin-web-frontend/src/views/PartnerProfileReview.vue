@@ -50,9 +50,33 @@
               </div>
             </div>
 
-            <!-- 四、审核历史 -->
+            <!-- 四、资质证书 差异 -->
             <div style="flex:1;min-width:240px">
-              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">④ 审核历史</div>
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">④ 资质证书</div>
+              <div style="font-size:13px;margin-bottom:4px;color:#909399">原内容：{{ mediaBill(row.current.qualifications) }}</div>
+              <div style="font-size:13px;color:#909399">变更后（差异高亮）：</div>
+              <div>
+                <el-tag v-for="t in row.pending.qualifications?.titles" :key="t" size="small" type="success" style="margin-right:4px" :class="isNew(t, row.current.qualifications?.titles || [], row.pending.qualifications?.titles || []) ? 'diff-add-tag' : ''">{{ t }}</el-tag>
+                <el-tag v-for="t in removedSet(row.current.qualifications?.titles || [], row.pending.qualifications?.titles || [])" :key="'r'+t" size="small" type="danger" effect="plain" class="diff-del-tag" style="margin-right:4px">− {{ t }}</el-tag>
+                <div style="font-size:12px;color:#c45656" v-if="mediaBill(row.current.qualifications).includes('图片') || (row.pending.qualifications?.photos||[]).length">图片：{{ (row.current.qualifications?.photos||[]).length }} 张 → {{ (row.pending.qualifications?.photos||[]).length }} 张</div>
+              </div>
+            </div>
+
+            <!-- 五、荣誉 其他 差异 -->
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">⑤ 荣誉 其他</div>
+              <div style="font-size:13px;margin-bottom:4px;color:#909399">原内容：{{ mediaBill(row.current.honors) }}</div>
+              <div style="font-size:13px;color:#909399">变更后（差异高亮）：</div>
+              <div>
+                <el-tag v-for="t in row.pending.honors?.titles" :key="t" size="small" type="success" style="margin-right:4px" :class="isNew(t, row.current.honors?.titles || [], row.pending.honors?.titles || []) ? 'diff-add-tag' : ''">{{ t }}</el-tag>
+                <el-tag v-for="t in removedSet(row.current.honors?.titles || [], row.pending.honors?.titles || [])" :key="'r'+t" size="small" type="danger" effect="plain" class="diff-del-tag" style="margin-right:4px">− {{ t }}</el-tag>
+                <div style="font-size:12px;color:#c45656" v-if="mediaBill(row.current.honors).includes('图片') || (row.pending.honors?.photos||[]).length">图片：{{ (row.current.honors?.photos||[]).length }} 张 → {{ (row.pending.honors?.photos||[]).length }} 张</div>
+              </div>
+            </div>
+
+            <!-- 六、审核历史 -->
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">⑥ 审核历史</div>
               <div v-if="!row.audit_history || !row.audit_history.length" style="font-size:12px;color:#999">暂无审核记录</div>
               <div v-for="(h,i) in row.audit_history" :key="i" style="font-size:12px;line-height:1.9;color:#333;border-bottom:1px dashed #eee">
                 <el-tag size="small" :type="h.result === 'approved' ? 'success' : 'danger'" style="margin-right:6px">{{ h.result === 'approved' ? '通过' : '驳回' }}</el-tag>
@@ -71,7 +95,7 @@
       <el-table-column label="提交时间" width="170">
         <template #default="{ row }">{{ formatTime(row.submitted_at) }}</template>
       </el-table-column>
-      <el-table-column label="待审内容" min-width="200">
+      <el-table-column label="待审内容" min-width="240">
         <template #default="{ row }">
           <template v-if="row.pending.skills.length">
             <el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:4px">{{ s }}</el-tag>
@@ -79,7 +103,15 @@
           <div v-if="row.pending.highlights.length" style="margin-top:3px">
             <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:4px">{{ h }}</el-tag>
           </div>
-          <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length" style="color:#999">（空）</div>
+          <div v-if="row.pending.qualifications?.titles.length || row.pending.qualifications?.photos.length" style="margin-top:3px">
+            <el-tag v-for="q in row.pending.qualifications.titles" :key="q" size="small" type="info" style="margin-right:4px">资·{{ q }}</el-tag>
+            <span v-if="row.pending.qualifications.photos.length" style="font-size:12px;color:#909399">资质图片 {{ row.pending.qualifications.photos.length }} 张</span>
+          </div>
+          <div v-if="row.pending.honors?.titles.length || row.pending.honors?.photos.length" style="margin-top:3px">
+            <el-tag v-for="h in row.pending.honors.titles" :key="h" size="small" type="info" style="margin-right:4px">荣·{{ h }}</el-tag>
+            <span v-if="row.pending.honors.photos.length" style="font-size:12px;color:#909399">荣誉图片 {{ row.pending.honors.photos.length }} 张</span>
+          </div>
+          <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length && !row.pending.qualifications?.titles.length && !row.pending.qualifications?.photos.length && !row.pending.honors?.titles.length && !row.pending.honors?.photos.length" style="color:#999">（空）</div>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">
@@ -175,6 +207,13 @@ function isNew(x, oldArr, newArr) {
 function removedSet(oldArr, newArr) {
   const n = new Set(newArr || []);
   return (oldArr || []).filter((x) => !n.has(x));
+}
+// 栏目级图文(资质/荣誉) 原内容摘要
+function mediaBill(m) {
+  const o = m || {};
+  const titles = (o.titles || []).join('、') || '（空）';
+  const photos = (o.photos || []).length;
+  return photos > 0 ? `${titles}；图片 ${photos} 张` : titles;
 }
 
 async function load() {
