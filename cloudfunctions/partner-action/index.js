@@ -9,6 +9,35 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
 
+// 耍伴审核通知推送(system_notice): 提交/通过/驳回都主动推给耍伴
+// 去重合并: 同收件人+order_id('' 无订单)+type 未读则覆盖正文与时间, 避免刷屏
+async function writeNotice(opt) {
+  try {
+    const exist = await col('system_notice').where({
+      to_openid: opt.to_openid, order_id: opt.order_id || '', type: opt.type, read: false
+    }).limit(1).get();
+    const data = {
+      title: opt.title, body: opt.body || '',
+      action_key: opt.action_key || '',
+      action_payload: opt.action_payload || {},
+      updated_at: Date.now()
+    };
+    if (exist.data && exist.data[0]) {
+      await col('system_notice').doc(exist.data[0]._id).update({ data });
+    } else {
+      await col('system_notice').add({ data: Object.assign({
+        to_openid: opt.to_openid,
+        order_id: opt.order_id || '',
+        type: opt.type || 'custom',
+        created_at: Date.now(),
+        read: false
+      }, data) });
+    }
+  } catch (e) {
+    log.d('[notice] write failed:', opt.to_openid, opt.type, e && e.message);
+  }
+}
+
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 // 耍伴信用等级映射(SSOT 与 miniprogram/config/enums.js CREDIT_LEVEL 一致)
@@ -620,6 +649,14 @@ exports.main = async (event, context) => {
         detail: { bio_len: bio.length, skills_count: skills.length, highlights_count: highlights.length },
         result: 'ok', client_ip: clientIp, device
       });
+      // 推送审核中提醒给耍伴
+      await writeNotice({
+        to_openid: openid,
+        type: 'partner_profile_submitted',
+        title: '资料审核中',
+        body: '你的耍伴资料已提交审核，审核通过后将自动展示。',
+        action_key: 'partner_profile_edit'
+      });
       return { ok: true, data: { msg: '资料已提交,审核通过后自动展示', profile_audit_status: 'pending' } };
     }
 
@@ -663,6 +700,24 @@ exports.main = async (event, context) => {
         detail: { target_openid, pass: !!pass, reason: reason || '' },
         result: 'ok', client_ip: clientIp, device
       });
+      // 推送审核结果给耍伴(pass/reject 分流)
+      if (pass) {
+        await writeNotice({
+          to_openid: profile.openid || target_openid,
+          type: 'partner_profile_approved',
+          title: '资料审核通过',
+          body: '你的耍伴资料已通过审核，简介/技能/服务亮点已在耍伴卡片与详情页展示。',
+          action_key: 'partner_profile_edit'
+        });
+      } else {
+        await writeNotice({
+          to_openid: profile.openid || target_openid,
+          type: 'partner_profile_rejected',
+          title: '资料审核未通过',
+          body: '你的耍伴资料未通过审核' + (reason ? '：' + String(reason).slice(0, 100) : '') + '。请修改后重新提交。',
+          action_key: 'partner_profile_edit'
+        });
+      }
       return { ok: true, data: { target_openid, profile_audit_status: pass ? 'approved' : 'rejected' } };
     }
 
