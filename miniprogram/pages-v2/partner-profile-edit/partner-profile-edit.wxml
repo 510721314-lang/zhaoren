@@ -49,7 +49,7 @@
   <!-- 资质证书: 标题 + 栏目级多图 -->
   <view class="ppe__card">
     <view class="ppe__label">资质证书 <text class="ppe__count">标题 {{qualTitles.length}}/20 · 图片 {{qualPhotos.length}}/6</text></view>
-    <view class="ppe__hint">每条不超过 20 字，可配证件/资质照片，审核通过后展示在详情页</view>
+    <view class="ppe__hint">每条不超过 20 字，可配证件/资质照片（单张≤3M），审核通过后展示在详情页</view>
     <view class="ppe__hl" wx:for="{{qualTitles}}" wx:key="index">
       <text class="ppe__hl-text">{{item}}</text>
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveQual">×</text>
@@ -71,7 +71,7 @@
   <!-- 荣誉 其他: 标题 + 栏目级多图 -->
   <view class="ppe__card">
     <view class="ppe__label">荣誉 其他 <text class="ppe__count">标题 {{honTitles.length}}/20 · 图片 {{honPhotos.length}}/6</text></view>
-    <view class="ppe__hint">每条不超过 20 字，可配荣誉/奖状照片，审核通过后展示在详情页</view>
+    <view class="ppe__hint">每条不超过 20 字，可配荣誉/奖状照片（单张≤3M），审核通过后展示在详情页</view>
     <view class="ppe__hl" wx:for="{{honTitles}}" wx:key="index">
       <text class="ppe__hl-text">{{item}}</text>
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveHon">×</text>

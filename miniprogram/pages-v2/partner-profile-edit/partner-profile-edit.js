@@ -4,6 +4,7 @@
 // 图片上传: wx.chooseMedia → wx.cloud.uploadFile → 存 fileID, 随资料提交审核
 const MEDIA_TITLE_MAX = 20;  // 资质/荣誉 标题条数上限
 const MEDIA_PHOTO_MAX = 6;   // 资质/荣誉 图片张数上限
+const MEDIA_PHOTO_MAX_SIZE = 3 * 1024 * 1024; // 单张图片大小上限 3M
 const MEDIA_TITLE_LEN = 20;  // 单条标题字数上限
 
 function callCloud(name, data) {
@@ -187,14 +188,22 @@ Page({
   },
   async doUpload(key, files) {
     const field = key + 'Photos';
+    const MAX_SIZE = MEDIA_PHOTO_MAX_SIZE; // 单张 3M 上限
+    // 过滤超限图片(单张 > 3M): 提示并被跳过, 其余正常上传
+    const oversized = files.filter((f) => (Number(f.size) || 0) > MAX_SIZE).length;
+    const valid = files.filter((f) => (Number(f.size) || 0) <= MAX_SIZE);
     this.setData({ uploading: true });
-    wx.showLoading({ title: '上传中…', mask: true });
+    if (oversized > 0) {
+      wx.showToast({ title: `${oversized} 张图片超过 3M 已忽略`, icon: 'none', duration: 2500 });
+    } else {
+      wx.showLoading({ title: '上传中…', mask: true });
+    }
     try {
-      for (let i = 0; i < files.length; i++) {
-        const name = String(files[i].tempFilePath || '').split('/').pop();
+      for (let i = 0; i < valid.length; i++) {
+        const name = String(valid[i].tempFilePath || '').split('/').pop();
         const ext = (String(name.split('.').pop() || 'jpg')).toLowerCase();
         const cloudPath = `partner-cert/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
-        const up = await wx.cloud.uploadFile({ cloudPath, filePath: files[i].tempFilePath });
+        const up = await wx.cloud.uploadFile({ cloudPath, filePath: valid[i].tempFilePath });
         const arr = [...(this.data[field] || []), up.fileID].slice(0, MEDIA_PHOTO_MAX);
         this.setData({ [field]: arr });
       }
