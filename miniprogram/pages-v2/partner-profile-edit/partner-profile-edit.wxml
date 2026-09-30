@@ -24,7 +24,8 @@
     </view>
     <view class="ppe__addrow" wx:if="{{skills.length < 10}}">
       <input class="ppe__input" value="{{skillInput}}" maxlength="12" placeholder="如：持证护士" bindinput="onSkillInput" />
-      <button class="ppe__addbtn" bindtap="onAddSkill">添加</button>
+      <!-- 用 view 代替 button: 避免 button 内置样式/键盘失焦吞点击 -->
+      <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddSkill">添加</view>
     </view>
   </view>
 
@@ -38,7 +39,7 @@
     </view>
     <view class="ppe__addrow" wx:if="{{highlights.length < 3}}">
       <input class="ppe__input" value="{{highlightInput}}" maxlength="30" placeholder="如：全程陪同不玩手机" bindinput="onHighlightInput" />
-      <button class="ppe__addbtn" bindtap="onAddHighlight">添加</button>
+      <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddHighlight">添加</view>
     </view>
   </view>
 

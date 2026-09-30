@@ -15,7 +15,7 @@
 .ppe__hl { display: flex; justify-content: space-between; align-items: center; background: #F7F8FA; border-radius: 12rpx; padding: 20rpx; margin-top: 16rpx; font-size: 28rpx; }
 .ppe__addrow { display: flex; gap: 16rpx; margin-top: 20rpx; }
 .ppe__input { flex: 1; background: #F7F8FA; border-radius: 12rpx; padding: 0 20rpx; height: 72rpx; font-size: 28rpx; }
-.ppe__addbtn { width: 140rpx; height: 72rpx; line-height: 72rpx; font-size: 26rpx; background: #07C160; color: #FFFFFF; border-radius: 12rpx; padding: 0; }
+.ppe__addbtn { width: 140rpx; height: 72rpx; line-height: 72rpx; font-size: 26rpx; background: #07C160; color: #FFFFFF; border-radius: 12rpx; padding: 0; display: flex; align-items: center; justify-content: center; }
 .ppe__submit { margin-top: 16rpx; background: #07C160; color: #FFFFFF; font-size: 32rpx; border-radius: 44rpx; height: 88rpx; line-height: 88rpx; }
 .ppe__submit.is-disabled { background: #C8C9CC; }
 .ppe__safe { margin-top: 24rpx; font-size: 24rpx; color: #9AA0A6; text-align: center; }
