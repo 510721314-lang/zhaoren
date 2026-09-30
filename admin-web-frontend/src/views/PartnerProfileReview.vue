@@ -14,18 +14,7 @@
       <el-table-column type="expand">
         <template #default="{ row }">
           <div style="padding:8px 16px;display:flex;gap:28px;flex-wrap:wrap">
-            <!-- 分类独立审核操作栏 -->
-            <div style="width:100%;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid #eee;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span style="font-weight:600;font-size:13px">分类审核：</span>
-              <template v-for="f in fields(5)">
-                <el-tag v-if="hasPending(row, f.key)" size="small" :type="'warning'" effect="plain" style="margin-right:2px">
-                  {{ f.name }}
-                  <el-button v-if="busyField !== row.openid+'|'+f.key" size="mini" type="success" link @click="doFieldApprove(row,f.key)" :loading="busyField===row.openid+'|'+f.key" style="margin-left:6px">通过</el-button>
-                  <el-button v-if="busyField !== row.openid+'|'+f.key" size="mini" type="danger" link @click="openFieldReject(row,f.key)" style="margin-left:2px">驳回</el-button>
-                </el-tag>
-              </template>
-              <el-button size="mini" type="success" plain @click="doAllApprove(row)">全部通过</el-button>
-            </div>
+            <!-- 审核入口已内联至列表列各分类块 (展开行仅作 diff 复核) -->
             <!-- 一、个人简介 差异 -->
             <div style="flex:1;min-width:240px">
               <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">① 个人简介</div>
@@ -111,12 +100,24 @@
         <template #default="{ row }">
           <!-- 分类块：各栏目均展示 原内容 vs 变更后 diff(新增绿/删除红) -->
           <div v-if="row.current.bio || row.pending.bio" class="prc-cat">
-            <div class="prc-cat-name">简介</div>
+            <div class="prc-cat-head">
+              <div class="prc-cat-name">简介</div>
+              <div class="prc-actions" v-if="hasPending(row,'bio')">
+                <el-button size="mini" type="success" link :loading="busyField===row.openid+'|bio'" @click="doFieldApprove(row,'bio')">通过</el-button>
+                <el-button size="mini" type="danger" link @click="openFieldReject(row,'bio')">驳回</el-button>
+              </div>
+            </div>
             <div class="prc-line"><span class="prc-old-tag">原</span><span v-for="(s,i) in bioOldSpans(row.current.bio, row.pending.bio)" :key="'o'+i" :class="s.t === 2 ? 'diff-del-tag' : ''">{{ s.v }}</span></div>
             <div class="prc-line"><span class="prc-new-tag">新</span><span v-for="(s,i) in bioNewSpans(row.current.bio, row.pending.bio)" :key="'n'+i" :class="s.t === 1 ? 'diff-add-tag' : ''">{{ s.v }}</span></div>
           </div>
           <div v-if="(row.current.skills || []).length || (row.pending.skills || []).length" class="prc-cat">
-            <div class="prc-cat-name">技能</div>
+            <div class="prc-cat-head">
+              <div class="prc-cat-name">技能</div>
+              <div class="prc-actions" v-if="hasPending(row,'skills')">
+                <el-button size="mini" type="success" link :loading="busyField===row.openid+'|skills'" @click="doFieldApprove(row,'skills')">通过</el-button>
+                <el-button size="mini" type="danger" link @click="openFieldReject(row,'skills')">驳回</el-button>
+              </div>
+            </div>
             <div class="prc-line">
               <span class="prc-old-tag">原</span>
               <el-tag v-for="s in row.current.skills" :key="s" size="small" effect="plain" class="prc-tag" :class="removedSet(row.current.skills, row.pending.skills).includes(s) ? 'diff-del-tag' : ''">{{ s }}</el-tag>
@@ -127,7 +128,13 @@
             </div>
           </div>
           <div v-if="(row.current.highlights || []).length || (row.pending.highlights || []).length" class="prc-cat">
-            <div class="prc-cat-name">亮点</div>
+            <div class="prc-cat-head">
+              <div class="prc-cat-name">亮点</div>
+              <div class="prc-actions" v-if="hasPending(row,'highlights')">
+                <el-button size="mini" type="success" link :loading="busyField===row.openid+'|highlights'" @click="doFieldApprove(row,'highlights')">通过</el-button>
+                <el-button size="mini" type="danger" link @click="openFieldReject(row,'highlights')">驳回</el-button>
+              </div>
+            </div>
             <div class="prc-line">
               <span class="prc-old-tag">原</span>
               <el-tag v-for="h in row.current.highlights" :key="h" size="small" effect="plain" class="prc-tag" :class="removedSet(row.current.highlights, row.pending.highlights).includes(h) ? 'diff-del-tag' : ''">{{ h }}</el-tag>
@@ -138,7 +145,13 @@
             </div>
           </div>
           <div v-if="mediaBill(row.current.qualifications) !== '（空）' || (row.pending.qualifications?.titles || []).length || (row.pending.qualifications?.photos || []).length" class="prc-cat">
-            <div class="prc-cat-name">资质证书</div>
+            <div class="prc-cat-head">
+              <div class="prc-cat-name">资质证书</div>
+              <div class="prc-actions" v-if="hasPending(row,'qualifications')">
+                <el-button size="mini" type="success" link :loading="busyField===row.openid+'|qualifications'" @click="doFieldApprove(row,'qualifications')">通过</el-button>
+                <el-button size="mini" type="danger" link @click="openFieldReject(row,'qualifications')">驳回</el-button>
+              </div>
+            </div>
             <div class="prc-line"><span class="prc-old-tag">原</span><span>{{ mediaBill(row.current.qualifications) }}</span></div>
             <div class="prc-line">
               <span class="prc-new-tag">新</span>
@@ -148,7 +161,13 @@
             </div>
           </div>
           <div v-if="mediaBill(row.current.honors) !== '（空）' || (row.pending.honors?.titles || []).length || (row.pending.honors?.photos || []).length" class="prc-cat">
-            <div class="prc-cat-name">荣誉 其他</div>
+            <div class="prc-cat-head">
+              <div class="prc-cat-name">荣誉 其他</div>
+              <div class="prc-actions" v-if="hasPending(row,'honors')">
+                <el-button size="mini" type="success" link :loading="busyField===row.openid+'|honors'" @click="doFieldApprove(row,'honors')">通过</el-button>
+                <el-button size="mini" type="danger" link @click="openFieldReject(row,'honors')">驳回</el-button>
+              </div>
+            </div>
             <div class="prc-line"><span class="prc-old-tag">原</span><span>{{ mediaBill(row.current.honors) }}</span></div>
             <div class="prc-line">
               <span class="prc-new-tag">新</span>
@@ -163,7 +182,7 @@
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <div style="font-size:12px;color:#909399">待审 {{ pendingCount(row) }} 项</div>
-          <el-button size="mini" type="primary" plain link style="margin-top:2px" @click="openExpand(row)">展开分类审核 ›</el-button>
+          <el-button size="mini" type="primary" plain style="margin-top:2px" :loading="busyField===row.openid+'|all'" @click="doAllApprove(row)">全部通过</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -327,7 +346,6 @@ const FIELD_META = {
   bio: '个人简介', skills: '技能标签', highlights: '服务亮点',
   qualifications: '资质证书', honors: '荣誉 其他'
 };
-function fields() { return Object.keys(FIELD_META).map((k) => ({ key: k, name: FIELD_META[k] })); }
 function fieldName(k) { return FIELD_META[k] || k; }
 function hasPending(row, field) {
   if (!row || !row.pending) return false;
@@ -340,10 +358,6 @@ function hasPending(row, field) {
 function pendingCount(row) {
   return Object.keys(FIELD_META).filter((f) => hasPending(row, f)).length;
 }
-function openExpand(row) {
-  const tr = document.querySelector(`tr[data-row-key="${row.openid}"] .el-table__expand-icon`);
-  if (tr) tr.click();
-}
 onMounted(load);
 </script>
 
@@ -354,6 +368,9 @@ onMounted(load);
 .diff-del-tag { text-decoration: line-through; opacity: 0.9; }
 /* 待审内容列 · 分类块(原 vs 新) */
 .prc-cat { margin: 2px 0 4px; }
+.prc-cat-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e4e7ed; margin-bottom: 2px; }
+.prc-cat-head .prc-cat-name { border-bottom: none; margin-bottom: 0; }
+.prc-actions { flex-shrink: 0; display: flex; align-items: center; }
 .prc-cat-name { font-size: 12px; color: #606266; font-weight: 600; border-bottom: 1px dashed #e4e7ed; margin-bottom: 2px; padding-bottom: 1px; }
 .prc-line { font-size: 12px; line-height: 22px; display: flex; flex-wrap: wrap; align-items: center; }
 .prc-old-tag, .prc-new-tag { flex-shrink: 0; display: inline-block; width: 22px; text-align: center; border-radius: 3px; font-size: 11px; margin-right: 6px; }
