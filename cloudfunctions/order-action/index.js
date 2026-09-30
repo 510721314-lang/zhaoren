@@ -49,7 +49,7 @@ function buildOrderSummary(o) {
 }
 
 // 自由文本安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词, 与 demand-publish/im-send 同款)
-const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
 // 内容安全: msgSecCheck v2; 87014 明确违规; 其他异常(未开通/网络)降级本地违禁词 —— 失败不阻断主流程, 仅拦明确违规
 async function checkText(openid, text, blockWords) {

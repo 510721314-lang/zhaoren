@@ -473,6 +473,8 @@ exports.main = async (event, context) => {
       if (!order_id) return { ok: false, code: 'ins_no_order', msg: '缺少订单 ID' };
       const order = await getOrder(order_id);
       if (!order) return { ok: false, code: 'ins_not_found', msg: '订单不存在' };
+      // 属主校验(对齐 mock_pay/mock_refund): 仅下单人可为自己的订单购买保险
+      if (order.user_openid !== openid) return { ok: false, code: 'ins_forbidden', msg: '仅下单人可操作' };
       // 幂等: 已买过直接返回
       const exist = await col('insurance_record').where({ order_id }).limit(1).get().catch(() => ({ data: [] }));
       if (exist.data && exist.data.length > 0) {

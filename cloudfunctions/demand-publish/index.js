@@ -61,7 +61,7 @@ const SCENE_OPTIONS_FALLBACK = {
 };
 
 // 备注安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词)
-const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我'];
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
 // ─────────────── P1 节点留证(勾选同意型) ───────────────
 // 发布/修改需求时用户勾选《场景免责声明》等文档; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
@@ -875,8 +875,8 @@ exports.main = async (event, context) => {
           gender_pref: d.gender_pref || '不限',
           // W9 宠物照料授权电子确认状态(编辑回填 + 详情展示)
           pet_auth_signed: !!d.pet_auth_signed,
-          // 原始发布地址(只读留痕, 编辑模式回填用; 普通详情不展示)
-          publish_location: d.publish_location || null,
+          // 原始发布地址(只读留痕, 编辑模式回填用; 安全: 精确坐标仅发布者本人可见, 他人不回传)
+          publish_location: (d.creator_openid === openid) ? (d.publish_location || null) : null,
           // 是否入公共大厅(定向需求不在大厅/首页出现)
           broadcast: !!d.broadcast,
           status: d.status,

@@ -10,7 +10,7 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
 
-const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我'];
+const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
 async function getConfig() {
   try {
@@ -40,12 +40,12 @@ async function checkText(openid, text) {
     });
     return true;
   } catch (e) {
-    // 降级:本地违禁词
+    // 降级 fail-closed: 本地违禁词未命中也拒绝(评价为公开展示面, 未安检内容不放行)
     const lower = text.toLowerCase();
     for (const w of BLOCK_WORDS) {
       if (lower.includes(w.toLowerCase())) return false;
     }
-    return true;
+    return false;
   }
 }
 

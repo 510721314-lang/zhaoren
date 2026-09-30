@@ -128,8 +128,8 @@ async function safeCheckText(text, blockWords) {
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
-    return r.data || { block_words: ['加微信', '加V', '转账', '私聊我'] };
-  } catch (e) { return { block_words: ['加微信', '加V', '转账', '私聊我'] }; }
+    return r.data || { block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'] };
+  } catch (e) { return { block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'] }; }
 }
 
 // dev 环境 simulated 实名用户当作已实名放行(开发调试便利, prod 严格)
@@ -199,6 +199,9 @@ function genSmsCode() {
 // 短信验证码防爆破: 连续失败 5 次锁定 10 分钟
 const SMS_MAX_FAIL = 5;
 const SMS_LOCK_MS = 10 * 60 * 1000;
+// 密码登录防爆破: 与短信同策略(5 次/10 分钟)
+const PWD_MAX_FAIL = 5;
+const PWD_LOCK_MS = 10 * 60 * 1000;
 // 从前端入参拿到真实手机号: 路径A phone_code(getPhoneNumber 授权) / 路径B phone+sms_code(短信验证码)
 // callerOpenid 必须传 resolveOpenid 解析后的身份(不能内部取 wxCtx.OPENID, 否则 dev mock 链路断裂)
 async function resolvePhone(event, callerOpenid) {
@@ -376,6 +379,8 @@ exports.main = async (event, context) => {
     }
 
     // 4. 绑定身份证(18 位校验位 + 计算年龄 + <18 拒绝; AES-256-GCM 加密落库)
+    // 安全: 仅加密存证, 不置 is_realname_done —— 实名通过态只能由 submit_realname(人脸核验链路) 置位,
+    //       防"只填身份证号即绕过实名"(is_partner/apply/partner_detail 均以该字段为实名门)
     case 'bind_idcard': {
       const { idcard } = event;
       if (!isValidIdCard(idcard)) {
@@ -396,7 +401,8 @@ exports.main = async (event, context) => {
         await col('user_account').where({ openid }).update({ data: {
           idcard_enc: idcardEnc, idcard_mask: maskIdCard(idcard),
           idcard: '', // 清理历史明文(老数据重绑时)
-          age, is_realname_done: true, updated_at: Date.now()
+          age, updated_at: Date.now()
+          // 注意: 不再置 is_realname_done, 实名通过态仅由 submit_realname 置位
         }});
         return { ok: true, data: { age, idcard_masked: maskIdCard(idcard) } };
       } catch (e) {
@@ -424,9 +430,11 @@ exports.main = async (event, context) => {
       }
 
       const config = await getConfig();
-      // 人脸模式守卫: 测试期 mock 放行; 后台切到 wx 后本模拟通道 fail-closed(正式人脸流程随资质接入)
+      // 人脸模式守卫: mock 通道仅 dev 环境放行(env 为唯一权威开关, fail-closed);
+      // prod 下无论 face_mode 配置漂移到何值, 模拟人脸一律拒绝 —— 防 mock 人脸洗成"正式实名+签名留证"的证据污染
+      const envNow = getCachedEnv();
       const faceMode = String(config.realname_face_mode || 'mock');
-      if (faceMode !== 'mock') {
+      if (faceMode !== 'mock' || envNow !== 'dev') {
         return { ok: false, code: 'realname_face_online', msg: '正式人脸核验通道尚未开放,请等待上线后再试' };
       }
 
@@ -513,10 +521,10 @@ exports.main = async (event, context) => {
       return { ok: true, data: { user: u2 ? safeUserDoc(u2) : null, evidence_id: evidenceId } };
     }
 
-    // 4.5 模拟实名认证(测试期专用: 仅 realname_face_mode=mock 时可用; 切 wx 后 fail-closed)
+    // 4.5 模拟实名认证(测试期专用: 仅 dev 环境可用, env 为唯一权威开关 fail-closed)
+    // prod 下任意用户(含真实 OPENID)一律拒绝, 防一键自授权实名绕过人脸核验
     case 'simulate_realname': {
-      const simCfg = await getConfig();
-      if (String(simCfg.realname_face_mode || 'mock') !== 'mock') {
+      if (getCachedEnv() !== 'dev') {
         return { ok: false, code: 'realname_mock_closed', msg: '模拟认证已关闭' };
       }
       const now = Date.now();
@@ -552,6 +560,20 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'emergency_phone', msg: `${c.name} 的手机号格式有误` };
         }
       }
+      // 合规硬约束: 紧急联系人每 30 天最多变更 1 次(首次设置豁免)
+      const EMERGENCY_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+      try {
+        const meR = await col('user_account').where({ openid }).limit(1).get();
+        const me = (meR.data && meR.data[0]) || null;
+        const lastChanged = me && me.emergency_changed_at;
+        if (lastChanged && (Date.now() - lastChanged) < EMERGENCY_COOLDOWN_MS) {
+          const nextAt = new Date(lastChanged + EMERGENCY_COOLDOWN_MS);
+          const nextStr = `${nextAt.getFullYear()}-${String(nextAt.getMonth() + 1).padStart(2, '0')}-${String(nextAt.getDate()).padStart(2, '0')}`;
+          return { ok: false, code: 'emergency_too_frequent', msg: `紧急联系人每30天仅可变更1次, ${nextStr} 后可再次修改` };
+        }
+      } catch (e) {
+        return { ok: false, code: 'emergency_save_fail', msg: '紧急联系人保存失败' };
+      }
       try {
         const now = Date.now();
         // 槽位复用: 取现有未删联系人(按创建顺序, 最多2), 逐槽覆盖更新; 不足才新增, 多余软删。
@@ -576,6 +598,25 @@ exports.main = async (event, context) => {
             is_deleted: true, updated_at: now
           }});
         }
+        // 记录变更时间(30 天频控窗口起点)
+        await col('user_account').where({ openid }).update({ data: { emergency_changed_at: now } });
+        // 变更通知留痕: 原联系人收到通知的合规要求, 真实短信通道随企业资质最后一步接入;
+        // 现阶段落审计 + system_notice 证据链, 提审演示可说明
+        const oldMasked = existDocs.map((d) => ({ name: d.name || '', phone: maskPhone(d.phone || '') }));
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'account', action: 'emergency_contact_change',
+          target_type: 'user_account', target_id: (me && me._id) || '',
+          detail: { old_contacts: oldMasked, new_count: contacts.length },
+          result: 'ok', client_ip: clientIp, device
+        });
+        try {
+          await col('system_notice').add({ data: {
+            openid, type: 'emergency_contact_changed',
+            title: '紧急联系人已变更',
+            content: `您的紧急联系人已变更为 ${contacts.map((c) => c.name).join('、')}; 原联系人已收到变更通知(短信通道接入后发送)。`,
+            is_read: false, created_at: now, updated_at: now, is_deleted: false
+          }});
+        } catch (e) { log.d(`emergency notice fail: ${e.message}`); }
         const safe = contacts.map(c => ({ name: c.name, phone: maskPhone(c.phone), relation: c.relation }));
         return { ok: true, data: { contacts: safe } };
       } catch (e) {
@@ -1052,7 +1093,8 @@ exports.main = async (event, context) => {
       try {
         const r = await col('user_account').where({ login_account }).limit(1).get();
         if (!(r.data && r.data.length > 0)) {
-          return { ok: false, code: 'password_not_found', msg: '账号不存在' };
+          // 防枚举: 与密码错误同文案, 不暴露账号是否存在
+          return { ok: false, code: 'password_wrong', msg: '账号或密码错误' };
         }
         const u = r.data[0];
         if (u.status === 'frozen') return { ok: false, code: 'login_account_frozen', msg: '账号已冻结' };
@@ -1062,9 +1104,24 @@ exports.main = async (event, context) => {
         if (!u.password_hash || !u.password_salt) {
           return { ok: false, code: 'password_not_set', msg: '该账号未设置密码,请改用微信或手机号登录' };
         }
+        // 防爆破锁定(fail-closed: 锁定中一律拒绝)
+        if (u.pwd_lock_until && u.pwd_lock_until > Date.now()) {
+          return { ok: false, code: 'password_locked', msg: '密码错误次数过多,请10分钟后再试' };
+        }
         const expectHash = hashPassword(password, u.password_salt);
         if (expectHash !== u.password_hash) {
-          return { ok: false, code: 'password_wrong', msg: '密码错误' };
+          const fails = (u.pwd_fail_count || 0) + 1;
+          const patch = { pwd_fail_count: fails, updated_at: Date.now() };
+          if (fails >= PWD_MAX_FAIL) {
+            patch.pwd_lock_until = Date.now() + PWD_LOCK_MS;
+            patch.pwd_fail_count = 0;
+          }
+          await col('user_account').doc(u._id).update({ data: patch });
+          return { ok: false, code: 'password_wrong', msg: '账号或密码错误' };
+        }
+        // 验密通过: 清零失败计数与锁定
+        if (u.pwd_fail_count || u.pwd_lock_until) {
+          await col('user_account').doc(u._id).update({ data: { pwd_fail_count: 0, pwd_lock_until: 0 } });
         }
         // 如果 openid 已变(换了微信/换了设备), 检查新 openid 下没有其他活跃账号 → 冲突则拒绝
         if (u.openid !== openid) {

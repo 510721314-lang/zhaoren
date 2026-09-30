@@ -109,7 +109,7 @@ const SEED_CONFIG = {
   // 首页活动栏: 后台运营配置, init-db 仅存空数组, 由 admin-action home_activity_create 填充
   home_activities: [],
   // 本地兜底词库(msgSecCheck 不可用时使用)
-  block_words: ['加微信', '加V', '转账', '私聊我'],
+  block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'],
   // 环境开关: dev(测试期,允许 mock_openid 模拟身份) / prod(上线,强制忽略 mock_openid)
   env: 'prod',
   // 上线前必须改为 false(当前是 true 方便 MVP bootstrap)
@@ -124,6 +124,24 @@ const SEED_CONFIG = {
   updated_at: Date.now(),
   is_deleted: false
 };
+
+// 管理身份解析(安全收口):
+//  1) admin-web 网关代理链路: 校验共享密钥 _admin_web_proxy_key(与 admin-action/openid.js 同模式), 不匹配 fail-closed
+//  2) 否则用 resolveOpenid 结果(prod 强制真实 wxCtx.OPENID, mock_openid 旁路全关)
+//  绝不直接读 event.mock_openid —— 历史漏洞: prod 下任意客户端可伪造管理员身份
+async function resolveAdminIdentity(db, event, openid) {
+  if (event && event.__admin_web_proxy && event._admin_web_proxy_key !== undefined) {
+    try {
+      const r = await db.collection('admin_config').doc('global').get();
+      const stored = (r.data && r.data.admin_web_key) || '';
+      if (stored && event._admin_web_proxy_key && event._admin_web_proxy_key === stored) {
+        return event._admin_web_proxy_openid || null;
+      }
+    } catch (e) {}
+    return null; // 代理密钥为空/不匹配: fail-closed, 不再 fallthrough
+  }
+  return openid || null;
+}
 
 exports.main = async (event, context) => {
   const { resolveOpenid, warmEnv, invalidateEnvCache } = require('./openid');
@@ -143,12 +161,14 @@ exports.main = async (event, context) => {
   // ── 鉴权: lookup/check_pp/force_migrate_scenes 需管理员; quick_check + 默认幂等种子补齐放行 ──
   const action = event && event.action;
   const openid = await resolveOpenid(cloud, event);
+  // 管理身份(代理密钥 或 真实 OPENID), 供各管理面动作统一使用
+  const adminIdentity = await resolveAdminIdentity(db, event, openid);
   const ADMIN_ACTIONS = ['lookup', 'force_migrate_scenes', 'check_pp'];
   if (ADMIN_ACTIONS.indexOf(action) >= 0) {
     let cfg = null;
     try { cfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) {}
     const adminOpenids = (cfg && cfg.admin_openids) || [];
-    const isAdmin = !!openid && adminOpenids.indexOf(openid) >= 0;
+    const isAdmin = !!adminIdentity && adminOpenids.indexOf(adminIdentity) >= 0;
     // 鸡生蛋兼容: admin_openids 为空时首次部署放行(等 init-db 建好 admin_config 后 admin-action claim_admin 初始化)
     if (adminOpenids.length > 0 && !isAdmin) {
       return { ok: false, code: 'idb_forbidden', msg: '无权限,仅管理员可调用此动作' };
@@ -229,7 +249,7 @@ exports.main = async (event, context) => {
   }
 
   // ── 临时: 切换 admin_config.env(仅 dev/prod, 用于云端测试面板 mock_openid 放行) ──
-  // prod 环境 fail-closed 禁止切 dev(防云端测试面板被人滥用身份门控)
+  // prod 环境 fail-closed 禁止切 dev(防云端测试面板被人滥用身份门控); 需管理员白名单身份
   if (event && event.action === 'set_env') {
     const { env } = event;
     if (env !== 'dev' && env !== 'prod') return { ok: false, msg: 'env 只能是 dev 或 prod' };
@@ -239,21 +259,25 @@ exports.main = async (event, context) => {
       if (curEnv === 'prod' && env === 'dev') {
         return { ok: false, msg: 'prod 环境禁止切 dev, 请用 force_set_env 并填 reason' };
       }
+      const allowed = (cur.data && cur.data.admin_openids) || [];
+      if (!adminIdentity || allowed.indexOf(adminIdentity) < 0) {
+        return { ok: false, code: 'forbidden', msg: '仅白名单管理员可调用 set_env' };
+      }
       await db.collection('admin_config').doc('global').update({ data: { env, updated_at: Date.now() } });
       return { ok: true, mode: 'set_env', env };
     } catch (e) { return { ok: false, msg: e.message }; }
   }
 
-  // ── 应急: 强制切 env(任何方向, 需 reason + openid 在 admin_openids 白名单) ──
-  // 真机调试时需要 prod→dev 拿 send_sms_code 的 dev_code, 测完立即切回 prod 并移除本 action
+  // ── 应急: 强制切 env(任何方向, 需 reason + confirm:true 二次确认 + 管理员身份白名单) ──
+  // 身份经 resolveAdminIdentity 收口(代理密钥 或 prod 真实 OPENID), 绝不直接读 event.mock_openid
   if (event && event.action === 'force_set_env') {
-    const { env, reason, mock_openid } = event;
+    const { env, reason } = event;
     if (env !== 'dev' && env !== 'prod') return { ok: false, msg: 'env 只能是 dev 或 prod' };
     if (!reason) return { ok: false, msg: 'force_set_env 必须填 reason 留审计' };
+    if (event.confirm !== true) return { ok: false, code: 'need_confirm', msg: 'force_set_env 为高危开关, 需 confirm:true 二次确认' };
     try {
-      const wxCtx = cloud.getWXContext();
-      const curOpenid = wxCtx.OPENID || mock_openid || null;
-      if (!curOpenid) return { ok: false, code: 'no_identity', msg: '请提供 mock_openid(云端测试面板) 或真机身份' };
+      const curOpenid = await resolveAdminIdentity(db, event, openid);
+      if (!curOpenid) return { ok: false, code: 'no_identity', msg: '未获取到管理员身份(真机 OPENID 或有效网关代理密钥)' };
       const acr = await db.collection('admin_config').doc('global').get();
       const allowed = (acr.data && acr.data.admin_openids) || [];
       if (allowed.indexOf(curOpenid) < 0) {
@@ -274,41 +298,55 @@ exports.main = async (event, context) => {
         }
       });
       invalidateEnvCache(); // 强制清缓存, 后续 init-db 操作立即感知新 env
+      // 审批留痕: 高危开关写 platform_event(安全审计要求)
+      try {
+        await db.collection('platform_event').add({ data: {
+          level: 'P1', event: 'force_set_env', openid: curOpenid,
+          detail: { from: before, to: env, reason, auto_revert_at: env === 'dev' ? now + EXPIRE_MS : null },
+          created_at: now, updated_at: now, is_deleted: false
+        } });
+      } catch (e) { console.warn('force_set_env platform_event 留痕失败:', e.message); }
       return { ok: true, mode: 'force_set_env', from: before, to: env, operator: curOpenid, auto_revert_in_hours: env === 'dev' ? 4 : null };
     } catch (e) { return { ok: false, msg: e.message }; }
   }
 
   // ── 一次性: 生成 admin-web HTTP 鉴权密钥(长随机字符串, 加 reason 审计) ──
   // admin_openids 为空时自动 bootstrap seed 当前 openid + 放行 (打破鸡生蛋)
+  // 安全: 身份经 resolveAdminIdentity 收口; bootstrap 走事务 CAS(并发下仅首个调用者成功);
+  //       key 仅此一次明文返回, 不落日志不落库外存储 —— 调用方须立即妥善保存
   if (event && event.action === 'generate_admin_web_key') {
-    const { reason, mock_openid } = event;
+    const { reason } = event;
     if (!reason) return { ok: false, msg: '必须填 reason 审计' };
     try {
-      const wxCtx = cloud.getWXContext();
-      const curOpenid = wxCtx.OPENID || mock_openid || null;
-      if (!curOpenid) return { ok: false, msg: '需要 openid 身份' };
+      const curOpenid = await resolveAdminIdentity(db, event, openid);
+      if (!curOpenid) return { ok: false, msg: '需要管理员身份(真机 OPENID 或有效网关代理密钥)' };
       const now = Date.now();
-      const acr = await db.collection('admin_config').doc('global').get();
-      let allowed = (acr.data && acr.data.admin_openids) || [];
-      const bootstrapped = allowed.length === 0;
-      // Bootstrap: admin_openids 为空时先 seed + 放行 (鸡生蛋解法)
-      if (bootstrapped) {
-        await db.collection('admin_config').doc('global').update({
-          data: { admin_openids: [curOpenid], updated_at: now }
-        });
-        allowed = [curOpenid];
-      }
-      if (allowed.indexOf(curOpenid) < 0) return { ok: false, msg: '仅白名单管理员可执行' };
       const crypto = require('crypto');
       const key = 'AWK-' + crypto.randomBytes(32).toString('hex');
-      await db.collection('admin_config').doc('global').update({
-        data: { admin_web_key: key, admin_web_key_at: now, admin_web_key_by: curOpenid,
-                admin_web_key_reason: reason, updated_at: now,
-                admin_openids: allowed // bootstrap 后覆盖回完整列表
-              }
+      // 事务 CAS: 重读白名单, bootstrap 仅在仍为空时成立(防并发双击各自 seed 自己)
+      let bootstrapped = false;
+      await db.runTransaction(async (t) => {
+        const acr = await t.collection('admin_config').doc('global').get();
+        let allowed = (acr.data && acr.data.admin_openids) || [];
+        bootstrapped = allowed.length === 0;
+        if (bootstrapped) allowed = [curOpenid];
+        if (allowed.indexOf(curOpenid) < 0) {
+          const err = new Error('仅白名单管理员可执行');
+          err.bizCode = 'forbidden';
+          throw err;
+        }
+        await t.collection('admin_config').doc('global').update({
+          data: { admin_web_key: key, admin_web_key_at: now, admin_web_key_by: curOpenid,
+                  admin_web_key_reason: reason, updated_at: now,
+                  admin_openids: allowed // bootstrap 后覆盖回完整列表
+                }
+        });
       });
-      return { ok: true, key, bootstrapped, hint: '请妥善保存此 key, admin-web 前端 HTTP 请求头 X-Admin-Key 需携带' };
-    } catch (e) { return { ok: false, msg: e.message }; }
+      return { ok: true, key, key_once: true, bootstrapped, hint: '此 key 仅本次明文返回且不落任何日志, 请立即复制妥善保存; admin-web 前端 HTTP 请求头 X-Admin-Key 需携带' };
+    } catch (e) {
+      if (e && e.bizCode === 'forbidden') return { ok: false, code: 'forbidden', msg: '仅白名单管理员可执行' };
+      return { ok: false, msg: e.message };
+    }
   }
 
   // ── 临时: 按 openid 查 partner_profile 全部文档 ──
@@ -334,7 +372,7 @@ exports.main = async (event, context) => {
     try { _seedCfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) { _seedCfg = null; }
     if (_seedCfg) {
       const _admins = (_seedCfg.admin_openids) || [];
-      const _isAdmin = !!openid && _admins.indexOf(openid) >= 0;
+      const _isAdmin = !!adminIdentity && _admins.indexOf(adminIdentity) >= 0;
       if (!(_admins.length > 0 && _isAdmin)) {
         return { ok: false, code: 'idb_seed_forbidden', msg: '无权限,仅管理员可执行初始化' };
       }

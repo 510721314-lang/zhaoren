@@ -84,7 +84,7 @@ async function getConfig() {
     const r = await col('admin_config').doc('global').get();
     if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
-  return { block_words: ['加微信', '加V', '转账', '私聊我'] };
+  return { block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'] };
 }
 
 // 内容安全: msgSecCheck 不可用/无权限时降级本地词库
@@ -95,10 +95,10 @@ async function safeCheckText(text, blockWords) {
     if (res.errCode === 0) return { pass: true };
     return { pass: false, msg: '内容包含违规信息,请修改后发布' };
   } catch (e) {
+    // 公开展示面(blog) fail-closed: msgSecCheck 异常时本地词库未命中即拒绝, 防止未安检内容上线
     const hit = (blockWords || []).find((w) => text.indexOf(w) >= 0);
-    return hit
-      ? { pass: false, msg: '内容包含屏蔽词「' + hit + '」,请修改后发布' }
-      : { pass: true, fallback: true };
+    if (hit) return { pass: false, msg: '内容包含屏蔽词「' + hit + '」,请修改后发布' };
+    return { pass: false, msg: '内容安全服务暂不可用,请稍后重试' };
   }
 }
 
