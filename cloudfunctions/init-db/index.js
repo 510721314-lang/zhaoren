@@ -4,6 +4,7 @@
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
+const { resolveAdminBootstrap } = require('./security_policy');
 
 // 19 个业务集合(rules.md 第五节第7条; 2026-09-16 +withdraw_record/+demand_draft; 2026-09-17 +withdraw_lock)
 const COLLECTIONS = [
@@ -324,13 +325,13 @@ exports.main = async (event, context) => {
       const crypto = require('crypto');
       const key = 'AWK-' + crypto.randomBytes(32).toString('hex');
       // 事务 CAS: 重读白名单, bootstrap 仅在仍为空时成立(防并发双击各自 seed 自己)
+      // 决策逻辑抽到 _shared/security_policy.js 统一实现并单测
       let bootstrapped = false;
       await db.runTransaction(async (t) => {
         const acr = await t.collection('admin_config').doc('global').get();
-        let allowed = (acr.data && acr.data.admin_openids) || [];
-        bootstrapped = allowed.length === 0;
-        if (bootstrapped) allowed = [curOpenid];
-        if (allowed.indexOf(curOpenid) < 0) {
+        const decision = resolveAdminBootstrap((acr.data && acr.data.admin_openids) || [], curOpenid);
+        bootstrapped = decision.bootstrapped;
+        if (!decision.permitted) {
           const err = new Error('仅白名单管理员可执行');
           err.bizCode = 'forbidden';
           throw err;
@@ -338,7 +339,7 @@ exports.main = async (event, context) => {
         await t.collection('admin_config').doc('global').update({
           data: { admin_web_key: key, admin_web_key_at: now, admin_web_key_by: curOpenid,
                   admin_web_key_reason: reason, updated_at: now,
-                  admin_openids: allowed // bootstrap 后覆盖回完整列表
+                  admin_openids: decision.allowed // bootstrap 后覆盖回完整列表
                 }
         });
       });

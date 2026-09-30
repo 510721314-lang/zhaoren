@@ -1214,6 +1214,34 @@ exports.main = async (event, context) => {
     });
   }
 
+  // ───────── IM 内容安全降级消息补审 ─────────
+  // sec_degraded 消息 = msgSecCheck 异常时放行并标记的消息(IM 强交互链路不 fail-closed),
+  // 后台提供补审列表, 运营人工判断后决定是否删除
+  if (action === 'im_degraded_list') {
+    const pg = pager(event);
+    const q = { sec_degraded: true, is_deleted: _.neq(true) };
+    const query = col('im_message').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    // 关联订单号, 便于定位上下文
+    const orderIds = Array.from(new Set((rows.data || []).map((m) => m.order_id).filter(Boolean)));
+    const orderMap = {};
+    if (orderIds.length) {
+      try {
+        const orders = await col('order_main').where({ _id: _.in(orderIds) }).limit(100).get();
+        (orders.data || []).forEach((o) => { orderMap[o._id] = o; });
+      } catch (e) { log.d('im_degraded order join fail:', e.message); }
+    }
+    const list = (rows.data || []).map((m) => ({
+      msg_id: m._id, order_id: m.order_id, order_no: (orderMap[m.order_id] && orderMap[m.order_id].order_no) || '',
+      from_openid: m.from_openid, from_role: m.from_role || '', text: m.text || '',
+      sec_degraded: true, sec_degraded_at: m.sec_degraded_at || m.created_at, created_at: m.created_at
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
   if (action === 'credit_log_list') {
     const { target_openid, log_type } = event;
     const pg = pager(event);

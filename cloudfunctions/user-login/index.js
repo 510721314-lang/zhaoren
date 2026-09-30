@@ -11,6 +11,7 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+const { evalPasswordLock, passwordFailPatch, evalEmergencyCooldown } = require('./security_policy');
 
 // ─────────────────── 账号密码辅助 ───────────────────
 // 生成 16 字节随机 salt (hex 32 字符)
@@ -567,8 +568,9 @@ exports.main = async (event, context) => {
         const meR = await col('user_account').where({ openid }).limit(1).get();
         const me = (meR.data && meR.data[0]) || null;
         const lastChanged = me && me.emergency_changed_at;
-        if (lastChanged && (Date.now() - lastChanged) < EMERGENCY_COOLDOWN_MS) {
-          const nextAt = new Date(lastChanged + EMERGENCY_COOLDOWN_MS);
+        const cd = evalEmergencyCooldown(lastChanged, Date.now(), EMERGENCY_COOLDOWN_MS);
+        if (cd.blocked) {
+          const nextAt = new Date(cd.nextAtMs);
           const nextStr = `${nextAt.getFullYear()}-${String(nextAt.getMonth() + 1).padStart(2, '0')}-${String(nextAt.getDate()).padStart(2, '0')}`;
           return { ok: false, code: 'emergency_too_frequent', msg: `紧急联系人每30天仅可变更1次, ${nextStr} 后可再次修改` };
         }
@@ -1106,17 +1108,13 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'password_not_set', msg: '该账号未设置密码,请改用微信或手机号登录' };
         }
         // 防爆破锁定(fail-closed: 锁定中一律拒绝)
-        if (u.pwd_lock_until && u.pwd_lock_until > Date.now()) {
+        const lock = evalPasswordLock(u.pwd_fail_count, u.pwd_lock_until, Date.now());
+        if (lock.locked) {
           return { ok: false, code: 'password_locked', msg: '密码错误次数过多,请10分钟后再试' };
         }
         const expectHash = hashPassword(password, u.password_salt);
         if (expectHash !== u.password_hash) {
-          const fails = (u.pwd_fail_count || 0) + 1;
-          const patch = { pwd_fail_count: fails, updated_at: Date.now() };
-          if (fails >= PWD_MAX_FAIL) {
-            patch.pwd_lock_until = Date.now() + PWD_LOCK_MS;
-            patch.pwd_fail_count = 0;
-          }
+          const patch = passwordFailPatch(u.pwd_fail_count, { maxFail: PWD_MAX_FAIL, lockMs: PWD_LOCK_MS, now: Date.now() });
           await col('user_account').doc(u._id).update({ data: patch });
           return { ok: false, code: 'password_wrong', msg: '账号或密码错误' };
         }

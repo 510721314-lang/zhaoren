@@ -101,6 +101,16 @@ async function resolveOrderId(rawId) {
 {"action":""}   // 空事件 = 创建集合 + 索引 + seed
 ```
 
+## 安全加固后的运维变更（2026-10-01）
+
+1. **generate_admin_web_key bootstrap 已封死网关路径**：`admin_web_key` 为空时网关代理因 fail-closed 无法生成（防竞态抢注，属预期）。首次生成必须走**微信开发者工具云端测试面板**，身份为真实 OPENID 且 `admin_openids` 为空（bootstrap 语义：首位调用者自动成为管理员）。key 仅一次明文返回，不落日志——**立即复制保存**。
+2. **force_set_env 需二次确认**：必须带 `confirm:true` + `reason`，且调用者为 `admin_openids` 白名单（或网关代理带 X-Admin-Key）。写 platform_event 留痕。4h 自动回滚 prod 保留。
+3. **set_env 已补管理员白名单**：prod 禁切 dev 依旧，非管理员一律拒绝。
+4. **password_login 防爆破**：连续 5 次密码错误锁定 10 分钟（`pwd_lock_until`），期间正确密码也拒绝；账号不存在与密码错误统一返回「账号或密码错误」防枚举。
+5. **紧急联系人 30 天频控**：`user_account.emergency_changed_at` 起算，30 天内再次变更被拒（返回下次可改日期）；首次设置不受限。
+6. **IM 内容安全降级消息补审**：`im_degraded_list`（admin-action，网关通用代理可达）列出 `sec_degraded:true` 消息供运营人工判定。
+7. **实名 mock 通道锁死 dev**：`simulate_realname` / `submit_realname`(mock 人脸) 仅 dev 可用；prod 任意真实用户也不可模拟实名。真机演示实名需临时切 dev（force_set_env）。
+
 ## 遗留（下一阶段）
 
 1. order-timer 改期 2h 超时自动拒绝需通知双方
