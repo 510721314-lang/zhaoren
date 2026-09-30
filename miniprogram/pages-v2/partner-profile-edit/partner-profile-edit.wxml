@@ -120,7 +120,7 @@
     <view class="ppe__label">审核历史</view>
     <view class="ppe__hist" wx:for="{{auditHistory}}" wx:key="index">
       <text class="ppe__hist-badge {{item.result === 'approved' ? 'is-ok' : 'is-bad'}}">{{item.result === 'approved' ? '通过' : '驳回'}}</text>
-      <text class="ppe__hist-time">{{fmtTime(item.at)}}</text>
+      <text class="ppe__hist-time">{{item.timeStr}}</text>
       <view class="ppe__hist-reason" wx:if="{{item.reason}}">理由：{{item.reason}}</view>
     </view>
   </view>

@@ -68,7 +68,8 @@ Page({
           pendingHighlights: d.highlights_pending || [],
           qualPending: d.qualifications_pending || { titles: [], photos: [] },
           honPending: d.honors_pending || { titles: [], photos: [] },
-          auditHistory: d.audit_history || []
+          // WXML {{}} 不能调 Page 方法: 时间在 JS 预计算为 timeStr (0a427a4 遗留修复)
+          auditHistory: (d.audit_history || []).map((it) => ({ ...it, timeStr: this.fmtTime(it.at) }))
         });
       }
     });
