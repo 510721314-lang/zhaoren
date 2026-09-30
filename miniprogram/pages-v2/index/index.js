@@ -354,5 +354,10 @@ Page({
 
   onReserve() {
     wx.showToast({ title: `已为您预约${CONFIG.TIME_REDLINE.open}开服提醒`, icon: 'none' });
+  },
+
+  // 地图找TA: 进入附近地图
+  goNearbyMap() {
+    wx.navigateTo({ url: '/pages-v2/nearby-map/nearby-map', fail: () => wx.showToast({ title: '地图页暂不可用', icon: 'none' }) });
   }
 });

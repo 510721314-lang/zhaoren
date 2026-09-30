@@ -326,6 +326,8 @@
   margin-right: 48rpx;
   font-size: var(--font-xl);
   color: var(--text-5);
+  display: flex;
+  align-items: center;
 }
 .home__tab.is-on {
   color: var(--brand-primary);
@@ -340,6 +342,23 @@
   height: 6rpx;
   border-radius: 3rpx;
   background: var(--brand-primary);
+}
+.home__tab-label {
+  margin-right: 14rpx;
+}
+/* 「地图找TA」按钮(耍伴推荐 tab 右侧) */
+.home__mapbtn {
+  display: inline-flex;
+  align-items: center;
+  font-size: 22rpx;
+  font-weight: 500;
+  color: var(--brand-primary);
+  border: 1rpx solid var(--brand-primary);
+  border-radius: 24rpx;
+  padding: 0 18rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  background: var(--brand-primary-light);
 }
 
 /* H7 */
