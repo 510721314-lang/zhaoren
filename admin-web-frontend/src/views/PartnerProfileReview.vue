@@ -95,23 +95,57 @@
       <el-table-column label="提交时间" width="170">
         <template #default="{ row }">{{ formatTime(row.submitted_at) }}</template>
       </el-table-column>
-      <el-table-column label="待审内容" min-width="240">
+      <el-table-column label="待审内容" min-width="360">
         <template #default="{ row }">
-          <template v-if="row.pending.skills.length">
-            <el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:4px">{{ s }}</el-tag>
-          </template>
-          <div v-if="row.pending.highlights.length" style="margin-top:3px">
-            <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:4px">{{ h }}</el-tag>
+          <!-- 分类块：各栏目均展示 原内容 vs 变更后 diff(新增绿/删除红) -->
+          <div v-if="row.current.bio || row.pending.bio" class="prc-cat">
+            <div class="prc-cat-name">简介</div>
+            <div class="prc-line"><span class="prc-old-tag">原</span><span v-for="(s,i) in bioOldSpans(row.current.bio, row.pending.bio)" :key="'o'+i" :class="s.t === 2 ? 'diff-del-tag' : ''">{{ s.v }}</span></div>
+            <div class="prc-line"><span class="prc-new-tag">新</span><span v-for="(s,i) in bioNewSpans(row.current.bio, row.pending.bio)" :key="'n'+i" :class="s.t === 1 ? 'diff-add-tag' : ''">{{ s.v }}</span></div>
           </div>
-          <div v-if="row.pending.qualifications?.titles.length || row.pending.qualifications?.photos.length" style="margin-top:3px">
-            <el-tag v-for="q in row.pending.qualifications.titles" :key="q" size="small" type="info" style="margin-right:4px">资·{{ q }}</el-tag>
-            <span v-if="row.pending.qualifications.photos.length" style="font-size:12px;color:#909399">资质图片 {{ row.pending.qualifications.photos.length }} 张</span>
+          <div v-if="(row.current.skills || []).length || (row.pending.skills || []).length" class="prc-cat">
+            <div class="prc-cat-name">技能</div>
+            <div class="prc-line">
+              <span class="prc-old-tag">原</span>
+              <el-tag v-for="s in row.current.skills" :key="s" size="small" effect="plain" class="prc-tag" :class="removedSet(row.current.skills, row.pending.skills).includes(s) ? 'diff-del-tag' : ''">{{ s }}</el-tag>
+            </div>
+            <div class="prc-line">
+              <span class="prc-new-tag">新</span>
+              <el-tag v-for="s in row.pending.skills" :key="s" size="small" type="info" class="prc-tag" :class="isNew(s, row.current.skills, row.pending.skills) ? 'diff-add-tag' : ''">{{ s }}</el-tag>
+            </div>
           </div>
-          <div v-if="row.pending.honors?.titles.length || row.pending.honors?.photos.length" style="margin-top:3px">
-            <el-tag v-for="h in row.pending.honors.titles" :key="h" size="small" type="info" style="margin-right:4px">荣·{{ h }}</el-tag>
-            <span v-if="row.pending.honors.photos.length" style="font-size:12px;color:#909399">荣誉图片 {{ row.pending.honors.photos.length }} 张</span>
+          <div v-if="(row.current.highlights || []).length || (row.pending.highlights || []).length" class="prc-cat">
+            <div class="prc-cat-name">亮点</div>
+            <div class="prc-line">
+              <span class="prc-old-tag">原</span>
+              <el-tag v-for="h in row.current.highlights" :key="h" size="small" effect="plain" class="prc-tag" :class="removedSet(row.current.highlights, row.pending.highlights).includes(h) ? 'diff-del-tag' : ''">{{ h }}</el-tag>
+            </div>
+            <div class="prc-line">
+              <span class="prc-new-tag">新</span>
+              <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="info" class="prc-tag" :class="isNew(h, row.current.highlights, row.pending.highlights) ? 'diff-add-tag' : ''">{{ h }}</el-tag>
+            </div>
           </div>
-          <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length && !row.pending.qualifications?.titles.length && !row.pending.qualifications?.photos.length && !row.pending.honors?.titles.length && !row.pending.honors?.photos.length" style="color:#999">（空）</div>
+          <div v-if="mediaBill(row.current.qualifications) !== '（空）' || (row.pending.qualifications?.titles || []).length || (row.pending.qualifications?.photos || []).length" class="prc-cat">
+            <div class="prc-cat-name">资质证书</div>
+            <div class="prc-line"><span class="prc-old-tag">原</span><span>{{ mediaBill(row.current.qualifications) }}</span></div>
+            <div class="prc-line">
+              <span class="prc-new-tag">新</span>
+              <el-tag v-for="t in row.pending.qualifications?.titles" :key="t" size="small" type="info" class="prc-tag" :class="isNew(t, row.current.qualifications?.titles || [], row.pending.qualifications?.titles || []) ? 'diff-add-tag' : ''">{{ t }}</el-tag>
+              <el-tag v-for="t in removedSet(row.current.qualifications?.titles || [], row.pending.qualifications?.titles || [])" :key="'r'+t" size="small" type="danger" effect="plain" class="prc-tag diff-del-tag">− {{ t }}</el-tag>
+              <span v-if="(row.current.qualifications?.photos || []).length || (row.pending.qualifications?.photos || []).length" class="prc-photo" :class="(row.current.qualifications?.photos || []).length !== (row.pending.qualifications?.photos || []).length ? 'diff-add-tag' : ''">图片 {{ (row.pending.qualifications?.photos || []).length }} 张</span>
+            </div>
+          </div>
+          <div v-if="mediaBill(row.current.honors) !== '（空）' || (row.pending.honors?.titles || []).length || (row.pending.honors?.photos || []).length" class="prc-cat">
+            <div class="prc-cat-name">荣誉 其他</div>
+            <div class="prc-line"><span class="prc-old-tag">原</span><span>{{ mediaBill(row.current.honors) }}</span></div>
+            <div class="prc-line">
+              <span class="prc-new-tag">新</span>
+              <el-tag v-for="t in row.pending.honors?.titles" :key="t" size="small" type="info" class="prc-tag" :class="isNew(t, row.current.honors?.titles || [], row.pending.honors?.titles || []) ? 'diff-add-tag' : ''">{{ t }}</el-tag>
+              <el-tag v-for="t in removedSet(row.current.honors?.titles || [], row.pending.honors?.titles || [])" :key="'r'+t" size="small" type="danger" effect="plain" class="prc-tag diff-del-tag">− {{ t }}</el-tag>
+              <span v-if="(row.current.honors?.photos || []).length || (row.pending.honors?.photos || []).length" class="prc-photo" :class="(row.current.honors?.photos || []).length !== (row.pending.honors?.photos || []).length ? 'diff-add-tag' : ''">图片 {{ (row.pending.honors?.photos || []).length }} 张</span>
+            </div>
+          </div>
+          <div v-if="!row.current.bio && !row.pending.bio && !(row.current.skills || []).length && !(row.pending.skills || []).length && !(row.current.highlights || []).length && !(row.pending.highlights || []).length && mediaBill(row.current.qualifications) === '（空）' && !(row.pending.qualifications?.titles || []).length && !(row.pending.qualifications?.photos || []).length && mediaBill(row.current.honors) === '（空）' && !(row.pending.honors?.titles || []).length && !(row.pending.honors?.photos || []).length" style="color:#999">（空）</div>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">
@@ -208,6 +242,9 @@ function removedSet(oldArr, newArr) {
   const n = new Set(newArr || []);
   return (oldArr || []).filter((x) => !n.has(x));
 }
+// 简介字符级 diff: 原行=相同+删除(删除划线红), 新行=相同+新增(新增绿)
+function bioOldSpans(a, b) { return charDiff(a, b).filter((s) => s.t !== 1); }
+function bioNewSpans(a, b) { return charDiff(a, b).filter((s) => s.t !== 2); }
 // 栏目级图文(资质/荣誉) 原内容摘要
 function mediaBill(m) {
   const o = m || {};
@@ -267,4 +304,13 @@ onMounted(load);
 .diff-del { background: #fef0f0; color: #f56c6c; text-decoration: line-through; border-radius: 2px; }
 .diff-add-tag { border: 1px dashed #67c23a; }
 .diff-del-tag { text-decoration: line-through; opacity: 0.9; }
+/* 待审内容列 · 分类块(原 vs 新) */
+.prc-cat { margin: 2px 0 4px; }
+.prc-cat-name { font-size: 12px; color: #606266; font-weight: 600; border-bottom: 1px dashed #e4e7ed; margin-bottom: 2px; padding-bottom: 1px; }
+.prc-line { font-size: 12px; line-height: 22px; display: flex; flex-wrap: wrap; align-items: center; }
+.prc-old-tag, .prc-new-tag { flex-shrink: 0; display: inline-block; width: 22px; text-align: center; border-radius: 3px; font-size: 11px; margin-right: 6px; }
+.prc-old-tag { background: #f4f4f5; color: #909399; }
+.prc-new-tag { background: #f0f9eb; color: #67c23a; }
+.prc-tag { margin-right: 4px; }
+.prc-photo { font-size: 12px; color: #c45656; padding: 0 4px; }
 </style>
