@@ -57,6 +57,7 @@
 19. 【提审前 P0-P1 清单见 §10】
 20. 【2026-09-30 早场新交付·已部署+真机通过】①耍伴资料维护展示（partner-profile-edit 页+bio/技能/亮点+审核快照 fail-closed，a22b426）②审核结果 system_notice 推送（submitted/approved/rejected 三链，2e5ca26）③init-db 越权修复（种子分支管理员鉴权，cf2c3c6，匿名越权回归 5/5 PASS）④前端添加按钮 button→view（92fb437）——详细见 §9.15
 21. 【待推】GitHub push `2e5ca26`（2026-09-30 早场 network 波动未推；网络恢复后 `git -C C:\zhaoren -c http.proxy= push origin master`）
+22. 【2026-09-30 早场新交付·后台审核】⑤后台耍伴资料审核界面（admin-web 独立菜单「资料审核」：左右对比快照+通过/驳回+通知；后端 admin-action 两 action + 前端 PartnerProfileReview.vue，commit 5089fb6 已部署+push，云端回归通过）——详 §9.16
 
 ## 5.6 P0-2 安全遗留 4 项 ✅（2026-09-28 完成，commit 267deb3 已部署）
 - **① admin-web bootstrap 硬编码 openid 清除**：admin-web/index.js L208-217/L224 两处 `'oLDJ...'` 硬编码 → 改 `adminOpenid`（取 admin_openids[0]，空则拒 `no_admin_openid`）；不再留死兜底
@@ -214,6 +215,16 @@
 - **限频/幂等双闸**：`pa_submit_frequent`（30min 禁重复提交，清理 pending 后设 profile_submit_at=0 可绕过）+ `pa_audit_pending`（并发双击防产多条 audit）——正规防御，测试触发属预期非 bug
 - **重启 PATH 丢失（新电脑/重启风险）**：重启后 `node`/`git` 不在系统 PATH，`node --check`/`git` 直接 CommandNotFound → 用全路径 `C:\Program Files\nodejs\node.exe`、`C:\Program Files\Git\bin\git.exe`；建议把两者补入系统 PATH。**IDE 仍可能打开旧的 Desktop\zhaoren 克隆**（停在 a5b9c34，无新功能）——开发工具/编辑操作一律用唯一工作目录 `C:\zhaoren`（§9.11 防复发）
 - **测试数据登记**：Vl 自己资料（openid oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c，昵称「找个人帮忙」）已走完整审核闭环 → approved（快照为测试内容，含「技能标签增加测试」「服务亮点增加测试」）；如需真实展示请重新维护资料再审核覆盖。审核用临时 reject/approve 验证，dev 窗口已回 prod
+
+### 9.16 2026-09-30 后台资料审核界面（admin-web 独立菜单页 · 云端回归通过）
+- **需求**：耍伴资料维护后，运营需在后台开设审核功能（采纳专家「先控制台人工→P-C 界面化」的 P-C 本批提前实施）。
+- **架构关键**：admin-web 网关仅代理 **admin-action**（`/api POST→cloud.callFunction admin-action`，带 `_admin_web_proxy_key` 白名单），**够不到 partner-action**；跨函数转发在 prod 会因 mock 旁路关闭被判失效 → 后台审核写操作必须放 **admin-action**（网关已鉴权），不得走 partner-action。
+- **后端 admin-action（commit 5089fb6 部分，已部署 43.7KB）**：新增 `partner_profile_pending_list`（查 `profile_audit_status='pending'`，返回待审 pending{bio/skills/highlights} + 当前快照 current 供左对比，join user 取昵称）+ `partner_profile_review`（approve 覆盖快照+留 `profile_audited_snapshot_prev` 可回滚 / reject 留 `profile_reject_reason`；写 `system_notice` 通知：type `partner_profile_approved/rejected`）。沿用 `ok/fail/pager/isOpenid/maskDoc/logEvent` 工具。
+- **前端 admin-web-frontend（Vite+Vue3+ElementPlus）**：新建 `PartnerProfileReview.vue`（独立菜单「用户与耍伴→资料审核」；el-table 展开行左右对比「当前已展示快照 vs 待审新内容」+ 通过/驳回弹窗）；路由 index.js + Layout.vue 加菜单项。构建产物入库惯例（admin-web/public 非 gitignore）。
+- **部署链路**：①vite build 需 `node` 在 PATH（重启后不在 → `$env:PATH="C:\Program Files\nodejs;"+$env:PATH`）②dist → `cloudfunctions/admin-web/public`（robocopy 不在 PATH，用 Copy-Item）③部署 admin-web 云函数（507KB，含新 chunk）。admin-web 首次部署偶发 `access_token expired`，重试即过。
+- **回归（dev 窗口，全通过）**：mock 耍伴提交→pending → 后台列表命中(对比数据正确) → `partner_profile_review pass:false`→rejected+待审清空 → 驳回通知到达。env 已回 prod。
+- **测试数据登记**：「耍伴测试1」资料被后台回归驳回置为 rejected（认证仍 approved）；如需真实展示该耍伴在小程序重提即可。
+- **双通道并存**：审核入口=云端 `audit_partner_profile`(partner-action，测试面板/我代跑) + 后台页 `partner_profile_*`(admin-action，正式运营)，逻辑一致。
 
 ## 10. 上线提交前工作清单（2026-09-29 专家审核后版本，按优先级）
 
