@@ -182,52 +182,6 @@
   color: var(--text-5);
 }
 
-.pd__fold-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.pd__fold-left {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-.pd__fold-icon {
-  font-size: 32rpx;
-}
-.pd__fold-title {
-  font-size: var(--font-md);
-  font-weight: 600;
-  color: var(--text-1);
-}
-.pd__fold-arrow {
-  font-size: var(--font-lg);
-  color: var(--text-4);
-  transition: transform 0.2s;
-}
-.pd__fold-arrow.is-open {
-  transform: rotate(180deg);
-}
-.pd__fold-empty {
-  margin-top: 24rpx;
-  padding: 28rpx 0;
-  text-align: center;
-  background: var(--bg-segment);
-  border-radius: var(--r-md);
-}
-.pd__fold-empty-icon {
-  font-size: 56rpx;
-}
-.pd__fold-empty-text {
-  margin-top: 12rpx;
-  font-size: var(--font-sm);
-  color: var(--text-3);
-}
-.pd__fold-empty-sub {
-  margin-top: 6rpx;
-  font-size: var(--font-xs);
-  color: var(--text-5);
-}
 .pd__detail-row {
   margin-top: 16rpx;
   display: flex;

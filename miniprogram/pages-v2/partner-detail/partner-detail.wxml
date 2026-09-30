@@ -103,25 +103,6 @@
     </view>
   </view>
 
-  <!-- T3c 自我介绍 -->
-  <view class="pd__card">
-    <view class="pd__fold-header" bindtap="toggleExpand">
-      <view class="pd__fold-left">
-        <text class="pd__fold-icon">📝</text>
-        <text class="pd__fold-title">服务介绍</text>
-      </view>
-      <text class="pd__fold-arrow {{expanded ? 'is-open' : ''}}">▾</text>
-    </view>
-    <block wx:if="{{partner.intro}}">
-      <view class="pd__intro" wx:if="{{expanded}}">{{partner.intro}}</view>
-    </block>
-    <view class="pd__fold-empty" wx:else>
-      <view class="pd__fold-empty-icon">🙋</view>
-      <view class="pd__fold-empty-text">还没填写自我介绍~</view>
-      <view class="pd__fold-empty-sub">去聊聊，更了解 TA 的服务</view>
-    </view>
-  </view>
-
   <!-- T3.5 动态入口: 条数 + 最新更新时间, 点击进 TA 的动态流 -->
   <view class="pd__card pd__blog-entry" wx:if="{{blogInfo}}" bindtap="goBlog" hover-class="pd__blog-entry--hover">
     <view class="pd__blog-left">

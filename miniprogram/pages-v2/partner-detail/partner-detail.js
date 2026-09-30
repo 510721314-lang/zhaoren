@@ -15,7 +15,6 @@ Page({
     evaluations: [],
     stats: { total_orders: 0, completed_orders: 0 },
     showStats: true,
-    expanded: false,
     activeTab: 'eval',
     loading: false,
     loadError: false,
@@ -182,10 +181,6 @@ Page({
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
-  },
-
-  toggleExpand() {
-    this.setData({ expanded: !this.data.expanded });
   },
 
   switchTab(e) {
