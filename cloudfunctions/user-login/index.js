@@ -167,8 +167,26 @@ function safeUserDoc(u) {
     age: u.age, status: u.status, phone: u.phone ? maskPhone(u.phone) : '',
     idcard_masked: u.idcard_mask || (u.idcard ? maskIdCard(u.idcard) : ''),
     register_source: u.register_source,
+    // 地图即时定位共享开关(双向对称: 允许 TA 通过地图找到我; 默认关闭, 隐私)
+    allow_map_share: u.allow_map_share === true,
     created_at: u.created_at, updated_at: u.updated_at
   };
+}
+
+// ── 地图即时定位共享辅助 ──
+function pickGps(u) {
+  const g = u && u.map_gps;
+  if (!g || !Number.isFinite(Number(g.lat)) || !Number.isFinite(Number(g.lng))) return null;
+  return { lat: Number(g.lat), lng: Number(g.lng), at: Number(g.at) || 0 };
+}
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 // ─────────────── 短信验证码 / 手机号解析辅助(模块级, 禁止放进 switch 内) ───────────────
@@ -678,6 +696,102 @@ exports.main = async (event, context) => {
         return { ok: true, data: { found: true, user: safeUserDoc(u) } };
       } catch (e) {
         return { ok: false, code: 'peek_fail', msg: '查询失败' };
+      }
+    }
+
+    // 地图即时定位共享开关(双向对称): 允许/不允许 TA 通过地图找到我
+    case 'set_map_share': {
+      if (typeof event.allow !== 'boolean') {
+        return { ok: false, code: 'bad_allow', msg: '参数格式有误' };
+      }
+      try {
+        const r = await col('user_account').where({ openid }).limit(1).get();
+        if (!(r.data && r.data.length > 0)) {
+          return { ok: false, code: 'no_user', msg: '请先登录' };
+        }
+        const u = r.data[0];
+        await col('user_account').doc(u._id).update({ data: {
+          allow_map_share: event.allow,
+          // 关闭时清除已上报的实时定位(隐私: 不允许再被地图定位)
+          ...(event.allow ? {} : { map_gps: _.remove() }),
+          updated_at: Date.now()
+        }});
+        await writeAudit(db, log, {
+          action: 'set_map_share', target_type: 'user_account', target_id: u._id,
+          detail: { allow: event.allow, result: 'ok' }, result: 'ok', client_ip: clientIp, device
+        });
+        return { ok: true, data: { allow_map_share: event.allow } };
+      } catch (e) {
+        log.d('set_map_share fail:', e && e.message);
+        return { ok: false, code: 'business_error', msg: '操作失败' };
+      }
+    }
+
+    // 实时定位上报(进地图页时调用): 记录本人当前坐标, 供已「允许」的两侧相互发现
+    case 'report_map_gps': {
+      const lat = Number(event.latitude);
+      const lng = Number(event.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return { ok: false, code: 'bad_location', msg: '定位数据异常' };
+      }
+      try {
+        const r = await col('user_account').where({ openid }).limit(1).get();
+        if (!(r.data && r.data.length > 0)) {
+          // 未建号也能上报(游客), 但无 openid 关联则丢弃——需要账号, 跳过
+          return { ok: false, code: 'no_user', msg: '请先登录' };
+        }
+        const u = r.data[0];
+        // 未允许共享, 不上报真实坐标(防越权写库+隐私)
+        if (u.allow_map_share !== true) {
+          return { ok: false, code: 'share_off', msg: '你未开启地图共享' };
+        }
+        await col('user_account').doc(u._id).update({ data: {
+          map_gps: { lat, lng, at: Date.now() },
+          updated_at: Date.now()
+        }});
+        return { ok: true, data: { saved: true } };
+      } catch (e) {
+        log.d('report_map_gps fail:', e && e.message);
+        return { ok: false, code: 'business_error', msg: '操作失败' };
+      }
+    }
+
+    // 查周边已开启共享且定位有效(15min 内)的 TA(剔除自己): 地图 marker 数据源
+    case 'nearby_map_list': {
+      try {
+        const r = await col('user_account').where({ openid }).limit(1).get();
+        if (!(r.data && r.data.length > 0)) {
+          return { ok: false, code: 'no_user', msg: '请先登录' };
+        }
+        const me = r.data[0];
+        const freshCut = Date.now() - 15 * 60 * 1000; // 定位 15 分钟内有效
+        const qr = await col('user_account').where({ allow_map_share: true, is_deleted: _.neq(true) })
+          .limit(100).get().catch(() => ({ data: [] }));
+        const mePt = pickGps(me);
+        const list = (qr.data || [])
+          .filter((t) => t.openid && t.openid !== me.openid)
+          .map((t) => {
+            const gps = pickGps(t);
+            return {
+              openid: t.openid,
+              nickname: t.nickname || '微信用户',
+              avatar: (t.avatar && /^https?:/.test(t.avatar)) ? t.avatar : '',
+              roles: t.roles || [],
+              is_partner: (t.roles || []).indexOf('partner') >= 0,
+              lat: gps ? gps.lat : 0,
+              lng: gps ? gps.lng : 0,
+              gps_at: gps ? gps.at : 0,
+              online: !!gps && gps.at >= freshCut,
+              distance_m: mePt ? haversineMeters(mePt.lat, mePt.lng, gps ? gps.lat : 0, gps ? gps.lng : 0) : -1
+            };
+          })
+          // 仅展示定位有效(在线)的 TA
+          .filter((t) => t.online && t.lat !== 0 && t.lng !== 0);
+        return { ok: true, data: { list }, my_allow: me.allow_map_share === true };
+      } catch (e) {
+        log.d('nearby_map_list fail:', e && e.message);
+        return { ok: false, code: 'business_error', msg: '查询失败' };
       }
     }
 

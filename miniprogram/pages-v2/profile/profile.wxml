@@ -26,6 +26,21 @@
     </view>
   </view>
 
+  <!-- 地图找TA: 即时定位共享开关(双向对称) + 附近地图入口 -->
+  <view class="pf__card pf__map">
+    <view class="pf__map-row">
+      <view class="pf__map-row-left">
+        <text class="pf__link-ic">🗺️</text>
+        <view class="pf__map-txt">
+          <view class="pf__link-name">地图找TA</view>
+          <view class="pf__map-sub">开启后，TA 可通过地图看到你的实时位置</view>
+        </view>
+      </view>
+      <switch checked="{{allowMapShare}}" color="#07C160" bindchange="onMapShareChange" />
+    </view>
+    <view class="pf__map-go" bindtap="goNearbyMap" hover-class="btn-press">进入附近地图 ›</view>
+  </view>
+
   <!-- U2 双信用分卡（独立两栏） -->
   <view class="pf__scores">
     <view class="pf__score" data-role="user" bindtap="onScoreDetail">

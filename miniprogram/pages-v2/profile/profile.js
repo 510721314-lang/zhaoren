@@ -49,7 +49,8 @@ Page({
     userRecentDemands: [],
     version: CONFIG.VERSION,
     isRedline: false,
-    isAdmin: false
+    isAdmin: false,
+    allowMapShare: false
   },
   onShareAppMessage() {
     return {
@@ -101,10 +102,12 @@ Page({
         is_realname_done: !!u.is_realname_done,
         user_credit_score: u.user_credit_score || 0,
         partner_credit_score: u.partner_credit_score || 0,
+        allow_map_share: u.allow_map_share === true,
         is_partner: isPartner
       };
       this.setData({
         user: uiUser,
+        allowMapShare: uiUser.allow_map_share,
         identity,
         userLevel: getLevel(u.user_credit_score),
         partnerLevel: getLevel(u.partner_credit_score),
@@ -323,6 +326,29 @@ Page({
     const oid = e.currentTarget.dataset.oid;
     if (!oid) return;
     wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oid}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+  },
+
+  // 地图找TA: 即时定位共享开关
+  onMapShareChange(e) {
+    const allow = !!e.detail.value;
+    callCloud('user-login', { action: 'set_map_share', allow }).then((r) => {
+      if (r.ok) {
+        this.setData({ allowMapShare: allow });
+        wx.showToast({ title: allow ? '已开启，TA可在地图找到你' : '已关闭地图共享', icon: 'none', duration: 2000 });
+      } else {
+        // 失败回滚
+        this.setData({ allowMapShare: !allow });
+        wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+      }
+    }).catch(() => {
+      this.setData({ allowMapShare: !allow });
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
+  },
+
+  // 地图找TA: 进入附近地图
+  goNearbyMap() {
+    wx.navigateTo({ url: '/pages-v2/nearby-map/nearby-map', fail: () => wx.showToast({ title: '地图页暂不可用', icon: 'none' }) });
   },
 
   // 用户工作台 → 需求/订单详情(按 item_type 区分跳转)

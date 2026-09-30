@@ -1,0 +1,56 @@
+<view class="v2 nm">
+  <!-- 地图主体 -->
+  <map
+    class="nm__map"
+    id="nearbyMap"
+    latitude="{{my.lat}}"
+    longitude="{{my.lng}}"
+    scale="14"
+    markers="{{markers}}"
+    bindmarkertap="onMarkerTap"
+    show-location="{{!locDenied}}"
+  ></map>
+
+  <!-- 分享开关提示 -->
+  <view class="nm__hint" wx:if="{{!shareOn}}">
+    <view class="nm__hint-emoji">🔒</view>
+    <view class="nm__hint-txt">
+      <view class="nm__hint-title">地图找TA 未开启</view>
+      <view class="nm__hint-sub">请在「我的」开启地图共享后，TA 才能在地图看到你</view>
+    </view>
+  </view>
+  <view class="nm__hint nm__hint--ok" wx:elif="{{locDenied}}">
+    <view class="nm__hint-emoji">📍</view>
+    <view class="nm__hint-txt">
+      <view class="nm__hint-title">未获得定位授权</view>
+      <view class="nm__hint-sub">授权定位后可看到附近 TA 的实时位置</view>
+    </view>
+    <view class="nm__hint-btn" bindtap="onEnableLoc">去授权</view>
+  </view>
+
+  <!-- 顶部开关按钮(快捷切换) -->
+  <view class="nm__toggle {{shareOn ? 'is-on' : ''}}" bindtap="onMapShareChange">
+    {{shareOn ? '地图共享已开启' : '地图共享已关闭'}}
+  </view>
+
+  <!-- 标记卡片 -->
+  <view class="nm__card" wx:if="{{selected}}">
+    <view class="nm__card-body">
+      <image class="nm__card-avatar" wx:if="{{selected.avatar}}" src="{{selected.avatar}}" mode="aspectFill" />
+      <text wx:else class="nm__card-emoji">👤</text>
+      <view class="nm__card-info">
+        <view class="nm__card-name">{{selected.nickname}}</view>
+        <view class="nm__card-tag">{{selected.is_partner ? '🧭 耍伴' : '👤 发单用户'}} · 距你 {{selected.distanceText || '--'}}</view>
+      </view>
+      <view class="nm__card-close" bindtap="closeCard">✕</view>
+    </view>
+    <view class="nm__card-btn" bindtap="onOpenTA">
+      {{selected.is_partner ? '查看耍伴 · 邀请帮忙' : '发起邀请帮忙 · 承接'}}
+    </view>
+  </view>
+
+  <!-- 刷新 -->
+  <view class="nm__refresh" bindtap="onRefresh">↻</view>
+
+  <view class="nm__loading" wx:if="{{loading}}">定位中…</view>
+</view>

@@ -325,4 +325,35 @@
   color: var(--text-disabled);
 }
 
+/* 地图找TA: 即时定位共享开关 + 附近地图入口 */
+.pf__map { margin-top: 20rpx; }
+.pf__map-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pf__map-row-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  min-width: 0;
+}
+.pf__map-txt { min-width: 0; }
+.pf__map-sub {
+  margin-top: 4rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.pf__map-go {
+  margin-top: 20rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--brand-primary);
+  border: 1rpx solid var(--brand-primary);
+  border-radius: var(--r-md);
+  background: var(--brand-primary-light);
+}
+
 
