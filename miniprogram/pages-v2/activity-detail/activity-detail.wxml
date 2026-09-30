@@ -1,0 +1,57 @@
+<view class="ad">
+  <block wx:if="{{loading}}">
+    <view class="ad__loading">
+      <view class="ad__loading-text">加载中…</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{fail || !act}}">
+    <view class="ad__fail">
+      <view class="ad__fail-icon">📭</view>
+      <view class="ad__fail-text">活动不存在或已结束</view>
+      <view class="ad__retry" bindtap="onRetry">重新加载</view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="ad__banner">
+      <image wx:if="{{act.banner_image}}" class="ad__banner-img" src="{{act.banner_image}}" mode="widthFix" />
+      <view wx:else class="ad__banner-fallback"></view>
+    </view>
+
+    <view class="ad__head">
+      <view class="ad__title">{{act.title}}</view>
+      <view wx:if="{{act.subtitle}}" class="ad__subtitle">{{act.subtitle}}</view>
+    </view>
+
+    <view class="ad__card" wx:if="{{content.time_text || content.location}}">
+      <view class="ad__info-row" wx:if="{{content.time_text}}">
+        <text class="ad__info-icon">🕐</text>
+        <text class="ad__info-label">活动时间</text>
+        <text class="ad__info-value">{{content.time_text}}</text>
+      </view>
+      <view class="ad__info-row" wx:if="{{content.location}}">
+        <text class="ad__info-icon">📍</text>
+        <text class="ad__info-label">活动地点</text>
+        <text class="ad__info-value">{{content.location}}</text>
+      </view>
+    </view>
+
+    <view class="ad__card" wx:if="{{content.rules && content.rules.length}}">
+      <view class="ad__sec-title">活动规则</view>
+      <view class="ad__rule" wx:for="{{content.rules}}" wx:key="index">
+        <view class="ad__rule-num">{{index + 1}}</view>
+        <view class="ad__rule-text">{{item}}</view>
+      </view>
+    </view>
+
+    <view class="ad__card" wx:if="{{content.body}}">
+      <view class="ad__sec-title">活动说明</view>
+      <view class="ad__body">{{content.body}}</view>
+    </view>
+
+    <view class="ad__cta-wrap">
+      <view class="ad__cta" bindtap="onCtaTap">{{content.cta_text || '立即报名'}}</view>
+    </view>
+  </block>
+</view>

@@ -683,6 +683,25 @@ exports.main = async (event, context) => {
         }
       }
 
+      // ───────── 活动详情(按 id 取单条: 仅 active 且时间窗内, 含 content 详情) ─────────
+      case 'activity_detail': {
+        try {
+          const cfgR = await col('admin_config').doc('global').get();
+          const cfg = cfgR.data || {};
+          const now = Date.now();
+          const id = String(event.id || '');
+          const a = (cfg.home_activities || []).find((x) =>
+            x.id === id && x.status === 'active' &&
+            (!x.start_at || now >= x.start_at) && (!x.end_at || now <= x.end_at)
+          );
+          if (!a) return { ok: false, code: 'act_not_found', msg: '活动不存在或已结束' };
+          return { ok: true, data: a };
+        } catch (e) {
+          log.d('activity_detail err:', e.message);
+          return { ok: false, code: 'home_server_error', msg: '服务繁忙,请稍后重试' };
+        }
+      }
+
       default:
         return { ok: false, code: 'home_unknown_action', msg: '未知动作' };
     }

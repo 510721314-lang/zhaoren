@@ -1810,6 +1810,10 @@ exports.main = async (event, context) => {
       return fail('act_bad_jump', 'jump_to 不合法');
     }
     if (a.start_at && a.end_at && a.start_at >= a.end_at) return fail('act_bad_time', '开始时间必须早于结束时间');
+    const c = a.content || {};
+    if (c && (!Array.isArray(c.rules) || c.rules.some((x) => typeof x !== 'string'))) {
+      return fail('act_bad_content', 'content.rules 须为字符串数组');
+    }
     const list = config.home_activities || [];
     const id = 'A' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     const newAct = {
@@ -1826,6 +1830,13 @@ exports.main = async (event, context) => {
       status: a.status || 'active',
       priority: Number(a.priority) || 0,
       scene_code: a.scene_code || '',
+      content: {
+        time_text: String(c.time_text || '').trim().slice(0, 60),
+        location: String(c.location || '').trim().slice(0, 60),
+        rules: Array.isArray(c.rules) ? c.rules.map((r) => String(r).trim().slice(0, 60)).filter(Boolean).slice(0, 10) : [],
+        body: String(c.body || '').trim().slice(0, 500),
+        cta_text: String(c.cta_text || '').trim().slice(0, 12)
+      },
       created_at: now,
       created_by: openid
     };
@@ -1841,10 +1852,13 @@ exports.main = async (event, context) => {
     const list = config.home_activities || [];
     const idx = list.findIndex((a) => a.id === id);
     if (idx < 0) return fail('act_not_found', '活动不存在');
-    const allowed = ['title', 'subtitle', 'banner_image', 'cover_image', 'type', 'jump_to', 'jump_param', 'start_at', 'end_at', 'status', 'priority', 'scene_code'];
+    const allowed = ['title', 'subtitle', 'banner_image', 'cover_image', 'type', 'jump_to', 'jump_param', 'start_at', 'end_at', 'status', 'priority', 'scene_code', 'content'];
     const updated = Object.assign({}, list[idx]);
     for (const k of allowed) {
       if (patch[k] !== undefined) updated[k] = patch[k];
+    }
+    if (updated.content && (!Array.isArray(updated.content.rules) || updated.content.rules.some((x) => typeof x !== 'string'))) {
+      return fail('act_bad_content', 'content.rules 须为字符串数组');
     }
     if (updated.start_at && updated.end_at && updated.start_at >= updated.end_at) {
       return fail('act_bad_time', '开始时间必须早于结束时间');

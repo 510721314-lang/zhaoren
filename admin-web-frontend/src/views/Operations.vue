@@ -247,6 +247,17 @@
             <el-input-number v-model="actForm.days" :min="1" :max="365" @change="syncActTime" />
           </el-form-item></el-col>
         </el-row>
+        <el-collapse style="margin-top:8px" v-if="actForm.jump_to === 'activity_detail'">
+          <el-collapse-item title="活动详情内容 (activity_detail 落地页)" name="content">
+            <el-row :gutter="12">
+              <el-col :span="12"><el-form-item label="活动时间文案"><el-input v-model="actForm.content.time_text" placeholder="如: 2026-10-01 ~ 2026-12-31" /></el-form-item></el-col>
+              <el-col :span="12"><el-form-item label="活动地点"><el-input v-model="actForm.content.location" placeholder="如: 线上 / 线下某地" /></el-form-item></el-col>
+            </el-row>
+            <el-form-item label="活动规则 (每行一条, 最多10条)"><el-input v-model="actForm.rulesText" type="textarea" :rows="4" placeholder="注册并登录小程序&#10;发布一条真实需求" /></el-form-item>
+            <el-form-item label="活动说明"><el-input v-model="actForm.content.body" type="textarea" :rows="3" /></el-form-item>
+            <el-form-item label="按钮文案 (默认: 立即报名)"><el-input v-model="actForm.content.cta_text" maxlength="12" /></el-form-item>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
       <template #footer>
         <el-button @click="actDialog = false">取消</el-button>
@@ -347,7 +358,10 @@ const actForm = reactive({
   id: '', title: '', subtitle: '', banner_image: '', cover_image: '',
   type: 'banner', jump_to: 'demand_publish', jump_param: {},
   scene_code: '', priority: 0, status: 'active', days: 30,
-  start_at: 0, end_at: 0
+  start_at: 0, end_at: 0,
+  // 活动详情内容(activity_detail 落地页)
+  content: { time_text: '', location: '', body: '', cta_text: '' },
+  rulesText: ''
 });
 
 function actTypeLabel(t) {
@@ -379,6 +393,8 @@ function openAddActivity() {
   actForm.type = 'banner'; actForm.jump_to = 'demand_publish';
   actForm.jump_param = {}; actForm.scene_code = '';
   actForm.priority = 0; actForm.status = 'active'; actForm.days = 30;
+  actForm.content = { time_text: '', location: '', body: '', cta_text: '' };
+  actForm.rulesText = '';
   syncActTime();
   actDialog.value = true;
 }
@@ -386,6 +402,8 @@ function openAddActivity() {
 function openEditActivity(row) {
   actIsEdit.value = true;
   Object.assign(actForm, { ...row, days: Math.round((row.end_at - row.start_at) / 86400000) || 30 });
+  actForm.content = row.content || { time_text: '', location: '', body: '', cta_text: '' };
+  actForm.rulesText = (row.content && row.content.rules || []).join('\n');
   actDialog.value = true;
 }
 
@@ -393,13 +411,18 @@ async function doSubmitActivity() {
   if (!actForm.title) { ElMessage.warning('标题必填'); return; }
   if (!actForm.type) { ElMessage.warning('类型必填'); return; }
   actSaving.value = true;
+  const rules = actForm.rulesText.split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 10);
   const payload = {
     title: actForm.title, subtitle: actForm.subtitle,
     banner_image: actForm.banner_image, cover_image: actForm.cover_image,
     type: actForm.type, jump_to: actForm.jump_to,
     jump_param: actForm.jump_param, scene_code: actForm.scene_code,
     start_at: actForm.start_at, end_at: actForm.end_at,
-    status: actForm.status, priority: actForm.priority
+    status: actForm.status, priority: actForm.priority,
+    content: {
+      time_text: actForm.content.time_text, location: actForm.content.location,
+      rules, body: actForm.content.body, cta_text: actForm.content.cta_text
+    }
   };
   const r = actIsEdit.value
     ? await call('home_activity_update', { id: actForm.id, patch: payload })

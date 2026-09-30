@@ -159,9 +159,17 @@ Page({
         break;
       }
       // webview 分支暂不启用: 无承载页 + 未配业务域名, 并入默认提示(运营配 H5 活动后再接入)
-      case 'activity_detail':
+      case 'activity_detail': {
+        const id = p.id || act.id;
+        if (id) {
+          wx.navigateTo({ url: '/pages-v2/activity-detail/activity-detail?id=' + id });
+        } else {
+          wx.showToast({ title: '活动详情待配置', icon: 'none' });
+        }
+        break;
+      }
       default: {
-        wx.showToast({ title: '活动详情即将上线', icon: 'none' });
+        wx.showToast({ title: '敬请期待', icon: 'none' });
       }
     }
   },
