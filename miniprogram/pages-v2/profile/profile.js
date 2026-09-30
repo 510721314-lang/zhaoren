@@ -49,7 +49,6 @@ Page({
     userRecentDemands: [],
     version: CONFIG.VERSION,
     isRedline: false,
-    isAdmin: false,
     allowMapShare: false
   },
   onShareAppMessage() {
@@ -132,10 +131,6 @@ Page({
               ])
         ]
       });
-      // 检查管理员身份(白名单 openid)——决定是否显示管理后台入口
-      callCloud('admin-action', { action: 'admin_list' }).then((ar) => {
-        this.setData({ isAdmin: !!(ar && ar.ok) });
-      }).catch(() => {});
       // 并行拉订单计数(按当前身份过滤)
       this.loadCounts();
     }).catch(() => {
@@ -274,10 +269,6 @@ Page({
   },
 
   // U4 功能列表(help 项在 wxml 中为 open-type=contact 按钮, 不会进入此处理)
-  goAdmin() {
-    wx.navigateTo({ url: '/pages-v2/admin/admin', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-  },
-
   onFuncTap(e) {
     const key = e.currentTarget.dataset.key;
     if (key === 'notices') {
