@@ -27,6 +27,7 @@
       <!-- 用 view 代替 button: 避免 button 内置样式/键盘失焦吞点击 -->
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddSkill">添加</view>
     </view>
+    <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="skills" bindtap="onSubmitField">独立提交技能标签</view>
   </view>
 
   <!-- 服务亮点 -->
@@ -42,6 +43,7 @@
       <input class="ppe__input" value="{{highlightInput}}" maxlength="30" placeholder="如：全程陪同不玩手机" bindinput="onHighlightInput" />
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddHighlight">添加</view>
     </view>
+    <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="highlights" bindtap="onSubmitField">独立提交服务亮点</view>
   </view>
 
   <!-- 资质证书: 标题 + 栏目级多图 -->
@@ -63,6 +65,7 @@
       </view>
       <view class="ppe__media-add" wx:if="{{qualPhotos.length < 6}}" hover-class="btn-press" bindtap="chooseQualPhotos">+<text>添加图片</text></view>
     </view>
+    <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="qual" bindtap="onSubmitField">独立提交资质证书</view>
   </view>
 
   <!-- 荣誉 其他: 标题 + 栏目级多图 -->
@@ -84,10 +87,11 @@
       </view>
       <view class="ppe__media-add" wx:if="{{honPhotos.length < 6}}" hover-class="btn-press" bindtap="chooseHonPhotos">+<text>添加图片</text></view>
     </view>
+    <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="hon" bindtap="onSubmitField">独立提交荣誉 其他</view>
   </view>
 
   <button class="ppe__submit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" bindtap="onSubmit" disabled="{{submitting || auditStatus === 'pending'}}">
-    {{submitting ? '提交中…' : (auditStatus === 'pending' ? '审核中' : '提交审核')}}
+    {{submitting ? '提交中…' : (auditStatus === 'pending' ? '审核中' : '提交全部')}}
   </button>
   <view class="ppe__safe">资料经平台审核后展示；禁止填写联系方式/链接，违者将影响信用分。</view>
 

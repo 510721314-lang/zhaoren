@@ -217,20 +217,37 @@ Page({
   },
 
   onSubmit() {
+    // 全量提交(等价"提交全部栏目"); 逐栏独立提交见 onSubmitField
+    this.doSubmit({
+      bio: this.data.bio, skills: this.data.skills, highlights: this.data.highlights,
+      qual_titles: this.data.qualTitles, qual_photos: this.data.qualPhotos,
+      hon_titles: this.data.honTitles, hon_photos: this.data.honPhotos
+    });
+  },
+  // 每项独立提交: 只提交某栏目(其余栏目置空; 全局校验"该栏目有内容")
+  // 全局 pending 锁保证此刻无其他栏目在审, 置空安全(未提交栏由 my_profile pick() 回显快照兜底)
+  onSubmitField(e) {
+    const which = e.currentTarget.dataset.which;
+    const base = { bio: '', skills: [], highlights: [], qual_titles: [], qual_photos: [], hon_titles: [], hon_photos: [] };
+    const has = (arr) => (arr && arr.length > 0);
+    if (which === 'bio') base.bio = this.data.bio;
+    else if (which === 'skills') base.skills = this.data.skills;
+    else if (which === 'highlights') base.highlights = this.data.highlights;
+    else if (which === 'qual') { base.qual_titles = this.data.qualTitles; base.qual_photos = this.data.qualPhotos; }
+    else if (which === 'hon') { base.hon_titles = this.data.honTitles; base.hon_photos = this.data.honPhotos; }
+    const empty = !base.bio.trim() && !base.skills.length && !base.highlights.length &&
+      !has(base.qual_titles) && !has(base.qual_photos) && !has(base.hon_titles) && !has(base.hon_photos);
+    if (empty) { wx.showToast({ title: '该栏目暂无内容可提交', icon: 'none' }); return; }
+    this.doSubmit(base);
+  },
+  doSubmit(payload) {
     if (this.data.submitting || this.data.auditStatus === 'pending') return;
-    const { bio, skills, highlights, qualTitles, qualPhotos, honTitles, honPhotos } = this.data;
-    const hasMedia = (t, p) => t.length > 0 || p.length > 0;
-    if (!bio.trim() && !skills.length && !highlights.length &&
-        !hasMedia(qualTitles, qualPhotos) && !hasMedia(honTitles, honPhotos)) {
-      wx.showToast({ title: '请至少填写一项', icon: 'none' });
-      return;
-    }
     this.setData({ submitting: true }); // debounce: 防双击
     callCloud('partner-action', {
       action: 'update_partner_profile',
-      bio, skills, service_highlights: highlights,
-      qual_titles: qualTitles, qual_photos: qualPhotos,
-      hon_titles: honTitles, hon_photos: honPhotos
+      bio: payload.bio || '', skills: payload.skills || [], service_highlights: payload.highlights || [],
+      qual_titles: payload.qual_titles || [], qual_photos: payload.qual_photos || [],
+      hon_titles: payload.hon_titles || [], hon_photos: payload.hon_photos || []
     }).then((res) => {
       this.setData({ submitting: false });
       if (res.ok) {
