@@ -19,3 +19,15 @@
 .ppe__submit { margin-top: 16rpx; background: #07C160; color: #FFFFFF; font-size: 32rpx; border-radius: 44rpx; height: 88rpx; line-height: 88rpx; }
 .ppe__submit.is-disabled { background: #C8C9CC; }
 .ppe__safe { margin-top: 24rpx; font-size: 24rpx; color: #9AA0A6; text-align: center; }
+.ppe__pending-badge { font-size: 20rpx; color: #fff; background: #e6a23c; border-radius: 8rpx; padding: 2rpx 10rpx; align-self: center; }
+.ppe__ts { font-size: 26rpx; color: #4E5969; line-height: 1.7; margin-top: 12rpx; }
+.ppe__ts-tag { display: inline-block; background: #f4f4f5; color: #909399; border-radius: 6rpx; padding: 0 12rpx; font-size: 22rpx; margin-right: 12rpx; }
+.ppe__ts-tag--inline { vertical-align: top; }
+.ppe__tag--pending { background: #fdf6ec; color: #e6a23c; }
+.ppe__hl-item { font-size: 26rpx; color: #4E5969; line-height: 1.7; }
+.ppe__hist { border-bottom: 1rpx dashed #eee; padding: 14rpx 0; }
+.ppe__hist-badge { display: inline-block; font-size: 22rpx; border-radius: 8rpx; padding: 2rpx 14rpx; margin-right: 14rpx; }
+.ppe__hist-badge.is-ok { background: #f0f9eb; color: #67c23a; }
+.ppe__hist-badge.is-bad { background: #fef0f0; color: #f56c6c; }
+.ppe__hist-time { font-size: 24rpx; color: #9AA0A6; }
+.ppe__hist-reason { font-size: 24rpx; color: #c45656; margin-top: 6rpx; }

@@ -16,11 +16,15 @@ Page({
     highlightInput: '',
     auditStatus: '',      // '' | pending | approved | rejected
     rejectReason: '',
+    pendingBio: '',       // 本次待审核内容(提交后回显)
+    pendingSkills: [],
+    pendingHighlights: [],
+    auditHistory: [],     // 审核历史 [{at,result,by,reason}]
     submitting: false
   },
 
   onLoad() {
-    // 回显当前已审核快照 + 审核状态(从 detail 接口读自己)
+    // 回显当前已审核快照 + 审核状态 + 待审内容 + 审核历史
     callCloud('partner-action', { action: 'my_profile' }).then((res) => {
       if (res.ok && res.data && res.data.profile) {
         const d = res.data.profile;
@@ -29,7 +33,11 @@ Page({
           skills: d.skills || [],
           highlights: d.service_highlights || [],
           auditStatus: d.profile_audit_status || '',
-          rejectReason: d.profile_reject_reason || ''
+          rejectReason: d.profile_reject_reason || '',
+          pendingBio: d.bio_pending || '',
+          pendingSkills: d.skills_pending || [],
+          pendingHighlights: d.highlights_pending || [],
+          auditHistory: d.audit_history || []
         });
       }
     });
@@ -38,6 +46,14 @@ Page({
   onBioInput(e) { this.setData({ bio: e.detail.value }); },
   onSkillInput(e) { this.setData({ skillInput: e.detail.value }); },
   onHighlightInput(e) { this.setData({ highlightInput: e.detail.value }); },
+
+  // 审核历史时间格式化: 时间戳 → MM-DD HH:mm
+  fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const p = (n) => (n < 10 ? '0' + n : '' + n);
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  },
 
   onAddSkill() {
     const v = (this.data.skillInput || '').trim();

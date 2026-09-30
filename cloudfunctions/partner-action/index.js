@@ -532,7 +532,12 @@ exports.main = async (event, context) => {
             skills: (profile.profile_audited_snapshot && profile.profile_audited_snapshot.skills) || [],
             service_highlights: (profile.profile_audited_snapshot && profile.profile_audited_snapshot.highlights) || [],
             profile_audit_status: profile.profile_audit_status || '',
-            profile_reject_reason: profile.profile_reject_reason || ''
+            profile_reject_reason: profile.profile_reject_reason || '',
+            // 本次待审核内容 + 审核历史(耍伴端"审核中"区展示)
+            bio_pending: profile.bio_pending || '',
+            skills_pending: profile.skills_pending || [],
+            highlights_pending: profile.highlights_pending || [],
+            audit_history: (profile.profile_audit_history || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
           },
           stats: {
             total_orders: totalOrders,

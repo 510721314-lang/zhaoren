@@ -48,4 +48,28 @@
     {{submitting ? '提交中…' : (auditStatus === 'pending' ? '审核中' : '提交审核')}}
   </button>
   <view class="ppe__safe">资料经平台审核后展示；禁止填写联系方式/链接，违者将影响信用分。</view>
+
+  <!-- 本次待审核事项 -->
+  <view class="ppe__card" wx:if="{{pendingBio || pendingSkills.length || pendingHighlights.length}}">
+    <view class="ppe__label">本次待审核事项 <text class="ppe__pending-badge">待审核</text></view>
+    <view class="ppe__ts" wx:if="{{pendingBio}}"><text class="ppe__ts-tag">简介</text>{{pendingBio}}</view>
+    <view class="ppe__tags" wx:if="{{pendingSkills.length}}">
+      <text class="ppe__ts-tag ppe__ts-tag--inline">技能</text>
+      <view class="ppe__tag ppe__tag--pending" wx:for="{{pendingSkills}}" wx:key="*this">{{item}}</view>
+    </view>
+    <view class="ppe__hl" wx:if="{{pendingHighlights.length}}">
+      <text class="ppe__jsx-tt">亮点</text>
+      <view wx:for="{{pendingHighlights}}" wx:key="*this" class="ppe__hl-item">{{item}}</view>
+    </view>
+  </view>
+
+  <!-- 审核历史 -->
+  <view class="ppe__card" wx:if="{{auditHistory.length}}">
+    <view class="ppe__label">审核历史</view>
+    <view class="ppe__hist" wx:for="{{auditHistory}}" wx:key="index">
+      <text class="ppe__hist-badge {{item.result === 'approved' ? 'is-ok' : 'is-bad'}}">{{item.result === 'approved' ? '通过' : '驳回'}}</text>
+      <text class="ppe__hist-time">{{fmtTime(item.at)}}</text>
+      <view class="ppe__hist-reason" wx:if="{{item.reason}}">理由：{{item.reason}}</view>
+    </view>
+  </view>
 </view>
