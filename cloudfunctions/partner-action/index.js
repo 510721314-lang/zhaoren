@@ -8,6 +8,7 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+const { buildAuditPatch } = require('./partner_audit');
 
 // 耍伴审核通知推送(system_notice): 提交/通过/驳回都主动推给耍伴
 // 去重合并: 同收件人+order_id('' 无订单)+type 未读则覆盖正文与时间, 避免刷屏
@@ -51,19 +52,6 @@ function creditLevelOf(score) {
   if (!Number.isFinite(score)) return 'L1';
   const lv = CREDIT_LEVELS.find((l) => score >= l.min && score <= l.max);
   return lv ? lv.level : 'L1';
-}
-// 审核栏目空值默认/判空(按栏目返回空默认值; 无第二参时返回空值, 有则判空)
-const FIELD_EMPTY = {
-  bio: '', skills: [], highlights: [],
-  qualifications: { titles: [], photos: [] }, honors: { titles: [], photos: [] }
-};
-function emptyFieldVal(field, val) {
-  const empty = FIELD_EMPTY[field] !== undefined ? FIELD_EMPTY[field] : '';
-  if (arguments.length < 2) return empty;
-  if (Array.isArray(empty)) return !(val && val.length > 0);
-  // object(资质/荣誉): titles 与 photos 都空才算空(有任一即有待审)
-  if (typeof empty === 'object') return !(val && ((val.titles && val.titles.length) || (val.photos && val.photos.length)));
-  return !val; // 字符串: 空串即空
 }
 // 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
@@ -700,6 +688,9 @@ exports.main = async (event, context) => {
     //     通过某栏目 → 该栏目 pending 并入快照(覆盖), 清其 pending
     //     驳回某栏目 → 清该栏目 pending(可重提), 留 reason
     //     全部栏目处理完后若仍有 pending 未清 → 保持 pending 锁; 否则解除锁
+    //
+    // ⚠️ DEPRECATED(兼容入口): 耍伴资料审核统一走 admin-action.partner_profile_review(admin-web 后台)。
+    //    本分支仅保留供云端「云端测试」面板人工触发; 逻辑与 admin-action 保持一致(items 白名单/判空/锁判定)。
     case 'audit_partner_profile': {
       const config = await getConfig();
       const adminList = config.admin_openids || [];
@@ -717,60 +708,13 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'pa_no_items', msg: '缺少审核项' };
       }
 
-      // 栏目 → 字段映射(审核白名单, 防任意字段注入)
-      const FIELD_PENDING = {
-        bio: 'bio_pending', skills: 'skills_pending', highlights: 'highlights_pending',
-        qualifications: 'qualifications_pending', honors: 'honors_pending'
-      };
-      const SNAPSHOT_KEY = {
-        bio: 'bio', skills: 'skills', highlights: 'highlights',
-        qualifications: 'qualifications', honors: 'honors'
-      };
       const now = Date.now();
-      // 逐栏目处理: 构造 update 增量 + 逐条审核历史
-      const patch = {};
-      const hist = [];
-      let hasRemainingPending = false;
-
-      for (const it of items) {
-        const field = it && it.field;
-        if (!field || !FIELD_PENDING[field]) continue;            // 非法字段跳过
-        const pendingKey = FIELD_PENDING[field];
-        const pendingVal = profile[pendingKey];
-        const isEmpty = emptyFieldVal(field, pendingVal);
-        // 该栏目无待审内容: 不处理
-        if (isEmpty) continue;
-        if (it.pass) {
-          // 通过: 快照该栏目 = pending 值; 清 pending
-          patch[`profile_audited_snapshot.${SNAPSHOT_KEY[field]}`] = pendingVal;
-          patch[pendingKey] = emptyFieldVal(field);
-          hist.push({ at: now, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '', scope: field });
-        } else {
-          // 驳回: 清 pending; 该栏目仍计入重提, 锁不解除
-          patch[pendingKey] = emptyFieldVal(field);
-          hist.push({ at: now, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(it.reason || '').slice(0, 100), scope: field });
-          hasRemainingPending = true; // 有驳回栏目 → 保持锁, 待耍伴重提
-        }
-      }
-
-      if (Object.keys(patch).length === 0) {
+      // 收敛: 审核增量由 _shared/partner_audit 唯一实现(与 admin-action 同源, 防漂移)
+      const { patch, hist, hasRemainingPending, anyPatched } = buildAuditPatch(profile, items, now, openid);
+      if (!anyPatched || Object.keys(patch).length === 0) {
         return { ok: false, code: 'pa_no_pending', msg: '所选审核项均无待审内容' };
       }
-
-      // 判断是否仍有栏目处于 pending(未清): 重新读快照字段
-      for (const k of Object.keys(FIELD_PENDING)) {
-        const pv = profile[FIELD_PENDING[k]];
-        if (!emptyFieldVal(k, pv)) hasRemainingPending = true;
-      }
-
-      patch.updated_at = now;
-      // 逐条 push 审核历史(每条含 scope 栏目): 一次 push 全部
       patch.profile_audit_history = _.push(...hist);
-      if (!hasRemainingPending) {
-        // 全部处理完 → 解除锁
-        patch.profile_audit_status = 'approved';
-        patch.profile_reject_reason = '';
-      }
       await col('partner_profile').doc(profile._id).update({ data: patch });
 
       await writeAudit(db, log, {

@@ -9,6 +9,7 @@ const _ = db.command;
 const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命名空间下)
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { buildAuditPatch } = require('./partner_audit');
 
 // 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
 async function resolveTempUrls(fileIDs) {
@@ -680,60 +681,11 @@ exports.main = async (event, context) => {
     if (!p) return fail('pp_not_found', '耍伴不存在');
     if (p.profile_audit_status !== 'pending') return fail('pp_no_pending', '该耍伴资料不在审核队列');
     if (!Array.isArray(items) || items.length === 0) return fail('pp_no_items', '缺少审核项');
-    const FIELD_PENDING = {
-      bio: 'bio_pending', skills: 'skills_pending', highlights: 'highlights_pending',
-      qualifications: 'qualifications_pending', honors: 'honors_pending'
-    };
-    const SNAPSHOT_KEY = {
-      bio: 'bio', skills: 'skills', highlights: 'highlights',
-      qualifications: 'qualifications', honors: 'honors'
-    };
-    const FIELD_EMPTY = {
-      bio: '', skills: [], highlights: [],
-      qualifications: { titles: [], photos: [] }, honors: { titles: [], photos: [] }
-    };
-    const emptyVal = (field) => {
-      const e = FIELD_EMPTY[field];
-      return Array.isArray(e) ? [] : (typeof e === 'object' ? { titles: [], photos: [] } : '');
-    };
-    const isFieldEmpty = (field, val) => {
-      const e = FIELD_EMPTY[field];
-      if (Array.isArray(e)) return !(val && val.length > 0);
-      // object(资质/荣誉): titles 与 photos 都空才算空(有任一即有待审)
-      if (typeof e === 'object') return !(val && ((val.titles && val.titles.length) || (val.photos && val.photos.length)));
-      return !val;
-    };
     const _n = Date.now();
-    const patch = {};
-    const hist = [];
-    let hasRemainingPending = false;
-    for (const it of items) {
-      const field = it && it.field;
-      if (!field || !FIELD_PENDING[field]) continue;
-      const pendingKey = FIELD_PENDING[field];
-      const pendingVal = p[pendingKey];
-      if (isFieldEmpty(field, pendingVal)) continue;
-      if (it.pass) {
-        patch[`profile_audited_snapshot.${SNAPSHOT_KEY[field]}`] = pendingVal;
-        patch[pendingKey] = emptyVal(field);
-        hist.push({ at: _n, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '', scope: field });
-      } else {
-        patch[pendingKey] = emptyVal(field);
-        hist.push({ at: _n, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(it.reason || '').slice(0, 100), scope: field });
-        hasRemainingPending = true;
-      }
-    }
-    if (Object.keys(patch).length === 0) return fail('pp_no_pending_scope', '所选审核项均无待审内容');
-    for (const k of Object.keys(FIELD_PENDING)) {
-      if (!isFieldEmpty(k, p[FIELD_PENDING[k]])) hasRemainingPending = true;
-    }
-    patch.updated_at = _n;
+    // 收敛: 审核增量由 _shared/partner_audit 唯一实现(与 partner-action 同源, 防漂移)
+    const { patch, hist, hasRemainingPending, anyPatched } = buildAuditPatch(p, items, _n, openid);
+    if (!anyPatched || Object.keys(patch).length === 0) return fail('pp_no_pending_scope', '所选审核项均无待审内容');
     patch.profile_audit_history = _.push(...hist);
-    // 全部处理完 → 解除锁; 有驳回/未清 → 保持 pending(部分待重提)
-    if (!hasRemainingPending) {
-      patch.profile_audit_status = 'approved';
-      patch.profile_reject_reason = '';
-    }
     await col('partner_profile').doc(p._id).update({ data: patch });
     try {
       await col('system_notice').add({ data: {
