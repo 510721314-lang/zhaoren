@@ -59,7 +59,10 @@ Page({
   onAddHighlight() {
     const v = (this.data.highlightInput || '').trim();
     if (!v) return;
-    if (this.data.highlights.length >= 3) return;
+    if (this.data.highlights.length >= 3) {
+      wx.showToast({ title: '最多 3 条服务亮点', icon: 'none' });
+      return;
+    }
     this.setData({ highlights: [...this.data.highlights, v], highlightInput: '' });
   },
   onRemoveHighlight(e) {

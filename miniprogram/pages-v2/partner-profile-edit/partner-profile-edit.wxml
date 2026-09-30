@@ -37,7 +37,8 @@
       <text class="ppe__hl-text">{{item}}</text>
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveHighlight">×</text>
     </view>
-    <view class="ppe__addrow" wx:if="{{highlights.length < 3}}">
+    <!-- 添加框恒显示(杜绝"按钮消失"困惑); 满 3 条时点添加由 JS 提示上限 -->
+    <view class="ppe__addrow">
       <input class="ppe__input" value="{{highlightInput}}" maxlength="30" placeholder="如：全程陪同不玩手机" bindinput="onHighlightInput" />
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddHighlight">添加</view>
     </view>
