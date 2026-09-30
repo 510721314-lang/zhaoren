@@ -10,7 +10,7 @@
   <!-- 个人简介 -->
   <view class="ppe__card">
     <view class="ppe__label">个人简介 <text class="ppe__count">{{bio.length}}/200</text></view>
-    <textarea class="ppe__textarea" value="{{bio}}" maxlength="200" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" bindinput="onBioInput" />
+    <textarea class="ppe__textarea" value="{{bio}}" maxlength="200" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" placeholder-class="ppe__ph" bindinput="onBioInput" />
   </view>
 
   <!-- 技能标签 -->
@@ -23,7 +23,7 @@
       </view>
     </view>
     <view class="ppe__addrow" wx:if="{{skills.length < 10}}">
-      <input class="ppe__input" value="{{skillInput}}" maxlength="12" placeholder="如：持证护士" bindinput="onSkillInput" />
+      <input class="ppe__input" value="{{skillInput}}" maxlength="12" placeholder="如：持证护士" placeholder-class="ppe__ph" bindinput="onSkillInput" />
       <!-- 用 view 代替 button: 避免 button 内置样式/键盘失焦吞点击 -->
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddSkill">添加</view>
     </view>
@@ -40,7 +40,7 @@
     </view>
     <!-- 添加框恒显示(杜绝"按钮消失"困惑); 满 3 条时点添加由 JS 提示上限 -->
     <view class="ppe__addrow">
-      <input class="ppe__input" value="{{highlightInput}}" maxlength="30" placeholder="如：全程陪同不玩手机" bindinput="onHighlightInput" />
+      <input class="ppe__input" value="{{highlightInput}}" maxlength="30" placeholder="如：全程陪同不玩手机" placeholder-class="ppe__ph" bindinput="onHighlightInput" />
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddHighlight">添加</view>
     </view>
     <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="highlights" bindtap="onSubmitField">独立提交服务亮点</view>
@@ -55,7 +55,7 @@
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveQual">×</text>
     </view>
     <view class="ppe__addrow">
-      <input class="ppe__input" value="{{qualInput}}" maxlength="20" placeholder="如：护士执业资格证" bindinput="onQualInput" />
+      <input class="ppe__input" value="{{qualInput}}" maxlength="20" placeholder="如：护士执业资格证" placeholder-class="ppe__ph" bindinput="onQualInput" />
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddQual">添加</view>
     </view>
     <view class="ppe__media">
@@ -77,7 +77,7 @@
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveHon">×</text>
     </view>
     <view class="ppe__addrow">
-      <input class="ppe__input" value="{{honInput}}" maxlength="20" placeholder="如：年度优秀服务者" bindinput="onHonInput" />
+      <input class="ppe__input" value="{{honInput}}" maxlength="20" placeholder="如：年度优秀服务者" placeholder-class="ppe__ph" bindinput="onHonInput" />
       <view class="ppe__addbtn" hover-class="btn-press" bindtap="onAddHon">添加</view>
     </view>
     <view class="ppe__media">

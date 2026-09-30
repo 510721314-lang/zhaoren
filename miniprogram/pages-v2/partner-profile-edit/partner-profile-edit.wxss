@@ -1,6 +1,8 @@
 @import "../../styles/tokens.wxss";
 
-.ppe { padding: 24rpx; }
+.ppe { padding: 24rpx; color: #1F2329; }
+/* input/textarea placeholder: 深灰, 深色模式下仍可见 */
+.ppe__ph { color: #9AA0A6; }
 .ppe__banner { padding: 20rpx 24rpx; border-radius: 16rpx; font-size: 26rpx; margin-bottom: 24rpx; }
 .ppe__banner--pending { background: #FFF7E6; color: #AD6800; }
 .ppe__banner--rejected { background: #FFF1F0; color: #CF1322; }
