@@ -664,7 +664,8 @@ exports.main = async (event, context) => {
     const isFieldEmpty = (field, val) => {
       const e = FIELD_EMPTY[field];
       if (Array.isArray(e)) return !(val && val.length > 0);
-      if (typeof e === 'object') return !(val && val.titles && val.titles.length > 0);
+      // object(资质/荣誉): titles 与 photos 都空才算空(有任一即有待审)
+      if (typeof e === 'object') return !(val && ((val.titles && val.titles.length) || (val.photos && val.photos.length)));
       return !val;
     };
     const _n = Date.now();

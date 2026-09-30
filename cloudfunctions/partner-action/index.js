@@ -61,7 +61,8 @@ function emptyFieldVal(field, val) {
   const empty = FIELD_EMPTY[field] !== undefined ? FIELD_EMPTY[field] : '';
   if (arguments.length < 2) return empty;
   if (Array.isArray(empty)) return !(val && val.length > 0);
-  if (typeof empty === 'object') return !(val && val.titles && val.titles.length > 0);
+  // object(资质/荣誉): titles 与 photos 都空才算空(有任一即有待审)
+  if (typeof empty === 'object') return !(val && ((val.titles && val.titles.length) || (val.photos && val.photos.length)));
   return !val; // 字符串: 空串即空
 }
 // 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
