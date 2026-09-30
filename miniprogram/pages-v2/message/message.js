@@ -138,7 +138,7 @@ Page({
 
   // M2 固定入口
   onSystemTap() {
-    wx.showToast({ title: '系统通知列表待接入', icon: 'none' });
+    wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
   },
   onKefuTap() {
     wx.showToast({ title: '平台客服7×24小时接入中', icon: 'none' });

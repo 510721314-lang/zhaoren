@@ -256,12 +256,13 @@ Page({
     this.setData({ filteredScenes: hit });
   },
   onBellTap() {
-    wx.showToast({ title: '系统通知列表待接入', icon: 'none' });
+    wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
   },
 
   // H3 紧急联系人
   onEmergencyConfirm() {
-    wx.showToast({ title: '紧急联系人设置页待接入', icon: 'none' });
+    this.setData({ showEmergency: false });
+    wx.navigateTo({ url: '/pages-v2/contacts/contacts', fail: () => wx.showToast({ title: '紧急联系人页暂不可用', icon: 'none' }) });
   },
   onEmergencyClose() {
     this.setData({ showEmergency: false });
