@@ -55,6 +55,8 @@
 17. ~~[长尾] dispute/wallet 真机联调~~ ✅ **已完成（2026-09-29，双身份全链路通过）**：临时 force_set_env dev（4h 自动回 prod 兜底）→ dispute S10.5 售后视图/钱包极速提现(T+0)/普通提现(T+1)/余额核对全过 → 已主动切回 prod（DB 直读 env=prod 确认）。dev 窗口产生的提现单为 mock 数据，无真实资金
 18. 【长尾】DevTools 真机调试冲突 `remote debug instance already exists`（多种常规方法无效，挂起后续处理；可用模拟器/预览替代验证）
 19. 【提审前 P0-P1 清单见 §10】
+20. 【2026-09-30 早场新交付·已部署+真机通过】①耍伴资料维护展示（partner-profile-edit 页+bio/技能/亮点+审核快照 fail-closed，a22b426）②审核结果 system_notice 推送（submitted/approved/rejected 三链，2e5ca26）③init-db 越权修复（种子分支管理员鉴权，cf2c3c6，匿名越权回归 5/5 PASS）④前端添加按钮 button→view（92fb437）——详细见 §9.15
+21. 【待推】GitHub push `2e5ca26`（2026-09-30 早场 network 波动未推；网络恢复后 `git -C C:\zhaoren -c http.proxy= push origin master`）
 
 ## 5.6 P0-2 安全遗留 4 项 ✅（2026-09-28 完成，commit 267deb3 已部署）
 - **① admin-web bootstrap 硬编码 openid 清除**：admin-web/index.js L208-217/L224 两处 `'oLDJ...'` 硬编码 → 改 `adminOpenid`（取 admin_openids[0]，空则拒 `no_admin_openid`）；不再留死兜底
@@ -205,6 +207,14 @@
 - **今日晚场交付**：①耍伴推荐距离（home-action square/overview 回填 + partner-card 占位修复，已部署，真机通过）②10 条附近可接测试需求（creator=seed_nearby_pub_01，盐道街周边 10 场景，下线走 is_deleted=true）③HANDOFF-PROMPT 新电脑终版入库 ④blog 图片不显示闭环（旧编译包同源问题，清缓存重编译恢复）
 - **测试数据登记**：seed_nearby_pub_01（user_account+emergency_contact）+ 其名下 10 条 demand；测试耍伴 oLDJ73W5XZjGD1SmlQ5Ierxy5kEo / test_partner_001 已补 home_location（春熙路/东门大街）
 
+### 9.15 2026-09-30 早场经验（耍伴资料维护 + 审核通知推送 + 越权修复 · 真机通过）
+- **耍伴资料维护展示（P-B 实施，commit a22b426 部署，真机通过）**：`partner_profile` 增 bio/skills/highlights（全可选）；展示端**只读 `profile_audited_snapshot` 双缓冲**（未过审不上线），编辑区写 `*_pending` + `profile_audit_status=pending`；新增 `update_partner_profile`（内容安全=硬拦联系方式正则→msgSecCheck→词库降级 + 限频 + 幂等）/ `audit_partner_profile`（approve 覆盖新快照并留 `profile_audited_snapshot_prev` 可回滚，reject 留原因）；home-action 的 square/overview partnerList 与 detail 只读快照；partner-card 一行 bio（wx:if 空不渲染）；前端口 0 实现：partner-profile-edit 编辑页（表单+防抖）+ 我的→耍伴工作台「资料维护」入口。专家审核 5 必补全落实：UGC 举报（safety-report 新增 `report_user`，10min 幂等）、并发幂等、联系方式硬拦、冷启动快照 seed、快照可回滚
+- **审核结果以 system_notice 推送（commit 2e5ca26，实测 reject/approve 到达）**：写入 partner-action 复用项目 `writeNotice`（去重合并：同收件人+order_id('')+type 未读覆盖正文）；三条通知链：`partner_profile_submitted`(提交后) / `_approved`(通过) / `_rejected`(驳回带原因)。提交通知因限频未单独实测，但与 reject 同函数可信
+- **init-db 越权修复（提审阻塞级，commit cf2c3c6，匿名越权回归 5/5 PASS）**：根因=种子分支（无 action/'seed'/未知 action）完全无鉴权，匿名可触发建集合/索引/补 config 管理面。修复=种子分支前加鉴权闸：`admin_config.global` 已存在（非首部署）即需管理员白名单命中，否则 `idb_seed_forbidden`；global 不存在（首部署）放行保鸡生蛋；admin_openids 为空也拒绝（防暴露）。管理员 seed 仍可达已实测。**方法论**：匿名越权回归 = 无 mock_openid 调敏感函数(init-db/order-timer/payment-mock/admin-action) 逐个断言拒绝
+- **限频/幂等双闸**：`pa_submit_frequent`（30min 禁重复提交，清理 pending 后设 profile_submit_at=0 可绕过）+ `pa_audit_pending`（并发双击防产多条 audit）——正规防御，测试触发属预期非 bug
+- **重启 PATH 丢失（新电脑/重启风险）**：重启后 `node`/`git` 不在系统 PATH，`node --check`/`git` 直接 CommandNotFound → 用全路径 `C:\Program Files\nodejs\node.exe`、`C:\Program Files\Git\bin\git.exe`；建议把两者补入系统 PATH。**IDE 仍可能打开旧的 Desktop\zhaoren 克隆**（停在 a5b9c34，无新功能）——开发工具/编辑操作一律用唯一工作目录 `C:\zhaoren`（§9.11 防复发）
+- **测试数据登记**：Vl 自己资料（openid oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c，昵称「找个人帮忙」）已走完整审核闭环 → approved（快照为测试内容，含「技能标签增加测试」「服务亮点增加测试」）；如需真实展示请重新维护资料再审核覆盖。审核用临时 reject/approve 验证，dev 窗口已回 prod
+
 ## 10. 上线提交前工作清单（2026-09-29 专家审核后版本，按优先级）
 
 ### P0 阻塞提审（必须完成）
@@ -223,7 +233,7 @@
 - [ ] scan-miniprogram.ps1 全量
 - [ ] check-nightmask.js exit 0
 - [ ] admin_openids 含产品负责人 openid 最终确认
-- [ ] 云端越权回归（匿名调 init-db/order-timer 必须 forbidden，prod 下重验）
+- [x] 云端越权回归（匿名调 init-db/order-timer/payment-mock/admin-action，prod 下 5/5 拒绝；init-db 种子越权已修复+管理员路径仍可达，commit cf2c3c6，2026-09-30 完成，见 §9.15）
 - [ ] 真机双身份核心链路（发布→接单→四确认→支付→履约→评价，prod 环境）
 
 ### P3 运营/配置动作
