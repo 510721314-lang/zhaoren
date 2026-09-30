@@ -432,6 +432,7 @@ exports.main = async (event, context) => {
       const config = await getConfig();
       // 人脸模式守卫: mock 通道仅 dev 环境放行(env 为唯一权威开关, fail-closed);
       // prod 下无论 face_mode 配置漂移到何值, 模拟人脸一律拒绝 —— 防 mock 人脸洗成"正式实名+签名留证"的证据污染
+      // TODO(最后一步): 接入真实人脸时需重构为 mock(dev)/wx(prod)/拒绝 三分支, 仅改 face_mode 配置不会自动开通真实核验
       const envNow = getCachedEnv();
       const faceMode = String(config.realname_face_mode || 'mock');
       if (faceMode !== 'mock' || envNow !== 'dev') {

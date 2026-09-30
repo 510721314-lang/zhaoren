@@ -32,15 +32,23 @@ async function getOrder(orderId) {
 async function checkText(openid, text) {
   if (!text) return true;
   try {
-    await cloud.openapi.security.msgSecCheck({
+    const res = await cloud.openapi.security.msgSecCheck({
       content: text,
       version: 2,
       scene: 2,
       openid
     });
-    return true;
+    // 显式检查 errCode: 87014=违规, 0=正常; 非零非 87014 走降级
+    if (res && res.errCode === 0) return true;
+    if (res && res.errCode === 87014) return false;
+    // errCode 非预期: 降级本地词库
+    const lower = text.toLowerCase();
+    for (const w of BLOCK_WORDS) {
+      if (lower.includes(w.toLowerCase())) return false;
+    }
+    return false; // fail-closed
   } catch (e) {
-    // 降级 fail-closed: 本地违禁词未命中也拒绝(评价为公开展示面, 未安检内容不放行)
+    // 服务不可用/未开通: 降级本地词库, 未命中也拒绝
     const lower = text.toLowerCase();
     for (const w of BLOCK_WORDS) {
       if (lower.includes(w.toLowerCase())) return false;
