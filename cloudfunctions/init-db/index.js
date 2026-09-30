@@ -326,6 +326,21 @@ exports.main = async (event, context) => {
     })) };
   }
 
+  // ── 种子/初始化分支鉴权(fail-closed): 匿名可触发会暴露建集合/索引/补 config 的管理面, 提审一票否决 ──
+  // 仅"首次部署"(admin_config.global 尚不存在)放行, 以保留自建库/索引能力(鸡生蛋);
+  // global 已初始化后必须管理员白名单命中, 否则拒绝。admin_openids 为空也拒绝(防暴露)。
+  {
+    let _seedCfg = null;
+    try { _seedCfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) { _seedCfg = null; }
+    if (_seedCfg) {
+      const _admins = (_seedCfg.admin_openids) || [];
+      const _isAdmin = !!openid && _admins.indexOf(openid) >= 0;
+      if (!(_admins.length > 0 && _isAdmin)) {
+        return { ok: false, code: 'idb_seed_forbidden', msg: '无权限,仅管理员可执行初始化' };
+      }
+    }
+  }
+
   const created = [];
   const skipped = [];
   const warnings = [];
