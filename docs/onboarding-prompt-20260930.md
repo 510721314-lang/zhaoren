@@ -31,7 +31,7 @@
 |---|---|---|
 | 工作目录 | `C:\zhaoren` 存在 | `Test-Path C:\zhaoren` |
 | git remote | `origin → github.com/510721314-lang/zhaoren.git` | `git remote -v` |
-| 当前 HEAD | `0b7bec53ec7ce13e5095353943844660e1e9da50`（master） | `git log -1 --format=%H` |
+| 当前 HEAD | 与 origin/master 一致（push 后 master 最新值，无需记忆具体 hash；当前为 1f08fcf） | `git fetch origin; git log -1 origin/master --format=%H` 与 `git rev-parse HEAD` 比对 |
 | 工作区状态 | 有未提交改动（见下） | `git status --short` |
 | appid | `wxbc4a4afacdf234f5` | 读 project.config.json |
 | 云端环境 env | 当前为 `dev`（上次切出测试支付未切回） | 调网关 init_db quick_check |
