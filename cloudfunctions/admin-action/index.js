@@ -637,44 +637,79 @@ exports.main = async (event, context) => {
 
   // 耍伴资料审核(approve 覆盖快照+留 prev / reject 留原因), 并推送 system_notice 给耍伴
   if (action === 'partner_profile_review') {
-    const { target_openid, pass, reason } = event;
+    // 支持按栏目独立通过/驳回: items=[{field,pass,reason}]
+    const { target_openid, items } = event;
     if (!isOpenid(target_openid)) return fail('pp_bad_openid', 'openid 格式不正确');
     const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
     const p = pr.data && pr.data[0];
     if (!p) return fail('pp_not_found', '耍伴不存在');
     if (p.profile_audit_status !== 'pending') return fail('pp_no_pending', '该耍伴资料不在审核队列');
+    if (!Array.isArray(items) || items.length === 0) return fail('pp_no_items', '缺少审核项');
+    const FIELD_PENDING = {
+      bio: 'bio_pending', skills: 'skills_pending', highlights: 'highlights_pending',
+      qualifications: 'qualifications_pending', honors: 'honors_pending'
+    };
+    const SNAPSHOT_KEY = {
+      bio: 'bio', skills: 'skills', highlights: 'highlights',
+      qualifications: 'qualifications', honors: 'honors'
+    };
+    const FIELD_EMPTY = {
+      bio: '', skills: [], highlights: [],
+      qualifications: { titles: [], photos: [] }, honors: { titles: [], photos: [] }
+    };
+    const emptyVal = (field) => {
+      const e = FIELD_EMPTY[field];
+      return Array.isArray(e) ? [] : (typeof e === 'object' ? { titles: [], photos: [] } : '');
+    };
+    const isFieldEmpty = (field, val) => {
+      const e = FIELD_EMPTY[field];
+      if (Array.isArray(e)) return !(val && val.length > 0);
+      if (typeof e === 'object') return !(val && val.titles && val.titles.length > 0);
+      return !val;
+    };
     const _n = Date.now();
-    if (pass) {
-      await col('partner_profile').doc(p._id).update({ data: {
-        profile_audited_snapshot_prev: p.profile_audited_snapshot || null,
-        profile_audited_snapshot: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [],
-          qualifications: p.qualifications_pending || { titles: [], photos: [] }, honors: p.honors_pending || { titles: [], photos: [] }, audited_at: _n, audited_by: openid },
-        bio_pending: '', skills_pending: [], highlights_pending: [],
-        qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
-        profile_audit_status: 'approved', profile_reject_reason: '', updated_at: _n,
-        profile_audit_history: _.push({ at: _n, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '' })
-      }});
-    } else {
-      await col('partner_profile').doc(p._id).update({ data: {
-        bio_pending: '', skills_pending: [], highlights_pending: [],
-        qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
-        profile_audit_status: 'rejected', profile_reject_reason: String(reason || '').slice(0, 100), updated_at: _n,
-        // P1-2: 资料驳回后清空提交时间, 允许立即修改重提(不受 30min 限频)
-        profile_submit_at: 0,
-        profile_audit_history: _.push({ at: _n, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
-      }});
+    const patch = {};
+    const hist = [];
+    let hasRemainingPending = false;
+    for (const it of items) {
+      const field = it && it.field;
+      if (!field || !FIELD_PENDING[field]) continue;
+      const pendingKey = FIELD_PENDING[field];
+      const pendingVal = p[pendingKey];
+      if (isFieldEmpty(field, pendingVal)) continue;
+      if (it.pass) {
+        patch[`profile_audited_snapshot.${SNAPSHOT_KEY[field]}`] = pendingVal;
+        patch[pendingKey] = emptyVal(field);
+        hist.push({ at: _n, result: 'approved', by: openid ? String(openid).slice(-6) : '', reason: '', scope: field });
+      } else {
+        patch[pendingKey] = emptyVal(field);
+        hist.push({ at: _n, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(it.reason || '').slice(0, 100), scope: field });
+        hasRemainingPending = true;
+      }
     }
+    if (Object.keys(patch).length === 0) return fail('pp_no_pending_scope', '所选审核项均无待审内容');
+    for (const k of Object.keys(FIELD_PENDING)) {
+      if (!isFieldEmpty(k, p[FIELD_PENDING[k]])) hasRemainingPending = true;
+    }
+    patch.updated_at = _n;
+    patch.profile_audit_history = _.push(...hist);
+    // 全部处理完 → 解除锁; 有驳回/未清 → 保持 pending(部分待重提)
+    if (!hasRemainingPending) {
+      patch.profile_audit_status = 'approved';
+      patch.profile_reject_reason = '';
+    }
+    await col('partner_profile').doc(p._id).update({ data: patch });
     try {
       await col('system_notice').add({ data: {
-        to_openid: target_openid, order_id: '', type: pass ? 'partner_profile_approved' : 'partner_profile_rejected',
-        title: pass ? '资料审核通过' : '资料审核未通过',
-        body: pass ? '你的耍伴资料已通过审核，简介/技能/服务亮点已在耍伴卡片与详情页展示。'
-          : '你的耍伴资料未通过审核' + (reason ? '：' + String(reason).slice(0, 100) : '') + '。请修改后重新提交。',
+        to_openid: target_openid, order_id: '', type: hasRemainingPending ? 'partner_profile_rejected' : 'partner_profile_approved',
+        title: hasRemainingPending ? '部分资料未通过' : '资料审核通过',
+        body: hasRemainingPending ? '你的部分耍伴资料未通过审核，请修改未通过的栏目后重新提交；已通过的栏目已展示。'
+          : '你的耍伴资料已通过审核，已在耍伴卡片与详情页展示。',
         action_key: 'partner_profile_edit', action_payload: {}, created_at: _n, updated_at: _n, read: false
       }});
     } catch (e) {}
-    await logEvent('P2', pass ? 'pp_profile_approved' : 'pp_profile_rejected', openid, { target_openid, reason: reason || '' });
-    return ok({ target_openid, profile_audit_status: pass ? 'approved' : 'rejected' });
+    await logEvent('P2', hasRemainingPending ? 'pp_profile_partial' : 'pp_profile_approved', openid, { target_openid, fields: items.map((i) => i.field).join(',') });
+    return ok({ target_openid, profile_audit_status: hasRemainingPending ? 'pending' : 'approved' });
   }
 
   // 耍伴审核(通过/驳回)

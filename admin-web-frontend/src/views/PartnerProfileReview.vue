@@ -14,6 +14,18 @@
       <el-table-column type="expand">
         <template #default="{ row }">
           <div style="padding:8px 16px;display:flex;gap:28px;flex-wrap:wrap">
+            <!-- 分类独立审核操作栏 -->
+            <div style="width:100%;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid #eee;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-weight:600;font-size:13px">分类审核：</span>
+              <template v-for="f in fields(5)">
+                <el-tag v-if="hasPending(row, f.key)" size="small" :type="'warning'" effect="plain" style="margin-right:2px">
+                  {{ f.name }}
+                  <el-button v-if="busyField !== row.openid+'|'+f.key" size="mini" type="success" link @click="doFieldApprove(row,f.key)" :loading="busyField===row.openid+'|'+f.key" style="margin-left:6px">通过</el-button>
+                  <el-button v-if="busyField !== row.openid+'|'+f.key" size="mini" type="danger" link @click="openFieldReject(row,f.key)" style="margin-left:2px">驳回</el-button>
+                </el-tag>
+              </template>
+              <el-button size="mini" type="success" plain @click="doAllApprove(row)">全部通过</el-button>
+            </div>
             <!-- 一、个人简介 差异 -->
             <div style="flex:1;min-width:240px">
               <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">① 个人简介</div>
@@ -148,10 +160,10 @@
           <div v-if="!row.current.bio && !row.pending.bio && !(row.current.skills || []).length && !(row.pending.skills || []).length && !(row.current.highlights || []).length && !(row.pending.highlights || []).length && mediaBill(row.current.qualifications) === '（空）' && !(row.pending.qualifications?.titles || []).length && !(row.pending.qualifications?.photos || []).length && mediaBill(row.current.honors) === '（空）' && !(row.pending.honors?.titles || []).length && !(row.pending.honors?.photos || []).length" style="color:#999">（空）</div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" type="success" :loading="busy === row.openid" @click="doApprove(row)">通过</el-button>
-          <el-button size="small" type="danger" :loading="busy === row.openid" @click="openReject(row)">驳回</el-button>
+          <div style="font-size:12px;color:#909399">待审 {{ pendingCount(row) }} 项</div>
+          <el-button size="mini" type="primary" plain link style="margin-top:2px" @click="openExpand(row)">展开分类审核 ›</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -165,7 +177,7 @@
 
     <el-dialog v-model="rejectDialog" title="驳回耍伴资料" width="480px">
       <el-form label-position="top">
-        <el-form-item label="被驳回耍伴"><span>{{ rejectTarget?.nickname || rejectTarget?.openid }}</span></el-form-item>
+        <el-form-item label="被驳回耍伴"><span>{{ rejectTarget?.nickname || rejectTarget?.openid }}</span><el-tag size="small" type="warning" style="margin-left:8px">{{ fieldName(rejectField) }}</el-tag></el-form-item>
         <el-form-item label="常用原因">
           <el-select v-model="rejectPreset" placeholder="选择快捷原因" clearable style="width:100%" @change="onPresetChange">
             <el-option label="含联系方式/链接（引流）" value="资料含联系方式/链接，请移除后重提" />
@@ -180,7 +192,7 @@
       </el-form>
       <template #footer>
         <el-button @click="rejectDialog = false">取消</el-button>
-        <el-button type="danger" :loading="submitting" @click="doReject">确认驳回</el-button>
+        <el-button type="danger" :loading="submitting" @click="doFieldReject">确认驳回</el-button>
       </template>
     </el-dialog>
   </div>
@@ -197,11 +209,13 @@ const total = ref(0);
 const page = ref(1);
 const size = ref(15);
 const loading = ref(false);
-const busy = ref('');
+const busy = ref('');     // 兼容占位(未使用)
+const busyField = ref('');
 const rejectDialog = ref(false);
 const rejectNote = ref('');
 const rejectPreset = ref('');
 const rejectTarget = ref(null);
+const rejectField = ref('');
 const submitting = ref(false);
 
 function onPresetChange(v) { if (v) rejectNote.value = v; }
@@ -265,37 +279,71 @@ async function load() {
   }
 }
 
-async function doApprove(row) {
-  try {
-    await ElMessageBox.confirm(
-      `确认通过耍伴「${row.nickname || row.openid}」的资料？`,
-      '操作确认',
-      { confirmButtonText: '确认通过', cancelButtonText: '取消', type: 'success' }
-    );
-  } catch (_) { return; }
-  busy.value = row.openid;
-  const r = await call('partner_profile_review', { target_openid: row.openid, pass: true, reason: '' });
-  busy.value = '';
+async function doFieldApprove(row, field) {
+  const key = row.openid + '|' + field;
+  busyField.value = key;
+  const r = await call('partner_profile_review', { target_openid: row.openid, items: [{ field, pass: true, reason: '' }] });
+  busyField.value = '';
   if (r.ok) { ElMessage.success('已通过'); await load(); }
   else ElMessage.error(r.msg || '操作失败');
 }
 
-function openReject(row) {
+function openFieldReject(row, field) {
   rejectTarget.value = row;
+  rejectField.value = field;
   rejectNote.value = '';
   rejectDialog.value = true;
 }
 
-async function doReject() {
+async function doFieldReject() {
   if (!rejectNote.value.trim()) { ElMessage.warning('请填写驳回原因'); return; }
   submitting.value = true;
   const target = rejectTarget.value;
-  const r = await call('partner_profile_review', { target_openid: target.openid, pass: false, reason: rejectNote.value.trim() });
+  const field = rejectField.value;
+  const r = await call('partner_profile_review', { target_openid: target.openid, items: [{ field, pass: false, reason: rejectNote.value.trim() }] });
   submitting.value = false;
   if (r.ok) { ElMessage.success('已驳回'); rejectDialog.value = false; await load(); }
   else ElMessage.error(r.msg || '操作失败');
 }
 
+async function doAllApprove(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认全部通过耍伴「${row.nickname || row.openid}」的所有待审内容？`,
+      '操作确认',
+      { confirmButtonText: '确认全部通过', cancelButtonText: '取消', type: 'success' }
+    );
+  } catch (_) { return; }
+  busyField.value = row.openid + '|all';
+  const items = Object.keys(FIELD_META).filter((f) => hasPending(row, f)).map((f) => ({ field: f, pass: true, reason: '' }));
+  const r = await call('partner_profile_review', { target_openid: row.openid, items });
+  busyField.value = '';
+  if (r.ok) { ElMessage.success('已全部通过'); await load(); }
+  else ElMessage.error(r.msg || '操作失败');
+}
+
+// 栏目元数据
+const FIELD_META = {
+  bio: '个人简介', skills: '技能标签', highlights: '服务亮点',
+  qualifications: '资质证书', honors: '荣誉 其他'
+};
+function fields() { return Object.keys(FIELD_META).map((k) => ({ key: k, name: FIELD_META[k] })); }
+function fieldName(k) { return FIELD_META[k] || k; }
+function hasPending(row, field) {
+  if (!row || !row.pending) return false;
+  const v = row.pending[field];
+  if (typeof v === 'string') return !!v;
+  if (Array.isArray(v)) return v.length > 0;
+  if (v && typeof v === 'object') return !!(v.titles && v.titles.length) || !!(v.photos && v.photos.length);
+  return false;
+}
+function pendingCount(row) {
+  return Object.keys(FIELD_META).filter((f) => hasPending(row, f)).length;
+}
+function openExpand(row) {
+  const tr = document.querySelector(`tr[data-row-key="${row.openid}"] .el-table__expand-icon`);
+  if (tr) tr.click();
+}
 onMounted(load);
 </script>
 
