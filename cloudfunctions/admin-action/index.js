@@ -659,6 +659,8 @@ exports.main = async (event, context) => {
         bio_pending: '', skills_pending: [], highlights_pending: [],
         qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
         profile_audit_status: 'rejected', profile_reject_reason: String(reason || '').slice(0, 100), updated_at: _n,
+        // P1-2: 资料驳回后清空提交时间, 允许立即修改重提(不受 30min 限频)
+        profile_submit_at: 0,
         profile_audit_history: _.push({ at: _n, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
       }});
     }

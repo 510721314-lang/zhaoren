@@ -603,7 +603,9 @@ exports.main = async (event, context) => {
     //     展示端只读 profile_audited_snapshot, 未过审不上线
     case 'update_partner_profile': {
       const me = await getProfile(openid);
-      if (!me || me.status !== 'approved') {
+      // 入驻审核未通过(非 rejected/pending_review)之外, 允许维护资料:
+      // 已入驻(approved)/入驻审核中(pending_review)可提前备资料; 资料展示仍只读 status==='approved' 的快照(fail-closed)
+      if (!me || me.status === 'rejected') {
         return { ok: false, code: 'pa_not_partner', msg: '仅认证耍伴可维护资料' };
       }
       // 并发幂等: 审核中禁止重复提交(防双击/连点产多条 audit)
@@ -719,6 +721,8 @@ exports.main = async (event, context) => {
           qualifications_pending: { titles: [], photos: [] }, honors_pending: { titles: [], photos: [] },
           profile_audit_status: 'rejected',
           profile_reject_reason: String(reason || '').slice(0, 100), updated_at: now,
+          // P1-2: 资料驳回后清空提交时间, 允许立即修改重提(不受 30min 限频)
+          profile_submit_at: 0,
           profile_audit_history: _.push({ at: now, result: 'rejected', by: openid ? String(openid).slice(-6) : '', reason: String(reason || '').slice(0, 100) })
         }});
       }
