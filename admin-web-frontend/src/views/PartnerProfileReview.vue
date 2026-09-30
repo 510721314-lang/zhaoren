@@ -159,6 +159,12 @@
               <el-tag v-for="t in removedSet(row.current.qualifications?.titles || [], row.pending.qualifications?.titles || [])" :key="'r'+t" size="small" type="danger" effect="plain" class="prc-tag diff-del-tag">− {{ t }}</el-tag>
               <span v-if="(row.current.qualifications?.photos || []).length || (row.pending.qualifications?.photos || []).length" class="prc-photo" :class="(row.current.qualifications?.photos || []).length !== (row.pending.qualifications?.photos || []).length ? 'diff-add-tag' : ''">图片 {{ (row.pending.qualifications?.photos || []).length }} 张</span>
             </div>
+            <!-- 资质证书缩略图(点击看原图) -->
+            <div v-if="thumbPhotos(row.current.qualifications).length || thumbPhotos(row.pending.qualifications).length" class="prc-thumbs">
+              <el-image v-for="(ph,i) in [...thumbPhotos(row.current.qualifications), ...thumbPhotos(row.pending.qualifications)]" :key="'q'+i"
+                class="prc-thumb" :src="ph.url" :preview-src-list="allThumbUrls(row.current.qualifications, row.pending.qualifications)"
+                :initial-index="i" fit="cover" lazy />
+            </div>
           </div>
           <div v-if="mediaBill(row.current.honors) !== '（空）' || (row.pending.honors?.titles || []).length || (row.pending.honors?.photos || []).length" class="prc-cat">
             <div class="prc-cat-head">
@@ -174,6 +180,12 @@
               <el-tag v-for="t in row.pending.honors?.titles" :key="t" size="small" type="info" class="prc-tag" :class="isNew(t, row.current.honors?.titles || [], row.pending.honors?.titles || []) ? 'diff-add-tag' : ''">{{ t }}</el-tag>
               <el-tag v-for="t in removedSet(row.current.honors?.titles || [], row.pending.honors?.titles || [])" :key="'r'+t" size="small" type="danger" effect="plain" class="prc-tag diff-del-tag">− {{ t }}</el-tag>
               <span v-if="(row.current.honors?.photos || []).length || (row.pending.honors?.photos || []).length" class="prc-photo" :class="(row.current.honors?.photos || []).length !== (row.pending.honors?.photos || []).length ? 'diff-add-tag' : ''">图片 {{ (row.pending.honors?.photos || []).length }} 张</span>
+            </div>
+            <!-- 荣誉 其他 缩略图(点击看原图) -->
+            <div v-if="thumbPhotos(row.current.honors).length || thumbPhotos(row.pending.honors).length" class="prc-thumbs">
+              <el-image v-for="(ph,i) in [...thumbPhotos(row.current.honors), ...thumbPhotos(row.pending.honors)]" :key="'h'+i"
+                class="prc-thumb" :src="ph.url" :preview-src-list="allThumbUrls(row.current.honors, row.pending.honors)"
+                :initial-index="i" fit="cover" lazy />
             </div>
           </div>
           <div v-if="!row.current.bio && !row.pending.bio && !(row.current.skills || []).length && !(row.pending.skills || []).length && !(row.current.highlights || []).length && !(row.pending.highlights || []).length && mediaBill(row.current.qualifications) === '（空）' && !(row.pending.qualifications?.titles || []).length && !(row.pending.qualifications?.photos || []).length && mediaBill(row.current.honors) === '（空）' && !(row.pending.honors?.titles || []).length && !(row.pending.honors?.photos || []).length" style="color:#999">（空）</div>
@@ -285,6 +297,15 @@ function mediaBill(m) {
   const photos = (o.photos || []).length;
   return photos > 0 ? `${titles}；图片 ${photos} 张` : titles;
 }
+// 有 url 的缩略图(过滤待审/快照里未取到 url 的)
+function thumbPhotos(m) {
+  const o = m || {};
+  return (o.photos || []).filter((p) => p && p.url);
+}
+// 全部缩略图 url(当前+待审, 用于大图预览列表)
+function allThumbUrls(cur, pend) {
+  return [...thumbPhotos(cur), ...thumbPhotos(pend)].map((p) => p.url);
+}
 
 async function load() {
   loading.value = true;
@@ -378,4 +399,7 @@ onMounted(load);
 .prc-new-tag { background: #f0f9eb; color: #67c23a; }
 .prc-tag { margin-right: 4px; }
 .prc-photo { font-size: 12px; color: #c45656; padding: 0 4px; }
+/* 资质/荣誉 缩略图 */
+.prc-thumbs { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.prc-thumb { width: 64px; height: 64px; border-radius: 6px; border: 1px solid #ebeef5; cursor: zoom-in; }
 </style>

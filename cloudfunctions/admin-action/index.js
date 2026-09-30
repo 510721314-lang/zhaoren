@@ -10,6 +10,26 @@ const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命�
 const col = (n) => db.collection(n);
 const log = require('./logger');
 
+// 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
+async function resolveTempUrls(fileIDs) {
+  const ids = Array.isArray(fileIDs) ? fileIDs.filter((f) => f && typeof f === 'string') : [];
+  if (ids.length === 0) return {};
+  const map = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    try {
+      const r = await cloud.getTempFileURL({ fileList: batch });
+      const list = (r && r.fileList) || [];
+      for (const it of list) {
+        if (it && it.fileID) map[it.fileID] = it.tempFileURL || '';
+      }
+    } catch (e) {
+      log.d('getTempFileURL batch fail:', e && e.message);
+    }
+  }
+  return map;
+}
+
 // 进行中订单(数据看板口径)
 const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 const PAGE_SIZE = 15;
@@ -615,18 +635,33 @@ exports.main = async (event, context) => {
       const ur = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get().catch(() => ({ data: [] }));
       for (const u of (ur.data || [])) userMap[u.openid] = { nickname: u.nickname || '', avatar: u.avatar || '' };
     }
+    // 收集需展示缩略图的云存储 fileID(待审+快照的资质/荣誉 photos) → 统一切成临时 URL
+    const fileIDSet = new Set();
+    for (const p of (rows.data || [])) {
+      const cols = [
+        p.qualifications_pending && p.qualifications_pending.photos,
+        p.honors_pending && p.honors_pending.photos,
+        p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications && p.profile_audited_snapshot.qualifications.photos,
+        p.profile_audited_snapshot && p.profile_audited_snapshot.honors && p.profile_audited_snapshot.honors.photos
+      ];
+      for (const arr of cols) if (Array.isArray(arr)) for (const f of arr) if (f && typeof f === 'string') fileIDSet.add(f);
+    }
+    const urlMap = await resolveTempUrls([...fileIDSet]);
+    // photos → [{fileid, url}] (前端缩略图/原图用 url)
+    const toPhotos = (photos) => (Array.isArray(photos) ? photos.map((f) => ({ fileid: f, url: urlMap[f] || '' })) : []);
     const list = (rows.data || []).map((p) => ({
       openid: p.openid,
       nickname: p.nickname || (userMap[p.openid] && userMap[p.openid].nickname) || '耍伴',
       avatar: p.avatar || (userMap[p.openid] && userMap[p.openid].avatar) || '',
       pending: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [],
-        qualifications: p.qualifications_pending || { titles: [], photos: [] }, honors: p.honors_pending || { titles: [], photos: [] } },
+        qualifications: { titles: (p.qualifications_pending && p.qualifications_pending.titles) || [], photos: toPhotos(p.qualifications_pending && p.qualifications_pending.photos) },
+        honors: { titles: (p.honors_pending && p.honors_pending.titles) || [], photos: toPhotos(p.honors_pending && p.honors_pending.photos) } },
       current: {
         bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
         skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || [],
         highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || [],
-        qualifications: (p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications) || { titles: [], photos: [] },
-        honors: (p.profile_audited_snapshot && p.profile_audited_snapshot.honors) || { titles: [], photos: [] }
+        qualifications: { titles: (p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications && p.profile_audited_snapshot.qualifications.titles) || [], photos: toPhotos(p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications && p.profile_audited_snapshot.qualifications.photos) },
+        honors: { titles: (p.profile_audited_snapshot && p.profile_audited_snapshot.honors && p.profile_audited_snapshot.honors.titles) || [], photos: toPhotos(p.profile_audited_snapshot && p.profile_audited_snapshot.honors && p.profile_audited_snapshot.honors.photos) }
       },
       reject_reason: p.profile_reject_reason || '',
       submitted_at: p.profile_submit_at,
