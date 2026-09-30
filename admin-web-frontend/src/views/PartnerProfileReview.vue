@@ -1,6 +1,7 @@
 // views/PartnerProfileReview.vue · 耍伴资料审核（bio/技能/亮点）
 // 列表来自 admin-action partner_profile_pending_list（含当前快照 vs 待审对比）
-// 写操作：partner_profile_review（approve 覆盖快照留 prev / reject 留原因 + 通知）
+// 写操作：partner_profile_review（approve 覆盖快照别 prev / reject 留原因 + 通知）
+// 展开行：按分类(简介/技能/亮点)展示【原内容 vs 变更后】并高亮差异 + 审核历史
 <template>
   <div>
     <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -12,36 +13,48 @@
     <el-table :data="list" v-loading="loading" border stripe size="small" row-key="openid">
       <el-table-column type="expand">
         <template #default="{ row }">
-          <div style="padding:8px 16px;display:flex;gap:24px;flex-wrap:wrap">
-            <!-- 当前已展示快照 -->
-            <div style="flex:1;min-width:200px">
-              <div style="font-weight:600;margin-bottom:6px;color:#606266">当前已展示（审核通过快照）</div>
-              <div style="font-size:13px;color:#666">
-                <div v-if="!row.current.bio && !row.current.skills.length && !row.current.highlights.length">（暂无可展示资料）</div>
-                <template v-else>
-                  <div v-if="row.current.bio"><b>简介：</b>{{ row.current.bio }}</div>
-                  <div v-if="row.current.skills.length"><b>技能：</b><el-tag v-for="s in row.current.skills" :key="s" size="small" style="margin-right:6px">{{ s }}</el-tag></div>
-                  <div v-if="row.current.highlights.length"><b>亮点：</b><el-tag v-for="h in row.current.highlights" :key="h" size="small" type="success" style="margin-right:6px">{{ h }}</el-tag></div>
-                </template>
+          <div style="padding:8px 16px;display:flex;gap:28px;flex-wrap:wrap">
+            <!-- 一、个人简介 差异 -->
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">① 个人简介</div>
+              <div style="font-size:13px;margin-bottom:4px;color:#909399">原内容：{{ row.current.bio || '（空）' }}</div>
+              <div style="font-size:13px">变更后：
+                <span v-for="(tk,i) in charDiff(row.current.bio, row.pending.bio)" :key="i"
+                  :class="tk.t === 1 ? 'diff-add' : (tk.t === 2 ? 'diff-del' : '')">{{ tk.v }}</span>
               </div>
             </div>
-            <!-- 待审新内容 -->
-            <div style="flex:1;min-width:220px">
-              <div style="font-weight:600;margin-bottom:6px;color:#e6a23c">待审新内容</div>
-              <div style="font-size:13px;color:#333">
-                <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length">（空）</div>
-                <template v-else>
-                  <div v-if="row.pending.bio"><b>简介：</b>{{ row.pending.bio }}</div>
-                  <div v-if="row.pending.skills.length"><b>技能：</b><el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:6px">{{ s }}</el-tag></div>
-                  <div v-if="row.pending.highlights.length"><b>亮点：</b><el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:6px">{{ h }}</el-tag></div>
-                </template>
+
+            <!-- 二、技能标签 差异 -->
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">② 技能标签</div>
+              <div style="font-size:13px;margin-bottom:4px;color:#909399">原内容：</div>
+              <div v-if="!row.current.skills.length" style="color:#ccc;font-size:12px;margin-bottom:4px">（空）</div>
+              <div v-else style="margin-bottom:6px"><el-tag v-for="s in row.current.skills" :key="s" size="small" type="info" style="margin-right:4px">{{ s }}</el-tag></div>
+              <div style="font-size:13px;color:#909399">变更后（差异高亮）：</div>
+              <div>
+                <el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:4px" :type="isNew(s, row.current.skills, row.pending.skills) ? 'success' : 'info'">{{ s }}</el-tag>
+                <el-tag v-for="s in removedSet(row.current.skills, row.pending.skills)" :key="'r'+s" size="small" type="danger" effect="plain" class="diff-del-tag" style="margin-right:4px">− {{ s }}</el-tag>
               </div>
             </div>
-            <!-- 审核历史 -->
-            <div style="flex:1;min-width:220px">
-              <div style="font-weight:600;margin-bottom:6px;color:#409EFF">审核历史</div>
+
+            <!-- 三、服务亮点 差异 -->
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">③ 服务亮点</div>
+              <div style="font-size:13px;margin-bottom:4px;color:#909399">原内容：</div>
+              <div v-if="!row.current.highlights.length" style="color:#ccc;font-size:12px;margin-bottom:4px">（空）</div>
+              <div v-else style="margin-bottom:6px"><el-tag v-for="h in row.current.highlights" :key="h" size="small" type="info" style="margin-right:4px">{{ h }}</el-tag></div>
+              <div style="font-size:13px;color:#909399">变更后（差异高亮）：</div>
+              <div>
+                <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:4px" :class="isNew(h, row.current.highlights, row.pending.highlights) ? 'diff-add-tag' : ''">{{ h }}</el-tag>
+                <el-tag v-for="h in removedSet(row.current.highlights, row.pending.highlights)" :key="'r'+h" size="small" type="danger" effect="plain" class="diff-del-tag" style="margin-right:4px">− {{ h }}</el-tag>
+              </div>
+            </div>
+
+            <!-- 四、审核历史 -->
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px">④ 审核历史</div>
               <div v-if="!row.audit_history || !row.audit_history.length" style="font-size:12px;color:#999">暂无审核记录</div>
-              <div v-for="(h, i) in row.audit_history" :key="i" style="font-size:12px;line-height:1.9;color:#333;border-bottom:1px dashed #eee">
+              <div v-for="(h,i) in row.audit_history" :key="i" style="font-size:12px;line-height:1.9;color:#333;border-bottom:1px dashed #eee">
                 <el-tag size="small" :type="h.result === 'approved' ? 'success' : 'danger'" style="margin-right:6px">{{ h.result === 'approved' ? '通过' : '驳回' }}</el-tag>
                 {{ formatTime(h.at) }} · 操作人 {{ h.by || '-' }}
                 <span v-if="h.reason" style="color:#c45656">理由：{{ h.reason }}</span>
@@ -58,17 +71,14 @@
       <el-table-column label="提交时间" width="170">
         <template #default="{ row }">{{ formatTime(row.submitted_at) }}</template>
       </el-table-column>
-      <el-table-column label="待审内容" min-width="240">
+      <el-table-column label="待审内容" min-width="200">
         <template #default="{ row }">
-          <div v-if="row.pending.bio" style="font-size:12px;color:#666;margin-bottom:2px"><b>简介：</b>{{ row.pending.bio.slice(0, 30) }}</div>
           <template v-if="row.pending.skills.length">
             <el-tag v-for="s in row.pending.skills" :key="s" size="small" style="margin-right:4px">{{ s }}</el-tag>
           </template>
-          <template v-if="row.pending.highlights.length">
-            <div style="margin-top:3px">
-              <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:4px">{{ h }}</el-tag>
-            </div>
-          </template>
+          <div v-if="row.pending.highlights.length" style="margin-top:3px">
+            <el-tag v-for="h in row.pending.highlights" :key="h" size="small" type="success" style="margin-right:4px">{{ h }}</el-tag>
+          </div>
           <div v-if="!row.pending.bio && !row.pending.skills.length && !row.pending.highlights.length" style="color:#999">（空）</div>
         </template>
       </el-table-column>
@@ -128,14 +138,43 @@ const rejectPreset = ref('');
 const rejectTarget = ref(null);
 const submitting = ref(false);
 
-function onPresetChange(v) {
-  if (v) rejectNote.value = v;
-}
+function onPresetChange(v) { if (v) rejectNote.value = v; }
 
 function maskOpenid(openid) {
   if (!openid) return '-';
   if (openid.length <= 10) return openid;
   return openid.slice(0, 4) + '****' + openid.slice(-6);
+}
+
+// ── 差异计算 ──
+// 字符级 LCS diff，返回 [{t:0相同/1新增/2删除, v}]
+function charDiff(a, b) {
+  const A = a ? String(a) : '';
+  const B = b ? String(b) : '';
+  const arrA = [...A], arrB = [...B];
+  const n = arrA.length, m = arrB.length;
+  const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = arrA[i] === arrB[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const res = [];
+  let i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && arrA[i] === arrB[j]) { res.push({ t: 0, v: arrA[i] }); i++; j++; }
+    else if (j < m && (i === n || dp[i][j + 1] >= dp[i + 1][j])) { res.push({ t: 1, v: arrB[j] }); j++; }
+    else { res.push({ t: 2, v: arrA[i] }); i++; }
+  }
+  return res;
+}
+// 数组差异：项在 new 且不在 old → 新增(success)；仅在 old → 通过 removedSet 显示为删除划线
+function isNew(x, oldArr, newArr) {
+  return (newArr || []).indexOf(x) >= 0 && (oldArr || []).indexOf(x) < 0;
+}
+function removedSet(oldArr, newArr) {
+  const n = new Set(newArr || []);
+  return (oldArr || []).filter((x) => !n.has(x));
 }
 
 async function load() {
@@ -183,3 +222,10 @@ async function doReject() {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.diff-add { background: #f0f9eb; color: #67c23a; border-radius: 2px; }
+.diff-del { background: #fef0f0; color: #f56c6c; text-decoration: line-through; border-radius: 2px; }
+.diff-add-tag { border: 1px dashed #67c23a; }
+.diff-del-tag { text-decoration: line-through; opacity: 0.9; }
+</style>
