@@ -220,18 +220,19 @@
           <el-col :span="12"><el-form-item label="Banner 图 (750×360 横向, jpg/png/webp ≤2MB)">
             <div class="act-img-row">
               <el-button size="small" type="primary" plain :loading="actUploading === 'banner'" @click="pickActivityImage('banner')">上传图片</el-button>
-              <span class="act-img-spec">Banner 类型必填 · 建议 750×360 横向</span>
+              <span class="act-img-spec">Banner 类型必填 · 自动压缩为 750×360 横向</span>
             </div>
             <el-input v-model="actForm.banner_image" placeholder="cloud://..." class="act-img-input" />
           </el-form-item></el-col>
           <el-col :span="12"><el-form-item label="封面图 (750×750 方形, jpg/png/webp ≤2MB)">
             <div class="act-img-row">
               <el-button size="small" type="primary" plain :loading="actUploading === 'cover'" @click="pickActivityImage('cover')">上传图片</el-button>
-              <span class="act-img-spec">卡片类型必填 · 建议 750×750 方形</span>
+              <span class="act-img-spec">卡片类型必填 · 自动裁切为 750×750 方形</span>
             </div>
             <el-input v-model="actForm.cover_image" placeholder="cloud://..." class="act-img-input" />
           </el-form-item></el-col>
         </el-row>
+        <div class="act-img-tip">图片过大无法直传时：请在「微信开发者工具 → 云开发 → 存储」上传图片，再把 cloud:// 链接粘贴到上方输入框</div>
         <input ref="actFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="onActivityFileChange" />
         <el-row :gutter="12">
           <el-col :span="12"><el-form-item label="点击跳转" required>
@@ -452,10 +453,56 @@ async function doSubmitActivity() {
 }
 
 // ───────── 活动图片上传(base64 → admin-action upload_image → cloud fileID) ─────────
-// 规格: banner 750×360 横向 / cover 750×750 方形, jpg/png/webp ≤2MB(服务端强校验格式与大小, 前端提示比例)
+// 规格: banner 750×360 横向 / cover 750×750 方形, 源文件 jpg/png/webp ≤2MB
+// 通道限制: CloudBase HTTP 网关请求体上限约 100KiB, base64 直传仅支持 ≤90KB 小图,
+//   故前端统一 canvas 压缩到目标规格(JPEG 逐级降质); 压缩后仍超限 → 引导到云开发控制台→存储上传后粘贴 cloud:// 链接
+const INLINE_B64_MAX = 90 * 1024;  // base64 上限(留网关余量)
+const ACT_IMG_SPEC = { banner: { w: 750, square: false }, cover: { w: 750, square: true } };
+
 function pickActivityImage(use) {
   actPendingUse.value = use;
   actFileInput.value && actFileInput.value.click();
+}
+
+function compressImageForUpload(file, use) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      try {
+        const spec = ACT_IMG_SPEC[use] || ACT_IMG_SPEC.banner;
+        const W = img.naturalWidth, H = img.naturalHeight;
+        if (!W || !H) { resolve(''); return; }
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (spec.square) {
+          // 封面: 中心裁剪成方形, 限 750×750(不放大)
+          const s = Math.min(Math.min(W, H), 750);
+          canvas.width = s; canvas.height = s;
+          ctx.drawImage(img, (W - s) / 2, (H - s) / 2, s, s, 0, 0, s, s);
+        } else {
+          // Banner: 按比例缩到宽 750 以内(不放大)
+          let cw = W, ch = H;
+          if (cw > 750) { ch = Math.round(ch * 750 / cw); cw = 750; }
+          canvas.width = cw; canvas.height = ch;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.drawImage(img, 0, 0, cw, ch);
+        }
+        // 逐级降质, 直到 base64 ≤ 90KB
+        for (const q of [0.85, 0.72, 0.6]) {
+          const b64 = canvas.toDataURL('image/jpeg', q).replace(/^data:image\/jpeg;base64,/, '');
+          if (b64.length <= INLINE_B64_MAX) { resolve(b64); return; }
+        }
+        resolve(''); // 压缩后仍超限 → 交给控制台路径
+      } catch (e) {
+        resolve('');
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+    img.src = url;
+  });
 }
 
 async function onActivityFileChange(e) {
@@ -464,47 +511,25 @@ async function onActivityFileChange(e) {
   if (!file) return;
   if (file.size > 2 * 1024 * 1024) { ElMessage.error('图片大小不能超过 2MB'); return; }
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { ElMessage.error('仅支持 jpg/png/webp 格式'); return; }
-  const dim = await readImageSize(file);
   const use = actPendingUse.value;
-  if (use === 'banner' && dim && dim.w > 0 && Math.abs(dim.w / dim.h - 750 / 360) > 0.08) {
-    ElMessage.warning('建议使用 750×360 横向图,当前比例可能导致首屏展示变形');
-  } else if (use === 'cover' && dim && dim.w > 0 && Math.abs(dim.w / dim.h - 1) > 0.08) {
-    ElMessage.warning('建议使用 750×750 方形图,当前比例可能导致卡片展示变形');
+  const b64 = await compressImageForUpload(file, use);
+  if (!b64) {
+    ElMessage({ message: '图片处理后仍过大,请在 云开发控制台→存储→上传图片,再把 cloud:// 链接粘贴到下方输入框', type: 'warning', duration: 5000 });
+    return;
   }
-  const b64 = await fileToBase64(file);
   actUploading.value = use;
   try {
     const r = await call('upload_image', { use, fileData: b64 });
     if (r.ok && r.data && r.data.fileID) {
       if (use === 'banner') actForm.banner_image = r.data.fileID;
       else actForm.cover_image = r.data.fileID;
-      ElMessage.success('图片上传成功,fileID 已回填');
+      ElMessage.success('图片上传成功,已自动压缩为推荐规格');
     } else {
       ElMessage.error(r.msg || r.code || '图片上传失败');
     }
   } finally {
     actUploading.value = '';
   }
-}
-
-function fileToBase64(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || '').replace(/^data:[^;]+;base64,/, ''));
-    reader.onerror = () => resolve('');
-    reader.readAsDataURL(file);
-  });
-}
-
-function readImageSize(file) {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve({ w: img.width, h: img.height }); };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-    img.src = url;
-    setTimeout(() => URL.revokeObjectURL(url), 8000);
-  });
 }
 
 async function doDeleteActivity(row) {
@@ -610,4 +635,5 @@ onMounted(async () => {
 .act-img-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
 .act-img-spec { font-size:12px; color:#909399; }
 .act-img-input { font-size:12px; }
+.act-img-tip { font-size:12px; color:#E6A23C; background:#fdf6ec; border:1px solid #faecd8; border-radius:4px; padding:6px 8px; line-height:1.5; margin-bottom:8px; }
 </style>
