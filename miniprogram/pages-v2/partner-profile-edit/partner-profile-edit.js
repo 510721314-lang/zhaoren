@@ -2,14 +2,12 @@
 // 资质证书/荣誉: 每条仅标题(titles), 图片为栏目级多图(photos 存云存储 fileID)
 // 安全: 前端仅做表单与防抖, 内容安全/限频/并发幂等全部在云端(fail-closed)
 // 图片上传: wx.chooseMedia → wx.cloud.uploadFile → 存 fileID, 随资料提交审核
-// 图片张数与单张大小固定(安全上限, 不后台化)
-const MEDIA_PHOTO_MAX = 6;   // 资质/荣誉 图片张数上限
-const MEDIA_PHOTO_MAX_SIZE = 3 * 1024 * 1024; // 单张图片大小上限 3M
 // 数量/字数限制默认值(与后端 PARTNER_LIMITS_FALLBACK 一致; 运行时被 admin-action config_public.partner_profile 覆盖)
 const LIMITS_FALLBACK = {
   skills_max: 10, skills_len: 12,
   highlights_max: 3, highlight_len: 30,
-  media_title_max: 20, media_len: 20
+  media_title_max: 20, media_len: 20,
+  media_photo_max: 6, media_photo_size_mb: 3
 };
 
 function callCloud(name, data) {
@@ -61,7 +59,9 @@ Page({
             highlights_max: num(p.highlights_max, 3),
             highlight_len: num(p.highlight_len, 30),
             media_title_max: num(p.media_title_max, 20),
-            media_len: num(p.media_len, 20)
+            media_len: num(p.media_len, 20),
+            media_photo_max: num(p.media_photo_max, 6),
+            media_photo_size_mb: num(p.media_photo_size_mb, 3)
           }
         });
       }
@@ -199,9 +199,10 @@ Page({
   choosePhotos(key) {
     const field = key + 'Photos';
     const prev = this.data[field] || [];
-    const remain = MEDIA_PHOTO_MAX - prev.length;
+    const photoMax = this.data.limits.media_photo_max;
+    const remain = photoMax - prev.length;
     if (remain <= 0) {
-      wx.showToast({ title: `最多 ${MEDIA_PHOTO_MAX} 张图片`, icon: 'none' });
+      wx.showToast({ title: `最多 ${photoMax} 张图片`, icon: 'none' });
       return;
     }
     if (this.data.uploading) return;
@@ -215,13 +216,15 @@ Page({
   },
   async doUpload(key, files) {
     const field = key + 'Photos';
-    const MAX_SIZE = MEDIA_PHOTO_MAX_SIZE; // 单张 3M 上限
-    // 过滤超限图片(单张 > 3M): 提示并被跳过, 其余正常上传
+    const photoMax = this.data.limits.media_photo_max;
+    const sizeMb = this.data.limits.media_photo_size_mb;
+    const MAX_SIZE = sizeMb * 1024 * 1024; // 单张大小上限(后台可配, 默认 3M)
+    // 过滤超限图片: 提示并被跳过, 其余正常上传
     const oversized = files.filter((f) => (Number(f.size) || 0) > MAX_SIZE).length;
     const valid = files.filter((f) => (Number(f.size) || 0) <= MAX_SIZE);
     this.setData({ uploading: true });
     if (oversized > 0) {
-      wx.showToast({ title: `${oversized} 张图片超过 3M 已忽略`, icon: 'none', duration: 2500 });
+      wx.showToast({ title: `${oversized} 张图片超过 ${sizeMb}M 已忽略`, icon: 'none', duration: 2500 });
     } else {
       wx.showLoading({ title: '上传中…', mask: true });
     }
@@ -231,7 +234,7 @@ Page({
         const ext = (String(name.split('.').pop() || 'jpg')).toLowerCase();
         const cloudPath = `partner-cert/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
         const up = await wx.cloud.uploadFile({ cloudPath, filePath: valid[i].tempFilePath });
-        const arr = [...(this.data[field] || []), up.fileID].slice(0, MEDIA_PHOTO_MAX);
+        const arr = [...(this.data[field] || []), up.fileID].slice(0, photoMax);
         this.setData({ [field]: arr });
       }
       wx.hideLoading();

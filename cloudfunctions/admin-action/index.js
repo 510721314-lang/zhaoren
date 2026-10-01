@@ -132,7 +132,9 @@ const CONFIG_SCHEMA = [
   { f: 'p_highlights_max', t: 'int', g: '耍伴资料', label: '服务亮点条数上限', unit: '条', min: 1, max: 20, def: 3 },
   { f: 'p_highlight_len', t: 'int', g: '耍伴资料', label: '服务亮点单条字数', unit: '字', min: 1, max: 100, def: 30 },
   { f: 'p_media_title_max', t: 'int', g: '耍伴资料', label: '资质/荣誉标题条数上限', unit: '条', min: 1, max: 50, def: 20 },
-  { f: 'p_media_len', t: 'int', g: '耍伴资料', label: '资质/荣誉单条标题字数', unit: '字', min: 1, max: 50, def: 20 }
+  { f: 'p_media_len', t: 'int', g: '耍伴资料', label: '资质/荣誉单条标题字数', unit: '字', min: 1, max: 50, def: 20 },
+  { f: 'p_media_photo_max', t: 'int', g: '耍伴资料', label: '资质/荣誉照片张数上限', unit: '张', min: 1, max: 20, def: 6 },
+  { f: 'p_media_photo_size_mb', t: 'int', g: '耍伴资料', label: '资质/荣誉单张照片大小上限', unit: 'MB', min: 1, max: 20, def: 3 }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -415,7 +417,9 @@ exports.main = async (event, context) => {
         highlights_max: cfgRaw.p_highlights_max !== undefined ? cfgRaw.p_highlights_max : 3,
         highlight_len: cfgRaw.p_highlight_len !== undefined ? cfgRaw.p_highlight_len : 30,
         media_title_max: cfgRaw.p_media_title_max !== undefined ? cfgRaw.p_media_title_max : 20,
-        media_len: cfgRaw.p_media_len !== undefined ? cfgRaw.p_media_len : 20
+        media_len: cfgRaw.p_media_len !== undefined ? cfgRaw.p_media_len : 20,
+        media_photo_max: cfgRaw.p_media_photo_max !== undefined ? cfgRaw.p_media_photo_max : 6,
+        media_photo_size_mb: cfgRaw.p_media_photo_size_mb !== undefined ? cfgRaw.p_media_photo_size_mb : 3
       },
       // 支付/资金(dev 才下发真实能力; prod fail-closed) —— tip_enabled 派生自 env, 不暴露 env 原值
       payment: {

@@ -96,7 +96,8 @@ async function getTencentMapKey() {
 const PARTNER_LIMITS_FALLBACK = {
   skills_max: 10, skills_len: 12,
   highlights_max: 3, highlight_len: 30,
-  media_title_max: 20, media_len: 20
+  media_title_max: 20, media_len: 20,
+  media_photo_max: 6
 };
 let _partnerLimitsCache = null;
 let _partnerLimitsCacheUntil = 0;
@@ -114,6 +115,7 @@ async function getPartnerLimits() {
     L.highlight_len = num(cfg.p_highlight_len, 30);
     L.media_title_max = num(cfg.p_media_title_max, 20);
     L.media_len = num(cfg.p_media_len, 20);
+    L.media_photo_max = num(cfg.p_media_photo_max, 6);
   } catch (e) { /* 读不到走默认 */ }
   _partnerLimitsCache = L;
   _partnerLimitsCacheUntil = now + 5 * 60 * 1000;
@@ -657,10 +659,10 @@ exports.main = async (event, context) => {
       const highlights = (Array.isArray(event.service_highlights) ? event.service_highlights : [])
         .map((s) => String(s || '').trim()).filter(Boolean).slice(0, pLimits.highlights_max)
         .map((s) => s.slice(0, pLimits.highlight_len));
-      // 资质证书 / 荣誉 其他: 每条仅标题(条数/字数后台可配), 图片为栏目级多图(上限6张固定, 存云存储 fileID)
+      // 资质证书 / 荣誉 其他: 每条仅标题(条数/字数后台可配), 图片为栏目级多图(张数后台可配, 存云存储 fileID)
       const sanitizeMedia = (titles, photos) => ({
         titles: (Array.isArray(titles) ? titles : []).map((s) => String(s || '').trim()).filter(Boolean).slice(0, pLimits.media_title_max).map((s) => s.slice(0, pLimits.media_len)),
-        photos: (Array.isArray(photos) ? photos : []).map((f) => String(f || '')).filter(Boolean).slice(0, 6)
+        photos: (Array.isArray(photos) ? photos : []).map((f) => String(f || '')).filter(Boolean).slice(0, pLimits.media_photo_max)
       });
       const qualifications = sanitizeMedia(event.qual_titles, event.qual_photos);
       const honors = sanitizeMedia(event.hon_titles, event.hon_photos);

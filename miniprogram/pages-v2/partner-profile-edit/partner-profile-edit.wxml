@@ -48,8 +48,8 @@
 
   <!-- 资质证书: 标题 + 栏目级多图 -->
   <view class="ppe__card">
-    <view class="ppe__label">资质证书 <text class="ppe__count">标题 {{qualTitles.length}}/{{limits.media_title_max}} · 图片 {{qualPhotos.length}}/6</text></view>
-    <view class="ppe__hint">每条不超过 {{limits.media_len}} 字，可配证件/资质照片（单张≤3M），审核通过后展示在详情页</view>
+    <view class="ppe__label">资质证书 <text class="ppe__count">标题 {{qualTitles.length}}/{{limits.media_title_max}} · 图片 {{qualPhotos.length}}/{{limits.media_photo_max}}</text></view>
+    <view class="ppe__hint">每条不超过 {{limits.media_len}} 字，可配证件/资质照片（单张≤{{limits.media_photo_size_mb}}M），审核通过后展示在详情页</view>
     <view class="ppe__hl" wx:for="{{qualTitles}}" wx:key="index">
       <text class="ppe__hl-text">{{item}}</text>
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveQual">×</text>
@@ -63,15 +63,15 @@
         <image class="ppe__media-img" src="{{item}}" mode="aspectFill" data-index="{{index}}" data-list="{{qualPhotos}}" bindtap="previewQualPhoto" />
         <view class="ppe__media-del" data-index="{{index}}" catchtap="onRemoveQualPhoto">×</view>
       </view>
-      <view class="ppe__media-add" wx:if="{{qualPhotos.length < 6}}" hover-class="btn-press" bindtap="chooseQualPhotos">+<text>添加图片</text></view>
+      <view class="ppe__media-add" wx:if="{{qualPhotos.length < limits.media_photo_max}}" hover-class="btn-press" bindtap="chooseQualPhotos">+<text>添加图片</text></view>
     </view>
     <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="qual" bindtap="onSubmitField">独立提交资质证书</view>
   </view>
 
   <!-- 荣誉 其他: 标题 + 栏目级多图 -->
   <view class="ppe__card">
-    <view class="ppe__label">荣誉 其他 <text class="ppe__count">标题 {{honTitles.length}}/{{limits.media_title_max}} · 图片 {{honPhotos.length}}/6</text></view>
-    <view class="ppe__hint">每条不超过 {{limits.media_len}} 字，可配荣誉/奖状照片（单张≤3M），审核通过后展示在详情页</view>
+    <view class="ppe__label">荣誉 其他 <text class="ppe__count">标题 {{honTitles.length}}/{{limits.media_title_max}} · 图片 {{honPhotos.length}}/{{limits.media_photo_max}}</text></view>
+    <view class="ppe__hint">每条不超过 {{limits.media_len}} 字，可配荣誉/奖状照片（单张≤{{limits.media_photo_size_mb}}M），审核通过后展示在详情页</view>
     <view class="ppe__hl" wx:for="{{honTitles}}" wx:key="index">
       <text class="ppe__hl-text">{{item}}</text>
       <text class="ppe__tag-x" data-index="{{index}}" bindtap="onRemoveHon">×</text>
@@ -85,7 +85,7 @@
         <image class="ppe__media-img" src="{{item}}" mode="aspectFill" data-index="{{index}}" data-list="{{honPhotos}}" bindtap="previewHonPhoto" />
         <view class="ppe__media-del" data-index="{{index}}" catchtap="onRemoveHonPhoto">×</view>
       </view>
-      <view class="ppe__media-add" wx:if="{{honPhotos.length < 6}}" hover-class="btn-press" bindtap="chooseHonPhotos">+<text>添加图片</text></view>
+      <view class="ppe__media-add" wx:if="{{honPhotos.length < limits.media_photo_max}}" hover-class="btn-press" bindtap="chooseHonPhotos">+<text>添加图片</text></view>
     </view>
     <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="hon" bindtap="onSubmitField">独立提交荣誉 其他</view>
   </view>
