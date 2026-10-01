@@ -1,0 +1,15 @@
+.ui-tag {
+  display: inline-block;
+  padding: 6rpx 18rpx;
+  border-radius: 8rpx;
+  font-size: var(--font-sm);
+  line-height: 1.4;
+  margin-right: 8rpx;
+}
+.ui-tag--sm { font-size: var(--font-xs); padding: 4rpx 12rpx; }
+.ui-tag--primary { background: var(--brand-primary-light); color: var(--brand-primary); }
+.ui-tag--success { background: var(--func-success-light); color: var(--func-success); }
+.ui-tag--warn { background: var(--func-warning-light); color: var(--func-warning); }
+.ui-tag--danger { background: var(--func-danger-light); color: var(--func-danger); }
+.ui-tag--info { background: var(--func-info-light); color: var(--func-info); }
+.ui-tag--muted { background: var(--bg-segment); color: var(--text-4); }

@@ -2,47 +2,47 @@
 
 .ppe { padding: 24rpx; color: var(--text-1); }
 /* input/textarea placeholder: 深灰, 深色模式下仍可见 */
-.ppe__ph { color: #9AA0A6; }
+.ppe__ph { color: var(--text-5); }
 .ppe__banner { padding: 20rpx 24rpx; border-radius: 16rpx; font-size: 26rpx; margin-bottom: 24rpx; }
-.ppe__banner--pending { background: #FFF7E6; color: #AD6800; }
-.ppe__banner--rejected { background: #FFF1F0; color: #CF1322; }
+.ppe__banner--pending { background: var(--func-warning-light); color: var(--text-aa); }
+.ppe__banner--rejected { background: var(--func-danger-light); color: var(--func-danger); }
 .ppe__card { background: var(--bg-card); border-radius: 16rpx; padding: 28rpx; margin-bottom: 24rpx; }
 .ppe__label { font-size: 30rpx; font-weight: 600; color: var(--text-1); display: flex; justify-content: space-between; }
-.ppe__count { font-size: 24rpx; font-weight: 400; color: #9AA0A6; }
-.ppe__hint { font-size: 24rpx; color: #9AA0A6; margin-top: 8rpx; }
-.ppe__textarea { width: 100%; height: 200rpx; margin-top: 20rpx; font-size: 28rpx; background: #F7F8FA; border-radius: 12rpx; padding: 20rpx; box-sizing: border-box; color: #000; }
+.ppe__count { font-size: 24rpx; font-weight: 400; color: var(--text-5); }
+.ppe__hint { font-size: 24rpx; color: var(--text-5); margin-top: 8rpx; }
+.ppe__textarea { width: 100%; height: 200rpx; margin-top: 20rpx; font-size: 28rpx; background: var(--bg-input); border-radius: 12rpx; padding: 20rpx; box-sizing: border-box; color: var(--text-1); }
 .ppe__tags { display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 20rpx; }
-.ppe__tag { background: #E8F5E9; color: #07C160; font-size: 26rpx; padding: 8rpx 20rpx; border-radius: 24rpx; display: flex; align-items: center; }
-.ppe__tag-x { margin-left: 12rpx; color: #9AA0A6; font-size: 30rpx; }
+.ppe__tag { background: var(--func-success-light); color: var(--brand-primary); font-size: 26rpx; padding: 8rpx 20rpx; border-radius: 24rpx; display: flex; align-items: center; }
+.ppe__tag-x { margin-left: 12rpx; color: var(--text-5); font-size: 30rpx; }
 .ppe__hl { display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); border-radius: 12rpx; padding: 20rpx; margin-top: 16rpx; font-size: 28rpx; }
 .ppe__addrow { display: flex; gap: 16rpx; margin-top: 20rpx; }
-.ppe__input { flex: 1; background: #F7F8FA; border-radius: 12rpx; padding: 0 20rpx; height: 72rpx; font-size: 28rpx; color: #000; }
-.ppe__addbtn { width: 140rpx; height: 72rpx; line-height: 72rpx; font-size: 26rpx; background: #07C160; color: #FFFFFF; border-radius: 12rpx; padding: 0; display: flex; align-items: center; justify-content: center; }
-.ppe__submit { margin-top: 16rpx; background: #07C160; color: #FFFFFF; font-size: 32rpx; border-radius: 44rpx; height: 88rpx; line-height: 88rpx; }
-.ppe__submit.is-disabled { background: #C8C9CC; }
-.ppe__safe { margin-top: 24rpx; font-size: 24rpx; color: #9AA0A6; text-align: center; }
-.ppe__pending-badge { font-size: 20rpx; color: #fff; background: #e6a23c; border-radius: 8rpx; padding: 2rpx 10rpx; align-self: center; }
+.ppe__input { flex: 1; background: var(--bg-input); border-radius: 12rpx; padding: 0 20rpx; height: 88rpx; font-size: 28rpx; color: var(--text-1); }
+.ppe__addbtn { width: 160rpx; height: 88rpx; line-height: 88rpx; font-size: 26rpx; background: var(--brand-primary); color: var(--text-invert); border-radius: 12rpx; padding: 0; display: flex; align-items: center; justify-content: center; }
+.ppe__submit { margin-top: 16rpx; background: var(--brand-primary); color: var(--text-invert); font-size: 32rpx; border-radius: 44rpx; height: 88rpx; line-height: 88rpx; }
+.ppe__submit.is-disabled { background: var(--text-disabled); }
+.ppe__safe { margin-top: 24rpx; font-size: 24rpx; color: var(--text-5); text-align: center; }
+.ppe__pending-badge { font-size: 20rpx; color: var(--text-invert); background: var(--func-warning); border-radius: 8rpx; padding: 2rpx 10rpx; align-self: center; }
 .ppe__ts { font-size: 26rpx; color: var(--text-3); line-height: 1.7; margin-top: 12rpx; }
-.ppe__ts-tag { display: inline-block; background: #f4f4f5; color: #909399; border-radius: 6rpx; padding: 0 12rpx; font-size: 22rpx; margin-right: 12rpx; }
+.ppe__ts-tag { display: inline-block; background: var(--bg-segment); color: var(--text-4); border-radius: 6rpx; padding: 0 12rpx; font-size: 22rpx; margin-right: 12rpx; }
 .ppe__ts-tag--inline { vertical-align: top; }
-.ppe__tag--pending { background: #fdf6ec; color: #e6a23c; }
+.ppe__tag--pending { background: var(--func-warning-light); color: var(--func-warning); }
 .ppe__hl-item { font-size: 26rpx; color: var(--text-3); line-height: 1.7; }
 /* 已添加条目文字(服务亮点/资质标题/荣誉标题): 用 token 变量, 深色模式自动反色不隐形 */
 .ppe__hl-text { font-size: 28rpx; color: var(--text-1); line-height: 1.5; }
-.ppe__hist { border-bottom: 1rpx dashed #eee; padding: 14rpx 0; }
+.ppe__hist { border-bottom: 1rpx dashed var(--border-1); padding: 14rpx 0; }
 .ppe__hist-badge { display: inline-block; font-size: 22rpx; border-radius: 8rpx; padding: 2rpx 14rpx; margin-right: 14rpx; }
-.ppe__hist-badge.is-ok { background: #f0f9eb; color: #67c23a; }
-.ppe__hist-badge.is-bad { background: #fef0f0; color: #f56c6c; }
-.ppe__hist-time { font-size: 24rpx; color: #9AA0A6; }
-.ppe__hist-reason { font-size: 24rpx; color: #c45656; margin-top: 6rpx; }
-.ppe__ts-mut { margin-left: 12rpx; color: #909399; }
+.ppe__hist-badge.is-ok { background: var(--func-success-light); color: var(--func-success); }
+.ppe__hist-badge.is-bad { background: var(--func-danger-light); color: var(--func-danger); }
+.ppe__hist-time { font-size: 24rpx; color: var(--text-5); }
+.ppe__hist-reason { font-size: 24rpx; color: var(--func-danger); margin-top: 6rpx; }
+.ppe__ts-mut { margin-left: 12rpx; color: var(--text-4); }
 /* 资质证书 / 荣誉 其他: 栏目级多图 grid */
 .ppe__media { display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 20rpx; }
-.ppe__media-item { position: relative; width: 168rpx; height: 168rpx; border-radius: 12rpx; overflow: hidden; border: 1rpx solid #eee; }
+.ppe__media-item { position: relative; width: 168rpx; height: 168rpx; border-radius: 12rpx; overflow: hidden; border: 1rpx solid var(--border-1); }
 .ppe__media-img { width: 100%; height: 100%; }
-.ppe__media-del { position: absolute; top: 0; right: 0; width: 40rpx; height: 40rpx; line-height: 36rpx; text-align: center; background: rgba(0,0,0,0.5); color: #fff; border-radius: 0 0 0 12rpx; font-size: 30rpx; }
-.ppe__media-add { width: 168rpx; height: 168rpx; border: 2rpx dashed #07C160; border-radius: 12rpx; background: rgba(7,193,96,0.05); color: #07C160; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 52rpx; }
+.ppe__media-del { position: absolute; top: 0; right: 0; width: 40rpx; height: 40rpx; line-height: 36rpx; text-align: center; background: var(--bg-mask); color: var(--text-invert); border-radius: 0 0 0 12rpx; font-size: 30rpx; }
+.ppe__media-add { width: 168rpx; height: 168rpx; border: 2rpx dashed var(--brand-primary); border-radius: 12rpx; background: var(--brand-primary-light); color: var(--brand-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 52rpx; }
 .ppe__media-add text { font-size: 22rpx; margin-top: 4rpx; }
 /* 每项独立提交按钮 */
-.ppe__fieldsubmit { margin-top: 20rpx; height: 64rpx; line-height: 64rpx; text-align: center; font-size: 26rpx; color: #07C160; border: 1rpx solid #07C160; border-radius: 12rpx; background: #FFFFFF; }
-.ppe__fieldsubmit.is-disabled { color: #C8C9CC; border-color: #C8C9CC; background: #F7F8FA; }
+.ppe__fieldsubmit { margin-top: 20rpx; height: 88rpx; line-height: 88rpx; text-align: center; font-size: 26rpx; color: var(--brand-primary); border: 1rpx solid var(--brand-primary); border-radius: 12rpx; background: var(--bg-card); }
+.ppe__fieldsubmit.is-disabled { color: var(--text-disabled); border-color: var(--text-disabled); background: var(--bg-input); }

@@ -1,0 +1,11 @@
+.ui-sk-col { flex: 1; margin-left: 20rpx; }
+.ui-sk-card {
+  display: flex;
+  align-items: flex-start;
+  background: var(--bg-card);
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: var(--shadow-card);
+}
+.ui-sk-row { display: flex; align-items: center; margin-bottom: 16rpx; }

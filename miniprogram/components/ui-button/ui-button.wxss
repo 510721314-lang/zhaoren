@@ -1,0 +1,26 @@
+.ui-btn {
+  border: none;
+  border-radius: var(--r-md);
+  font-size: var(--font-md);
+  font-weight: 600;
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  padding: 0 40rpx;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.ui-btn::after { border: none; }
+.ui-btn--press { opacity: 0.8; transform: scale(0.98); }
+.ui-btn--block { display: block; width: 100%; }
+.ui-btn--primary { background: var(--brand-primary); color: var(--text-invert); }
+.ui-btn--primary[disabled] { background: var(--btn-disabled-bg); color: var(--text-disabled); }
+.ui-btn--ghost { background: var(--bg-card); color: var(--text-3); border: 1rpx solid var(--border-ghost); line-height: 86rpx; }
+.ui-btn--danger { background: var(--func-danger); color: var(--text-invert); }
+.ui-btn--mini {
+  display: inline-block;
+  height: 64rpx;
+  line-height: 64rpx;
+  padding: 0 32rpx;
+  border-radius: 32rpx;
+  font-size: var(--font-sm);
+}

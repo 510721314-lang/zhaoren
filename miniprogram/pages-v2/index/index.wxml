@@ -3,9 +3,9 @@
   <view class="home__nav" style="padding-top: {{statusBarHeight + 6}}px;">
     <view class="home__hello">{{greeting}}，需要什么帮忙？</view>
     <view class="home__nav-right">
-      <view class="home__city" bindtap="onCityTap">📍 {{city}}<text class="home__city-arrow">⌄</text></view>
+      <view class="home__city" bindtap="onCityTap"><view class="ic ic-loc"></view>{{city}}<text class="home__city-arrow">⌄</text></view>
       <view class="home__bell" bindtap="onBellTap">
-        🔔
+        <view class="ic ic-bell"></view>
         <text class="home__bell-badge" wx:if="{{user.unread_notice}}">{{user.unread_notice}}</text>
       </view>
     </view>
@@ -13,7 +13,7 @@
 
   <!-- H1b 场景/服务搜索 -->
   <view class="home__searchbar">
-    <text class="home__search-ic">🔍</text>
+    <view class="ic ic-search"></view>
     <input
       class="home__search-input"
       value="{{searchKey}}"

@@ -37,6 +37,8 @@
 .home__city {
   font-size: var(--font-md);
   color: var(--text-3);
+  display: flex;
+  align-items: center;
 }
 .home__city-arrow {
   font-size: var(--font-xs);

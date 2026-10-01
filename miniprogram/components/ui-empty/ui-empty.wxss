@@ -1,0 +1,35 @@
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 48rpx;
+  text-align: center;
+}
+.ui-empty__icon {
+  font-size: 80rpx;
+  margin-bottom: 24rpx;
+  opacity: 0.6;
+}
+.ui-empty__title {
+  color: var(--text-2);
+  font-size: var(--font-lg);
+}
+.ui-empty__desc {
+  color: var(--text-3);
+  font-size: var(--font-base);
+  margin-top: 12rpx;
+  line-height: 1.6;
+}
+.ui-empty__cta {
+  margin-top: 32rpx;
+  display: inline-block;
+  padding: 16rpx 40rpx;
+  border-radius: 999rpx;
+  background: var(--brand-primary);
+  color: var(--text-invert);
+  font-size: var(--font-md);
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+.ui-empty__cta-press { opacity: 0.75; }
