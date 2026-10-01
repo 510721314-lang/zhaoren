@@ -154,3 +154,16 @@
   color: var(--text-5);
   padding: 80rpx 0;
 }
+
+/* M1 分页加载更多 */
+.msg__more {
+  margin: 8rpx 20rpx 0;
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  font-size: var(--font-md);
+  color: var(--brand-primary);
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+}

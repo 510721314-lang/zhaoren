@@ -72,5 +72,10 @@
     </block>
   </view>
 
+  <!-- 加载更多(M1 会话列表分页, 每页 15 条) -->
+  <view class="msg__more" wx:if="{{hasMore && orderList.length > 0}}" bindtap="onLoadMore">
+    {{loadingMore ? '加载中…' : '更多'}}
+  </view>
+
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

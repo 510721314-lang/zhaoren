@@ -15,6 +15,8 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 
 const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 消息会话列表默认分页大小(与前端 pageSize=15 一致; limit 防御上限 50)
+const PAGE_SIZE_FALLBACK = 15;
 // 可聊天状态:S6 已取消 / S10 已关闭 禁止收发
 const CHAT_BLOCKED = ['S6', 'S10'];
 // 自由文本开放状态:四确认完成(S1 之后),且订单未取消/关闭
@@ -236,10 +238,15 @@ exports.main = async (event, context) => {
 
   // ───────── 3. 我的会话列表(消息 tab) ─────────
   if (action === 'my_convs') {
+    // 分页: 默认每页 15 条(与前端 pageSize 一致), limit 防御 1-50, skip 非负整数
+    const rawLimit = parseInt(event.limit, 10);
+    const rawSkip = parseInt(event.skip, 10);
+    const limit = Number.isInteger(rawLimit) && rawLimit >= 1 && rawLimit <= 50 ? rawLimit : PAGE_SIZE_FALLBACK;
+    const skip = Number.isInteger(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
     const r = await col('im_conversation').where(_.and([
       { is_deleted: false },
       _.or([{ user_openid: openid }, { partner_openid: openid }])
-    ])).orderBy('last_msg_at', 'desc').limit(50).get();
+    ])).orderBy('last_msg_at', 'desc').skip(skip).limit(limit).get();
 
     const convs = r.data || [];
     const peerOpenids = convs.map((c) => (c.user_openid === openid ? c.partner_openid : c.user_openid));
@@ -284,7 +291,7 @@ exports.main = async (event, context) => {
       };
     });
 
-    return { ok: true, data: { list } };
+    return { ok: true, data: { list, hasMore: convs.length >= limit, page_size: limit } };
   }
 
   return { ok: false, code: 'im_unknown_action', msg: '未知动作' };

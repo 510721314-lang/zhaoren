@@ -15,7 +15,10 @@ Page({
     isRedline: false,
     loading: false,
     loadError: false,
-    loadErrorMsg: ''
+    loadErrorMsg: '',
+    pageSize: 15,        // 每页会话条数(与后端 PAGE_SIZE_FALLBACK 一致)
+    hasMore: false,      // 是否还有下一页
+    loadingMore: false   // 加载更多进行中
   },
   onShareAppMessage() {
     return {
@@ -28,39 +31,47 @@ Page({
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 聊完返回 onShow 刷新未读数
     this.__skipNextShow = true;
-    this.fetchData();
+    this.fetchData(true);
   },
 
-  fetchData() {
-    this.setData({ loading: true, loadError: false });
-    callCloud('im-conv', { action: 'my_convs' }).then((r) => {
+  fetchData(reset) {
+    // reset=true: 首屏/onShow刷新/重试 → 从头拉第一页替换列表; reset=false: 点「更多」追加下一页
+    if (reset) {
+      this.setData({ loading: true, loadError: false });
+    } else {
+      this.setData({ loadingMore: true });
+    }
+    const skip = reset ? 0 : this.data.orderList.length;
+    callCloud('im-conv', { action: 'my_convs', limit: this.data.pageSize, skip }).then((r) => {
       if (!r.ok) {
-        this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
+        this.setData({ loading: false, loadingMore: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
         return;
       }
-      this.buildList((r.data && r.data.list) || []);
-      this.setData({ loading: false });
+      const page = (r.data && r.data.list) || [];
+      const decorated = this.decorateList(page);
+      if (reset) {
+        this.setData({
+          orderList: decorated,
+          entries: { system: null, kefu: null }, // 系统通知/客服入口后续接
+          hasMore: !!r.data.hasMore,
+          loading: false,
+          loadingMore: false
+        });
+      } else {
+        this.setData({
+          orderList: this.data.orderList.concat(decorated),
+          hasMore: !!r.data.hasMore,
+          loadingMore: false
+        });
+      }
     }).catch(() => {
-      this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
+      this.setData({ loading: false, loadingMore: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
   },
 
-  reload() {
-    this.fetchData();
-  },
-
-  onShow() {
-    this.setData({ isRedline: redline.isInRedline() });
-    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      this.getTabBar().setData({ selected: 2 });
-    }
-    // 首次 onShow 跳过(onLoad 已拉); 之后进入消息列表刷新未读数
-    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
-    if (!this.data.loading) this.fetchData();
-  },
-
-  buildList(list) {
-    const decorated = list.map((c) => {
+  // 会话装饰: 排序/未读/概要(userEnter 后端已生成 order_summary)
+  decorateList(list) {
+    return list.map((c) => {
       const peer = c.peer || {};
       const sceneName = c.scene_name || '';
       const peerName = peer.nickname || '';
@@ -79,10 +90,26 @@ Page({
         order_summary: c.order_summary || null // 统一订单概要结构化{l1,l2,l3}(my_convs 后端生成)
       });
     }).map((it) => Object.assign(it, { last_msg_at_display: this.formatTime(it.last_msg_at) }));
-    this.setData({
-      orderList: decorated,
-      entries: { system: null, kefu: null } // 系统通知/客服入口后续接
-    });
+  },
+
+  // 加载更多(底部「更多」按钮)
+  onLoadMore() {
+    if (this.data.loadingMore || !this.data.hasMore || this.data.loading) return;
+    this.fetchData(false);
+  },
+
+  reload() {
+    this.fetchData(true);
+  },
+
+  onShow() {
+    this.setData({ isRedline: redline.isInRedline() });
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({ selected: 2 });
+    }
+    // 首次 onShow 跳过(onLoad 已拉); 之后进入消息列表刷新未读数
+    if (this.__skipNextShow) { this.__skipNextShow = false; return; }
+    if (!this.data.loading) this.fetchData(true);
   },
 
   // 消息时间戳格式化: 输出 ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
