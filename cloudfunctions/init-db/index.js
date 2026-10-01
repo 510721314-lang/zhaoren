@@ -35,6 +35,8 @@ const INDEXES = [
   { coll: 'pay_transaction', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'order_status_log', name: 'idx_order_created', keys: { order_id: 1, created_at: -1 } },
   { coll: 'im_conversation', name: 'uk_order_id', keys: { order_id: 1 }, unique: true },
+  // 会话监管: 后台按 order_no 定位会话(2026-10-01 admin-action im_message_admin_list)
+  { coll: 'im_conversation', name: 'idx_order_no', keys: { order_no: 1 } },
   { coll: 'im_message', name: 'idx_conv_created', keys: { conv_id: 1, created_at: -1 } },
   { coll: 'evaluation', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'settlement', name: 'idx_order_id', keys: { order_id: 1 } },

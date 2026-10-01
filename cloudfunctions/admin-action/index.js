@@ -167,6 +167,41 @@ function maskDoc(o) {
   return out;
 }
 
+// 敏感字段脱敏规则(顶层常量, 供递归 maskDocDeep 使用)
+// 2026-09-23 备份查证补全: idcard(历史明文证件号)/sms_target(原样手机号)/sms_code(验证码)/
+//   *_aes_key/*_web_key(密钥, 此前 export_collection 会原样导出) 均在 L3 导出中泄露过
+const SENSITIVE_MASK = {
+  phone: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
+  idcard_no: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+  idcard: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+  sms_target: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
+  sms_code: () => '***REDACTED***',
+  real_name: (v) => typeof v === 'string' && v.length >= 2 ? v[0] + '*' + (v.length > 2 ? v.slice(-1) : '') : v,
+  address: (v) => typeof v === 'string' && v.length > 6 ? v.slice(0, 6) + '***' : v,
+  openid: (v) => typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-6) : v,
+  wx_nickname: (v) => typeof v === 'string' ? v.slice(0, 1) + '***' : v,
+  admin_openids: (v) => Array.isArray(v)
+    ? v.map((o) => typeof o === 'string' && o.length > 8 ? o.slice(0, 4) + '****' + o.slice(-6) : o)
+    : v
+};
+// 递归脱敏(嵌套对象/数组逐层应用, 深度 ≤4 防循环引用)
+// 顶层定义: 避免在 exports.main 内 function 声明提升造成对 SENSITIVE_MASK 的 TDZ 引用崩溃
+function maskDocDeep(doc, depth = 0) {
+  if (!doc || typeof doc !== 'object') return doc;
+  if (depth > 4) return doc;
+  if (Array.isArray(doc)) return doc.map((x) => maskDocDeep(x, depth + 1));
+  const out = {};
+  for (const k of Object.keys(doc)) {
+    const v = doc[k];
+    if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](v);
+    else if (k.includes('password') || k.includes('secret') || k.includes('token')
+      || k.includes('aes_key') || k.includes('web_key')) out[k] = '***REDACTED***';
+    else if (v && typeof v === 'object') out[k] = maskDocDeep(v, depth + 1);
+    else out[k] = v;
+  }
+  return out;
+}
+
 function todayStart() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -1258,7 +1293,12 @@ exports.main = async (event, context) => {
     } else {
       const q = { is_deleted: _.neq(true) };
       if (isDocId(order_id)) q.order_id = order_id;
-      else if (order_no) q.order_no = String(order_no);
+      else if (order_no) {
+        // order_no 无直接索引 → 先经 order_main(uk_order_no 唯一索引) 反查 order_id, 再按 uk_order_id 定位会话
+        const om = await col('order_main').where({ order_no: String(order_no) }).limit(1).get().catch(() => ({ data: [] }));
+        if (om.data && om.data[0]) q.order_id = om.data[0]._id;
+        else return fail('im_conv_not_found', '会话不存在');
+      }
       else return fail('im_no_target', '请提供 conv_id 或 order_id 或 order_no');
       const c = await col('im_conversation').where(q).limit(1).get();
       conv = (c.data && c.data[0]) || null;
@@ -2047,43 +2087,12 @@ exports.main = async (event, context) => {
   // 敏感字段脱敏规则: 字段名 → 脱敏函数
   // 2026-09-23 备份查证补全: idcard(历史明文证件号)/sms_target(原样手机号)/sms_code(验证码)/
   //   *_aes_key/*_web_key(密钥, 此前 export_collection 会原样导出) 均在 L3 导出中泄露过
-  const SENSITIVE_MASK = {
-    phone: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
-    idcard_no: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
-    idcard: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
-    sms_target: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
-    sms_code: () => '***REDACTED***',
-    real_name: (v) => typeof v === 'string' && v.length >= 2 ? v[0] + '*' + (v.length > 2 ? v.slice(-1) : '') : v,
-    address: (v) => typeof v === 'string' && v.length > 6 ? v.slice(0, 6) + '***' : v,
-    openid: (v) => typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-6) : v,
-    wx_nickname: (v) => typeof v === 'string' ? v.slice(0, 1) + '***' : v,
-    // 2026-09-24 网关实测: admin_openids(管理员白名单)此前在 export_collection/export_admin_config 原样泄露, 补脱敏
-    admin_openids: (v) => Array.isArray(v)
-      ? v.map((o) => typeof o === 'string' && o.length > 8 ? o.slice(0, 4) + '****' + o.slice(-6) : o)
-      : v
-  };
-  // 递归脱敏(嵌套对象/数组逐层应用, 深度 ≤4 防循环引用), 覆盖 admin_config 嵌套场景与历史文档嵌套字段
-  function maskDoc(doc, depth = 0) {
-    if (!doc || typeof doc !== 'object') return doc;
-    if (depth > 4) return doc;
-    if (Array.isArray(doc)) return doc.map((x) => maskDoc(x, depth + 1));
-    const out = {};
-    for (const k of Object.keys(doc)) {
-      const v = doc[k];
-      if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](v);
-      else if (k.includes('password') || k.includes('secret') || k.includes('token')
-        || k.includes('aes_key') || k.includes('web_key')) out[k] = '***REDACTED***';
-      else if (v && typeof v === 'object') out[k] = maskDoc(v, depth + 1);
-      else out[k] = v;
-    }
-    return out;
-  }
-
+  // 敏感字段脱敏规则与递归脱敏已提升到模块顶层(SENSITIVE_MASK / maskDocDeep), 避免函数内声明 TDZ 崩溃
   // L2: admin_config 完整快照(不走 export_collection, 因为只有一个 _id=global 文档且字段特殊)
   if (action === 'export_admin_config') {
     const cfgR = await col('admin_config').doc('global').get();
     const cfg = (cfgR.data) || {};
-    const safe = maskDoc(cfg);
+    const safe = maskDocDeep(cfg);
     // 密钥类字段只返回存在性布尔, 不返回值
     if (safe.idcard_aes_key !== undefined) safe.idcard_aes_key_set = !!safe.idcard_aes_key;
     delete safe.idcard_aes_key;
@@ -2106,7 +2115,7 @@ exports.main = async (event, context) => {
     const totalR = await col(collection).count().catch(() => ({ total: 0 }));
     const total = totalR.total || 0;
     const docs = await col(collection).skip(skip).limit(pageSize).get().catch(() => ({ data: [] }));
-    const list = (docs.data || []).map(maskDoc);
+    const list = (docs.data || []).map(maskDocDeep);
     await logEvent('P2', 'export_collection', openid, { collection, page, pageSize, count: list.length });
     return ok({
       collection,
