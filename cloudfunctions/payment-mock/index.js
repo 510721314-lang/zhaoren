@@ -16,10 +16,15 @@ const { writeAudit } = require('./audit');
 
 const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
+// 全局配置缓存(5 分钟 TTL, 与 im-conv/partner-action 同惯例; 后台改值 ≤5min 生效)
+let _cfgCache = null;
+let _cfgCacheUntil = 0;
 async function getConfig() {
+  const now = Date.now();
+  if (_cfgCache !== null && now < _cfgCacheUntil) return _cfgCache;
   try {
     const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
+    if (r.data) { _cfgCache = r.data; _cfgCacheUntil = now + 5 * 60 * 1000; return r.data; }
   } catch (e) {}
   return { s0_timeout_min: 30 };
 }
@@ -130,14 +135,21 @@ exports.main = async (event, context) => {
   const env = getCachedEnv();
   log.d(`payment-mock action=${action} openid=${openid} env=${env}`);
 
-  // ── prod 环境阻断 mock 资金动作 ──
-  // 5 个 mock 资金入口(mock_pay/refund/tip/withdraw/fast_withdraw)仅 dev 放行
-  // 5 个查询/账本入口(cashier_info/aa_record/balance_info/income_list/withdraw_list) prod 保留
+  // ── prod 环境 mock 资金动作门控 ──
+  // 5 个 mock 资金入口(mock_pay/refund/ins/withdraw/fast_withdraw)默认仅 dev 放行;
+  // 后台 mock_payment_enabled=true 时 prod 亦放行(测试期持续可用, 正式上线前必须置回 false, fail-closed 默认关)。
+  // 打赏(mock_tip)恒随 env: prod 关闭打赏(硬约束: 生产环境打赏功能自动关闭)。身份校验不受影响(mock_openid prod 仍失效)。
   const MOCK_ONLY_ACTIONS = ['mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'withdraw', 'fast_withdraw'];
-  if (env === 'prod' && MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
-    log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
-    await writeAudit(db, log, { openid, role: 'user', category: 'security', action: 'mock_pay_blocked', target_type: 'order', target_id: event.order_id || '', detail: { order_id: event.order_id || '', action }, result: 'fail', code: 'pay_mock_disabled', client_ip: clientIp, device });
-    return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
+  const envIsProd = env === 'prod';
+  if (MOCK_ONLY_ACTIONS.indexOf(action) >= 0) {
+    const cfg = await getConfig();
+    const mockAllowed = !envIsProd || cfg.mock_payment_enabled === true;
+    const tipBlockedInProd = envIsProd && action === 'mock_tip';
+    if (!mockAllowed || tipBlockedInProd) {
+      log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
+      await writeAudit(db, log, { openid, role: 'user', category: 'security', action: 'mock_pay_blocked', target_type: 'order', target_id: event.order_id || '', detail: { order_id: event.order_id || '', action }, result: 'fail', code: 'pay_mock_disabled', client_ip: clientIp, device });
+      return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
+    }
   }
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")

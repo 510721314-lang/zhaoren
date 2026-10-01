@@ -117,6 +117,9 @@ const CONFIG_SCHEMA = [
   { f: 'auto_approve_partner', t: 'bool', g: '通用开关', label: '自动通过耍伴申请', def: false },
   { f: 'payment_visible', t: 'bool', g: '通用开关', label: '显示支付入口', def: true },
   { f: 'platform_fee_rate_fen', t: 'int', g: '通用开关', label: '平台抽成', unit: '万分比', min: 0, max: 10000, def: 1000 },
+  // 模拟支付开关(测试期): 仅影响资金 mock 入口(mock_pay/refund/ins/withdraw/fast_withdraw), prod 开放供真机/提审演示闭环;
+  // 打赏(mock_tip)恒随 env 关闭(硬约束), 正式上线前必须置回 false(fail-closed 默认关)
+  { f: 'mock_payment_enabled', t: 'bool', g: '通用开关', label: '模拟支付开关(测试期)', def: false },
   // ── 平台总开关(关停=维护态, 各云函数服务端拦截 + C 端维护提示) ──
   { f: 'switch_access', t: 'bool', g: '平台总开关', label: '核心交易(下单/接单)', def: true },
   { f: 'switch_blog', t: 'bool', g: '平台总开关', label: '动态社区', def: true },
