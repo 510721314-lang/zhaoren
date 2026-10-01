@@ -238,8 +238,15 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
 }
 
 /* ═══════ 无障碍: 用户开启"减弱动态效果"时, 关闭全部动画(仅保留瞬时态) ═══════ */
+/* 注意: WXSS 不支持 * 通配选择器, 必须显式枚举动效类 */
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  .btn-hover, .btn-press, .card-press,
+  .btn-primary:active, .btn-ghost:active, .btn-danger:active, .mini-btn:active,
+  .fade-in-up, .fade-in, .list-item-enter,
+  .skeleton, .sk-line, .sk-line-sm, .sk-circle, .sk-card, .sk-row {
+    animation: none !important;
+    transition: none !important;
+  }
   .fade-in-up, .fade-in, .list-item-enter { opacity: 1; }
 }
 
