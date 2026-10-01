@@ -1,10 +1,11 @@
-// views/Legal.vue · 法律合规独立模块
+// views/Legal.vue · 法律合规模块（完整版）
 // 数据来源: admin-action config_get → legal 块
-// 写操作用 config_set 的 legal_disclaimer_text / legal_service_agreement / legal_privacy_policy / legal_scene_disclaimers
-// TODO: 暂缓上线, 暂不做完整 UI; 先做基本 textarea 编辑 + 场景免责声明列表
+// 写操作用 config_set 的 legal_disclaimer_text / legal_service_agreement / legal_privacy_policy
+//   / legal_aa_promise / legal_pet_authorization / legal_scene_disclaimers
+// 修改后小程序下次启动自动拉取最新版本; 文案改动属重大变更, 建议双人复核后发布
 <template>
   <div>
-    <h3 style="margin:0 0 16px">法律合规 <el-tag type="warning" size="small">骨架</el-tag></h3>
+    <h3 style="margin:0 0 16px">法律合规</h3>
     <el-alert type="warning" :closable="false" style="margin-bottom:16px">
       法律文件支持后台编辑。修改后小程序下次启动自动拉取最新版本（通过 home-action config_get 接口）。文案改动属于重大变更，建议双人复核后发布。
     </el-alert>

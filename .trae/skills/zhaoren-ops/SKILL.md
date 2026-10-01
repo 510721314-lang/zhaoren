@@ -111,6 +111,19 @@ async function resolveOrderId(rawId) {
 6. **IM 内容安全降级消息补审**：`im_degraded_list`（admin-action，网关通用代理可达）列出 `sec_degraded:true` 消息供运营人工判定。
 7. **实名 mock 通道锁死 dev**：`simulate_realname` / `submit_realname`(mock 人脸) 仅 dev 可用；prod 任意真实用户也不可模拟实名。真机演示实名需临时切 dev（force_set_env）。
 
+## admin-web 部署关键坑（2026-10-01 踩坑记录）
+
+**`cloud functions deploy` 全量部署不会上传 `public/` 静态资源！** 前端重新构建后必须两步：
+```powershell
+# 1. 全量部署代码(index.js 等)
+cli.bat cloud functions deploy --env <env> --names admin-web --project C:\zhaoren --remote-npm-install
+# 2. 增量补传 public(关键! 否则首页/资源全部 404)
+cli.bat cloud functions inc-deploy -e <env> --path C:\zhaoren\cloudfunctions\admin-web --file public --project C:\zhaoren
+```
+验证：`GET https://<网关>/` 应返回 HTML（`<!doctype html>`），`GET /assets/index-*.js` 应 200 且体积正常。
+症状：首页返回 `not found: /`（serveStatic 404）、所有 hash 资源 not found，但 `/api` 代理正常。
+排查辅助：`cli.bat cloud functions download -e <env> -n admin-web -p <dir>` 可核对云端实际文件（需 IDE 正常）。
+
 ## 遗留（下一阶段）
 
 1. order-timer 改期 2h 超时自动拒绝需通知双方

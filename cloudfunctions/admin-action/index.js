@@ -216,10 +216,12 @@ function bucketFen(days, arr) {
   });
   return days.map((d) => m[d]);
 }
-async function sumTx(type) {
+async function sumTx(type, sinceMs) {
   try {
+    const q = { type, status: 'success', is_deleted: _.neq(true) };
+    if (sinceMs) q.created_at = _.gte(sinceMs);
     const r = await col('pay_transaction').aggregate()
-      .match({ type, status: 'success', is_deleted: _.neq(true) })
+      .match(q)
       .group({ _id: null, total: $.sum('$amount_fen'), fee: $.sum('$fee_fen') })
       .end();
     return r.list && r.list[0] ? r.list[0] : { total: 0, fee: 0 };
@@ -369,7 +371,8 @@ exports.main = async (event, context) => {
       col('pay_transaction').where({ type: 'pay', status: 'success', created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
       col('safety_report').where({ status: 'active', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
       col('order_main').where({ status: 'S0', pay_expire_at: _.lt(now), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      sumTx('pay'), sumTx('refund'), sumTx('tip')
+      // 资金聚合带 90 天窗: 规避全表扫描触达网关 3s 硬限(上线至今未满 90 天语义等价全量)
+      sumTx('pay', now - 90 * 86400000), sumTx('refund', now - 90 * 86400000), sumTx('tip', now - 90 * 86400000)
     ]);
     const days = last7Days();
     return ok({
@@ -1240,6 +1243,52 @@ exports.main = async (event, context) => {
       sec_degraded: true, sec_degraded_at: m.sec_degraded_at || m.created_at, created_at: m.created_at
     }));
     return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  // ───────── 会话监管: 按订单/会话只读调取 IM 消息(纠纷仲裁/合规留痕用) ─────────
+  // 安全: 仅展示 text/from_role/时间, 不返回 ID 之外的 openid 全文, 不落任何导出; 走分页防超大
+  if (action === 'im_message_admin_list') {
+    const { conv_id, order_id, order_no } = event;
+    const pg = pager(event);
+    // 定位会话: 直接给 conv_id 优先; 否则按 order_id / order_no 反查
+    let conv = null;
+    if (isDocId(conv_id)) {
+      const c = await col('im_conversation').doc(conv_id).get().catch(() => null);
+      conv = c && c.data ? c.data : null;
+    } else {
+      const q = { is_deleted: _.neq(true) };
+      if (isDocId(order_id)) q.order_id = order_id;
+      else if (order_no) q.order_no = String(order_no);
+      else return fail('im_no_target', '请提供 conv_id 或 order_id 或 order_no');
+      const c = await col('im_conversation').where(q).limit(1).get();
+      conv = (c.data && c.data[0]) || null;
+    }
+    if (!conv) return fail('im_conv_not_found', '会话不存在');
+    const msgQ = { conv_id: conv._id, is_deleted: _.neq(true) };
+    const query = col('im_message').where(msgQ);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('created_at', 'asc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    // 聚合双方脱敏身份(仅昵称/角色, 不暴露完整 openid 与手机号)
+    const openids = Array.from(new Set((rows.data || []).map((m) => m.from_openid).filter(Boolean)));
+    const userMap = {};
+    if (openids.length) {
+      try {
+        const users = await col('user_account').where({ openid: _.in(openids) }).limit(20).get();
+        (users.data || []).forEach((u) => { userMap[u.openid] = { nickname: u.nickname || '微信用户', role: (Array.isArray(u.roles) && u.roles.indexOf('partner') >= 0) ? 'partner' : 'user' }; });
+      } catch (e) { log.d('im msg user join fail:', e.message); }
+    }
+    const list = (rows.data || []).map((m) => ({
+      msg_id: m._id, from_role: m.from_role || (userMap[m.from_openid] ? userMap[m.from_openid].role : ''),
+      from_nickname: (userMap[m.from_openid] && userMap[m.from_openid].nickname) || '',
+      type: m.type || 'text', text: m.text || '', template_id: m.template_id || '',
+      sec_degraded: !!m.sec_degraded, created_at: m.created_at
+    }));
+    return ok({
+      list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0),
+      conv: { conv_id: conv._id, order_id: conv.order_id, order_no: conv.order_no || '', scene_name: conv.scene_name || '' }
+    });
   }
 
   if (action === 'credit_log_list') {

@@ -190,8 +190,10 @@ Page({
   },
 
   onToolTap(e) {
+    // 收口: 发票/完税/银行卡/冻结资金均与真实支付资质耦合, 上线前最后一步随支付通道一并开放
+    // 提审口径: 明确「暂未开放」而非「功能建设中」(避免占位误导)
     const name = e.currentTarget.dataset.name;
-    wx.showToast({ title: `${name}功能建设中`, icon: 'none' });
+    wx.showToast({ title: `${name}暂未开放，支付通道上线后可用`, icon: 'none' });
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });
