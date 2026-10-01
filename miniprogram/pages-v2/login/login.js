@@ -115,6 +115,7 @@ Page({
       return;
     }
     wx.setStorageSync('v2_login_ok', true);
+    require('../../utils/report.js').report('login_success', {});
     this.askUserType();
   },
 

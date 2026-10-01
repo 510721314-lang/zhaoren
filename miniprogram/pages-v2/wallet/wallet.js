@@ -180,6 +180,7 @@ Page({
         return;
       }
       this.setData({ withdrawSheetVisible: false, withdrawAmount: '', fastWithdraw: false });
+      require('../../utils/report.js').report('withdraw', { type: isFast ? 'fast' : 'normal', amount_yuan: amt });
       wx.showToast({
         title: isFast ? '极速提现已到账' : `提现申请成功，T+${CONFIG.WITHDRAW.arriveDays}到账`,
         icon: 'success', duration: 2000

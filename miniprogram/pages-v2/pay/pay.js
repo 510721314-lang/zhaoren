@@ -151,6 +151,7 @@ Page({
         wx.showModal({ title: '支付失败', content: r.msg || '请稍后重试', showCancel: false });
         return;
       }
+      require('../../utils/report.js').report('order_pay', { order_id: this.__orderId, amount_fen: (r.data && r.data.total_fen) || 0 });
       // 导航先行、反馈后置: 支付成功直接引导进入履约界面(订单详情页), toast 放 success 回调
       wx.redirectTo({
         url: `/pages-v2/order-detail/order-detail?orderId=${this.__orderId}`,

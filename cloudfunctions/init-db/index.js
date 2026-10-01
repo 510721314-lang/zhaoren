@@ -239,7 +239,20 @@ exports.main = async (event, context) => {
         seed_expected_codes: SEED_CONFIG.scene_list.map(s => s.code)
       };
     } catch (e) { cfg = { error: e.message }; }
-    return { ok: true, mode: 'quick_check', demands, config: cfg };
+    // 上线冻结检查: prod 下 mock 资金开关开启须提审/上线前关闭(硬校验)
+    let mockGate = { env: 'prod', mock_payment_enabled: false, status: 'OK', hint: '' };
+    try {
+      const cr = await db.collection('admin_config').doc('global').get();
+      const c = cr.data || {};
+      const mockPay = !!c.mock_payment_enabled;
+      mockGate = {
+        env: c.env || 'prod',
+        mock_payment_enabled: mockPay,
+        status: (c.env ? c.env === 'prod' : true) && mockPay ? 'BLOCK' : 'OK',
+        hint: mockPay ? '正式上线前必须将 admin_config.mock_payment_enabled 置回 false' : ''
+      };
+    } catch (e) { /* 读不到配置按 OK, 上线类检查以 config_get 为准 */ }
+    return { ok: true, mode: 'quick_check', demands, config: cfg, mock_gate: mockGate };
   }
 
   // ── 强制迁移 scene_list / system_templates ──

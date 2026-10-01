@@ -1098,6 +1098,10 @@ Page({
           this.__draftId = null;
           this._clientRequestId = null;  // 发布成功清除幂等键, 下一单复用新 id
           this.invitePartnerOpenid = '';
+          require('../../utils/report.js').report(this.__editMode ? 'demand_update' : 'demand_publish', {
+            scene: this.data.form.scene || params.scene || '',
+            match_mode: (this.data.form.match_mode) || params.match_mode || ''
+          });
           wx.showToast({
             title: this.__editMode
               ? '更新成功'

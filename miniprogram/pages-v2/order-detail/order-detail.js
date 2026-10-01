@@ -287,7 +287,7 @@ Page({
       pending_modify: pendingModify,
       pending_extend: pendingExtend,
       scene_code: d.scene,
-      scene_content_text: (d.content_options || []).join('/'),
+      scene_content_text: ((d.content_options && d.content_options.length ? d.content_options : (d.content_option ? [d.content_option] : [])) || []).join('/'),
       partner_name: d.partner_nickname,
       location: d.location || {},
       service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',
@@ -473,6 +473,7 @@ Page({
             wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
             return;
           }
+          require('../../utils/report.js').report('order_start', { order_id: that.data.order._id });
           wx.showToast({ title: '已开始履约', icon: 'success' });
           that.fetchData({ orderId: that.data.order._id });
         }).catch(() => {
@@ -887,6 +888,7 @@ Page({
             wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
             return;
           }
+          require('../../utils/report.js').report('order_finish', { order_id: that.data.order._id });
           wx.showToast({ title: `履约完成，${CONFIG.ORDER.evalWindowH}小时内可评价`, icon: 'success' });
           that.fetchData({ orderId: that.data.order._id });
           // 刷新后由 WXML 根据 order.status===S5 渲染"去评价"按钮

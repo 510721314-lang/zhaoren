@@ -168,6 +168,7 @@ Page({
         return;
       }
       this.clearTimers();
+      require('../../utils/report.js').report('eval_submit', { star: this.data.stars });
       // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
       wx.redirectTo({
         url: '/pages-v2/order-detail/order-detail?orderId=' + this.__orderId,

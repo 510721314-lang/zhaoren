@@ -203,6 +203,7 @@ Page({
         if (app && app.setLoginUser) app.setLoginUser(r.data.user);
       } catch (e) {}
       try { require('../../utils/bootstrap.js').clearRealnamePending(); } catch (e) {}
+      require('../../utils/report.js').report('realname_done', {});
       this.setData({ done: true });
       this._refreshDoneState();
       wx.showToast({ title: '实名认证已通过', icon: 'success' });

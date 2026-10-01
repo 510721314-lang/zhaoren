@@ -12,6 +12,9 @@ App({
   },
 
   onLaunch() {
+    // 产品埋点: 启动事件
+    require('./utils/report.js').report('app_launch', {});
+
     // 云开发初始化: 返回 Promise, 所有云函数调用必须等它 resolve
     // 非局域网(4G/5G)下 WebSocket 握手比局域网慢 2-5x, 必须显式等待
     if (wx.cloud) {

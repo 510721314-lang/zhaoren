@@ -140,6 +140,7 @@ function _signThenCreate(demand, loc, opts) {
       wx.hideLoading();
       const r2 = res2.result || {};
       if (r2.ok && r2.data) {
+        try { require('./report.js').report('order_take', { demand_id: demand && demand._id }); } catch (e) {}
         if (opts && opts.onSuccess) opts.onSuccess(r2.data);
       } else {
         // 服务端实名门禁(order_realname_required): 给「去实名」按钮引导
