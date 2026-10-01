@@ -1,0 +1,9 @@
+{
+  "name": "zz-seed-orders",
+  "version": "1.0.0",
+  "description": "一次性种子需求生成(验收后删除)",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}
