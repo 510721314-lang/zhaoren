@@ -45,10 +45,10 @@
     "pages/partner-home/partner-home"
   ],
   "window": {
-    "navigationBarBackgroundColor": "#D4875A",
+    "navigationBarBackgroundColor": "#07C160",
     "navigationBarTitleText": "找人帮忙",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#F5F5F5",
+    "backgroundColor": "#F6F7F9",
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
