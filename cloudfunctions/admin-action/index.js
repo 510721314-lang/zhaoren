@@ -33,7 +33,7 @@ const ROLE_GRANTS = {
   // ── R3 运营 ──
   'dashboard': ['R3'],
   'config_get': ['R3'], 'config_log_list': ['R3'],
-  'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'],
+  'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'], 'upload_image': ['R3'],
   'notice_send': ['R3'],
   'user_list': ['R3'], 'user_detail': ['R3'],
   'partner_list': ['R3'], 'partner_detail': ['R3'],
@@ -136,7 +136,25 @@ const CONFIG_SCHEMA = [
   { f: 'p_media_photo_max', t: 'int', g: '耍伴资料', label: '资质/荣誉照片张数上限', unit: '张', min: 1, max: 20, def: 6 },
   { f: 'p_media_photo_size_mb', t: 'int', g: '耍伴资料', label: '资质/荣誉单张照片大小上限', unit: 'MB', min: 1, max: 20, def: 3 },
   // ── 消息(会话列表分页大小; 前端 pageSize 与 im-conv 默认一致) ──
-  { f: 'msg_page_size', t: 'int', g: '消息', label: '消息会话每页加载数', unit: '条', min: 5, max: 50, def: 15 }
+  { f: 'msg_page_size', t: 'int', g: '消息', label: '消息会话每页加载数', unit: '条', min: 5, max: 50, def: 15 },
+  // ── 发布与展示(P0-P2 数量/分页/字数后台化; 前端 CONFIG 兜底同源, 服务端强约束在上) ──
+  { f: 'publish_content_options_max', t: 'int', g: '发布与展示', label: '服务内容最多项数', unit: '项', min: 1, max: 10, def: 3 },
+  { f: 'workbench_income_show', t: 'int', g: '发布与展示', label: '工作台流水展示条数', unit: '条', min: 1, max: 20, def: 5 },
+  { f: 'order_page_size', t: 'int', g: '发布与展示', label: '订单列表每页条数', unit: '条', min: 5, max: 50, def: 20 },
+  { f: 'page_index_nearby', t: 'int', g: '发布与展示', label: '首页附近单页条数', unit: '条', min: 1, max: 50, def: 10 },
+  { f: 'page_index_square', t: 'int', g: '发布与展示', label: '首页广场单页条数', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'page_square_limit', t: 'int', g: '发布与展示', label: '广场列表单页条数', unit: '条', min: 1, max: 100, def: 50 },
+  { f: 'page_nearby_limit', t: 'int', g: '发布与展示', label: '附近列表分页条数', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'page_wallet_withdraw', t: 'int', g: '发布与展示', label: '钱包提现单页条数', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'page_notice_limit', t: 'int', g: '发布与展示', label: '通知单页条数', unit: '条', min: 1, max: 100, def: 50 },
+  { f: 'share_title_max', t: 'int', g: '发布与展示', label: '分享标题字数上限', unit: '字', min: 5, max: 60, def: 30 },
+  { f: 'order_reason_max_len', t: 'int', g: '发布与展示', label: '改期/加时原因字数上限', unit: '字', min: 20, max: 500, def: 200 },
+  // ── 费率(公益单时薪后台可调) ──
+  { f: 'welfare_hourly_rate_fen', t: 'int', g: '费率', label: '公益单时薪', unit: '分', min: 0, max: 100000, def: 3000 },
+  // ── 信用阈值(好评星级阈值; 决定评价自动勾选口碑标签的分界) ──
+  { f: 'order_good_review_min_stars', t: 'int', g: '信用阈值', label: '好评星级阈值', unit: '星', min: 1, max: 5, def: 4 },
+  // ── 耍伴资料(个人简介字数上限) ──
+  { f: 'p_bio_len', t: 'int', g: '耍伴资料', label: '个人简介字数上限', unit: '字', min: 20, max: 500, def: 200 }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -421,11 +439,34 @@ exports.main = async (event, context) => {
         media_title_max: cfgRaw.p_media_title_max !== undefined ? cfgRaw.p_media_title_max : 20,
         media_len: cfgRaw.p_media_len !== undefined ? cfgRaw.p_media_len : 20,
         media_photo_max: cfgRaw.p_media_photo_max !== undefined ? cfgRaw.p_media_photo_max : 6,
-        media_photo_size_mb: cfgRaw.p_media_photo_size_mb !== undefined ? cfgRaw.p_media_photo_size_mb : 3
+        media_photo_size_mb: cfgRaw.p_media_photo_size_mb !== undefined ? cfgRaw.p_media_photo_size_mb : 3,
+        bio_len: cfgRaw.p_bio_len !== undefined ? cfgRaw.p_bio_len : 200
       },
       // 消息会话列表分页大小(前端 pageSize 与 im-conv 默认同源)
       message: {
         page_size: cfgRaw.msg_page_size !== undefined ? cfgRaw.msg_page_size : 15
+      },
+      // 发布与展示(P0-P2 后台化: 服务内容项数/公益时薪/好评阈值/分享标题/改期加时原因字数)
+      publish: {
+        content_options_max: cfgRaw.publish_content_options_max !== undefined ? cfgRaw.publish_content_options_max : 3,
+        welfare_hourly_rate_fen: cfgRaw.welfare_hourly_rate_fen !== undefined ? cfgRaw.welfare_hourly_rate_fen : 3000,
+        good_review_min_stars: cfgRaw.order_good_review_min_stars !== undefined ? cfgRaw.order_good_review_min_stars : 4,
+        reason_max_len: cfgRaw.order_reason_max_len !== undefined ? cfgRaw.order_reason_max_len : 200,
+        share_title_max: cfgRaw.share_title_max !== undefined ? cfgRaw.share_title_max : 30
+      },
+      // 列表分页大小(订单/首页/广场/附近/钱包/通知)
+      paging: {
+        order_page_size: cfgRaw.order_page_size !== undefined ? cfgRaw.order_page_size : 20,
+        index_nearby: cfgRaw.page_index_nearby !== undefined ? cfgRaw.page_index_nearby : 10,
+        index_square: cfgRaw.page_index_square !== undefined ? cfgRaw.page_index_square : 20,
+        square_limit: cfgRaw.page_square_limit !== undefined ? cfgRaw.page_square_limit : 50,
+        nearby_limit: cfgRaw.page_nearby_limit !== undefined ? cfgRaw.page_nearby_limit : 20,
+        wallet_withdraw: cfgRaw.page_wallet_withdraw !== undefined ? cfgRaw.page_wallet_withdraw : 20,
+        notice_limit: cfgRaw.page_notice_limit !== undefined ? cfgRaw.page_notice_limit : 50
+      },
+      // 工作台(流水展示条数)
+      workbench: {
+        income_show: cfgRaw.workbench_income_show !== undefined ? cfgRaw.workbench_income_show : 5
       },
       // 支付/资金(dev 才下发真实能力; prod fail-closed) —— tip_enabled 派生自 env, 不暴露 env 原值
       payment: {
@@ -2178,6 +2219,34 @@ exports.main = async (event, context) => {
         : '',
       checked_at: now
     });
+  }
+
+  // ───────── 8.45 活动图片上传(admin-web → base64 → 云存储; 格式/大小服务端强校验) ─────────
+  // 规格建议(前端上传时按用途校验尺寸): banner 750×360 横向 / cover 750×750 方形, jpg/png/webp ≤2MB
+  // 服务端只强校验格式与大小; 尺寸由前端读图校验提示, 避免上传非目标比例的图导致 C 端展示变形
+  if (action === 'upload_image') {
+    const use = event.use === 'cover' ? 'cover' : 'banner';
+    const b64 = String(event.fileData || '').replace(/^data:image\/\w+;base64,/, '').trim();
+    if (!b64) return fail('up_bad_data', '图片数据为空');
+    const buf = Buffer.from(b64, 'base64');
+    if (buf.length === 0) return fail('up_bad_data', '图片数据为空');
+    if (buf.length > 2 * 1024 * 1024) return fail('up_too_big', '图片大小不能超过 2MB');
+    let ext = '';
+    if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) ext = 'jpg';
+    else if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) ext = 'png';
+    else if (buf.length > 12 && buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') ext = 'webp';
+    if (!ext) return fail('up_bad_ext', '仅支持 jpg/png/webp 格式');
+    const day = (() => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; })();
+    const cloudPath = `admin_web/activity/${day}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    let up;
+    try {
+      up = await cloud.uploadFile({ cloudPath, fileContent: buf });
+    } catch (e) {
+      log.d('upload_image fail:', e && e.message);
+      return { ok: false, code: 'up_fail', msg: '图片上传失败,请重试' };
+    }
+    await logEvent('P2', 'upload_image', openid, { use, size: buf.length, cloudPath });
+    return ok({ fileID: up.fileID });
   }
 
   // ───────── 8.5 首页活动管理(CRUD, 存 admin_config.home_activities) ─────────

@@ -1,6 +1,7 @@
 // PRD章节: 3.2.3 耍伴详情 / 3.1.4 认证标识
 // 接 partner-action 云函数: detail
 const redline = require('../../utils/redline.js');
+const CONFIG = require('../../config/index.js');
 const { getScene } = redline;
 
 function callCloud(name, data) {
@@ -36,7 +37,7 @@ Page({
     const title = p.nickname ? `${p.nickname} · 找个人帮忙` : (scenes ? `${scenes}耍伴` : '找个人帮忙');
     const openid = p.openid || (this.__lastOptions && this.__lastOptions.partnerOpenid) || '';
     return {
-      title: String(title).slice(0, 30),
+      title: String(title).slice(0, CONFIG.SHARE.titleMax),
       path: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
       imageUrl: ''
     };

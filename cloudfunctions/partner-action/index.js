@@ -97,7 +97,7 @@ const PARTNER_LIMITS_FALLBACK = {
   skills_max: 10, skills_len: 12,
   highlights_max: 3, highlight_len: 30,
   media_title_max: 20, media_len: 20,
-  media_photo_max: 6
+  media_photo_max: 6, bio_len: 200
 };
 let _partnerLimitsCache = null;
 let _partnerLimitsCacheUntil = 0;
@@ -116,6 +116,7 @@ async function getPartnerLimits() {
     L.media_title_max = num(cfg.p_media_title_max, 20);
     L.media_len = num(cfg.p_media_len, 20);
     L.media_photo_max = num(cfg.p_media_photo_max, 6);
+    L.bio_len = num(cfg.p_bio_len, 200);
   } catch (e) { /* 读不到走默认 */ }
   _partnerLimitsCache = L;
   _partnerLimitsCacheUntil = now + 5 * 60 * 1000;
@@ -652,7 +653,7 @@ exports.main = async (event, context) => {
 
       // 入参清洗与上限(数量/字数限制从 admin_config 动态读取, 后台可配; 读不到走默认不放大)
       const pLimits = await getPartnerLimits();
-      const bio = String(event.bio || '').trim().slice(0, 200);
+      const bio = String(event.bio || '').trim().slice(0, pLimits.bio_len);
       const skills = (Array.isArray(event.skills) ? event.skills : [])
         .map((s) => String(s || '').trim()).filter(Boolean).slice(0, pLimits.skills_max)
         .map((s) => s.slice(0, pLimits.skills_len));

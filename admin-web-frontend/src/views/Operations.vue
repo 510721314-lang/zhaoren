@@ -217,9 +217,22 @@
         </el-row>
         <el-form-item label="副标题 (≤60 字, 可选)"><el-input v-model="actForm.subtitle" placeholder="如: 假期出行找搭子,最高立减20元" /></el-form-item>
         <el-row :gutter="12">
-          <el-col :span="12"><el-form-item label="Banner 图 URL (云存储, banner 类型必填)"><el-input v-model="actForm.banner_image" placeholder="cloud://..." /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="封面图 URL (卡片类型必填)"><el-input v-model="actForm.cover_image" placeholder="cloud://..." /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Banner 图 (750×360 横向, jpg/png/webp ≤2MB)">
+            <div class="act-img-row">
+              <el-button size="small" type="primary" plain :loading="actUploading === 'banner'" @click="pickActivityImage('banner')">上传图片</el-button>
+              <span class="act-img-spec">Banner 类型必填 · 建议 750×360 横向</span>
+            </div>
+            <el-input v-model="actForm.banner_image" placeholder="cloud://..." class="act-img-input" />
+          </el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="封面图 (750×750 方形, jpg/png/webp ≤2MB)">
+            <div class="act-img-row">
+              <el-button size="small" type="primary" plain :loading="actUploading === 'cover'" @click="pickActivityImage('cover')">上传图片</el-button>
+              <span class="act-img-spec">卡片类型必填 · 建议 750×750 方形</span>
+            </div>
+            <el-input v-model="actForm.cover_image" placeholder="cloud://..." class="act-img-input" />
+          </el-form-item></el-col>
         </el-row>
+        <input ref="actFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="onActivityFileChange" />
         <el-row :gutter="12">
           <el-col :span="12"><el-form-item label="点击跳转" required>
             <el-select v-model="actForm.jump_to" style="width:100%">
@@ -354,6 +367,9 @@ const actBusy = ref('');
 const actDialog = ref(false);
 const actIsEdit = ref(false);
 const actSaving = ref(false);
+const actUploading = ref('');   // '' | banner | cover(上传中标记)
+const actFileInput = ref(null); // 隐藏 file input
+const actPendingUse = ref('banner'); // 待上传用途
 const actForm = reactive({
   id: '', title: '', subtitle: '', banner_image: '', cover_image: '',
   type: 'banner', jump_to: 'demand_publish', jump_param: {},
@@ -433,6 +449,62 @@ async function doSubmitActivity() {
     actDialog.value = false;
     await loadActivities();
   } else { ElMessage.error(r.msg || r.code || '保存失败'); }
+}
+
+// ───────── 活动图片上传(base64 → admin-action upload_image → cloud fileID) ─────────
+// 规格: banner 750×360 横向 / cover 750×750 方形, jpg/png/webp ≤2MB(服务端强校验格式与大小, 前端提示比例)
+function pickActivityImage(use) {
+  actPendingUse.value = use;
+  actFileInput.value && actFileInput.value.click();
+}
+
+async function onActivityFileChange(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';   // 允许重复选择同一文件
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { ElMessage.error('图片大小不能超过 2MB'); return; }
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { ElMessage.error('仅支持 jpg/png/webp 格式'); return; }
+  const dim = await readImageSize(file);
+  const use = actPendingUse.value;
+  if (use === 'banner' && dim && dim.w > 0 && Math.abs(dim.w / dim.h - 750 / 360) > 0.08) {
+    ElMessage.warning('建议使用 750×360 横向图,当前比例可能导致首屏展示变形');
+  } else if (use === 'cover' && dim && dim.w > 0 && Math.abs(dim.w / dim.h - 1) > 0.08) {
+    ElMessage.warning('建议使用 750×750 方形图,当前比例可能导致卡片展示变形');
+  }
+  const b64 = await fileToBase64(file);
+  actUploading.value = use;
+  try {
+    const r = await call('upload_image', { use, fileData: b64 });
+    if (r.ok && r.data && r.data.fileID) {
+      if (use === 'banner') actForm.banner_image = r.data.fileID;
+      else actForm.cover_image = r.data.fileID;
+      ElMessage.success('图片上传成功,fileID 已回填');
+    } else {
+      ElMessage.error(r.msg || r.code || '图片上传失败');
+    }
+  } finally {
+    actUploading.value = '';
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').replace(/^data:[^;]+;base64,/, ''));
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+function readImageSize(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve({ w: img.width, h: img.height }); };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+  });
 }
 
 async function doDeleteActivity(row) {
@@ -535,4 +607,7 @@ onMounted(async () => {
 .ops-unit { margin-left:8px; color:#909399; font-size:12px; }
 .v-old { color:#909399; }
 .v-new { color:#67c23a; font-weight:600; }
+.act-img-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.act-img-spec { font-size:12px; color:#909399; }
+.act-img-input { font-size:12px; }
 </style>

@@ -100,7 +100,7 @@ Page({
   // 拉取附近可接单池(仅耍伴端): 复用 nearby action 按发布时间倒序, 首页只取前10条
   async fetchNearby() {
     const app = getApp();
-    const r = await app.cloudCall('home-action', { action: 'nearby', page: 1, page_size: 10 });
+    const r = await app.cloudCall('home-action', { action: 'nearby', page: 1, page_size: CONFIG.PAGING.indexNearby });
     if (r.ok && r.data) {
       this.setData({ nearbyList: r.data.list || [] });
     }
@@ -117,7 +117,7 @@ Page({
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
   async fetchSquare() {
     const app = getApp();
-    const r = await app.cloudCall('home-action', { action: 'square', limit: 20 });
+    const r = await app.cloudCall('home-action', { action: 'square', limit: CONFIG.PAGING.indexSquare });
     if (r.ok && r.data) {
       this.setData({
         demandList: r.data.list || [],
@@ -204,7 +204,7 @@ Page({
   onPullDownRefresh() {
     wx.cloud.callFunction({
       name: 'home-action',
-      data: { action: 'square', limit: 20 },
+      data: { action: 'square', limit: CONFIG.PAGING.indexSquare },
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {

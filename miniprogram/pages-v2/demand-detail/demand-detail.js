@@ -160,7 +160,7 @@ Page({
     const title = d.title || d.remark || d.project_name || (scene.name ? `${scene.name}帮忙需求` : '找个人帮忙');
     const id = d._id || (this.__lastOptions && this.__lastOptions.id) || '';
     return {
-      title: String(title).slice(0, 30),
+      title: String(title).slice(0, CONFIG.SHARE.titleMax),
       path: `/pages-v2/demand-detail/demand-detail?id=${id}`,
       imageUrl: ''
     };

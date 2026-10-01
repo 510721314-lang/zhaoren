@@ -1,4 +1,5 @@
 const callCloud = (name, data) => wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+const CONFIG = require('../../config/index.js');
 
 // 时间戳: 输出 ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
 function fmtAgo(ts) {
@@ -36,7 +37,7 @@ Page({
 
   async loadList() {
     this.setData({ loading: true });
-    const r = await callCloud('order-action', { action: 'notice_list', limit: 50 });
+    const r = await callCloud('order-action', { action: 'notice_list', limit: CONFIG.PAGING.noticeLimit });
     if (r && r.ok && r.data) {
       const list = (r.data.list || []).map((n) => ({ ...n, time_ago: fmtAgo(n.created_at) }));
       this.setData({ list, unread: r.data.unread || 0, empty: list.length === 0, loading: false });

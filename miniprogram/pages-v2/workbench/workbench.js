@@ -62,7 +62,7 @@ Page({
     // 独立 catch: 不让一个接口超时拖死全部
     Promise.all([
       callCloud('payment-mock', { action: 'balance_info' }).catch(() => ({ ok: false })),
-      callCloud('payment-mock', { action: 'income_list', limit: 10 }).catch(() => ({ ok: false })),
+      callCloud('payment-mock', { action: 'income_list', limit: Number(CONFIG.WORKBENCH.incomeShow) || 5 }).catch(() => ({ ok: false })),
       callCloud('partner-action', { action: 'my_profile' }).catch(() => ({ ok: false }))
     ]).then(([balR, incR, prfR]) => {
       const d = {};
@@ -84,7 +84,7 @@ Page({
         d.creditLevel = b.credit_level || 'L1';
       }
       if (incR.ok) {
-        d.incomeList = (incR.data.list || []).slice(0, 5).map((i) => ({
+        d.incomeList = (incR.data.list || []).slice(0, Number(CONFIG.WORKBENCH.incomeShow) || 5).map((i) => ({
           order_no: i.order_no,
           scene: i.scene,
           status: i.status,

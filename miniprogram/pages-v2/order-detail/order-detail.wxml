@@ -240,8 +240,8 @@
     </picker>
     <view class="od__reason-row">
       <text class="od__picker-label">改期原因（选填）</text>
-      <textarea class="od__reason-input" placeholder="简要说明改期原因,如:临时有事、时间安排冲突..." value="{{modifyReason}}" bindinput="onModifyReasonInput" maxlength="200" auto-height />
-      <text class="od__reason-count">{{modifyReason.length}}/200</text>
+      <textarea class="od__reason-input" placeholder="简要说明改期原因,如:临时有事、时间安排冲突..." value="{{modifyReason}}" bindinput="onModifyReasonInput" maxlength="{{modifyReasonMax}}" auto-height />
+      <text class="od__reason-count">{{modifyReason.length}}/{{modifyReasonMax}}</text>
     </view>
     <view class="od__panel-btns">
       <button class="od__btn od__btn--ghost" bindtap="closeModifyPanel" hover-class="btn-press">取消</button>
@@ -266,8 +266,8 @@
     </view>
     <view class="od__reason-row">
       <text class="od__picker-label">申请原因（选填）</text>
-      <textarea class="od__reason-input" placeholder="简要说明加时原因,如:项目进度未完成、需要额外时间..." value="{{extendReason}}" bindinput="onExtendReasonInput" maxlength="200" auto-height />
-      <text class="od__reason-count">{{extendReason.length}}/200</text>
+      <textarea class="od__reason-input" placeholder="简要说明加时原因,如:项目进度未完成、需要额外时间..." value="{{extendReason}}" bindinput="onExtendReasonInput" maxlength="{{extendReasonMax}}" auto-height />
+      <text class="od__reason-count">{{extendReason.length}}/{{extendReasonMax}}</text>
     </view>
     <view class="od__panel-btns">
       <button class="od__btn od__btn--ghost" bindtap="closeExtendPanel" hover-class="btn-press">取消</button>

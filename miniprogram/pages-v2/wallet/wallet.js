@@ -83,7 +83,7 @@ Page({
     Promise.all([
       callCloud('payment-mock', { action: 'balance_info' }),
       callCloud('payment-mock', { action: 'income_list' }),
-      callCloud('payment-mock', { action: 'withdraw_list', limit: 20 })
+      callCloud('payment-mock', { action: 'withdraw_list', limit: CONFIG.PAGING.walletWithdraw })
     ]).then(([balR, incR, wdR]) => {
       const d = {};
       if (balR.ok) {

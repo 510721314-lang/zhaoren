@@ -2,6 +2,7 @@
 // 数据源: order-action my_orders(role=user 发单 / partner 接单)
 // tab 过滤口径与 order-action my_counts 四宫格一致
 const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
+const CONFIG = require('../../config/index.js');
 
 const TABS = [
   { key: 'all', name: '全部' },
@@ -87,7 +88,7 @@ Page({
       role: this.data.role,
       filter: this.data.activeTab,
       page: 1,
-      page_size: 20
+      page_size: CONFIG.PAGING.orderPageSize
     }).then((r) => {
       const list = (r.ok && r.data && r.data.list) || [];
       this._all = list.map((o) => this.decorate(o));
@@ -113,7 +114,7 @@ Page({
       role: this.data.role,
       filter: this.data.activeTab,
       page: (this.__page || 1) + 1,
-      page_size: 20
+      page_size: CONFIG.PAGING.orderPageSize
     }).then((r) => {
       const extra = (r.ok && r.data && r.data.list) || [];
       this.__page = (this.__page || 1) + 1;

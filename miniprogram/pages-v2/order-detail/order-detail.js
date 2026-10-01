@@ -133,6 +133,8 @@ Page({
     extendRefPriceFen: 0,
     extendReason: '',
     modifyReason: '',
+    modifyReasonMax: Number(CONFIG.ORDER.reasonMaxLen) || 200,
+    extendReasonMax: Number(CONFIG.ORDER.reasonMaxLen) || 200,
     cancelTiers: CONFIG.CANCEL_REFUND,
     currentCancelIdx: 0,
     modifyDate: '',
@@ -669,7 +671,7 @@ Page({
   },
 
   onExtendReasonInput(e) {
-    const v = (e.detail.value || '').slice(0, 200);
+    const v = (e.detail.value || '').slice(0, this.data.extendReasonMax);
     this.setData({ extendReason: v });
   },
 
@@ -685,7 +687,7 @@ Page({
       action: 'extend',
       order_id: this.data.order._id,
       add_hours: hours,
-      reason: (this.data.extendReason || '').trim().slice(0, 200)
+      reason: (this.data.extendReason || '').trim().slice(0, this.data.extendReasonMax)
     }).then((r) => {
       wx.hideLoading();
       if (!r.ok) {
@@ -766,7 +768,7 @@ Page({
   },
 
   onModifyReasonInput(e) {
-    const v = (e.detail.value || '').slice(0, 200);
+    const v = (e.detail.value || '').slice(0, this.data.modifyReasonMax);
     this.setData({ modifyReason: v });
   },
 
@@ -809,7 +811,7 @@ Page({
           action: 'modify',
           order_id: that.data.order._id,
           new_start_time: ts,
-          reason: (that.data.modifyReason || '').trim().slice(0, 200)
+          reason: (that.data.modifyReason || '').trim().slice(0, that.data.modifyReasonMax)
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {

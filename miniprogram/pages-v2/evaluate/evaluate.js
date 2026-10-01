@@ -115,7 +115,7 @@ Page({
   onStarTap(e) {
     const star = Number(e.currentTarget.dataset.star);
     let autoSelected = [];
-    if (star >= 4) autoSelected = [this.data.goodTags[0].name];
+    if (star >= (Number(CONFIG.ORDER.goodReviewMin) || 4)) autoSelected = [this.data.goodTags[0].name];
     else if (star === 3) autoSelected = [this.data.midTags[0].name];
     else autoSelected = [this.data.badTags[0].name];
     this.setData({

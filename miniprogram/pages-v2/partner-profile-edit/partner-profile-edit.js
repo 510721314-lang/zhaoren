@@ -7,7 +7,8 @@ const LIMITS_FALLBACK = {
   skills_max: 10, skills_len: 12,
   highlights_max: 3, highlight_len: 30,
   media_title_max: 20, media_len: 20,
-  media_photo_max: 6, media_photo_size_mb: 3
+  media_photo_max: 6, media_photo_size_mb: 3,
+  bio_len: 200
 };
 
 function callCloud(name, data) {
@@ -61,7 +62,8 @@ Page({
             media_title_max: num(p.media_title_max, 20),
             media_len: num(p.media_len, 20),
             media_photo_max: num(p.media_photo_max, 6),
-            media_photo_size_mb: num(p.media_photo_size_mb, 3)
+            media_photo_size_mb: num(p.media_photo_size_mb, 3),
+            bio_len: num(p.bio_len, 200)
           }
         });
       }

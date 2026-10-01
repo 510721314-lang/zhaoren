@@ -68,7 +68,7 @@ Page({
   onPullDownRefresh() {
     wx.cloud.callFunction({
       name: 'home-action',
-      data: { action: 'square', limit: 50 },
+      data: { action: 'square', limit: CONFIG.PAGING.squareLimit },
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
@@ -85,7 +85,7 @@ Page({
   fetchSquare() {
     wx.cloud.callFunction({
       name: 'home-action',
-      data: { action: 'square', limit: 50 },
+      data: { action: 'square', limit: CONFIG.PAGING.squareLimit },
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {

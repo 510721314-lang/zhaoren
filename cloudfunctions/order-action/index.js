@@ -87,6 +87,12 @@ async function getConfig() {
   return { s0_timeout_min: 30, youth_limit_fen: 20000, platform_fee_rate_fen: 1000 };
 }
 
+// 改期/加时原因字数上限(后台 order_reason_max_len 可配, 与前端 CONFIG.ORDER.reasonMaxLen 同源; 缺省 200)
+function reasonMaxLen(config) {
+  const v = Number(config && config.order_reason_max_len);
+  return Number.isFinite(v) && v >= 1 ? v : 200;
+}
+
 async function getOrder(orderId) {
   try {
     return (await col('order_main').doc(orderId).get()).data || null;
@@ -911,7 +917,7 @@ exports.main = async (event, context) => {
       pending_modify: {
         from_status: fromStatus,
         new_start_time: newTs,
-        reason: String(reason || '').slice(0, 200),
+        reason: String(reason || '').slice(0, reasonMaxLen(config)),
         by_openid: openid,
         by_role: role,
         created_at: now,
@@ -1062,7 +1068,7 @@ exports.main = async (event, context) => {
       pending_extend: {
         add_hours: addHours,
         add_amount_fen: addAmountFen,
-        reason: String(reason || '').slice(0, 200),
+        reason: String(reason || '').slice(0, reasonMaxLen(config)),
         by_openid: openid,
         by_role: role,
         created_at: now,

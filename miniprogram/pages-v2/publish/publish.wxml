@@ -199,7 +199,7 @@
 
   <!-- 服务内容(子服务项)选择窗: 选场景→免责声明通过后自动弹出 -->
   <bottom-sheet visible="{{optionSheetVisible}}" title="选择服务内容" has-footer="{{true}}" bind:close="closeOptionSheet">
-    <view class="pub__opt-tip">请选择本次需要的服务（至少 1 项，最多 3 项）</view>
+    <view class="pub__opt-tip">请选择本次需要的服务（至少 1 项，最多 {{contentOptionsMax}} 项）</view>
     <view class="pub__opt-list">
       <view class="pub__opt-item {{item.checked ? 'is-on' : ''}}" wx:for="{{optionList}}" wx:key="name" data-name="{{item.name}}" bindtap="toggleOption">
         <text class="pub__opt-name">{{item.name}}</text>

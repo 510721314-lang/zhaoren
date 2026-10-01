@@ -147,6 +147,7 @@ Page({
     redlineClose: redline.PICKER_CLOSE,
     titleMax: CONFIG.TITLE_MAX,
     descMax: CONFIG.DESC_MAX,
+    contentOptionsMax: Number(CONFIG.PUBLISH.contentOptionsMax) || 3,
     draftExpireDays: CONFIG.DRAFT.expireDays,
     budgetPlaceholder: `${CONFIG.BUDGET_RANGE[0]}-${CONFIG.BUDGET_RANGE[1]}`,
     welfareText: `公益规则：每月${CONFIG.WELFARE.monthlyQuota}单额度 · 每人每月限${CONFIG.WELFARE.perUserQuota}单 · 耍伴按标准单价${CONFIG.WELFARE.partnerSubsidyRate * 100}%获得平台补贴`
@@ -607,8 +608,9 @@ Page({
     const list = (this.data.optionList || []).map((o) => Object.assign({}, o));
     const idx = list.findIndex((o) => o.name === name);
     if (idx < 0) return;
-    if (!list[idx].checked && list.filter((o) => o.checked).length >= 3) {
-      wx.showToast({ title: '最多选择 3 项', icon: 'none' });
+    const maxOpts = Number(CONFIG.PUBLISH.contentOptionsMax) || 3;
+    if (!list[idx].checked && list.filter((o) => o.checked).length >= maxOpts) {
+      wx.showToast({ title: `最多选择 ${maxOpts} 项`, icon: 'none' });
       return;
     }
     list[idx].checked = !list[idx].checked;
@@ -1036,7 +1038,7 @@ Page({
       this._clientRequestId = this.__draftId || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     }
     // 服务内容: 用户在选择窗勾选(≥1 项, ≤3 项); 服务端 demand-publish 还会按场景 options 再校验一次
-    const contentOptions = (f.content_options || []).slice(0, 3);
+    const contentOptions = (f.content_options || []).slice(0, Number(CONFIG.PUBLISH.contentOptionsMax) || 3);
 
     // 服务开始时间 → 时间戳(本地时区组时间, 兼容 iOS; iOS 不支持 new Date('YYYY-MM-DDTHH:mm:ss'))
     const dateParts = String(f.service_date).split('-');
@@ -1047,7 +1049,8 @@ Page({
     ).getTime();
 
     // 时薪 → 分（云函数 rate_fen 要求分单位）
-    const rateFen = f.project_attr === 'public_welfare' ? 3000 : Math.round(Number(f.budget) * 100);
+    const welfareRateFen = Number(CONFIG.WELFARE.hourlyRateFen) || 3000;
+    const rateFen = f.project_attr === 'public_welfare' ? welfareRateFen : Math.round(Number(f.budget) * 100);
 
     // 履约地点坐标（如果用户选了点就有，否则兜底 0,0）
     const location = {

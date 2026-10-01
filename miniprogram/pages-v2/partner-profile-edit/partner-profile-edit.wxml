@@ -9,8 +9,8 @@
 
   <!-- 个人简介 -->
   <view class="ppe__card">
-    <view class="ppe__label">个人简介 <text class="ppe__count">{{bio.length}}/200</text></view>
-    <textarea class="ppe__textarea" value="{{bio}}" maxlength="200" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" placeholder-class="ppe__ph" bindinput="onBioInput" />
+    <view class="ppe__label">个人简介 <text class="ppe__count">{{bio.length}}/{{limits.bio_len}}</text></view>
+    <textarea class="ppe__textarea" value="{{bio}}" maxlength="{{limits.bio_len}}" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" placeholder-class="ppe__ph" bindinput="onBioInput" />
   </view>
 
   <!-- 技能标签 -->

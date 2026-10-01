@@ -22,7 +22,7 @@ module.exports = {
   DURATION_OPTIONS: [1, 2, 3, 4, 6, 8],
 
   // 距离校验（公里，与后台 admin_config 同名键一致；前端仅用于提示与前置拦截，服务端为准）
-  PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50 },
+  PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50, contentOptionsMax: 3 },// 服务内容(子服务项)最多项数(后台 publish_content_options_max 覆盖)
 
   AA_OPTIONS: ['0-50', '50-200', '200+', 'custom'],
 
@@ -41,7 +41,9 @@ module.exports = {
     arbitrateFirstDays: 5,    // S10.5 争议一审工作日
     arbitrateSecondDays: 10,  // S10.5 争议二审工作日
     evalTextMax: 200,         // 评价字数上限
-    evalRewardYuan: 1         // 评价奖励优惠券面额（元）
+    evalRewardYuan: 1,         // 评价奖励优惠券面额（元）
+    goodReviewMin: 4,          // 好评星级阈值(≥此星自动勾选口碑标签; 后台 order_good_review_min_stars 覆盖)
+    reasonMaxLen: 200          // 改期/加时原因字数上限(后台 order_reason_max_len 覆盖)
   },
 
   // 改期规则（PRD 3.5.3）
@@ -103,7 +105,24 @@ module.exports = {
   NEWBIE: { firstOrderDiscount: newbieDiscount, welfareTitle: `🎁 新人首单立减${newbieDiscount}元`, welfareSub: '首单免平台服务费 · 每人限1次' },
 
   // 公益单规则
-  WELFARE: { monthlyQuota: 500, perUserQuota: 3, partnerSubsidyRate: 0.8 },
+  WELFARE: { monthlyQuota: 500, perUserQuota: 3, partnerSubsidyRate: 0.8, hourlyRateFen: 3000 },// 公益单时薪(分; 后台 welfare_hourly_rate_fen 覆盖)
+
+  // 分享标题字数上限(后台 share_title_max 覆盖)
+  SHARE: { titleMax: 30 },
+
+  // 列表分页(后台 paging.* 覆盖)
+  PAGING: {
+    orderPageSize: 20,   // 订单列表每页
+    indexNearby: 10,     // 首页附近可接
+    indexSquare: 20,     // 首页需求广场
+    squareLimit: 50,     // 广场列表
+    nearbyLimit: 20,     // 附近列表分页
+    walletWithdraw: 20,  // 钱包提现记录
+    noticeLimit: 50      // 通知列表
+  },
+
+  // 工作台
+  WORKBENCH: { incomeShow: 5 },// 工作台流水展示条数(后台 workbench_income_show 覆盖)
 
   // IM「其他」模板与客服介入（PRD 3.4）
   IM: { otherKefuThreshold: 3, kefuResponseMin: 5 },

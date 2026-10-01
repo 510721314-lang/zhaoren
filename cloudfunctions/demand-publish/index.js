@@ -202,6 +202,12 @@ async function getConfig() {
   };
 }
 
+// 子服务内容最多项数(后台 publish_content_options_max 可配, 缺省 3)
+function contentOptionsMax(config) {
+  const v = Number(config && config.publish_content_options_max);
+  return Number.isFinite(v) && v >= 1 ? v : 3;
+}
+
 // 服务端时间红线(R1, 与前端 redline.js 同口径): 00:00-06:00 不可预约
 // close_min=1440(=24:00)→仅拦 00:00-06:00; close_min=0→全天开放; open_min 默认 360(06:00)
 // 东八区折算: 云函数运行时区为 UTC, 直接 getHours 少 8 小时
@@ -472,8 +478,8 @@ exports.main = async (event, context) => {
       if (opts.length === 0) {
         return { ok: false, code: 'publish_content_option', msg: '请选择服务内容' };
       }
-      if (opts.length > 3) {
-        return { ok: false, code: 'publish_content_too_many', msg: '服务内容最多选择 3 项' };
+      if (opts.length > contentOptionsMax(config)) {
+        return { ok: false, code: 'publish_content_too_many', msg: `服务内容最多选择 ${contentOptionsMax(config)} 项` };
       }
       // 选项必须属于该场景(admin_config.scene_list 优先,兜底常量)
       const sceneCfg = (config.scene_list || []).find((s) => s.code === scene);
@@ -1133,7 +1139,7 @@ exports.main = async (event, context) => {
         : (typeof content_option === 'string' ? [content_option] : []);
       opts = Array.from(new Set(opts.map((s) => String(s || '').trim()).filter(Boolean)));
       if (opts.length === 0) return { ok: false, code: 'update_content_option', msg: '请选择服务内容' };
-      if (opts.length > 3) return { ok: false, code: 'update_content_too_many', msg: '服务内容最多 3 项' };
+      if (opts.length > contentOptionsMax(config)) return { ok: false, code: 'update_content_too_many', msg: `服务内容最多 ${contentOptionsMax(config)} 项` };
       const sceneCfg = (config.scene_list || []).find((s) => s.code === scene);
       const allowedOptions = (sceneCfg && sceneCfg.options) || SCENE_OPTIONS_FALLBACK[scene] || [];
       for (const o of opts) {
