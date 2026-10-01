@@ -125,7 +125,14 @@ const CONFIG_SCHEMA = [
   { f: 'im_rate_window_min', t: 'int', g: '私信频控', label: '频控统计窗口', unit: '分钟', min: 1, max: 60, def: 5 },
   { f: 'im_rate_max_count', t: 'int', g: '私信频控', label: '窗口内最多消息', unit: '条', min: 1, max: 200, def: 30 },
   // ── 实名与签署(测试期 mock; 类目资质审批后切 wx 走微信官方人脸核验) ──
-  { f: 'realname_face_mode', t: 'enum', opts: ['mock', 'wx'], g: '实名与签署', label: '人脸核验模式', def: 'mock' }
+  { f: 'realname_face_mode', t: 'enum', opts: ['mock', 'wx'], g: '实名与签署', label: '人脸核验模式', def: 'mock' },
+  // ── 耍伴资料(数量/字数限制后台可配; 前端校验+后端强约束+后台表单同源) ──
+  { f: 'p_skills_max', t: 'int', g: '耍伴资料', label: '技能标签条数上限', unit: '条', min: 1, max: 50, def: 10 },
+  { f: 'p_skills_len', t: 'int', g: '耍伴资料', label: '技能标签单条字数', unit: '字', min: 1, max: 50, def: 12 },
+  { f: 'p_highlights_max', t: 'int', g: '耍伴资料', label: '服务亮点条数上限', unit: '条', min: 1, max: 20, def: 3 },
+  { f: 'p_highlight_len', t: 'int', g: '耍伴资料', label: '服务亮点单条字数', unit: '字', min: 1, max: 100, def: 30 },
+  { f: 'p_media_title_max', t: 'int', g: '耍伴资料', label: '资质/荣誉标题条数上限', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'p_media_len', t: 'int', g: '耍伴资料', label: '资质/荣誉单条标题字数', unit: '字', min: 1, max: 50, def: 20 }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -400,6 +407,15 @@ exports.main = async (event, context) => {
         service_agreement: cfgRaw.legal_service_agreement || '',
         aa_promise: cfgRaw.legal_aa_promise || '',
         pet_authorization: cfgRaw.legal_pet_authorization || ''
+      },
+      // 耍伴资料维护页数量/字数限制(前端校验与后端强约束同源; 缺失走 schema def, 防 0 被 || 吞)
+      partner_profile: {
+        skills_max: cfgRaw.p_skills_max !== undefined ? cfgRaw.p_skills_max : 10,
+        skills_len: cfgRaw.p_skills_len !== undefined ? cfgRaw.p_skills_len : 12,
+        highlights_max: cfgRaw.p_highlights_max !== undefined ? cfgRaw.p_highlights_max : 3,
+        highlight_len: cfgRaw.p_highlight_len !== undefined ? cfgRaw.p_highlight_len : 30,
+        media_title_max: cfgRaw.p_media_title_max !== undefined ? cfgRaw.p_media_title_max : 20,
+        media_len: cfgRaw.p_media_len !== undefined ? cfgRaw.p_media_len : 20
       },
       // 支付/资金(dev 才下发真实能力; prod fail-closed) —— tip_enabled 派生自 env, 不暴露 env 原值
       payment: {

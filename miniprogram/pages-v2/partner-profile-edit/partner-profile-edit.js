@@ -2,10 +2,15 @@
 // 资质证书/荣誉: 每条仅标题(titles), 图片为栏目级多图(photos 存云存储 fileID)
 // 安全: 前端仅做表单与防抖, 内容安全/限频/并发幂等全部在云端(fail-closed)
 // 图片上传: wx.chooseMedia → wx.cloud.uploadFile → 存 fileID, 随资料提交审核
-const MEDIA_TITLE_MAX = 20;  // 资质/荣誉 标题条数上限
+// 图片张数与单张大小固定(安全上限, 不后台化)
 const MEDIA_PHOTO_MAX = 6;   // 资质/荣誉 图片张数上限
 const MEDIA_PHOTO_MAX_SIZE = 3 * 1024 * 1024; // 单张图片大小上限 3M
-const MEDIA_TITLE_LEN = 20;  // 单条标题字数上限
+// 数量/字数限制默认值(与后端 PARTNER_LIMITS_FALLBACK 一致; 运行时被 admin-action config_public.partner_profile 覆盖)
+const LIMITS_FALLBACK = {
+  skills_max: 10, skills_len: 12,
+  highlights_max: 3, highlight_len: 30,
+  media_title_max: 20, media_len: 20
+};
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => {
@@ -38,10 +43,29 @@ Page({
     honPending: { titles: [], photos: [] },    // 待审的荣誉(仅展示)
     auditHistory: [],     // 审核历史 [{at,result,by,reason}]
     submitting: false,
-    uploading: false
+    uploading: false,
+    // 数量/字数限制(初值=默认, 拉取 config_public 后覆盖; 供校验与 WXML 计数/maxlength 使用)
+    limits: { ...LIMITS_FALLBACK }
   },
 
   onLoad() {
+    // 并行拉取后台可配的资料限制(config_public.partner_profile), 失败走默认不漂移
+    callCloud('admin-action', { action: 'config_public' }).then((r) => {
+      const p = r && r.ok && r.data && r.data.partner_profile;
+      if (p) {
+        const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
+        this.setData({
+          limits: {
+            skills_max: num(p.skills_max, 10),
+            skills_len: num(p.skills_len, 12),
+            highlights_max: num(p.highlights_max, 3),
+            highlight_len: num(p.highlight_len, 30),
+            media_title_max: num(p.media_title_max, 20),
+            media_len: num(p.media_len, 20)
+          }
+        });
+      }
+    });
     // 回显当前已审核快照 + 审核状态 + 待审内容 + 审核历史
     callCloud('partner-action', { action: 'my_profile' }).then((res) => {
       if (res.ok && res.data && res.data.profile) {
@@ -97,7 +121,10 @@ Page({
       wx.showToast({ title: '标签已存在', icon: 'none' });
       return;
     }
-    if (this.data.skills.length >= 10) return;
+    if (this.data.skills.length >= this.data.limits.skills_max) {
+      wx.showToast({ title: `最多 ${this.data.limits.skills_max} 个标签`, icon: 'none' });
+      return;
+    }
     this.setData({ skills: [...this.data.skills, v], skillInput: '' });
   },
   onRemoveSkill(e) {
@@ -110,8 +137,8 @@ Page({
   onAddHighlight() {
     const v = (this.data.highlightInput || '').trim();
     if (!v) return;
-    if (this.data.highlights.length >= 3) {
-      wx.showToast({ title: '最多 3 条服务亮点', icon: 'none' });
+    if (this.data.highlights.length >= this.data.limits.highlights_max) {
+      wx.showToast({ title: `最多 ${this.data.limits.highlights_max} 条服务亮点`, icon: 'none' });
       return;
     }
     this.setData({ highlights: [...this.data.highlights, v], highlightInput: '' });
@@ -127,8 +154,8 @@ Page({
   onAddQual() {
     const v = (this.data.qualInput || '').trim();
     if (!v) return;
-    if (this.data.qualTitles.length >= MEDIA_TITLE_MAX) {
-      wx.showToast({ title: `最多 ${MEDIA_TITLE_MAX} 条`, icon: 'none' });
+    if (this.data.qualTitles.length >= this.data.limits.media_title_max) {
+      wx.showToast({ title: `最多 ${this.data.limits.media_title_max} 条`, icon: 'none' });
       return;
     }
     this.setData({ qualTitles: [...this.data.qualTitles, v], qualInput: '' });
@@ -142,8 +169,8 @@ Page({
   onAddHon() {
     const v = (this.data.honInput || '').trim();
     if (!v) return;
-    if (this.data.honTitles.length >= MEDIA_TITLE_MAX) {
-      wx.showToast({ title: `最多 ${MEDIA_TITLE_MAX} 条`, icon: 'none' });
+    if (this.data.honTitles.length >= this.data.limits.media_title_max) {
+      wx.showToast({ title: `最多 ${this.data.limits.media_title_max} 条`, icon: 'none' });
       return;
     }
     this.setData({ honTitles: [...this.data.honTitles, v], honInput: '' });

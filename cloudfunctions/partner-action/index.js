@@ -91,6 +91,35 @@ async function getTencentMapKey() {
   return _cachedMapKey;
 }
 
+// 耍伴资料维护页数量/字数限制: 从 admin_config 动态读取(SSOT, 后台可配), 后端强约束与前端校验同源
+// 读取失败返回默认值(fail-closed 不放大); 模块级缓存 5 分钟(后台改后 ≤5min 生效)
+const PARTNER_LIMITS_FALLBACK = {
+  skills_max: 10, skills_len: 12,
+  highlights_max: 3, highlight_len: 30,
+  media_title_max: 20, media_len: 20
+};
+let _partnerLimitsCache = null;
+let _partnerLimitsCacheUntil = 0;
+async function getPartnerLimits() {
+  const now = Date.now();
+  if (_partnerLimitsCache !== null && now < _partnerLimitsCacheUntil) return _partnerLimitsCache;
+  const L = { ...PARTNER_LIMITS_FALLBACK };
+  try {
+    const r = await col('admin_config').doc('global').get();
+    const cfg = r.data || {};
+    const num = (v, d) => { const n = parseInt(v, 10); return Number.isInteger(n) && n > 0 ? n : d; };
+    L.skills_max = num(cfg.p_skills_max, 10);
+    L.skills_len = num(cfg.p_skills_len, 12);
+    L.highlights_max = num(cfg.p_highlights_max, 3);
+    L.highlight_len = num(cfg.p_highlight_len, 30);
+    L.media_title_max = num(cfg.p_media_title_max, 20);
+    L.media_len = num(cfg.p_media_len, 20);
+  } catch (e) { /* 读不到走默认 */ }
+  _partnerLimitsCache = L;
+  _partnerLimitsCacheUntil = now + 5 * 60 * 1000;
+  return L;
+}
+
 // 耍伴日常位置清洗(wx.chooseLocation gcj02 坐标; 中国范围粗校验防脏数据)
 function sanitizeHomeLocation(loc) {
   if (!loc || typeof loc !== 'object') return null;
@@ -619,17 +648,18 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'pa_submit_frequent', msg: '提交太频繁,请30分钟后再试' };
       }
 
-      // 入参清洗与上限
+      // 入参清洗与上限(数量/字数限制从 admin_config 动态读取, 后台可配; 读不到走默认不放大)
+      const pLimits = await getPartnerLimits();
       const bio = String(event.bio || '').trim().slice(0, 200);
       const skills = (Array.isArray(event.skills) ? event.skills : [])
-        .map((s) => String(s || '').trim()).filter(Boolean).slice(0, 10)
-        .map((s) => s.slice(0, 12));
+        .map((s) => String(s || '').trim()).filter(Boolean).slice(0, pLimits.skills_max)
+        .map((s) => s.slice(0, pLimits.skills_len));
       const highlights = (Array.isArray(event.service_highlights) ? event.service_highlights : [])
-        .map((s) => String(s || '').trim()).filter(Boolean).slice(0, 3)
-        .map((s) => s.slice(0, 30));
-      // 资质证书 / 荣誉 其他: 每条仅标题(上限20条每条≤20字), 图片为栏目级多图(上限6张, 存云存储 fileID)
+        .map((s) => String(s || '').trim()).filter(Boolean).slice(0, pLimits.highlights_max)
+        .map((s) => s.slice(0, pLimits.highlight_len));
+      // 资质证书 / 荣誉 其他: 每条仅标题(条数/字数后台可配), 图片为栏目级多图(上限6张固定, 存云存储 fileID)
       const sanitizeMedia = (titles, photos) => ({
-        titles: (Array.isArray(titles) ? titles : []).map((s) => String(s || '').trim()).filter(Boolean).slice(0, 20).map((s) => s.slice(0, 20)),
+        titles: (Array.isArray(titles) ? titles : []).map((s) => String(s || '').trim()).filter(Boolean).slice(0, pLimits.media_title_max).map((s) => s.slice(0, pLimits.media_len)),
         photos: (Array.isArray(photos) ? photos : []).map((f) => String(f || '')).filter(Boolean).slice(0, 6)
       });
       const qualifications = sanitizeMedia(event.qual_titles, event.qual_photos);
