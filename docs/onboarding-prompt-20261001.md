@@ -31,11 +31,14 @@
 - 管理后台网关：POST https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api，Header X-Admin-Key: 1e4ea9609e1ff33abf9a6ded228f0f17cefc5ead67982006b46fc915b1251a8b（敏感，勿入公开文档）
 
 【硬约束（不可违反）】
+> 本段为精要，全部约束以 .trae\rules.md 红线段与项目记忆 Hard Constraints 为权威；涉及金额分单位/服务端为准/信用分/权限模型等未列出的，遵循权威来源。
 - 已验收基线修改须先经我同意；动工前必须三合一校验并经我确认
 - mock 通道(实名/短信/保险/支付)仅 dev 或受 mock_payment_enabled 控制；prod mock_openid 失效、打赏恒关
+- 环境切换纪律：提审演示/截图可临时切 dev，演示完必须立即切回 prod；dev 有 4h 自动回 prod 兜底机制（以 quick_check 实测为准）
 - 正式上线前：mock_payment_enabled 置 false（quick_check 校验）、清理测试数据、删 zz-seed-orders
 - 敏感字段 AES-256；人脸单独同意、紧急联系人短信验证+30 天限改
 - 备份一律 C:\zhaoren-bak；三重备份=git bundle+robocopy 热备+云端 DB 导出，备份后逐一核 SHA/verify
+- AI 应用三原则：fail-closed（AI 失败按开关降级不影响主流程）；请求不得携带全量订单/位置/联系方式等私有数据；输出标注「AI 建议」、不触碰核心交易链路，隐私指引无新增
 
 【工程约定·经验】
 - SCENE_NAME 全仓 6 处同步（order-action×3 / admin-action / demand-publish / im-conv / im-send），改场景名必须全改
