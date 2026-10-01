@@ -1,8 +1,9 @@
-// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+﻿// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
 // 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
 // 否则拒绝并写 platform_event(P1, admin_probe)。
 // 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
@@ -10,6 +11,45 @@ const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命�
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { buildAuditPatch, FIELD_PENDING, isFieldEmpty } = require('./partner_audit');
+
+// ───────── RBAC 角色体系(S1, PRD §5.1 最小版: R1超管/R2审核/R3运营) ─────────
+const ADMIN_ROLE_LABEL = { R1: '超管', R2: '审核', R3: '运营' };
+const ADMIN_ROLES = ['R1', 'R2', 'R3'];
+// 非 R1 角色的 action 放行表; 未列出的 action 仅 R1 可执行(敏感: export_*/config_set/force 类)
+// R2=审核专员: 审核/证据/举报/IM监管/内容下架; R3=运营: 配置/活动/通知/订单/财务只读/用户查询
+const ROLE_GRANTS = {
+  // ── R2 审核 ──
+  'audit_init': ['R2'], 'audit_query': ['R2'], 'audit_verify': ['R2'],
+  'evidence_query': ['R2'],
+  'partner_profile_pending_list': ['R2'], 'partner_profile_review': ['R2'], 'review': ['R2'],
+  'im_degraded_list': ['R2'], 'im_message_admin_list': ['R2'],
+  'report_list': ['R2', 'R3'], 'report_handle': ['R2'],
+  'safety_log_list': ['R2'], 'insurance_list': ['R2'],
+  'blog_list': ['R2', 'R3'], 'blog_offline': ['R2'], 'blog_restore': ['R2'], 'blog_delete': ['R2'],
+  'blog_comment_list': ['R2'], 'blog_comment_delete': ['R2'],
+  'demand_list': ['R2', 'R3'], 'demand_offline': ['R2', 'R3'],
+  'order_list': ['R2', 'R3'], 'order_query': ['R2', 'R3'], 'order_detail': ['R2', 'R3'],
+  'dispute_list': ['R2', 'R3'], 'dispute_handle': ['R2'],
+  // ── R3 运营 ──
+  'dashboard': ['R3'],
+  'config_get': ['R3'], 'config_log_list': ['R3'],
+  'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'],
+  'notice_send': ['R3'],
+  'user_list': ['R3'], 'user_detail': ['R3'],
+  'partner_list': ['R3'], 'partner_detail': ['R3'],
+  'finance_list': ['R3'], 'finance_stats': ['R3'],
+  'withdraw_list': ['R3'], 'settlement_list': ['R3'],
+  'credit_log_list': ['R3'], 'penalty': ['R2', 'R3']
+};
+// 后台账号密码 hash(SHA256(salt+pwd+salt), 与 user-login hashPassword 同构)
+function hashAdminPassword(password, salt) {
+  return crypto.createHash('sha256').update(salt + password + salt).digest('hex');
+}
+// admin_accounts/admin_web_sessions 集合幂等创建(add/set 不自动建集合, 缺集合报 -502005; 云函数管理权限可 createCollection)
+async function ensureAdminColls() {
+  try { await db.createCollection('admin_accounts'); } catch (e) { /* 已存在则忽略 */ }
+  try { await db.createCollection('admin_web_sessions'); } catch (e) { /* 已存在则忽略 */ }
+}
 
 // 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
 async function resolveTempUrls(fileIDs) {
@@ -368,6 +408,35 @@ exports.main = async (event, context) => {
     } };
   }
 
+  // ───────── 账号登录(免鉴权, RBAC S1): admin_accounts 账号+密码 → admin_web_sessions 会话 ─────────
+  // 会话 token 主键存储(ADMT-*), 12h 有效; 后续请求经网关透传 __admin_token
+  if (action === 'admin_login') {
+    await ensureAdminColls();
+    const acc = String(event.account || '').trim();
+    const password = event.password || '';
+    if (!acc || !password) return { ok: false, code: 'login_invalid', msg: '账号和密码必填' };
+    const accR = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const u = (accR.data && accR.data[0]) || null;
+    if (!u || u.status !== 'active') return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
+    if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
+      return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
+    }
+    const token = 'ADMT-' + crypto.randomBytes(24).toString('hex');
+    const now = Date.now();
+    const expires_at = now + 12 * 3600 * 1000;
+    await col('admin_web_sessions').doc(token).set({
+      data: { account: acc, role: u.role, openid: openid || '', created_at: now, expires_at, is_deleted: false }
+    });
+    await logEvent('P2', 'admin_login', openid, { account: acc, role: u.role });
+    return { ok: true, data: { token, role: u.role, account: acc, display_name: u.display_name || acc, expires_at } };
+  }
+
+  if (action === 'admin_logout') {
+    const t = String(event.__admin_token || '');
+    if (t) await col('admin_web_sessions').doc(t).update({ data: { is_deleted: true, updated_at: Date.now() } }).catch(() => {});
+    return { ok: true, data: {} };
+  }
+
   // ───────── 统一鉴权 ─────────
   if (!openid) {
     await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
@@ -387,6 +456,78 @@ exports.main = async (event, context) => {
   const now = Date.now();
   const ok = (data) => ({ ok: true, data: data || {} });
   const fail = (code, msg) => ({ ok: false, code, msg });
+
+  // ───────── RBAC 操作者角色解析(S1) ─────────
+  // 优先级: 账号会话 token(admin_accounts 登录) > 网关 admin_web_key 代理/白名单 openid(视为 R1)
+  // admin_login/admin_logout 已在统一鉴权前处理, 此处面向其余 action
+  let operatorRole = 'R1';
+  let operatorAccount = '';
+  const adminToken = String(event.__admin_token || '');
+  if (adminToken) {
+    const sessR = await col('admin_web_sessions').doc(adminToken).get().catch(() => null);
+    const sess = sessR && sessR.data;
+    if (!sess || sess.is_deleted || (sess.expires_at || 0) < Date.now()) {
+      return { ok: false, code: 'bad_token', msg: '登录已过期, 请重新登录' };
+    }
+    const accR = await col('admin_accounts').where({ account: sess.account || '', is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const acc = (accR.data && accR.data[0]) || null;
+    if (!acc || acc.status !== 'active') {
+      return { ok: false, code: 'bad_token', msg: '账号已被禁用, 请联系超管' };
+    }
+    operatorAccount = acc.account;
+    operatorRole = acc.role || 'R1'; // 会话角色以账号当前角色为准
+  }
+  // 角色门控: 已声明的 action 检查放行角色; 未声明(敏感: export_*/config_set/账号管理/force 类)默认仅 R1; R1 超管拥有全部权限
+  const grants = ROLE_GRANTS[action];
+  if (operatorRole !== 'R1' && (!grants || grants.indexOf(operatorRole) < 0)) {
+    await logEvent('P1', 'role_forbidden', openid, { action, role: operatorRole, account: operatorAccount });
+    return { ok: false, code: 'role_forbidden', msg: `无权限执行此操作(需 ${(grants || ['R1']).map((r) => ADMIN_ROLE_LABEL[r]).join('/')} 角色)` };
+  }
+
+  // ───────── 账号管理(仅 R1 超管) ─────────
+  if (action === 'admin_account_list') {
+    const r = await col('admin_accounts').where({ is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
+    return ok({ list: (r.data || []).map((a) => ({
+      account: a.account, role: a.role, display_name: a.display_name || '',
+      status: a.status || 'active', created_at: a.created_at
+    })) });
+  }
+
+  if (action === 'admin_account_create') {
+    await ensureAdminColls();
+    const acc = String(event.account || '').trim();
+    const { password, role, display_name } = event;
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(acc)) return fail('acc_bad_account', '登录名需 3-20 位字母/数字/下划线');
+    if (!password || String(password).length < 8) return fail('acc_bad_pwd', '密码至少 8 位');
+    if (!ADMIN_ROLES.includes(role)) return fail('acc_bad_role', '角色只能是 R1/R2/R3');
+    const salt = crypto.randomBytes(16).toString('hex');
+    try {
+      await col('admin_accounts').add({ data: {
+        account: acc, password_hash: hashAdminPassword(password, salt), password_salt: salt,
+        role, display_name: String(display_name || '').slice(0, 30),
+        status: 'active', created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+      } });
+      await logEvent('P2', 'admin_account_create', openid, { account: acc, role, by: operatorAccount });
+      return ok({ account: acc, role });
+    } catch (e) { return fail('acc_fail', '创建失败: ' + ((e && e.errCode) || (e && e.message) || e)); }
+  }
+
+  if (action === 'admin_account_set_status') {
+    const { account, status } = event;
+    const acc = String(account || '').trim();
+    if (!['active', 'disabled'].includes(status)) return fail('acc_bad_status', '状态只能是 active/disabled');
+    if (acc === operatorAccount && status === 'disabled') return fail('acc_self', '不能禁用自己');
+    const r = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    if (!(r.data && r.data[0])) return fail('acc_not_found', '账号不存在');
+    await col('admin_accounts').doc(r.data[0]._id).update({ data: { status, updated_at: Date.now() } });
+    if (status === 'disabled') {
+      await col('admin_web_sessions').where({ account: acc, is_deleted: _.neq(true) }).update({
+        data: { is_deleted: true, updated_at: Date.now() }
+      }).catch(() => {});
+    }
+    await logEvent('P2', 'admin_account_set_status', openid, { account: acc, status, by: operatorAccount });
+    return ok({ account: acc, status });
+  }
 
   // ───────── 1. 数据看板(统计卡 + 7天趋势 + 待办 + 财务汇总) ─────────
   if (action === 'dashboard') {
@@ -514,6 +655,39 @@ exports.main = async (event, context) => {
         is_system: !!l.is_system, created_at: l.created_at
       }))
     });
+  }
+
+  // 紧急联系人后台查改(运营/超管; 覆盖 1-2 名, 槽位复用与 user-login set_emergency_contact 同构)
+  // ⚠️ 合规: 变更同样受 30 天频控约束, 触发后台置 emergency_changed_at
+  if (action === 'user_ec_update') {
+    const { target_openid, contacts } = event;
+    if (!isOpenid(target_openid)) return fail('ec_bad_openid', 'openid 格式不正确');
+    if (!Array.isArray(contacts) || contacts.length === 0 || contacts.length > 2) {
+      return fail('ec_count', '紧急联系人需 1-2 名');
+    }
+    for (const c of contacts) {
+      if (!c.name || !/^1\d{10}$/.test(c.phone || '')) return fail('ec_field', '姓名/手机号格式有误');
+    }
+    const nowEc = Date.now();
+    const existR = await col('emergency_contact')
+      .where({ openid: target_openid, is_deleted: false }).orderBy('created_at', 'asc').limit(2).get();
+    const existDocs = existR.data || [];
+    await Promise.all(contacts.map((c, i) => {
+      if (existDocs[i]) {
+        return col('emergency_contact').doc(existDocs[i]._id).update({
+          data: { name: c.name, phone: c.phone, relation: c.relation || '', updated_at: nowEc }
+        });
+      }
+      return col('emergency_contact').add({
+        data: { openid: target_openid, name: c.name, phone: c.phone, relation: c.relation || '', created_at: nowEc, updated_at: nowEc, is_deleted: false }
+      });
+    }));
+    for (let i = contacts.length; i < existDocs.length; i++) {
+      await col('emergency_contact').doc(existDocs[i]._id).update({ data: { is_deleted: true, updated_at: nowEc } });
+    }
+    await col('user_account').where({ openid: target_openid }).update({ data: { emergency_changed_at: nowEc, updated_at: nowEc } });
+    await logEvent('P2', 'user_ec_update', openid, { target_openid, by: operatorAccount, count: contacts.length });
+    return ok({ target_openid, contacts: contacts.map((c) => ({ name: c.name, phone: c.phone.slice(0, 3) + '****' + c.phone.slice(-4), relation: c.relation || '' })) });
   }
 
   if (action === 'user_freeze' || action === 'user_unfreeze') {
@@ -849,7 +1023,7 @@ exports.main = async (event, context) => {
 
   // ───────── 5. 订单管理 ─────────
   if (action === 'order_list' || action === 'order_query') {
-    const { keyword, status } = event;
+    const { keyword, status, export_mode } = event;
     const pg = pager(event);
     let q = { is_deleted: _.neq(true) };
     const conds = [];
@@ -864,6 +1038,18 @@ exports.main = async (event, context) => {
     }
     if (conds.length) q = _.and([q, _.or(conds)]);
     const query = col('order_main').where(q);
+    // CSV 导出模式: 不分页, 上限 10000 行, 返回精简字段供前端拼 CSV(网关 3s 硬限内可行)
+    if (export_mode === 'csv') {
+      const rows = await query.orderBy('created_at', 'desc').limit(10000).get().catch(() => ({ data: [] }));
+      const list = (rows.data || []).map((o) => ({
+        order_no: o.order_no, status: o.status, scene: o.scene,
+        user_openid: (o.user_openid || '').slice(0, 12), partner_openid: (o.partner_openid || '').slice(0, 12),
+        total_yuan: (o.total_fen || 0) / 100, tip_yuan: (o.tip_total_fen || 0) / 100,
+        start_time: o.start_time || '', created_at: o.created_at
+      }));
+      await logEvent('P2', 'order_export_csv', openid, { count: list.length });
+      return ok({ list, csv_mode: true });
+    }
     const usePage = action === 'order_list';
     const [totalR, rowsR] = await Promise.all([
       usePage ? query.count().catch(() => ({ total: 0 })) : Promise.resolve({ total: 0 }),
@@ -1356,6 +1542,43 @@ exports.main = async (event, context) => {
       expect_arrive_at: w.expect_arrive_at || null, arrived_at: w.arrived_at || null,
       is_mock: !!w.is_mock, created_at: w.created_at
     }));
+  }
+
+  // ───────── 提现审批(PRD §5.1 职责分离: 财务/超管双人复核; 仅处理普通提现 processing) ─────────
+  // 账号体系启用时强制双人(第一人提交 → 不同账号确认); 仅 admin_web_key 代理链路(无账号体系)单步放行
+  if (action === 'withdraw_review') {
+    const { withdraw_id, decision, reason } = event;
+    if (!['approve', 'reject'].includes(decision)) return fail('wr_bad_decision', 'decision 只能是 approve/reject');
+    if (decision === 'reject' && !String(reason || '').trim()) return fail('wr_need_reason', '驳回必须填原因');
+    if (!isDocId(withdraw_id)) return fail('wr_bad_id', 'withdraw_id 格式不正确');
+    const wR = await col('withdraw_record').doc(withdraw_id).get().catch(() => null);
+    const w = wR && wR.data;
+    if (!w || w.is_deleted) return fail('wr_not_found', '提现记录不存在');
+    if (w.status !== 'processing') return fail('wr_status', `当前状态(${w.status})不可审核`);
+    const now2 = Date.now();
+    const accCntR = await col('admin_accounts').where({ status: 'active', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 }));
+    const rbacEnabled = (accCntR.total || 0) > 0;
+    if (rbacEnabled && !w.review1_by) {
+      await col('withdraw_record').doc(withdraw_id).update({ data: { review1_by: operatorAccount, review1_at: now2, updated_at: now2 } });
+      await logEvent('P2', 'withdraw_review1', openid, { withdraw_id, by: operatorAccount });
+      return ok({ withdraw_id, step: 1, msg: '已提交审核, 待第二人(不同账号)复核确认' });
+    }
+    if (rbacEnabled && w.review1_by === operatorAccount) {
+      return fail('wr_self', '复核人不能与第一审核人相同(职责分离)');
+    }
+    const patch = { review2_by: operatorAccount, review2_at: now2, updated_at: now2 };
+    if (decision === 'approve') {
+      patch.status = 'success';
+      patch.arrived_at = now2;
+    } else {
+      patch.status = 'rejected';
+      patch.reject_reason = String(reason).trim();
+    }
+    await col('withdraw_record').doc(withdraw_id).update({ data: patch });
+    await logEvent('P2', decision === 'approve' ? 'withdraw_approve' : 'withdraw_reject', openid, {
+      withdraw_id, amount_fen: w.amount_fen, by: operatorAccount, reason: reason || ''
+    });
+    return ok({ withdraw_id, step: rbacEnabled ? 2 : 1, status: patch.status });
   }
 
   if (action === 'settlement_list') {
@@ -2090,6 +2313,8 @@ exports.main = async (event, context) => {
   // 敏感字段脱敏规则与递归脱敏已提升到模块顶层(SENSITIVE_MASK / maskDocDeep), 避免函数内声明 TDZ 崩溃
   // L2: admin_config 完整快照(不走 export_collection, 因为只有一个 _id=global 文档且字段特殊)
   if (action === 'export_admin_config') {
+    // 二次确认(敏感导出, PRD §17.2 敏感接口二次鉴权)
+    if (event.confirm !== true) return fail('export_need_confirm', '敏感导出需 confirm:true 二次确认');
     const cfgR = await col('admin_config').doc('global').get();
     const cfg = (cfgR.data) || {};
     const safe = maskDocDeep(cfg);
@@ -2104,6 +2329,8 @@ exports.main = async (event, context) => {
 
   // L3: 按 collection 分页导出
   if (action === 'export_collection') {
+    // 二次确认(敏感导出, PRD §17.2 敏感接口二次鉴权)
+    if (event.confirm !== true) return fail('export_need_confirm', '敏感导出需 confirm:true 二次确认');
     const collection = String(event.collection || '').trim();
     if (!EXPORT_COLLECTIONS.has(collection)) {
       return fail('export_bad_collection', `不在导出白名单: ${collection}`);

@@ -12,7 +12,7 @@ const COLLECTIONS = [
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
   'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
   'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock',
-  'system_notice', 'insurance_record', 'audit_log'
+  'system_notice', 'insurance_record', 'audit_log', 'admin_accounts'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -37,6 +37,8 @@ const INDEXES = [
   { coll: 'im_conversation', name: 'uk_order_id', keys: { order_id: 1 }, unique: true },
   // 会话监管: 后台按 order_no 定位会话(2026-10-01 admin-action im_message_admin_list)
   { coll: 'im_conversation', name: 'idx_order_no', keys: { order_no: 1 } },
+  // 后台账号体系(RBAC S1): 登录名唯一 + 会话按 token 主键查询
+  { coll: 'admin_accounts', name: 'uk_account', keys: { account: 1 }, unique: true },
   { coll: 'im_message', name: 'idx_conv_created', keys: { conv_id: 1, created_at: -1 } },
   { coll: 'evaluation', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'settlement', name: 'idx_order_id', keys: { order_id: 1 } },

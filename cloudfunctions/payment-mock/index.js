@@ -597,7 +597,8 @@ exports.main = async (event, context) => {
       let creditLevel = 'L1';
       if (pp.data && pp.data[0]) {
         const score = pp.data[0].score || 0;
-        creditLevel = score >= 800 ? 'L3' : score >= 600 ? 'L2' : 'L1';
+        // 对齐 PRD R005(与 enums.js CREDIT_LEVEL 一致): 百段制
+        creditLevel = score >= 900 ? 'L4' : score >= 800 ? 'L3' : score >= 700 ? 'L2' : 'L1';
       }
       return {
         ok: true,

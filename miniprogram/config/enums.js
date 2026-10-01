@@ -132,12 +132,12 @@ const AA_ESTIMATE_LABEL = {
   custom: 'AA 自定义'
 };
 
-// 信用等级（PRD 3.1.2 拍板）
+// 信用等级（PRD R005 对齐, 2026-10-01 由原 620/800/900/950 分段改为百段制）
 const CREDIT_LEVEL = [
-  { level: 'L1', name: '新手', min: 600, max: 799, dailyLimit: 10 },
-  { level: 'L2', name: '标准', min: 800, max: 899, dailyLimit: 15 },
-  { level: 'L3', name: '优质', min: 900, max: 949, dailyLimit: 20 },
-  { level: 'L4', name: '金牌', min: 950, max: 1000, dailyLimit: 25 }
+  { level: 'L1', name: '新手', min: 600, max: 699, dailyLimit: 10 },
+  { level: 'L2', name: '标准', min: 700, max: 799, dailyLimit: 15 },
+  { level: 'L3', name: '优质', min: 800, max: 899, dailyLimit: 20 },
+  { level: 'L4', name: '金牌', min: 900, max: 1000, dailyLimit: 25 }
 ];
 
 // 资金四态（PRD 3.5.1）

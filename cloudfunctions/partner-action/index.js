@@ -42,11 +42,12 @@ async function writeNotice(opt) {
 // 进行中订单状态集合
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 // 耍伴信用等级映射(SSOT 与 miniprogram/config/enums.js CREDIT_LEVEL 一致)
+// 2026-10-01 对齐 PRD R005: 百段制 L1[600,700) L2[700,800) L3[800,900) L4[900,1000]
 const CREDIT_LEVELS = [
-  { level: 'L1', min: 600, max: 799 },
-  { level: 'L2', min: 800, max: 899 },
-  { level: 'L3', min: 900, max: 949 },
-  { level: 'L4', min: 950, max: 1000 }
+  { level: 'L1', min: 600, max: 699 },
+  { level: 'L2', min: 700, max: 799 },
+  { level: 'L3', min: 800, max: 899 },
+  { level: 'L4', min: 900, max: 1000 }
 ];
 function creditLevelOf(score) {
   if (!Number.isFinite(score)) return 'L1';
