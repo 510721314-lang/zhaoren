@@ -30,8 +30,8 @@ const MIME = {
   '.map':  'application/json; charset=utf-8',
 };
 
-function makeJson(data, status = 200) {
-  return { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(data) };
+function makeJson(data, statusCode = 200) {
+  return { statusCode, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(data) };
 }
 
 function serveStatic(urlPath) {
@@ -40,7 +40,7 @@ function serveStatic(urlPath) {
   const decoded = decodeURIComponent(clean);
   const fullPath = path.normalize(path.join(PUBLIC_DIR, decoded));
   if (!fullPath.startsWith(PUBLIC_DIR)) {
-    return { status: 403, headers: { ...CORS_HEADERS }, body: 'forbidden' };
+    return { statusCode: 403, headers: { ...CORS_HEADERS }, body: 'forbidden' };
   }
 
   // 1. 精确匹配 (带 / 也尝试 index.html)
@@ -52,7 +52,7 @@ function serveStatic(urlPath) {
     const contentType = MIME[ext] || 'application/octet-stream';
     const content = fs.readFileSync(target, 'utf-8');
     return {
-      status: 200,
+      statusCode: 200,
       headers: { ...CORS_HEADERS, 'Content-Type': contentType },
       body: content,
     };
@@ -63,15 +63,15 @@ function serveStatic(urlPath) {
     const indexHtml = path.join(PUBLIC_DIR, 'index.html');
     if (fs.existsSync(indexHtml)) {
       return {
-        status: 200,
-        headers: { ...CORS_HEADERS, 'Content-Type': MIME['.html'] },
-        body: fs.readFileSync(indexHtml, 'utf-8'),
-      };
+          statusCode: 200,
+          headers: { ...CORS_HEADERS, 'Content-Type': MIME['.html'] },
+          body: fs.readFileSync(indexHtml, 'utf-8'),
+        };
     }
   }
 
   // 3. 404
-  return { status: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
+  return { statusCode: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
 }
 
 // ── proxy 工具 ──
@@ -105,7 +105,7 @@ exports.main = async (event, context) => {
   const method = (req.httpMethod || 'GET').toUpperCase();
 
   // CORS preflight
-  if (method === 'OPTIONS') return { status: 204, headers: CORS_HEADERS };
+  if (method === 'OPTIONS') return { statusCode: 204, headers: CORS_HEADERS };
 
   // 健康检查(无需鉴权)
   if (pathname === '/health') return makeJson({ ok: true, ts: Date.now(), timeout_ms: PROXY_TIMEOUT_MS });
@@ -130,7 +130,9 @@ exports.main = async (event, context) => {
 
   // 鉴权(bootstrap 跳过)
   if (!bootstrap) {
-    const key = (req.headers['x-admin-key'] || req.query.key || '').trim();
+    // CloudBase HTTP 事件查询参数字段为 queryStringParameters (无 query 字段, 直接访问会抛异常)
+    const qs = req.queryStringParameters || req.query || {};
+    const key = (req.headers['x-admin-key'] || qs.key || '').trim();
     const auth = checkAuth(cfg, key);
     if (!auth.ok) return makeJson({ ok: false, code: auth.msg }, 401);
   }
