@@ -24,9 +24,10 @@
   font-size: var(--font-base);
   color: var(--text-3);
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .dcard__meta {
   margin-top: 14rpx;

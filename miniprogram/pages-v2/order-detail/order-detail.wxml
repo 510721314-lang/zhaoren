@@ -53,6 +53,10 @@
         <tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip>
         <tag-chip type="gongyi" wx:if="{{order.project_attr === 'public_welfare'}}" />
       </view>
+      <view class="od__row" wx:if="{{order.scene_content_text}}">
+        <text class="od__label">子场景</text>
+        <text class="od__val">{{order.scene_content_text}}</text>
+      </view>
       <view class="od__summary-box" wx:if="{{orderSummary && orderSummary.l1}}">
         <view class="od__summary-line od__summary-line--l1">{{orderSummary.l1}}</view>
         <view class="od__summary-line" wx:if="{{orderSummary.l2}}">{{orderSummary.l2}}</view>

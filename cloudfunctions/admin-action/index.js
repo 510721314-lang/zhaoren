@@ -74,6 +74,8 @@ async function resolveTempUrls(fileIDs) {
 // 进行中订单(数据看板口径)
 const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 const PAGE_SIZE = 15;
+// 场景中文名(与 order-action 等 SCENE_NAME 同源, 全仓同步维护; 后台新增动态场景未列出的回退显示 code)
+const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
 // ───────── 参数元数据(单一真相 SSOT) ─────────
 // config_set 区间校验 + config_get 输出 schema + admin-web Operations.vue 动态渲染,
@@ -1130,6 +1132,8 @@ exports.main = async (event, context) => {
     const list = (rowsR.data || []).map((o) => maskDoc({
       order_id: o._id, order_no: o.order_no,
       status: o.status, scene: o.scene,
+      scene_name: SCENE_NAME[o.scene] || o.scene,
+      content_options: o.content_options || (o.content_option ? [o.content_option] : []),
       user_openid: o.user_openid, partner_openid: o.partner_openid,
       total_fen: o.total_fen, tip_total_fen: o.tip_total_fen || 0,
       start_time: o.start_time, created_at: o.created_at,

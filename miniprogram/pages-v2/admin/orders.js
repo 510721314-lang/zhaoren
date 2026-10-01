@@ -25,7 +25,10 @@ Page({
     callCloud('admin-action', { action: 'order_list', page: this.data.page }).then((r) => {
       if (r.ok) {
         const list = (this.data.page === 1 ? r.data.list : this.data.list.concat(r.data.list)).map((o) =>
-          Object.assign({}, o, { statusText: STATUS_MAP[o.status] || o.status }));
+          Object.assign({}, o, {
+            statusText: STATUS_MAP[o.status] || o.status,
+            scene_full: (o.scene_name || o.scene) + ((o.content_options && o.content_options.length) ? ' · ' + o.content_options.join('/') : '')
+          }));
         this.setData({ list, hasMore: r.data.has_more, loading: false });
       } else this.setData({ loading: false });
     });

@@ -147,6 +147,7 @@ Page({
       status_name: st.name,
       status_color: st.colorTag,
       status_bg: st.bgTag,
+      scene_full: (o.scene_name || '') + ((o.content_options || []).length ? ' · ' + o.content_options.join('/') : ''),
       content_str: (o.content_options || []).join('、') || '服务内容待确认',
       time_str: fmtTime(o.start_time),
       total_yuan: fmtFen(o.total_fen)
