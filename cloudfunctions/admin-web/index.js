@@ -19,7 +19,7 @@ const SAFE_MARGIN_MS = 500;
 const PROXY_TIMEOUT_MS = GATEWAY_HARD_TIMEOUT_MS - SAFE_MARGIN_MS; // 2500ms
 
 // ── 静态文件服务 ──
-const PUBLIC_DIR = path.join(__dirname, 'public'); // 云函数运行时 = /var/task/public
+const PUBLIC_DIR = path.join(__dirname, 'public'); // 常规布局: /var/user/public/
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js':   'application/javascript; charset=utf-8',
@@ -30,48 +30,61 @@ const MIME = {
   '.map':  'application/json; charset=utf-8',
 };
 
-function makeJson(data, statusCode = 200) {
-  return { statusCode, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(data) };
-}
-
-function serveStatic(urlPath) {
-  // 路径安全: 防止 ../ 穿越
-  const clean = urlPath.split('?')[0]; // 去掉 query string
-  const decoded = decodeURIComponent(clean);
-  const fullPath = path.normalize(path.join(PUBLIC_DIR, decoded));
-  if (!fullPath.startsWith(PUBLIC_DIR)) {
-    return { statusCode: 403, headers: { ...CORS_HEADERS }, body: 'forbidden' };
-  }
-
-  // 1. 精确匹配 (带 / 也尝试 index.html)
-  let target = fullPath;
-  if (target.endsWith('/')) target = path.join(target, 'index.html');
-
-  if (fs.existsSync(target) && fs.statSync(target).isFile()) {
-    const ext = path.extname(target).toLowerCase();
-    const contentType = MIME[ext] || 'application/octet-stream';
-    const content = fs.readFileSync(target, 'utf-8');
-    return {
-      statusCode: 200,
-      headers: { ...CORS_HEADERS, 'Content-Type': contentType },
-      body: content,
-    };
-  }
-
-  // 2. SPA fallback: 如果不是明显的静态资源路径 (有扩展名), 回退到 index.html
-  if (!path.extname(fullPath)) {
-    const indexHtml = path.join(PUBLIC_DIR, 'index.html');
-    if (fs.existsSync(indexHtml)) {
-      return {
-          statusCode: 200,
-          headers: { ...CORS_HEADERS, 'Content-Type': MIME['.html'] },
-          body: fs.readFileSync(indexHtml, 'utf-8'),
-        };
+// 静态文件索引: 请求路径('/index.html'、'/assets/xx.js') → 运行时绝对路径
+// 兼容两种部署布局:
+//   1) 正常目录布局  public/index.html → /var/user/public/index.html
+//   2) DevTools Windows 打包把嵌套条目拍平为反斜杠文件名(public\index.html / public\assets\xx.js),
+//      运行时文件直接躺在函数根下, 文件名里带字面量反斜杠 —— 按 'public/' 前缀去映射回请求路径
+const STATIC_MAP = {};
+function buildStaticMap() {
+  const put = (key, abs) => { if (!STATIC_MAP[key]) STATIC_MAP[key] = abs; };
+  const walkDir = (base, relPrefix) => {
+    let ents;
+    try { ents = fs.readdirSync(base, { withFileTypes: true }); } catch (e) { return; }
+    for (const it of ents) {
+      const abs = path.join(base, it.name);
+      if (it.isDirectory()) walkDir(abs, relPrefix + '/' + it.name);
+      else put(relPrefix + '/' + it.name, abs);
+    }
+  };
+  if (fs.existsSync(PUBLIC_DIR)) walkDir(PUBLIC_DIR, '');
+  let ents;
+  try { ents = fs.readdirSync(__dirname, { withFileTypes: true }); } catch (e) { return; }
+  for (const it of ents) {
+    if (it.isFile() && it.name.indexOf('\\') >= 0) {
+      const rel = '/' + it.name.replace(/\\/g, '/'); // '/public/index.html' → '/index.html'
+      const key = rel.indexOf('/public') === 0 ? rel.slice('/public'.length) : rel;
+      put(key, path.join(__dirname, it.name));
     }
   }
+}
+buildStaticMap();
 
-  // 3. 404
-  return { statusCode: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
+function serveStatic(urlPath) {
+  let clean;
+  try { clean = decodeURIComponent(String(urlPath).split('?')[0]); } catch (e) { clean = String(urlPath); }
+  let norm = clean === '/' ? '/index.html' : clean;
+  if (!norm.startsWith('/')) norm = '/' + norm;
+  const hasExt = path.extname(norm).length > 0;
+  if (!hasExt && !norm.endsWith('/')) norm += '/index.html';
+  if (norm.endsWith('/')) norm += 'index.html';
+
+  let abs = STATIC_MAP[norm];
+  // SPA fallback: 非静态资源路径(无扩展名/目录)未命中 → 回退 index.html
+  if (!abs && !hasExt) abs = STATIC_MAP['/index.html'];
+  if (!abs) return { statusCode: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
+  try {
+    if (!fs.statSync(abs).isFile()) return { statusCode: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
+    const ext = path.extname(abs).toLowerCase();
+    const contentType = MIME[ext] || 'application/octet-stream';
+    return { statusCode: 200, headers: { ...CORS_HEADERS, 'Content-Type': contentType }, body: fs.readFileSync(abs, 'utf-8') };
+  } catch (e) {
+    return { statusCode: 404, headers: { ...CORS_HEADERS }, body: 'not found: ' + urlPath };
+  }
+}
+
+function makeJson(data, statusCode = 200) {
+  return { statusCode, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(data) };
 }
 
 // ── proxy 工具 ──
