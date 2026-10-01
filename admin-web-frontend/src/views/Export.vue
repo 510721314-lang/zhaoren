@@ -57,8 +57,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { call } from '../api/admin.js';
+
+const exportConfirmed = ref(false); // 敏感导出本页会话免重复确认
 
 // 与 admin-action EXPORT_COLLECTIONS 白名单保持一致
 const COLLECTIONS = [
@@ -105,20 +107,33 @@ function onCollChange() {
 
 async function load() {
   loading.value = true;
-  const r = await call('export_collection', { collection: collection.value, page: page.value, page_size: pageSize.value });
-  loading.value = false;
-  if (r.ok && r.data) {
-    list.value = r.data.list || [];
-    total.value = r.data.total || 0;
-    truncated.value = !!r.data.truncated;
-    // 越界回退: 当前页无数据但总数>0 → 回到末页
-    if (r.data.total > 0 && list.value.length === 0 && page.value > 1) {
-      page.value = Math.max(1, Math.ceil(r.data.total / pageSize.value));
-      return load();
+  // 敏感导出二次确认(PRD §17.2): 首次弹确认, 确认后本页会话免重复
+  if (exportConfirmed.value) {
+    const r = await call('export_collection', { collection: collection.value, page: page.value, page_size: pageSize.value, confirm: true });
+    loading.value = false;
+    if (r.ok && r.data) {
+      list.value = r.data.list || [];
+      total.value = r.data.total || 0;
+      truncated.value = !!r.data.truncated;
+      if (r.data.total > 0 && list.value.length === 0 && page.value > 1) {
+        page.value = Math.max(1, Math.ceil(r.data.total / pageSize.value));
+        return load();
+      }
+    } else {
+      list.value = []; total.value = 0;
+      if (r.code === 'export_need_confirm') {
+        if (await ElMessageBox.confirm('导出涉及敏感数据(手机号/证件号/密钥将脱敏), 是否继续?', '敏感导出确认', { type: 'warning' }).catch(() => false)) {
+          exportConfirmed.value = true;
+          return load();
+        }
+      } else ElMessage.error(r.msg || r.code || '查询失败');
     }
   } else {
-    list.value = []; total.value = 0;
-    ElMessage.error(r.msg || r.code || '查询失败');
+    loading.value = false;
+    if (await ElMessageBox.confirm('导出涉及敏感数据(手机号/证件号/密钥将脱敏), 是否继续?', '敏感导出确认', { type: 'warning' }).catch(() => false)) {
+      exportConfirmed.value = true;
+      return load();
+    }
   }
 }
 
@@ -128,7 +143,7 @@ function downloadCurrent() {
 
 async function loadConfig() {
   cfgLoading.value = true; cfgError.value = '';
-  const r = await call('export_admin_config');
+  const r = await call('export_admin_config', { confirm: true });
   cfgLoading.value = false;
   if (r.ok && r.data) {
     cfgText.value = JSON.stringify(r.data, null, 2);

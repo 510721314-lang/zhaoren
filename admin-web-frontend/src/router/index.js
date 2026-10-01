@@ -45,17 +45,20 @@ const routes = [
       // ── 8. 系统管理 ──
       { path: 'notice', component: () => import('../views/Notice.vue'), meta: { title: '通知群发' } },
       { path: 'export', component: () => import('../views/Export.vue'), meta: { title: '导出任务' } },
+      { path: 'accounts', component: () => import('../views/Accounts.vue'), meta: { title: '账号管理', r1Only: true } },
     ]
   }
 ];
 
 const router = createRouter({ history: createWebHashHistory(), routes });
 
-// fail-closed: 未登录所有路径 → login
+// fail-closed: 未登录(无 admin_web_key 且无账号 token)所有路径 → login
 router.beforeEach((to, _from, next) => {
   const key = localStorage.getItem('admin_web_key');
-  if (!to.meta.noAuth && !key) next('/login');
-  else if (to.path === '/login' && key) next('/dashboard');
+  const token = localStorage.getItem('admin_token');
+  const authed = !!(key || token);
+  if (!to.meta.noAuth && !authed) next('/login');
+  else if (to.path === '/login' && authed) next('/dashboard');
   else next();
 });
 

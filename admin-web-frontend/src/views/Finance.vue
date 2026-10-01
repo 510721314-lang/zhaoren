@@ -94,6 +94,14 @@
           <el-table-column label="预期到账" width="160"><template #default="{row}">{{ row.expect_arrive_at ? formatTime(row.expect_arrive_at) : '-' }}</template></el-table-column>
           <el-table-column label="实际到账" width="160"><template #default="{row}">{{ row.arrived_at ? formatTime(row.arrived_at) : '-' }}</template></el-table-column>
           <el-table-column label="申请时间" width="160"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
+          <el-table-column v-if="wdStatus === 'pending' || wdStatus === ''" label="审批" width="150" fixed="right">
+            <template #default="{row}">
+              <template v-if="row.status === 'processing'">
+                <el-button size="small" type="success" plain @click.stop="reviewWd(row, 'approve')">通过</el-button>
+                <el-button size="small" type="danger" plain @click.stop="reviewWd(row, 'reject')">驳回</el-button>
+              </template>
+            </template>
+          </el-table-column>
         </el-table>
         <el-pagination style="margin-top:12px;justify-content:flex-end;display:flex"
           v-model:current-page="wdPage" v-model:page-size="size"
@@ -113,6 +121,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { call } from '../api/admin.js';
 import { fenToYuan, formatTime, txTypeLabel, wdTypeLabel, wdStatusLabel, isWithdrawStuck } from '../utils/format.js';
 
@@ -161,6 +170,22 @@ async function loadWd() {
   const r = await call('withdraw_list', params);
   wdLoading.value = false;
   if (r.ok) { wdList.value = r.data.list; wdTotal.value = r.data.total; }
+}
+
+// 提现审批(PRD §5.1 职责分离): 账号体系下第一人提交后需另一账号复核; key 链路单步
+async function reviewWd(row, decision) {
+  let reason = '';
+  if (decision === 'reject') {
+    const r = await ElMessageBox.prompt('请填写驳回原因', '驳回提现', { inputValidator: (v) => (v && v.trim()) || '驳回原因必填' }).catch(() => null);
+    if (!r) return;
+    reason = r.value.trim();
+  }
+  const res = await call('withdraw_review', { withdraw_id: row.withdraw_id, decision, reason });
+  if (res.ok) {
+    const tip = res.data.step === 2 ? '审批完成' : '已提交, 待第二人(不同账号)复核';
+    ElMessage.success(tip);
+    await loadWd();
+  } else ElMessage.error(res.msg || res.code);
 }
 
 onMounted(async () => {

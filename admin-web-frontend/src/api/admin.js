@@ -17,6 +17,11 @@ http.interceptors.request.use((config) => {
     const key = localStorage.getItem('admin_web_key') || '';
     if (key) config.headers['X-Admin-Key'] = key;
   }
+  // 账号会话(RBAC): 若已登录账号, 注入 __admin_token 供后端角色门控
+  const token = localStorage.getItem('admin_token') || '';
+  if (token && config.data && typeof config.data === 'object') {
+    config.data.__admin_token = token;
+  }
   return config;
 });
 

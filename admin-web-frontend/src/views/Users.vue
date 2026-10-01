@@ -82,6 +82,7 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <el-button size="small" type="primary" plain @click="openCredit(detail.user)">信用调整</el-button>
           <el-button size="small" type="danger" plain @click="openPenalty(detail.user)">V3 处罚</el-button>
+          <el-button size="small" plain @click="openEc(detail)">紧急联系人</el-button>
           <el-button v-if="detail.user.status === 'normal'" size="small" type="warning" plain
             :loading="busy === detail.user.openid" @click="openSimple(detail.user, 'freeze')">冻结</el-button>
           <el-button v-if="detail.user.status === 'frozen'" size="small" type="success" plain
@@ -104,6 +105,23 @@
         </el-table>
       </div>
     </el-drawer>
+
+    <!-- 紧急联系人编辑弹窗(后台查改, 30天频控在服务端) -->
+    <el-dialog v-model="ecDialog" title="紧急联系人管理" width="420px">
+      <div v-for="(c, i) in ecForm" :key="i" style="display:flex;gap:8px;margin-bottom:8px">
+        <el-input v-model="c.name" placeholder="姓名" maxlength="20" />
+        <el-input v-model="c.phone" placeholder="手机号" maxlength="11" />
+        <el-input v-model="c.relation" placeholder="关系" maxlength="10" style="width:110px" />
+        <el-button size="small" type="danger" plain @click="ecForm.splice(i, 1)">删</el-button>
+      </div>
+      <el-button size="small" style="margin-bottom:8px" @click="ecForm.length < 2 && ecForm.push({ name:'', phone:'', relation:'' })">
+        + 添加联系人
+      </el-button>
+      <template #footer>
+        <el-button @click="ecDialog = false">取消</el-button>
+        <el-button type="primary" :loading="ecSaving" @click="saveEc">保存</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 通用原因弹窗 (冻结/封禁) -->
     <el-dialog v-model="simpleDialog" :title="simpleTitle" width="480px">
@@ -185,6 +203,27 @@ const loading = ref(false); const kw = ref(''); const isPartner = ref(null); con
 
 const showDetail = ref(false); const detail = ref(null);
 const logs = ref([]); const logsLoading = ref(false);
+// 紧急联系人编辑(后台查改)
+const ecDialog = ref(false); const ecSaving = ref(false);
+const ecTarget = ref(''); const ecForm = ref([]);
+async function openEc(d) {
+  ecTarget.value = d.user.openid;
+  const ec = d.emergency_contact;
+  ecForm.value = ec ? [{ name: ec.name || '', phone: ec.phone || '', relation: ec.relation || '' }] : [{ name: '', phone: '', relation: '' }];
+  ecDialog.value = true;
+}
+async function saveEc() {
+  const contacts = ecForm.value.filter((c) => c.name || c.phone);
+  if (!contacts.length) return ElMessage.warning('至少保留一名联系人');
+  for (const c of contacts) {
+    if (!c.name || !/^1\d{10}$/.test(c.phone || '')) return ElMessage.warning('姓名/手机号格式有误');
+  }
+  ecSaving.value = true;
+  const r = await call('user_ec_update', { target_openid: ecTarget.value, contacts });
+  ecSaving.value = false;
+  if (r.ok) { ElMessage.success('已更新'); ecDialog.value = false; const rd = await call('user_detail', { target_openid: ecTarget.value }); if (rd.ok) detail.value = rd.data; }
+  else ElMessage.error(r.msg || r.code);
+}
 const busy = ref('');
 const submitting = ref(false);
 

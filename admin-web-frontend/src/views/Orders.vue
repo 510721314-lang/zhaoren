@@ -8,6 +8,7 @@
         <el-option v-for="v in statusOpts" :key="v" :label="statusLabel(v)" :value="v" />
       </el-select>
       <el-button type="primary" :loading="loading" @click="load">搜索</el-button>
+      <el-button :loading="csvLoading" @click="exportCsv">导出 CSV</el-button>
     </div>
 
     <!-- 表格 -->
@@ -121,7 +122,7 @@ import { call } from '../api/admin.js';
 import { fenToYuan, formatTime, statusLabel, txTypeLabel, STATUS_MAP } from '../utils/format.js';
 
 const list = ref([]); const total = ref(0); const page = ref(1); const size = ref(15);
-const loading = ref(false); const kw = ref(''); const stFilter = ref('');
+const loading = ref(false); const csvLoading = ref(false); const kw = ref(''); const stFilter = ref('');
 const showDetail = ref(false); const detail = ref(null);
 const busy = ref('');
 
@@ -173,6 +174,31 @@ async function load() {
   const r = await call('order_list', params);
   loading.value = false;
   if (r.ok) { list.value = r.data.list; total.value = r.data.total; }
+}
+
+// CSV 导出(后端 limit 10000 行, openid 已脱敏)
+async function exportCsv() {
+  csvLoading.value = true;
+  const r = await call('order_list', { export_mode: 'csv' });
+  csvLoading.value = false;
+  if (!r.ok) return ElMessage.error(r.msg || r.code || '导出失败');
+  const rows = r.data.list || [];
+  const head = ['订单号', '状态', '场景', '发单用户', '耍伴', '金额(元)', '小费(元)', '开始时间', '创建时间'];
+  const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [head.join(',')];
+  for (const o of rows) {
+    lines.push([o.order_no, o.status, o.scene, o.user_openid, o.partner_openid, o.total_yuan, o.tip_yuan,
+      o.start_time ? new Date(o.start_time).toLocaleString('zh-CN', { hour12: false }) : '',
+      o.created_at ? new Date(o.created_at).toLocaleString('zh-CN', { hour12: false }) : ''
+    ].map(esc).join(','));
+  }
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `orders_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  ElMessage.success(`已导出 ${rows.length} 条`);
 }
 
 async function onRow(row) {

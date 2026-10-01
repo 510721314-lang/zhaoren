@@ -57,6 +57,7 @@
           <template #title><el-icon><Tools /></el-icon><span>系统管理</span></template>
           <el-menu-item index="/notice">通知群发</el-menu-item>
           <el-menu-item index="/export">导出任务</el-menu-item>
+          <el-menu-item index="/accounts">账号管理</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
