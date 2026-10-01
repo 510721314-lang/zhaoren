@@ -31,7 +31,15 @@ Page({
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 聊完返回 onShow 刷新未读数
     this.__skipNextShow = true;
-    this.fetchData(true);
+    // 先取后台可配的每页条数(message.page_size, 与 im-conv 默认同源)再统一首载; 失败走默认 15
+    callCloud('admin-action', { action: 'config_public' }).then((r) => {
+      const ps = r && r.ok && r.data && r.data.message && r.data.message.page_size;
+      const n = parseInt(ps, 10);
+      if (Number.isInteger(n) && n >= 5 && n <= 50) this.setData({ pageSize: n });
+      this.fetchData(true);
+    }).catch(() => {
+      this.fetchData(true);
+    });
   },
 
   fetchData(reset) {

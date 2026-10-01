@@ -134,7 +134,9 @@ const CONFIG_SCHEMA = [
   { f: 'p_media_title_max', t: 'int', g: '耍伴资料', label: '资质/荣誉标题条数上限', unit: '条', min: 1, max: 50, def: 20 },
   { f: 'p_media_len', t: 'int', g: '耍伴资料', label: '资质/荣誉单条标题字数', unit: '字', min: 1, max: 50, def: 20 },
   { f: 'p_media_photo_max', t: 'int', g: '耍伴资料', label: '资质/荣誉照片张数上限', unit: '张', min: 1, max: 20, def: 6 },
-  { f: 'p_media_photo_size_mb', t: 'int', g: '耍伴资料', label: '资质/荣誉单张照片大小上限', unit: 'MB', min: 1, max: 20, def: 3 }
+  { f: 'p_media_photo_size_mb', t: 'int', g: '耍伴资料', label: '资质/荣誉单张照片大小上限', unit: 'MB', min: 1, max: 20, def: 3 },
+  // ── 消息(会话列表分页大小; 前端 pageSize 与 im-conv 默认一致) ──
+  { f: 'msg_page_size', t: 'int', g: '消息', label: '消息会话每页加载数', unit: '条', min: 5, max: 50, def: 15 }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -420,6 +422,10 @@ exports.main = async (event, context) => {
         media_len: cfgRaw.p_media_len !== undefined ? cfgRaw.p_media_len : 20,
         media_photo_max: cfgRaw.p_media_photo_max !== undefined ? cfgRaw.p_media_photo_max : 6,
         media_photo_size_mb: cfgRaw.p_media_photo_size_mb !== undefined ? cfgRaw.p_media_photo_size_mb : 3
+      },
+      // 消息会话列表分页大小(前端 pageSize 与 im-conv 默认同源)
+      message: {
+        page_size: cfgRaw.msg_page_size !== undefined ? cfgRaw.msg_page_size : 15
       },
       // 支付/资金(dev 才下发真实能力; prod fail-closed) —— tip_enabled 派生自 env, 不暴露 env 原值
       payment: {
