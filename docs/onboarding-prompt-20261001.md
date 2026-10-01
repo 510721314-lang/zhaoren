@@ -19,7 +19,7 @@
 |---|---|---|
 | 工作目录 | c:\zhaoren 存在 | Test-Path |
 | git remote | github.com/510721314-lang/zhaoren.git | git remote -v |
-| HEAD | 749c62a；除本文件(docs/onboarding-prompt-20261001.md)未跟踪外无未提交改动；本地领先 origin 8 提交未推 | git log -1 + status --short + rev-list --count origin/master..HEAD |
+| HEAD | 1d84274，工作区 clean；本地领先 origin 8 提交未推 | git log -1 + status --short + rev-list --count origin/master..HEAD |
 | appid | wxbc4a4afacdf234f5 | project.config.json |
 | 云端 env | prod；mock_payment_enabled=true（quick_check mock_gate=BLOCK 属预期态） | 网关 init_db quick_check |
 | 云端模拟单 | demand 集 simu_xxx 开头 135 条真人感单 | 同上 |
@@ -47,6 +47,17 @@
 - 网关 2.5s 超时不代表云函数失败（会执行完），慢任务幂等+可重试
 - 埋点用 miniprogram/utils/report.js 的 report(key,payload)（wx.reportAnalytics，勿写自建库）；事件名 snake_case；微信后台「事件分析」需建事件定义才可见（demand_publish/demand_update 是两个事件）
 - WXSS 不支持 * 通配；样式改后须重编译/重传体验版生效
+
+【回执与自证要求（投喂后第一步，未通过前不得动工）】
+1. 先输出完整「开场回执」：8 项基线逐行核对，每项附**只读命令的真实输出**（Test-Path / git log -1 / status --short / rev-list --count origin/master..HEAD / 网关 quick_check / Get-ChildItem C:\zhaoren-bak），禁止只复述基准值文字、禁止编造。
+2. 随后不查资料直接回答 5 问自证题，答案须基于回执事实：
+   ① mock_payment_enabled 当前状态？→ prod 下 true(测试期)，quick_check mock_gate=BLOCK 属预期态
+   ② 改场景名 SCENE_NAME 须同步几处？→ 6 处(order-action×3/admin-action/demand-publish/im-conv/im-send)
+   ③ 提审演示期间切什么环境、之后必须做什么？→ 临时切 dev；演示完立即切回 prod(4h 自动回兜底，以实测为准)
+   ④ 本地领先 origin 几个提交未推？体验版最新版本？→ 8 提交未推；0.7.7 已传、0.7.8 未传
+   ⑤ 现在能否直接改代码/部署云函数？→ 不能，须先列最紧急待办并经我确认
+3. 五问全对且带依据 = 通过；错 ≥2 视为未理解，重新吸收后再答。
+4. 通过后列出「最紧急待办 + 行动边界」，等待我确认；未经确认不得提交 git、切环境、部署云函数或上传体验版。
 
 【当前待办（按优先级）】
 - P0：上传体验版 0.7.8（含埋点）并真机验证；网络恢复后补推 GitHub（领先 origin 8 提交，清失效代理或 -c http.proxy= -c https.proxy= 直连）
