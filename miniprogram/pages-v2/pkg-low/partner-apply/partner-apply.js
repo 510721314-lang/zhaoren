@@ -1,8 +1,8 @@
 // v2 耍伴申请 (最简版)
 // 调 partner-action.apply: 加 roles + upsert partner_profile
 // 成功后调 user-login.peek_login 刷新用户态 → switchTab 到我的
-const CONFIG = require('../../config/index.js');
-const { SCENES } = require('../../config/enums.js');
+const CONFIG = require('../../../config/index.js');
+const { SCENES } = require('../../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -115,7 +115,7 @@ Page({
         }
       } else {
         // 服务端实名门禁(apply_not_realname): 给「去实名」按钮引导
-        const bs = require('../../utils/bootstrap.js');
+        const bs = require('../../../utils/bootstrap.js');
         if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
           bs.showRealnameGuide(r.msg);
         } else {

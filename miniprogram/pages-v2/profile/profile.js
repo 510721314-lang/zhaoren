@@ -249,7 +249,7 @@ Page({
   // U2 信用明细
   onScoreDetail() {
     wx.navigateTo({
-      url: '/pages-v2/credit/credit',
+      url: '/pages-v2/pkg-low/credit/credit',
       fail: modalFail
     });
   },
@@ -268,9 +268,9 @@ Page({
   onFuncTap(e) {
     const key = e.currentTarget.dataset.key;
     if (key === 'notices') {
-      wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
     } else if (key === 'emergency') {
-      wx.navigateTo({ url: '/pages-v2/contacts/contacts', fail: modalFail });
+      wx.navigateTo({ url: '/pages-v2/pkg-low/contacts/contacts', fail: modalFail });
     } else if (key === 'realname') {
       wx.navigateTo({ url: '/pages-v2/realname/realname', fail: modalFail });
     } else if (key === 'myPublish') {
@@ -298,8 +298,11 @@ Page({
       wx.navigateTo({ url: '/pages-v2/orders/orders?role=partner', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
       return;
     }
+    // 分包后低频页位于 pkg-low, 动态 key 需经路由表映射(主包页面保持原路径)
+    const LOW_PKG_KEYS = { wallet: 1, 'accept-config': 1, 'partner-profile-edit': 1 };
+    const urlBase = LOW_PKG_KEYS[key] ? `/pages-v2/pkg-low/${key}/${key}` : `/pages-v2/${key}/${key}`;
     wx.navigateTo({
-      url: `/pages-v2/${key}/${key}`,
+      url: urlBase,
       fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' })
     });
   },
@@ -351,7 +354,7 @@ Page({
   },
   becomePartner() {
     wx.navigateTo({
-      url: '/pages-v2/partner-apply/partner-apply',
+      url: '/pages-v2/pkg-low/partner-apply/partner-apply',
       fail: () => wx.showToast({ title: '申请页暂不可用', icon: 'none' })
     });
   },

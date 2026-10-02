@@ -12,7 +12,6 @@
     "pages-v2/demand-list/demand-list",
     "pages-v2/nearby-list/nearby-list",
     "pages-v2/nearby-map/nearby-map",
-    "pages-v2/activity-detail/activity-detail",
     "pages-v2/partner-detail/partner-detail",
     "pages-v2/chat/chat",
     "pages-v2/pay/pay",
@@ -20,24 +19,66 @@
     "pages-v2/safety/safety",
     "pages-v2/evaluate/evaluate",
     "pages-v2/workbench/workbench",
-    "pages-v2/accept-config/accept-config",
-    "pages-v2/wallet/wallet",
-    "pages-v2/partner-apply/partner-apply",
-    "pages-v2/partner-profile-edit/partner-profile-edit",
     "pages-v2/orders/orders",
-    "pages-v2/my-demands/my-demands",
-    "pages-v2/credit/credit",
-    "pages-v2/contacts/contacts",
-    "pages-v2/notices/notices",
-    "pages-v2/admin/admin",
-    "pages-v2/admin/users",
-    "pages-v2/admin/partners",
-    "pages-v2/admin/demands",
-    "pages-v2/admin/orders",
-    "pages-v2/admin/finance",
-    "pages-v2/agreement/agreement",
-    "pages-v2/privacy/privacy"
+    "pages-v2/my-demands/my-demands"
   ],
+  "subPackages": [
+    {
+      "root": "pages-v2/admin",
+      "name": "pkgAdmin",
+      "pages": [
+        "admin",
+        "users",
+        "partners",
+        "demands",
+        "orders",
+        "finance"
+      ]
+    },
+    {
+      "root": "pages-v2/agreement",
+      "name": "pkgAgreement",
+      "pages": [
+        "agreement"
+      ]
+    },
+    {
+      "root": "pages-v2/privacy",
+      "name": "pkgPrivacy",
+      "pages": [
+        "privacy"
+      ]
+    },
+    {
+      "root": "pages-v2/pkg-low",
+      "name": "pkgLow",
+      "pages": [
+        "wallet/wallet",
+        "credit/credit",
+        "contacts/contacts",
+        "notices/notices",
+        "partner-apply/partner-apply",
+        "partner-profile-edit/partner-profile-edit",
+        "accept-config/accept-config",
+        "activity-detail/activity-detail"
+      ]
+    }
+  ],
+  "preloadRule": {
+    "pages-v2/login/login": {
+      "network": "all",
+      "packages": [
+        "pkgAgreement",
+        "pkgPrivacy"
+      ]
+    },
+    "pages-v2/profile/profile": {
+      "network": "all",
+      "packages": [
+        "pkgLow"
+      ]
+    }
+  },
   "window": {
     "navigationBarBackgroundColor": "#07C160",
     "navigationBarTitleText": "找人帮忙",

@@ -1,8 +1,8 @@
 // PRD章节: 3.10 资金钱包 / 3.10.2 提现 / 3.10.3 极速提现 / 3.10.4 收益明细
 // P2: 接云端 payment-mock balance_info + income_list, 删 mock 依赖
-const CONFIG = require('../../config/index.js');
-const { FUND_STATUS } = require('../../config/enums.js');
-const redline = require('../../utils/redline.js');
+const CONFIG = require('../../../config/index.js');
+const { FUND_STATUS } = require('../../../config/enums.js');
+const redline = require('../../../utils/redline.js');
 const { getScene } = redline;
 
 // scene code → 显示名: 优先全局动态场景(后台可增删, 含新增场景), 兜底 redline.getScene(硬编码 SCENES)
@@ -180,7 +180,7 @@ Page({
         return;
       }
       this.setData({ withdrawSheetVisible: false, withdrawAmount: '', fastWithdraw: false });
-      require('../../utils/report.js').report('withdraw', { type: isFast ? 'fast' : 'normal', amount_yuan: amt });
+      require('../../../utils/report.js').report('withdraw', { type: isFast ? 'fast' : 'normal', amount_yuan: amt });
       wx.showToast({
         title: isFast ? '极速提现已到账' : `提现申请成功，T+${CONFIG.WITHDRAW.arriveDays}到账`,
         icon: 'success', duration: 2000
@@ -196,5 +196,5 @@ Page({
     const name = e.currentTarget.dataset.name;
     wx.showToast({ title: `${name}暂未开放，支付通道上线后可用`, icon: 'none' });
   },
-  onReserve() { require('../../utils/redline.js').reserveNotice(); }
+  onReserve() { require('../../../utils/redline.js').reserveNotice(); }
 });

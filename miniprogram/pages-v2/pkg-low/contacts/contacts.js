@@ -1,4 +1,4 @@
-// pages-v2/contacts/contacts.js · 紧急联系人管理(1~2 名)
+// pages-v2/pkg-low/contacts/contacts.js · 紧急联系人管理(1~2 名)
 // 数据源: user-login get_emergency_contact(回显) / set_emergency_contact(保存)
 // 用途: 发布需求前置校验 + 安全求助时展示
 function callCloud(name, data) {

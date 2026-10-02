@@ -47,31 +47,140 @@ function truncate(s, n) {
 const HOME_GROUP_SIZE = 8;     // 首页每场景展示条数
 const SCENE_PAGE_SIZE = 50;    // 场景更多列表每页条数
 
-// 运营配置兜底: admin_config.scene_list 优先, 硬编码兜底(与 init-db 种子对齐)
+// ─────────────────────────────────────────────────────────────
+// 实例级短 TTL 内存缓存(云函数实例存活期有效; 多实例不共享, 命中即赚)
+// 用途: admin_config 低频变更数据 + 访客维度场景分组, 把首页 2 RTT 降为 1 RTT
+// ─────────────────────────────────────────────────────────────
+const _mem = new Map();
+const MEM_MAX = 200;
+function memSet(key, val, ttlMs) {
+  _mem.set(key, { val, until: Date.now() + ttlMs });
+  if (_mem.size > MEM_MAX) {
+    const oldest = _mem.keys().next().value;
+    _mem.delete(oldest);
+  }
+}
+function memGet(key) {
+  const hit = _mem.get(key);
+  if (hit && Date.now() < hit.until) return hit.val;
+  if (hit) _mem.delete(key);
+  return undefined;
+}
+// 异步 loader 记忆: 命中直接返回; 未命中执行 loader 并回种; loader 失败不污染缓存
+async function memo(key, ttlMs, loader) {
+  const cached = memGet(key);
+  if (cached !== undefined) return cached;
+  const val = await loader();
+  memSet(key, val, ttlMs);
+  return val;
+}
+const TTL_SCENE_LIST = 5 * 60 * 1000;   // 场景白名单 5min(与运营配置缓存惯例一致)
+const TTL_ACT_RAW = 60 * 1000;          // 活动配置 60s
+const TTL_SCENE_GROUPS = 60 * 1000;     // 访客维度场景分组 60s(tab 切回/二次进首页命中)
+
+// 场景分组访客维度缓存 key(含身份与价格区间, 防耍伴间过滤结果串号)
+function sceneGroupsCacheKey(openid, vRange) {
+  return 'sg|' + (openid || 'guest') + '|' + (vRange ? vRange[0] + '-' + vRange[1] : 'all');
+}
+
+// 活动配置过滤(首页 banner / 卡片), 与原 home_activity_list 口径一致
+function pickActivities(raw, sceneCode) {
+  const now = Date.now();
+  const list = (raw || []).filter((a) => {
+    if (a.status !== 'active') return false;
+    if (a.start_at && now < a.start_at) return false;
+    if (a.end_at && now > a.end_at) return false;
+    if (sceneCode && a.scene_code && a.scene_code !== sceneCode) return false;
+    return true;
+  }).sort((a, b) => (b.priority || 0) - (a.priority || 0)).map((a) => ({
+    id: a.id,
+    title: a.title,
+    subtitle: a.subtitle || '',
+    banner_image: a.banner_image || '',
+    cover_image: a.cover_image || '',
+    type: a.type,
+    jump_to: a.jump_to,
+    jump_param: a.jump_param || {}
+  }));
+  const banners = list.filter((a) => a.type === 'banner' || a.type === 'both').slice(0, 3);
+  const cards = list.filter((a) => a.type === 'card' || a.type === 'both').slice(0, 4);
+  return { banners, cards };
+}
+
+// home_activities 原始配置(60s 缓存)
+async function loadHomeActivitiesRaw() {
+  return memo('home_activities_raw', TTL_ACT_RAW, async () => {
+    const cfgR = await col('admin_config').doc('global').get();
+    return (cfgR.data && cfgR.data.home_activities) || [];
+  });
+}
+
+// 运营配置: admin_config.scene_list 优先; 读取失败由外层兜底(且兜底值不进缓存)
 // 返回: { scenes: [{code,name,disclaimer_type,builtin}], legal_scene_disclaimers: {code:text} }
 async function loadSceneList() {
+  // memo 只缓存「成功读取」的结果; loader 抛错时 memo 不回种,
+  // 避免一次 admin_config 抖动把 5 场景兜底值缓存 5 分钟(场景收窄/自定义免责文案丢失)
   try {
-    const r = await col('admin_config').doc('global').get();
-    const cfg = r.data;
-    const legal = (cfg && cfg.legal_scene_disclaimers) || {};
-    const raw = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
-      ? cfg.scene_list
-      : SCENE_FALLBACK;
-    const scenes = raw.filter((s) => s && s.code).map((s) => ({
-      code: s.code,
-      name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code,
-      options: Array.isArray(s.options) ? s.options.slice(0, 3) : [],
-      disclaimer_type: s.disclaimer_type || 'general_disclaimer',
-      builtin: !!s.builtin,
-      disclaimer_text: legal[s.code] || ''
-    }));
-    return { scenes, legal_scene_disclaimers: legal };
+    return await memo('scene_list', TTL_SCENE_LIST, async () => {
+      const r = await col('admin_config').doc('global').get();
+      const cfg = r.data;
+      const legal = (cfg && cfg.legal_scene_disclaimers) || {};
+      const raw = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+        ? cfg.scene_list
+        : SCENE_FALLBACK;
+      const scenes = raw.filter((s) => s && s.code).map((s) => ({
+        code: s.code,
+        name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code,
+        options: Array.isArray(s.options) ? s.options.slice(0, 3) : [],
+        disclaimer_type: s.disclaimer_type || 'general_disclaimer',
+        builtin: !!s.builtin,
+        disclaimer_text: legal[s.code] || ''
+      }));
+      return { scenes, legal_scene_disclaimers: legal };
+    });
   } catch (e) {
+    // 仅当次请求降级到 5 场景兜底, 不写缓存; 下次调用重新尝试读 admin_config
     return {
       scenes: SCENE_FALLBACK.map((s) => ({ ...s, disclaimer_type: 'general_disclaimer', builtin: true, disclaimer_text: '' })),
       legal_scene_disclaimers: {}
     };
   }
+}
+
+// 首页场景分组计算(9 场景 demand 并行查询 + 批量补姓氏), 结果按访客维度缓存 60s
+async function buildSceneGroups(scenes, vRange) {
+  const rateCond = vRange
+    ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
+    : null;
+  const now = Date.now();
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  const sceneRs = await Promise.all(scenes.map((sceneDef) =>
+    col('demand')
+      .where(hallWhere(Object.assign({ scene: sceneDef.code }, rateCond || {})))
+      .orderBy('created_at', 'desc')
+      .limit(HOME_GROUP_SIZE + 1)
+      .get()
+      .catch(() => ({ data: [] }))
+  ));
+  const sceneGroups = [];
+  sceneRs.forEach((r, i) => {
+    const sceneDef = scenes[i];
+    if (!sceneDef) return;
+    const docs = r.data || [];
+    const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
+    sceneGroups.push({
+      scene_code: sceneDef.code,
+      scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
+      scene_options: Array.isArray(sceneDef.options) ? sceneDef.options.slice(0, 3) : [],
+      scene_disclaimer_type: sceneDef.disclaimer_type || 'general_disclaimer',
+      scene_disclaimer_text: sceneDef.disclaimer_text || '',
+      scene_builtin: sceneDef.builtin === true,
+      list: items,
+      has_more: docs.length > HOME_GROUP_SIZE
+    });
+  });
+  await fillPublisherSurname(sceneGroups.reduce((acc, g) => acc.concat(g.list), []));
+  return sceneGroups;
 }
 
 // demand 文档 → 广场卡片视图模型(与原 square 内联映射保持一致)
@@ -327,6 +436,9 @@ exports.main = async (event, context) => {
 
         // 轻量并行: demand + partner + active_user, 不查 scene_groups(5个额外查询导致冷启动超时,
         // 场景分组改由 scene_groups action 单独懒加载)
+        // S1/S2 性能: banner 活动配置(admin_config 主键读, 60s 实例缓存)同时点火,
+        // 与主查询并行; 冷 miss 时也不把这次 RTT 串行叠加到响应尾部
+        const activitiesP = loadHomeActivitiesRaw().catch(() => []);
         const [demandR, partnerR, activeUserR] = await Promise.all([
           col('demand')
             .where(hallWhere(rateCond))
@@ -358,6 +470,13 @@ exports.main = async (event, context) => {
 
         let list = (demandR.data || []).map((d) => mapDemand(d, now, pad));
 
+        // S3 性能: 耍伴昵称查询提前发起(不 await), 与下方距离过滤/fillPublisherSurname 并行,
+        // 消除 square 内一次串行 DB RTT
+        const partnerOpenids = (partnerR.data || []).map((p) => p.openid).filter(Boolean);
+        const puPromise = partnerOpenids.length
+          ? col('user_account').where({ openid: _.in(partnerOpenids) }).limit(partnerOpenids.length).get().catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] });
+
         // 最大接单距离(接单配置设置): 参考耍伴日常位置计算并回填 distance_km;
         // 已设置且超出 min(设置, 平台上限) 的需求不在广场展示(与接单时服务端校验对齐)
         if (vp && vp.home) {
@@ -380,12 +499,9 @@ exports.main = async (event, context) => {
         // 耍伴推荐: partner_profile + user_account 昵称
         let partnerList = [];
         try {
-          const partnerOpenids = (partnerR.data || []).map((p) => p.openid).filter(Boolean);
           const partnerUserMap = {};
-          if (partnerOpenids.length) {
-            const puR = await col('user_account').where({ openid: _.in(partnerOpenids) }).limit(partnerOpenids.length).get();
-            (puR.data || []).forEach((u) => { partnerUserMap[u.openid] = u; });
-          }
+          const puR = await puPromise;
+          (puR.data || []).forEach((u) => { partnerUserMap[u.openid] = u; });
           partnerList = (partnerR.data || [])
             .map((p) => {
               const u = partnerUserMap[p.openid] || {};
@@ -420,50 +536,39 @@ exports.main = async (event, context) => {
         const activePartners = partnerList.slice(0, 10);
         const partners = partnerList.slice(0, 5);
 
-        // scene_groups 由 scene_groups action 单独懒加载, 避免首屏 5 个额外 DB 查询导致免费版 3s 超时
-        return { ok: true, data: { list, scene_groups: [], partners, active_partners: activePartners, active_users: activeUsers } };
+        // S1 性能: 首页 2RTT → 1RTT
+        // · banners 为纯配置读取(60s 缓存), 始终内联, 首页恒定少 1 RTT
+        // · scene_groups 含 9 个实时 demand 查询, 仅在「访客维度 60s 缓存命中」时内联;
+        //   未命中(冷启动首次)仍返回空数组由前端懒调 scene_groups action(该 action 计算后回种缓存),
+        //   避免 square 重蹈 9 查询叠加导致冷启动超时的旧问题; tab 切回/60s 内二次进首页即命中
+        let inlineBanners = [];
+        try {
+          // 复用开头与主查询并行点火的 activitiesP(冷 miss 也已并行, 不再串行补 RTT)
+          inlineBanners = pickActivities(await activitiesP, '').banners;
+        } catch (e) { /* 配置读取失败静默, 前端兜底懒调 */ }
+        let inlineGroups = [];
+        try {
+          const cachedGroups = memGet(sceneGroupsCacheKey(openid, vRange));
+          if (Array.isArray(cachedGroups)) inlineGroups = cachedGroups;
+        } catch (e) {}
+
+        return { ok: true, data: { list, scene_groups: inlineGroups, banners: inlineBanners, partners, active_partners: activePartners, active_users: activeUsers } };
       }
 
-      // ───────── 首页按场景分组(懒加载, 首屏 square 不查) ─────────
+      // ───────── 首页按场景分组(懒加载, 结果按访客维度缓存 60s 供 square 内联) ─────────
       case 'scene_groups': {
         const { scenes } = await loadSceneList();
-        const sceneCodes = scenes.map((s) => s.code);
-        const now = Date.now();
-        const pad = (n) => n < 10 ? '0' + n : '' + n;
         // 耍伴视角一致性: 与广场同口径应用接单价格区间过滤(非耍伴/游客/未设置 → 不过滤)
         const vOpenid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
         const vp = await loadVisitorPartner(vOpenid);
         const vRange = vp && vp.range;
-        const rateCond = vRange
-          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
-          : null;
-        const sceneQueries = sceneCodes.map((code) =>
-          col('demand')
-            .where(hallWhere(Object.assign({ scene: code }, rateCond || {})))
-            .orderBy('created_at', 'desc')
-            .limit(HOME_GROUP_SIZE + 1)
-            .get()
-            .catch(() => ({ data: [] }))
-        );
-        const sceneRs = await Promise.all(sceneQueries);
-        const sceneGroups = [];
-        sceneRs.forEach((r, i) => {
-          const sceneDef = scenes[i];
-          if (!sceneDef) return;
-          const docs = r.data || [];
-          const items = docs.slice(0, HOME_GROUP_SIZE).map((d) => mapDemand(d, now, pad));
-          sceneGroups.push({
-            scene_code: sceneDef.code,
-            scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
-            scene_options: Array.isArray(sceneDef.options) ? sceneDef.options.slice(0, 3) : [],
-            scene_disclaimer_type: sceneDef.disclaimer_type || 'general_disclaimer',
-            scene_disclaimer_text: sceneDef.disclaimer_text || '',
-            scene_builtin: sceneDef.builtin === true,
-            list: items,
-            has_more: docs.length > HOME_GROUP_SIZE
-          });
-        });
-        await fillPublisherSurname(sceneGroups.reduce((acc, g) => acc.concat(g.list), []));
+        const cacheKey = sceneGroupsCacheKey(vOpenid, vRange);
+        // 命中访客维度缓存直接返回(tab 切回/短时间重进免 9 次 demand 查询)
+        const cached = memGet(cacheKey);
+        const sceneGroups = Array.isArray(cached)
+          ? cached
+          : await buildSceneGroups(scenes, vRange);
+        if (!Array.isArray(cached)) memSet(cacheKey, sceneGroups, TTL_SCENE_GROUPS);
         return { ok: true, data: { scene_groups: sceneGroups } };
       }
 
@@ -650,33 +755,13 @@ exports.main = async (event, context) => {
         };
       }
 
-      // ───────── 首页活动列表(小程序端: 时间过滤 + 状态过滤 + 优先级排序) ─────────
+      // ───────── 首页活动列表(小程序端: 时间过滤 + 状态过滤 + 优先级排序; 配置 60s 缓存) ─────────
       case 'home_activity_list': {
         try {
-          const cfgR = await col('admin_config').doc('global').get();
-          const cfg = cfgR.data || {};
-          const now = Date.now();
           const sceneCode = String(event.scene_code || '').trim();
-          const raw = cfg.home_activities || [];
-          const list = raw.filter((a) => {
-            if (a.status !== 'active') return false;
-            if (a.start_at && now < a.start_at) return false;
-            if (a.end_at && now > a.end_at) return false;
-            if (sceneCode && a.scene_code && a.scene_code !== sceneCode) return false;
-            return true;
-          }).sort((a, b) => (b.priority || 0) - (a.priority || 0)).map((a) => ({
-            id: a.id,
-            title: a.title,
-            subtitle: a.subtitle || '',
-            banner_image: a.banner_image || '',
-            cover_image: a.cover_image || '',
-            type: a.type,
-            jump_to: a.jump_to,
-            jump_param: a.jump_param || {}
-          }));
-          const banners = list.filter((a) => a.type === 'banner' || a.type === 'both');
-          const cards = list.filter((a) => a.type === 'card' || a.type === 'both');
-          return { ok: true, data: { banners: banners.slice(0, 3), cards: cards.slice(0, 4) } };
+          const raw = await loadHomeActivitiesRaw();
+          const { banners, cards } = pickActivities(raw, sceneCode);
+          return { ok: true, data: { banners, cards } };
         } catch (e) {
           log.d('home_activity_list err:', e.message);
           return { ok: true, data: { banners: [], cards: [] } };

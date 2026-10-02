@@ -595,7 +595,7 @@ Page({
             success: (m) => {
               if (m.confirm) {
                 wx.navigateTo({
-                  url: '/pages-v2/contacts/contacts',
+                  url: '/pages-v2/pkg-low/contacts/contacts',
                   fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' })
                 });
               }

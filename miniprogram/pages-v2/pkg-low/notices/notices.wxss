@@ -3,6 +3,10 @@
   text-align: right; font-size: 24rpx; color: var(--brand-primary, #1890ff);
   padding: 8rpx 0 16rpx;
 }
+.nt__more {
+  text-align: center; font-size: 24rpx; color: var(--text-3, #999);
+  padding: 20rpx 0 8rpx;
+}
 .nt__item {
   display: flex; gap: 20rpx;
   padding: 24rpx 20rpx;

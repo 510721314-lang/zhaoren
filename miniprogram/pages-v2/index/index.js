@@ -115,6 +115,8 @@ Page({
   },
 
   // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
+  // S1 性能: 新版 home-action 已把 banners 与(缓存命中时)scene_groups 内联进 square,
+  // 首页关键路径 1RTT; 字段缺失(旧云端/缓存未命中)时自动回退独立懒加载, 完全兼容
   async fetchSquare() {
     const app = getApp();
     const r = await app.cloudCall('home-action', { action: 'square', limit: CONFIG.PAGING.indexSquare });
@@ -124,9 +126,21 @@ Page({
         partnerList: r.data.partners || [],
         activePartners: r.data.active_partners || []
       });
-      this.fetchSceneGroups();
-      this.fetchActivities();
+      // banners 内联优先; 旧云端无此字段 → 独立懒调兜底
+      if (Array.isArray(r.data.banners)) {
+        this.setData({ banners: r.data.banners });
+      } else {
+        this.fetchActivities();
+      }
+      // scene_groups 内联(非空)优先; 冷启首次缓存未命中 → 独立懒调(服务端计算后回种缓存)
+      if (Array.isArray(r.data.scene_groups) && r.data.scene_groups.length) {
+        this.renderSceneGroups(r.data.scene_groups);
+      } else {
+        this.fetchSceneGroups();
+      }
+      return true;
     }
+    return false;   // 供下拉刷新区分成功/失败提示
   },
 
   // H2b 运营 banner 轮播: 后台 home_activity 配置, 首页展示
@@ -158,7 +172,7 @@ Page({
       case 'activity_detail': {
         const id = p.id || act.id;
         if (id) {
-          wx.navigateTo({ url: '/pages-v2/activity-detail/activity-detail?id=' + id });
+          wx.navigateTo({ url: '/pages-v2/pkg-low/activity-detail/activity-detail?id=' + id });
         } else {
           wx.showToast({ title: '活动详情待配置', icon: 'none' });
         }
@@ -174,55 +188,44 @@ Page({
     const app = getApp();
     const r = await app.cloudCall('home-action', { action: 'scene_groups' });
     if (r.ok && r.data && r.data.scene_groups) {
-      const groups = r.data.scene_groups;
-      // 从 scene_groups 派生动态场景列表(去重 + SCENES 兜底 icon/color/disclaimer)
-      const ICON_FALLBACK = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬', W3: '🏋️', W4: '🎡', W7: '🫂', W9: '🐾' };
-      const COLOR_FALLBACK = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC', W3: '#E8FFF0', W4: '#FFF0E8', W7: '#FFE8F3', W9: '#E8F5FF' };
-      const scenes = groups.map((g) => {
-        const hardCoded = getScene(g.scene_code);
-        return {
-          code: g.scene_code,
-          name: g.scene_name,
-          icon: hardCoded ? hardCoded.icon : (ICON_FALLBACK[g.scene_code] || '📌'),
-          color: hardCoded ? hardCoded.color : (COLOR_FALLBACK[g.scene_code] || '#F5F5F5'),
-          gb: hardCoded ? hardCoded.gb : false,
-          disclaimer_type: g.scene_disclaimer_type || 'general_disclaimer',
-          disclaimer_text: g.scene_disclaimer_text || (hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.content : ''),
-          disclaimer_title: hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.title : '免责声明'
-        };
-      });
-      this.setData({
-        sceneGroups: groups,
-        scenes,
-        filteredScenes: scenes
-      });
-      // 同步到全局, redline.js R9 白名单校验 + 组件 getScene 动态兜底(存完整场景对象)
-      if (app) app.globalData.availableScenes = scenes;
+      this.renderSceneGroups(r.data.scene_groups);
     }
   },
 
-  onPullDownRefresh() {
-    wx.cloud.callFunction({
-      name: 'home-action',
-      data: { action: 'square', limit: CONFIG.PAGING.indexSquare },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          this.setData({
-            demandList: r.data.list || [],
-            sceneGroups: r.data.scene_groups || [],
-            partnerList: r.data.partners || [],
-            activePartners: r.data.active_partners || []
-          });
-        }
-        this.fetchSceneGroups();  // 同步刷新动态场景宫格
-        wx.stopPullDownRefresh();
-        wx.showToast({ title: '已刷新', icon: 'none' });
-      },
-      fail: () => {
-        wx.stopPullDownRefresh();
-      }
+  // 场景分组视图渲染(square 内联与 scene_groups 懒调共用同一落点)
+  renderSceneGroups(groups) {
+    const app = getApp();
+    // 从 scene_groups 派生动态场景列表(去重 + SCENES 兜底 icon/color/disclaimer)
+    const ICON_FALLBACK = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬', W3: '🏋️', W4: '🎡', W7: '🫂', W9: '🐾' };
+    const COLOR_FALLBACK = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC', W3: '#E8FFF0', W4: '#FFF0E8', W7: '#FFE8F3', W9: '#E8F5FF' };
+    const scenes = groups.map((g) => {
+      const hardCoded = getScene(g.scene_code);
+      return {
+        code: g.scene_code,
+        name: g.scene_name,
+        icon: hardCoded ? hardCoded.icon : (ICON_FALLBACK[g.scene_code] || '📌'),
+        color: hardCoded ? hardCoded.color : (COLOR_FALLBACK[g.scene_code] || '#F5F5F5'),
+        gb: hardCoded ? hardCoded.gb : false,
+        disclaimer_type: g.scene_disclaimer_type || 'general_disclaimer',
+        disclaimer_text: g.scene_disclaimer_text || (hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.content : ''),
+        disclaimer_title: hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.title : '免责声明'
+      };
     });
+    this.setData({
+      sceneGroups: groups,
+      scenes,
+      filteredScenes: scenes
+    });
+    // 同步到全局, redline.js R9 白名单校验 + 组件 getScene 动态兜底(存完整场景对象)
+    if (app) app.globalData.availableScenes = scenes;
+  },
+
+  async onPullDownRefresh() {
+    // 复用 fetchSquare: 内联/兜底逻辑统一, 避免刷新时先置空场景宫格造成闪动
+    const ok = await this.fetchSquare();
+    wx.stopPullDownRefresh();
+    // 仅云端真正成功才提示「已刷新」; 失败(超时/网络/云端错误)明确提示, 避免误导
+    wx.showToast({ title: ok ? '已刷新' : '刷新失败，请稍后重试', icon: 'none' });
   },
 
   // H1 城市切换（简化：action-sheet）
@@ -265,13 +268,13 @@ Page({
     this.setData({ filteredScenes: hit });
   },
   onBellTap() {
-    wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
+    wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
   },
 
   // H3 紧急联系人
   onEmergencyConfirm() {
     this.setData({ showEmergency: false });
-    wx.navigateTo({ url: '/pages-v2/contacts/contacts', fail: () => wx.showToast({ title: '紧急联系人页暂不可用', icon: 'none' }) });
+    wx.navigateTo({ url: '/pages-v2/pkg-low/contacts/contacts', fail: () => wx.showToast({ title: '紧急联系人页暂不可用', icon: 'none' }) });
   },
   onEmergencyClose() {
     this.setData({ showEmergency: false });

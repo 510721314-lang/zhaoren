@@ -85,7 +85,7 @@
   <view class="pd__card" wx:if="{{partner.qualifications && (partner.qualifications.photos.length > 0 || partner.qualifications.titles.length > 0)}}">
     <view class="pd__profile-title">资质证书</view>
     <view class="pd__media" wx:if="{{partner.qualifications.photos.length > 0}}">
-      <image class="pd__media-img" wx:for="{{partner.qualifications.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-index="{{index}}" data-list="{{partner.qualifications.photos}}" bindtap="previewMedia" />
+      <image class="pd__media-img" wx:for="{{partner.qualifications.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" lazy-load data-index="{{index}}" data-list="{{partner.qualifications.photos}}" bindtap="previewMedia" />
     </view>
     <view class="pd__hl" wx:if="{{partner.qualifications.titles.length > 0}}">
       <view class="pd__media-item" wx:for="{{partner.qualifications.titles}}" wx:key="*this">✦ {{item}}</view>
@@ -96,7 +96,7 @@
   <view class="pd__card" wx:if="{{partner.honors && (partner.honors.photos.length > 0 || partner.honors.titles.length > 0)}}">
     <view class="pd__profile-title">荣誉 其他</view>
     <view class="pd__media" wx:if="{{partner.honors.photos.length > 0}}">
-      <image class="pd__media-img" wx:for="{{partner.honors.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-index="{{index}}" data-list="{{partner.honors.photos}}" bindtap="previewMedia" />
+      <image class="pd__media-img" wx:for="{{partner.honors.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" lazy-load data-index="{{index}}" data-list="{{partner.honors.photos}}" bindtap="previewMedia" />
     </view>
     <view class="pd__hl" wx:if="{{partner.honors.titles.length > 0}}">
       <view class="pd__media-item" wx:for="{{partner.honors.titles}}" wx:key="*this">✦ {{item}}</view>

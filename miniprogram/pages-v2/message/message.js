@@ -16,7 +16,7 @@ Page({
     loading: false,
     loadError: false,
     loadErrorMsg: '',
-    pageSize: 15,        // 每页会话条数(与后端 PAGE_SIZE_FALLBACK 一致)
+    pageSize: 5,         // 每页会话条数(产品定版: 消息列表一次性加载 5 条; 触底加载更多翻页)
     hasMore: false,      // 是否还有下一页
     loadingMore: false   // 加载更多进行中
   },
@@ -31,15 +31,10 @@ Page({
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 聊完返回 onShow 刷新未读数
     this.__skipNextShow = true;
-    // 先取后台可配的每页条数(message.page_size, 与 im-conv 默认同源)再统一首载; 失败走默认 15
-    callCloud('admin-action', { action: 'config_public' }).then((r) => {
-      const ps = r && r.ok && r.data && r.data.message && r.data.message.page_size;
-      const n = parseInt(ps, 10);
-      if (Number.isInteger(n) && n >= 5 && n <= 50) this.setData({ pageSize: n });
-      this.fetchData(true);
-    }).catch(() => {
-      this.fetchData(true);
-    });
+    // 产品定版每页 5 条: 不再被 config_public 的 msg_page_size(云端当前 10)顶回,
+    // 直接首屏拉 5 条(首屏 0 阻塞 RTT); im-conv 以前端传入 limit 为准, 恒返回 5 条。
+    // 注: 云端 admin_config.msg_page_size 待 R4 补录管理员后同步改为 5, 保持 SSOT 一致。
+    this.fetchData(true);
   },
 
   fetchData(reset) {
@@ -173,7 +168,7 @@ Page({
 
   // M2 固定入口
   onSystemTap() {
-    wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
+    wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
   },
   onKefuTap() {
     wx.showToast({ title: '平台客服7×24小时接入中', icon: 'none' });

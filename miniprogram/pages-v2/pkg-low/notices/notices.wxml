@@ -27,5 +27,10 @@
         <view class="nt__time">{{item.time_ago}}</view>
       </view>
     </view>
+
+    <!-- 加载更多(每页 5 条, 触底自动加载, 按钮兜底) -->
+    <view class="nt__more" wx:if="{{hasMore && list.length > 0}}" bindtap="onReachBottom">
+      {{loadingMore ? '加载中…' : '更多'}}
+    </view>
   </view>
 </view>

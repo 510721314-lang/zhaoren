@@ -1,6 +1,6 @@
-// pages-v2/credit/credit.js · 双信用分与流水明细
+// pages-v2/pkg-low/credit/credit.js · 双信用分与流水明细
 // 数据源: user-login get_my_credit(最近 20 条 credit_score_log)
-const { CREDIT_LEVEL } = require('../../config/enums.js');
+const { CREDIT_LEVEL } = require('../../../config/enums.js');
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });

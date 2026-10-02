@@ -103,14 +103,18 @@
       <text class="pub__picker-val {{publishLocation ? '' : 'is-empty'}} pub__pub-loc">
         {{locating ? '定位中…' : (publishLocation ? '当前位置' + (publishLocation.updatedAt ? ' · ' + publishLocation.updatedAt : '') : '点击获取当前位置')}}
       </text>
-      <text class="pub__arrow">📍</text>
+      <view class="pub__loc-btn {{locating ? 'is-spinning' : ''}}" hover-class="pub__loc-btn--hover" hover-stay-time="80">
+        <text class="pub__loc-ic">🔄</text>
+      </view>
     </view>
     <view class="pub__coord" wx:if="{{publishLocation && publishLocation.address}}">📍 {{publishLocation.address}}</view>
-    <view class="pub__location-tip">📌 发布地址为您发布时的实际定位，自动记录不可修改；点击可重新定位</view>
+    <view class="pub__location-tip">📌 发布地址为您发布时的实际定位，自动记录不可修改；点击右侧按钮可重新定位</view>
     <view class="pub__picker-row" bindtap="onLocationPick">
       <text class="pub__picker-label">履约地址</text>
       <input class="pub__picker-input" value="{{form.location_name}}" placeholder="点击在地图上选择履约地点" bindinput="onLocationInput" catchtap="noop" />
-      <text class="pub__arrow">📍</text>
+      <view class="pub__loc-btn" hover-class="pub__loc-btn--hover" hover-stay-time="80">
+        <text class="pub__loc-ic">🗺️</text>
+      </view>
     </view>
     <!-- 经纬度隐藏用于截图审核, 保留给地址名 -->
     <view class="pub__coord" wx:if="{{form.location_name && form.location_name !== ''}}">📌 {{form.location_name}}</view>

@@ -1,4 +1,4 @@
-@import "../../styles/tokens.wxss";
+@import "../../../styles/tokens.wxss";
 
 .ppe { padding: 24rpx; color: var(--text-1); }
 /* input/textarea placeholder: 深灰, 深色模式下仍可见 */

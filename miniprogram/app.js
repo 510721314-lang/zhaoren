@@ -27,8 +27,12 @@ App({
     }
 
     // SSOT: 异步拉 admin_config 覆盖本地 CONFIG, 失败静默降级
+    // S2 性能: 延后 3s 执行, 让出冷启动网络连接/云函数并发额度给首屏关键调用(square/peek_login);
+    // 本地 CONFIG 全字段兜底, 延迟期间页面行为不受影响
     const bootstrap = require('./utils/bootstrap.js').bootstrap;
-    this.globalData.cloudReady.then(() => bootstrap()).catch(() => {});
+    setTimeout(() => {
+      this.globalData.cloudReady.then(() => bootstrap()).catch(() => {});
+    }, 3000);
 
     // 恢复上次选择的界面身份
     const saved = wx.getStorageSync('active_role');
@@ -48,11 +52,18 @@ App({
 
   // 统一等云就绪后再 callFunction(带 retry)
   // 用法: await app.cloudCall('home-action', {action:'square'});
+  // S7 性能/安全: 读类 action 失败重试 2 次; 写类 action(支付/发消息/状态流转/提交类)一次不重试,
+  //   防止超时后的重试风暴造成重复扣款/重复发消息/重复状态推进(真实支付接入后尤为关键);
+  //   单次超时 4s → 6s, 给云函数冷启动一次完整机会, 减少误重试。可用 opts.retries 显式覆盖。
   cloudCall(name, data, opts) {
     opts = opts || {};
-    const retries = opts.retries || 2;      // 失败重试 2 次(总共 3 次)
+    // 写操作动词表(按下划线分词边界匹配); 新增写 action 命名须包含表内动词
+    const WRITE_RE = /(^|_)(create|add|new|submit|save|update|set|edit|modify|cancel|close|delete|remove|pay|tip|withdraw|refund|start|finish|complete|confirm|accept|take|reject|review|approve|offline|claim|apply|send|sign|checkin|report|resolve|nudge|extend|resume|complaint|sos|login|open|milestone)(_|$)/;
+    const action = data && data.action ? String(data.action) : '';
+    const isWrite = WRITE_RE.test(action);
+    const retries = opts.retries !== undefined ? opts.retries : (isWrite ? 0 : 2);
     const waitMs = opts.waitMs || 1500;     // 重试间隔
-    const timeout = opts.timeout || 4000;   // 单次超时(免费版 3s 硬限, 给 4s 留余量)
+    const timeout = opts.timeout || 6000;   // 单次超时(冷启动给足一次机会)
 
     return this.globalData.cloudReady.then(() => {
       return new Promise((resolve) => {

@@ -152,7 +152,7 @@ Page({
 
   // W4 资金
   goWallet() {
-    wx.navigateTo({ url: '/pages-v2/wallet/wallet', fail: () => wx.switchTab({ url: '/pages-v2/profile/profile' }) });
+    wx.navigateTo({ url: '/pages-v2/pkg-low/wallet/wallet', fail: () => wx.switchTab({ url: '/pages-v2/profile/profile' }) });
   },
   onFundTabTap(e) {
     const key = e.currentTarget.dataset.key;

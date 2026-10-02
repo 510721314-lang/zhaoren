@@ -1,5 +1,4 @@
 const callCloud = (name, data) => wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
-const CONFIG = require('../../config/index.js');
 
 // 时间戳: 输出 ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
 function fmtAgo(ts) {
@@ -21,7 +20,15 @@ function fmtAgo(ts) {
 }
 
 Page({
-  data: { list: [], unread: 0, loading: true, empty: false },
+  data: {
+    list: [],
+    unread: 0,
+    loading: true,
+    empty: false,
+    pageSize: 5,        // 产品定版: 消息通知一次加载 5 条
+    hasMore: false,     // 是否还有下一页(limit+1 法精确判断)
+    loadingMore: false
+  },
 
   onShareAppMessage() {
     return {
@@ -30,19 +37,39 @@ Page({
     };
   },
 
-  onShow() { this.loadList(); },
+  onShow() { this.loadList(true); },
   onPullDownRefresh() {
-    this.loadList().then(() => wx.stopPullDownRefresh());
+    this.loadList(true).then(() => wx.stopPullDownRefresh());
   },
+  onReachBottom() { this.loadList(false); },
 
-  async loadList() {
-    this.setData({ loading: true });
-    const r = await callCloud('order-action', { action: 'notice_list', limit: CONFIG.PAGING.noticeLimit });
-    if (r && r.ok && r.data) {
-      const list = (r.data.list || []).map((n) => ({ ...n, time_ago: fmtAgo(n.created_at) }));
-      this.setData({ list, unread: r.data.unread || 0, empty: list.length === 0, loading: false });
+  // reset=true: 首屏/返回页面/下拉刷新, 从头拉第一页替换; reset=false: 触底/更多追加下一页
+  // limit+1 技巧: 请求 pageSize+1 条, 实际回满则判定有下一页, 只展示前 pageSize 条;
+  // 无需后端改 hasMore, 也不会在总数恰为页数倍数时多发一次空请求
+  async loadList(reset) {
+    if (reset) {
+      this.setData({ loading: true });
     } else {
-      this.setData({ loading: false });
+      if (this.data.loadingMore || !this.data.hasMore || this.data.loading) return;
+      this.setData({ loadingMore: true });
+    }
+    const skip = reset ? 0 : this.data.list.length;
+    const r = await callCloud('order-action', { action: 'notice_list', limit: this.data.pageSize + 1, skip });
+    if (r && r.ok && r.data) {
+      const fetched = (r.data.list || []).map((n) => ({ ...n, time_ago: fmtAgo(n.created_at) }));
+      const hasMore = fetched.length > this.data.pageSize;
+      const page = hasMore ? fetched.slice(0, this.data.pageSize) : fetched;
+      const list = reset ? page : this.data.list.concat(page);
+      this.setData({
+        list,
+        unread: r.data.unread || 0,
+        empty: reset && list.length === 0,
+        loading: false,
+        loadingMore: false,
+        hasMore
+      });
+    } else {
+      this.setData({ loading: false, loadingMore: false });
     }
   },
 
