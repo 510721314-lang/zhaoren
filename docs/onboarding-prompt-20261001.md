@@ -19,11 +19,11 @@
 |---|---|---|
 | 工作目录 | c:\zhaoren 存在 | Test-Path |
 | git remote | github.com/510721314-lang/zhaoren.git | git remote -v |
-| HEAD | 1d84274，工作区 clean；本地领先 origin 8 提交未推 | git log -1 + status --short + rev-list --count origin/master..HEAD |
+| HEAD | b6805e6，工作区含批次1(R1-R3)未提交改动；已推 origin 领先 0 | git log -1 + status --short + rev-list --count origin/master..HEAD |
 | appid | wxbc4a4afacdf234f5 | project.config.json |
 | 云端 env | prod；mock_payment_enabled=true（quick_check mock_gate=BLOCK 属预期态） | 网关 init_db quick_check |
 | 云端模拟单 | demand 集 simu_xxx 开头 135 条真人感单 | 同上 |
-| 体验版 | 0.7.7 已传；0.7.8（含埋点）未传 | mp 后台核对 |
+| 体验版 | 0.7.8（含埋点）已传；0.7.9（含 R1-R3 整改）待传 | mp 后台核对 |
 | 备份产物 | zhaoren_backup_20261001-2048(云端DB) / zhaoren_files_20261001-204831(热备) / zhaoren-20261001-211424.bundle(verify OK) | Get-ChildItem C:\zhaoren-bak |
 
 【工具链·网关】
@@ -54,15 +54,16 @@
    ① mock_payment_enabled 当前状态？→ prod 下 true(测试期)，quick_check mock_gate=BLOCK 属预期态
    ② 改场景名 SCENE_NAME 须同步几处？→ 6 处(order-action×3/admin-action/demand-publish/im-conv/im-send)
    ③ 提审演示期间切什么环境、之后必须做什么？→ 临时切 dev；演示完立即切回 prod(4h 自动回兜底，以实测为准)
-   ④ 本地领先 origin 几个提交未推？体验版最新版本？→ 8 提交未推；0.7.7 已传、0.7.8 未传
+   ④ 本地领先 origin 几个提交未推？体验版最新版本？→ 已推 origin 领先 0；0.7.8 已传、0.7.9 待传
    ⑤ 现在能否直接改代码/部署云函数？→ 不能，须先列最紧急待办并经我确认
 3. 五问全对且带依据 = 通过；错 ≥2 视为未理解，重新吸收后再答。
 4. 通过后列出「最紧急待办 + 行动边界」，等待我确认；未经确认不得提交 git、切环境、部署云函数或上传体验版。
 
 【当前待办（按优先级）】
-- P0：上传体验版 0.7.8（含埋点）并真机验证；网络恢复后补推 GitHub（领先 origin 8 提交，清失效代理或 -c http.proxy= -c https.proxy= 直连）
-- P0 提审前（R1-R4）：清 app.json 7 个 v1 页注册、改「模拟支付/MVP」文案、补 v2 协议/隐私页、补 admin_openids
+- P0：体验版 0.7.8（含埋点）已传真机通过；0.7.9（含 R1-R3）待编译验证后上传
+- P0 提审前（R1-R4）：R1-R3 代码已完成**未 commit**（app.json 清 7 个 v1 页 + `pages/admin/config` 死链、删 7 个 v1 目录、新建 v2 协议/隐私页、5 处 v2→v1 跳转修复、文案整改）；下一步：编译验证 → commit → 补推 → 热备；R4 补录 admin_openids 待执行（临时切 dev → 云端测试面板 mock_openid=真实 openid 调 admin-action `claim_admin` → 立即切回 prod；禁止 generate_admin_web_key 补录）
 - P1 上线前：mock_payment_enabled 回 false、清理 sim 数据(seed_cleanup_sim)+删 zz-seed-orders、真机回归按 docs\regression-checklist-20261001.md
+- 上线链路（个人→企业主体变更）：先研发整改+体验版定稿 → 发起主体变更（AppID 不变，需公证书+对公打款，7 工作日审核+7 天确认，期间冻结发布）→ 企业认证/类目/微信支付商户号 → 真实支付/人脸/保险接入 → 提审上线
 
 收尾：回执后列出最紧急待办询问我确认；未经同意不得提交 git、切环境、部署云函数或上传体验版。
 

@@ -1,6 +1,6 @@
-// pages/privacy/privacy.js
+// pages-v2/agreement/agreement.js
 Page({
-  data: { title: '隐私政策' },
+  data: { title: '用户协议' },
   onShareAppMessage() {
     return {
       title: '找个人帮忙',

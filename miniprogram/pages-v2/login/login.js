@@ -64,9 +64,9 @@ Page({
   openAgreement(e) {
     const key = e.currentTarget.dataset.key;
     if (key === 'user') {
-      wx.navigateTo({ url: '/pages/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
+      wx.navigateTo({ url: '/pages-v2/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
     } else if (key === 'privacy') {
-      wx.navigateTo({ url: '/pages/privacy/privacy', fail: () => wx.showToast({ title: '隐私页待接入', icon: 'none' }) });
+      wx.navigateTo({ url: '/pages-v2/privacy/privacy', fail: () => wx.showToast({ title: '隐私页待接入', icon: 'none' }) });
     } else {
       wx.showModal({
         title: '人脸信息处理声明',
@@ -120,18 +120,9 @@ Page({
   },
 
   askUserType() {
-    wx.showActionSheet({
-      itemList: ['我是个人用户', '我是机构用户'],
-      success: (res) => {
-        this.setData({ logging: false });
-        if (res.tapIndex === 0) {
-          wx.switchTab({ url: '/pages-v2/index/index' });
-        } else {
-          wx.showToast({ title: 'B端入口请访问机构后台小程序', icon: 'none', duration: 2500 });
-        }
-      },
-      fail: () => { this.setData({ logging: false }); }
-    });
+    // 机构登录入口已取消，登录成功直接进首页
+    this.setData({ logging: false });
+    wx.switchTab({ url: '/pages-v2/index/index' });
   },
 
   backReject() {

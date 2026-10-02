@@ -113,12 +113,10 @@ Page({
         // "我的发布" 仅用户身份有意义(耍伴是接单方)
         funcList: [
           { key: 'notices', icon: '🔔', name: '消息通知', badge: '' },
-          { key: 'myBlog', icon: '📝', name: '我的动态' },
           // 实名认证入口(badge 提示未认证; 完成认证后无 badge)
           { key: 'realname', icon: '🪪', name: '实名认证', badge: uiUser.is_realname_done ? '' : '待认证' },
           ...(identity === 'partner'
             ? [
-                { key: 'blogPublish', icon: '✍️', name: '发布动态' },
                 { key: 'emergency', icon: '🆘', name: '紧急联系人' },
                 { key: 'help', icon: '🎧', name: '联系客服' },
                 { key: 'about', icon: 'ℹ️', name: '关于我们' }
@@ -230,10 +228,8 @@ Page({
       identity: target,
       funcList: [
         { key: 'notices', icon: '🔔', name: '消息通知', badge: this.data.notice_unread > 0 ? this.data.notice_unread : '' },
-        { key: 'myBlog', icon: '📝', name: '我的动态' },
         ...(target === 'partner'
           ? [
-              { key: 'blogPublish', icon: '✍️', name: '发布动态' },
               { key: 'emergency', icon: '🆘', name: '紧急联系人' },
               { key: 'help', icon: '🎧', name: '联系客服' },
               { key: 'about', icon: 'ℹ️', name: '关于我们' }
@@ -273,10 +269,6 @@ Page({
     const key = e.currentTarget.dataset.key;
     if (key === 'notices') {
       wx.navigateTo({ url: '/pages-v2/notices/notices', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-    } else if (key === 'myBlog') {
-      wx.navigateTo({ url: '/pages/blog/blog?scope=my', fail: (err) => { console.error('[profile] nav myBlog fail:', err); wx.showToast({ title: '动态页暂不可用', icon: 'none' }); } });
-    } else if (key === 'blogPublish') {
-      wx.navigateTo({ url: '/pages/blog-publish/blog-publish', fail: (err) => { console.error('[profile] nav blogPublish fail:', err); wx.showToast({ title: '发布页暂不可用', icon: 'none' }); } });
     } else if (key === 'emergency') {
       wx.navigateTo({ url: '/pages-v2/contacts/contacts', fail: modalFail });
     } else if (key === 'realname') {

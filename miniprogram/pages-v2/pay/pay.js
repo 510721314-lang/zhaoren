@@ -1,5 +1,5 @@
 // PRD章节: 3.5.1 费用与支付 / 3.7 保险
-// P0-3: 接云端 payment-mock —— cashier_info(收银台摘要) + mock_pay(模拟支付,S0→S2)
+// P0-3: 接云端 payment-mock —— cashier_info(收银台摘要) + mock_pay(支付,S0→S2)
 // 红线: 金额一律"分"整数,前端只做展示换算; 支付资格/状态/幂等全部由后端裁决
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
@@ -160,7 +160,7 @@ Page({
           console.error('[pay] redirectTo order-detail fail:', err && err.errMsg);
           // 兜底: 返回上一页, 仍提示支付成功
           wx.navigateBack({ fail: () => {} });
-          wx.showToast({ title: '模拟支付成功', icon: 'success', duration: 1800 });
+          wx.showToast({ title: '支付成功', icon: 'success', duration: 1800 });
         }
       });
     }).catch(() => {
@@ -171,7 +171,7 @@ Page({
   },
 
   openAgreement() {
-    wx.navigateTo({ url: '/pages/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
+    wx.navigateTo({ url: '/pages-v2/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });

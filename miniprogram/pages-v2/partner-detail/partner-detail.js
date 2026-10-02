@@ -22,11 +22,8 @@ Page({
     isRedline: false,
     route: null,          // { distanceText, modes:[{icon,label,text,est}] }
     routeLoading: false,
-    locDenied: false,
-    blogInfo: null,       // { count, last_at } blog-action author_home 汇总
-    blogTimeText: ''      // 最新动态时间文案(预处理, WXML 不运算)
+    locDenied: false
   },
-
   onLoad(options) {
     this.fetchData(options);
   },
@@ -53,39 +50,16 @@ Page({
 
     this.setData({ loading: true, loadError: false });
     try {
-      const [r, bh] = await Promise.all([
-        callCloud('partner-action', {
-          action: 'detail',
-          partner_openid: partnerOpenid
-        }),
-        callCloud('blog-action', {
-          action: 'author_home',
-          author_openid: partnerOpenid
-        }).catch(() => ({ ok: false }))
-      ]);
+      const r = await callCloud('partner-action', {
+        action: 'detail',
+        partner_openid: partnerOpenid
+      });
       if (!r.ok) {
         wx.showToast({ title: r.msg || '加载失败', icon: 'none' });
         this.setData({ loading: false, loadError: true });
         return;
       }
       const { partner, stats, evaluations } = r.data;
-      // 动态汇总(blog-action author_home; 失败静默 → 不显示动态入口)
-      const blogStats = (bh && bh.ok && bh.data && bh.data.stats) || null;
-      const blogInfo = blogStats
-        ? {
-            count: blogStats.post_count || 0,
-            last_at: blogStats.last_post_at || 0
-          }
-        : null;
-      // 最新动态时间(MM-DD HH:mm; 无动态空)
-      let blogTimeText = '';
-      if (blogInfo && blogInfo.last_at) {
-        const d = new Date(blogInfo.last_at);
-        if (!isNaN(d.getTime())) {
-          const pad = (n) => String(n).padStart(2, '0');
-          blogTimeText = blogInfo.last_at < 1000000000000 ? '' : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
-      }
       const sceneList = (partner.accept_scenes || [])
         .map((code) => getScene(code))
         .filter(Boolean);
@@ -101,8 +75,6 @@ Page({
         evaluations: evaluations || [],
         stats: stats || {},
         showStats: (stats.completed_orders || 0) >= 3,
-        blogInfo,
-        blogTimeText,
         loading: false
       });
 
@@ -268,18 +240,5 @@ Page({
     const fen = this.data.sceneRatesMap && this.data.sceneRatesMap[code];
     return fen ? (fen / 100) + '元/小时' : '面议';
   },
-  // 动态入口: 跳转该耍伴的动态流(blog 页 author 模式, 按 author_openid 过滤)
-  goBlog() {
-    const openid = this.data.partner && this.data.partner.openid;
-    if (!openid) {
-      wx.showToast({ title: '耍伴信息加载中，请稍后', icon: 'none' });
-      return;
-    }
-    wx.navigateTo({
-      url: `/pages/blog/blog?scope=author&authorOpenid=${openid}`,
-      fail: () => wx.showToast({ title: '动态页暂不可用', icon: 'none' })
-    });
-  },
-
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });
