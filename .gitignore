@@ -21,6 +21,9 @@ node_modules/
 # 本地备份目录
 .backup-*/
 
+# 微信小程序代码上传密钥（含管理员权限，严禁入库）
+/KEY/
+
 # Git Bundle 备份产物（不入仓库，由热备目录留存）
 *.bundle
 zhaoren_backup_*/

@@ -13,8 +13,9 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 // 保温目标(action 必须经审核确认只读无副作用):
-// - home-action scene_groups: 场景分组, 实例内存缓存命中时近零 DB; 匿名可访问
-// - user-login peek_login: 云函数间调用 OPENID 为空 → 查空号返回 found:false, 不建号/不写库
+// - home-action scene_groups: 场景分组, 实例内存缓存命中时近零 DB; 匿名可访问, 返回 ok:true
+// - user-login peek_login: 云函数间调用 OPENID 为空, 在 user-login 入口统一鉴权处即返回
+//   {ok:false, code:'login_no_openid'}, 不会建号/写库; 调用到达即唤醒实例, 保温判据见 warmOne
 const TARGETS = [
   { name: 'home-action', data: { action: 'scene_groups' } },
   { name: 'user-login', data: { action: 'peek_login' } }
@@ -46,7 +47,14 @@ async function warmOne(target) {
   try {
     const r = await withTimeout(cloud.callFunction({ name: target.name, data: target.data }), CALL_TIMEOUT_MS);
     if (r && r.__timeout) return { target: target.name, ok: false, code: 'warm_timeout', ms: Date.now() - t0 };
-    return { target: target.name, ok: !!(r && r.result && r.result.ok), ms: Date.now() - t0 };
+    // 保温成功判据: 调用成功到达目标实例并在超时内返回, 即已达成「唤起容器、规避冷启动」的目的。
+    // 不要求业务 result.ok===true —— 云函数互调没有 OPENID, user-login 入口会预期内统一返回
+    // {ok:false, code:'login_no_openid'}, 但调用本身已把实例唤醒(实测热态 0.1s 返回), 保温有效。
+    if (r && r.result) {
+      const bizCode = r.result.code || (r.result.ok ? '' : 'biz_not_ok');
+      return { target: target.name, ok: true, warmed: true, bizCode: bizCode || undefined, ms: Date.now() - t0 };
+    }
+    return { target: target.name, ok: false, code: 'no_result', ms: Date.now() - t0 };
   } catch (e) {
     return { target: target.name, ok: false, ms: Date.now() - t0, err: String((e && e.message) || e).slice(0, 120) };
   }

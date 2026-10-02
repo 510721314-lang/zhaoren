@@ -1,0 +1,20 @@
+{
+  "version": "2.0",
+  "envId": "cloud1-d9gkefwcp5c777088",
+  "functionRoot": "cloudfunctions",
+  "functions": [
+    {
+      "name": "zz-warmup",
+      "timeout": 10,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "triggers": [
+        {
+          "name": "warmupTimer",
+          "type": "timer",
+          "config": "0 */5 7-22 * * * *"
+        }
+      ]
+    }
+  ]
+}
