@@ -1,0 +1,9 @@
+{
+  "name": "zz-warmup",
+  "version": "1.0.0",
+  "description": "首屏云函数定时保温探针(home-action/user-login)",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

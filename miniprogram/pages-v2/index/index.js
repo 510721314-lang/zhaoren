@@ -5,6 +5,11 @@ const { getScene } = redline;
 // requireRealname 在 enterScene 入口按需动态加载, 不在顶部 require 避免冷启动时序
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
+const swr = require('../../utils/swr.js');
+
+// S8 SWR: 首页广场数据本地缓存 10 分钟, 冷启动先渲染旧数据秒开, 网络回来静默覆盖
+const SQUARE_CACHE_KEY = 'home_square_v1';
+const SQUARE_TTL_MS = 10 * 60 * 1000;
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -62,7 +67,7 @@ Page({
       this.setData({ statusBarHeight: info.statusBarHeight || 20, greeting: this.computeGreeting() });
     } catch (e) {}
     this.fetchUser();
-    this.fetchSquare();
+    this.fetchSquare(true);   // S8: 冷启动允许先用 SWR 本地缓存秒开
   },
 
   // 按时段生成问候语(图2: 夜深了，需要什么帮忙？)
@@ -114,30 +119,38 @@ Page({
     });
   },
 
-  // 拉取需求广场(云端 demand 集合) + 耍伴推荐 + 活跃用户/活跃耍伴
-  // S1 性能: 新版 home-action 已把 banners 与(缓存命中时)scene_groups 内联进 square,
-  // 首页关键路径 1RTT; 字段缺失(旧云端/缓存未命中)时自动回退独立懒加载, 完全兼容
-  async fetchSquare() {
+  // 广场数据统一渲染落点(SWR 缓存与网络数据共用)
+  // allowFallback=true(网络数据): 缺失 banners/scene_groups 时发独立懒调兜底(兼容旧云端/冷态缓存未命中)
+  // allowFallback=false(SWR 缓存): 只渲染缓存已有字段, 不发兜底请求(元数据统一由随后的网络请求负责, 防翻倍)
+  applySquareData(d, allowFallback) {
+    const patch = {
+      demandList: d.list || [],
+      partnerList: d.partners || [],
+      activePartners: d.active_partners || []
+    };
+    if (Array.isArray(d.banners)) patch.banners = d.banners;
+    this.setData(patch);
+    if (Array.isArray(d.scene_groups) && d.scene_groups.length) {
+      this.renderSceneGroups(d.scene_groups);
+    } else if (allowFallback) {
+      this.fetchSceneGroups();
+    }
+    if (!Array.isArray(d.banners) && allowFallback) {
+      this.fetchActivities();
+    }
+  },
+
+  // useCache=true 仅冷启动 onLoad 使用: 先渲染 10 分钟内的本地缓存秒开, 再静默拉网络覆盖
+  async fetchSquare(useCache) {
     const app = getApp();
+    if (useCache) {
+      const cached = swr.get(SQUARE_CACHE_KEY, SQUARE_TTL_MS);
+      if (cached) this.applySquareData(cached, false);
+    }
     const r = await app.cloudCall('home-action', { action: 'square', limit: CONFIG.PAGING.indexSquare });
     if (r.ok && r.data) {
-      this.setData({
-        demandList: r.data.list || [],
-        partnerList: r.data.partners || [],
-        activePartners: r.data.active_partners || []
-      });
-      // banners 内联优先; 旧云端无此字段 → 独立懒调兜底
-      if (Array.isArray(r.data.banners)) {
-        this.setData({ banners: r.data.banners });
-      } else {
-        this.fetchActivities();
-      }
-      // scene_groups 内联(非空)优先; 冷启首次缓存未命中 → 独立懒调(服务端计算后回种缓存)
-      if (Array.isArray(r.data.scene_groups) && r.data.scene_groups.length) {
-        this.renderSceneGroups(r.data.scene_groups);
-      } else {
-        this.fetchSceneGroups();
-      }
+      this.applySquareData(r.data, true);
+      swr.set(SQUARE_CACHE_KEY, r.data);
       return true;
     }
     return false;   // 供下拉刷新区分成功/失败提示

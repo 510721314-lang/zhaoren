@@ -1,0 +1,6 @@
+{
+  "timeout": 20,
+  "triggers": [
+    { "name": "warmupTimer", "type": "timer", "config": "0 */5 7-22 * * * *" }
+  ]
+}

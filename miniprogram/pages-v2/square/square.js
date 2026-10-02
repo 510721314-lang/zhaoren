@@ -3,6 +3,11 @@ const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
 const { takeOrder } = require('../../utils/take-order.js');
+const swr = require('../../utils/swr.js');
+
+// S8 SWR: 需求广场列表本地缓存 10 分钟, 冷启动先渲染旧数据秒开, 网络回来静默覆盖
+const SQUARE_PAGE_KEY = 'square_page_v1';
+const SQUARE_PAGE_TTL = 10 * 60 * 1000;
 
 Page({
   data: {
@@ -37,7 +42,7 @@ Page({
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 发布返回时 onShow 正常刷新
     this.__skipNextShow = true;
     this.setData({ chips: this.buildChips() });
-    this.fetchSquare();
+    this.fetchSquare(true);   // S8: 冷启动允许先用 SWR 本地缓存秒开
     this.fetchActivities();
   },
 
@@ -72,8 +77,8 @@ Page({
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
-          this.setData({ rawList: r.data.list || [] });
-          this.buildList();
+          this.applySquareList(r.data);
+          swr.set(SQUARE_PAGE_KEY, r.data);   // 手动刷新后同步更新冷启缓存
         }
         wx.stopPullDownRefresh();
       },
@@ -81,20 +86,33 @@ Page({
     });
   },
 
-  // 拉取云端需求广场
-  fetchSquare() {
+  // 广场列表渲染落点(SWR 缓存与网络数据共用)
+  applySquareList(data) {
+    const list = (data && data.list) || [];
+    this.setData({
+      rawList: list,
+      todayCount: list.filter((d) => d.status === 'matching').length
+    });
+    this.buildList();
+  },
+
+  // useCache=true 仅冷启动 onLoad: 先渲染 10 分钟内本地缓存秒开(收起骨架), 再静默拉网络覆盖
+  fetchSquare(useCache) {
+    if (useCache) {
+      const cached = swr.get(SQUARE_PAGE_KEY, SQUARE_PAGE_TTL);
+      if (cached) {
+        this.applySquareList(cached);
+        this.setData({ loading: false });
+      }
+    }
     wx.cloud.callFunction({
       name: 'home-action',
       data: { action: 'square', limit: CONFIG.PAGING.squareLimit },
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
-          const list = r.data.list || [];
-          this.setData({
-            rawList: list,
-            todayCount: list.filter((d) => d.status === 'matching').length
-          });
-          this.buildList();
+          this.applySquareList(r.data);
+          swr.set(SQUARE_PAGE_KEY, r.data);
         }
       },
       fail: () => {},
