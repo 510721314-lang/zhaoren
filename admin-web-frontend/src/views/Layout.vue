@@ -51,6 +51,7 @@
           <el-menu-item index="/operations">阈值与开关</el-menu-item>
           <el-menu-item index="/config-log">参数变更日志</el-menu-item>
           <el-menu-item index="/legal">法律合规</el-menu-item>
+          <el-menu-item index="/exam">认证考试</el-menu-item>
         </el-sub-menu>
 
         <!-- 8. 系统管理 -->

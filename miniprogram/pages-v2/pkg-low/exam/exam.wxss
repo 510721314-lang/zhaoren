@@ -38,10 +38,11 @@
 .exam__submit.is-disabled { opacity: 0.6; }
 .exam__safe { margin-top: 16rpx; text-align: center; font-size: var(--font-xs); color: var(--text-disabled); }
 
-/* 加载失败 */
+/* 加载失败 / 前置未通过 */
 .exam__err { padding-top: 120rpx; text-align: center; }
 .exam__err-ic { font-size: 80rpx; }
 .exam__err-title { margin-top: 16rpx; font-size: var(--font-md); color: var(--text-3); }
+.exam__err-sub { margin-top: 12rpx; padding: 0 60rpx; font-size: var(--font-sm); color: var(--text-4); line-height: 1.6; }
 .exam__err-btn { margin-top: 32rpx; width: 320rpx; height: 80rpx; line-height: 80rpx; font-size: var(--font-md); color: var(--brand-primary); border: 2rpx solid var(--brand-primary); border-radius: var(--r-full); background: var(--bg-card); }
 .exam__err-btn::after { border: none; }
 

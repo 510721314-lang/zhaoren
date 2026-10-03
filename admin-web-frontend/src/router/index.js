@@ -42,6 +42,7 @@ const routes = [
       { path: 'operations', component: () => import('../views/Operations.vue'), meta: { title: '运营配置' } },
       { path: 'config-log', component: () => import('../views/ConfigLog.vue'), meta: { title: '参数变更日志' } },
       { path: 'legal', component: () => import('../views/Legal.vue'), meta: { title: '法律合规' } },
+      { path: 'exam', component: () => import('../views/Exam.vue'), meta: { title: '认证考试管理' } },
 
       // ── 8. 系统管理 ──
       { path: 'notice', component: () => import('../views/Notice.vue'), meta: { title: '通知群发' } },

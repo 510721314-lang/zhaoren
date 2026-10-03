@@ -363,20 +363,40 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_demand_not_found', msg: '需求不存在' };
   }
 
-  // ── 接单考试校验(需求存在后才校验): 基础科目(耍伴考试)全员前置, W1 另需提升科目(陪诊考试) ──
-  // 基础科目: 所有场景接单前须通过(=100); W1: 额外要求陪诊专项 =100(与 partner-action submit_exam 同源阈值)
-  const EXAM_THRESHOLD = { base: 100, W1: 100 };
-  const baseScore = Number(profile.exam_scores && profile.exam_scores.base);
-  if (!baseScore || baseScore < EXAM_THRESHOLD.base) {
+  // ── 接单考试校验(需求存在后才校验): 动态读 exam_bank(admin-action 管理), FALLBACK 兜底 ──
+  // 通用规则: 科目 code='base' 全员前置; 场景 code 若存在同名科目则按该科目 requires+pass_line 校验
+  // SSOT: FALLBACK 与 partner-action EXAM_BANK_FALLBACK / admin-action EXAM_BANK_FALLBACK 同源
+  const EXAM_FALLBACK = { base: { pass_line: 100 }, W1: { pass_line: 100, requires: ['base'] } };
+  let examBank = null;
+  try {
+    const er = await col('exam_bank').where({ is_deleted: _.neq(true), enabled: true }).limit(100).get();
+    const docs = (er.data || []).filter((d) => Array.isArray(d.questions) && d.questions.length > 0);
+    if (docs.length > 0) {
+      examBank = {};
+      for (const d of docs) examBank[d.code] = { pass_line: Number(d.pass_line) || 100, requires: Array.isArray(d.requires) ? d.requires : [] };
+    }
+  } catch (e) { /* 读失败走 FALLBACK */ }
+  const bank = examBank || EXAM_FALLBACK;
+  const passGate = (code) => Number((profile.exam_scores && profile.exam_scores[code]) || 0) >= (bank[code] ? bank[code].pass_line : 100);
+  // base 通用前置
+  const baseMeta = bank.base;
+  if (baseMeta && !passGate('base')) {
     await logReject(openid, demand_id, 'base_exam_failed');
     return { ok: false, code: 'order_base_exam_required', msg: '需先通过耍伴基础考试(接单配置页可去考试)' };
   }
-  if (demand.scene === 'W1') {
-    const w1Score = Number(profile.exam_scores && profile.exam_scores.W1);
-    if (!w1Score || w1Score < EXAM_THRESHOLD.W1) {
-      await logReject(openid, demand_id, 'w1_exam_failed');
-      return { ok: false, code: 'order_w1_exam_required', msg: '就医陪诊场景需通过陪诊考试(>=80分)' };
+  // 场景同名科目专项前置(通用化: W1→陪诊, 新增场景科目自动生效)
+  const sceneMeta = bank[demand.scene];
+  if (sceneMeta && (sceneMeta.requires || []).length > 0) {
+    for (const r of sceneMeta.requires) {
+      if (!passGate(r)) {
+        await logReject(openid, demand_id, `${demand.scene}_exam_prereq_failed`);
+        return { ok: false, code: 'order_scene_exam_required', msg: `该场景接单需先通过「${r}」考试` };
+      }
     }
+  }
+  if (sceneMeta && !passGate(demand.scene)) {
+    await logReject(openid, demand_id, `${demand.scene}_exam_failed`);
+    return { ok: false, code: 'order_scene_exam_required', msg: `该场景接单需通过对应考试(${sceneMeta.pass_line}分)` };
   }
 
   // 不能接自己的单

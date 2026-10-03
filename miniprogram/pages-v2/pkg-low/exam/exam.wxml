@@ -15,6 +15,14 @@
     <button class="exam__err-btn" bindtap="reload" hover-class="btn-press">重试</button>
   </view>
 
+  <!-- 前置科目未通过 -->
+  <view class="exam__err" wx:elif="{{prereq}}">
+    <view class="exam__err-ic">🔒</view>
+    <view class="exam__err-title">暂不能参加{{title}}</view>
+    <view class="exam__err-sub">{{prereq.msg}}</view>
+    <button class="exam__err-btn" bindtap="onGoPrereq" hover-class="btn-press">去考前置科目</button>
+  </view>
+
   <!-- 结果态 -->
   <view class="exam__result" wx:elif="{{done}}">
     <view class="exam__result-ic {{result.passed ? 'is-pass' : 'is-fail'}}">{{result.passed ? '🎉' : '😥'}}</view>

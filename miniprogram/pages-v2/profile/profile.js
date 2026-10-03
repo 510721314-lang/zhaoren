@@ -142,16 +142,27 @@ Page({
     });
   },
 
-  // 考试认证角标: 耍伴拉 exam_scores 计算已通过科数(基础=100 / 陪诊=100 且基础先满分)
+  // 考试认证角标: 拉 exam_subjects 科目配置 + exam_scores, 通用计算已通过科数(含前置链)
   fetchExamBadge() {
     if (!this.data.user.is_partner) return;
-    callCloud('partner-action', { action: 'my_profile' }).then((r) => {
+    Promise.all([
+      callCloud('partner-action', { action: 'my_profile' }),
+      callCloud('partner-action', { action: 'exam_subjects' }).catch(() => ({ ok: false }))
+    ]).then(([r, ex]) => {
       if (!r || !r.ok || !r.data || !r.data.profile) return;
       const s = r.data.profile.exam_scores || {};
+      const defs = (ex && ex.ok && ex.data && ex.data.list && ex.data.list.length > 0)
+        ? ex.data.list
+        : [{ code: 'base', pass_line: 100, requires: [] }, { code: 'W1', pass_line: 100, requires: ['base'] }];
+      const passedOf = (code) => {
+        const m = defs.find((d) => d.code === code);
+        return Number(s[code] || 0) >= (m ? m.pass_line : 100);
+      };
       let passed = 0;
-      const baseOk = Number(s.base) >= 100;
-      if (baseOk) passed++;
-      if (baseOk && Number(s.W1) >= 100) passed++;   // 陪诊考试需基础先满分通过
+      for (const d of defs) {
+        const prereqOk = !(d.requires || []).some((rr) => !passedOf(rr));
+        if (prereqOk && passedOf(d.code)) passed++;
+      }
       const examBadge = passed > 0 ? `已过${passed}科` : '待考试';
       const funcList = this.data.funcList.map((f) => f.key === 'examCert' ? { ...f, badge: examBadge } : f);
       this.setData({ examBadge, funcList });

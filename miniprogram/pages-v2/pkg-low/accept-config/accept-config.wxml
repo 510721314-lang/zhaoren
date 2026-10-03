@@ -31,7 +31,7 @@
       <view class="ac__card-title">接单考试</view>
       <view class="ac__exam-bar {{baseExam.passed ? 'is-pass' : 'is-fail'}}">
         <view class="ac__exam-bar-main">
-          <text class="ac__exam-bar-name">基础科目 · 耍伴考试</text>
+          <text class="ac__exam-bar-name">{{baseExam.title}}</text>
           <text class="ac__exam-bar-sub">
             <block wx:if="{{baseExam.passed}}">已通过（{{baseExam.score}} 分）</block>
             <block wx:else>未通过（{{baseExam.score}} 分 / 需 {{baseExam.passLine}} 分满分）· 未通过将无法接单</block>
@@ -43,7 +43,7 @@
       </view>
       <view class="ac__exam-bar {{w1Exam.passed ? 'is-pass' : (w1Exam.locked ? '' : 'is-fail')}}">
         <view class="ac__exam-bar-main">
-          <text class="ac__exam-bar-name">提升科目 · 陪诊考试</text>
+          <text class="ac__exam-bar-name">{{w1Exam.title}}</text>
           <text class="ac__exam-bar-sub">
             <block wx:if="{{w1Exam.passed}}">已通过（{{w1Exam.score}} 分）</block>
             <block wx:elif="{{w1Exam.locked}}">需先通过基础考试，方可参加陪诊考试</block>

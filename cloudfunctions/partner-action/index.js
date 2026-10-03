@@ -78,33 +78,85 @@ async function getSceneCodes() {
 // ── 耍伴接单考试题库(云端判分, 防作弊) ──
 // subject: base=基础科目(耍伴考试, 全员接单前置) / W1=提升科目(陪诊考试, 就医陪诊专项)
 // 每题单选 4 选项; answer_idx 仅云端持有, 下发题库时剥离
-const EXAM_THRESHOLD = { base: 100, W1: 100 };
-const EXAM_BANK = {
-  base: [
-    { question: '接单前需要确认什么？', options: ['需求内容与时间地点', '直接按导航出发', '先收钱再谈', '到地方再问'], answer_idx: 0 },
-    { question: '遇到服务价格争议时应该？', options: ['现场理论自行解决', '联系平台客服介入', '直接结束服务', '要求对方加钱'], answer_idx: 1 },
-    { question: '订单时间临时变更时应该？', options: ['自行改时间', '先与需求方沟通确认', '拒绝服务', '不理会'], answer_idx: 1 },
-    { question: '关于平台信用分，正确的是？', options: ['完成优质服务可提升', '与服务质量无关', '花钱可买', '接单越多分越高不看出勤'], answer_idx: 0 },
-    { question: '履约前需要做好的准备是？', options: ['熟悉需求内容并准点到达', '先索要好评', '只做自己方便的部分', '让需求方多等一会'], answer_idx: 0 },
-    { question: '夜间服务(23:00-7:00)的正确做法是？', options: ['照常接单不理会', '平台有夜间红线,按规则暂停', '只接远距离单', '私下加价接单'], answer_idx: 1 },
-    { question: '服务过程中发现问题(如信息不符)应该？', options: ['拍照留证并联系平台', '默默做完', '直接走人', '与对方争吵'], answer_idx: 0 },
-    { question: '关于客户隐私信息，正确的是？', options: ['不外传对方联系方式与照片', '可以发朋友圈', '告诉亲友无妨', '保存备用'], answer_idx: 0 },
-    { question: '被差评或投诉后正确的做法是？', options: ['申诉并提供证据', '恶意报复', '注销账号', '拉黑对方'], answer_idx: 0 },
-    { question: '平台禁止的行为是？', options: ['线下绕开平台交易', '按时履约', '提前沟通', '如实描述服务'], answer_idx: 0 }
-  ],
-  W1: [
-    { question: '陪诊服务的首要原则是？', options: ['以患者需求与医嘱为中心', '节省时间即可', '听家属意见就行', '按自己经验处理'], answer_idx: 0 },
-    { question: '发现患者突发不适时应该？', options: ['立即通知医护人员并协助', '自行离开', '喂药处理', '等待家属'], answer_idx: 0 },
-    { question: '陪诊时能否代患者做医疗决策？', options: ['不能,医疗决策须由医生/患者', '可以,图方便', '家属要求就可以', '看情况'], answer_idx: 0 },
-    { question: '陪诊中涉及患者隐私(病历/报告)应？', options: ['妥善保管不外传', '拍照发给亲友', '发朋友圈', '保存备用'], answer_idx: 0 },
-    { question: '取药送药服务需注意？', options: ['核对医嘱与用量,当面交付', '放前台即可', '让患者自取', '交家属就算完成'], answer_idx: 0 },
-    { question: '陪诊中遇到挂号排队久等，正确做法是？', options: ['耐心陪同并安抚患者情绪', '催促插队', '中途离开', '让患者自己等'], answer_idx: 0 },
-    { question: '患者提出与医嘱相悖的要求时应该？', options: ['耐心解释并咨询医护人员', '照做', '批评患者', '忽视'], answer_idx: 0 },
-    { question: '陪诊结束后应？', options: ['如实反馈就诊要点与医嘱', '直接结束', '索要好评', '不说明'], answer_idx: 0 },
-    { question: '陪诊中对收费或流程有疑问时？', options: ['咨询医院收费处/导诊', '让患者自己问', '替患者做主缴费', '忽略'], answer_idx: 0 },
-    { question: '以下哪种情况应立即求助医护人员？', options: ['患者面色异常或突然不适', '患者稍显疲惫', '排队时间长', '找不到科室'], answer_idx: 0 }
-  ]
+// 2026-10-03 后台化: 题库/通过线/前置规则迁至 exam_bank 集合(admin-action 管理), 此处仅读库失败兜底(FALLBACK)
+// SSOT: EXAM_BANK_FALLBACK 与 admin-action EXAM_BANK_FALLBACK 同源, 改题库须双处同步或先 seed 到云端
+const EXAM_BANK_FALLBACK = {
+  base: {
+    title: '耍伴基础考试', desc: '全体耍伴接单前置，满分 100 分通过', pass_line: 100, requires: [],
+    questions: [
+      { question: '接单前需要确认什么？', options: ['需求内容与时间地点', '直接按导航出发', '先收钱再谈', '到地方再问'], answer_idx: 0 },
+      { question: '遇到服务价格争议时应该？', options: ['现场理论自行解决', '联系平台客服介入', '直接结束服务', '要求对方加钱'], answer_idx: 1 },
+      { question: '订单时间临时变更时应该？', options: ['自行改时间', '先与需求方沟通确认', '拒绝服务', '不理会'], answer_idx: 1 },
+      { question: '关于平台信用分，正确的是？', options: ['完成优质服务可提升', '与服务质量无关', '花钱可买', '接单越多分越高不看出勤'], answer_idx: 0 },
+      { question: '履约前需要做好的准备是？', options: ['熟悉需求内容并准点到达', '先索要好评', '只做自己方便的部分', '让需求方多等一会'], answer_idx: 0 },
+      { question: '夜间服务(23:00-7:00)的正确做法是？', options: ['照常接单不理会', '平台有夜间红线,按规则暂停', '只接远距离单', '私下加价接单'], answer_idx: 1 },
+      { question: '服务过程中发现问题(如信息不符)应该？', options: ['拍照留证并联系平台', '默默做完', '直接走人', '与对方争吵'], answer_idx: 0 },
+      { question: '关于客户隐私信息，正确的是？', options: ['不外传对方联系方式与照片', '可以发朋友圈', '告诉亲友无妨', '保存备用'], answer_idx: 0 },
+      { question: '被差评或投诉后正确的做法是？', options: ['申诉并提供证据', '恶意报复', '注销账号', '拉黑对方'], answer_idx: 0 },
+      { question: '平台禁止的行为是？', options: ['线下绕开平台交易', '按时履约', '提前沟通', '如实描述服务'], answer_idx: 0 }
+    ]
+  },
+  W1: {
+    title: '陪诊提升考试', desc: '就医陪诊场景专项，满分 100 分通过；需先通过基础考试', pass_line: 100, requires: ['base'],
+    questions: [
+      { question: '陪诊服务的首要原则是？', options: ['以患者需求与医嘱为中心', '节省时间即可', '听家属意见就行', '按自己经验处理'], answer_idx: 0 },
+      { question: '发现患者突发不适时应该？', options: ['立即通知医护人员并协助', '自行离开', '喂药处理', '等待家属'], answer_idx: 0 },
+      { question: '陪诊时能否代患者做医疗决策？', options: ['不能,医疗决策须由医生/患者', '可以,图方便', '家属要求就可以', '看情况'], answer_idx: 0 },
+      { question: '陪诊中涉及患者隐私(病历/报告)应？', options: ['妥善保管不外传', '拍照发给亲友', '发朋友圈', '保存备用'], answer_idx: 0 },
+      { question: '取药送药服务需注意？', options: ['核对医嘱与用量,当面交付', '放前台即可', '让患者自取', '交家属就算完成'], answer_idx: 0 },
+      { question: '陪诊中遇到挂号排队久等，正确做法是？', options: ['耐心陪同并安抚患者情绪', '催促插队', '中途离开', '让患者自己等'], answer_idx: 0 },
+      { question: '患者提出与医嘱相悖的要求时应该？', options: ['耐心解释并咨询医护人员', '照做', '批评患者', '忽视'], answer_idx: 0 },
+      { question: '陪诊结束后应？', options: ['如实反馈就诊要点与医嘱', '直接结束', '索要好评', '不说明'], answer_idx: 0 },
+      { question: '陪诊中对收费或流程有疑问时？', options: ['咨询医院收费处/导诊', '让患者自己问', '替患者做主缴费', '忽略'], answer_idx: 0 },
+      { question: '以下哪种情况应立即求助医护人员？', options: ['患者面色异常或突然不适', '患者稍显疲惫', '排队时间长', '找不到科室'], answer_idx: 0 }
+    ]
+  }
 };
+
+// 考试题库动态读取: 优先 exam_bank 集合(admin-action 管理), 读不到走 FALLBACK(fail-closed)
+// 缓存 5 分钟(后台改题后 ≤5min 生效); 读失败不缓存空值
+let _examBankCache = null;
+let _examBankCacheUntil = 0;
+async function getExamBank() {
+  const now = Date.now();
+  if (_examBankCache !== null && now < _examBankCacheUntil) return _examBankCache;
+  try {
+    const r = await col('exam_bank').where({ is_deleted: _.neq(true), enabled: true }).limit(100).get();
+    const docs = (r.data || []).filter((d) => Array.isArray(d.questions) && d.questions.length > 0);
+    if (docs.length > 0) {
+      const bank = {};
+      for (const d of docs) {
+        bank[d.code] = {
+          title: d.title || d.code,
+          desc: d.desc || '',
+          pass_line: Number(d.pass_line) || 100,
+          requires: Array.isArray(d.requires) ? d.requires : [],
+          questions: d.questions,
+          bank_ver: d.updated_at || 0
+        };
+      }
+      _examBankCache = bank;
+      _examBankCacheUntil = now + 5 * 60 * 1000;
+      return bank;
+    }
+  } catch (e) { /* 读失败走 FALLBACK, 不缓存 */ }
+  _examBankCache = null; // 集合无数据/读失败: 用 FALLBACK, 下次调用重试
+  return EXAM_BANK_FALLBACK;
+}
+
+// 题库前置门禁(通用): 逐 requires 查 exam_scores, 未通过返回 { locked, code, msg }
+function examRequiresGate(profile, subject, bank) {
+  const reqs = subject.requires || [];
+  for (const r of reqs) {
+    const score = Number((profile.exam_scores && profile.exam_scores[r]) || 0);
+    const reqSubject = (bank && bank[r]) || EXAM_BANK_FALLBACK[r];
+    const passLine = reqSubject ? Number(reqSubject.pass_line) || 100 : 100;
+    if (score < passLine) {
+      return { locked: true, code: 'pa_exam_prereq_not_passed', msg: `需先通过「${reqSubject ? reqSubject.title : r}」考试（${passLine} 分）` };
+    }
+  }
+  return { locked: false };
+}
 // 读取失败/未配置时返回空串, 路线规划降级直线估算(fail-closed); 模块级缓存 5 分钟
 const ROUTE_TIMEOUT_MS = 3500;
 let _cachedMapKey = null;
@@ -619,27 +671,27 @@ exports.main = async (event, context) => {
     }
 
     // 5. 耍伴接单考试
-    // 5.1 下发题库(剥离答案): subject=base|W1, 返回题目+通过线
+    // 5.1 下发题库(剥离答案): subject=任意科目 code, 返回题目+通过线+前置规则
     case 'get_exam_questions': {
       const subject = event.subject;
-      const bank = EXAM_BANK[subject];
-      if (!bank) return { ok: false, code: 'pa_exam_bad_subject', msg: '科目不存在' };
-      // 提升科目(陪诊考试)前置: 须先通过基础考试(满分), 防止绕过前端锁定直接进考试页
-      if (subject !== 'base') {
-        const profile = await getProfile(openid);
-        if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
-        const baseScore = Number(profile.exam_scores && profile.exam_scores.base) || 0;
-        if (baseScore < EXAM_THRESHOLD.base) {
-          return { ok: false, code: 'pa_exam_base_not_passed', msg: '需先通过基础考试(满分)，方可参加提升科目考试' };
-        }
-      }
-      const questions = bank.map((q) => ({ question: q.question, options: q.options }));
+      const bank = await getExamBank();
+      const sub = bank[subject];
+      if (!sub) return { ok: false, code: 'pa_exam_bad_subject', msg: '科目不存在' };
+      const profile = await getProfile(openid);
+      if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
+      // 前置门禁(通用): 逐 requires 查 exam_scores, 防止绕过前端锁定直接进考试页
+      const gate = examRequiresGate(profile, sub, bank);
+      if (gate.locked) return { ok: false, code: gate.code, msg: gate.msg };
+      const questions = sub.questions.map((q) => ({ question: q.question, options: q.options }));
       return {
         ok: true,
         data: {
           subject,
-          title: subject === 'W1' ? '提升科目·陪诊考试' : '基础科目·耍伴考试',
-          pass_line: EXAM_THRESHOLD[subject],
+          title: sub.title || subject,
+          desc: sub.desc || '',
+          pass_line: sub.pass_line,
+          requires: sub.requires || [],
+          bank_ver: sub.bank_ver || 0,
           questions
         }
       };
@@ -648,29 +700,30 @@ exports.main = async (event, context) => {
     // 5.2 提交答卷云端判分: answers=[0..n] 选项索引, 与题库顺序一一对应
     case 'submit_exam': {
       const subject = event.subject;
-      const bank = EXAM_BANK[subject];
-      if (!bank) return { ok: false, code: 'pa_exam_bad_subject', msg: '科目不存在' };
-      // 提升科目(陪诊考试)前置: 须先通过基础考试(满分)
+      const bank = await getExamBank();
+      const sub = bank[subject];
+      if (!sub) return { ok: false, code: 'pa_exam_bad_subject', msg: '科目不存在' };
       const profile = await getProfile(openid);
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
-      if (subject !== 'base') {
-        const baseScore = Number(profile.exam_scores && profile.exam_scores.base) || 0;
-        if (baseScore < EXAM_THRESHOLD.base) {
-          return { ok: false, code: 'pa_exam_base_not_passed', msg: '需先通过基础考试(满分)，方可参加提升科目考试' };
-        }
+      // 前置门禁(通用)
+      const gate = examRequiresGate(profile, sub, bank);
+      if (gate.locked) return { ok: false, code: gate.code, msg: gate.msg };
+      // 考试中途改题防护: 拉题时返回 bank_ver, 提交时不一致说明题库已更新, 判分作废
+      if (event.bank_ver !== undefined && Number(event.bank_ver) !== 0 && sub.bank_ver !== undefined && Number(sub.bank_ver) !== 0 && Number(event.bank_ver) !== Number(sub.bank_ver)) {
+        return { ok: false, code: 'pa_exam_bank_changed', msg: '题库已更新，请重新作答' };
       }
       const answers = Array.isArray(event.answers) ? event.answers : [];
-      if (answers.length !== bank.length) {
+      if (answers.length !== sub.questions.length) {
         return { ok: false, code: 'pa_exam_incomplete', msg: '请完成全部题目再提交' };
       }
       // 判分
       let correct = 0;
-      bank.forEach((q, i) => {
+      sub.questions.forEach((q, i) => {
         const a = Number(answers[i]);
         if (Number.isInteger(a) && a === q.answer_idx) correct += 1;
       });
-      const score = Math.round((correct / bank.length) * 100);
-      const passed = score >= EXAM_THRESHOLD[subject];
+      const score = Math.round((correct / sub.questions.length) * 100);
+      const passed = score >= sub.pass_line;
       // 写回 partner_profile.exam_scores / exam_at
       const patch = {
         ['exam_scores.' + subject]: score,
@@ -683,7 +736,17 @@ exports.main = async (event, context) => {
         target_type: 'partner_profile', target_id: profile._id || '',
         detail: { subject, score, passed }, result: passed ? 'ok' : 'fail'
       }).catch(() => {});
-      return { ok: true, data: { subject, score, passed, pass_line: EXAM_THRESHOLD[subject] } };
+      return { ok: true, data: { subject, score, passed, pass_line: sub.pass_line } };
+    }
+
+    // 5.3 科目配置(供前端考试认证页/接单配置页/我的页角标): 不含答案
+    case 'exam_subjects': {
+      const bank = await getExamBank();
+      const list = Object.keys(bank).map((code) => {
+        const s = bank[code];
+        return { code, title: s.title || code, desc: s.desc || '', pass_line: s.pass_line, requires: s.requires || [] };
+      });
+      return { ok: true, data: { list } };
     }
 
     // 6. 审核(管理员专用)

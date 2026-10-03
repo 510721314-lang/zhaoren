@@ -117,16 +117,25 @@ Page({
   async fetchData() {
     this.setData({ loading: true, loadError: false });
     try {
-      // 并行拉云端 profile + 动态场景列表
-      const [r, sgRes] = await Promise.all([
+      // 并行拉云端 profile + 动态场景列表 + 考试科目配置(后台可增可改)
+      const [r, sgRes, exRes] = await Promise.all([
         callCloud('partner-action', { action: 'my_profile' }),
-        callCloud('home-action', { action: 'scene_groups' }).catch(() => ({ ok: false }))
+        callCloud('home-action', { action: 'scene_groups' }).catch(() => ({ ok: false })),
+        callCloud('partner-action', { action: 'exam_subjects' }).catch(() => ({ ok: false }))
       ]);
       if (!r.ok) {
         wx.showToast({ title: r.msg || '加载失败', icon: 'none' });
         this.setData({ loading: false, loadError: true });
         return;
       }
+      // 科目配置兜底(与云端 seed 同源)
+      const examDefs = (exRes && exRes.ok && exRes.data && exRes.data.list && exRes.data.list.length > 0)
+        ? exRes.data.list
+        : [
+            { code: 'base', title: '耍伴基础考试', desc: '', pass_line: 100, requires: [] },
+            { code: 'W1', title: '陪诊提升考试', desc: '', pass_line: 100, requires: ['base'] }
+          ];
+      const examMeta = (code) => examDefs.find((d) => d.code === code) || null;
       const p = r.data.profile;
       const scenes = p.accept_scenes || [];
       const sceneRates = p.scene_rates || {};
@@ -157,37 +166,53 @@ Page({
       dynCodes.forEach((code, i) => pushScene(code, sgRes.data.scene_groups[i].scene_name));
       SCENES.forEach((s) => pushScene(s.code, s.name));
 
-      const basePassed = (Number(examScores.base) || 0) >= 100;
+      // 前置通过判断(通用): 科目 requires 逐科校验
+      const passedOf = (code) => {
+        const m = examMeta(code);
+        const passLine = m ? m.pass_line : 100;
+        return Number(examScores[code] || 0) >= passLine;
+      };
+      const prereqOk = (code) => {
+        const m = examMeta(code);
+        return !(m && m.requires && m.requires.some((r) => !passedOf(r)));
+      };
+      // 场景考试门禁(通用): 场景存在同名科目且未通过(含前置)则该场景接单受限
+      const basePassed = passedOf('base');
       const certifiedScenes = sceneDefs.map((s) => {
         const selected = scenes.indexOf(s.code) > -1;
         const hasExam = !!examScores[s.code];
         const examScore = Number(examScores[s.code]) || 0;
-        // 考试门禁: 基础科目(耍伴考试)全员前置(满分通过); W1(就医陪诊)另有提升科目(陪诊考试, 满分通过且需基础先过)
-        const needExam = s.code === 'W1';      // 目前仅 W1 需要专项考试(其余场景基础科目通过即可)
+        const m = examMeta(s.code);
+        const needExam = !!m;      // 场景存在同名科目则需要专项考试
+        const examPassed = !m || (prereqOk(s.code) && examScore >= m.pass_line);
         return {
           ...s,
           selected,
           hasExam,
           examScore,
-          examPassed: s.code === 'W1' ? (basePassed && examScore >= 100) : true,
+          examPassed,
           examNeeded: needExam
         };
       });
-      // 基础科目考试状态(所有接单前置), 满分通过(=100)
-      const baseScore = Number(examScores.base) || 0;
-      const baseExamPassed = baseScore >= 100;
+      // 基础科目考试状态(所有接单前置)
+      const baseMeta = examMeta('base');
+      const baseExamPassed = basePassed;
       const baseExam = {
-        score: baseScore,
+        score: Number(examScores.base) || 0,
         passed: baseExamPassed,
-        passLine: 100
+        passLine: baseMeta ? baseMeta.pass_line : 100,
+        title: baseMeta ? baseMeta.title : '基础科目 · 耍伴考试',
+        locked: false
       };
-      // 提升科目考试状态(陪诊考试, 仅 W1 就医陪诊场景接单前置), 满分通过(=100), 需先过基础考试
+      // 陪诊(W1)科目考试状态: 需先过基础
+      const w1Meta = examMeta('W1');
       const w1Score = Number(examScores.W1) || 0;
       const w1Exam = {
         score: w1Score,
-        passed: baseExamPassed && w1Score >= 100,
-        passLine: 100,
-        locked: !baseExamPassed   // 基础未通过时锁定陪诊考试入口
+        passed: baseExamPassed && prereqOk('W1') && w1Score >= (w1Meta ? w1Meta.pass_line : 100),
+        passLine: w1Meta ? w1Meta.pass_line : 100,
+        title: w1Meta ? w1Meta.title : '陪诊提升考试',
+        locked: !prereqOk('W1')   // 前置未通过时锁定陪诊考试入口
       };
       // 同步到全局, 组件 getScene 动态兜底(存完整场景对象)
       try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs; } catch (e) {}
