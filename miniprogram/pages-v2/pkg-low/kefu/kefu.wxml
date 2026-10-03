@@ -19,6 +19,10 @@
     <scroll-view scroll-y class="kefu__msgs" scroll-into-view="{{scrollTo}}">
       <view class="kefu__tip">当前为平台客服会话，客服会尽快回复您</view>
       <view class="kefu__msg {{item.mine ? 'is-mine' : ''}}" wx:for="{{messages}}" wx:key="_id">
+        <view wx:if="{{item.quote}}" class="kefu__quote">
+          <text class="kefu__quote-from">{{item.quote.fromLabel}}</text>
+          <text class="kefu__quote-text">{{item.quote.text}}</text>
+        </view>
         <view class="kefu__bubble">{{item.text}}</view>
         <view class="kefu__time">{{item.time}}</view>
       </view>

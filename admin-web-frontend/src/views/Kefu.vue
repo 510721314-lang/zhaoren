@@ -62,11 +62,20 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="内容" min-width="240" show-overflow-tooltip>
+            <el-table-column label="内容" min-width="240">
               <template #default="{row}">
-                <span :class="{ 'im-degraded': row.sec_degraded }">{{ row.text }}</span>
-                <el-tag v-if="row.sec_degraded" type="danger" size="small" style="margin-left:6px">未过安检</el-tag>
-                <el-tag v-else-if="row.type === 'template'" type="info" size="small" style="margin-left:6px">模板</el-tag>
+                <div class="msg-cell">
+                  <div v-if="row.quote" class="msg-quote">
+                    <span class="msg-quote-from">{{ quoteRoleLabel(row.quote.from_role) }}</span>
+                    <span class="msg-quote-text">{{ row.quote.text }}</span>
+                  </div>
+                  <div class="msg-cell-main">
+                    <span :class="{ 'im-degraded': row.sec_degraded }">{{ row.text }}</span>
+                    <el-tag v-if="row.sec_degraded" type="danger" size="small" style="margin-left:6px">未过安检</el-tag>
+                    <el-tag v-else-if="row.type === 'template'" type="info" size="small" style="margin-left:6px">模板</el-tag>
+                    <el-button class="msg-quote-btn" type="primary" link size="small" @click="setQuote(row)">引用</el-button>
+                  </div>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -75,6 +84,10 @@
             :total="msgTotal" :page-sizes="[10,20,50]" layout="total, prev, pager, next"
             @size-change="loadMsgs" @current-change="loadMsgs" />
 
+          <div v-if="quoteMsg" class="reply-quote">
+            <span class="reply-quote-text">引用 {{ quoteMsg.quoteLabel }}：{{ quoteMsg.text }}</span>
+            <el-button type="danger" link size="small" @click="clearQuote">×</el-button>
+          </div>
           <div style="display:flex;gap:8px;margin-top:12px">
             <el-input v-model="replyText" placeholder="输入回复内容（发送后自动标记已处理）" maxlength="500" show-word-limit clearable
               @keyup.enter="sendReply" />
@@ -109,6 +122,23 @@ const msgSize = ref(20);
 const msgLoading = ref(false);
 const replyText = ref('');
 const replying = ref(false);
+const quoteMsg = ref(null);
+
+// 角色 → 中文(引用快照/发送方列复用)
+function roleLabel(role) {
+  return role === 'kefu' ? '客服' : role === 'partner' ? '耍伴' : '用户';
+}
+function quoteRoleLabel(role) {
+  return `[${roleLabel(role)}]`;
+}
+
+// 点击消息行「引用」: 记录待引用消息(发送时随 reply 提交)
+function setQuote(row) {
+  quoteMsg.value = { msg_id: row.msg_id, text: row.text || '', quoteLabel: quoteRoleLabel(row.from_role) };
+}
+function clearQuote() {
+  quoteMsg.value = null;
+}
 
 async function loadConvs() {
   loading.value = true;
@@ -159,11 +189,14 @@ async function sendReply() {
   const text = String(replyText.value || '').trim();
   if (!text) { ElMessage.warning('请输入回复内容'); return; }
   replying.value = true;
-  const r = await call('kefu_conv_reply', { conv_id: current.value.conv_id, text });
+  const payload = { conv_id: current.value.conv_id, text };
+  if (quoteMsg.value) payload.quote = { msg_id: quoteMsg.value.msg_id };
+  const r = await call('kefu_conv_reply', payload);
   replying.value = false;
   if (r.ok) {
     ElMessage.success('已回复并标记处理');
     replyText.value = '';
+    clearQuote();
     // 刷新消息 + 会话状态 + 列表
     await loadMsgs();
     current.value.kefu_status = 'handled';
@@ -199,4 +232,11 @@ onMounted(loadConvs);
 .conv-item-sub { margin-top: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
 .conv-item-last { margin-top: 4px; font-size: 12px; color: var(--el-text-color-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .im-degraded { color: #d03050; }
+.msg-cell { line-height: 1.5; }
+.msg-quote { display: flex; gap: 6px; align-items: baseline; background: var(--el-fill-color-light); border-left: 3px solid var(--el-color-primary-light-5); padding: 4px 8px; margin-bottom: 4px; border-radius: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
+.msg-quote-from { color: var(--el-color-primary); font-weight: 600; flex-shrink: 0; }
+.msg-quote-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-quote-btn { margin-left: 8px; }
+.reply-quote { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--el-color-primary-light-9); border-radius: 4px; padding: 4px 8px; margin-top: 12px; font-size: 12px; color: var(--el-text-color-secondary); }
+.reply-quote-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

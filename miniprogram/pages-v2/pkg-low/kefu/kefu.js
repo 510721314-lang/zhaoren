@@ -50,14 +50,18 @@ Page({
     }
   },
 
-  // 渲染消息: user_kefu=用户右绿气泡 / kefu=客服左灰气泡
+  // 渲染消息: user_kefu=用户右绿气泡 / kefu=客服左灰气泡; 客服回复可携带引用(quote 快照)
   toUiMsg(m) {
     const isMine = m.from_role === 'user_kefu';
     return {
       _id: m._id,
       mine: isMine,
       text: m.text || '',
-      time: this.fmtTime(m.created_at)
+      time: this.fmtTime(m.created_at),
+      quote: m.quote && m.quote.text ? {
+        fromLabel: m.quote.from_role === 'kefu' ? '客服' : m.quote.from_role === 'partner' ? '耍伴' : '用户',
+        text: m.quote.text
+      } : null
     };
   },
 
