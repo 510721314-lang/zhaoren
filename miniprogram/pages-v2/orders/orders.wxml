@@ -20,7 +20,7 @@
 
   <!-- 加载态 -->
   <view class="ol__loading" wx:if="{{loading}}">
-    <view class="ol__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+    <view class="ol__skeleton skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
   </view>
 
   <block wx:elif="{{loaded}}">

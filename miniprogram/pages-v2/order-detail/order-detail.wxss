@@ -11,7 +11,7 @@
 
 /* 订单信息概要三行(与消息页 msg__summary-* 同款结构) */
 .od__summary-box { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
-.od__summary-line { font-size: 22rpx; color: var(--text-3, #999); line-height: 1.6; }
+.od__summary-line { font-size: 22rpx; color: var(--text-3, #666666); line-height: 1.6; }
 .od__summary-line--l1 { font-weight: 600; color: var(--func-warning, #ff8f3c); font-size: 24rpx; }
 
 /* 到账通知列表(被打赏等多条依次展示) */
@@ -25,7 +25,7 @@
   border-radius: var(--r-md);
   margin-bottom: 12rpx;
   background: rgba(251, 158, 63, 0.12);
-  border: 1rpx solid var(--func-warning, #fba13f);
+  border: 1rpx solid var(--func-warning, #ff8f3c);
 }
 .od__tip-banner:last-child { margin-bottom: 0; }
 .od__tip-banner--hover { opacity: 0.85; }
@@ -55,11 +55,11 @@
 }
 /* tone 主题: primary=主行动, warn=需注意, info=提示, mute=等待 */
 .od__next-step--primary {
-  background: rgba(76, 175, 80, 0.1);
-  border-color: var(--func-success, #4caf50);
+  background: rgba(10, 143, 77, 0.1);
+  border-color: var(--func-success, #0a8f4d);
 }
 .od__next-step--primary .od__next-btn {
-  background: var(--func-success, #4caf50);
+  background: var(--func-success, #0a8f4d);
   color: var(--text-invert);
 }
 .od__next-step--warn {
@@ -83,11 +83,11 @@
   50% { transform: scale(1.06); box-shadow: 0 6rpx 24rpx rgba(250, 81, 81, 0.65); }
 }
 .od__next-step--info {
-  background: rgba(24, 144, 255, 0.1);
-  border-color: var(--brand-primary, #1890ff);
+  background: rgba(7, 193, 96, 0.1);
+  border-color: var(--brand-primary, #07C160);
 }
 .od__next-step--info .od__next-btn {
-  background: var(--brand-primary, #1890ff);
+  background: var(--brand-primary, #07C160);
   color: var(--text-invert);
 }
 .od__next-step--mute {
@@ -198,7 +198,7 @@
   min-height: 120rpx;
   max-height: 300rpx;
   padding: 16rpx 20rpx;
-  background: var(--bg-input, #F5F5F5);
+  background: var(--bg-input, #FAFAFB);
   border-radius: var(--r-md);
   font-size: var(--font-sm);
   color: var(--text-1);

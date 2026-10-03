@@ -56,9 +56,7 @@
 .ol__skeleton {
   height: 220rpx;
   border-radius: var(--r-lg);
-  background: var(--bg-card);
   margin-bottom: 20rpx;
-  opacity: 0.6;
 }
 
 /* 订单卡片 */
@@ -86,7 +84,7 @@
   width: 14rpx;
   height: 14rpx;
   border-radius: 50%;
-  background: var(--func-danger, #e64340);
+  background: var(--func-danger, #fa5151);
   margin-right: 12rpx;
 }
 .ol__scene {

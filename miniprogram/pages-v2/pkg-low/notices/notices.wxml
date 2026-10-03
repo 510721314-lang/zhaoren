@@ -1,6 +1,11 @@
 <view class="nt">
+  <!-- 加载态骨架 -->
+  <view class="nt__loading" wx:if="{{loading}}">
+    <ui-skeleton type="card" rows="4" avatar />
+  </view>
+
   <!-- 空态 -->
-  <empty-state wx:if="{{empty && !loading}}" icon="🔔" title="暂无消息" desc="订单状态变更会在这里通知你" />
+  <empty-state wx:elif="{{empty}}" icon="🔔" title="暂无消息" desc="订单状态变更会在这里通知你" />
 
   <!-- 列表 -->
   <view wx:else class="nt__list">

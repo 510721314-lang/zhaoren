@@ -116,7 +116,7 @@
 }
 .msg__summary-box { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
 .msg__summary-l1 { font-size: 22rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
-.msg__summary-l2, .msg__summary-l3 { font-size: 20rpx; color: var(--text-3, #999); }
+.msg__summary-l2, .msg__summary-l3 { font-size: 20rpx; color: var(--text-3, #666666); }
 .msg__row2 {
   margin-top: 10rpx;
   display: flex;

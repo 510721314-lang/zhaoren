@@ -9,12 +9,12 @@
   z-index: 10;
   padding: 12rpx 24rpx;
   border-radius: 30rpx;
-  background: #F7F8FA;
+  background: var(--bg-page);
   color: var(--text-4);
   font-size: 24rpx;
   box-shadow: var(--shadow-card);
 }
-.nm__toggle.is-on { background: var(--brand-primary); color: #fff; }
+.nm__toggle.is-on { background: var(--brand-primary); color: var(--text-invert); }
 
 /* 刷新 */
 .nm__refresh {
@@ -27,7 +27,7 @@
   line-height: 64rpx;
   text-align: center;
   border-radius: 50%;
-  background: #fff;
+  background: var(--bg-card);
   color: var(--brand-primary);
   font-size: 36rpx;
   box-shadow: var(--shadow-card);
@@ -43,7 +43,7 @@
   display: flex;
   align-items: center;
   gap: 16rpx;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: var(--r-md);
   padding: 20rpx 24rpx;
   box-shadow: var(--shadow-card);
@@ -66,7 +66,7 @@
   right: 24rpx;
   bottom: 56rpx;
   z-index: 10;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
   overflow: hidden;
@@ -83,7 +83,7 @@
   line-height: 84rpx;
   text-align: center;
   font-size: var(--font-md);
-  color: #fff;
+  color: var(--text-invert);
   background: var(--brand-primary);
   font-weight: 600;
 }

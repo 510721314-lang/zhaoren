@@ -22,7 +22,7 @@
   padding: 6rpx 16rpx;
 }
 .es__badge.is-pass { color: var(--brand-primary); background: var(--brand-primary-light); font-weight: 600; }
-.es__badge.is-fail { color: #fa5151; background: #fdecec; font-weight: 600; }
+.es__badge.is-fail { color: var(--func-danger); background: var(--func-danger-light); font-weight: 600; }
 .es__badge.is-locked { color: var(--text-4); background: var(--bg-segment); }
 
 .es__card-body { margin-top: 20rpx; display: flex; align-items: center; justify-content: space-between; }

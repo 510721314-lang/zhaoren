@@ -218,7 +218,7 @@
   flex-shrink: 0;
 }
 .chat__send-btn--disabled {
-  background: var(--text-3, #c0c4cc);
+  background: var(--text-3, #666666);
   opacity: 0.7;
 }
 
@@ -273,7 +273,7 @@
 @keyframes chat-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 /* 待支付横幅 */
-.chat__pending-banner { display: flex; flex-direction: column; margin: 16rpx 24rpx 0; padding: 20rpx 24rpx; background: var(--func-warning); color: #3d2400; border-radius: var(--r-md); font-size: var(--font-sm); box-shadow: 0 6rpx 20rpx rgba(255, 143, 60, 0.35); }
+.chat__pending-banner { display: flex; flex-direction: column; margin: 16rpx 24rpx 0; padding: 20rpx 24rpx; background: var(--func-warning); color: var(--text-1); border-radius: var(--r-md); font-size: var(--font-sm); box-shadow: 0 6rpx 20rpx rgba(255, 143, 60, 0.35); }
 .chat__pending-summary { font-weight: 700; margin-bottom: 8rpx; }
 .chat__pending-title { font-weight: 600; margin-bottom: 6rpx; }
 .chat__pending-body { opacity: 0.92; }
