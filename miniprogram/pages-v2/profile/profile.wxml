@@ -162,8 +162,8 @@
         wx:if="{{item.key === 'help'}}"
         icon="{{item.icon}}"
         title="{{item.name}}"
-        open-type="contact"
-        bind:error="onContactError"
+        data-key="{{item.key}}"
+        bind:tap="onFuncTap"
       />
       <ui-cell
         wx:else

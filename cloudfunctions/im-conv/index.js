@@ -165,6 +165,52 @@ exports.main = async (event, context) => {
   const { action } = event;
   log.d(`im-conv action=${action} openid=${openid}`);
 
+  // ───────── 1.5 自建客服会话(无订单): 用户维度唯一会话, 后台 kefu_conv_list 可见 ─────────
+  // conv 用 kefu_openid 标识(区别于订单会话), order_id=''; 消息 from_role='user_kefu'(用户发)/'kefu'(客服回)
+  if (action === 'kefu_open') {
+    const existing = await col('im_conversation')
+      .where({ kefu_openid: openid, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
+    if (existing.data && existing.data[0]) {
+      return { ok: true, data: { conv: existing.data[0], peer: { nickname: '平台客服', role: 'kefu' } } };
+    }
+    const now = Date.now();
+    const doc = {
+      kefu_openid: openid,
+      order_id: '', order_no: '',
+      scene: 'kefu', scene_name: '客服会话',
+      user_openid: openid, partner_openid: '',
+      user_unread: 0, partner_unread: 0,
+      kefu_status: 'unhandled',
+      last_msg_text: '', last_msg_at: 0, last_msg_from: '',
+      created_at: now, updated_at: now, is_deleted: false
+    };
+    try {
+      const r = await col('im_conversation').add({ data: doc });
+      doc._id = r._id;
+      log.d(`kefu conv created: ${r._id} openid=${openid}`);
+    } catch (e) {
+      const again = await col('im_conversation')
+        .where({ kefu_openid: openid, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
+      if (again.data && again.data[0]) return { ok: true, data: { conv: again.data[0], peer: { nickname: '平台客服', role: 'kefu' } } };
+      throw e;
+    }
+    return { ok: true, data: { conv: doc, peer: { nickname: '平台客服', role: 'kefu' } } };
+  }
+
+  if (action === 'kefu_messages') {
+    const convId = String(event.conv_id || '').trim();
+    if (!isValidDocId(convId)) return { ok: false, code: 'im_bad_conv_id', msg: '会话 ID 格式不正确' };
+    const convR = await col('im_conversation').doc(convId).get().catch(() => null);
+    const conv = convR && convR.data;
+    if (!conv || conv.is_deleted || conv.kefu_openid !== openid) {
+      return { ok: false, code: 'im_not_participant', msg: '你不是该会话参与方' };
+    }
+    const listR = await col('im_message')
+      .where({ conv_id: convId, is_deleted: false }).orderBy('created_at', 'asc').limit(100).get().catch(() => ({ data: [] }));
+    await clearUnread(convId, 'user').catch(() => {});
+    return { ok: true, data: { conv, list: listR.data || [] } };
+  }
+
   // ───────── 1. 打开会话(懒创建) ─────────
   if (action === 'open') {
     const { order_id } = event;

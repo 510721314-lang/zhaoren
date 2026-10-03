@@ -28,12 +28,12 @@
           :class="['conv-item', { 'is-active': current?.conv_id === c.conv_id }]"
           @click="openConv(c)">
           <div class="conv-item-head">
-            <span class="conv-item-title">{{ c.scene_name || '订单会话' }}</span>
+            <span class="conv-item-title">{{ c.conv_type === 'kefu' ? '客服会话' : (c.scene_name || '订单会话') }}</span>
             <el-tag :type="c.kefu_status === 'handled' ? 'success' : 'warning'" size="small">
               {{ c.kefu_status === 'handled' ? '已处理' : '待处理' }}
             </el-tag>
           </div>
-          <div class="conv-item-sub">{{ c.user_nickname }} ↔ {{ c.partner_nickname }} · {{ c.order_no || c.order_id?.slice(-8) }}</div>
+          <div class="conv-item-sub">{{ c.user_nickname }} ↔ {{ c.partner_nickname || '平台客服' }} · {{ c.order_no || '客服咨询' }}</div>
           <div class="conv-item-last">{{ c.last_msg_text || '(空)' }}</div>
         </div>
         <el-empty v-if="!convs.length && !loading" description="暂无会话" :image-size="60" />

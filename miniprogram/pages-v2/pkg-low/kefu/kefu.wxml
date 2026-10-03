@@ -1,0 +1,43 @@
+<view class="v2 kefu">
+  <nav-bar title="客服会话" show-back="{{true}}" bind:back="onGoBack"></nav-bar>
+
+  <!-- 加载中 -->
+  <view class="kefu__loading" wx:if="{{loading}}">
+    <view class="skeleton sk-card" style="height:120rpx;"></view>
+    <view class="skeleton sk-card" style="height:120rpx;"></view>
+  </view>
+
+  <!-- 加载失败 -->
+  <view class="kefu__err" wx:elif="{{loadError}}">
+    <view class="kefu__err-ic">📡</view>
+    <view class="kefu__err-title">会话加载失败</view>
+    <button class="kefu__err-btn" bindtap="openConv" hover-class="btn-press">重试</button>
+  </view>
+
+  <!-- 会话主体 -->
+  <view class="kefu__body" wx:else>
+    <scroll-view scroll-y class="kefu__msgs" scroll-into-view="{{scrollTo}}">
+      <view class="kefu__tip">当前为平台客服会话，客服会尽快回复您</view>
+      <view class="kefu__msg {{item.mine ? 'is-mine' : ''}}" wx:for="{{messages}}" wx:key="_id">
+        <view class="kefu__bubble">{{item.text}}</view>
+        <view class="kefu__time">{{item.time}}</view>
+      </view>
+      <view class="kefu__empty" wx:if="{{messages.length === 0}}">发送第一条消息，客服将为您服务</view>
+    </scroll-view>
+
+    <!-- 输入区 -->
+    <view class="kefu__input-bar">
+      <input
+        class="kefu__input"
+        value="{{input}}"
+        placeholder="请输入您的问题"
+        confirm-type="send"
+        bindinput="onInput"
+        bindconfirm="sendText"
+      />
+      <button class="kefu__send" bindtap="sendText" disabled="{{sending || !input}}" hover-class="btn-press">
+        {{sending ? '发送中…' : '发送'}}
+      </button>
+    </view>
+  </view>
+</view>

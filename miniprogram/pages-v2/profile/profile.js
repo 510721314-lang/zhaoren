@@ -299,10 +299,12 @@ Page({
     });
   },
 
-  // U4 功能列表(help 项在 wxml 中为 open-type=contact 按钮, 不会进入此处理)
+  // U4 功能列表(help 项跳自建客服会话)
   onFuncTap(e) {
     const key = e.currentTarget.dataset.key;
-    if (key === 'notices') {
+    if (key === 'help') {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/kefu/kefu', fail: modalFail });
+    } else if (key === 'notices') {
       wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
     } else if (key === 'emergency') {
       wx.navigateTo({ url: '/pages-v2/pkg-low/contacts/contacts', fail: modalFail });
@@ -320,11 +322,6 @@ Page({
         fail: modalFail
       });
     }
-  },
-
-  // 微信客服会话不可用时的兜底
-  onContactError() {
-    wx.showToast({ title: '客服会话暂不可用', icon: 'none' });
   },
 
   // U5 耍伴专区 / 认证引导

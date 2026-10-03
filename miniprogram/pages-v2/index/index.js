@@ -53,6 +53,11 @@ Page({
     wx.showToast({ title: v ? '已收藏' : '已取消收藏', icon: 'none' });
   },
 
+  // H9 客服: 跳自建客服会话(后台客服工作台可见可回)
+  onFloatKefu() {
+    wx.navigateTo({ url: '/pages-v2/pkg-low/kefu/kefu', fail: () => wx.showToast({ title: '客服打开失败', icon: 'none' }) });
+  },
+
 
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 切 tab/发布返回时 onShow 正常刷新

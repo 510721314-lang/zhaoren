@@ -62,7 +62,8 @@
         "safety/safety",
         "evaluate/evaluate",
         "exam/exam",
-        "exam-status/exam-status"
+        "exam-status/exam-status",
+        "kefu/kefu"
       ]
     }
   ],

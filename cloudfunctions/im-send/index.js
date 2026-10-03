@@ -373,5 +373,56 @@ exports.main = async (event, context) => {
     }
   }
 
+  // ───────── 3. 自建客服消息(无订单会话): 用户发客服, 后台 kefu_conv_list 待处理 ─────────
+  if (action === 'send_kefu') {
+    const convId = String(event.conv_id || '').trim();
+    if (!isValidDocId(convId)) return { ok: false, code: 'im_bad_conv_id', msg: '会话 ID 格式不正确' };
+    const convR = await col('im_conversation').doc(convId).get().catch(() => null);
+    const conv = convR && convR.data;
+    if (!conv || conv.is_deleted || conv.kefu_openid !== openid) {
+      return { ok: false, code: 'im_not_participant', msg: '你不是该会话参与方' };
+    }
+    const text = String(event.text || '').trim();
+    if (!text) return { ok: false, code: 'im_empty_text', msg: '消息内容不能为空' };
+    if (text.length > TEXT_MAX_LEN) {
+      return { ok: false, code: 'im_text_too_long', msg: `消息最长 ${TEXT_MAX_LEN} 字` };
+    }
+    const config = await getConfig();
+    const chk = await checkText(openid, text, config.block_words);
+    if (!chk.pass) {
+      log.d(`kefu text blocked: openid=${openid} reason=${chk.reason}`);
+      return { ok: false, code: 'im_text_blocked', msg: chk.reason };
+    }
+    const now = Date.now();
+    try {
+      const msgDoc = {
+        conv_id: convId, order_id: '',
+        from_openid: openid, from_role: 'user_kefu',
+        type: 'text', text, template_id: '',
+        created_at: now, updated_at: now, is_deleted: false
+      };
+      const r = await col('im_message').add({ data: msgDoc });
+      // 更新会话摘要 + 置待处理(客服端 kefu_status)
+      await col('im_conversation').doc(convId).update({ data: {
+        last_msg_text: text, last_msg_at: now, last_msg_from: openid,
+        kefu_status: 'unhandled', updated_at: now
+      } });
+      if (chk.degraded) {
+        try { await col('im_message').doc(r._id).update({ data: { sec_degraded: true, sec_degraded_at: now } }); } catch (e) {}
+      }
+      const msg = { msg_id: r._id, conv_id: convId, from_openid: openid, from_role: 'user_kefu', text, created_at: now };
+      log.d(`kefu msg sent: conv=${convId} len=${text.length} degraded=${!!chk.degraded}`);
+      await writeAudit(db, log, {
+        openid, role: 'user', category: 'business', action: 'kefu_send_text',
+        target_type: 'im_message', target_id: msg.msg_id || '',
+        detail: { conv_id: convId, text_len: text.length }, result: 'ok', client_ip: clientIp, device
+      });
+      return { ok: true, data: { msg } };
+    } catch (e) {
+      log.d(`send_kefu fail: ${e.message}`);
+      return { ok: false, code: 'im_send_fail', msg: '发送失败,请稍后重试' };
+    }
+  }
+
   return { ok: false, code: 'im_unknown_action', msg: '未知动作' };
 };

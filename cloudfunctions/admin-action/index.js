@@ -1621,6 +1621,7 @@ exports.main = async (event, context) => {
     }
     const list = (rows.data || []).map((c) => ({
       conv_id: c._id, order_id: c.order_id, order_no: c.order_no || '',
+      conv_type: c.kefu_openid ? 'kefu' : 'order',   // 自建客服会话(kefu_openid 标识) vs 订单会话
       scene_name: c.scene_name || '',
       user_nickname: (userMap[c.user_openid] && userMap[c.user_openid].nickname) || '用户',
       partner_nickname: (userMap[c.partner_openid] && userMap[c.partner_openid].nickname) || '耍伴',
