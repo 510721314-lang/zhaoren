@@ -55,4 +55,4 @@
   </view>
 </view>
 
-<view class="loading" wx:if="{{loading}}">加载中...</view>
+<view class="loading" wx:if="{{loading}}"><ui-skeleton type="list" rows="6" /></view>

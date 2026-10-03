@@ -1,0 +1,47 @@
+<view class="v2 exam-status">
+  <nav-bar title="考试认证"></nav-bar>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}">
+    <view class="skeleton sk-card" style="height:200rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:200rpx;"></view>
+  </view>
+
+  <!-- 加载失败 -->
+  <view class="es__err" wx:elif="{{loadError}}">
+    <view class="es__err-ic">📡</view>
+    <view class="es__err-title">加载失败，请稍后重试</view>
+    <button class="es__err-btn" bindtap="fetchStatus" hover-class="btn-press">重试</button>
+  </view>
+
+  <!-- 非耍伴引导 -->
+  <view class="es__empty" wx:elif="{{noProfile}}">
+    <view class="es__empty-ic">🎓</view>
+    <view class="es__empty-title">考试认证面向认证耍伴开放</view>
+    <view class="es__empty-sub">完成耍伴认证后即可参加接单考试，通过基础考试方可接单</view>
+    <button class="es__empty-btn" bindtap="onGoApply" hover-class="btn-press">去认证耍伴</button>
+  </view>
+
+  <!-- 科目状态卡 -->
+  <block wx:else>
+    <view class="es__tip">通过基础考试（满分）后方可接单；陪诊场景需另通过提升考试（满分），且须先通过基础考试</view>
+    <view class="es__card" wx:for="{{subjects}}" wx:key="key">
+      <view class="es__card-head">
+        <view class="es__card-title-wrap">
+          <text class="es__card-title">{{item.title}}</text>
+          <text class="es__card-desc">{{item.desc}}</text>
+        </view>
+        <text class="es__badge {{item.passed ? 'is-pass' : (item.locked ? 'is-locked' : (item.hasScore ? 'is-fail' : ''))}}">{{item.statusText}}</text>
+      </view>
+      <view class="es__card-body">
+        <view class="es__score" wx:if="{{item.hasScore}}">
+          <text class="es__score-num">{{item.score}}</text>
+          <text class="es__score-unit">分 / 通过线 {{item.passLine}}</text>
+        </view>
+        <view class="es__score es__score--none" wx:else>{{item.locked ? '需先通过基础考试' : '尚未参加考试'}}</view>
+        <button class="es__btn {{item.passed ? '' : (item.locked ? 'is-locked' : 'is-primary')}}" data-subject="{{item.key}}" bindtap="onGoExam" hover-class="btn-press">{{item.btnText}}</button>
+      </view>
+    </view>
+    <view class="es__safe">考试结果由平台判定并记录，未通过不影响已发布需求</view>
+  </block>
+</view>

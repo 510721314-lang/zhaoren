@@ -5,8 +5,6 @@
   "usingComponents": {
     "safe-sell-bar": "/components/safe-sell-bar/index",
     "demand-card": "/components/demand-card/index",
-    "partner-card": "/components/partner-card/index",
-    "empty-state": "/components/empty-state/index",
     "night-mask": "/components/night-mask/index"
   }
 }

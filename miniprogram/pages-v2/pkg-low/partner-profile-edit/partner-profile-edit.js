@@ -21,6 +21,8 @@ function callCloud(name, data) {
 Page({
   data: {
     bio: '',
+    currentBio: '',      // 已审核生效的简介(只读态展示)
+    isBioEditing: false, // 简介编辑态开关: 默认只读展示生效简介
     skills: [],
     highlights: [],
     skillInput: '',
@@ -82,6 +84,7 @@ Page({
         const hon = pick(d.honors_pending, d.honors);
         this.setData({
           bio: d.bio || '',
+          currentBio: d.bio || '',
           skills: d.skills || [],
           highlights: d.service_highlights || [],
           qualTitles: qual.titles || [],
@@ -103,6 +106,14 @@ Page({
   },
 
   onBioInput(e) { this.setData({ bio: e.detail.value }); },
+  // 「更改」: 进入简介编辑态(只读展示 → textarea 编辑)
+  onEditBio() {
+    if (this.data.auditStatus === 'pending') {
+      wx.showToast({ title: '资料正在审核中,请耐心等待', icon: 'none' });
+      return;
+    }
+    this.setData({ isBioEditing: true });
+  },
   onSkillInput(e) { this.setData({ skillInput: e.detail.value }); },
   onHighlightInput(e) { this.setData({ highlightInput: e.detail.value }); },
   onQualInput(e) { this.setData({ qualInput: e.detail.value }); },
@@ -296,7 +307,8 @@ Page({
     }).then((res) => {
       this.setData({ submitting: false });
       if (res.ok) {
-        this.setData({ auditStatus: 'pending' });
+        // 提交成功退出简介编辑态, 生效简介待审核通过后由下次加载刷新
+        this.setData({ auditStatus: 'pending', isBioEditing: false, currentBio: this.data.bio || '' });
         wx.showToast({ title: '已提交审核', icon: 'success' });
       } else {
         wx.showToast({ title: res.msg || '提交失败', icon: 'none' });

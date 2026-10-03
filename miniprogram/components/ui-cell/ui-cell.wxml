@@ -1,0 +1,24 @@
+<!-- ui-cell: 通用列表行(图标+标题+角标+箭头); 支持 open-type 场景(contact 等) -->
+<button
+  wx:if="{{openType}}"
+  class="ui-cell ui-cell--btn"
+  open-type="{{openType}}"
+  hover-class="ui-cell--hover"
+  binderror="onError"
+>
+  <text wx:if="{{icon}}" class="ui-cell__ic">{{icon}}</text>
+  <text class="ui-cell__name">{{title}}</text>
+  <view wx:if="{{badge}}" class="ui-cell__badge">{{badge}}</view>
+  <text class="ui-cell__arrow">›</text>
+</button>
+<view
+  wx:else
+  class="ui-cell"
+  hover-class="ui-cell--hover"
+  bindtap="onTap"
+>
+  <text wx:if="{{icon}}" class="ui-cell__ic">{{icon}}</text>
+  <text class="ui-cell__name">{{title}}</text>
+  <view wx:if="{{badge}}" class="ui-cell__badge">{{badge}}</view>
+  <text class="ui-cell__arrow">›</text>
+</view>

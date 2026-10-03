@@ -1,0 +1,33 @@
+/* ui-cell 列表行(与 profile 页 pf__link 同源 token) */
+.ui-cell {
+  display: flex;
+  align-items: center;
+  height: 96rpx;
+  border-bottom: 1rpx solid var(--border-divider);
+}
+.ui-cell:last-child { border-bottom: none; }
+/* button 元素复用列表行样式: 重置微信按钮默认外观 */
+.ui-cell--btn {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  text-align: left;
+  font-size: var(--font-md);
+  font-weight: normal;
+  line-height: 1;
+}
+.ui-cell--btn::after { border: none; }
+.ui-cell--hover { opacity: .6; }
+.ui-cell__ic { font-size: 32rpx; margin-right: 16rpx; }
+.ui-cell__name { flex: 1; color: var(--text-1); font-size: var(--font-md); }
+.ui-cell__badge {
+  font-size: var(--font-xs);
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  border-radius: var(--r-full);
+  padding: 4rpx 14rpx;
+  margin-right: 8rpx;
+}
+.ui-cell__arrow { color: var(--text-4); font-size: 36rpx; }

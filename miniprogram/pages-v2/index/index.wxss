@@ -319,111 +319,43 @@
   line-height: 1.6;
 }
 
-.home__tabs {
-  display: flex;
-  padding: 28rpx 32rpx 16rpx;
-}
-.home__tab {
-  position: relative;
-  margin-right: 48rpx;
-  font-size: var(--font-xl);
-  color: var(--text-5);
+/* H6 广场入口卡(首页只做发现门户, 列表汇入广场) */
+.home__square-entry {
+  margin: 8rpx 24rpx 0;
+  padding: 24rpx 28rpx;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
 }
-.home__tab.is-on {
-  color: var(--brand-primary);
-  font-weight: 700;
-}
-.home__tab.is-on::after {
-  content: '';
-  position: absolute;
-  left: 20%;
-  right: 20%;
-  bottom: -12rpx;
-  height: 6rpx;
-  border-radius: 3rpx;
-  background: var(--brand-primary);
-}
-.home__tab-label {
-  margin-right: 14rpx;
-}
-/* 「地图找TA」按钮(耍伴推荐 tab 右侧) */
-.home__mapbtn {
-  display: inline-flex;
-  align-items: center;
-  font-size: 22rpx;
-  font-weight: 500;
-  color: var(--brand-primary);
-  border: 1rpx solid var(--brand-primary);
-  border-radius: 24rpx;
-  padding: 0 18rpx;
-  height: 48rpx;
-  line-height: 48rpx;
-  background: var(--brand-primary-light);
-}
-
-/* H7 */
-.home__list {
-  padding: 12rpx 20rpx 0;
-}
-
-/* H7a 需求广场按场景分组 */
-.home__scene-group {
-  padding: 16rpx 20rpx 0;
-}
-.home__scene-head {
+.home__square-entry-main {
   display: flex;
-  align-items: center;
-  padding: 8rpx 4rpx 16rpx;
+  flex-direction: column;
 }
-.home__scene-bar {
-  width: 8rpx;
-  height: 32rpx;
-  border-radius: 4rpx;
-  background: var(--brand-primary);
-  margin-right: 14rpx;
-}
-.home__scene-title {
+.home__square-entry-title {
   font-size: var(--font-lg);
   font-weight: 700;
   color: var(--text-1);
 }
-.home__scene-count {
-  margin-left: auto;
+.home__square-entry-sub {
+  margin-top: 6rpx;
   font-size: var(--font-xs);
   color: var(--text-4);
 }
-.home__scene-more-btn {
-  margin: 20rpx 0 8rpx;
-  height: 80rpx;
-  line-height: 76rpx;
-  text-align: center;
-  border-radius: 40rpx;
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
+.home__square-entry-go {
+  flex: none;
   font-size: var(--font-md);
   font-weight: 600;
+  color: var(--brand-primary);
   border: 2rpx solid var(--brand-primary);
+  border-radius: 30rpx;
+  padding: 10rpx 24rpx;
+  background: var(--brand-primary-light);
 }
-.home__scene-more-btn:active {
-  opacity: 0.75;
-}
-.home__scene-empty {
-  padding: 16rpx 20rpx;
-  font-size: var(--font-xs);
-  color: var(--text-disabled);
-  text-align: center;
-  background: var(--bg-segment);
-  border-radius: var(--r-md);
-  margin-bottom: 12rpx;
-}
-.home__partner-tip {
-  text-align: center;
-  font-size: var(--font-xs);
-  color: var(--text-disabled);
-  padding: 8rpx 0 0;
-}
+
+/* H7 */
 
 /* H8 */
 .home__footer {

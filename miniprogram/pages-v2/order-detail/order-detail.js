@@ -492,7 +492,7 @@ Page({
       return;
     }
     wx.navigateTo({
-      url: `/pages-v2/safety/safety?orderId=${this.data.order._id}`,
+      url: `/pages-v2/pkg-low/safety/safety?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '安全报备页打开失败', icon: 'none' })
     });
   },
@@ -954,7 +954,7 @@ Page({
   // S5 评价
   onEvaluate() {
     wx.navigateTo({
-      url: `/pages-v2/evaluate/evaluate?orderId=${this.data.order._id}`,
+      url: `/pages-v2/pkg-low/evaluate/evaluate?orderId=${this.data.order._id}`,
       fail: () => wx.showToast({ title: '评价页待接入', icon: 'none' })
     });
   },

@@ -1,0 +1,67 @@
+<view class="v2 exam">
+  <nav-bar title="{{title}}" show-back="{{false}}"></nav-bar>
+
+  <!-- 加载中 -->
+  <view class="exam__loading" wx:if="{{loading}}">
+    <view class="skeleton sk-card" style="height:200rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:200rpx;margin-bottom:20rpx;"></view>
+    <view class="skeleton sk-card" style="height:200rpx;"></view>
+  </view>
+
+  <!-- 加载失败 -->
+  <view class="exam__err" wx:elif="{{loadError}}">
+    <view class="exam__err-ic">📡</view>
+    <view class="exam__err-title">题目加载失败</view>
+    <button class="exam__err-btn" bindtap="reload" hover-class="btn-press">重试</button>
+  </view>
+
+  <!-- 结果态 -->
+  <view class="exam__result" wx:elif="{{done}}">
+    <view class="exam__result-ic {{result.passed ? 'is-pass' : 'is-fail'}}">{{result.passed ? '🎉' : '😥'}}</view>
+    <view class="exam__result-title">{{result.passed ? '考试通过' : '未通过'}}</view>
+    <view class="exam__result-score">
+      <text class="exam__result-num">{{result.score}}</text>
+      <text class="exam__result-unit">分</text>
+    </view>
+    <view class="exam__result-sub">
+      <block wx:if="{{result.passed}}">恭喜通过{{title}}，现在可以正常接单</block>
+      <block wx:else>得分 {{result.score}} 分，需达到 {{result.pass_line}} 分；可重新作答</block>
+    </view>
+    <view class="exam__result-actions">
+      <button wx:if="{{result.passed}}" class="exam__result-btn is-primary" bindtap="onBack" hover-class="btn-press">完成</button>
+      <block wx:else>
+        <button class="exam__result-btn is-primary" bindtap="onRetry" hover-class="btn-press">重新考试</button>
+        <button class="exam__result-btn" bindtap="onBack" hover-class="btn-press">返回</button>
+      </block>
+    </view>
+  </view>
+
+  <!-- 答题态 -->
+  <block wx:else>
+    <view class="exam__head">
+      <text class="exam__head-title">{{title}}</text>
+      <text class="exam__head-sub">共 {{questions.length}} 题 · 达到 {{passLine}} 分即通过</text>
+    </view>
+
+    <view class="exam__q" wx:for="{{questions}}" wx:key="index">
+      <view class="exam__q-title">{{index + 1}}. {{item.question}}</view>
+      <view
+        class="exam__opt {{answers[index] === oi ? 'is-on' : ''}}"
+        wx:for="{{item.options}}"
+        wx:for-item="opt"
+        wx:for-index="oi"
+        wx:key="*this"
+        data-q="{{index}}"
+        data-i="{{oi}}"
+        bindtap="onChoose"
+      >{{opt}}</view>
+    </view>
+
+    <view class="exam__submit-wrap">
+      <button class="exam__submit {{submitting ? 'is-disabled' : ''}}" bindtap="onSubmit" disabled="{{submitting}}" hover-class="btn-press">
+        {{submitting ? '提交中…' : '提交答卷'}}
+      </button>
+      <view class="exam__safe">考试结果由平台判定并记录，未通过不影响已发布需求。</view>
+    </view>
+  </block>
+</view>

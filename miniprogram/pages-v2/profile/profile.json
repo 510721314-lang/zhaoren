@@ -2,6 +2,8 @@
   "navigationStyle": "custom",
   "usingComponents": {
     "nav-bar": "/components/nav-bar/index",
-    "night-mask": "/components/night-mask/index"
+    "night-mask": "/components/night-mask/index",
+    "ui-card": "/components/ui-card/ui-card",
+    "ui-cell": "/components/ui-cell/ui-cell"
   }
 }

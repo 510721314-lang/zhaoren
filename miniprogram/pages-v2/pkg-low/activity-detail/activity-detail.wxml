@@ -1,7 +1,7 @@
 <view class="ad">
   <block wx:if="{{loading}}">
     <view class="ad__loading">
-      <view class="ad__loading-text">加载中…</view>
+      <ui-skeleton type="card" rows="2" avatar="{{true}}" />
     </view>
   </block>
 

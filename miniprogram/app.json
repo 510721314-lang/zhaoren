@@ -6,18 +6,14 @@
     "pages-v2/message/message",
     "pages-v2/profile/profile",
     "pages-v2/login/login",
-    "pages-v2/realname/realname",
     "pages-v2/publish/publish",
     "pages-v2/demand-detail/demand-detail",
-    "pages-v2/demand-list/demand-list",
     "pages-v2/nearby-list/nearby-list",
     "pages-v2/nearby-map/nearby-map",
     "pages-v2/partner-detail/partner-detail",
     "pages-v2/chat/chat",
     "pages-v2/pay/pay",
     "pages-v2/order-detail/order-detail",
-    "pages-v2/safety/safety",
-    "pages-v2/evaluate/evaluate",
     "pages-v2/workbench/workbench",
     "pages-v2/orders/orders",
     "pages-v2/my-demands/my-demands"
@@ -32,7 +28,8 @@
         "partners",
         "demands",
         "orders",
-        "finance"
+        "finance",
+        "config"
       ]
     },
     {
@@ -60,7 +57,12 @@
         "partner-apply/partner-apply",
         "partner-profile-edit/partner-profile-edit",
         "accept-config/accept-config",
-        "activity-detail/activity-detail"
+        "activity-detail/activity-detail",
+        "realname/realname",
+        "safety/safety",
+        "evaluate/evaluate",
+        "exam/exam",
+        "exam-status/exam-status"
       ]
     }
   ],

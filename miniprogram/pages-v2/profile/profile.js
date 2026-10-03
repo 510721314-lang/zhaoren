@@ -28,6 +28,7 @@ Page({
     identity: 'user',       // user | partner
     userLevel: '',
     partnerLevel: '',
+    examBadge: '',          // 考试认证角标(耍伴拉 exam_scores 计算)
     orderEntries: [
       { key: 'pay', icon: '💳', name: '待支付', count: 0 },
       { key: 'doing', icon: '🧭', name: '进行中', count: 0 },
@@ -48,8 +49,7 @@ Page({
     partnerRecentOrders: [],
     userRecentDemands: [],
     version: CONFIG.VERSION,
-    isRedline: false,
-    allowMapShare: false
+    isRedline: false
   },
   onShareAppMessage() {
     return {
@@ -72,6 +72,9 @@ Page({
     const now = Date.now();
     if (!this.__lastFetch || (now - this.__lastFetch > 30000)) {
       this.fetchUser();
+    } else {
+      // fetchUser 防抖跳过时仍刷新考试角标(考完试返回可即时看到状态变化)
+      this.fetchExamBadge();
     }
   },
 
@@ -106,7 +109,6 @@ Page({
       };
       this.setData({
         user: uiUser,
-        allowMapShare: uiUser.allow_map_share,
         identity,
         userLevel: getLevel(u.user_credit_score),
         partnerLevel: getLevel(u.partner_credit_score),
@@ -115,6 +117,8 @@ Page({
           { key: 'notices', icon: '🔔', name: '消息通知', badge: '' },
           // 实名认证入口(badge 提示未认证; 完成认证后无 badge)
           { key: 'realname', icon: '🪪', name: '实名认证', badge: uiUser.is_realname_done ? '' : '待认证' },
+          // 考试认证入口(耍伴考试通过状态查询, badge 由 fetchExamBadge 更新)
+          { key: 'examCert', icon: '🎓', name: '考试认证', badge: this.data.examBadge },
           ...(identity === 'partner'
             ? [
                 { key: 'emergency', icon: '🆘', name: '紧急联系人' },
@@ -131,9 +135,27 @@ Page({
       });
       // 并行拉订单计数(按当前身份过滤)
       this.loadCounts();
+      // 耍伴拉考试认证角标
+      this.fetchExamBadge();
     }).catch(() => {
       wx.showToast({ title: '网络异常', icon: 'none' });
     });
+  },
+
+  // 考试认证角标: 耍伴拉 exam_scores 计算已通过科数(基础=100 / 陪诊=100 且基础先满分)
+  fetchExamBadge() {
+    if (!this.data.user.is_partner) return;
+    callCloud('partner-action', { action: 'my_profile' }).then((r) => {
+      if (!r || !r.ok || !r.data || !r.data.profile) return;
+      const s = r.data.profile.exam_scores || {};
+      let passed = 0;
+      const baseOk = Number(s.base) >= 100;
+      if (baseOk) passed++;
+      if (baseOk && Number(s.W1) >= 100) passed++;   // 陪诊考试需基础先满分通过
+      const examBadge = passed > 0 ? `已过${passed}科` : '待考试';
+      const funcList = this.data.funcList.map((f) => f.key === 'examCert' ? { ...f, badge: examBadge } : f);
+      this.setData({ examBadge, funcList });
+    }).catch(() => {});
   },
 
   loadCounts() {
@@ -228,6 +250,8 @@ Page({
       identity: target,
       funcList: [
         { key: 'notices', icon: '🔔', name: '消息通知', badge: this.data.notice_unread > 0 ? this.data.notice_unread : '' },
+        { key: 'realname', icon: '🪪', name: '实名认证', badge: this.data.user.is_realname_done ? '' : '待认证' },
+        { key: 'examCert', icon: '🎓', name: '考试认证', badge: this.data.examBadge },
         ...(target === 'partner'
           ? [
               { key: 'emergency', icon: '🆘', name: '紧急联系人' },
@@ -272,7 +296,9 @@ Page({
     } else if (key === 'emergency') {
       wx.navigateTo({ url: '/pages-v2/pkg-low/contacts/contacts', fail: modalFail });
     } else if (key === 'realname') {
-      wx.navigateTo({ url: '/pages-v2/realname/realname', fail: modalFail });
+      wx.navigateTo({ url: '/pages-v2/pkg-low/realname/realname', fail: modalFail });
+    } else if (key === 'examCert') {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: modalFail });
     } else if (key === 'myPublish') {
       wx.navigateTo({ url: '/pages-v2/my-demands/my-demands', fail: modalFail });
     } else if (key === 'about') {
@@ -314,25 +340,7 @@ Page({
     wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oid}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
   },
 
-  // 地图找TA: 即时定位共享开关
-  onMapShareChange(e) {
-    const allow = !!e.detail.value;
-    callCloud('user-login', { action: 'set_map_share', allow }).then((r) => {
-      if (r.ok) {
-        this.setData({ allowMapShare: allow });
-        wx.showToast({ title: allow ? '已开启，TA可在地图找到你' : '已关闭地图共享', icon: 'none', duration: 2000 });
-      } else {
-        // 失败回滚
-        this.setData({ allowMapShare: !allow });
-        wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
-      }
-    }).catch(() => {
-      this.setData({ allowMapShare: !allow });
-      wx.showToast({ title: '网络异常', icon: 'none' });
-    });
-  },
-
-  // 地图找TA: 进入附近地图
+  // 地图找TA: 进入附近地图(位置共享开关在地图页内管理)
   goNearbyMap() {
     wx.navigateTo({ url: '/pages-v2/nearby-map/nearby-map', fail: () => wx.showToast({ title: '地图页暂不可用', icon: 'none' }) });
   },

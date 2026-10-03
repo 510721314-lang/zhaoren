@@ -26,7 +26,38 @@
       </view>
     </view>
 
-    <!-- 1. 场景多选 + 每场景独立时薪 -->
+    <!-- 1. 接单考试状态: 基础科目(耍伴考试)全员接单前置 + 提升科目(陪诊考试)仅 W1 场景前置 -->
+    <view class="ac__card">
+      <view class="ac__card-title">接单考试</view>
+      <view class="ac__exam-bar {{baseExam.passed ? 'is-pass' : 'is-fail'}}">
+        <view class="ac__exam-bar-main">
+          <text class="ac__exam-bar-name">基础科目 · 耍伴考试</text>
+          <text class="ac__exam-bar-sub">
+            <block wx:if="{{baseExam.passed}}">已通过（{{baseExam.score}} 分）</block>
+            <block wx:else>未通过（{{baseExam.score}} 分 / 需 {{baseExam.passLine}} 分满分）· 未通过将无法接单</block>
+          </text>
+        </view>
+        <view class="ac__exam-bar-btn" data-subject="base" bindtap="goExam" hover-class="btn-press">
+          {{baseExam.passed ? '重考' : '去考试'}}
+        </view>
+      </view>
+      <view class="ac__exam-bar {{w1Exam.passed ? 'is-pass' : (w1Exam.locked ? '' : 'is-fail')}}">
+        <view class="ac__exam-bar-main">
+          <text class="ac__exam-bar-name">提升科目 · 陪诊考试</text>
+          <text class="ac__exam-bar-sub">
+            <block wx:if="{{w1Exam.passed}}">已通过（{{w1Exam.score}} 分）</block>
+            <block wx:elif="{{w1Exam.locked}}">需先通过基础考试，方可参加陪诊考试</block>
+            <block wx:else>未通过（{{w1Exam.score}} 分 / 需 {{w1Exam.passLine}} 分满分）· 仅就医陪诊场景需要</block>
+          </text>
+        </view>
+        <view class="ac__exam-bar-btn {{w1Exam.locked ? 'is-locked' : ''}}" data-subject="W1" bindtap="goExam" hover-class="btn-press">
+          {{w1Exam.passed ? '重考' : (w1Exam.locked ? '待解锁' : '去考试')}}
+        </view>
+      </view>
+      <view class="ac__tip" wx:if="{{!baseExam.passed || !w1Exam.passed}}">提示：所有场景接单前均需先通过基础考试（满分通过）；就医陪诊（W1）另需通过提升科目考试（满分通过）。</view>
+    </view>
+
+    <!-- 2. 场景多选 + 每场景独立时薪 -->
     <view class="ac__card">
       <view class="ac__card-title">接单场景与时薪 <text class="ac__required">*</text></view>
       <view class="ac__tip">选择你要接的场景并设置时薪（{{rateMinYuan}}-{{rateMaxYuan}} 元/小时），点击保存后生效</view>
@@ -35,7 +66,7 @@
           <view class="ac__scene-chip {{item.selected ? 'is-on' : ''}}" data-code="{{item.code}}" bindtap="onSceneToggle">
             {{item.icon}} {{item.name}}
             <text class="ac__exam-tag ac__exam--pass" wx:if="{{item.examNeeded && item.examPassed}}">✓已通过</text>
-            <text class="ac__exam-tag ac__exam--fail" wx:elif="{{item.examNeeded && !item.examPassed}}">需考核</text>
+            <text class="ac__exam-tag ac__exam--fail" wx:elif="{{item.examNeeded && !item.examPassed}}" data-subject="{{item.code}}" catchtap="goExam">需考核</text>
           </view>
           <view class="ac__scene-rate" wx:if="{{item.selected}}">
             <input class="ac__scene-rate-input" type="digit" value="{{sceneRateYuan[item.code]}}" placeholder="{{rateMinYuan}}" data-code="{{item.code}}" bindinput="onRateInput" />
@@ -45,7 +76,7 @@
       </view>
     </view>
 
-    <!-- 2. 每周时段(每天起止时间各一个滑动条) -->
+    <!-- 3. 每周时段(每天起止时间各一个滑动条) -->
     <view class="ac__card">
       <view class="ac__card-title">每周接单时段</view>
       <view class="ac__card-sub">仅在你启用的时段内可接单：需求的服务时间段须完全落在时段内</view>

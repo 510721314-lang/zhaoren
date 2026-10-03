@@ -272,7 +272,7 @@ Page({
           success: (res) => {
             if (res.confirm) {
               wx.redirectTo({
-                url: `/pages-v2/evaluate/evaluate?orderId=${this.data.orderId}`,
+                url: `/pages-v2/pkg-low/evaluate/evaluate?orderId=${this.data.orderId}`,
                 fail: (err) => {
                   console.error('[chat] redirectTo evaluate fail:', err && err.errMsg);
                   wx.showToast({ title: '评价页打开失败,请从订单详情进入', icon: 'none', duration: 2500 });

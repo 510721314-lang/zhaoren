@@ -15,6 +15,8 @@ const STORAGE_KEY = 'partner_local_cfg';
 Page({
   data: {
     certifiedScenes: [],
+    baseExam: { score: 0, passed: false, passLine: 60 },  // 基础科目(耍伴考试)状态
+    w1Exam: { score: 0, passed: false, passLine: 80 },   // 提升科目(陪诊考试)状态, 仅就医陪诊场景需要
     homeLocation: null,       // 耍伴日常位置 { name, address, latitude, longitude }
     sceneRates: {},           // { W1: 5000, ... } 分/小时
     sceneRateYuan: {},        // { W1: '50', ... } 输入框展示值(元/小时), 由 sceneRates 派生
@@ -155,19 +157,38 @@ Page({
       dynCodes.forEach((code, i) => pushScene(code, sgRes.data.scene_groups[i].scene_name));
       SCENES.forEach((s) => pushScene(s.code, s.name));
 
+      const basePassed = (Number(examScores.base) || 0) >= 100;
       const certifiedScenes = sceneDefs.map((s) => {
         const selected = scenes.indexOf(s.code) > -1;
         const hasExam = !!examScores[s.code];
         const examScore = Number(examScores[s.code]) || 0;
+        // 考试门禁: 基础科目(耍伴考试)全员前置(满分通过); W1(就医陪诊)另有提升科目(陪诊考试, 满分通过且需基础先过)
+        const needExam = s.code === 'W1';      // 目前仅 W1 需要专项考试(其余场景基础科目通过即可)
         return {
           ...s,
           selected,
           hasExam,
           examScore,
-          examPassed: hasExam && examScore >= 80,
-          examNeeded: hasExam
+          examPassed: s.code === 'W1' ? (basePassed && examScore >= 100) : true,
+          examNeeded: needExam
         };
       });
+      // 基础科目考试状态(所有接单前置), 满分通过(=100)
+      const baseScore = Number(examScores.base) || 0;
+      const baseExamPassed = baseScore >= 100;
+      const baseExam = {
+        score: baseScore,
+        passed: baseExamPassed,
+        passLine: 100
+      };
+      // 提升科目考试状态(陪诊考试, 仅 W1 就医陪诊场景接单前置), 满分通过(=100), 需先过基础考试
+      const w1Score = Number(examScores.W1) || 0;
+      const w1Exam = {
+        score: w1Score,
+        passed: baseExamPassed && w1Score >= 100,
+        passLine: 100,
+        locked: !baseExamPassed   // 基础未通过时锁定陪诊考试入口
+      };
       // 同步到全局, 组件 getScene 动态兜底(存完整场景对象)
       try { const app = getApp(); if (app) app.globalData.availableScenes = sceneDefs; } catch (e) {}
 
@@ -210,6 +231,8 @@ Page({
 
       this.setData({
         certifiedScenes: certifiedScenes,
+        baseExam,
+        w1Exam,
         homeLocation: p.home_location || null,
         sceneRates: sceneRates,
         sceneRateYuan: sceneRateYuan,
@@ -288,6 +311,19 @@ Page({
     patch['form.scenes'] = scenes;
     patch.certifiedScenes = certifiedScenes;
     this.setData(patch);
+  },
+
+  // 去考试: base=基础科目(耍伴考试) / W1=提升科目(陪诊考试); 锁定态点击给提示
+  goExam(e) {
+    const subject = e.currentTarget.dataset.subject || 'base';
+    if (subject === 'W1' && this.data.w1Exam.locked) {
+      wx.showToast({ title: '需先通过基础考试（满分），方可参加陪诊考试', icon: 'none', duration: 2500 });
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages-v2/pkg-low/exam/exam?subject=${subject}`,
+      fail: () => wx.showToast({ title: '考试页打开失败', icon: 'none' })
+    });
   },
 
   // 各场景时薪输入(元/小时 → 存分)

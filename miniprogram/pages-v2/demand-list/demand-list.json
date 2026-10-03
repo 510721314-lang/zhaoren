@@ -1,8 +1,0 @@
-{
-  "navigationBarTitleText": "需求列表",
-  "enablePullDownRefresh": true,
-  "backgroundTextStyle": "dark",
-  "usingComponents": {
-    "demand-card": "/components/demand-card/index"
-  }
-}

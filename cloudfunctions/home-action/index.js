@@ -434,6 +434,11 @@ exports.main = async (event, context) => {
           ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
           : null;
 
+        // 自己的需求恒可见: 发布者(无论当前前端身份)总能看见自己刚发布的需求,
+        // 不受自身耍伴接单配置(价格区间/接单距离)过滤; 他人视角仍按接单配置过滤
+        const ownWhere = openid ? Object.assign(hallWhere(), { creator_openid: openid }) : null;
+        const squareWhere = ownWhere ? _.or([hallWhere(rateCond), ownWhere]) : hallWhere(rateCond);
+
         // 轻量并行: demand + partner + active_user, 不查 scene_groups(5个额外查询导致冷启动超时,
         // 场景分组改由 scene_groups action 单独懒加载)
         // S1/S2 性能: banner 活动配置(admin_config 主键读, 60s 实例缓存)同时点火,
@@ -441,7 +446,7 @@ exports.main = async (event, context) => {
         const activitiesP = loadHomeActivitiesRaw().catch(() => []);
         const [demandR, partnerR, activeUserR] = await Promise.all([
           col('demand')
-            .where(hallWhere(rateCond))
+            .where(squareWhere)
             .orderBy('created_at', 'desc')
             .limit(limit)
             .get()
@@ -479,6 +484,7 @@ exports.main = async (event, context) => {
 
         // 最大接单距离(接单配置设置): 参考耍伴日常位置计算并回填 distance_km;
         // 已设置且超出 min(设置, 平台上限) 的需求不在广场展示(与接单时服务端校验对齐)
+        // 例外: 自己的需求(ownWhere 已并入)恒可见, 距离过滤时跳过, 但照常回填 distance_km 供展示
         if (vp && vp.home) {
           const effMaxKm = vp.maxKm ? Math.min(vp.maxKm, await loadTakeDistanceCap()) : null;
           const kept = [];
@@ -488,7 +494,7 @@ exports.main = async (event, context) => {
             if (isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0) {
               const km = Math.round(haversineKm(vp.home.lat, vp.home.lng, lat, lng) * 10) / 10;
               list[i].distance_km = km;
-              if (effMaxKm !== null && km > effMaxKm) return;
+              if (effMaxKm !== null && km > effMaxKm && d.creator_openid !== openid) return;
             }
             kept.push(list[i]);
           });

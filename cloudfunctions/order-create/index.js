@@ -363,12 +363,19 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_demand_not_found', msg: '需求不存在' };
   }
 
-  // ── W1 就医陪诊:耍伴需通过国标专项考核(>=80分)(需求存在后才校验) ──
+  // ── 接单考试校验(需求存在后才校验): 基础科目(耍伴考试)全员前置, W1 另需提升科目(陪诊考试) ──
+  // 基础科目: 所有场景接单前须通过(=100); W1: 额外要求陪诊专项 =100(与 partner-action submit_exam 同源阈值)
+  const EXAM_THRESHOLD = { base: 100, W1: 100 };
+  const baseScore = Number(profile.exam_scores && profile.exam_scores.base);
+  if (!baseScore || baseScore < EXAM_THRESHOLD.base) {
+    await logReject(openid, demand_id, 'base_exam_failed');
+    return { ok: false, code: 'order_base_exam_required', msg: '需先通过耍伴基础考试(接单配置页可去考试)' };
+  }
   if (demand.scene === 'W1') {
     const w1Score = Number(profile.exam_scores && profile.exam_scores.W1);
-    if (!w1Score || w1Score < 80) {
+    if (!w1Score || w1Score < EXAM_THRESHOLD.W1) {
       await logReject(openid, demand_id, 'w1_exam_failed');
-      return { ok: false, code: 'order_w1_exam_required', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
+      return { ok: false, code: 'order_w1_exam_required', msg: '就医陪诊场景需通过陪诊考试(>=80分)' };
     }
   }
 

@@ -26,12 +26,9 @@ Page({
     searchKey: '',
     activePartners: [],       // 活跃耍伴(头像横滑+信用分)
     banners: [],              // 运营 banner 轮播(home_activity 后台管理)
-    activeTab: 'demand',
-    demandList: [],
     nearbyList: [],        // 附近可接单池(仅耍伴端, 就近排序)
     isPartner: false,      // 当前用户是否为耍伴(决定是否展示附近可接块)
-    sceneGroups: [],        // 需求广场按场景分组(每场景8条)
-    partnerList: [],       // P2 接云端 partner-profile 列表
+    sceneGroups: [],        // 场景分组(内部派生场景宫格数据, 首页不再渲染列表)
     user: {},
     unconfirmedContact: null,
     showEmergency: false,
@@ -40,8 +37,6 @@ Page({
     isRedline: false,
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: redline.DISPLAY_CLOSE,
-    trafficOrders: CONFIG.NEW_PARTNER.trafficSupportOrders,
-    reserveDiscountText: `${CONFIG.MATCH.reserveDiscount * 10}折`,
     favorited: false   // 首页收藏态(轻提示, 暂无服务端收藏对象)
   },
   onShareAppMessage() {
@@ -124,8 +119,6 @@ Page({
   // allowFallback=false(SWR 缓存): 只渲染缓存已有字段, 不发兜底请求(元数据统一由随后的网络请求负责, 防翻倍)
   applySquareData(d, allowFallback) {
     const patch = {
-      demandList: d.list || [],
-      partnerList: d.partners || [],
       activePartners: d.active_partners || []
     };
     if (Array.isArray(d.banners)) patch.banners = d.banners;
@@ -225,7 +218,6 @@ Page({
       };
     });
     this.setData({
-      sceneGroups: groups,
       scenes,
       filteredScenes: scenes
     });
@@ -321,22 +313,14 @@ Page({
     wx.showToast({ title: `领取成功，首单立减${CONFIG.NEWBIE.firstOrderDiscount}元`, icon: 'success' });
   },
 
-  // H6 双Tab
-  switchTab(e) {
-    this.setData({ activeTab: e.currentTarget.dataset.tab });
+  // H6 广场入口卡: 首页只做发现门户, 需求列表汇入广场
+  onGoSquare() {
+    wx.switchTab({ url: '/pages-v2/square/square', fail: () => wx.showToast({ title: '广场打开失败', icon: 'none' }) });
   },
 
-  // 场景分组「更多」→ 该场景需求列表(每页50)
-  onSceneMoreTap(e) {
-    const { code, name } = e.currentTarget.dataset;
-    if (!code) {
-      wx.showToast({ title: '场景参数异常', icon: 'none' });
-      return;
-    }
-    wx.navigateTo({
-      url: `/pages-v2/demand-list/demand-list?scene=${code}&name=${encodeURIComponent(name || '')}`,
-      fail: () => wx.showToast({ title: '列表页打开失败', icon: 'none' })
-    });
+  // H6b 地图找TA入口卡: 附近地图(位置共享开关在地图页内管理)
+  onGoMap() {
+    wx.navigateTo({ url: '/pages-v2/nearby-map/nearby-map', fail: () => wx.showToast({ title: '地图页打开失败', icon: 'none' }) });
   },
 
   // H7 卡片交互（跳详情页，带真实 demand _id）
@@ -352,19 +336,6 @@ Page({
       fail: () => wx.showToast({ title: '详情页打开失败', icon: 'none' })
     });
   },
-  onPartnerTap(e) {
-    const p = (e.detail && e.detail.partner) || {};
-    const openid = p.openid;
-    if (!openid) {
-      wx.showToast({ title: '耍伴数据异常', icon: 'none' });
-      return;
-    }
-    wx.navigateTo({
-      url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
-      fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
-    });
-  },
-
   // 活跃耍伴头像 → 耍伴详情
   onActivePartnerTap(e) {
     const openid = e.currentTarget.dataset.openid;
@@ -380,10 +351,5 @@ Page({
 
   onReserve() {
     wx.showToast({ title: `已为您预约${CONFIG.TIME_REDLINE.open}开服提醒`, icon: 'none' });
-  },
-
-  // 地图找TA: 进入附近地图
-  goNearbyMap() {
-    wx.navigateTo({ url: '/pages-v2/nearby-map/nearby-map', fail: () => wx.showToast({ title: '地图页暂不可用', icon: 'none' }) });
   }
 });

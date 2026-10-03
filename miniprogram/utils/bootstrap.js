@@ -209,7 +209,7 @@ function showRealnameGuide(content) {
       if (!res.confirm) return;
       syncLoginUser();
       wx.navigateTo({
-        url: '/pages-v2/realname/realname',
+        url: '/pages-v2/pkg-low/realname/realname',
         fail: () => wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} })
       });
     },

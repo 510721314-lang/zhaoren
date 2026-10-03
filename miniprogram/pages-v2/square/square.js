@@ -12,7 +12,6 @@ const SQUARE_PAGE_TTL = 10 * 60 * 1000;
 Page({
   data: {
     loading: true,
-    banners: [],     // 活动 banner 列表 (home_action_list 返回)
     cards: [],       // 活动卡片列表
     chips: [],
     activeChip: 'all',
@@ -142,7 +141,7 @@ Page({
     });
   },
 
-  // ───────── 活动 banner / 卡片 ─────────
+  // ───────── 活动卡片 ─────────
   fetchActivities() {
     wx.cloud.callFunction({
       name: 'home-action',
@@ -150,19 +149,16 @@ Page({
       success: (res) => {
         const r = res.result || {};
         if (r.ok && r.data) {
-          this.setData({
-            banners: r.data.banners || [],
-            cards: r.data.cards || []
-          });
+          this.setData({ cards: r.data.cards || [] });
         }
       },
-      fail: () => { /* 活动拉取失败静默降级, 首页仍可用 */ }
+      fail: () => { /* 活动拉取失败静默降级, 广场仍可用 */ }
     });
   },
 
   onActivityTap(e) {
     const idx = e.currentTarget.dataset.idx;
-    const act = (this.data.banners[idx] || this.data.cards[idx]);
+    const act = this.data.cards[idx];
     if (!act) return;
     const p = act.jump_param || {};
     switch (act.jump_to) {

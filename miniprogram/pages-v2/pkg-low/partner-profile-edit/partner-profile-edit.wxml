@@ -7,10 +7,18 @@
     上次提交未通过{{rejectReason ? '：' + rejectReason : ''}}，请修改后重新提交。
   </view>
 
-  <!-- 个人简介 -->
+  <!-- 个人简介: 默认只读展示生效简介, 「更改」进入编辑态, 「提交」独立提交走栏目审核 -->
   <view class="ppe__card">
-    <view class="ppe__label">个人简介 <text class="ppe__count">{{bio.length}}/{{limits.bio_len}}</text></view>
-    <textarea class="ppe__textarea" value="{{bio}}" maxlength="{{limits.bio_len}}" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" placeholder-class="ppe__ph" bindinput="onBioInput" />
+    <view class="ppe__label">个人简介 <text class="ppe__count">{{currentBio.length}}/{{limits.bio_len}}</text></view>
+    <view wx:if="{{!isBioEditing}}" class="ppe__bio-read">
+      <text wx:if="{{currentBio}}" class="ppe__bio-text">{{currentBio}}</text>
+      <text wx:else class="ppe__bio-empty">暂无简介，点击「更改」填写</text>
+      <view class="ppe__fieldsubmit {{auditStatus === 'pending' ? 'is-disabled' : ''}}" bindtap="onEditBio">更改</view>
+    </view>
+    <block wx:else>
+      <textarea class="ppe__textarea" value="{{bio}}" maxlength="{{limits.bio_len}}" placeholder="介绍你的特长与服务经验，例如：三甲医院在职护士，周末可陪诊" placeholder-class="ppe__ph" bindinput="onBioInput" />
+      <view class="ppe__fieldsubmit {{submitting || auditStatus === 'pending' ? 'is-disabled' : ''}}" data-which="bio" bindtap="onSubmitField">提交</view>
+    </block>
   </view>
 
   <!-- 技能标签 -->

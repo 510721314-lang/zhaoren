@@ -98,61 +98,25 @@
     </scroll-view>
   </view>
 
-  <!-- H6 内容Tab -->
-  <view class="home__tabs">
-    <view class="home__tab {{activeTab === 'demand' ? 'is-on' : ''}}" data-tab="demand" bindtap="switchTab">🔥 需求广场</view>
-    <view class="home__tab {{activeTab === 'partner' ? 'is-on' : ''}}" data-tab="partner" bindtap="switchTab">
-      <text class="home__tab-label">⭐ 耍伴推荐</text>
-      <view class="home__mapbtn" catchtap="goNearbyMap">🗺️ 地图找TA</view>
+  <!-- H6 广场入口卡: 首页只做发现门户, 需求列表全部汇入广场 -->
+  <view class="home__square-entry" bindtap="onGoSquare">
+    <view class="home__square-entry-main">
+      <view class="home__square-entry-title">🔥 需求广场</view>
+      <view class="home__square-entry-sub">看看附近的需求，也可抢单接活</view>
     </view>
+    <view class="home__square-entry-go">去逛逛 ›</view>
   </view>
 
-  <!-- H7a 需求列表(按场景分组, 每场景8条 + 更多) -->
-  <block wx:if="{{!loading && activeTab === 'demand'}}">
-    <view class="home__scene-group" wx:for="{{sceneGroups}}" wx:for-item="group" wx:key="scene_code">
-      <view class="home__scene-head">
-        <view class="home__scene-bar"></view>
-        <text class="home__scene-title">{{group.scene_name}}</text>
-        <text class="home__scene-count">{{group.list.length}} 条</text>
-      </view>
-      <block wx:if="{{group.list.length > 0}}">
-        <view class="fade-in-up" style="animation-delay:{{index * 0.05}}s;" wx:for="{{group.list}}" wx:for-item="demand" wx:key="_id">
-          <demand-card
-            demand="{{demand}}"
-            role="user"
-            bind:cardtap="onDemandTap"
-            bind:action="onDemandTap"
-          ></demand-card>
-        </view>
-      </block>
-      <view wx:else class="home__scene-empty">暂无匹配需求 · 点我去发布</view>
-      <view
-        wx:if="{{group.has_more}}"
-        class="home__scene-more-btn"
-        data-code="{{group.scene_code}}"
-        data-name="{{group.scene_name}}"
-        bindtap="onSceneMoreTap"
-      >查看更多{{group.scene_name}}需求 ›</view>
+  <!-- H6b 地图找TA入口卡: 附近地图 + 双向位置共享 -->
+  <view class="home__square-entry" bindtap="onGoMap">
+    <view class="home__square-entry-main">
+      <view class="home__square-entry-title">🗺️ 地图找TA</view>
+      <view class="home__square-entry-sub">查看附近的耍伴，履约中实时位置共享</view>
     </view>
-    <empty-state wx:if="{{sceneGroups.length === 0}}" icon="📋" title="当前暂无匹配需求" desc="可试试其他场景，或预约下单享{{reserveDiscountText}}" btnText="去发布"></empty-state>
-  </block>
+    <view class="home__square-entry-go">去看看 ›</view>
+  </view>
 
-  <!-- H7b 耍伴列表 -->
-  <block wx:else>
-    <view class="home__list">
-      <view class="fade-in-up" style="animation-delay:{{index * 0.05}}s;" wx:for="{{partnerList}}" wx:key="_id">
-        <partner-card
-          partner="{{item}}"
-          bind:cardtap="onPartnerTap"
-          bind:invite="onPartnerTap"
-          bind:more="onPartnerTap"
-        ></partner-card>
-      </view>
-      <view class="home__partner-tip">下拉加载更多高信用耍伴 · 新耍伴前{{trafficOrders}}单享流量扶持</view>
-    </view>
-  </block>
-
-  <!-- 附近可接单池(仅耍伴端): 页面最底部, 按发布时间倒序展示前10条, 更多跳附近列表页; 复用 demand-card -->
+  <!-- H7 附近可接单池(仅耍伴端): 页面最底部, 按发布时间倒序展示前10条, 更多跳附近列表页; 复用 demand-card -->
   <view class="home__near" wx:if="{{!loading && isPartner}}">
     <view class="home__near-head">
       <text class="home__title-bar"></text>

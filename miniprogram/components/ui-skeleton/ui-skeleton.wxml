@@ -1,21 +1,21 @@
 <block wx:if="{{type === 'card'}}">
   <view class="ui-sk-card" wx:for="{{rows}}" wx:key="index">
-    <view wx:if="{{avatar}}" class="ui-sk sk-circle"></view>
+    <view wx:if="{{avatar}}" class="skeleton sk-circle"></view>
     <view class="ui-sk-col">
-      <view class="ui-sk sk-line"></view>
-      <view class="ui-sk sk-line-sm"></view>
+      <view class="skeleton sk-line"></view>
+      <view class="skeleton sk-line-sm"></view>
     </view>
   </view>
 </block>
 <block wx:elif="{{type === 'circle'}}">
   <view class="ui-sk-row" wx:for="{{rows}}" wx:key="index">
-    <view class="ui-sk sk-circle"></view>
+    <view class="skeleton sk-circle"></view>
     <view class="ui-sk-col">
-      <view class="ui-sk sk-line"></view>
-      <view class="ui-sk sk-line-sm"></view>
+      <view class="skeleton sk-line"></view>
+      <view class="skeleton sk-line-sm"></view>
     </view>
   </view>
 </block>
 <block wx:else>
-  <view class="ui-sk sk-line" wx:for="{{rows}}" wx:key="index"></view>
+  <view class="skeleton sk-line" wx:for="{{rows}}" wx:key="index"></view>
 </block>

@@ -30,7 +30,7 @@
   <view class="msg__list">
     <!-- 加载态 -->
     <view class="msg__loading" wx:if="{{loading}}">
-      <view class="msg__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+      <view class="msg__skeleton skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
     </view>
     <!-- 空态 -->
     <empty-state wx:elif="{{orderList.length === 0}}" icon="💬" title="暂无消息" desc="订单创建后会话将出现在此" />

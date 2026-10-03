@@ -27,19 +27,6 @@
   </view>
 
   <!-- 地图找TA: 即时定位共享开关(双向对称) + 附近地图入口 -->
-  <view class="pf__card pf__map">
-    <view class="pf__map-row">
-      <view class="pf__map-row-left">
-        <text class="pf__link-ic">🗺️</text>
-        <view class="pf__map-txt">
-          <view class="pf__link-name">地图找TA</view>
-          <view class="pf__map-sub">开启后，TA 可通过地图看到你的实时位置</view>
-        </view>
-      </view>
-      <switch checked="{{allowMapShare}}" color="#07C160" bindchange="onMapShareChange" />
-    </view>
-    <view class="pf__map-go" bindtap="goNearbyMap" hover-class="btn-press">进入附近地图 ›</view>
-  </view>
 
   <!-- U2 双信用分卡（独立两栏） -->
   <view class="pf__scores">
@@ -154,34 +141,40 @@
     </view>
   </view>
 
-  <!-- U4 功能列表(联系客服用微信官方客服会话 open-type=contact) -->
-  <view class="pf__card">
-    <block wx:for="{{funcList}}" wx:key="key">
-      <button
-        wx:if="{{item.key === 'help'}}"
-        class="pf__link pf__link--btn"
-        open-type="contact"
-        binderror="onContactError"
-        hover-class="pf__link--hover"
-      >
-        <text class="pf__link-ic">{{item.icon}}</text>
-        <text class="pf__link-name">{{item.name}}</text>
-        <text class="pf__link-arrow">›</text>
-      </button>
-      <button
-        wx:else
-        class="pf__link pf__link--btn"
-        data-key="{{item.key}}"
-        bindtap="onFuncTap"
-        hover-class="pf__link--hover"
-      >
-        <text class="pf__link-ic">{{item.icon}}</text>
-        <text class="pf__link-name">{{item.name}}</text>
-        <view class="pf__badge" wx:if="{{item.badge}}">{{item.badge}}</view>
-        <text class="pf__link-arrow">›</text>
-      </button>
-    </block>
+  <!-- U4 工具与设置: 地图找TA + 功能列表(联系客服用微信官方客服会话 open-type=contact) -->
+  <view class="pf__map" bindtap="goNearbyMap" hover-class="btn-press">
+    <view class="pf__map-row">
+      <view class="pf__map-row-left">
+        <text class="pf__link-ic">🗺️</text>
+        <view class="pf__map-txt">
+          <view class="pf__link-name">地图找TA</view>
+          <view class="pf__map-sub">进入附近地图，也可管理位置共享</view>
+        </view>
+      </view>
+      <text class="pf__link-arrow">›</text>
+    </view>
   </view>
+  <!-- 工具与设置(组件化示范: ui-card 容器 + ui-cell 列表行) -->
+  <ui-card ext-class="pf__card-wrap">
+    <view class="pf__card-sub-title">工具与设置</view>
+    <block wx:for="{{funcList}}" wx:key="key">
+      <ui-cell
+        wx:if="{{item.key === 'help'}}"
+        icon="{{item.icon}}"
+        title="{{item.name}}"
+        open-type="contact"
+        bind:error="onContactError"
+      />
+      <ui-cell
+        wx:else
+        icon="{{item.icon}}"
+        title="{{item.name}}"
+        badge="{{item.badge}}"
+        data-key="{{item.key}}"
+        bind:tap="onFuncTap"
+      />
+    </block>
+  </ui-card>
 
   <!-- U6 -->
   <view class="pf__logout pf__logout--exit" bindtap="onExitLogin">退出登录</view>

@@ -34,6 +34,7 @@ const routes = [
       // ── 6. 安全与风控 ──
       { path: 'report', component: () => import('../views/Report.vue'), meta: { title: '举报处理' } },
       { path: 'conversation', component: () => import('../views/Conversation.vue'), meta: { title: '会话监管' } },
+      { path: 'kefu', component: () => import('../views/Kefu.vue'), meta: { title: '客服工作台' } },
       { path: 'audit', component: () => import('../views/Audit.vue'), meta: { title: '行为审计' } },
 
       // ── 7. 运营配置 ──

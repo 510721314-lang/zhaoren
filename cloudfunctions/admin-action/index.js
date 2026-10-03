@@ -35,6 +35,7 @@ const ROLE_GRANTS = {
   'config_get': ['R3'], 'config_log_list': ['R3'],
   'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'], 'upload_image': ['R3'],
   'notice_send': ['R3'],
+  'kefu_conv_list': ['R3'], 'kefu_conv_reply': ['R3'],
   'user_list': ['R3'], 'user_detail': ['R3'],
   'partner_list': ['R3'], 'partner_detail': ['R3'],
   'finance_list': ['R3'], 'finance_stats': ['R3'],
@@ -1589,6 +1590,86 @@ exports.main = async (event, context) => {
       list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0),
       conv: { conv_id: conv._id, order_id: conv.order_id, order_no: conv.order_no || '', scene_name: conv.scene_name || '' }
     });
+  }
+
+  // ───────── 客服工作台 ─────────
+  // 会话列表(分页+处理状态筛选) + 客服回复(写 im_message from_role='kefu' + 通知用户 + 标记已处理)
+  // 安全: 复用 im_message_admin_list 脱敏口径; 回复复用内容安全降级 + writeNotice 定向通知双方
+  if (action === 'kefu_conv_list') {
+    const pg = pager(event);
+    const q = { is_deleted: _.neq(true) };
+    if (event.kefu_status) q.kefu_status = event.kefu_status;   // unhandled | handled
+    if (isDocId(event.order_id)) q.order_id = event.order_id;
+    const query = col('im_conversation').where(q);
+    const [totalR, rows] = await Promise.all([
+      query.count().catch(() => ({ total: 0 })),
+      query.orderBy('last_msg_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
+    ]);
+    // 脱敏身份: 双方昵称(不暴露完整 openid/手机号)
+    const openids = Array.from(new Set((rows.data || []).flatMap((c) => [c.user_openid, c.partner_openid]).filter(Boolean)));
+    const userMap = {};
+    if (openids.length) {
+      try {
+        const users = await col('user_account').where({ openid: _.in(openids) }).limit(50).get();
+        (users.data || []).forEach((u) => { userMap[u.openid] = { nickname: u.nickname || '微信用户', role: (Array.isArray(u.roles) && u.roles.indexOf('partner') >= 0) ? 'partner' : 'user' }; });
+      } catch (e) { log.d('kefu conv user join fail:', e.message); }
+    }
+    const list = (rows.data || []).map((c) => ({
+      conv_id: c._id, order_id: c.order_id, order_no: c.order_no || '',
+      scene_name: c.scene_name || '',
+      user_nickname: (userMap[c.user_openid] && userMap[c.user_openid].nickname) || '用户',
+      partner_nickname: (userMap[c.partner_openid] && userMap[c.partner_openid].nickname) || '耍伴',
+      last_msg_text: c.last_msg_text || '', last_msg_at: c.last_msg_at || 0, last_msg_from: c.last_msg_from || '',
+      user_unread: c.user_unread || 0, partner_unread: c.partner_unread || 0,
+      kefu_status: c.kefu_status || 'unhandled', handled_at: c.handled_at || 0
+    }));
+    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
+  }
+
+  if (action === 'kefu_conv_reply') {
+    const { conv_id, text } = event;
+    if (!isDocId(conv_id)) return fail('kefu_bad_conv', '会话 ID 不合法');
+    const msg = String(text || '').trim();
+    if (!msg) return fail('kefu_empty', '回复内容不能为空');
+    if (msg.length > 500) return fail('kefu_too_long', '回复内容不超过500字');
+    const conv = await col('im_conversation').doc(conv_id).get().catch(() => null);
+    if (!conv || !conv.data || conv.data.is_deleted) return fail('kefu_conv_not_found', '会话不存在');
+    const c = conv.data;
+    // 内容安全: 违规直接拒绝, 异常降级放行并标记(与 im-send 同口径)
+    let secDegraded = false;
+    try {
+      const check = await cloud.openapi.security.msgSecCheck({ content: msg, openid: openid }).catch(() => null);
+      if (check && check.errCode === 87014) return fail('kefu_blocked', '内容涉及违规,禁止发送');
+      if (!check) secDegraded = true;
+    } catch (e) { secDegraded = true; }
+    const now = Date.now();
+    // 写客服消息(旁路会话, 不占 user/partner 未读角标; from_role='kefu' 供前端区分)
+    const msgRes = await col('im_message').add({ data: {
+      conv_id, order_id: c.order_id, from_openid: openid, from_role: 'kefu',
+      type: 'text', text: msg, template_id: '', sec_degraded: secDegraded,
+      created_at: now, updated_at: now, is_deleted: false
+    }}).catch((e) => { log.d('kefu msg add fail:', e.message); return null; });
+    if (!msgRes) return fail('kefu_write_fail', '回复发送失败,请重试');
+    // 更新会话: 最后消息 + 处理状态
+    await col('im_conversation').doc(conv_id).update({ data: {
+      last_msg_text: msg, last_msg_at: now, last_msg_from: 'kefu',
+      kefu_status: 'handled', handled_at: now, updated_at: now
+    }}).catch(() => {});
+    // 定向通知双方(复用 system_notice; 去重合并按 type 区分)
+    const targets = [c.user_openid, c.partner_openid].filter(Boolean);
+    for (const to of targets) {
+      try {
+        const exist = await col('system_notice').where({ to_openid: to, order_id: c.order_id || '', type: 'kefu_reply', read: false }).limit(1).get();
+        const data = { title: '客服回复', body: msg, action_key: 'jump_chat', action_payload: { order_id: c.order_id }, updated_at: now };
+        if (exist.data && exist.data[0]) {
+          await col('system_notice').doc(exist.data[0]._id).update({ data });
+        } else {
+          await col('system_notice').add({ data: Object.assign({ to_openid: to, order_id: c.order_id || '', type: 'kefu_reply', created_at: now, read: false }, data) });
+        }
+      } catch (e) { log.d('kefu notice fail:', to, e && e.message); }
+    }
+    await logEvent('P2', 'kefu_reply', openid, { conv_id, order_id: c.order_id, sec_degraded: secDegraded });
+    return ok({ msg_id: msgRes._id, conv_id, kefu_status: 'handled' });
   }
 
   if (action === 'credit_log_list') {
