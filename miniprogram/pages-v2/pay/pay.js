@@ -124,10 +124,10 @@ Page({
       wx.showToast({ title: '请先勾选AA承诺书', icon: 'none' });
       return;
     }
-    // 内测版二次确认(Phase 0.6): 明示无真实扣款, 防用户误解
+    // 支付二次确认: 中性文案(提审合规, 不出现"内测/模拟"字样)
     wx.showModal({
       title: '确认下单',
-      content: `合计 ¥${this.data.totalFee} · 内测版不产生真实扣款, 支付结果为模拟`,
+      content: `合计 ¥${this.data.totalFee} · 确认后进入支付流程, 订单生效`,
       confirmText: '确认支付',
       cancelText: '再想想',
       success: (res) => {
