@@ -82,6 +82,8 @@ const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 const PAGE_SIZE = 15;
 // 场景中文名(与 order-action 等 SCENE_NAME 同源, 全仓同步维护; 后台新增动态场景未列出的回退显示 code)
 const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 本地违禁词兜底(与 im-send/order-action/demand-publish 同款; msgSecCheck 不可用时降级)
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
 // ───────── 参数元数据(单一真相 SSOT) ─────────
 // config_set 区间校验 + config_get 输出 schema + admin-web Operations.vue 动态渲染,
@@ -1589,7 +1591,7 @@ exports.main = async (event, context) => {
       msg_id: m._id, from_role: m.from_role || (userMap[m.from_openid] ? userMap[m.from_openid].role : ''),
       from_nickname: (userMap[m.from_openid] && userMap[m.from_openid].nickname) || '',
       type: m.type || 'text', text: m.text || '', template_id: m.template_id || '',
-      sec_degraded: !!m.sec_degraded, created_at: m.created_at
+      sec_degraded: !!m.sec_degraded, quote: m.quote || null, created_at: m.created_at
     }));
     return ok({
       list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0),
@@ -1641,19 +1643,43 @@ exports.main = async (event, context) => {
     const conv = await col('im_conversation').doc(conv_id).get().catch(() => null);
     if (!conv || !conv.data || conv.data.is_deleted) return fail('kefu_conv_not_found', '会话不存在');
     const c = conv.data;
-    // 内容安全: 违规直接拒绝, 异常降级放行并标记(与 im-send 同口径)
+    // 引用支持: 可选 event.quote = { msg_id } → 从库复核同会话消息后存快照(不信前端文本, 防跨会话/防篡改)
+    let quote = null;
+    const quoteMsgId = event.quote && String(event.quote.msg_id || '').trim();
+    if (quoteMsgId) {
+      if (!isDocId(quoteMsgId)) return fail('kefu_bad_quote', '引用消息 ID 不合法');
+      const qmR = await col('im_message').doc(quoteMsgId).get().catch(() => null);
+      const qm = qmR && qmR.data;
+      if (!qm || qm.conv_id !== conv_id || qm.is_deleted) return fail('kefu_quote_not_found', '引用的消息不存在或已删除');
+      quote = { msg_id: qm._id, text: qm.text || '', from_role: qm.from_role || '', created_at: qm.created_at || 0 };
+    }
+    // 内容安全: 违规直接拒绝; msgSecCheck 不可用时降级本地违禁词(客服回复为可信来源, 不标 sec_degraded)
+    // 注意: msgSecCheck 的 openid 必须是真实小程序用户, admin-web 代理下 openid 是管理员(非小程序用户)会导致调用失败,
+    //       且 im-send 用户消息传真实用户 openid 正常(全仓唯一差异), 故此处不传 openid(v2 可选参数)。
     let secDegraded = false;
     try {
-      const check = await cloud.openapi.security.msgSecCheck({ content: msg, openid: openid }).catch(() => null);
+      const check = await cloud.openapi.security.msgSecCheck({ content: msg, version: 2, scene: 2 }).catch((e) => {
+        log.d('kefu msgSecCheck error:', e && e.message, e && e.errCode);
+        return null;
+      });
       if (check && check.errCode === 87014) return fail('kefu_blocked', '内容涉及违规,禁止发送');
-      if (!check) secDegraded = true;
-    } catch (e) { secDegraded = true; }
+      if (!check) {
+        // msgSecCheck 不可用(网络/权限) → 降级本地违禁词(与 im-send 同口径), 命中即拒
+        const words = (config.block_words && config.block_words.length) ? config.block_words : BLOCK_WORDS_FALLBACK;
+        const lower = msg.toLowerCase();
+        for (const w of words) {
+          if (w && lower.indexOf(String(w).toLowerCase()) >= 0) {
+            return fail('kefu_blocked', '消息包含平台禁止的内容(如联系方式/转账),请修改后重试');
+          }
+        }
+      }
+    } catch (e) { log.d('kefu msgSecCheck throw:', e && e.message); }
     const now = Date.now();
     // 写客服消息(旁路会话, 不占 user/partner 未读角标; from_role='kefu' 供前端区分)
     const msgRes = await col('im_message').add({ data: {
       conv_id, order_id: c.order_id, from_openid: openid, from_role: 'kefu',
       type: 'text', text: msg, template_id: '', sec_degraded: secDegraded,
-      created_at: now, updated_at: now, is_deleted: false
+      quote, created_at: now, updated_at: now, is_deleted: false
     }}).catch((e) => { log.d('kefu msg add fail:', e.message); return null; });
     if (!msgRes) return fail('kefu_write_fail', '回复发送失败,请重试');
     // 更新会话: 最后消息 + 处理状态
@@ -1676,6 +1702,18 @@ exports.main = async (event, context) => {
     }
     await logEvent('P2', 'kefu_reply', openid, { conv_id, order_id: c.order_id, sec_degraded: secDegraded });
     return ok({ msg_id: msgRes._id, conv_id, kefu_status: 'handled' });
+  }
+
+  // 一次性运维接口(仅 R1): 清理客服回复误标 sec_degraded(修复前 msgSecCheck 失败误标)
+  // 依据: 真违规(87014)会被直接拒绝不入库, 故 from_role='kefu' 且 sec_degraded=true 必为误标, 可安全置 false
+  if (action === 'kefu_mislabel_clear') {
+    const r = await col('im_message')
+      .where({ from_role: 'kefu', sec_degraded: true }).update({
+        data: { sec_degraded: false, sec_degraded_at: null, sec_degraded_fixed_at: Date.now() }
+      }).catch(() => null);
+    const updated = (r && r.stats && r.stats.updated) || 0;
+    await logEvent('P2', 'kefu_mislabel_clear', openid, { updated });
+    return ok({ updated });
   }
 
   if (action === 'credit_log_list') {
