@@ -2652,6 +2652,8 @@ exports.main = async (event, context) => {
     'safety_report',
     'im_conversation', 'im_message',
     'withdraw_record',
+    // ── 认证考试题库(2026-10-03 新增: 题库为运营配置数据, 答案管理员可读, 纳入备份) ──
+    'exam_bank',
     // ── 旧表/低频(保留兼容, 不存在返回空) ──
     'user_profile', 'partner_exam', 'partner_apply',
     'dispute', 'withdraw_request', 'credit_log',
