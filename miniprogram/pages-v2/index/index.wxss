@@ -10,9 +10,9 @@
 .home__sk-cell { width: 25%; text-align: center; margin-bottom: 24rpx; }
 .home__sk-cell .skeleton { margin: 0 auto; }
 
-/* H1 */
+/* H1 顶部导航: 品牌浅底, 首屏辨识度 */
 .home__nav {
-  background: var(--bg-card);
+  background: var(--brand-primary-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -46,7 +46,7 @@
   margin-left: 2rpx;
 }
 
-/* H1b 搜索栏 */
+/* H1b 搜索栏: 白底胶囊 + 轻阴影, 与品牌浅底区分离 */
 .home__searchbar {
   background: var(--bg-card);
   margin: 0 20rpx;
@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   padding: 0 28rpx;
-  background: var(--bg-segment);
+  box-shadow: var(--shadow-card);
 }
 .home__search-input {
   flex: 1;

@@ -4,10 +4,10 @@
   padding: 0 20rpx 160rpx;
 }
 
-/* U1 */
+/* U1 身份头部: 品牌浅底, 个人中心辨识度 */
 .pf__header {
   margin-top: 12rpx;
-  background: var(--bg-card);
+  background: var(--brand-primary-light);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
   padding: 32rpx 28rpx;
@@ -109,9 +109,14 @@
   color: var(--text-3);
 }
 .pf__score-level {
-  margin-top: 6rpx;
+  margin-top: 10rpx;
+  display: inline-block;
   font-size: var(--font-xs);
-  color: var(--text-5);
+  font-weight: 600;
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  border-radius: var(--r-full);
+  padding: 4rpx 16rpx;
 }
 .pf__score-divider {
   width: 1rpx;
