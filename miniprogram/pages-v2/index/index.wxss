@@ -1,7 +1,7 @@
 .home {
   min-height: 100vh;
   background: var(--bg-page);
-  padding-bottom: 160rpx;
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
 }
 
 /* 骨架屏 */
@@ -320,6 +320,8 @@
 }
 
 /* H6 广场入口卡(首页只做发现门户, 列表汇入广场) */
+/* 功能入口组(需求广场+地图找TA): 两卡同组, 第二卡自带间距 */
+.home__entries { margin-top: 8rpx; }
 .home__square-entry {
   margin: 8rpx 24rpx 0;
   padding: 24rpx 28rpx;

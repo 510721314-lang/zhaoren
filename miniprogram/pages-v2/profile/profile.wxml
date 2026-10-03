@@ -28,8 +28,8 @@
 
   <!-- 地图找TA: 即时定位共享开关(双向对称) + 附近地图入口 -->
 
-  <!-- U2 双信用分卡（独立两栏） -->
-  <view class="pf__scores">
+  <!-- U2 双信用分卡（独立两栏, 交错入场） -->
+  <view class="pf__scores fade-in-up">
     <view class="pf__score" data-role="user" bindtap="onScoreDetail">
       <view class="pf__score-num">{{user.user_credit_score}}</view>
       <view class="pf__score-label">用户信用分</view>
@@ -43,8 +43,8 @@
     </view>
   </view>
 
-  <!-- U3 订单四宫格 -->
-  <view class="pf__orders">
+  <!-- U3 订单四宫格（交错入场） -->
+  <view class="pf__orders fade-in-up" style="animation-delay:0.05s;">
     <view class="pf__order" wx:for="{{orderEntries}}" wx:key="key" data-key="{{item.key}}" bindtap="onOrderEntry">
       <view class="pf__order-ic">{{item.icon}}
         <text class="pf__order-dot" wx:if="{{item.count}}">{{item.count}}</text>

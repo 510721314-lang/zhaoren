@@ -1,7 +1,7 @@
 .square {
   min-height: 100vh;
   background: var(--bg-page);
-  padding-bottom: 160rpx;
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
 }
 
 /* 活动卡片区(横向滚动, 广场特有运营位) */

@@ -51,9 +51,9 @@
     </view>
   </view>
 
-  <!-- H4 场景宫格（搜索实时过滤） -->
+  <!-- H4 场景宫格（搜索实时过滤, 交错入场） -->
   <view class="home__grid" wx:if="{{!loading && filteredScenes.length > 0}}">
-    <view class="home__cell" wx:for="{{filteredScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
+    <view class="home__cell fade-in-up" style="animation-delay:{{index * 0.03}}s;" wx:for="{{filteredScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
       <view class="home__gb-badge" wx:if="{{item.gb}}">国标</view>
       <view class="home__cell-ic" style="background:{{item.color}};">{{item.icon}}</view>
       <view class="home__cell-name">{{item.name}}</view>
@@ -98,22 +98,22 @@
     </scroll-view>
   </view>
 
-  <!-- H6 广场入口卡: 首页只做发现门户, 需求列表全部汇入广场 -->
-  <view class="home__square-entry" bindtap="onGoSquare">
-    <view class="home__square-entry-main">
-      <view class="home__square-entry-title">🔥 需求广场</view>
-      <view class="home__square-entry-sub">看看附近的需求，也可抢单接活</view>
+  <!-- H6 功能入口组: 需求广场 + 地图找TA（统一入口卡层级, 交错入场） -->
+  <view class="home__entries">
+    <view class="home__square-entry fade-in-up" style="animation-delay:0.05s;" bindtap="onGoSquare">
+      <view class="home__square-entry-main">
+        <view class="home__square-entry-title">🔥 需求广场</view>
+        <view class="home__square-entry-sub">看看附近的需求，也可抢单接活</view>
+      </view>
+      <view class="home__square-entry-go">去逛逛 ›</view>
     </view>
-    <view class="home__square-entry-go">去逛逛 ›</view>
-  </view>
-
-  <!-- H6b 地图找TA入口卡: 附近地图 + 双向位置共享 -->
-  <view class="home__square-entry" bindtap="onGoMap">
-    <view class="home__square-entry-main">
-      <view class="home__square-entry-title">🗺️ 地图找TA</view>
-      <view class="home__square-entry-sub">查看附近的耍伴，履约中实时位置共享</view>
+    <view class="home__square-entry fade-in-up" style="animation-delay:0.1s;" bindtap="onGoMap">
+      <view class="home__square-entry-main">
+        <view class="home__square-entry-title">🗺️ 地图找TA</view>
+        <view class="home__square-entry-sub">查看附近的耍伴，履约中实时位置共享</view>
+      </view>
+      <view class="home__square-entry-go">去看看 ›</view>
     </view>
-    <view class="home__square-entry-go">去看看 ›</view>
   </view>
 
   <!-- H7 附近可接单池(仅耍伴端): 页面最底部, 按发布时间倒序展示前10条, 更多跳附近列表页; 复用 demand-card -->

@@ -39,7 +39,8 @@
     <!-- 正常态：block 承接 wx:elif，内部 view 承接 wx:for，避免同元素双指令冲突 -->
     <block wx:elif="{{orderList.length > 0}}">
       <view
-        class="msg__conv {{item.pinned ? 'is-pinned' : ''}}"
+        class="msg__conv fade-in-up {{item.pinned ? 'is-pinned' : ''}}"
+        style="animation-delay:{{index * 0.03}}s;"
         wx:for="{{orderList}}"
         wx:key="_id"
         data-id="{{item._id}}"

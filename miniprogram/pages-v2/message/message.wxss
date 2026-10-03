@@ -1,7 +1,7 @@
 .msg {
   min-height: 100vh;
   background: var(--bg-page);
-  padding-bottom: 160rpx;
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
 }
 .msg__loading { padding: 16rpx; }
 .msg__skeleton { height: 96rpx; border-radius: var(--r-md); margin-bottom: 16rpx; }

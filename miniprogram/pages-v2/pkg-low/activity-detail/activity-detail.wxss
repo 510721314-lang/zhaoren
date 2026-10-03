@@ -4,7 +4,7 @@
   min-height: 100vh;
   background: var(--bg-page);
   color: var(--text-1);
-  padding-bottom: 160rpx;
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
