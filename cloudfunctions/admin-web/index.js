@@ -180,18 +180,28 @@ exports.main = async (event, context) => {
     } catch (e) { return makeJson({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
   }
 
-  // 种子数据代理: 调用 zz-seed-orders (run / cleanup / count / simulate / cleanup_sim / count_sim)
+  // 种子数据代理: 调用 zz-seed-orders (run / cleanup / count / simulate / cleanup_sim / count_sim / service_orders / night_orders)
   // 云函数间调用 OPENID 为空, 用固定 seed openid 标识(幂等+清理用)
   if (action === 'seed_run' || action === 'seed_cleanup' || action === 'seed_count'
-      || action === 'seed_simulate' || action === 'seed_cleanup_sim' || action === 'seed_count_sim') {
+      || action === 'seed_simulate' || action === 'seed_cleanup_sim' || action === 'seed_count_sim'
+      || action === 'seed_service_orders' || action === 'seed_night_orders' || action === 'seed_cleanup_seed_orders'
+      || action === 'seed_backfill_matched') {
     const SEED_MAP = {
       seed_run: 'run', seed_cleanup: 'cleanup', seed_count: 'count',
-      seed_simulate: 'simulate', seed_cleanup_sim: 'cleanup_sim', seed_count_sim: 'count_sim'
+      seed_simulate: 'simulate', seed_cleanup_sim: 'cleanup_sim', seed_count_sim: 'count_sim',
+      seed_service_orders: 'service_orders', seed_night_orders: 'night_orders',
+      seed_cleanup_seed_orders: 'cleanup_seed_orders', seed_backfill_matched: 'backfill_matched'
     };
     const seedAction = SEED_MAP[action];
     const seedOpenid = body.seed_openid || 'seed_admin';
     const seedData = { action: seedAction, mock_openid: seedOpenid };
     if (seedAction === 'run' && body.per) seedData.per = body.per;
+    if (seedAction === 'service_orders' || seedAction === 'night_orders' || seedAction === 'cleanup_seed_orders') {
+      if (body.partner_openid) seedData.partner_openid = body.partner_openid;
+      if (body.count) seedData.count = body.count;
+      if (seedAction === 'night_orders' && body.with_orders === false) seedData.with_orders = false;
+      if (seedAction === 'night_orders' && body.cleanup === true) seedData.cleanup = true;
+    }
     try {
       const r = await withTimeout(cloud.callFunction({ name: 'zz-seed-orders', data: seedData }), PROXY_TIMEOUT_MS);
       return makeJson(r.result || { ok: false, code: 'no_result' });

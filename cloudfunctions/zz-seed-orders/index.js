@@ -427,5 +427,421 @@ exports.main = async (event) => {
     return { ok: true, data: { created: created.length, skipped: subjects.length - created.length, user_added: userAdded, subjects: subjects.length, users: USERS.length } };
   }
 
+  // ── service_orders: 生成「正在服务时段」的履约中(S3)订单 ──
+  // 用途: 耍伴工作台/订单列表「进行中」测试——订单已开服(start_time 在过去), 未到结束时间
+  // partner 默认自动识别: status=approved 且基础科目考试已通过(exam_scores.base>=100)的耍伴, 每人 count 单
+  // 可传 partner_openid 指定单个耍伴; 幂等(client_request_id), 重复调用只补缺失
+  if (action === 'service_orders') {
+    const now = Date.now();
+    let partners = [];
+    if (event.partner_openid) {
+      partners = [String(event.partner_openid)];
+    } else {
+      const pr = await db.collection('partner_profile').where({ status: 'approved', is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
+      partners = (pr.data || [])
+        .filter((p) => Number((p.exam_scores && p.exam_scores.base) || 0) >= 100)
+        .map((p) => p.openid);
+    }
+    if (!partners.length) return { ok: false, code: 'no_exam_partner', msg: '未找到考试基础科目已通过的耍伴, 可传 partner_openid 指定' };
+    const count = Math.min(10, Math.max(1, Number(event.count) || 5));
+    partners = partners.slice(0, 5);
+
+    // scene → 子场景文案候选(复用 CONTENT 库 + admin_config.scene_list)
+    const sceneSubs = {};
+    for (const s of sceneList) sceneSubs[s.code] = (s.options || []).filter((sub) => CONTENT[sub]);
+    const scenesAvail = Object.keys(sceneSubs).filter((c) => sceneSubs[c].length > 0);
+    if (!scenesAvail.length) return { ok: false, code: 'no_scene_content', msg: '场景文案库为空' };
+
+    // 幂等: 一次 in 查询已有 crid(订单维度), 避免重试重复建单
+    const allCrids = [];
+    const taskOf = {};
+    for (const p of partners) {
+      const tail = p.slice(-6);
+      for (let i = 0; i < count; i++) {
+        const crid = `svo-${tail}-${i}`;
+        allCrids.push(crid);
+        taskOf[crid] = { partner: p, i };
+      }
+    }
+    let existingSet = new Set();
+    try {
+      const er = await db.collection('order_main').where({ client_request_id: _.in(allCrids) }).field({ client_request_id: true }).get();
+      existingSet = new Set((er.data || []).map((d) => d.client_request_id));
+    } catch (e) { /* in 查询失败则逐条重试, 靠 crid 幂等修订 */ }
+
+    // 预构建任务
+    const tasks = [];
+    allCrids.forEach((crid) => {
+      if (existingSet.has(crid)) return;
+      const { partner, i } = taskOf[crid];
+      const scene = scenesAvail[Math.floor(Math.random() * scenesAvail.length)];
+      const sub = sceneSubs[scene][Math.floor(Math.random() * sceneSubs[scene].length)];
+      const tpl = CONTENT[sub][0];
+      const duration_h = tpl[2] || 2;
+      const user = USERS[(i + Math.floor(Math.random() * 8)) % USERS.length];
+      const place = pick(PLACES);
+      const lat = +(30.58 + Math.random() * 0.16).toFixed(6);
+      const lng = +(104.03 + Math.random() * 0.12).toFixed(6);
+      const rate_fen = 4000 + Math.floor(Math.random() * 4000);
+      const total_fen = rate_fen * duration_h;
+      const fee_fen = Math.round(total_fen * 1000 / 10000);   // 平台费率默认 10%
+      const partner_income_fen = total_fen - fee_fen;
+      const svcStart = now - (20 + Math.floor(Math.random() * 30)) * 60000;   // 已开服 20-50 分钟(服务时段进行中)
+      const createdAt = now - 3 * 3600000;
+      const d = new Date();
+      const p2 = (n) => String(n).padStart(2, '0');
+      const demandNo = `DR${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+      const orderNo = `ORD${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+      tasks.push({ crid, partner, i, scene, sub, tpl, duration_h, user, place, lat, lng, rate_fen, total_fen, fee_fen, partner_income_fen, svcStart, createdAt, demandNo, orderNo });
+    });
+    const skipped = allCrids.length - tasks.length;
+
+    // 阶段A: 并发写需求(已匹配), 拿 demandId
+    const BATCH = 10;
+    for (let b = 0; b < tasks.length; b += BATCH) {
+      const chunk = tasks.slice(b, b + BATCH);
+      const rs = await Promise.all(chunk.map((t) => db.collection('demand').add({
+        data: {
+          demand_no: t.demandNo, client_request_id: t.crid + '-d',
+          creator_openid: t.user.openid, scene: t.scene, project_attr: 'commercial',
+          start_time: t.svcStart, duration_h: t.duration_h,
+          location: { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' },
+          publish_location: { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' },
+          content_option: t.sub, content_options: [t.sub],
+          remark: `${t.tpl[0]}｜${t.tpl[1]}`,
+          rate_fen: t.rate_fen, total_fen: t.total_fen,
+          aa_tier: '0-50', aa_promise_signed: true,
+          disclaimer_type: 'general_disclaimer', disclaimer_signed: true, disclaimer_signed_at: t.createdAt,
+          pet_auth_signed: false, pet_auth_signed_at: 0,
+          match_mode: 'broadcast', applicants: [], matched_openid: t.partner,
+          status: 'matched', matched_at: t.createdAt,
+          match_candidates: [], invited: [], broadcast: false,
+          view_count: Math.floor(Math.random() * 60) + 5,
+          expire_at: t.svcStart + 6 * 3600000,
+          created_at: t.createdAt, updated_at: now - 30 * 60000, is_deleted: false
+        }
+      }).then((r) => ({ t, demandId: r._id }))
+        .catch((e) => { console.error('[service_orders] demand add fail', e && e.message); return { t, demandId: '' }; })));
+      // 阶段B: 并发写订单(S3 履约中)
+      await Promise.all(rs.filter((x) => x.demandId).map(({ t, demandId }) => {
+        const orderData = {
+          order_no: t.orderNo, demand_id: demandId, demand_no: t.demandNo,
+          user_openid: t.user.openid, partner_openid: t.partner, scene: t.scene,
+          start_time: t.svcStart, service_started_at: t.svcStart, duration_h: t.duration_h,
+          location: { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' },
+          publish_location: { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' },
+          content_options: [t.sub],
+          rate_fen: t.rate_fen, total_fen: t.total_fen, fee_fen: t.fee_fen, partner_income_fen: t.partner_income_fen,
+          headcount: 1, aa_tier: '0-50', aa_promise_signed: true,
+          status: 'S3', pay_expire_at: null, help_flag: false,
+          take_distance_km: +(0.5 + Math.random() * 7).toFixed(1),
+          client_request_id: t.crid,
+          created_at: t.createdAt, updated_at: now - 30 * 60000, is_deleted: false
+        };
+        if (t.scene === 'W1') orderData.insurance = { policy_no: 'INS' + now + t.i, type: 'W1_caregiver', amount_fen: 5000000, is_mock: true, created_at: t.createdAt };
+        return db.collection('order_main').add({ data: orderData })
+          .then((or) => ({ t, orderId: or._id }))
+          .catch((e) => { console.error('[service_orders] order add fail', e && e.message); return { t, orderId: '' }; });
+      })).then((orRes) =>
+        // 阶段C: 四确认(已全部确认)+状态流水(建单→待支付→已支付→履约中), 失败不阻断
+        Promise.all(orRes.filter((x) => x.orderId).map(({ t, orderId }) => {
+          const itemLoc = { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' };
+          const writes = [
+            db.collection('order_confirmations').add({ data: {
+              order_id: orderId,
+              items: {
+                time: { value: t.svcStart, user_ok: true, partner_ok: true },
+                location: { value: itemLoc, user_ok: true, partner_ok: true },
+                content: { value: [t.sub], user_ok: true, partner_ok: true },
+                fee: { value: t.total_fen, user_ok: true, partner_ok: true }
+              },
+              version: 1, created_at: t.createdAt, updated_at: t.createdAt, is_deleted: false
+            }}).catch(() => {})
+          ];
+          const logs = [
+            { from: null, to: 'S1', act: 'create_from_take', operator: t.partner, ts: t.createdAt },
+            { from: 'S1', to: 'S0', act: 'confirm_all', operator: t.user.openid, ts: t.createdAt + 600000 },
+            { from: 'S0', to: 'S2', act: 'mock_pay', operator: t.user.openid, ts: t.createdAt + 1200000 },
+            { from: 'S2', to: 'S3', act: 'start_service', operator: t.partner, ts: t.svcStart }
+          ];
+          logs.forEach((lg) => writes.push(db.collection('order_status_log').add({ data: {
+            order_id: orderId, from_status: lg.from, to_status: lg.to,
+            action: lg.act, operator: lg.operator,
+            created_at: lg.ts, updated_at: lg.ts, is_deleted: false
+          }}).catch(() => {})));
+          return Promise.all(writes).then(() => 1);
+        })).then(() => rs)
+      );
+    }
+
+    const created = tasks.length;   // 批次内全部写入(阶段A追加成功)
+    return { ok: true, data: { created, skipped, partners, count, hint: 'S3 履约中订单已生成, 耍伴工作台/订单列表「进行中」刷新可见' } };
+  }
+
+  // ── night_orders: 生成「服务时间在 00:00-06:00 夜间红线内」的需求与订单 ──
+  // 用途: 测试夜间红线链路 —— 广场可见凌晨服务需求; 抢单被 order_time_redline 拦截;
+  //       附带 2 条 S2 已支付订单展示凌晨服务时间的列表/详情。真实发布会被 publish_redline 拦截, 仅种子直写。
+  // 幂等: client_request_id(nto-*/nto-ord-*), 重复调用只补缺失
+  if (action === 'night_orders') {
+    const now = Date.now();
+    // 东八区折算: 明天北京 00:00 的 UTC 时间戳(云函数运行时 UTC, 前端显示 +8)
+    // floor((now+8h)/day)*day 是「UTC 日历日起点」, 需再 -8h 才是北京 00:00(UTC 表示)
+    const bjTodayStart = Math.floor((now + 8 * 3600000) / 86400000) * 86400000 - 8 * 3600000;
+    const tomorrowBJStart = bjTodayStart + 86400000;   // 明天北京 00:00
+    const NIGHT_HOURS = [1, 2, 3, 4, 5];
+    const count = Math.min(10, Math.max(1, Number(event.count) || 6));
+    const withOrders = event.with_orders !== false;
+
+    const sceneSubs = {};
+    for (const s of sceneList) sceneSubs[s.code] = (s.options || []).filter((sub) => CONTENT[sub]);
+    const scenesAvail = Object.keys(sceneSubs).filter((c) => sceneSubs[c].length > 0);
+    if (!scenesAvail.length) return { ok: false, code: 'no_scene_content', msg: '场景文案库为空' };
+
+    // 幂等: 一次性查已有 crid
+    const dCrids = []; const oCrids = [];
+    for (let i = 0; i < count; i++) dCrids.push(`nto-${i}`);
+    for (let i = 0; i < (withOrders ? 2 : 0); i++) oCrids.push(`nto-ord-${i}`);
+
+    // cleanup: 软删全部 nto-* 需求 + nto-ord-* 订单及配套(重跑修复时区等用)
+    if (event.cleanup === true) {
+      let cleanedD = 0, cleanedO = 0;
+      try {
+        const dr = await db.collection('demand').where({ client_request_id: db.RegExp({ regexp: '^nto-' }), is_deleted: false })
+          .update({ data: { is_deleted: true, updated_at: now } });
+        cleanedD = (dr.stats && dr.stats.updated) || 0;
+      } catch (e) { /* ignore */ }
+      let orderIds = [];
+      try {
+        const or = await db.collection('order_main').where({ client_request_id: _.in(oCrids), is_deleted: false }).field({ _id: true }).limit(100).get();
+        orderIds = (or.data || []).map((x) => x._id);
+      } catch (e) { /* ignore */ }
+      if (orderIds.length) {
+        try {
+          const oUpd = await db.collection('order_main').where({ _id: _.in(orderIds) })
+            .update({ data: { is_deleted: true, updated_at: now } });
+          cleanedO = (oUpd.stats && oUpd.stats.updated) || 0;
+        } catch (e) { /* ignore */ }
+        await Promise.all(['order_confirmations', 'order_status_log'].map((c) =>
+          db.collection(c).where({ order_id: _.in(orderIds) }).update({ data: { is_deleted: true, updated_at: now } }).catch(() => {})
+        ));
+      }
+      return { ok: true, data: { cleaned_demands: cleanedD, cleaned_orders: cleanedO, hint: 'nto-* 夜间种子已软删' } };
+    }
+
+    let existingD = new Set(); let existingO = new Set();
+    try {
+      const [dr, or] = await Promise.all([
+        db.collection('demand').where({ client_request_id: _.in(dCrids), is_deleted: _.neq(true) }).field({ client_request_id: true }).get(),
+        db.collection('order_main').where({ client_request_id: _.in(oCrids), is_deleted: _.neq(true) }).field({ client_request_id: true }).get()
+      ]);
+      existingD = new Set((dr.data || []).map((x) => x.client_request_id));
+      existingO = new Set((or.data || []).map((x) => x.client_request_id));
+    } catch (e) { /* 查询失败则逐条幂等重试 */ }
+
+    const p2 = (n) => String(n).padStart(2, '0');
+    const genNo = (prefix) => {
+      const d = new Date();
+      return `${prefix}${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+    };
+    const genStart = () => {
+      const hour = NIGHT_HOURS[Math.floor(Math.random() * NIGHT_HOURS.length)];
+      const min = Math.floor(Math.random() * 56);
+      return tomorrowBJStart + hour * 3600000 + min * 60000;
+    };
+    const genDoc = (i) => {
+      const scene = scenesAvail[Math.floor(Math.random() * scenesAvail.length)];
+      const sub = sceneSubs[scene][Math.floor(Math.random() * sceneSubs[scene].length)];
+      const tpl = CONTENT[sub][0];
+      const user = USERS[i % USERS.length];
+      const place = pick(PLACES);
+      return {
+        scene, sub, tpl, duration_h: tpl[2] || 2, user, place,
+        lat: +(30.58 + Math.random() * 0.16).toFixed(6),
+        lng: +(104.03 + Math.random() * 0.12).toFixed(6),
+        rate_fen: 4000 + Math.floor(Math.random() * 4000),
+        start_time: genStart(),
+        createdAt: now - Math.floor(Math.random() * 12 * 3600000) - 60000
+      };
+    };
+
+    // ── 需求批次(matching, 广场可见, 抢单会被红线拦) ──
+    const demands = [];
+    for (let i = 0; i < count; i++) {
+      if (existingD.has(`nto-${i}`)) continue;
+      demands.push({ crid: `nto-${i}`, demand_no: genNo('DR'), ...genDoc(i) });
+    }
+    const BATCH = 10;
+    let dCreated = 0;
+    for (let b = 0; b < demands.length; b += BATCH) {
+      const chunk = demands.slice(b, b + BATCH);
+      const rs = await Promise.all(chunk.map((t) => db.collection('demand').add({
+        data: {
+          demand_no: t.demand_no, client_request_id: t.crid,
+          creator_openid: t.user.openid, scene: t.scene, project_attr: 'commercial',
+          start_time: t.start_time, duration_h: t.duration_h,
+          location: { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' },
+          publish_location: { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' },
+          content_option: t.sub, content_options: [t.sub],
+          remark: `${t.tpl[0]}｜${t.tpl[1]}`,
+          rate_fen: t.rate_fen, total_fen: t.rate_fen * t.duration_h,
+          aa_tier: '0-50', aa_promise_signed: true,
+          disclaimer_type: 'general_disclaimer', disclaimer_signed: true, disclaimer_signed_at: t.createdAt,
+          pet_auth_signed: false, pet_auth_signed_at: 0,
+          match_mode: 'broadcast', applicants: [], matched_openid: null,
+          status: 'matching', match_candidates: [], invited: [], broadcast: true,
+          view_count: Math.floor(Math.random() * 60) + 5,
+          expire_at: t.start_time + 2 * 3600000,   // 服务开始 2h 后失效
+          created_at: t.createdAt, updated_at: t.createdAt, is_deleted: false
+        }
+      }).then(() => { dCreated++; }).catch((e) => { console.error('[night_orders] demand fail', e && e.message); })));
+      await Promise.all(rs);
+    }
+
+    // ── 订单批次(2 条 S2 已支付, 服务时间凌晨, 测列表/详情展示) ──
+    let oCreated = 0;
+    if (withOrders) {
+      // 取一个 approved 耍伴作 partner(考试过优先), 兜底固定测试号
+      let partnerOpenid = 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c';
+      try {
+        const pr = await db.collection('partner_profile').where({ status: 'approved', is_deleted: _.neq(true) }).limit(20).get();
+        const p = (pr.data || []).find((x) => Number((x.exam_scores && x.exam_scores.base) || 0) >= 100) || (pr.data || [])[0];
+        if (p && p.openid) partnerOpenid = p.openid;
+      } catch (e) { /* 兜底测试号 */ }
+      for (let i = 0; i < 2; i++) {
+        if (existingO.has(`nto-ord-${i}`)) continue;
+        const t = genDoc(100 + i);
+        const orderNo = genNo('ORD');
+        const demandNo = genNo('DR');
+        const totalFen = t.rate_fen * t.duration_h;
+        const feeFen = Math.round(totalFen * 1000 / 10000);
+        const loc = { name: t.place, latitude: t.lat, longitude: t.lng, city: '成都' };
+        const demandRes = await db.collection('demand').add({ data: {
+          demand_no: demandNo, client_request_id: `nto-ord-${i}-d`,
+          creator_openid: t.user.openid, scene: t.scene, project_attr: 'commercial',
+          start_time: t.start_time, duration_h: t.duration_h,
+          location: loc, publish_location: loc,
+          content_option: t.sub, content_options: [t.sub],
+          remark: `${t.tpl[0]}｜${t.tpl[1]}`,
+          rate_fen: t.rate_fen, total_fen: totalFen,
+          aa_tier: '0-50', aa_promise_signed: true,
+          disclaimer_type: 'general_disclaimer', disclaimer_signed: true, disclaimer_signed_at: t.createdAt,
+          pet_auth_signed: false, pet_auth_signed_at: 0,
+          match_mode: 'broadcast', applicants: [], matched_openid: partnerOpenid,
+          status: 'matched', matched_at: t.createdAt - 3600000,
+          match_candidates: [], invited: [], broadcast: false,
+          view_count: Math.floor(Math.random() * 30) + 5,
+          expire_at: t.start_time + 2 * 3600000,
+          created_at: t.createdAt, updated_at: t.createdAt, is_deleted: false
+        }}).catch(() => {});
+        if (!demandRes || !demandRes._id) continue;
+        const orderRes = await db.collection('order_main').add({ data: {
+          order_no: orderNo, demand_id: demandRes._id, demand_no: demandNo,
+          user_openid: t.user.openid, partner_openid: partnerOpenid, scene: t.scene,
+          start_time: t.start_time, duration_h: t.duration_h,
+          location: loc, publish_location: loc,
+          content_options: [t.sub],
+          rate_fen: t.rate_fen, total_fen: totalFen, fee_fen: feeFen, partner_income_fen: totalFen - feeFen,
+          headcount: 1, aa_tier: '0-50', aa_promise_signed: true,
+          status: 'S2', pay_expire_at: t.start_time - 3600000, help_flag: false,
+          take_distance_km: +(0.5 + Math.random() * 7).toFixed(1),
+          client_request_id: `nto-ord-${i}`,
+          created_at: t.createdAt, updated_at: t.createdAt, is_deleted: false
+        }}).catch(() => {});
+        if (!orderRes || !orderRes._id) continue;
+        await Promise.all([
+          db.collection('order_confirmations').add({ data: {
+            order_id: orderRes._id,
+            items: {
+              time: { value: t.start_time, user_ok: true, partner_ok: true },
+              location: { value: loc, user_ok: true, partner_ok: true },
+              content: { value: [t.sub], user_ok: true, partner_ok: true },
+              fee: { value: totalFen, user_ok: true, partner_ok: true }
+            },
+            version: 1, created_at: t.createdAt, updated_at: t.createdAt, is_deleted: false
+          }}).catch(() => {}),
+          db.collection('order_status_log').add({ data: {
+            order_id: orderRes._id, from_status: null, to_status: 'S1',
+            action: 'create_from_take', operator: partnerOpenid,
+            created_at: t.createdAt, updated_at: t.createdAt, is_deleted: false
+          }}).catch(() => {}),
+          db.collection('order_status_log').add({ data: {
+            order_id: orderRes._id, from_status: 'S1', to_status: 'S0',
+            action: 'confirm_all', operator: t.user.openid,
+            created_at: t.createdAt + 300000, updated_at: t.createdAt + 300000, is_deleted: false
+          }}).catch(() => {}),
+          db.collection('order_status_log').add({ data: {
+            order_id: orderRes._id, from_status: 'S0', to_status: 'S2',
+            action: 'mock_pay', operator: t.user.openid,
+            created_at: t.createdAt + 600000, updated_at: t.createdAt + 600000, is_deleted: false
+          }}).catch(() => {})
+        ]);
+        oCreated++;
+      }
+    }
+
+    return { ok: true, data: { created_demands: dCreated, created_orders: oCreated, night_window: '00:00-06:00', hint: '服务时间在凌晨的夜间需求/订单已生成; 抢单会被 order_time_redline 拦截' } };
+  }
+
+  // ── cleanup_seed_orders: 软删种子订单(svo-*/nto-ord-*)及配套需求/确认/流水 ──
+  // 用途: 清空指定耍伴名下的种子订单, 恢复可抢单状态; 不传 partner_openid 则清全部
+  if (action === 'cleanup_seed_orders') {
+    const partner = event.partner_openid ? String(event.partner_openid) : '';
+    const cridRe = db.RegExp({ regexp: '^(svo|nto-ord)' });
+    let cleanedOrders = 0, cleanedDemands = 0, cleanedMeta = 0;
+    // 订单: crid 前缀 + 可选指定耍伴
+    const oWhere = { is_deleted: _.neq(true), client_request_id: cridRe };
+    if (partner) oWhere.partner_openid = partner;
+    let orderIds = [];
+    try {
+      const or = await db.collection('order_main').where(oWhere).field({ _id: true, client_request_id: true }).limit(200).get();
+      orderIds = (or.data || []).map((x) => x._id);
+      if (orderIds.length) {
+        const upd = await db.collection('order_main').where({ _id: _.in(orderIds) })
+          .update({ data: { is_deleted: true, updated_at: Date.now() } });
+        cleanedOrders = (upd.stats && upd.stats.updated) || 0;
+      }
+    } catch (e) { /* ignore */ }
+    if (orderIds.length) {
+      await Promise.all(['order_confirmations', 'order_status_log'].map((c) =>
+        db.collection(c).where({ order_id: _.in(orderIds) }).update({ data: { is_deleted: true, updated_at: Date.now() } }).catch(() => {})
+      ));
+    }
+    // 配套需求: crid ^(svo|nto-ord)-d(带 -d 后缀)
+    try {
+      const upd = await db.collection('demand').where({ is_deleted: _.neq(true), client_request_id: db.RegExp({ regexp: '^(svo|nto-ord)-' }) })
+        .update({ data: { is_deleted: true, updated_at: Date.now() } });
+      cleanedDemands = (upd.stats && upd.stats.updated) || 0;
+    } catch (e) { /* ignore */ }
+    return { ok: true, data: { cleaned_orders: cleanedOrders, cleaned_meta: cleanedMeta, cleaned_demands: cleanedDemands, partner, hint: '种子订单已软删, 该账号恢复可抢单' } };
+  }
+
+  // ── backfill_matched: 一次性补全历史需求 matched_openid(曾因 CAS 漏写全部为空) ──
+  // 全量扫描式: 逐页扫 matched 需求, 空值按配套订单 partner_openid 回填(幂等); found=0 即完成
+  if (action === 'backfill_matched') {
+    let filled = 0, found = 0, matchedTotal = 0, sk = 0;
+    try {
+      while (sk < 500) {
+        const p = await db.collection('demand').where({ status: 'matched', is_deleted: _.neq(true) }).skip(sk).limit(100).get().catch(() => ({ data: [] }));
+        if (!p.data || !p.data.length) break;
+        matchedTotal += p.data.length;
+        for (const d of p.data) {
+          if (d.matched_openid) continue;
+          found++;
+          const ex = await db.collection('order_main').where({ demand_id: d._id, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+          if (ex.data && ex.data[0] && ex.data[0].partner_openid) {
+            await db.collection('demand').doc(d._id).update({
+              data: { matched_openid: ex.data[0].partner_openid, updated_at: Date.now() }
+            }).catch(() => {});
+            filled++;
+          }
+        }
+        sk += 100;
+      }
+      return { ok: true, data: { filled, found, matched_total: matchedTotal, hint: 'found=0 即全部健康; 本轮回填 filled 条' } };
+    } catch (e) {
+      return { ok: false, code: 'backfill_fail', msg: e && e.message };
+    }
+  }
+
   return { ok: false, code: 'bad_action', msg: '未知 action: ' + action };
 };
