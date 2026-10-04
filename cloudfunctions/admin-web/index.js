@@ -209,7 +209,7 @@ exports.main = async (event, context) => {
       }
     }
     try {
-      const r = await withTimeout(cloud.callFunction({ name: 'zz-test-fixture', data: seedData }), PROXY_TIMEOUT_MS);
+      const r = await withTimeout(cloud.callFunction({ name: 'zz-seed-orders', data: seedData }), PROXY_TIMEOUT_MS);
       return makeJson(r.result || { ok: false, code: 'no_result' });
     } catch (e) {
       if (e && e.message && e.message.startsWith('proxy_timeout_')) {

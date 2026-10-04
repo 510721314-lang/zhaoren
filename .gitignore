@@ -24,9 +24,6 @@ node_modules/
 # 微信小程序代码上传密钥（含管理员权限，严禁入库）
 /KEY/
 
-# 临时种子载体（云端 zz-seed-orders 重建前的 workaround，上线前删除；代码 SSOT 在 zz-seed-orders）
-cloudfunctions/zz-test-fixture/
-
 # Git Bundle 备份产物（不入仓库，由热备目录留存）
 *.bundle
 zhaoren_backup_*/
