@@ -782,6 +782,137 @@ exports.main = async (event) => {
     return { ok: true, data: { created_demands: dCreated, created_orders: oCreated, night_window: '00:00-06:00', hint: '服务时间在凌晨的夜间需求/订单已生成; 抢单会被 order_time_redline 拦截' } };
   }
 
+  // ── scene_demands: 每场景生成 N 条匹配中需求(默认排除 W9 宠物陪伴), 供场景测试 ──
+  // 用途: 广场/首页/附近按场景浏览与抢单链路测试; 服务时间在未来 1-5 天白天时段(避开夜间红线)
+  // 幂等: client_request_id = sdm-{scene}-{i}; cleanup=true 软删全部 sdm-* 需求
+  if (action === 'scene_demands') {
+    const now = Date.now();
+    const per = Math.min(10, Math.max(1, Number(event.per) || 3));
+    let exSet = new Set(['W9']);
+    if (event.exclude_scenes) {
+      const arr = Array.isArray(event.exclude_scenes) ? event.exclude_scenes : String(event.exclude_scenes).split(',');
+      exSet = new Set(arr.map((s) => String(s).trim()).filter(Boolean));
+    }
+    const targets = sceneList.filter((s) => !exSet.has(s.code) && (s.options || []).some((sub) => CONTENT[sub]));
+
+    if (event.cleanup === true) {
+      let cleaned = 0, pass = 0;
+      const cre = db.RegExp({ regexp: '^sdm-' });
+      // 集合收缩时 skip 分页会漏删, 循环软删直至 0(与 cleanup_sim 历史教训一致)
+      while (pass < 10) {
+        const n = await softDeleteAll('demand', { client_request_id: cre, is_deleted: false }, 'is_deleted');
+        cleaned += n;
+        if (n === 0) break;
+        pass++;
+      }
+      return { ok: true, data: { cleaned_demands: cleaned, hint: 'sdm-* 场景种子已软删' } };
+    }
+
+    // 幂等: 一次 in 查询已有 crid(需求维度)
+    const allCrids = [];
+    const slotOf = {};
+    for (const s of targets) {
+      for (let i = 0; i < per; i++) {
+        const crid = `sdm-${s.code}-${i}`;
+        allCrids.push(crid);
+        slotOf[crid] = { s, i };
+      }
+    }
+    let existingSet = new Set();
+    try {
+      const er = await db.collection('demand').where({ client_request_id: _.in(allCrids), is_deleted: _.neq(true) }).field({ client_request_id: true }).get();
+      existingSet = new Set((er.data || []).map((d) => d.client_request_id));
+    } catch (e) { /* in 查询失败则逐条写入, 幂等靠 crid 修订 */ }
+
+    // 虚拟账号幂等补齐(缺失才建)
+    try {
+      const existU = await db.collection('user_account').where({ openid: _.in(USERS.map((u) => u.openid)) }).field({ openid: true }).get().catch(() => ({ data: [] }));
+      const have = new Set((existU.data || []).map((u) => u.openid));
+      const missing = USERS.filter((u) => !have.has(u.openid));
+      if (missing.length) {
+        await Promise.all(missing.map((u) => db.collection('user_account').add({ data: {
+          openid: u.openid, nickname: u.nickname, surname: u.surname,
+          status: 'normal', is_deleted: false,
+          created_at: now, updated_at: now
+        }}).catch(() => {})));
+      }
+    } catch (e) { /* 创建失败不阻断 */ }
+
+    // 构造需求 docs
+    const docs = [];
+    // 北京时段: 白天 9-18 点(避 00:00-06:00 夜间红线); bjDayStart = 北京今天 00:00 的 UTC 时间戳
+    const bjDayStart = Math.floor((now + 8 * 3600000) / 86400000) * 86400000 - 8 * 3600000;
+    const BJ_HOURS = [9, 11, 14, 16, 18];
+    allCrids.forEach((crid) => {
+      if (existingSet.has(crid)) return;
+      const { s, i } = slotOf[crid];
+      const subs = (s.options || []).filter((sub) => CONTENT[sub]);
+      const sub = subs[i % subs.length];
+      const tpl = CONTENT[sub][i % CONTENT[sub].length];
+      const duration_h = tpl[2] || 2;
+      const user = USERS[i % USERS.length];
+      const dayOffset = DAY_OFFSETS[i % DAY_OFFSETS.length];   // 未来 1-5 天
+      const hourBJ = BJ_HOURS[i % BJ_HOURS.length];             // 北京白天时段 9-18 点
+      const start_time = bjDayStart + dayOffset * 86400000 + hourBJ * 3600000 + 15 * 60000;
+      const rate_fen = RATE_MIN + Math.floor(Math.random() * (RATE_MAX - RATE_MIN));
+      const lat = +(30.58 + Math.random() * 0.16).toFixed(6);
+      const lng = +(104.03 + Math.random() * 0.12).toFixed(6);
+      const place = pick(PLACES);
+      const createdAt = now - Math.floor(Math.random() * 6 * 3600000) - 60000;
+      docs.push({
+        demand_no: genDemandNo(),
+        client_request_id: crid,
+        creator_openid: user.openid,
+        scene: s.code,
+        project_attr: 'commercial',
+        start_time,
+        duration_h,
+        location: { name: place, latitude: lat, longitude: lng, city: '成都' },
+        publish_location: { name: place, latitude: lat, longitude: lng, city: '成都' },
+        content_option: sub,
+        content_options: [sub],
+        remark: `${tpl[0]}｜${tpl[1]}`,
+        rate_fen,
+        total_fen: rate_fen * duration_h,
+        aa_tier: '0-50',
+        aa_promise_signed: true,
+        disclaimer_type: 'general_disclaimer',
+        disclaimer_signed: true,
+        disclaimer_signed_at: createdAt,
+        pet_auth_signed: false,
+        pet_auth_signed_at: 0,
+        match_mode: 'broadcast',
+        applicants: [],
+        matched_openid: null,
+        status: 'matching',
+        match_candidates: [],
+        invited: [],
+        broadcast: true,
+        view_count: Math.floor(Math.random() * 90) + 3,
+        expire_at: start_time + duration_h * 3600000,   // 服务结束时间(覆盖完整服务时段)
+        created_at: createdAt,
+        updated_at: createdAt,
+        is_deleted: false
+      });
+    });
+
+    const created = [];
+    const BATCH = 20;
+    for (let i2 = 0; i2 < docs.length; i2 += BATCH) {
+      const chunk = docs.slice(i2, i2 + BATCH);
+      const results = await Promise.all(chunk.map((doc) =>
+        db.collection('demand').add({ data: doc })
+          .then(() => doc.client_request_id)
+          .catch((e) => { console.error('[scene_demands] add fail', e && e.message); return null; })
+      ));
+      for (const r of results) if (r) created.push(r);
+    }
+
+    const byScene = {};
+    for (const c of created) { const sc = c.split('-')[1]; byScene[sc] = (byScene[sc] || 0) + 1; }
+    return { ok: true, data: { created: created.length, skipped: allCrids.length - created.length, per_scene: per, targets: targets.map((t) => t.code), by_scene: byScene, hint: '每场景 matching 需求已生成(除排除场景), 广场/首页/附近刷新可见' } };
+  }
+
   // ── cleanup_seed_orders: 软删种子订单(svo-*/nto-ord-*)及配套需求/确认/流水 ──
   // 用途: 清空指定耍伴名下的种子订单, 恢复可抢单状态; 不传 partner_openid 则清全部
   if (action === 'cleanup_seed_orders') {
