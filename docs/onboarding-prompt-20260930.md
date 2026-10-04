@@ -19,7 +19,7 @@
    - 模板：`<cli.bat路径> cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <单个函数名> --project C:\zhaoren --remote-npm-install`
 6. **管理后台网关调用约定（核对环境/切环境/导出数据均用此通道）**：
    - 端点：`POST https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api`
-   - 鉴权 Header：`X-Admin-Key: 1e4ea9609e1ff33abf9a6ded228f0f17cefc5ead67982006b46fc915b1251a8b`
+   - 鉴权 Header：`X-Admin-Key: <云端 admin_config.global.admin_web_key，密钥不入文档>`
    - Body 格式：`{ action: 'init_db', __init_db_action: 'quick_check' }`（UTF-8 JSON，Content-Type: application/json; charset=utf-8）
    - 切回 prod 调用：`{ action: 'init_db', __init_db_action: 'force_set_env', env: 'prod', reason: '<说明>' }`
    - 注意：此 admin_web_key 属敏感凭证，仅限本会话/开发者本机使用，不得写入公开文档

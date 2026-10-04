@@ -28,7 +28,7 @@
 
 【工具链·网关】
 - 云函数部署：<微信开发者工具 cli.bat> cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <单函数> --project c:\zhaoren --remote-npm-install（一次一个）
-- 管理后台网关：POST https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api，Header X-Admin-Key: 1e4ea9609e1ff33abf9a6ded228f0f17cefc5ead67982006b46fc915b1251a8b（敏感，勿入公开文档）
+- 管理后台网关：POST https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api，Header X-Admin-Key 取云端 admin_config.global.admin_web_key（密钥不入文档、勿写入公开仓库）
 
 【硬约束（不可违反）】
 > 本段为精要，全部约束以 .trae\rules.md 红线段与项目记忆 Hard Constraints 为权威；涉及金额分单位/服务端为准/信用分/权限模型等未列出的，遵循权威来源。

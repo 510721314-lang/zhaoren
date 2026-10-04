@@ -386,7 +386,7 @@ Page({
         if (!res.confirm) return;
         try {
           wx.removeStorageSync('v2_login_ok');
-          wx.removeStorageSync('user_info');
+          wx.removeStorageSync('userInfo');
           wx.removeStorageSync('partner_local_cfg');
           wx.removeStorageSync('current_identity');
         } catch (e) {}
@@ -419,7 +419,7 @@ Page({
           if (r.ok) {
             try {
               wx.removeStorageSync('v2_login_ok');
-              wx.removeStorageSync('user_info');
+              wx.removeStorageSync('userInfo');
               wx.removeStorageSync('partner_local_cfg');
               wx.removeStorageSync('current_identity');
             } catch (e) {}

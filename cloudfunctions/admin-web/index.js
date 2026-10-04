@@ -138,11 +138,11 @@ exports.main = async (event, context) => {
   let body = {};
   try { body = reqBodyStr ? JSON.parse(reqBodyStr) : (req.body || {}); } catch(e) {}
 
-  // Bootstrap 无鉴权放行: admin_web_key 缺失时, 仅允许 generate_admin_web_key
-  const bootstrap = body.action === 'generate_admin_web_key';
-
-  // 鉴权(bootstrap 跳过)
-  if (!bootstrap) {
+  // 鉴权: 一律校验 X-Admin-Key(含 generate_admin_web_key)。
+  // 修复: 原 bootstrap 跳过导致任何人可无凭据重置后台密钥并明文获取新 key(活体高危)。
+  // 首次建钥(admin_web_key 缺失)仍由 checkAuth bootstrap 分支放行——此时库中无密钥,无保护对象;
+  // key 一旦生成,重置必须携带当前有效 key。后续真实环境初始化走 IDE 控制台 init-db。
+  {
     // CloudBase HTTP 事件查询参数字段为 queryStringParameters (无 query 字段, 直接访问会抛异常)
     const qs = req.queryStringParameters || req.query || {};
     const key = (req.headers['x-admin-key'] || qs.key || '').trim();

@@ -138,6 +138,7 @@ Page({
   },
 
   _doPay() {
+    if (this.data.paying) return; // 重入锁: 防连点/重复提交
     this.setData({ paying: true });
     wx.showLoading({ title: '支付中…', mask: true });
     callCloud('payment-mock', {
