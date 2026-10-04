@@ -156,7 +156,25 @@ function _signThenCreate(demand, loc, opts) {
     });
   }).catch(() => {
     wx.hideLoading();
-    wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    // 网络异常兜底: 可能是"订单已建但响应未达"(云函数超时/网关断链), 查询捞回而不是直接失败
+    wx.cloud.callFunction({
+      name: 'order-create',
+      data: { action: 'check_take_result', demand_id: demand._id }
+    }).then((cr) => {
+      const crr = (cr && cr.result && cr.result.data) || {};
+      if (crr.state === 'taken' && crr.order_id) {
+        // 已建单: 捞回跳转, 提示网络慢但订单已生效
+        if (opts && opts.onSuccess) opts.onSuccess({ order_id: crr.order_id, order_no: crr.order_no, status: crr.status, recovered: true });
+        return;
+      }
+      if (crr.state === 'released') {
+        wx.showToast({ title: '接单中断,需求已释放,请重试', icon: 'none' });
+        return;
+      }
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    }).catch(() => {
+      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
   });
 }
 

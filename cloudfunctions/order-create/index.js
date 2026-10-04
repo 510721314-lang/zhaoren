@@ -15,19 +15,20 @@ const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 
 // ── 接单互斥锁 ──
 // 事务不支持 where 批量查询(官方限制), 「时间重叠/日上限检查 → CAS → 建单」无法放进同一事务原子化;
-// 用 users 文档上的咨询锁把整段串行化: 同一耍伴并发接单(F1 retry 风暴等)只有一个能持有锁,
+// 用 user_account 文档上的咨询锁把整段串行化: 同一耍伴并发接单(F1 retry 风暴等)只有一个能持有锁,
 // 另一个返回 order_take_busy, 杜绝并发同时通过检查造成时间重叠/日上限超卖。
+// 锁字段挂 user_account(openid 为字段; 曾误挂 users 集合致 `_id: openid` 永不命中 → 全部抢单被拦, 已修)。
 const TAKE_LOCK_TTL = 30000;   // 30s 锁超时(覆盖函数执行时长上限), 异常退出遗留的过期锁可被抢占
 
 async function acquireTakeLock(openid, token) {
   const exp = Date.now() + TAKE_LOCK_TTL;
   for (let i = 0; i < 4; i++) {
     try {
-      // 原子抢占: 仅锁空闲(''或字段缺失)或已过期时命中 (docs: _.exists(false) 匹配字段缺失)
-      const res = await col('users').where(_.or([
-        { _id: openid, take_lock_owner: _.exists(false) },
-        { _id: openid, take_lock_owner: '' },
-        { _id: openid, take_lock_expire: _.lt(Date.now()) }
+      // 原子抢占: 仅锁空闲(''或字段缺失)或已过期时命中; 锁挂 user_account(openid 为字段, _id 非 openid)
+      const res = await col('user_account').where(_.or([
+        { openid, take_lock_owner: _.exists(false) },
+        { openid, take_lock_owner: '' },
+        { openid, take_lock_expire: _.lt(Date.now()) }
       ])).update({ data: { take_lock_owner: token, take_lock_expire: exp } });
       if (res.stats && res.stats.updated === 1) return true;
     } catch (e) {
@@ -38,12 +39,17 @@ async function acquireTakeLock(openid, token) {
     // 被并发的同耍伴接单短暂持有: 等待重试(持锁窗口极短, 通常一两次即成功)
     await new Promise((r) => setTimeout(r, 100));
   }
+  // 兜底: 用户文档不存在(openid 无 user_account 记录)时无法加锁, 退化为放行, 避免误伤
+  try {
+    const ur = await col('user_account').where({ openid }).limit(1).get();
+    if (!ur.data || !ur.data.length) return true;
+  } catch (e) { return true; }
   return false;
 }
 
 async function releaseTakeLock(openid, token) {
   // token 匹配才释放, 防 TTL 过期被抢占后误释放他人锁
-  await col('users').where({ _id: openid, take_lock_owner: token })
+  await col('user_account').where({ openid, take_lock_owner: token })
     .update({ data: { take_lock_owner: '', take_lock_expire: 0 } })
     .catch((e) => log.d(`take lock release fail: ${e.message}`));
 }
@@ -333,6 +339,33 @@ exports.main = async (event, context) => {
       result: 'ok', client_ip: clientIp, device
     });
     return { ok: true, data: { scene, signed: true } };
+  }
+
+  // 接单结果兜底查询: 前端接单请求网络异常(超时)后调用, 判断需求是否已被本耍伴接下
+  // state: gone(需求不存在) / not_mine(未接下或被他人抢) / taken(已建单, 附 order_id) / released(半成品已释放可重试)
+  if (action === 'check_take_result') {
+    const { demand_id } = event;
+    if (!demand_id || !isValidDocId(demand_id)) {
+      return { ok: false, code: 'order_bad_demand_id', msg: '需求 ID 格式不正确' };
+    }
+    try {
+      const d = await col('demand').doc(demand_id).get();
+      if (!d.data || d.data.is_deleted) return { ok: true, data: { state: 'gone' } };
+      if (d.data.matched_openid !== openid) return { ok: true, data: { state: 'not_mine' } };
+      const ex = await col('order_main').where({ demand_id, is_deleted: _.neq(true) }).limit(1).get();
+      if (ex.data && ex.data.length) {
+        const o = ex.data[0];
+        return { ok: true, data: { state: 'taken', order_id: o._id, order_no: o.order_no, status: o.status } };
+      }
+      // 卡死半成品(事务被杀且补偿未执行): 自愈释放回 matching
+      await col('demand').where({ _id: demand_id, status: 'matched' }).update({
+        data: { status: 'matching', matched_openid: null, matched_at: null, updated_at: Date.now() }
+      }).catch(() => {});
+      return { ok: true, data: { state: 'released' } };
+    } catch (e) {
+      log.d(`check_take_result fail: ${e.message}`);
+      return { ok: false, code: 'order_check_fail', msg: '查询失败,请重试' };
+    }
   }
 
   if (action !== 'create_from_take') {
@@ -697,8 +730,9 @@ exports.main = async (event, context) => {
       });
     } else {
       // 抢单模式: matching→matched 原子条件更新, 并发接单仅一方成功(防超卖)
+      // 必须写入 matched_openid: 幂等捞回/check_take_result 依赖它归属当前耍伴(曾漏写致重试无法捞回)
       casRes = await col('demand').where({ _id: demand_id, status: 'matching' }).update({
-        data: { status: 'matched', matched_at: now, updated_at: now }
+        data: { status: 'matched', matched_openid: openid, matched_at: now, updated_at: now }
       });
     }
   } catch (e) {
@@ -706,6 +740,32 @@ exports.main = async (event, context) => {
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
   }
   if (!casRes.stats || casRes.stats.updated !== 1) {
+    // 幂等捞回: CAS 失败可能是"自己上一笔超时已建单"(网络错误后重试)而非被他人抢走
+    // 需求已匹配给当前耍伴 → 查已有订单返回(半成品自愈), 无订单 → 补偿回 matching 供重新接单
+    try {
+      const cur = await col('demand').doc(demand_id).get();
+      if (cur.data && cur.data.matched_openid === openid) {
+        const ex = await col('order_main').where({ demand_id, is_deleted: _.neq(true) }).limit(1).get();
+        if (ex.data && ex.data.length) {
+          const o = ex.data[0];
+          log.d(`take idempotent recover: demand=${demand_id} order=${o._id}`);
+          await writeAudit(db, log, {
+            openid, role: 'partner', category: 'business', action: 'order_take',
+            target_type: 'order', target_id: o._id,
+            detail: { order_no: o.order_no, demand_id, idempotent_recover: true, cause: 'cas_lost_but_matched_me' },
+            result: 'ok', client_ip: clientIp, device
+          }).catch(() => {});
+          return { ok: true, data: { order_id: o._id, order_no: o.order_no, status: o.status, idempotent: true } };
+        }
+        // 卡死半成品(事务被杀且补偿未执行): 自愈释放回 matching
+        await col('demand').where({ _id: demand_id, status: 'matched' }).update({
+          data: { status: 'matching', matched_openid: null, matched_at: null, updated_at: Date.now() }
+        }).catch(() => {});
+        return { ok: false, code: 'order_demand_closed', msg: '接单中断,该需求已释放,请重试' };
+      }
+    } catch (e) {
+      log.d(`take idempotent recover fail: ${e.message}`);
+    }
     await logReject(openid, demand_id, 'demand_cas_lost');
     return { ok: false, code: 'order_demand_closed', msg: '手慢了,该需求已被其他耍伴接单' };
   }
@@ -753,10 +813,10 @@ exports.main = async (event, context) => {
       userEvidenceId = (ueRes && ueRes._id) || '';
     });
   } catch (e) {
-    // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接
+    // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接(同时清 matched_openid)
     log.d(`order txn fail: ${e.message}; compensating demand ${demand_id} → matching`);
     await col('demand').where({ _id: demand_id, status: 'matched' }).update({
-      data: { status: 'matching', updated_at: Date.now() }
+      data: { status: 'matching', matched_openid: null, matched_at: null, updated_at: Date.now() }
     }).catch((ce) => log.d(`demand compensate fail: ${ce.message}`));
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
   }
