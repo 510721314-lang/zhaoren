@@ -437,27 +437,30 @@ exports.main = async (event, context) => {
 
       const now = Date.now();
       const tipNo = genPayNo('TIP');
+      let tipTotal = amount;
       try {
-        // 打赏流水(is_mock=true)
-        await col('pay_transaction').add({ data: {
-          pay_no: tipNo,
-          order_id,
-          order_no: order.order_no,
-          type: 'tip',
-          amount_fen: amount,
-          channel: 'mock',
-          is_mock: true,
-          status: 'success',
-          paid_at: now,
-          created_at: now, updated_at: now, is_deleted: false
-        }});
-
-        // 累计打赏总额: 原子 inc, 避免并发打赏读改写丢更新
-        await col('order_main').doc(order_id).update({ data: {
-          tip_total_fen: _.inc(amount), updated_at: now
-        }});
-        const after = await getOrder(order_id);
-        const tipTotal = after ? (after.tip_total_fen || 0) : amount;
+        // 事务: 打赏流水 + 累计总额 同成同败; 事务内读旧总额计算新值(事务锁+快照隔离防并发丢失)
+        await db.runTransaction(async (t) => {
+          const cur = await t.collection('order_main').doc(order_id).get();
+          tipTotal = ((cur.data && cur.data.tip_total_fen) || 0) + amount;
+          // 打赏流水(is_mock=true)
+          await t.collection('pay_transaction').add({ data: {
+            pay_no: tipNo,
+            order_id,
+            order_no: order.order_no,
+            type: 'tip',
+            amount_fen: amount,
+            channel: 'mock',
+            is_mock: true,
+            status: 'success',
+            paid_at: now,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+          // 累计打赏总额: 原子 inc, 避免并发打赏读改写丢更新
+          await t.collection('order_main').doc(order_id).update({ data: {
+            tip_total_fen: _.inc(amount), updated_at: now
+          }});
+        });
 
         log.d(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
         // 订单沟通同步: 通知耍伴收到打赏
@@ -487,6 +490,10 @@ exports.main = async (event, context) => {
       if (!order) return { ok: false, code: 'ins_not_found', msg: '订单不存在' };
       // 属主校验(对齐 mock_pay/mock_refund): 仅下单人可为自己的订单购买保险
       if (order.user_openid !== openid) return { ok: false, code: 'ins_forbidden', msg: '仅下单人可操作' };
+      // 状态白名单: 仅活跃订单可购险(防为已取消/已完结订单补造保单), 与接单 BUSY_STATUS 对齐
+      if (['S0', 'S1', 'S2', 'S3', 'S3.5'].indexOf(order.status) < 0) {
+        return { ok: false, code: 'ins_status', msg: `订单当前状态(${order.status})不可购买保险` };
+      }
       // 幂等: 已买过直接返回
       const exist = await col('insurance_record').where({ order_id }).limit(1).get().catch(() => ({ data: [] }));
       if (exist.data && exist.data.length > 0) {
@@ -550,14 +557,6 @@ exports.main = async (event, context) => {
       if (amount > recMax) {
         return { ok: false, code: 'aa_over_record_limit', msg: `单笔 AA 记账上限 ¥${(recMax / 100).toFixed(0)} 元` };
       }
-      const ledger = order.aa_ledger || {};
-      const rows = (ledger.records && ledger.records.length) || 0;
-      if ((rows + 1) > recCountMax) {
-        return { ok: false, code: 'aa_over_records_limit', msg: `该订单 AA 记账已达 ${recCountMax} 条上限` };
-      }
-      if ((Number(ledger.total_fen) || 0) + amount > totalMax) {
-        return { ok: false, code: 'aa_over_ledger_limit', msg: `该订单 AA 累计记账已达上限 ¥${(totalMax / 100).toFixed(0)} 元` };
-      }
 
       const now = Date.now();
       const record = {
@@ -569,14 +568,37 @@ exports.main = async (event, context) => {
         paid_openid: openid,
         created_at: now
       };
-      // 累加到 order_main.aa_ledger(SSOT 单一账本)
-      await col('order_main').doc(order_id).update({
-        data: {
-          'aa_ledger.records': _.push([record]),
-          'aa_ledger.total_fen': _.inc(amount),
-          updated_at: now
+      // 事务: 上限复核(事务内读最新账本快照)+原子追加(SSOT), 防并发记账冲破条数/累计上限
+      try {
+        await db.runTransaction(async (t) => {
+          const cur = await t.collection('order_main').doc(order_id).get();
+          const curLedger = (cur.data && cur.data.aa_ledger) || {};
+          const rows = (curLedger.records && curLedger.records.length) || 0;
+          const total = Number(curLedger.total_fen) || 0;
+          if ((rows + 1) > recCountMax) {
+            const err = new Error('aa_over_records_limit'); err.__code = 'aa_over_records_limit'; throw err;
+          }
+          if ((total + amount) > totalMax) {
+            const err = new Error('aa_over_ledger_limit'); err.__code = 'aa_over_ledger_limit'; throw err;
+          }
+          await t.collection('order_main').doc(order_id).update({
+            data: {
+              'aa_ledger.records': _.push([record]),
+              'aa_ledger.total_fen': _.inc(amount),
+              updated_at: now
+            }
+          });
+        });
+      } catch (e) {
+        if (e && e.__code === 'aa_over_records_limit') {
+          return { ok: false, code: 'aa_over_records_limit', msg: `该订单 AA 记账已达 ${recCountMax} 条上限` };
         }
-      });
+        if (e && e.__code === 'aa_over_ledger_limit') {
+          return { ok: false, code: 'aa_over_ledger_limit', msg: `该订单 AA 累计记账已达上限 ¥${(totalMax / 100).toFixed(0)} 元` };
+        }
+        log.d(`aa_record txn fail: ${e.message}`);
+        return { ok: false, code: 'aa_db_fail', msg: 'AA记账失败,请稍后重试' };
+      }
       log.d(`aa_record: ${order.order_no} amount=${amount} by=${role}`);
       return { ok: true, data: { order_id, record_id: record.record_id, amount_fen: amount, paid_by: role } };
     }

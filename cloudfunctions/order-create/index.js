@@ -13,6 +13,41 @@ const { writeAudit } = require('./audit');
 // 进行中订单状态集合(用于"无进行中订单"校验)
 const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 
+// ── 接单互斥锁 ──
+// 事务不支持 where 批量查询(官方限制), 「时间重叠/日上限检查 → CAS → 建单」无法放进同一事务原子化;
+// 用 users 文档上的咨询锁把整段串行化: 同一耍伴并发接单(F1 retry 风暴等)只有一个能持有锁,
+// 另一个返回 order_take_busy, 杜绝并发同时通过检查造成时间重叠/日上限超卖。
+const TAKE_LOCK_TTL = 30000;   // 30s 锁超时(覆盖函数执行时长上限), 异常退出遗留的过期锁可被抢占
+
+async function acquireTakeLock(openid, token) {
+  const exp = Date.now() + TAKE_LOCK_TTL;
+  for (let i = 0; i < 4; i++) {
+    try {
+      // 原子抢占: 仅锁空闲(''或字段缺失)或已过期时命中 (docs: _.exists(false) 匹配字段缺失)
+      const res = await col('users').where(_.or([
+        { _id: openid, take_lock_owner: _.exists(false) },
+        { _id: openid, take_lock_owner: '' },
+        { _id: openid, take_lock_expire: _.lt(Date.now()) }
+      ])).update({ data: { take_lock_owner: token, take_lock_expire: exp } });
+      if (res.stats && res.stats.updated === 1) return true;
+    } catch (e) {
+      // 锁基础设施异常 = fail-open: 放行接单(不阻断主业), 仅记日志, 修复退化为旧行为而非全拒
+      log.d(`take lock acquire error(fail-open): ${e.message}`);
+      return true;
+    }
+    // 被并发的同耍伴接单短暂持有: 等待重试(持锁窗口极短, 通常一两次即成功)
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
+async function releaseTakeLock(openid, token) {
+  // token 匹配才释放, 防 TTL 过期被抢占后误释放他人锁
+  await col('users').where({ _id: openid, take_lock_owner: token })
+    .update({ data: { take_lock_owner: '', take_lock_expire: 0 } })
+    .catch((e) => log.d(`take lock release fail: ${e.message}`));
+}
+
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
@@ -486,6 +521,14 @@ exports.main = async (event, context) => {
     }
   }
 
+  // ── 接单互斥锁: 串行化「重叠/日上限检查 → CAS → 建单」整段(以 try/finally 保证任何路径都释放) ──
+  const takeToken = 'TK' + Date.now() + crypto.randomBytes(4).toString('hex');
+  const takeLocked = await acquireTakeLock(openid, takeToken);
+  if (!takeLocked) {
+    await logReject(openid, demand_id, 'take_lock_busy');
+    return { ok: false, code: 'order_take_busy', msg: '操作太频繁,请稍后重试' };
+  }
+  try {
   // ── 并行: 创建者资料 + 耍伴进行中订单(时间重叠校验用, 互不依赖) ──
   const [creator, myOrdersRes] = await Promise.all([
     getUser(demand.creator_openid),
@@ -716,6 +759,9 @@ exports.main = async (event, context) => {
       data: { status: 'matching', updated_at: Date.now() }
     }).catch((ce) => log.d(`demand compensate fail: ${ce.message}`));
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
+  }
+  } finally {
+    await releaseTakeLock(openid, takeToken);
   }
 
   log.d(`order created: ${orderNo} demand=${demand.demand_no} partner=${openid}`);
