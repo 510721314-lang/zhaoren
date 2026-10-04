@@ -56,9 +56,9 @@ page {
   --cert-border: #7fd7a8;
   --avatar-bg: #DCE9E4;
   --cell-gray-bg: #f2f3f5;
-  --banner-grad-start: #FFF3E0;
-  --banner-grad-end: #FFE0B2;
-  --text-banner-sub: #c68a2e;
+  --banner-grad-start: #E8F8F0;
+  --banner-grad-end: #C8F0DE;
+  --text-banner-sub: #2E9E6A;
 
   /* 场景底色（一期5场景，与 config/enums.js SCENES.color 同源） */
   --scene-medical-bg: #E8F1FF;
@@ -168,9 +168,9 @@ page {
     --cert-border: rgba(7,193,96,0.4);
     --avatar-bg: #2A2E36;
     --cell-gray-bg: #252830;
-    --banner-grad-start: rgba(255,143,60,0.12);
-    --banner-grad-end: rgba(255,107,53,0.12);
-    --text-banner-sub: #FFB84D;
+    --banner-grad-start: rgba(7,193,96,0.14);
+    --banner-grad-end: rgba(7,193,96,0.08);
+    --text-banner-sub: #67D6A0;
 
     /* 场景色（暗底降低饱和） */
     --scene-medical-bg: rgba(77,138,255,0.15);

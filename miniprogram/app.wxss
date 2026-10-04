@@ -1,16 +1,16 @@
 @import "./styles/tokens.wxss";
 /* app.wxss - 全局样式 · 找人帮忙 小程序
-   主题色:主 #D4875A(赭橙) / 辅 #1A2330(墨蓝) / 成功 #3E7C4F / 警示 #A8652A / 危险 #B03A2E
+   主题色:主 #07C160(微信绿) / 辅 #1A2330(墨蓝) / 成功 #07C160 / 警示 #A8652A / 危险 #B03A2E
    V15.1 新页面（pages-v2）变量与工具类见 styles/tokens.wxss（.v2 作用域，不污染旧页）
 */
 page {
-  --primary: #D4875A;
-  --primary-light: #F5E6DA;
-  --primary-lighter: #FBF1E9;
-  --primary-disabled: #E8C9B0;
+  --primary: #07C160;
+  --primary-light: #E8F8F0;
+  --primary-lighter: #F0FBF6;
+  --primary-disabled: #BFE8D3;
   --secondary: #1A2330;
-  --success: #3E7C4F;
-  --success-light: #D9EBDF;
+  --success: #07C160;
+  --success-light: #E8F8F0;
   --warning: #A8652A;
   --warning-light: #F5E6D2;
   --danger: #B03A2E;
@@ -78,7 +78,7 @@ view, text, image, navigator, scroll-view, swiper { box-sizing: border-box; }
   transition: var(--transition);
 }
 .btn-ghost::after { border: none; }
-.btn-ghost:active { transform: scale(0.97); background: rgba(212,135,90,0.06); }
+.btn-ghost:active { transform: scale(0.97); background: rgba(7,193,96,0.06); }
 
 /* 危险按钮 */
 .btn-danger {
