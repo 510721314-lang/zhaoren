@@ -170,14 +170,14 @@ Page({
     this.fetchData(options);
   },
 
-  fetchData(options) {
+  fetchData(options, silent) {
     this.__orderId = (options && options.orderId) || '';
     this.__lastOptions = options || {};
     if (!/^[a-f0-9]{32}$/i.test(this.__orderId)) {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '缺少有效订单 ID' });
       return;
     }
-    this.setData({ loading: true, loadError: false });
+    if (!silent) this.setData({ loading: true, loadError: false });
     callCloud('order-action', { action: 'detail', order_id: this.__orderId }).then((r) => {
       if (!r.ok) {
         this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
@@ -339,12 +339,11 @@ Page({
     if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
   },
 
-  // 到账通知轮询: 商品页停留时每 15s 查本人该订单未读通知(多条递增展示, 如多次打赏)
-  // 幂等去重: 已展示过的通知 id 不再重复追加(本地 Map 记忆)
+  // 通知轮询: 停在订单详情页时每 8s 查本人该订单未读通知(多条递增展示)
+  // - 全状态轮询: 耍伴停留等待对方确认时(改期/加时 S2_5), 需求方任何变动即时横幅+toast 提示
+  // - 拉到新通知后静默刷新订单详情, 同步最新状态/新服务时间
+  // 幂等去重: 已展示过的通知 id 不再重复展示(本地 Map 记忆)
   startTipPoll() {
-    const o = this.data.order || {};
-    // 仅完成态(可被打赏)才需要轮询
-    if (['S5', 'S8', 'S9', 'S10'].indexOf(o.status) < 0) return;
     this.stopTipPoll();
     this.__shownTipIds = this.__shownTipIds || {};
     this._tipTimer = setInterval(() => {
@@ -363,8 +362,22 @@ Page({
           time: n.created_at ? this.__fmtNoticeTime(n.created_at) : ''
         }));
         this.setData({ tipNotices: [...items, ...this.data.tipNotices] });
+        // 即时提示: 对方(需求方/耍伴)对该订单的变动, toast 醒目提示; 关键类型用明确文案
+        // 四确认单步通知(title=订单沟通)只进横幅不弹 toast, 避免逐项刷屏
+        const key = fresh[0];
+        const TITLE_OF = {
+          accept: '有人接单了', paid: '对方已支付',
+          modify_confirm: '对方已同意改期', modify_reject: '对方已拒绝改期',
+          confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
+          finish: '履约已完成', milestone: '履约进度更新',
+          cancel: '订单已取消', tip: '收到打赏'
+        };
+        const toastTitle = TITLE_OF[key.type] || (key.title && key.title !== '订单沟通' ? key.title : '');
+        if (toastTitle) wx.showToast({ title: toastTitle.slice(0, 12), icon: 'none', duration: 2500 });
+        // 静默刷新同步最新状态/时间(不闪 loading)
+        this.fetchData({ orderId: this.__orderId }, true);
       }).catch(() => {});
-    }, 15000);
+    }, 8000);
   },
 
   stopTipPoll() {

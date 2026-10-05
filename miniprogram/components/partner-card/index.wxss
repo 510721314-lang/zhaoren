@@ -165,4 +165,4 @@
 }
 
 /* 耍伴 bio 一行截断 */
-.pcard__bio { margin-top: 12rpx; font-size: 24rpx; color: #9AA0A6; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pcard__bio { margin-top: 12rpx; font-size: 24rpx; color: var(--text-5); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

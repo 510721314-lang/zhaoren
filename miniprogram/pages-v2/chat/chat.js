@@ -411,10 +411,35 @@ Page({
       if (this.data.loading || this.data.loadError) return;
       this.refreshMessages();
       this.refreshConfirmation();
+      this.pollNotices();
     }, 5000);
   },
   stopPolling() {
     if (this.__pollTimer) { clearInterval(this.__pollTimer); this.__pollTimer = null; }
+  },
+
+  // ───────── 订单动态通知轮询: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
+  // 幂等去重: 已提示过的通知 id 不再重复(本地 Map 记忆); 状态刷新由 refreshConfirmation 每 5s 同步
+  pollNotices() {
+    this.__shownNoticeIds = this.__shownNoticeIds || {};
+    callCloud('order-action', { action: 'notice_poll', order_id: this.__orderId }).then((r) => {
+      const d = r && r.ok && r.data;
+      if (!d || !d.list || !d.list.length) return;
+      const fresh = d.list.filter((n) => n && n.id && !this.__shownNoticeIds[n.id]);
+      if (!fresh.length) return;
+      fresh.forEach((n) => { this.__shownNoticeIds[n.id] = 1; });
+      const key = fresh[0];
+      const TITLE_OF = {
+        accept: '有人接单了', paid: '对方已支付',
+        modify_confirm: '对方已同意改期', modify_reject: '对方已拒绝改期',
+        confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
+        finish: '履约已完成', milestone: '履约进度更新',
+        cancel: '订单已取消', tip: '收到打赏'
+      };
+      const t = TITLE_OF[key.type] || key.title || '订单有新动态';
+      if (t && t !== '订单沟通') wx.showToast({ title: String(t).slice(0, 12), icon: 'none', duration: 2500 });
+      this.refreshConfirmation();
+    }).catch(() => {});
   },
 
   // ───────── C4 模板卡选项点击 ─────────

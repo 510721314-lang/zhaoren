@@ -48,6 +48,6 @@
   padding: 16px 20px;
 }
 .sheet__footer {
-  padding: 12px 20px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border-2);
 }

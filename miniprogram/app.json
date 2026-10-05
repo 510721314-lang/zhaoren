@@ -112,6 +112,7 @@
     "chooseLocation"
   ],
   "style": "v2",
+  "darkmode": true,
   "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json",
   "__usePrivacyCheck__": true,

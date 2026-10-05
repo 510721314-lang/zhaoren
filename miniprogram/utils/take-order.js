@@ -5,7 +5,12 @@ const { getScene } = require('./redline.js');
 
 // demand: 需求对象(需 _id / scene_code / match_mode)
 // opts:   { onSuccess(data), onError(result) }  data = { order_id, order_no, status: 'S1', ... }
+// 防重入锁: 快速反复点击抢单只生效第一次, 链路任何出口(取消/失败/成功)都会释放
+let _grabInFlight = false;
+function _release() { _grabInFlight = false; }
+
 function takeOrder(demand, opts) {
+  if (_grabInFlight) return;
   if (!demand || !demand._id) {
     wx.showToast({ title: '需求数据异常', icon: 'none' });
     return;
@@ -28,6 +33,7 @@ function takeOrder(demand, opts) {
     // - certified && signed → 一键接单: 一次确认(免免责 modal) → 定位 → 建单
     // - !signed            → 弹免责 modal(首次需签署; 网络异常也走此兜底)
     // - signed && !certified → 维持 ④ 直走定位(后端 order_scene_not_accepted 清晰拒绝)
+    _grabInFlight = true;
     wx.cloud.callFunction({
       name: 'order-create',
       data: { action: 'check_signed', scene: demand.scene_code }
@@ -41,8 +47,8 @@ function takeOrder(demand, opts) {
           content: `${scene.name || ''}场景免责声明已签署,接单权限已开通。确认接单后将获取定位并创建订单。`,
           confirmText: '一键接单', // 上限 4 字符
           cancelText: '再想想',
-          success: (mr) => { if (mr.confirm) _locate(demand, opts); },
-          fail: () => _showDisclaimer(d, demand, opts) // 弹窗失败兜底回免责(不阻断)
+          success: (mr) => { if (mr.confirm) _locate(demand, opts); else _release(); },
+          fail: () => { _release(); _showDisclaimer(d, demand, opts); } // 弹窗失败兜底回免责(不阻断)
         });
       } else if (d0.signed) {
         _locate(demand, opts);
@@ -53,6 +59,7 @@ function takeOrder(demand, opts) {
       _showDisclaimer(d, demand, opts);
     });
   } else {
+    _grabInFlight = true;
     _locate(demand, opts);
   }
 }
@@ -66,12 +73,13 @@ function _showDisclaimer(d, demand, opts) {
     confirmText: '同意接单',
     cancelText: '不同意',
     success: (r) => {
-      if (r.confirm) _locate(demand, opts);
+      if (r.confirm) _locate(demand, opts); else _release();
     },
     fail: (err) => {
       // 静默失败兜底: 弹窗渲染失败时给出可见反馈, 不允许无反应
       console.error('[takeOrder] showModal fail:', err);
       wx.showToast({ title: '弹窗加载失败,请重试', icon: 'none' });
+      _release();
     }
   });
 }
@@ -94,13 +102,14 @@ function _locate(demand, opts) {
         confirmText: '选点',
         cancelText: '取消',
         success: (r) => {
-          if (!r.confirm) return;
+          if (!r.confirm) { _release(); return; }
           wx.chooseLocation({
             success: (loc) => {
               _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
             },
             fail: () => {
               wx.showToast({ title: '未选择位置,无法接单', icon: 'none' });
+              _release();
             }
           });
         }
@@ -127,6 +136,7 @@ function _signThenCreate(demand, loc, opts) {
     if (!r.ok) {
       wx.hideLoading();
       wx.showToast({ title: r.msg || '签署失败,请重试', icon: 'none' });
+      _release();
       return;
     }
     return wx.cloud.callFunction({
@@ -140,6 +150,7 @@ function _signThenCreate(demand, loc, opts) {
       wx.hideLoading();
       const r2 = res2.result || {};
       if (r2.ok && r2.data) {
+        _release(); // 成功路径在跳转前释放, 防止返回广场后无法再次抢单
         try { require('./report.js').report('order_take', { demand_id: demand && demand._id }); } catch (e) {}
         if (opts && opts.onSuccess) opts.onSuccess(r2.data);
       } else {
@@ -151,6 +162,7 @@ function _signThenCreate(demand, loc, opts) {
           // 拒绝原因以云函数 r.msg 为准(已被抢/距离超限/资料未审核/时间冲突等)
           wx.showModal({ title: '无法接单', content: r2.msg || '接单失败,请稍后重试', showCancel: false });
         }
+        _release();
         if (opts && opts.onError) opts.onError(r2);
       }
     });
@@ -164,16 +176,20 @@ function _signThenCreate(demand, loc, opts) {
       const crr = (cr && cr.result && cr.result.data) || {};
       if (crr.state === 'taken' && crr.order_id) {
         // 已建单: 捞回跳转, 提示网络慢但订单已生效
+        _release();
         if (opts && opts.onSuccess) opts.onSuccess({ order_id: crr.order_id, order_no: crr.order_no, status: crr.status, recovered: true });
         return;
       }
       if (crr.state === 'released') {
         wx.showToast({ title: '接单中断,需求已释放,请重试', icon: 'none' });
+        _release();
         return;
       }
       wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+      _release();
     }).catch(() => {
       wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+      _release();
     });
   });
 }

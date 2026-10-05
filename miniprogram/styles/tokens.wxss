@@ -46,6 +46,8 @@ page {
   --border-1: #e5e7eb;
   --border-2: #f0f0f0;
   --border-divider: #f5f5f5;
+  /* --border 兼容别名（引用 --border-1，暗色自动跟随） */
+  --border: var(--border-1);
 
   /* 补充色（锚点中出现但未编号的色值，统一收口在此） */
   --border-ghost: #d9dce1;
@@ -96,6 +98,7 @@ page {
   --sp-md: 20rpx;
   --sp-lg: 28rpx;
   --sp-xl: 40rpx;
+  --gap-md: 24rpx;
   --page-pad: 20rpx;
   --card-pad: 24rpx 28rpx;
   --card-gap: 20rpx;
@@ -105,6 +108,10 @@ page {
   --r-md: 24rpx;
   --r-lg: 28rpx;
   --r-xl: 32rpx;
+  --r-full: 9999rpx;
+
+  /* 数字/度量字体（评分、金额等大数字展示） */
+  --font-metric: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif;
 
   /* 5. 阴影 */
   --shadow-card: 0 2rpx 12rpx rgba(0,0,0,0.04);
