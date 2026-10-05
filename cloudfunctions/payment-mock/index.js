@@ -447,6 +447,8 @@ exports.main = async (event, context) => {
             pay_no: tipNo,
             order_id,
             order_no: order.order_no,
+            partner_openid: order.partner_openid || '',  // 快照: 供耍伴钱包"打赏专栏"按人查询
+            scene: order.scene || '',
             type: 'tip',
             amount_fen: amount,
             note: String(event.note || '').slice(0, 60),
@@ -674,15 +676,24 @@ exports.main = async (event, context) => {
       };
     }
 
-    // ───────── 6. 耍伴钱包: 收益明细列表 ─────────
+    // ───────── 6. 耍伴钱包: 收益明细列表(接单收入栏, 支持时间段条件查询) ─────────
     case 'income_list': {
       const partnerOpenid = openid;
       if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
       const limit = Math.min(event.limit || 20, 50);
       const skip = event.skip || 0;
+      // 时间段条件: start_ts/end_ts(按服务完成时间 service_completed_at, 与 balance_info 本月口径一致)
       const q = { partner_openid: partnerOpenid, is_deleted: _.neq(true) };
-      if (event.status) q.status = event.status;
-      const r = await col('order_main').where(q).orderBy('created_at', 'desc').skip(skip).limit(limit).get();
+      if (event.status_in) q.status = _.in(String(event.status_in).split(','));
+      else if (event.status) q.status = event.status;
+      if (event.start_ts) q.service_completed_at = _.gte(event.start_ts);
+      if (event.end_ts) q.service_completed_at = _.lte(event.end_ts);
+      // 汇总(当前筛选范围): 笔数 + 服务收入合计 + 打赏合计, 与明细同口径
+      const summaryR = await col('order_main').aggregate().match(q)
+        .group({ _id: null, count: $.sum(1), total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') })
+        .end().catch(() => ({ list: [] }));
+      const sg = (summaryR.list && summaryR.list[0]) || {};
+      const r = await col('order_main').where(q).orderBy('service_completed_at', 'desc').orderBy('created_at', 'desc').skip(skip).limit(limit).get();
       const list = (r.data || []).map((o) => ({
         order_id: o._id,
         order_no: o.order_no,
@@ -695,7 +706,55 @@ exports.main = async (event, context) => {
         service_completed_at: o.service_completed_at || null,
         created_at: o.created_at
       }));
-      return { ok: true, data: { list } };
+      return {
+        ok: true,
+        data: {
+          list,
+          summary: { count: sg.count || 0, service_income_fen: sg.total || 0, tip_fen: sg.tip || 0 }
+        }
+      };
+    }
+
+    // ───────── 6b. 耍伴钱包: 打赏逐笔明细(打赏专栏, 按耍伴维度, 支持时间段条件查询) ─────────
+    case 'tip_income_list': {
+      const partnerOpenid = openid;
+      if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
+      const limit = Math.min(event.limit || 20, 50);
+      const skip = event.skip || 0;
+      const q = { type: 'tip', status: 'success', partner_openid: partnerOpenid, is_deleted: _.neq(true) };
+      if (event.start_ts) q.created_at = _.gte(event.start_ts);
+      if (event.end_ts) q.created_at = _.lte(event.end_ts);
+      // 汇总(当前筛选范围): 笔数 + 金额合计
+      const summaryR = await col('pay_transaction').aggregate().match(q)
+        .group({ _id: null, count: $.sum(1), total: $.sum('$amount_fen') })
+        .end().catch(() => ({ list: [] }));
+      const sg = (summaryR.list && summaryR.list[0]) || {};
+      const r = await col('pay_transaction').where(q).orderBy('created_at', 'desc').skip(skip).limit(limit).get();
+      const list = (r.data || []).map((t) => ({
+        pay_no: t.pay_no,
+        order_no: t.order_no || '',
+        scene: t.scene || '',
+        amount_fen: t.amount_fen || 0,
+        note: t.note || '',
+        created_at: t.created_at
+      }));
+      return {
+        ok: true,
+        data: { list, summary: { count: sg.count || 0, sum_fen: sg.total || 0 } }
+      };
+    }
+
+    // ───────── 6c. 一次性回填: 历史打赏流水补 partner_openid/scene(幂等, 可重复调用) ─────────
+    case 'migrate_tip_partner': {
+      const cursor = await col('pay_transaction').where({ type: 'tip', status: 'success', partner_openid: _.exists(false) }).limit(100).get().catch(() => ({ data: [] }));
+      let fixed = 0;
+      for (const t of (cursor.data || [])) {
+        const o = await getOrder(t.order_id).catch(() => null);
+        if (!o) continue;
+        await col('pay_transaction').doc(t._id).update({ data: { partner_openid: o.partner_openid || '', scene: o.scene || '' } }).catch(() => {});
+        fixed++;
+      }
+      return { ok: true, data: { fixed, remain: fixed } };
     }
 
     // ───────── 7. 提现申请(普通 T+1, mock 落 withdraw_record status=processing) ─────────

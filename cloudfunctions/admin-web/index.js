@@ -224,6 +224,80 @@ exports.main = async (event, context) => {
     }
   }
 
+  // 打赏数据探活: 指令单 tip_total_fen 与 pay_transaction 流水(二分"未打赏 vs 数据不一致"), 受 X-Admin-Key 保护
+  if (action === 'order_probe_tip') {
+    try {
+      const oid = String(body.order_id || '');
+      const oidOk = /^[a-f0-9]{32}$/i.test(oid);
+      // 按双方 openid 反查该用户有打赏的订单(用于定位"打赏过但看不到明细")
+      const openid = String(body.openid || '');
+      if (!oidOk && !openid) return makeJson({ ok: false, code: 'bad_param', msg: '需要 order_id(32位) 或 openid' });
+      let rows = [];
+      if (oidOk) {
+        const o = await db.collection('order_main').doc(oid).get().catch(() => null);
+        if (o && o.data) rows = [o.data];
+      } else {
+        const r = await db.collection('order_main').where(_.or([
+          { user_openid: openid }, { partner_openid: openid }
+        ]).and({ tip_total_fen: _.gt(0), is_deleted: _.neq(true) })).orderBy('updated_at', 'desc').limit(10).get().catch(() => ({ data: [] }));
+        rows = r.data || [];
+      }
+      const out = [];
+      for (const o of rows) {
+        const txs = await db.collection('pay_transaction').where({ order_id: o._id, type: 'tip', is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(100).get().catch(() => ({ data: [] }));
+        out.push({
+          _id: o._id, order_no: o.order_no || '', status: o.status || '',
+          user_openid: o.user_openid || '', partner_openid: o.partner_openid || '',
+          tip_total_fen: o.tip_total_fen || 0, updated_at: o.updated_at || null,
+          tip_count: (txs.data || []).length,
+          tips: (txs.data || []).map((t) => ({ pay_no: t.pay_no, amount_fen: t.amount_fen, note: t.note || '', created_at: t.created_at }))
+        });
+      }
+      return makeJson({ ok: true, data: { orders: out } });
+    } catch (e) {
+      return makeJson({ ok: false, code: 'probe_error', msg: e && e.message }, 502);
+    }
+  }
+
+  // 网关模拟身份直调 payment-mock tip_list(云函数间 OPENID 为空 → mock_openid 生效), 二分权限/数据问题
+  if (action === 'fn_probe_tip_list') {
+    const oid = String(body.order_id || '');
+    if (!/^[a-f0-9]{32}$/i.test(oid) || !body.mock_openid) {
+      return makeJson({ ok: false, code: 'bad_param', msg: '需要 order_id(32位) 与 mock_openid' });
+    }
+    try {
+      const r = await withTimeout(cloud.callFunction({
+        name: 'payment-mock',
+        data: { action: 'tip_list', order_id: oid, mock_openid: String(body.mock_openid) }
+      }), PROXY_TIMEOUT_MS);
+      return makeJson(r.result || { ok: false, code: 'no_result' });
+    } catch (e) {
+      return makeJson({ ok: false, code: 'fn_probe_error', msg: e && e.message }, 502);
+    }
+  }
+
+  // 运维回填: 历史打赏流水补 partner_openid/scene(幂等)。直查 DB 绕开 payment-mock 身份门控(prod 下 mock_openid 失效)
+  if (action === 'fn_migrate_tip_partner') {
+    try {
+      const cursor = await db.collection('pay_transaction').where({
+        type: 'tip', status: 'success', partner_openid: _.exists(false)
+      }).limit(100).get();
+      let fixed = 0;
+      for (const t of (cursor.data || [])) {
+        let order = null;
+        try { order = (await db.collection('order_main').doc(t.order_id).get()).data; } catch (e) { order = null; }
+        if (!order) continue;
+        await db.collection('pay_transaction').doc(t._id).update({
+          data: { partner_openid: order.partner_openid || '', scene: order.scene || '' }
+        }).catch(() => {});
+        fixed++;
+      }
+      return makeJson({ ok: true, data: { fixed } });
+    } catch (e) {
+      return makeJson({ ok: false, code: 'fn_migrate_error', msg: e && e.message }, 502);
+    }
+  }
+
   // 排查探活: 网关视角(云函数间调用 OPENID 为空 → home-action 走游客视角, 不做耍伴级过滤)拉广场列表,
   // 用于二分「服务端数据 vs 前端展示」问题; 受 X-Admin-Key 保护
   if (action === 'home_probe_square') {
