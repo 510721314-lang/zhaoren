@@ -481,9 +481,9 @@ exports.main = async (event, context) => {
       workbench: {
         income_show: cfgRaw.workbench_income_show !== undefined ? cfgRaw.workbench_income_show : 5
       },
-      // 支付/资金(dev 才下发真实能力; prod fail-closed) —— tip_enabled 派生自 env, 不暴露 env 原值
+      // 支付/资金(dev 下发; prod 随 mock_payment_enabled 总开关 fail-closed: 测试期打开则打赏一并可用, 上线前关闭自动恢复禁用)
       payment: {
-        tip_enabled: cfgRaw.env === 'dev'
+        tip_enabled: cfgRaw.env === 'dev' || cfgRaw.mock_payment_enabled === true
       }
     } };
   }

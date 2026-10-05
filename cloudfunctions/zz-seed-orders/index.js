@@ -782,12 +782,15 @@ exports.main = async (event) => {
     return { ok: true, data: { created_demands: dCreated, created_orders: oCreated, night_window: '00:00-06:00', hint: '服务时间在凌晨的夜间需求/订单已生成; 抢单会被 order_time_redline 拦截' } };
   }
 
-  // ── scene_demands: 每场景生成 N 条匹配中需求(默认排除 W9 宠物陪伴), 供场景测试 ──
+  // ── scene_demands: 生成 N 条匹配中需求(默认排除 W9 宠物陪伴), 供场景测试 ──
   // 用途: 广场/首页/附近按场景浏览与抢单链路测试; 服务时间在未来 1-5 天白天时段(避开夜间红线)
-  // 幂等: client_request_id = sdm-{scene}-{i}; cleanup=true 软删全部 sdm-* 需求
+  // 参数: per=每场景(或 per_sub=true 时每子场景)单数; owner_openid=指定发布人(缺省用虚拟账号轮流)
+  // 幂等: client_request_id = sdm-{scene}-{sub}-{i}; cleanup=true 软删全部 sdm-* 需求
   if (action === 'scene_demands') {
     const now = Date.now();
     const per = Math.min(10, Math.max(1, Number(event.per) || 3));
+    const perSub = event.per_sub === true;   // true: 每个子场景 per 单; false: 每场景 per 单(子场景轮流)
+    const owner = event.owner_openid ? String(event.owner_openid) : '';  // 指定则以该用户名义发布需求
     let exSet = new Set(['W9']);
     if (event.exclude_scenes) {
       const arr = Array.isArray(event.exclude_scenes) ? event.exclude_scenes : String(event.exclude_scenes).split(',');
@@ -812,10 +815,21 @@ exports.main = async (event) => {
     const allCrids = [];
     const slotOf = {};
     for (const s of targets) {
-      for (let i = 0; i < per; i++) {
-        const crid = `sdm-${s.code}-${i}`;
-        allCrids.push(crid);
-        slotOf[crid] = { s, i };
+      const subs = (s.options || []).filter((sub) => CONTENT[sub]);
+      if (perSub) {
+        for (const sub of subs) {
+          for (let i = 0; i < per; i++) {
+            const crid = `sdm-${s.code}-${sub}-${i}`;
+            allCrids.push(crid);
+            slotOf[crid] = { s, sub, i };
+          }
+        }
+      } else {
+        for (let i = 0; i < per; i++) {
+          const crid = `sdm-${s.code}-${i}`;
+          allCrids.push(crid);
+          slotOf[crid] = { s, sub: subs[i % subs.length], i };
+        }
       }
     }
     let existingSet = new Set();
@@ -838,6 +852,31 @@ exports.main = async (event) => {
       }
     } catch (e) { /* 创建失败不阻断 */ }
 
+    // ── owner 位置中心: 显式 owner_location 优先; 否则取该用户最近一次发布的真实需求位置(近似"当前位置") ──
+    let center = null;
+    if (owner) {
+      const ol = event.owner_location || null;
+      if (ol && isFinite(Number(ol.lat)) && isFinite(Number(ol.lng))) {
+        center = { lat: Number(ol.lat), lng: Number(ol.lng), name: ol.name || '我的位置', city: ol.city || '成都' };
+      } else {
+        try {
+          // 取最近发布的真实需求位置(排除本工具生成的 sdm-* 种子, 否则中心退化为随机坐标)
+          const lr = await db.collection('demand').where({ creator_openid: owner, is_deleted: _.neq(true) })
+            .orderBy('created_at', 'desc').limit(5).get();
+          const ld = ((lr.data || []).find((x) => !(x.client_request_id && String(x.client_request_id).startsWith('sdm-')))) || null;
+          if (ld && ld.location && isFinite(Number(ld.location.latitude)) && Number(ld.location.latitude) !== 0) {
+            center = {
+              lat: Number(ld.location.latitude), lng: Number(ld.location.longitude),
+              name: (ld.location && ld.location.name) || '我的位置',
+              city: (ld.location && ld.location.city) || '成都'
+            };
+          }
+        } catch (e) { /* 取不到则回退成都随机 */ }
+      }
+    }
+    // 城市与坐标可能不符(历史数据 city 存错): 显式 owner_city 优先修正
+    if (center && event.owner_city) center.city = String(event.owner_city).trim();
+
     // 构造需求 docs
     const docs = [];
     // 北京时段: 白天 9-18 点(避 00:00-06:00 夜间红线); bjDayStart = 北京今天 00:00 的 UTC 时间戳
@@ -845,9 +884,7 @@ exports.main = async (event) => {
     const BJ_HOURS = [9, 11, 14, 16, 18];
     allCrids.forEach((crid) => {
       if (existingSet.has(crid)) return;
-      const { s, i } = slotOf[crid];
-      const subs = (s.options || []).filter((sub) => CONTENT[sub]);
-      const sub = subs[i % subs.length];
+      const { s, sub, i } = slotOf[crid];
       const tpl = CONTENT[sub][i % CONTENT[sub].length];
       const duration_h = tpl[2] || 2;
       const user = USERS[i % USERS.length];
@@ -855,20 +892,22 @@ exports.main = async (event) => {
       const hourBJ = BJ_HOURS[i % BJ_HOURS.length];             // 北京白天时段 9-18 点
       const start_time = bjDayStart + dayOffset * 86400000 + hourBJ * 3600000 + 15 * 60000;
       const rate_fen = RATE_MIN + Math.floor(Math.random() * (RATE_MAX - RATE_MIN));
-      const lat = +(30.58 + Math.random() * 0.16).toFixed(6);
-      const lng = +(104.03 + Math.random() * 0.12).toFixed(6);
-      const place = pick(PLACES);
+      // owner 位置中心 ±0.01°(约1km)小偏移模拟周边; 无 center 回退成都随机
+      const lat = center ? +(center.lat + (Math.random() - 0.5) * 0.02).toFixed(6) : +(30.58 + Math.random() * 0.16).toFixed(6);
+      const lng = center ? +(center.lng + (Math.random() - 0.5) * 0.02).toFixed(6) : +(104.03 + Math.random() * 0.12).toFixed(6);
+      const place = center ? center.name : pick(PLACES);
+      const city = center ? center.city : '成都';
       const createdAt = now - Math.floor(Math.random() * 6 * 3600000) - 60000;
       docs.push({
         demand_no: genDemandNo(),
         client_request_id: crid,
-        creator_openid: user.openid,
+        creator_openid: owner || user.openid,
         scene: s.code,
         project_attr: 'commercial',
         start_time,
         duration_h,
-        location: { name: place, latitude: lat, longitude: lng, city: '成都' },
-        publish_location: { name: place, latitude: lat, longitude: lng, city: '成都' },
+        location: { name: place, latitude: lat, longitude: lng, city },
+        publish_location: { name: place, latitude: lat, longitude: lng, city },
         content_option: sub,
         content_options: [sub],
         remark: `${tpl[0]}｜${tpl[1]}`,
@@ -910,7 +949,20 @@ exports.main = async (event) => {
 
     const byScene = {};
     for (const c of created) { const sc = c.split('-')[1]; byScene[sc] = (byScene[sc] || 0) + 1; }
-    return { ok: true, data: { created: created.length, skipped: allCrids.length - created.length, per_scene: per, targets: targets.map((t) => t.code), by_scene: byScene, hint: '每场景 matching 需求已生成(除排除场景), 广场/首页/附近刷新可见' } };
+    return { ok: true, data: { created: created.length, skipped: allCrids.length - created.length, per_scene: per, targets: targets.map((t) => t.code), by_scene: byScene, center: center || null, hint: '每场景 matching 需求已生成(除排除场景), 广场/首页/附近刷新可见' } };
+  }
+
+  // ── fix_sdm_city: 把 sdm-* 种子需求的城市字段统一改为实际城市(历史 city 与坐标不符时用) ──
+  if (action === 'fix_sdm_city') {
+    const city = String(event.city || '重庆市').trim();
+    const re = db.RegExp({ regexp: '^sdm-' });
+    let updated = 0;
+    try {
+      const r = await db.collection('demand').where({ client_request_id: re, is_deleted: false })
+        .update({ data: { 'location.city': city, 'publish_location.city': city, updated_at: Date.now() } });
+      updated = (r.stats && r.stats.updated) || 0;
+    } catch (e) { return { ok: false, code: 'fix_city_fail', msg: e && e.message }; }
+    return { ok: true, data: { updated, city, hint: 'sdm-* 种子需求城市已统一' } };
   }
 
   // ── cleanup_seed_orders: 软删种子订单(svo-*/nto-ord-*)及配套需求/确认/流水 ──

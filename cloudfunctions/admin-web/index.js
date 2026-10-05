@@ -5,6 +5,7 @@
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
+const _ = db.command;
 const fs = require('fs');
 const path = require('path');
 
@@ -185,13 +186,13 @@ exports.main = async (event, context) => {
   if (action === 'seed_run' || action === 'seed_cleanup' || action === 'seed_count'
       || action === 'seed_simulate' || action === 'seed_cleanup_sim' || action === 'seed_count_sim'
       || action === 'seed_service_orders' || action === 'seed_night_orders' || action === 'seed_cleanup_seed_orders'
-      || action === 'seed_backfill_matched' || action === 'seed_scene_demands') {
+      || action === 'seed_backfill_matched' || action === 'seed_scene_demands' || action === 'seed_fix_sdm_city') {
     const SEED_MAP = {
       seed_run: 'run', seed_cleanup: 'cleanup', seed_count: 'count',
       seed_simulate: 'simulate', seed_cleanup_sim: 'cleanup_sim', seed_count_sim: 'count_sim',
       seed_service_orders: 'service_orders', seed_night_orders: 'night_orders',
       seed_cleanup_seed_orders: 'cleanup_seed_orders', seed_backfill_matched: 'backfill_matched',
-      seed_scene_demands: 'scene_demands'
+      seed_scene_demands: 'scene_demands', seed_fix_sdm_city: 'fix_sdm_city'
     };
     const seedAction = SEED_MAP[action];
     const seedOpenid = body.seed_openid || 'seed_admin';
@@ -204,9 +205,13 @@ exports.main = async (event, context) => {
       if (seedAction === 'night_orders' && body.cleanup === true) seedData.cleanup = true;
       if (seedAction === 'scene_demands') {
         if (body.per) seedData.per = body.per;
+        if (body.per_sub === true) seedData.per_sub = true;
+        if (body.owner_openid) seedData.owner_openid = body.owner_openid;
+        if (body.owner_city) seedData.owner_city = body.owner_city;
         if (body.exclude_scenes) seedData.exclude_scenes = body.exclude_scenes;
         if (body.cleanup === true) seedData.cleanup = true;
       }
+      if (seedAction === 'fix_sdm_city' && body.city) seedData.city = body.city;
     }
     try {
       const r = await withTimeout(cloud.callFunction({ name: 'zz-seed-orders', data: seedData }), PROXY_TIMEOUT_MS);
@@ -216,6 +221,44 @@ exports.main = async (event, context) => {
         return makeJson({ ok: false, code: 'gateway_timeout', action, hint: '网关响应慢, 请稍后重试', timeout_ms: PROXY_TIMEOUT_MS }, 504);
       }
       return makeJson({ ok: false, code: 'proxy_error', msg: e.message }, 502);
+    }
+  }
+
+  // 排查探活: 网关视角(云函数间调用 OPENID 为空 → home-action 走游客视角, 不做耍伴级过滤)拉广场列表,
+  // 用于二分「服务端数据 vs 前端展示」问题; 受 X-Admin-Key 保护
+  if (action === 'home_probe_square') {
+    try {
+      const r = await withTimeout(cloud.callFunction({ name: 'home-action', data: { action: 'square', limit: Math.min(Number(body.limit) || 20, 50) } }), PROXY_TIMEOUT_MS);
+      return makeJson(r.result || { ok: false, code: 'no_result' });
+    } catch (e) {
+      return makeJson({ ok: false, code: 'home_probe_error', msg: e && e.message }, 502);
+    }
+  }
+  // 排查探活: 直查 system_notice / audit_log 集合(改期通知回归排查)
+  if (action === 'home_probe_system_notice') {
+    try {
+      const t = String(body.type || 'modify_confirm');
+      const hours = Math.min(Number(body.hours) || 48, 24 * 30);
+      const since = Date.now() - hours * 3600000;
+      const r = await db.collection('system_notice').where({
+        type: t, created_at: _.gte(since)
+      }).orderBy('created_at', 'desc').limit(10).get();
+      return makeJson({ ok: true, data: { type: t, hours, count: r.data.length, list: r.data.map((n) => ({ order_id: n.order_id, to_openid: n.to_openid, read: !!n.read, created_at: n.created_at, title: n.title })) } });
+    } catch (e) {
+      return makeJson({ ok: false, code: 'probe_notice_error', msg: e && e.message }, 502);
+    }
+  }
+  if (action === 'home_probe_modify_audit') {
+    try {
+      const hours = Math.min(Number(body.hours) || 48, 24 * 30);
+      const since = Date.now() - hours * 3600000;
+      const r = await db.collection('audit_log').where({
+        action: _.in(['order_modify_apply', 'order_modify_confirm', 'order_modify_reject']),
+        created_at: _.gte(since)
+      }).orderBy('created_at', 'desc').limit(10).get();
+      return makeJson({ ok: true, data: { hours, count: r.data.length, list: r.data.map((a) => ({ action: a.action, openid: a.openid, role: a.role, target_id: a.target_id, result: a.result, created_at: a.created_at })) } });
+    } catch (e) {
+      return makeJson({ ok: false, code: 'probe_audit_error', msg: e && e.message }, 502);
     }
   }
 
