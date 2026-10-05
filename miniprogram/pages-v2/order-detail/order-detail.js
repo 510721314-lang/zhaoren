@@ -294,6 +294,7 @@ Page({
       service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
       duration_hours: d.duration_h || 0,
       amount_fen: d.total_fen || 0,
+      tip_total_fen: d.tip_total_fen || 0,
       insurance: null, // detail 暂未返回保险, 先隐藏保险卡
       confirm: d.confirm,
       evaluation: d.evaluation,
@@ -328,6 +329,7 @@ Page({
       tipEnabled: !!(CONFIG.PAYMENT && CONFIG.PAYMENT.tipEnabled),
       orderSummary: d.order_summary || null,
       amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
+      tipTotalYuan: ((order.tip_total_fen || 0) / 100).toFixed(2),
       modifyDateMin: this.fmtDate(new Date()),
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),
       nextStep

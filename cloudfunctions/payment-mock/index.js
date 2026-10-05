@@ -610,23 +610,26 @@ exports.main = async (event, context) => {
       const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const monthMs = monthStart.getTime();
       // 6 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级, 冷启动压到 2s 内
+      // 收入口径 = 服务收入 + 打赏(2026-10-05 打赏计入耍伴可结算收入, 与订单记录分列展示)
       const [settled, wR, splitting, monthList, countR, pp] = await Promise.all([
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid: partnerOpenid, is_deleted: false }).group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
         col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] }))
       ]);
-      const settledFen = (settled.list && settled.list[0] && settled.list[0].total) || 0;
+      const settledFen = ((settled.list && settled.list[0] && settled.list[0].total) || 0) + ((settled.list && settled.list[0] && settled.list[0].tip) || 0);
       let processingW = 0, withdrawnW = 0;
       ((wR && wR.list) || []).forEach((g) => {
         if (g._id === 'processing') processingW = g.total || 0;
         else if (g._id === 'success') withdrawnW = g.total || 0;
       });
       const withdrawableFen = Math.max(0, settledFen - processingW - withdrawnW);
-      const splittingFen = (splitting.list && splitting.list[0] && splitting.list[0].total) || 0;
-      const monthIncomeFen = (monthList.list && monthList.list[0] && monthList.list[0].total) || 0;
+      const splittingFen = ((splitting.list && splitting.list[0] && splitting.list[0].total) || 0) + ((splitting.list && splitting.list[0] && splitting.list[0].tip) || 0);
+      const monthIncomeFen = ((monthList.list && monthList.list[0] && monthList.list[0].total) || 0) + ((monthList.list && monthList.list[0] && monthList.list[0].tip) || 0);
+      // 打赏累计(已结算口径, 与订单记录 tip_total_fen 一致) —— 2026-10-05 打赏进入可结算收入
+      const settledTipFen = (settled.list && settled.list[0] && settled.list[0].tip) || 0;
       let creditLevel = 'L1';
       if (pp.data && pp.data[0]) {
         const score = pp.data[0].score || 0;
@@ -641,6 +644,7 @@ exports.main = async (event, context) => {
           processing_fen: processingW,
           month_income_fen: monthIncomeFen,
           total_income_fen: settledFen,   // 累计收入 = 已结算总收入(2026-09-24 wallet 累计收入显示修复)
+          tip_income_fen: settledTipFen,  // 其中打赏累计(订单记录与钱包对账用)
           total_completed: countR.total || 0,
           credit_level: creditLevel
         }
@@ -662,6 +666,7 @@ exports.main = async (event, context) => {
         scene: o.scene,
         status: o.status,
         partner_income_fen: o.partner_income_fen || 0,
+        tip_total_fen: o.tip_total_fen || 0,
         fee_fen: o.fee_fen || 0,
         total_fen: o.total_fen || 0,
         service_completed_at: o.service_completed_at || null,
@@ -705,13 +710,14 @@ exports.main = async (event, context) => {
       const dayStart = Math.floor((Date.now() + CN_OFFSET_MS) / DAY_MS) * DAY_MS - CN_OFFSET_MS;
       const [settledR, wUsedR, dayR] = await Promise.all([
         col('order_main').aggregate().match({ partner_openid: openid, status: _.in(['S8', 'S9', 'S10']), is_deleted: _.neq(true) })
-          .group({ _id: null, total: $.sum('$partner_income_fen') }).end().catch(() => ({ list: [] })),
+          .group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid, is_deleted: false })
           .group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid, type: 'fast', created_at: _.gte(dayStart), is_deleted: false })
           .group({ _id: null, total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }))
       ]);
-      const settledFen = (settledR.list && settledR.list[0] && settledR.list[0].total) || 0;
+      // 可提现口径与 balance_info 一致: 服务收入 + 打赏
+      const settledFen = ((settledR.list && settledR.list[0] && settledR.list[0].total) || 0) + ((settledR.list && settledR.list[0] && settledR.list[0].tip) || 0);
       let usedFen = 0;
       ((wUsedR && wUsedR.list) || []).forEach((g) => {
         if (g._id === 'processing' || g._id === 'success') usedFen += g.total || 0;

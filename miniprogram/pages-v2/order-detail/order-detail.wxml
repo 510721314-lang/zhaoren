@@ -63,6 +63,11 @@
         <view class="od__summary-line" wx:if="{{orderSummary.l3}}">{{orderSummary.l3}}</view>
       </view>
       <view class="od__row" wx:if="{{order.partner_name}}"><text class="od__label">耍伴</text><text class="od__val">{{order.partner_name}}</text></view>
+      <!-- 打赏记录(双方可见; 发单人"已打赏", 耍伴"收到打赏", 累计金额) -->
+      <view class="od__row" wx:if="{{order.tip_total_fen > 0}}">
+        <text class="od__label">打赏</text>
+        <text class="od__val od__val--tip">{{order.my_role === 'user' ? '已打赏' : '收到打赏'}} ¥{{tipTotalYuan}}</text>
+      </view>
     </view>
 
     <!-- O2 安全中心(图5): 履约活跃状态双方可见, 紧急求助+安全报备+最近报备记录 -->

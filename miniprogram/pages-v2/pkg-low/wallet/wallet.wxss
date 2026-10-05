@@ -12,6 +12,7 @@
 .wt__income-item { flex: 1; }
 .wt__income-label { font-size: var(--font-xs); opacity: 0.8; }
 .wt__income-val { display: block; margin-top: 4rpx; font-size: var(--font-md); font-weight: 600; }
+.wt__income-tip { display: block; margin-top: 4rpx; font-size: var(--font-xs); color: #FFD39B; }
 .wt__income-divider { width: 1rpx; height: 60rpx; background: rgba(255,255,255,0.2); }
 .wt__withdraw-btn { width: 100%; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; background: var(--text-invert); color: var(--brand-primary); font-size: var(--font-md); font-weight: 600; margin-top: 16rpx; }
 .wt__withdraw-btn::after { border: none; }
@@ -39,6 +40,7 @@
 .wt__income-gross { font-size: var(--font-md); color: var(--text-1); font-weight: 600; }
 .wt__income-deduct { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
 .wt__income-net { margin-top: 4rpx; font-size: var(--font-sm); color: var(--func-success); font-weight: 600; }
+.wt__income-tip-line { margin-top: 4rpx; font-size: var(--font-xs); color: #FF8F1F; font-weight: 600; }
 
 /* V6 提现记录 */
 .wt__wd-item { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 0; border-bottom: 1rpx solid var(--border-divider); }

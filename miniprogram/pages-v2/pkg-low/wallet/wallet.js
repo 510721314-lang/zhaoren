@@ -91,6 +91,7 @@ Page({
         d.balanceYuan = ((b.withdrawable_fen || 0) / 100).toFixed(2);
         d.monthIncomeYuan = ((b.month_income_fen || 0) / 100).toFixed(2);
         d.totalIncomeYuan = ((b.total_income_fen || 0) / 100).toFixed(2);
+        d.tipIncomeYuan = ((b.tip_income_fen || 0) / 100).toFixed(2);
         d.splittingYuan = ((b.splitting_fen || 0) / 100).toFixed(2);
         const amtMap = {
           withdrawable: d.balanceYuan,
@@ -107,6 +108,7 @@ Page({
           scene_name: sceneName(i.scene),
           status: i.status,
           netYuan: ((i.partner_income_fen || 0) / 100).toFixed(2),
+          tipYuan: ((i.tip_total_fen || 0) / 100).toFixed(2),
           grossYuan: ((i.total_fen || 0) / 100).toFixed(2),
           feeYuan: ((i.fee_fen || 0) / 100).toFixed(2),
           commissionYuan: ((i.fee_fen || 0) / 100).toFixed(2),
