@@ -140,5 +140,13 @@ App({
     if (wx.setTabBarItem) {
       wx.setTabBarItem({ index: 1, text, fail: () => {} });
     }
+  },
+
+  // 兜底: 微信自动恢复上次现场时偶发空路径/未知路径(如 page ""), 统一重定向首页,
+  // 避免框架默认弹「页面不存在」错误页。仅 reLaunch 到已注册页面, 不会再触发本回调。
+  onPageNotFound(res) {
+    const path = (res && res.path) || '';
+    console.warn('[onPageNotFound] path="' + path + '" → reLaunch 首页');
+    wx.reLaunch({ url: '/pages-v2/index/index' });
   }
 });

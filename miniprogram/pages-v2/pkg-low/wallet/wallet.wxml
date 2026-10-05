@@ -50,25 +50,52 @@
       <view class="wt__fund-amount">¥{{fundAmount}}</view>
     </view>
 
-    <!-- V4 收益明细 -->
+    <!-- V4 收益明细: 接单收入/打赏 两专栏 + 时间段条件查询 + 汇总 -->
     <view class="wt__card">
-      <view class="wt__card-title">收益明细</view>
-      <view class="wt__income-item-row" wx:for="{{incomeList}}" wx:key="_id">
-        <view class="wt__income-row-left">
-          <view class="wt__income-name">
-            {{item.scene_name}}
-            <text class="wt__welfare-tag" wx:if="{{item.is_welfare}}">公益补贴</text>
-          </view>
-          <view class="wt__income-meta">单号 {{item.order_no}} · {{item.partner_name}}</view>
-          <view class="wt__income-time">{{item.created_at}}</view>
-        </view>
-        <view class="wt__income-row-right">
-          <view class="wt__income-gross">¥{{item.grossYuan}}</view>
-          <view class="wt__income-deduct">抽成 ¥{{item.commissionYuan}}<text wx:if="{{item.subsidyYuan}}"> +补贴¥{{item.subsidyYuan}}</text></view>
-          <view class="wt__income-net">实收 ¥{{item.netYuan}}</view>
-          <view class="wt__income-tip-line" wx:if="{{item.tipYuan > 0}}">打赏 ¥{{item.tipYuan}}</view>
-        </view>
+      <view class="wt__sec-tabs">
+        <view class="wt__sec-tab {{walletTab === 'income' ? 'is-on' : ''}}" data-tab="income" bindtap="onWalletTabTap">接单收入</view>
+        <view class="wt__sec-tab {{walletTab === 'tip' ? 'is-on' : ''}}" data-tab="tip" bindtap="onWalletTabTap">打赏</view>
       </view>
+      <view class="wt__range-tabs">
+        <view class="wt__range-tab {{rangeKey === item.key ? 'is-on' : ''}}" wx:for="{{rangeTabs}}" wx:key="key" data-key="{{item.key}}" bindtap="onRangeTap">{{item.name}}</view>
+      </view>
+      <view class="wt__sec-summary">
+        <text class="wt__sec-summary-count">{{walletTab === 'income' ? incomeSummary.count : tipSummary.count}} 笔</text>
+        <text class="wt__sec-summary-amt">合计 ¥{{walletTab === 'income' ? incomeSummary.totalYuan : tipSummary.sumYuan}}</text>
+      </view>
+
+      <!-- 接单收入明细(已结算订单, 服务费口径) -->
+      <block wx:if="{{walletTab === 'income'}}">
+        <view class="wt__income-item-row" wx:for="{{incomeList}}" wx:key="order_id">
+          <view class="wt__income-row-left">
+            <view class="wt__income-name">{{item.scene_name}}</view>
+            <view class="wt__income-meta">单号 {{item.order_no}}</view>
+            <view class="wt__income-time">{{item.created_at}}</view>
+          </view>
+          <view class="wt__income-row-right">
+            <view class="wt__income-net">实收 ¥{{item.netYuan}}</view>
+          </view>
+        </view>
+        <empty-state wx:if="{{!incomeList.length}}" icon="💸" title="暂无接单收入" desc="切换时间段或完成更多订单后查看" />
+      </block>
+
+      <!-- 打赏明细(逐笔流水) -->
+      <block wx:else>
+        <view class="wt__income-item-row" wx:for="{{tipList}}" wx:key="pay_no">
+          <view class="wt__income-row-left">
+            <view class="wt__income-name">
+              {{item.scene_name || '打赏'}}
+              <text class="wt__tip-note" wx:if="{{item.note}}">· {{item.note}}</text>
+            </view>
+            <view class="wt__income-meta">单号 {{item.order_no}}</view>
+            <view class="wt__income-time">{{item.created_at}}</view>
+          </view>
+          <view class="wt__income-row-right">
+            <view class="wt__tip-amt">+¥{{item.amountYuan}}</view>
+          </view>
+        </view>
+        <empty-state wx:if="{{!tipList.length}}" icon="💝" title="暂无打赏" desc="完成服务后发单人可打赏你" />
+      </block>
     </view>
 
     <!-- V6 提现记录 -->

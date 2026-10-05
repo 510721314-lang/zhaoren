@@ -1,5 +1,5 @@
 // PRD章节: 3.10 资金钱包 / 3.10.2 提现 / 3.10.3 极速提现 / 3.10.4 收益明细
-// P2: 接云端 payment-mock balance_info + income_list, 删 mock 依赖
+// 收益明细拆「接单收入」「打赏」两专栏, 各含时间段条件查询 + 汇总(2026-10-05)
 const CONFIG = require('../../../config/index.js');
 const { FUND_STATUS } = require('../../../config/enums.js');
 const redline = require('../../../utils/redline.js');
@@ -23,6 +23,27 @@ function fmtTime(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// 时间段起点(北京时间, 容器 UTC 修正): all=0 / month=当月1日0点 / d30,d90=近N天
+function rangeStart(key) {
+  const CN_OFFSET_MS = 8 * 3600 * 1000;
+  const DAY_MS = 24 * 3600 * 1000;
+  const nowCN = Date.now() + CN_OFFSET_MS;
+  if (key === 'all') return 0;
+  if (key === 'month') {
+    const d = new Date(nowCN);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - CN_OFFSET_MS;
+  }
+  const days = key === 'd90' ? 90 : 30;
+  return Math.floor((nowCN - days * DAY_MS) / DAY_MS) * DAY_MS - CN_OFFSET_MS;
+}
+
+const RANGE_TABS = [
+  { key: 'all', name: '全部' },
+  { key: 'month', name: '本月' },
+  { key: 'd30', name: '近30天' },
+  { key: 'd90', name: '近90天' }
+];
+
 Page({
   data: {
     balanceYuan: '0.00',
@@ -42,8 +63,14 @@ Page({
     fastUsed: 0,
     fastMax: CONFIG.WITHDRAW.fastOrders,
     fastProgress: 0,
-    // V4 收益明细
+    // V4 收益明细: 两专栏 + 时间段条件查询 + 汇总
+    walletTab: 'income',           // income=接单收入 / tip=打赏
+    rangeTabs: RANGE_TABS,
+    rangeKey: 'all',
     incomeList: [],
+    incomeSummary: { count: 0, totalYuan: '0.00' },
+    tipList: [],
+    tipSummary: { count: 0, sumYuan: '0.00' },
     // V6 提现记录
     withdrawList: [],
     // V5 提现弹窗
@@ -78,13 +105,21 @@ Page({
     this.fetchData();
   },
 
+  // 时间段筛选参数(与汇总同口径; income 按完成时间, tip 按流水时间)
+  buildRange() {
+    const start = rangeStart(this.data.rangeKey);
+    return start > 0 ? { start_ts: start } : {};
+  },
+
   fetchData() {
     this.setData({ loading: true, loadError: false });
+    const range = this.buildRange();
     Promise.all([
       callCloud('payment-mock', { action: 'balance_info' }),
-      callCloud('payment-mock', { action: 'income_list' }),
+      callCloud('payment-mock', Object.assign({ action: 'income_list', status_in: 'S8,S9,S10', limit: 50 }, range)),
+      callCloud('payment-mock', Object.assign({ action: 'tip_income_list', limit: 50 }, range)),
       callCloud('payment-mock', { action: 'withdraw_list', limit: CONFIG.PAGING.walletWithdraw })
-    ]).then(([balR, incR, wdR]) => {
+    ]).then(([balR, incR, tipR, wdR]) => {
       const d = {};
       if (balR.ok) {
         const b = balR.data;
@@ -103,21 +138,33 @@ Page({
       }
       if (incR.ok) {
         d.incomeList = (incR.data.list || []).map((i) => ({
+          order_id: i.order_id,
           order_no: i.order_no,
-          scene: i.scene,
           scene_name: sceneName(i.scene),
-          status: i.status,
+          // 接单收入 = 服务收入(实收)
           netYuan: ((i.partner_income_fen || 0) / 100).toFixed(2),
-          tipYuan: ((i.tip_total_fen || 0) / 100).toFixed(2),
-          grossYuan: ((i.total_fen || 0) / 100).toFixed(2),
-          feeYuan: ((i.fee_fen || 0) / 100).toFixed(2),
-          commissionYuan: ((i.fee_fen || 0) / 100).toFixed(2),
-          subsidyYuan: i.subsidy_fen ? (i.subsidy_fen / 100).toFixed(2) : null,
-          is_welfare: !!i.is_welfare,
-          partner_name: i.user_nickname || i.partner_name || '',
-          created_at: i.created_at,
-          service_completed_at: i.service_completed_at
+          created_at: i.service_completed_at || i.created_at
         }));
+        const s = (incR.data.summary || {});
+        d.incomeSummary = {
+          count: s.count || 0,
+          totalYuan: ((s.service_income_fen || 0) / 100).toFixed(2)
+        };
+      }
+      if (tipR.ok) {
+        d.tipList = (tipR.data.list || []).map((t) => ({
+          pay_no: t.pay_no,
+          order_no: t.order_no,
+          scene_name: sceneName(t.scene),
+          amountYuan: ((t.amount_fen || 0) / 100).toFixed(2),
+          note: t.note || '',
+          created_at: t.created_at
+        }));
+        const s = (tipR.data.summary || {});
+        d.tipSummary = {
+          count: s.count || 0,
+          sumYuan: ((s.sum_fen || 0) / 100).toFixed(2)
+        };
       }
       if (wdR.ok) {
         d.withdrawList = (wdR.data.list || []).map((w) => {
@@ -142,6 +189,57 @@ Page({
   },
 
   reload() { this.fetchData(); },
+
+  // 专栏切换: 仅重拉当前 tab 列表(汇总/明细同口径)
+  onWalletTabTap(e) {
+    const tab = e.currentTarget.dataset.tab;
+    if (!tab || tab === this.data.walletTab) return;
+    this.setData({ walletTab: tab });
+    this.fetchSection();
+  },
+
+  // 时间段切换: 重拉当前 tab
+  onRangeTap(e) {
+    const key = e.currentTarget.dataset.key;
+    if (!key || key === this.data.rangeKey) return;
+    this.setData({ rangeKey: key });
+    this.fetchSection();
+  },
+
+  fetchSection() {
+    const range = this.buildRange();
+    const tab = this.data.walletTab;
+    const req = tab === 'tip'
+      ? callCloud('payment-mock', Object.assign({ action: 'tip_income_list', limit: 50 }, range))
+      : callCloud('payment-mock', Object.assign({ action: 'income_list', status_in: 'S8,S9,S10', limit: 50 }, range));
+    req.then((r) => {
+      if (!r.ok) return;
+      const d = {};
+      if (tab === 'tip') {
+        d.tipList = (r.data.list || []).map((t) => ({
+          pay_no: t.pay_no,
+          order_no: t.order_no,
+          scene_name: sceneName(t.scene),
+          amountYuan: ((t.amount_fen || 0) / 100).toFixed(2),
+          note: t.note || '',
+          created_at: t.created_at
+        }));
+        const s = (r.data.summary || {});
+        d.tipSummary = { count: s.count || 0, sumYuan: ((s.sum_fen || 0) / 100).toFixed(2) };
+      } else {
+        d.incomeList = (r.data.list || []).map((i) => ({
+          order_id: i.order_id,
+          order_no: i.order_no,
+          scene_name: sceneName(i.scene),
+          netYuan: ((i.partner_income_fen || 0) / 100).toFixed(2),
+          created_at: i.service_completed_at || i.created_at
+        }));
+        const s = (r.data.summary || {});
+        d.incomeSummary = { count: s.count || 0, totalYuan: ((s.service_income_fen || 0) / 100).toFixed(2) };
+      }
+      this.setData(d);
+    });
+  },
 
   // V3 四态 tab 切换
   onFundTabTap(e) {
