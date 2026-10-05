@@ -442,13 +442,14 @@ exports.main = async (event, context) => {
         await db.runTransaction(async (t) => {
           const cur = await t.collection('order_main').doc(order_id).get();
           tipTotal = ((cur.data && cur.data.tip_total_fen) || 0) + amount;
-          // 打赏流水(is_mock=true)
+          // 打赏流水(is_mock=true; 逐笔记录: 金额+备注+时间)
           await t.collection('pay_transaction').add({ data: {
             pay_no: tipNo,
             order_id,
             order_no: order.order_no,
             type: 'tip',
             amount_fen: amount,
+            note: String(event.note || '').slice(0, 60),
             channel: 'mock',
             is_mock: true,
             status: 'success',
@@ -479,6 +480,28 @@ exports.main = async (event, context) => {
         log.d(`mock_tip fail: ${e.message}`);
         return { ok: false, code: 'tip_db_fail', msg: '打赏失败,请稍后重试' };
       }
+    }
+
+    // ───────── tip_list: 打赏逐笔明细(订单双方可见, 按时间升序) ─────────
+    case 'tip_list': {
+      const { order_id } = event;
+      if (!order_id) return { ok: false, code: 'tip_no_order', msg: '缺少订单 ID' };
+      const order = await getOrder(order_id);
+      if (!order) return { ok: false, code: 'tip_not_found', msg: '订单不存在' };
+      // 权限: 仅订单双方(发单人/耍伴)可查看打赏明细
+      if (order.user_openid !== openid && order.partner_openid !== openid) {
+        return { ok: false, code: 'tip_forbidden', msg: '无权查看该订单打赏明细' };
+      }
+      const r = await col('pay_transaction').where({
+        order_id, type: 'tip', status: 'success', is_deleted: _.neq(true)
+      }).orderBy('created_at', 'asc').limit(100).get();
+      const list = (r.data || []).map((t) => ({
+        pay_no: t.pay_no,
+        amount_fen: t.amount_fen || 0,
+        note: t.note || '',
+        created_at: t.created_at
+      }));
+      return { ok: true, data: { list, tip_total_fen: order.tip_total_fen || 0 } };
     }
 
     // ───────── mock_ins: 模拟购买保险(保险费由平台承担, 用户零成本) ─────────

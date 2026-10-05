@@ -107,6 +107,10 @@
 .od__val--strong { font-weight: 600; color: var(--func-danger); }
 .od__val--success { color: var(--func-success); }
 .od__val--tip { color: #FF8F1F; font-weight: 600; }
+.od__tip-list { padding: 4rpx 0 8rpx; }
+.od__tip-item { display: flex; justify-content: space-between; padding: 6rpx 0; font-size: var(--font-xs); }
+.od__tip-am { color: var(--func-warn, #FF8F1F); }
+.od__tip-tm { color: var(--text-4); }
 
 /* O3 操作区 */
 .od__btn { width: 100%; height: 80rpx; line-height: 80rpx; border-radius: 40rpx; font-size: var(--font-md); margin-top: 16rpx; }

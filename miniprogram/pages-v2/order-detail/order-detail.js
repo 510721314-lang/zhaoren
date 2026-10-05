@@ -153,6 +153,7 @@ Page({
     modifyConfirmH: CONFIG.MODIFY.confirmHours,
     orderSummary: null,  // 订单概要三行(沿用消息页 l1/l2/l3)
     tipNotices: [],      // 到账通知列表(多条依次展示, 每条含 text+time; 空列表不渲染)
+    tipList: [],        // 打赏逐笔明细(时间+金额+备注, 双方可见)
     insuranceWan: '',
     afterSaleDays: CONFIG.ORDER.afterSaleDays,
     // 安全中心: 进行中求助/最近报备/我的紧急联系人(由 safety-report status 填充)
@@ -334,6 +335,8 @@ Page({
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),
       nextStep
     });
+    // 有打赏的订单拉逐笔明细(双方可见, 展示在打赏行下)
+    if (order.tip_total_fen > 0) this.fetchTipList();
   },
 
   clearTimers() {
@@ -418,6 +421,23 @@ Page({
     if (isNaN(d.getTime())) return '';
     const pad = (n) => String(n).padStart(2, '0');
     return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+
+  // 💝 打赏逐笔明细(订单双方可见, 时间升序; 打赏成功后由 onTip 刷新触发重拉)
+  fetchTipList() {
+    const o = this.data.order || {};
+    if (!o.order_id) return;
+    callCloud('payment-mock', { action: 'tip_list', order_id: o.order_id }).then((r) => {
+      if (!r.ok || !r.data || !r.data.list) return;
+      this.setData({
+        tipList: r.data.list.map((t) => ({
+          pay_no: t.pay_no,
+          amountYuan: ((t.amount_fen || 0) / 100).toFixed(2),
+          note: t.note || '',
+          timeText: t.created_at ? this.__fmtNoticeTime(t.created_at) : ''
+        }))
+      });
+    }).catch(() => {});
   },
 
   // O3 操作区
