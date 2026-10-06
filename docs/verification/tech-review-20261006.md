@@ -21,7 +21,7 @@
 | 维度 | 级别 | 风险 | 现有缓解 |
 |---|---|---|---|
 | 可维护性 | **P0** | bus factor=1：project_memory/skills 全在 C 盘本地、不在 git，机器损坏即知识全失 | B1-B8 整改计划中 |
-| 测试 | P1 | **观测断层**：order-timer 触发器疑似停摆约 5 个周期无告警——巡检函数本身缺少自观测 | 无（整改项：error_scan 心跳） |
+| 测试 | P1 | **观测断层**：order-timer 触发器疑似停摆约 5 个周期无告警——巡检函数本身缺少自观测 | ✅ 已落地 2026-10-06：error_scan_heartbeat_at 心跳 + gate 第 7 步 check-heartbeat |
 | 部署 | P1 | CLI 串行手动部署 9 函数，无回滚机制，出错靠手工 | 无 |
 | 部署 | P1 | config.json 的 triggers/timeout 不生效、触发器需控制台手工配（已知未解缺陷） | 文档记录 |
 | 架构 | P1 | 25 云函数 + 34 集合平铺无领域分组；config 存 DB 无版本历史，配置改错无法回滚 | 无 |
@@ -34,7 +34,7 @@
 ## 三、建议优先改善项
 
 1. **P0**：B1 知识入 git（项目记忆、skills、runbook 同步进仓库）
-2. **P1**：order-timer 心跳字段（每轮运行写 `error_scan_heartbeat_at`）——让「巡检没在跑」可被 smoke/gate 检测
+2. **P1**：order-timer 心跳字段（每轮运行写 `error_scan_heartbeat_at`）——让「巡检没在跑」可被 smoke/gate 检测 ✅ 已完成（check-heartbeat.ps1，stale 仅 WARN 待触发器确认后升级 FAIL）
 3. **P1**：部署回滚能力——部署记录表 + 上一版代码包归档
 4. **P1**：网关加固——IP 白名单或连续失败告警
 5. **P2**：config 版本历史（config_set 已写 platform_event 留痕，补 config_history 集合即可）

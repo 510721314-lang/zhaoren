@@ -1,0 +1,33 @@
+# check-heartbeat.ps1 - order-timer watchdog observability (D7 fix, tech-review P1)
+# Reads admin_config.error_scan_heartbeat_at via admin gateway config_get and reports age.
+#   fresh (<30min)        -> exit 0  [heartbeat] OK
+#   stale-but-beaten      -> exit 0  [heartbeat] WARN (last beat N min ago)
+#   never beaten (0)      -> exit 0  [heartbeat] WARN never (orderTimer trigger suspended? see docs/runbooks/ops-runbook.md)
+#   gateway unreachable   -> exit 5  (cannot verify; smoke step already covers connectivity)
+# WARN does not block the gate: the trigger issue is owner-side pending. Flipped to FAIL once trigger confirmed.
+# Usage: powershell -File scripts/check-heartbeat.ps1   (needs $env:AWK_KEY)
+param([int]$MaxAgeMin = 30)
+$ErrorActionPreference = 'Stop'
+if (-not $env:AWK_KEY) { Write-Host '[heartbeat] FATAL: AWK_KEY not set'; exit 2 }
+
+$gate = "https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api"
+try {
+  $resp = Invoke-WebRequest -Method POST -Uri $gate -Headers @{ 'X-Admin-Key' = $env:AWK_KEY } `
+    -Body '{"action":"config_get"}' -ContentType 'application/json' -UseBasicParsing -TimeoutSec 20
+  $j = $resp.Content | ConvertFrom-Json
+  $hb = $null
+  if ($j -and $j.config) { $hb = $j.config.error_scan_heartbeat_at }
+  elseif ($j) { $hb = $j.error_scan_heartbeat_at }
+  $hb = [int64]($hb | Where-Object { $_ })
+  if ($hb -le 0) {
+    Write-Host '[heartbeat] WARN: never beaten (error_scan_heartbeat_at=0) - orderTimer trigger suspended? see docs/runbooks/ops-runbook.md'
+    exit 0
+  }
+  $ageMin = [math]::Round((([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - $hb) / 60000), 1)
+  if ($ageMin -le $MaxAgeMin) { Write-Host "[heartbeat] OK: last beat ${ageMin} min ago"; exit 0 }
+  Write-Host "[heartbeat] WARN: last beat ${ageMin} min ago (> $MaxAgeMin) - timer may be stuck"
+  exit 0
+} catch {
+  Write-Host "[heartbeat] CANNOT VERIFY: $($_.Exception.Message) (exit 5)"
+  exit 5
+}

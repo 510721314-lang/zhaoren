@@ -15,8 +15,10 @@
    ```
 2. **网关冒烟**（自动验证云端核心链路在用；改密钥后须先 `$env:AWK_KEY=<新钥>`）
    ```powershell
-   powershell -File .predeploy/smoke-check.ps1   # exit 0 = SMOKE ALL PASS
+   powershell -File .predeploy/smoke-check.ps1        # exit 0 = SMOKE ALL PASS
+   powershell -File scripts/check-heartbeat.ps1       # order-timer 巡检心跳（缺跳仅 WARN 不阻断，输出排障指引）
    ```
+   或一条命令跑完七步：`powershell -File scripts/gate.ps1`（B2 一键门禁，含上面全部）
 3. **CI**（GitHub Actions，push master 自动跑单测+静态检查；见 .github/workflows/ci.yml）
 4. **人工抽验**：只抽验与本次改动相关的链路（见下表），不必全跑。
 
@@ -78,11 +80,11 @@
 - **测试数据打标**：admin_config.test_openids 白名单（已种入 test_partner_001、oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c）；命中者建需求/建单自动 `is_test=true`。白名单经 admin-action config_set 的 `test_openids_add / test_openids_remove` 维护。
 - **purge_test_data**（init-db，管理员）：默认 dry-run 只统计；真删须 `confirm:'PURGE'`；仅删 is_test=true；级联 7 张子表；单次上限 500。
 - **危险操作确认门**：config_set 切 env=dev 须 `confirm:'SWITCH_DEV'`（切回 prod 免确认）；admin-web Config.vue 已同步弹窗输入。
-- **error_scan 巡检**（order-timer）：每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`（config_get 可见，>0 即巡检在跑）。演练：管理员 `{action:'run', drill:true}`。
+- **error_scan 巡检**（order-timer）：每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`（config_get 可见，>0 即巡检在跑）。演练：管理员 `{action:'run', drill:true}`。**心跳自观测**（2026-10-06）：每轮同时写 `error_scan_heartbeat_at`，门禁第 7 步 `scripts/check-heartbeat.ps1` 检测存活——心跳为 0 / 超 30 分钟未刷新输出 WARN + 排障指引（不阻断门禁，等触发器确认后可升级为 FAIL）
 
 ### 待办（用户侧 2 分钟）
 1. 控制台 → 云函数 → order-timer → 触发器：确认 `orderTimer` 每 5 分钟且已启用（部署后 error_scan_last_at 仍为 0，疑似触发器未生效/被暂停）。
-2. 触发器确认后等一个周期，config_get 看 `error_scan_last_at > 0` 即巡检闭环。
+2. 触发器确认后等一个周期，config_get 看 `error_scan_last_at > 0` 且 `error_scan_heartbeat_at > 0`（或跑 `scripts/check-heartbeat.ps1` 输出 `[heartbeat] OK`）即巡检闭环。
 
 ## 六、事故记录
 

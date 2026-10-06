@@ -55,12 +55,12 @@
 
 ### 4. order-timer error_scan 巡检与 drill 注错演练
 
-- error_scan 每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`
+- error_scan 每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`，**心跳 `error_scan_heartbeat_at`（2026-10-06 补）**
 - 演练：管理员 `{action:'run', drill:true}`
 
 ## 验证
 
-- 巡检闭环：`config_get` 看 `error_scan_last_at > 0` 即巡检在跑（config_get 已透出 `test_openids` 与 `error_scan_last_at`；`admin_openids` 不透出，属设计）
+- 巡检闭环：`config_get` 看 `error_scan_last_at > 0` 即巡检在跑；**心跳自观测**：`powershell -File scripts/check-heartbeat.ps1`（需 `$env:AWK_KEY`）——心跳为 0 或超 30 分钟未刷新输出 WARN，即 orderTimer 触发器异常（config_get 已透出 `test_openids`/`error_scan_last_at`/`error_scan_heartbeat_at`；`admin_openids` 不透出，属设计）
 - 危险操作每步改后用 `config_get` / `quick_check` 复核实际值
 
 ## 坑

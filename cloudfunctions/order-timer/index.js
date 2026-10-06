@@ -89,8 +89,8 @@ async function errorScan(now, cfg, adminOpenids) {
       created_at: now, read: false
     }})));
   }
-  // 游标推进(无论有无异常)
-  await col('admin_config').doc('global').update({ data: { error_scan_last_at: now, updated_at: now } }).catch(() => {});
+  // 游标推进(无论有无异常) + 心跳: 供门禁自观测「巡检是否在跑」(观测断层补丁, 见 docs/verification/tech-review-20261006.md P1)
+  await col('admin_config').doc('global').update({ data: { error_scan_last_at: now, error_scan_heartbeat_at: now, updated_at: now } }).catch(() => {});
   return { issue_count: issueCount, issues };
 }
 
