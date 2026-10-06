@@ -29,11 +29,13 @@
 |---|---|---|
 | 小程序 AppID | wxbc4a4afacdf234f5 | — |
 | 云环境 ID | cloud1-d9gkefwcp5c777088 | — |
-| GitHub 仓库 | ⚠ 待填 | — |
+| GitHub 仓库 | https://github.com/510721314-lang/zhaoren.git | — |
 | admin_web_key | 轮换历史见 C:\zhaoren-bak | admin-key-*.txt |
 | 微信管理员账号 / 第二运营者 | ⚠ 待填（用户侧） | 纸质/密码管理器 |
 | 备份产物 | C:\zhaoren-bak（git bundle / robocopy / DB 导出） | — |
 | 计费与续费责任 | ⚠ 待填（用户侧） | — |
+
+> ⚠ **换机取证铁律**：admin_web_key 只存于 `C:\zhaoren-bak\admin-key-*.txt` 与本机 User 环境变量（AWK_KEY），**不随 git 走**。换机/重装前必须手工带走 key 文件（U 盘/密码管理器/加密盘）。若机器已坏且 key 丢失 → 走 key-rotation.md「换机取证与失钥恢复」重新生成。
 
 ## 知识冻结 3 问（每次会话收尾执行）
 

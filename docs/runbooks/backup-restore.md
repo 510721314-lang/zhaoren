@@ -6,7 +6,7 @@
 
 - 三重备份：**git bundle**（代码层）+ **robocopy 热备**（代码层）+ **云端 DB 导出**（数据层），缺一不可
 - 所有备份产物一律落 **`C:\zhaoren-bak`**（硬约束）
-- 备份脚本密钥：`-AdminKey` 参数或环境变量；云端 DB 导出走 admin-action `export_admin_config` / `export_collection`（需 X-Admin-Key）
+- 备份脚本密钥：`-AdminKey` 参数或环境变量 **`AWK_KEY`**（backup.ps1/restore.ps1 兼容旧名 `ADMIN_WEB_KEY`）；云端 DB 导出走 admin-action `export_admin_config` / `export_collection`（需 X-Admin-Key）
 - 相关脚本（磁盘真实存在）：
   - `c:\zhaoren\.predeploy\manual-backup.ps1`（L2+L3，等价 backup.ps1 的数据层，2026-10-01 修复两处过时：export 需 confirm 二次确认、cli 探测旧机器路径）
   - `c:\zhaoren\.predeploy\backup.ps1`（L2+L3+L5 全量）
@@ -41,7 +41,7 @@ robocopy c:\zhaoren "C:\zhaoren-bak\zhaoren_files_$(Get-Date -Format 'yyyyMMdd-H
 ```
 
 - 产物：`C:\zhaoren-bak\zhaoren_backup_<yyyyMMdd-HHmm>\`（`admin_config/` + `db/` + `manifest.json`）
-- 33 个集合导出（`platform_event`/`audit_log`/`order_main`/`im_message` 等，空集合也导出为 0/0）
+- 33 个集合导出（以 `manifest.total_tables` 为准；项目全量口径写 34，差异 1 集合待复跑 manual-backup 时与 manifest 核对——`platform_event`/`audit_log`/`order_main`/`im_message` 等，空集合也导出为 0/0）
 
 ### 3. 恢复演练（restore.ps1，默认 dry-run）
 

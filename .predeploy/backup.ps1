@@ -10,9 +10,10 @@ $ErrorActionPreference = 'Stop'
 $CLOUD_ENV   = 'cloud1-d9gkefwcp5c777088'
 $PROJECT_DIR = (Split-Path -Parent $PSScriptRoot)  # .predeploy/ 的上级 = 项目根(适配本机 DC 路径)
 $APPID       = 'wxbc4a4afacdf234f5'
-# Key not hardcoded: pass -AdminKey or set $env:ADMIN_WEB_KEY (get from admin or init-db generate_admin_web_key)
+# Key not hardcoded: pass -AdminKey or set $env:AWK_KEY (get from admin or init-db generate_admin_web_key)
+if (-not $AdminKey) { $AdminKey = $env:AWK_KEY }
 if (-not $AdminKey) { $AdminKey = $env:ADMIN_WEB_KEY }
-if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or ADMIN_WEB_KEY env var' }
+if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or AWK_KEY env var' }
 $GATEWAY_URL = "https://$CLOUD_ENV-1482004365.ap-shanghai.app.tcloudbase.com/api"
 
 $COLLECTIONS = @(
@@ -35,7 +36,7 @@ $COLLECTIONS = @(
 
 # Find cli.bat (glob 桌面一级目录找 cli.bat, 避免中文字面量被 PS5 GBK 读取乱码 + 避免全盘扫描)
 $cli = ''
-$cliDir = Get-ChildItem -Path 'C:\Users\DC\Desktop' -Directory -ErrorAction SilentlyContinue |
+$cliDir = Get-ChildItem -Path 'C:\Users\Administrator\Desktop' -Directory -ErrorAction SilentlyContinue |
   Where-Object { Test-Path (Join-Path $_.FullName 'cli.bat') } |
   Select-Object -First 1
 if ($cliDir) { $cli = Join-Path $cliDir.FullName 'cli.bat' }

@@ -1,4 +1,4 @@
-﻿# zhaoren cloud restore script
+# zhaoren cloud restore script
 # Usage: .\restore.ps1 -BackupDir C:\zhaoren_backup_xxx [-Force] [-AdminKey AWK-...]
 #        or set $env:ADMIN_WEB_KEY before running
 # Warning: restore overwrites cloud data! Default dry-run only verifies
@@ -13,15 +13,16 @@ $ErrorActionPreference = 'Stop'
 
 # -- constants --
 $CLOUD_ENV   = 'cloud1-d9gkefwcp5c777088'
-$PROJECT_DIR = 'c:\Users\DC\Desktop\zhaoren'
+$PROJECT_DIR = 'c:\zhaoren'
 $APPID       = 'wxbc4a4afacdf234f5'
-# Key not hardcoded: pass -AdminKey or set $env:ADMIN_WEB_KEY (get from admin or init-db generate_admin_web_key)
+# Key not hardcoded: pass -AdminKey or set $env:AWK_KEY (get from admin or init-db generate_admin_web_key)
+if (-not $AdminKey) { $AdminKey = $env:AWK_KEY }
 if (-not $AdminKey) { $AdminKey = $env:ADMIN_WEB_KEY }
-if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or ADMIN_WEB_KEY env var' }
+if (-not $AdminKey) { throw 'Admin key required: -AdminKey param or AWK_KEY env var' }
 $GATEWAY_URL = "https://$CLOUD_ENV-1482004365.ap-shanghai.app.tcloudbase.com/api"
 
 # -- find CLI --
-$cli = Get-ChildItem -Path 'C:\Users\DC','C:\' -Filter 'cli.bat' -Recurse -ErrorAction SilentlyContinue |
+$cli = Get-ChildItem -Path 'C:\Users\Administrator\Desktop' -Filter 'cli.bat' -Recurse -ErrorAction SilentlyContinue |
   Where-Object { $_.FullName -match 'wechat' } |
   Select-Object -First 1 -ExpandProperty FullName
 

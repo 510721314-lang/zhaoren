@@ -67,7 +67,14 @@ Invoke-WebRequest -Method POST -Uri $gate -Headers @{ 'X-Admin-Key' = $env:AWK_K
 ## 验证
 
 - 双向验证缺一不可：旧钥 401（真作废）+ 新钥 200 ok（真生效）
-- 轮换后再跑一次 smoke：`powershell -File scripts/gate.ps1` 六步全绿
+- 轮换后再跑一次 smoke：`powershell -File scripts/gate.ps1` 七步全绿
+
+## 换机取证与失钥恢复
+
+- **环境变量名口径**：规范名 `AWK_KEY`（smoke/gate/check-heartbeat 读它）；`.predeploy/backup.ps1`、`restore.ps1` 兼容旧名 `ADMIN_WEB_KEY`（两脚本都先读 AWK_KEY 再回退 ADMIN_WEB_KEY）
+- **setx 继承注意**：部分 IDE / 既有会话不自动继承 User 级 setx——当前会话取不到就手工 `$env:AWK_KEY = "<新钥>"`（smoke/heartbeat 报 `AWK_KEY env not set` 即此现象，非配置错误）
+- **换机取证**：key 只在本机（C:\zhaoren-bak 文件 + User 环境变量），换机前必须手工带走 key 文件；仓库与 GitHub 均无 key，这是设计如此
+- **失钥恢复**（机器坏 + key 丢）：在**新的微信开发者工具**里登录管理员微信号 → 云开发控制台「云端测试」面板调 init-db `generate_admin_web_key`（`reason` 必填）——身份走 admin_openids 白名单（已补录 2 名管理员真实 OPENID），返回新钥仅一次明文，立即按第 2 步落盘；期间旧钥已失无验证价值，新钥生效后 admin-web 重新登录
 
 ## 坑
 
