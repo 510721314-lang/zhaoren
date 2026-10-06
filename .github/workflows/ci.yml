@@ -1,0 +1,29 @@
+# CI: 单测 + 语法全检 + 共享模块防漂移校验(无云凭据, 纯本地可跑)
+# 设计约束(专家方案 D8): 写路径集成测试不放 CI(无云凭据/防误写生产); 仅 L1 纯逻辑单测 + 静态检查
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Unit tests (node:test, zero-dependency)
+        run: npm test
+
+      - name: Syntax check all cloud functions
+        run: node scripts/check-syntax.js
+
+      - name: Shared module sync consistency
+        run: node scripts/check-shared-sync.js

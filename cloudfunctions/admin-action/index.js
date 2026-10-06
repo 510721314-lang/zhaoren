@@ -187,7 +187,7 @@ async function getConfig() {
     const r = await db.collection('admin_config').doc('global').get();
     if (r.data) return r.data;
   } catch (e) {}
-  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true };
+  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true, test_openids: [] };
 }
 
 // 平台事件(P0 紧急 / P1 安全/越权 / P2 运营 / P3 业务异常)
@@ -1820,6 +1820,8 @@ exports.main = async (event, context) => {
       payment_visible: config.payment_visible !== false,   // 默认 true, false 才隐藏支付入口
       block_words: config.block_words || [],
       city_enabled: config.city_enabled || [],
+      test_openids: config.test_openids || [],   // D4-5 测试身份白名单(后台可见可管理)
+      error_scan_last_at: config.error_scan_last_at || 0,   // D7 巡检游标(order-timer 每 5min 推进; >0 即巡检在跑)
       timeouts: {
         // 显式 undefined 判断兜底: 值为 0 时不得被 || 改写成默认值(config_get 掩码修复 2026-09-23)
         s0_timeout_min: config.s0_timeout_min !== undefined ? config.s0_timeout_min : 30,
@@ -1908,9 +1910,13 @@ exports.main = async (event, context) => {
       touch('security_only_template_before_confirm', !!event.security_only_template_before_confirm);
     }
     // 环境开关: dev(允许 mock_openid 测试身份) / prod(强制忽略, 见各函数 openid.js)
+    // D6 危险操作确认: 切到 dev 会开放 mock 身份门控(资金/接单全 mock), 须显式 confirm; 切回 prod 是安全方向免确认
     if (event.env !== undefined) {
       const envVal = String(event.env);
       if (envVal !== 'dev' && envVal !== 'prod') return fail('config_bad_env', 'env 仅支持 dev 或 prod');
+      if (envVal === 'dev' && (config.env || 'prod') !== 'dev' && event.confirm !== 'SWITCH_DEV') {
+        return fail('config_need_confirm', '切到 dev 将开放 mock 身份门控, 须传 confirm=SWITCH_DEV');
+      }
       touch('env', envVal);
     }
 
@@ -1938,6 +1944,22 @@ exports.main = async (event, context) => {
       words = next;
     }
     if (wordsTouched) { before.block_words = config.block_words || []; patch.block_words = words; }
+
+    // 测试身份白名单增删(D4-5 is_test 打标源; 命中者建需求/建单自动打标, 供 purge_test_data 精准清理)
+    let testOids = (config.test_openids || []).slice();
+    let testTouched = false;
+    if (Array.isArray(event.test_openids_add)) {
+      event.test_openids_add.map((w) => String(w).trim()).filter(Boolean).forEach((w) => {
+        if (testOids.indexOf(w) < 0) { testOids.push(w); testTouched = true; }
+      });
+    }
+    if (Array.isArray(event.test_openids_remove)) {
+      const rm = event.test_openids_remove.map((w) => String(w).trim());
+      const next = testOids.filter((w) => rm.indexOf(w) < 0);
+      if (next.length !== testOids.length) testTouched = true;
+      testOids = next;
+    }
+    if (testTouched) { before.test_openids = config.test_openids || []; patch.test_openids = testOids; }
 
     // 开通城市增删
     let cities = (config.city_enabled || []).slice();

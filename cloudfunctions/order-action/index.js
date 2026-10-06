@@ -146,16 +146,10 @@ function isValidDocId(id) {
   return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
 }
 
-// Haversine 球面距离(公里) · 两经纬度间直线距离
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
+const { haversineKm } = require('./take_rules');
+// D4-5 防漂移抽取: 资金规则规范源 _shared/money_rules.js(修改后跑 sync-money-rules.ps1 同步)
+const { splitOrderAmount } = require('./money_rules');
 
 // 通勤估算:步行 5km/h、骑行 15km/h、公交 20km/h(含等车)、驾车 30km/h(城市道路含红绿灯)
 function estimateCommute(km) {
@@ -351,9 +345,8 @@ exports.main = async (event, context) => {
           msg: `费用超出耍伴时薪区间(${Math.round(rateMin/100)}元-${Math.round(rateMax/100)}元/小时),已自动调整为 ${Math.round(clampedFee/100)}元/小时`,
           original_fen: fee, adjusted_fen: clampedFee };
       }
-      // 平台抽成: platform_fee_rate_fen 默认 1000 (10%)
-      const feeRate = config.platform_fee_rate_fen || 1000;
-      const feeFen = Math.round(clampedFee * feeRate / 10000);
+      // 平台抽成: 规则收敛到 _shared/money_rules.js splitOrderAmount(0=免佣为合法值)
+      const { feeFen } = splitOrderAmount(clampedFee, config.platform_fee_rate_fen);
 
       // 青少年保护:改后总价仍受 200 元上限约束
       const youthLimit = config.youth_limit_fen || 20000;
@@ -1140,9 +1133,8 @@ exports.main = async (event, context) => {
     const addH = Number(pending.add_hours) || 0;
     const newTotalFen = (Number(order.total_fen) || 0) + addFen;
     const newDurationH = (Number(order.duration_h) || 0) + addH;
-    const feeRate = (await getConfig()).platform_fee_rate_fen || 1000;
-    const newFeeFen = Math.round(newTotalFen * feeRate / 10000);
-    const newPartnerIncomeFen = newTotalFen - newFeeFen;
+    const { feeFen: newFeeFen, partnerIncomeFen: newPartnerIncomeFen } =
+      splitOrderAmount(newTotalFen, (await getConfig()).platform_fee_rate_fen);
 
     const won = await casStatus(order_id, 'S3', {
       duration_h: newDurationH,

@@ -5,7 +5,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from playwright.sync_api import sync_playwright
 
-KEY = "AWK-3a3467ea8c96f731449f0559a5634891c2df3a4df352f510b1e1720900ae7cf0"
+KEY = os.environ.get("AWK_KEY", "")
+if not KEY:
+    sys.exit("[FATAL] AWK_KEY env not set")
 BASE = "http://localhost:5173"
 
 # 蓝图 8 菜单 17 页（不含 Login + Layout）

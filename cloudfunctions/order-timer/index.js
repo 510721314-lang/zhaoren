@@ -46,6 +46,54 @@ async function casStatus(orderId, expectStatus, patch) {
   }
 }
 
+// ───────── error_scan 巡检(D7): 聚合窗口内异常 → 推管理员 system_notice ─────────
+// 窗口 = 上次扫描以来(admin_config.error_scan_last_at; 缺省回看 1h, 单次最多 24h 防首次轰炸)。
+// 游标推进天然去重: 持续存在的旧异常只在进入窗口那一刻报一次, 不逐 5 分钟重复轰炸。
+// 巡检项: ①P0/P1 平台事件 ②audit_log result=fail ③卡死提现(processing 超 48h)
+async function errorScan(now, cfg, adminOpenids) {
+  const lastAt = Number(cfg.error_scan_last_at) || now - 3600 * 1000;
+  const windowStart = Math.max(lastAt, now - 24 * 3600 * 1000);
+  const issues = {};
+  // 1. P0/P1 平台事件
+  try {
+    const r = await col('platform_event').where({ level: _.in(['P0', 'P1']), created_at: _.gt(windowStart) })
+      .orderBy('created_at', 'asc').limit(50).get();
+    const list = r.data || [];
+    if (list.length) issues.platform_events = list.map((e) => `${e.level}/${e.type}`);
+  } catch (e) { log.d(`error_scan platform_event fail: ${e.message}`); }
+  // 2. 审计失败(写操作失败留证; 集中突增通常意味着资金/鉴权链路异常)
+  try {
+    const r = await col('audit_log').where({ result: 'fail', at: _.gt(windowStart) }).count();
+    if ((r.total || 0) > 0) issues.audit_fails = r.total;
+  } catch (e) { log.d(`error_scan audit_log fail: ${e.message}`); }
+  // 3. 卡死提现: processing 超 48h(mock T+1 到账回写依赖钱包入口触发, 超时即链路异常)
+  try {
+    const r = await col('withdraw_record')
+      .where({ status: 'processing', created_at: _.lt(now - 48 * 3600 * 1000), is_deleted: false }).count();
+    if ((r.total || 0) > 0) issues.stuck_withdrawals = r.total;
+  } catch (e) { log.d(`error_scan withdraw fail: ${e.message}`); }
+
+  const issueCount = (issues.platform_events ? issues.platform_events.length : 0)
+    + (issues.audit_fails || 0) + (issues.stuck_withdrawals || 0);
+  if (issueCount > 0 && adminOpenids.length) {
+    const body = [
+      issues.platform_events ? `P0/P1事件 ${issues.platform_events.length} 条: ${issues.platform_events.slice(0, 5).join(', ')}` : '',
+      issues.audit_fails ? `审计失败 ${issues.audit_fails} 条` : '',
+      issues.stuck_withdrawals ? `卡死提现(>48h在途) ${issues.stuck_withdrawals} 笔` : ''
+    ].filter(Boolean).join('; ');
+    await Promise.allSettled(adminOpenids.map((openid) => col('system_notice').add({ data: {
+      to_openid: openid, order_id: '', type: 'error_scan',
+      title: `巡检报告: 发现 ${issueCount} 条异常`,
+      body,
+      action_key: '', action_payload: {},
+      created_at: now, read: false
+    }})));
+  }
+  // 游标推进(无论有无异常)
+  await col('admin_config').doc('global').update({ data: { error_scan_last_at: now, updated_at: now } }).catch(() => {});
+  return { issue_count: issueCount, issues };
+}
+
 exports.main = async (event, context) => {
   const { resolveOpenid, warmEnv } = require('./openid');
   await warmEnv(cloud); // 环境门控日志预热
@@ -69,6 +117,18 @@ exports.main = async (event, context) => {
 
   // 阈值一律只读 admin_config, 拒绝 event 覆盖(防恶意篡改超时窗口)
   const now = Date.now();
+
+  // ── 注错演练(D7, 仅管理员): 写入一条 P1 演练事件 → 本次巡检立即捕获并推送, 验证巡检链路 ──
+  if (event.drill && isAdmin) {
+    try {
+      await col('platform_event').add({ data: {
+        level: 'P1', type: 'error_scan_drill', openid: openid || 'unknown',
+        payload: { drill: true, at: now },
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+      log.d('error_scan drill event injected');
+    } catch (e) { log.d(`drill inject fail: ${e.message}`); }
+  }
   const s1Min = num(cfg.s1_timeout_min, 15);
   const interruptH = num(cfg.interrupt_timeout_h, 24);
   const evalH = num(cfg.eval_window_h, 48);
@@ -304,10 +364,16 @@ exports.main = async (event, context) => {
     }
   } catch (e) { log.d(`s5 scan fail: ${e.message}`); }
 
+  // ───────── 5. error_scan 巡检(D7) ─────────
+  let errorScanResult = null;
+  try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
+  catch (e) { log.d(`error_scan fail: ${e.message}`); }
+
   return {
     ok: true,
     data: {
       ran_at: now,
+      error_scan: errorScanResult,
       thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,

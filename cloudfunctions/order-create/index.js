@@ -68,90 +68,16 @@ async function getConfig() {
   };
 }
 
-// ── 接单配置校验辅助(价格区间 / 每周时段 / 每日接单上限) ──
-// 东八区自然日 00:00 毫秒时间戳(云函数运行时时区不可依赖, 统一按 UTC+8 折算)
-const CN_OFFSET_MS = 8 * 3600 * 1000;
-
-// 服务端时间红线(R1, 与前端 redline.js 同口径, 防绕过): 00:00-06:00 不可履约
-// close_min=1440(=24:00)→仅拦 00:00-06:00; close_min=0→全天开放; open_min 默认 360(06:00)
-function isServiceTimeAllowed(ts, cfg) {
-  const config = cfg || {};
-  const close = parseInt(config.time_redline_close_min, 10);
-  const open = parseInt(config.time_redline_open_min, 10);
-  const closeMin = (close >= 0 && close <= 1440) ? close : 1440;
-  const openMin = (open >= 0 && open < closeMin) ? open : 360;
-  if (closeMin === 0) return true;  // 全天开放
-  const d = new Date(Number(ts) + CN_OFFSET_MS);
-  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
-  return mins >= openMin && mins < closeMin;
-}
-const DAY_MS = 86400000;
-function cnDayStart(ts) {
-  return Math.floor((ts + CN_OFFSET_MS) / DAY_MS) * DAY_MS - CN_OFFSET_MS;
-}
-// 星期 key(0=周日, 避免依赖 Date.getDay() 的运行时区); 1970-01-01 为周四
-const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-function cnWeekday(ts) {
-  const epochDay = Math.floor((ts + CN_OFFSET_MS) / DAY_MS);
-  return DAY_KEY[(((epochDay % 7) + 4) % 7 + 7) % 7];
-}
-
-// 接单价格区间读取+钳制到平台边界; 缺字段(null/undefined)=不限
-function readRateRange(profile, config) {
-  // 0 是合法下限(不能用 || 兜底, 否则 admin 配置 0 会被误当成缺省 3000)
-  const _lo = Number(config.rate_min_fen);
-  const _hi = Number(config.rate_max_fen);
-  const lo = Number.isFinite(_lo) ? _lo : 3000;
-  const hi = Number.isFinite(_hi) ? _hi : 10000;
-  const clamp = (v) => Math.min(Math.max(v, lo), hi);
-  const raw = (v) => (v === undefined || v === null ? null : clamp(Number(v)));
-  const mn = raw(profile.accept_rate_min_fen);
-  const mx = raw(profile.accept_rate_max_fen);
-  if (mn !== null && mx !== null && mn > mx) return [mx, mn];   // 异常数据兜底
-  return [mn, mx];
-}
-
-// 时段解析: 兼容结构化 {start,end}(分钟) 与旧格式 {time:'09:00-18:00'}
-function parseSlot(s) {
-  if (!s || typeof s !== 'object') return null;
-  if (typeof s.start === 'number' && typeof s.end === 'number') {
-    return { enabled: !!s.enabled, start: s.start, end: s.end };
-  }
-  const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(String(s.time || ''));
-  return m ? { enabled: !!s.enabled, start: +m[1] * 60 + +m[2], end: +m[3] * 60 + +m[4] } : null;
-}
-
-// [from,to) 是否被槽 [s,e) 覆盖; s>e 表示跨夜槽([s,1440)∪[0,e))
-function rangeInSlot(from, to, s, e) {
-  if (s < e) return from >= s && to <= e;
-  return (from >= s) || (to <= e);
-}
-
-// 服务时间段是否完全落在启用的接单时段内; 未配置 / 无任何启用日 → 不限制(兼容老数据)
-function slotCovers(weekly, startTs, endTs) {
-  if (!weekly || typeof weekly !== 'object') return true;
-  const slots = {};
-  let anyEnabled = false;
-  for (const k of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) {
-    const s = parseSlot(weekly[k]);
-    slots[k] = s;
-    if (s && s.enabled) anyEnabled = true;
-  }
-  if (!anyEnabled) return true;
-  // 按东八区自然日切片逐段判定(跨午夜服务需次日槽也覆盖)
-  let cur = startTs;
-  for (let i = 0; i < 8 && cur < endTs; i++) {
-    const dayStart = cnDayStart(cur);
-    const segEnd = Math.min(endTs, dayStart + DAY_MS);
-    const s = slots[cnWeekday(cur)];
-    if (!s || !s.enabled) return false;
-    const fromMin = (cur - dayStart) / 60000;
-    const toMin = (segEnd - dayStart) / 60000;
-    if (!rangeInSlot(fromMin, toMin, s.start, s.end)) return false;
-    cur = segEnd;
-  }
-  return true;
-}
+// ── 接单配置校验辅助(时间红线 / 价格区间 / 每周时段 / 距离) ──
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
+const {
+  isServiceTimeAllowed, readRateRange, slotCovers, cnDayStart, DAY_MS,
+  haversineKm, TAKE_MAX_DISTANCE_KM
+} = require('./take_rules');
+// D4-5 防漂移抽取: 资金规则规范源 _shared/money_rules.js(修改后跑 sync-money-rules.ps1 同步)
+const { splitOrderAmount } = require('./money_rules');
+// D4-5 防漂移抽取: 测试数据打标规范源 _shared/test_data.js(修改后跑 sync-test-data.ps1 同步)
+const { isTestPair } = require('./test_data');
 
 async function getUser(openid) {
   const r = await col('user_account').where({ openid }).limit(1).get();
@@ -199,20 +125,6 @@ function genOrderNo() {
 function isValidDocId(id) {
   return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
 }
-
-// Haversine 球面距离(公里) · 两经纬度间直线距离
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// 接单距离上限(公里): 耍伴接单时实际位置与履约地点直线距离
-const TAKE_MAX_DISTANCE_KM = 50;
 
 // ─────────────── P1 节点留证(勾选同意型) ───────────────
 // 接单前耍伴勾选《场景免责声明》; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
@@ -672,8 +584,7 @@ exports.main = async (event, context) => {
   const now = Date.now();
   const orderNo = genOrderNo();
   const totalFen = demand.total_fen;
-  const feeFen = Math.round(totalFen * (config.platform_fee_rate_fen || 1000) / 10000);
-  const partnerIncomeFen = totalFen - feeFen;
+  const { feeFen, partnerIncomeFen } = splitOrderAmount(totalFen, config.platform_fee_rate_fen);
 
   const orderData = {
     order_no: orderNo,
@@ -681,6 +592,7 @@ exports.main = async (event, context) => {
     demand_no: demand.demand_no || '',
     user_openid: demand.creator_openid,
     partner_openid: openid,
+    is_test: isTestPair(config, demand.creator_openid, openid),   // D4-5 测试白名单打标(任一方命中即整单)
     scene: demand.scene,
     start_time: demand.start_time,
     duration_h: demand.duration_h,

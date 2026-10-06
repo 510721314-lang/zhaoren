@@ -3,7 +3,8 @@
 # all calls are read-only or idempotent probes; exit 0 = all pass
 $ErrorActionPreference = 'Continue'
 $gate = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api'
-$key  = 'AWK-bd15afcbeefe2309fd63195eebb4cfbab542b01a474c8b5ecb40439ee39732b5'
+$key  = $env:AWK_KEY
+if (-not $key) { Write-Host '[FATAL] AWK_KEY env not set' -ForegroundColor Red; exit 2 }
 $script:fail = 0
 
 function Invoke-Gw($body) {

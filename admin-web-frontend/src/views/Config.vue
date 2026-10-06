@@ -158,6 +158,18 @@ async function save() {
     await ElMessageBox.confirm('确认保存变更? admin_config 将被更新', '二次确认', { type: 'warning' });
   } catch { return; }
 
+  // D6 危险操作: 切到 dev 开放 mock 身份门控(资金/接单全 mock), 要求输入确认串(与 admin-action 门控一致)
+  if (diff.env === 'dev' && orig.env !== 'dev') {
+    try {
+      const { value } = await ElMessageBox.prompt(
+        '切到 dev 将开放 mock 身份门控(资金/接单全 mock)。输入 SWITCH_DEV 以确认',
+        '危险操作确认',
+        { confirmButtonText: '确认切换', cancelButtonText: '取消', inputPattern: /^SWITCH_DEV$/, inputErrorMessage: '请输入 SWITCH_DEV' }
+      );
+      diff.confirm = value;
+    } catch { return; }
+  }
+
   saving.value = true;
   const r = await call('config_set', diff);
   saving.value = false;

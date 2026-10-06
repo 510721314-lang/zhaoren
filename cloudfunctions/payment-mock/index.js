@@ -13,6 +13,8 @@ const $ = db.command.aggregate;  // 聚合操作符(balance_info 历史上漏定
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+// D4-5 防漂移抽取: 资金规则规范源 _shared/money_rules.js(修改后跑 sync-money-rules.ps1 同步)
+const { isValidTipAmount, validateWithdrawBasic, validateWithdrawBalance, computeBalance, aggRowSum } = require('./money_rules');
 
 const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
@@ -430,7 +432,7 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'tip_status', msg: `订单当前状态(${order.status})暂不能打赏,服务完成后可打赏` };
       }
       const amount = Number(amount_fen);
-      if (!Number.isInteger(amount) || amount < 100 || amount > 50000) {
+      if (!isValidTipAmount(amount)) {
         return { ok: false, code: 'tip_amount', msg: '打赏金额需为 1-500 元之间的整数' };
       }
 
@@ -644,17 +646,15 @@ exports.main = async (event, context) => {
         col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
         col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] }))
       ]);
-      const settledFen = ((settled.list && settled.list[0] && settled.list[0].total) || 0) + ((settled.list && settled.list[0] && settled.list[0].tip) || 0);
-      let processingW = 0, withdrawnW = 0;
-      ((wR && wR.list) || []).forEach((g) => {
-        if (g._id === 'processing') processingW = g.total || 0;
-        else if (g._id === 'success') withdrawnW = g.total || 0;
-      });
-      const withdrawableFen = Math.max(0, settledFen - processingW - withdrawnW);
-      const splittingFen = ((splitting.list && splitting.list[0] && splitting.list[0].total) || 0) + ((splitting.list && splitting.list[0] && splitting.list[0].tip) || 0);
-      const monthIncomeFen = ((monthList.list && monthList.list[0] && monthList.list[0].total) || 0) + ((monthList.list && monthList.list[0] && monthList.list[0].tip) || 0);
+      // 余额口径统一走 _shared/money_rules.js computeBalance(与 withdraw 同源防漂移)
+      const bal = computeBalance({ settledAgg: settled.list && settled.list[0], withdrawGroups: (wR && wR.list) || [] });
+      const settledFen = bal.settledFen;
+      const processingW = bal.processingFen;
+      const withdrawableFen = bal.availableFen;
+      const splittingFen = aggRowSum(splitting.list && splitting.list[0]);
+      const monthIncomeFen = aggRowSum(monthList.list && monthList.list[0]);
       // 打赏累计(已结算口径, 与订单记录 tip_total_fen 一致) —— 2026-10-05 打赏进入可结算收入
-      const settledTipFen = (settled.list && settled.list[0] && settled.list[0].tip) || 0;
+      const settledTipFen = bal.tipFen;
       let creditLevel = 'L1';
       if (pp.data && pp.data[0]) {
         const score = pp.data[0].score || 0;
@@ -763,20 +763,12 @@ exports.main = async (event, context) => {
     case 'fast_withdraw': {
       const isFast = action === 'fast_withdraw';
       const amount = Number(event.amount_fen);
-      if (!Number.isInteger(amount) || amount <= 0) {
-        return { ok: false, code: 'wd_amount', msg: '提现金额格式有误' };
-      }
-      // 单次最低 10 元(config/index.js WITHDRAW.minAmount=10)
-      if (amount < 1000) {
-        return { ok: false, code: 'wd_too_small', msg: '单次最低提现 10 元' };
-      }
       const wcfg = await getConfig();
       const fastPerOrder = parseInt(wcfg.fast_withdraw_per_order_max_fen, 10) || 20000;
       const fastPerDay = parseInt(wcfg.fast_withdraw_per_day_max_fen, 10) || 200000;
-      // 极速提现单笔上限(admin_config.fast_withdraw_per_order_max_fen; 默认 200 元)
-      if (isFast && amount > fastPerOrder) {
-        return { ok: false, code: 'wd_fast_cap', msg: `极速提现单笔上限 ${fastPerOrder / 100} 元` };
-      }
+      // 基础校验(格式 / 最低 10 元 / 极速单笔上限) —— 规则收敛到 _shared/money_rules.js
+      const preBad = validateWithdrawBasic(amount, { isFast, perOrderMaxFen: fastPerOrder });
+      if (preBad) return { ok: false, code: preBad.code, msg: preBad.msg };
 
       // 串行锁: 余额校验→落库期间禁止同 openid 并发, 防双击/并发双花
       const locked = await acquireWithdrawLock(openid);
@@ -798,24 +790,20 @@ exports.main = async (event, context) => {
         col('withdraw_record').aggregate().match({ openid, type: 'fast', created_at: _.gte(dayStart), is_deleted: false })
           .group({ _id: null, total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] }))
       ]);
-      // 可提现口径与 balance_info 一致: 服务收入 + 打赏
-      const settledFen = ((settledR.list && settledR.list[0] && settledR.list[0].total) || 0) + ((settledR.list && settledR.list[0] && settledR.list[0].tip) || 0);
-      let usedFen = 0;
-      ((wUsedR && wUsedR.list) || []).forEach((g) => {
-        if (g._id === 'processing' || g._id === 'success') usedFen += g.total || 0;
+      // 可提现口径与 balance_info 一致 —— 规则收敛到 _shared/money_rules.js computeBalance
+      const bal = computeBalance({
+        settledAgg: settledR.list && settledR.list[0],
+        withdrawGroups: (wUsedR && wUsedR.list) || []
       });
-      const available = Math.max(0, settledFen - usedFen);
-      if (amount > available) {
-        return { ok: false, code: 'wd_insufficient', msg: '可提现余额不足' };
-      }
-
-      // 极速提现当日累计上限 2000 元(WITHDRAW.fastPerDayMax=2000)
-      if (isFast) {
-        const todayFast = (dayR.list && dayR.list[0] && dayR.list[0].total) || 0;
-        if (todayFast + amount > fastPerDay) {
-          return { ok: false, code: 'wd_fast_daily', msg: `极速提现当日累计上限 ${fastPerDay / 100} 元` };
-        }
-      }
+      const available = bal.availableFen;
+      // 余额充足 + 极速当日累计 —— validateWithdrawBalance
+      const balBad = validateWithdrawBalance(amount, {
+        isFast,
+        perDayMaxFen: fastPerDay,
+        todayFastFen: (dayR.list && dayR.list[0] && dayR.list[0].total) || 0,
+        availableFen: available
+      });
+      if (balBad) return { ok: false, code: balBad.code, msg: balBad.msg };
 
       const now = Date.now();
       const wdNo = genPayNo('WD');

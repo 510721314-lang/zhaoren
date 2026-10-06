@@ -168,7 +168,7 @@ exports.main = async (event, context) => {
   const openid = await resolveOpenid(cloud, event);
   // 管理身份(代理密钥 或 真实 OPENID), 供各管理面动作统一使用
   const adminIdentity = await resolveAdminIdentity(db, event, openid);
-  const ADMIN_ACTIONS = ['lookup', 'force_migrate_scenes', 'check_pp'];
+  const ADMIN_ACTIONS = ['lookup', 'force_migrate_scenes', 'check_pp', 'purge_test_data'];
   if (ADMIN_ACTIONS.indexOf(action) >= 0) {
     let cfg = null;
     try { cfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) {}
@@ -253,6 +253,70 @@ exports.main = async (event, context) => {
       };
     } catch (e) { /* 读不到配置按 OK, 上线类检查以 config_get 为准 */ }
     return { ok: true, mode: 'quick_check', demands, config: cfg, mock_gate: mockGate };
+  }
+
+  // ── 测试数据清理(D6): 仅删 is_test=true 文档(D4-5 白名单打标); 默认 dry-run 只统计, 真删须 confirm='PURGE' ──
+  if (action === 'purge_test_data') {
+    const _ = db.command;
+    const confirmed = String(event.confirm || '') === 'PURGE';
+    // 1. 扫描测试主文档(拿 _id 供级联; 上限 1000 防失控)
+    const [demandsR, ordersR, demandCnt, orderCnt] = await Promise.all([
+      db.collection('demand').where({ is_test: true }).limit(1000).get().catch(() => ({ data: [] })),
+      db.collection('order_main').where({ is_test: true }).limit(1000).get().catch(() => ({ data: [] })),
+      db.collection('demand').where({ is_test: true }).count().catch(() => ({ total: 0 })),
+      db.collection('order_main').where({ is_test: true }).count().catch(() => ({ total: 0 }))
+    ]);
+    const demandIds = (demandsR.data || []).map((d) => d._id);
+    const orderIds = (ordersR.data || []).map((o) => o._id);
+    const totalOrders = orderCnt.total || 0, totalDemands = demandCnt.total || 0;
+    const cascadeCols = ['pay_transaction', 'system_notice', 'evaluation', 'disclaimer_signature', 'order_status_log', 'im_message', 'im_conversation'];
+    // 2. dry-run: 报告将删数量, 不动任何数据
+    if (!confirmed) {
+      const stats = { demand: totalDemands, order_main: totalOrders };
+      for (const c of cascadeCols) {
+        if (!orderIds.length) { stats[c] = 0; continue; }
+        try {
+          const r = await db.collection(c).where({ order_id: _.in(orderIds) }).count();
+          stats[c] = r.total || 0;
+        } catch (e) { stats[c] = 'err:' + String(e.message || e).slice(0, 40); }
+      }
+      return {
+        ok: true, mode: 'purge_test_data', dry_run: true, stats,
+        hint: "以上为将被删除的数量统计(仅 is_test=true)。确认真删请重发 { action:'purge_test_data', confirm:'PURGE' }"
+      };
+    }
+    // 3. 真删护栏: 超限拒绝(防误标/误操作大面积清除)
+    if (totalOrders > 500 || totalDemands > 500) {
+      return { ok: false, code: 'idb_purge_too_many', msg: `测试数据超单次上限(orders=${totalOrders}, demands=${totalDemands}, 上限 500), 请先分批处理` };
+    }
+    const removed = {};
+    // 先删级联子表, 再删主表; 失败即中断并报告已删进度(幂等可重跑)
+    for (const c of cascadeCols) {
+      if (!orderIds.length) { removed[c] = 0; continue; }
+      try {
+        const r = await db.collection(c).where({ order_id: _.in(orderIds) }).remove();
+        removed[c] = (r.stats && r.stats.removed) || 0;
+      } catch (e) {
+        return { ok: false, code: 'idb_purge_fail', col: c, msg: String(e.message || e), removed_partial: removed };
+      }
+    }
+    try {
+      const r1 = await db.collection('order_main').where({ is_test: true }).remove();
+      removed.order_main = (r1.stats && r1.stats.removed) || 0;
+      const r2 = await db.collection('demand').where({ is_test: true }).remove();
+      removed.demand = (r2.stats && r2.stats.removed) || 0;
+    } catch (e) {
+      return { ok: false, code: 'idb_purge_fail', col: 'main', msg: String(e.message || e), removed_partial: removed };
+    }
+    // 4. P2 审计留痕
+    try {
+      await db.collection('platform_event').add({ data: {
+        level: 'P2', type: 'purge_test_data', openid: adminIdentity || 'unknown',
+        payload: { scanned_orders: totalOrders, scanned_demands: totalDemands, removed },
+        created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+      }});
+    } catch (_) {}
+    return { ok: true, mode: 'purge_test_data', dry_run: false, removed, scanned_orders: totalOrders, scanned_demands: totalDemands };
   }
 
   // ── 强制迁移 scene_list / system_templates ──

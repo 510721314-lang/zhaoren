@@ -291,16 +291,9 @@ async function loadTakeDistanceCap() {
   return _capCache.km;
 }
 
-// Haversine 球面距离(公里) · 两经纬度间直线距离
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
-}
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
+// (原本地 asin 变体与规范 atan2 形式数学等价, 已统一)
+const { haversineKm } = require('./take_rules');
 
 exports.main = async (event, context) => {
   try {

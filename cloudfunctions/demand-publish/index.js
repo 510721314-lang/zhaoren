@@ -169,16 +169,10 @@ function genDemandNo() {
   return `DR${ymd}${r}`;
 }
 
-// Haversine 球面距离(公里) · 两经纬度间直线距离
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
+const { isServiceTimeAllowed, haversineKm } = require('./take_rules');
+// D4-5 防漂移抽取: 测试数据打标规范源 _shared/test_data.js(修改后跑 sync-test-data.ps1 同步)
+const { isTestOpenid } = require('./test_data');
 
 function validLngLat(lat, lng) {
   return typeof lat === 'number' && typeof lng === 'number'
@@ -208,21 +202,7 @@ function contentOptionsMax(config) {
   return Number.isFinite(v) && v >= 1 ? v : 3;
 }
 
-// 服务端时间红线(R1, 与前端 redline.js 同口径): 00:00-06:00 不可预约
-// close_min=1440(=24:00)→仅拦 00:00-06:00; close_min=0→全天开放; open_min 默认 360(06:00)
-// 东八区折算: 云函数运行时区为 UTC, 直接 getHours 少 8 小时
-const CN_OFFSET_MS = 8 * 3600 * 1000;
-function isServiceTimeAllowed(ts, cfg) {
-  const config = cfg || {};
-  const close = parseInt(config.time_redline_close_min, 10);
-  const open = parseInt(config.time_redline_open_min, 10);
-  const closeMin = (close >= 0 && close <= 1440) ? close : 1440;
-  const openMin = (open >= 0 && open < closeMin) ? open : 360;
-  if (closeMin === 0) return true;  // 全天开放
-  const d = new Date(Number(ts) + CN_OFFSET_MS);
-  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
-  return mins >= openMin && mins < closeMin;
-}
+// 服务端时间红线(R1)已收敛到 _shared/take_rules.js 统一实现(见上方 require)
 
 // 获取用户文档
 async function getUser(openid) {
@@ -594,6 +574,7 @@ exports.main = async (event, context) => {
         match_candidates: [],
         invited: mode === 'direct' ? [target_openid] : [],  // 定向: 仅受邀耍伴可接
         broadcast: mode === 'broadcast',  // 仅抢单模式入厅; 定向/选单不入公共大厅
+        is_test: isTestOpenid(config, openid),   // D4-5 测试白名单打标(供 purge_test_data 精准清理)
         expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
         created_at: now,
         updated_at: now,
