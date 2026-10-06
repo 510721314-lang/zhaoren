@@ -7,15 +7,18 @@
 
 1. **合规静态检查**（zhaoren-audit 要求）
    ```powershell
-   node scripts/check-nightmask.js   # exit 0
-   node scripts/check-ssot.js        # exit 0
-   node --check cloudfunctions/*/index.js
+   node scripts/check-nightmask.js     # exit 0
+   node scripts/check-ssot.js          # exit 0
+   node scripts/check-syntax.js        # exit 0（全部云函数 node --check）
+   node scripts/check-shared-sync.js   # exit 0（共享模块防漂移哈希校验）
+   npm test                            # 108 条单测全绿（node:test 零依赖）
    ```
-2. **网关冒烟**（自动验证云端核心链路在用）
+2. **网关冒烟**（自动验证云端核心链路在用；改密钥后须先 `$env:AWK_KEY=<新钥>`）
    ```powershell
    powershell -File .predeploy/smoke-check.ps1   # exit 0 = SMOKE ALL PASS
    ```
-3. **人工抽验**：只抽验与本次改动相关的链路（见下表），不必全跑。
+3. **CI**（GitHub Actions，push master 自动跑单测+静态检查；见 .github/workflows/ci.yml）
+4. **人工抽验**：只抽验与本次改动相关的链路（见下表），不必全跑。
 
 ## 一、能力开关一致性（防回归核心，本次事故教训）
 
@@ -54,7 +57,34 @@
 | 夜间红线 | 00:00-06:00 不可预约/履约 | 2026-09（MVP 基线） |
 | 双模式 UI | 深色/浅色均可读，tokens.wxss 无死代码 | 2026-10-04 |
 
-## 四、事故记录
+## 四、共享规则模块（D2-5 防漂移抽取，2026-10-06）
+
+> 规范源在 `cloudfunctions/_shared/`，**修改后必须跑对应 sync-*.ps1 同步副本，CI 会做哈希一致性拦截**。
+
+| 模块 | 内容 | 消费方 | 测试 |
+|---|---|---|---|
+| take_rules.js | 时间红线/东八区自然日/价格区间钳制/每周时段/Haversine | order-create, demand-publish, order-action, home-action | 44 条 |
+| money_rules.js | 分账公式/打赏校验/提现两段校验/余额口径 | payment-mock, order-create, order-action | 30 条 |
+| test_data.js | is_test 白名单打标（isTestOpenid/isTestPair） | demand-publish, order-create, admin-action, init-db | 5 条 |
+| partner_audit.js | 耍伴资料审核增量 | partner-action, admin-action | 29 条存量组 |
+
+规则语义教训（写入单测固化）：
+- **0 是合法值**：费率 0=免佣、价格下限 0——禁止 `\|\|` 兜底（money_rules.splitOrderAmount 已修正历史 `\|\| 1000` 吞 0 隐患；`Number(null)===0` 语言坑也已守卫）。
+- 拒绝码（wd_amount/tip_amount 等）是与前端/后台的契约，抽函数时逐字保留。
+
+## 五、运维工具与密钥（D1/D6/D7，2026-10-06）
+
+- **admin_web_key 已轮换**（2026-10-06），仓库脚本零硬编码，统一读 `$env:AWK_KEY`（用户级 setx 已配）。新钥在仓库外 `C:\zhaoren-bak\admin-key-20261006.txt`。**勿把新钥写回任何 git 内文件。**
+- **测试数据打标**：admin_config.test_openids 白名单（已种入 test_partner_001、oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c）；命中者建需求/建单自动 `is_test=true`。白名单经 admin-action config_set 的 `test_openids_add / test_openids_remove` 维护。
+- **purge_test_data**（init-db，管理员）：默认 dry-run 只统计；真删须 `confirm:'PURGE'`；仅删 is_test=true；级联 7 张子表；单次上限 500。
+- **危险操作确认门**：config_set 切 env=dev 须 `confirm:'SWITCH_DEV'`（切回 prod 免确认）；admin-web Config.vue 已同步弹窗输入。
+- **error_scan 巡检**（order-timer）：每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`（config_get 可见，>0 即巡检在跑）。演练：管理员 `{action:'run', drill:true}`。
+
+### 待办（用户侧 2 分钟）
+1. 控制台 → 云函数 → order-timer → 触发器：确认 `orderTimer` 每 5 分钟且已启用（部署后 error_scan_last_at 仍为 0，疑似触发器未生效/被暂停）。
+2. 触发器确认后等一个周期，config_get 看 `error_scan_last_at > 0` 即巡检闭环。
+
+## 六、事故记录
 
 | 日期 | 现象 | 根因 | 修正 |
 |---|---|---|---|
