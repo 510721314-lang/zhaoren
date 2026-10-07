@@ -13,15 +13,15 @@
 【本次任务（核心）】
 按 `docs\design-20261007-pricing-noshow-modify.md` 落地三个议题，**按批次单独推进、每批独立验收，未经我确认不得跳批或合并**：
 
-- **第一批（优先）**：**履约中禁止改期** —— 允许改期的状态由 `['S2','S3']` 收窄为 `['S2']`；S3（履约中）与 S3.5（履约中断）**均不可发起改期**；前端改期入口按状态隐藏；order-timer 的 S2_5 超时回退分支收口；**存量 S2_5（原状态 S3）在途订单允许走完**（不追溯）。**本批一并修复设计稿所列两个既有问题**：①**改期生效后重置四项确认**（现仅 S1 的 `update_item` 重置，order-action:366-377）；②把 **`S2_5` 补入 `.trae\rules.md` 的 13 态状态机红线**（代码已实现但红线表缺失，属文档债）。
-- **第二批**：**一口价与时薪价并存**（发布时二选一，**非替换**）。**动手前必须先做「全仓 `rate_fen` 读取点排查」**（展示/筛选/统计都可能读它；一口价单该字段为空，漏改会导致显示错乱或筛选异常）。核心：`demand.pricing_type='hourly'|'fixed'`（缺省 hourly 兼容存量）、新增 `fixed_price_fen`、`total_fen` 仍为**唯一结算口径**（下单/分账/支付/青年限额全部沿用，**结算链路不改**）；**耍伴接单筛选新增「客单价区间」**——`hourly` 单仍走原时薪区间 `accept_rate_*`、`fixed` 单走新增客单价区间，**未配置则不限制**（宁松勿错）；公益单归入一口价；一口价订单**加时/延长时长总价不变**；一口价区间与公益一口价**均不设默认值**（留空=不钳制，但仍保留 `>0` 与青年限额 200 元校验；公益一口价未配置时公益单不可发布）；后台新增 `fixed_price_min_fen` / `fixed_price_max_fen` / `welfare_fixed_price_fen` 三个配置项（经 CONFIG_SCHEMA 三端同源）。
-- **第三批**：**爽约处罚** —— 平台无法自动判定"人到没到"，必须做「**用户举证界面 + 管理端裁定**」链路（新建集合 + 双端界面）；处罚复用现有能力（信用分 `type:'no_show'` 扣 20、累计 3 次停用 7 天走 `penalty(suspend_7d)` / `user_freeze`）；MVP 为 mock 支付，**不做真实资金赔付**。
+- **第一批（优先）**：**履约中禁止改期** —— 允许改期的状态由 `['S2','S3']` 收窄为 `['S2']`；S3（履约中）与 S3.5（履约中断）**均不可发起改期**；前端改期入口按状态隐藏。**order-timer 兼容口径（务必写清，别误删分支）**：**不是删掉 `from_status==='S3'` 的回退逻辑**，而是"新发起的改期其 `from_status` 只会是 `S2`"；**存量 S2_5（`from_status='S3'`）的在途申请保留原回退分支、让它按原逻辑走完**（不追溯、避免卡死）。**本批一并修复设计稿所列两个既有问题**：①**改期生效后重置四项确认**（现仅 S1 的 `update_item` 重置，order-action:366-377）；②把 **`S2_5` 补入 `.trae\rules.md` 的 13 态状态机红线**（代码已实现但红线表缺失，属文档债）。
+- **第二批**：**一口价与时薪价并存**（发布时二选一，**非替换**）。**动手前必须先做「全仓 `rate_fen` 读取点排查」**，至少覆盖四处：①**耍伴接单配置侧** `partner_profile.accept_rate_min_fen / accept_rate_max_fen` 与 `_shared\take_rules.js` 的 `readRateRange`；②`order-create` 的接单区间校验；③**前端各展示点**（广场列表 / 需求详情 / 订单卡片的"¥X/小时"）；④任何按价格排序或统计的地方。**一口价单该字段为空，漏改会导致显示错乱或筛选异常。**核心：`demand.pricing_type='hourly'|'fixed'`（缺省 hourly 兼容存量）、新增 `fixed_price_fen`、`total_fen` 仍为**唯一结算口径**（下单/分账/支付/青年限额全部沿用，**结算链路不改**）；**耍伴接单筛选新增「客单价区间」**——`hourly` 单仍走原时薪区间 `accept_rate_*`、`fixed` 单走新增客单价区间，**未配置则不限制**（宁松勿错）；公益单归入一口价；一口价订单**加时/延长时长总价不变**；一口价区间与公益一口价**均不设默认值**（留空=不钳制，但仍保留 `>0` 与青年限额 200 元校验；公益一口价未配置时公益单不可发布）；后台新增 `fixed_price_min_fen` / `fixed_price_max_fen` / `welfare_fixed_price_fen` 三个配置项（经 CONFIG_SCHEMA 三端同源）。
+- **第三批**：**爽约处罚** —— 平台无法自动判定"人到没到"，必须做「**用户举证界面 + 管理端裁定**」链路（新建集合 + 双端界面）；处罚复用现有能力（信用分 `type:'no_show'` 扣 20、累计 3 次停用 7 天走 `penalty(suspend_7d)` / `user_freeze`）。**新建集合必须同步纳入两处，否则新集合会变成"不可观测、不可备份"**：①`admin-action` 的 `EXPORT_COLLECTIONS` 白名单；②`.predeploy\manual-backup.ps1` 的 `$COLLECTIONS` 列表（**这是 `config_history` 踩过的坑**）。MVP 为 mock 支付，**不做真实资金赔付**。
 
 【必读吸收（按序，只读）】
 1. `docs\design-20261007-pricing-noshow-modify.md` ← **本次实施依据**（现状事实含文件:行号、改动清单、4 项已确认口径、实施边界）
-2. `.trae\rules.md`（红线：13 态状态机、超时规则、四确认、金额整数分、服务端为准、场景白名单…）＋ **project_memory**（Hard Constraints / 工程约定 / 踩坑经验，尤其 2026-10-07 当日多条）
+2. `.trae\rules.md`（红线：13 态状态机、超时规则、四确认、金额整数分、服务端为准、场景白名单…）＋ 尽力读取 **project_memory**（Hard Constraints / 工程约定 / 踩坑经验）——**若读不到，以本提示词「关键经验（内联）」段为准**，该段已把最要紧的几条写进来了
 3. `docs\runbooks\`（七篇手册）＋ `docs\regression-checklist.md` ＋ `scripts\gate.ps1`（7 步门禁）
-4. 本提示词已整合通用模板内容，**无需再读 `docs\onboarding-prompt-20261007.md`**
+4. 本提示词为**整合版**（通用模板 + 任务版内容均已并入），**无需再读任何其他提示词文件**
 
 【三合一校验 + 开场回执（必出，每项附只读命令真实输出，禁止只复述文字/禁止编造）】
 | 校验项 | 基准值（2026-10-07 实测） | 验证方式 |
@@ -61,6 +61,14 @@
 - `SCENE_NAME` 全仓 6 处同步（order-action×3 / admin-action / demand-publish / im-conv / im-send）
 - 解包铁律：`doc(id).get()` 返回单对象；`where().get()` 返回数组取 `[0]`
 - **网关 2.5s 超时不代表云函数失败**（云端会执行完）；慢任务幂等 + 可重试，报错后先查实际数据再决定是否重跑
+
+【关键经验（内联 · 2026-10-07 实战沉淀，务必继承）】
+1. **SCF 定时触发器的事件格式**：腾讯云 SCF 标准定时触发器把信息放在 **`event`** 里（`{Type:'Timer',TriggerName:'orderTimer',Time,Message}`），**`context` 中并没有 `TRIGGER_NAME`** —— 凡涉及"是否定时调用"的判定（第一批会碰 order-timer），必须兼容此格式，否则每轮会被 `ot_forbidden` 拦掉（本项目踩过：心跳恒为 0 跨 20+ 周期，误判成"触发器停摆"）
+2. **`config_get` 的返回结构**：网关返回 `{ok, data:{...}}`；`CONFIG_SCHEMA` 里的键位于 **`data.operations.<键>`**（如 `data.operations.mock_payment_enabled`），**不在顶层** —— 第二批新增配置项后，验证要读 `data.operations.fixed_price_min_fen` 这类路径
+3. **云函数内 fire-and-forget 是反模式**：任何"写库 / 发通知"的副作用都必须 **`await`**（返回响应后运行时可能回收上下文，未完成的异步写入会被截断）；内部已 try/catch 的可直接 `await`
+4. **新建集合的"最后一公里"**：新集合若不同步进 `EXPORT_COLLECTIONS` 与 `manual-backup.ps1` 的 `$COLLECTIONS`，就等于**不可观测、不可备份**（`config_history` 已踩过此坑）
+5. **观测脚本自身也会静默失效**：改完观测类脚本必须用**真实响应结构**复测，不能只看"输出看起来对"（`check-heartbeat` 曾因解析层取错而恒报 0，误导为"触发器没跑"）
+6. **密钥与敏感值不入库不入文档**：告警/审计类事件 payload 不得携带密钥明文；`.ps1` 一律纯 ASCII
 
 【每批的完成链路（固定动作，不得省略）】
 改 → `node --check` → `npm test`（108 条）→ **串行部署** → `powershell -File scripts/gate.ps1`（7 步全绿；心跳 FAIL 会阻塞门禁）→ 云端/真机验证 → 更新 `docs\deploy-log.md` → **commit + push** → 必要时沉淀 project_memory
