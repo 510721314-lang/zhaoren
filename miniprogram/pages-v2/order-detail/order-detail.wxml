@@ -131,6 +131,8 @@
           <button class="od__btn od__btn--primary" bindtap="onViewPrep" hover-class="btn-press">📋 查看履约准备</button>
           <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系耍伴</button>
         </block>
+        <!-- 改期入口: 仅 S2 可发起(2026-10-07 口径; S3 履约中/S3.5 中断均不可改期) -->
+        <button class="od__btn od__btn--ghost" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
       </block>
 
       <!-- S3 履约中 -->
@@ -152,17 +154,19 @@
           </button>
         </view>
         <view class="od__action-grid">
-          <button class="od__action-btn {{order.pending_extend ? 'od__action-btn--disabled' : ''}}" wx:if="{{!order.pending_extend}}" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
-          <button class="od__action-btn" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
-          <button class="od__action-btn {{order.canFinishService ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" hover-class="btn-press" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService">✓ 履约完成</button>
+          <button class="od__action-btn {{order.pending_extend ? 'od__action-btn--disabled' : ''}}" wx:if="{{!order.pending_extend && !finishingService}}" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
+          <button class="od__action-btn {{(order.canFinishService && !finishingService) ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" hover-class="btn-press" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService" disabled="{{finishingService}}">✓ {{finishingService ? '提交中…' : '履约完成'}}</button>
         </view>
         <!-- 加时在途: S3 内嵌提示 + 对方确认/拒绝按钮 -->
-        <view class="od__extend-pending" wx:if="{{order.pending_extend}}">
-          <view class="od__extend-pending-title">⏰ 加时申请 +{{order.pending_extend.add_hours}}小时 · ¥{{order.pending_extend.add_amount_fen / 100}}</view>
-          <view class="od__after-sale-tip">{{order.pending_extend.expire_text}}，超时自动拒绝</view>
-          <view class="od__after-sale-tip" wx:if="{{order.pending_extend.by_role === 'user'}}">发单人发起的加时</view>
-          <view class="od__after-sale-tip" wx:else>耍伴发起的加时</view>
-          <view class="od__extend-reason" wx:if="{{order.pending_extend.reason}}">📝 {{order.pending_extend.reason}}</view>
+        <view class="od__pending-banner {{order.pending_extend.can_respond ? 'od__pending-banner--mine' : 'od__pending-banner--wait'}}" wx:if="{{order.pending_extend}}">
+          <view class="od__pending-banner-title">
+            <text wx:if="{{order.pending_extend.can_respond}}" class="od__pending-banner-tag">待你确认</text>
+            ⏰ 加时申请 +{{order.pending_extend.add_hours}}小时 · ¥{{order.pending_extend.add_amount_fen / 100}}
+          </view>
+          <view class="od__pending-banner-sub">{{order.pending_extend.expire_text}}，超时自动拒绝</view>
+          <view class="od__pending-banner-sub" wx:if="{{order.pending_extend.by_role === 'user'}}">发单人发起的加时</view>
+          <view class="od__pending-banner-sub" wx:else>耍伴发起的加时</view>
+          <view class="od__pending-banner-reason" wx:if="{{order.pending_extend.reason}}">📝 {{order.pending_extend.reason}}</view>
         </view>
         <view class="od__safety-btns" wx:if="{{order.pending_extend && order.pending_extend.can_respond}}">
           <button class="od__btn od__btn--ghost" bindtap="onExtendConfirm" hover-class="btn-press">拒绝加时</button>
@@ -209,12 +213,15 @@
       <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方2小时内确认，超时自动拒绝） -->
       <block wx:elif="{{order.status === 'S2_5'}}">
         <view class="od__terminated-tip">{{statusInfo.name}}</view>
-        <view class="od__modify-pending" wx:if="{{order.pending_modify}}">
-          <view class="od__modify-pending-title">申请改至 {{order.pending_modify.new_date}} {{order.pending_modify.new_time}}</view>
-          <view class="od__after-sale-tip">{{statusInfo.timeoutText}}，超时自动拒绝</view>
-          <view class="od__after-sale-tip" wx:if="{{order.pending_modify.by_role === 'user'}}">发单人发起的改期</view>
-          <view class="od__after-sale-tip" wx:else>耍伴发起的改期</view>
-          <view class="od__extend-reason" wx:if="{{order.pending_modify.reason}}">📝 {{order.pending_modify.reason}}</view>
+        <view class="od__pending-banner {{order.pending_modify.can_respond ? 'od__pending-banner--mine' : 'od__pending-banner--wait'}}" wx:if="{{order.pending_modify}}">
+          <view class="od__pending-banner-title">
+            <text wx:if="{{order.pending_modify.can_respond}}" class="od__pending-banner-tag">待你确认</text>
+            📅 改期申请 · 改至 {{order.pending_modify.new_date}} {{order.pending_modify.new_time}}
+          </view>
+          <view class="od__pending-banner-sub">{{statusInfo.timeoutText}}，超时自动拒绝</view>
+          <view class="od__pending-banner-sub" wx:if="{{order.pending_modify.by_role === 'user'}}">发单人发起的改期</view>
+          <view class="od__pending-banner-sub" wx:else>耍伴发起的改期</view>
+          <view class="od__pending-banner-reason" wx:if="{{order.pending_modify.reason}}">📝 {{order.pending_modify.reason}}</view>
         </view>
         <view class="od__safety-btns" wx:if="{{order.pending_modify.can_respond}}">
           <button class="od__btn od__btn--ghost" bindtap="onModifyReject" hover-class="btn-press">拒绝改期</button>

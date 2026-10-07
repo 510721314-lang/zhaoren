@@ -428,16 +428,33 @@ Page({
       const fresh = d.list.filter((n) => n && n.id && !this.__shownNoticeIds[n.id]);
       if (!fresh.length) return;
       fresh.forEach((n) => { this.__shownNoticeIds[n.id] = 1; });
-      const key = fresh[0];
-      const TITLE_OF = {
-        accept: '有人接单了', paid: '对方已支付',
-        modify_confirm: '对方已同意改期', modify_reject: '对方已拒绝改期',
-        confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
-        finish: '履约已完成', milestone: '履约进度更新',
-        cancel: '订单已取消', tip: '收到打赏'
+      // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)
+      const RESPOND_ALERT = {
+        extend_confirm: '✅ 对方已同意加时',
+        extend_reject: '❌ 对方已拒绝加时',
+        modify_confirm: '✅ 对方已同意改期',
+        modify_reject: '❌ 对方已拒绝改期'
       };
-      const t = TITLE_OF[key.type] || key.title || '订单有新动态';
-      if (t && t !== '订单沟通') wx.showToast({ title: String(t).slice(0, 12), icon: 'none', duration: 2500 });
+      const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
+      if (respondHit) {
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: RESPOND_ALERT[respondHit.type],
+          content: respondHit.body || '',
+          showCancel: false,
+          confirmText: '知道了'
+        });
+      } else {
+        const key = fresh[0];
+        const TITLE_OF = {
+          accept: '有人接单了', paid: '对方已支付',
+          confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
+          finish: '履约已完成', milestone: '履约进度更新',
+          cancel: '订单已取消', tip: '收到打赏'
+        };
+        const t = TITLE_OF[key.type] || key.title || '订单有新动态';
+        if (t && t !== '订单沟通') wx.showToast({ title: String(t).slice(0, 12), icon: 'none', duration: 2500 });
+      }
       this.refreshConfirmation();
     }).catch(() => {});
   },

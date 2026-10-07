@@ -291,6 +291,8 @@ exports.main = async (event, context) => {
       const pm = o.pending_modify || {};
       const deadline = pm.expire_at || ((o.modify_at || 0) + modifyConfirmH * 3600000);
       if (!deadline || deadline >= now) return;
+      // 存量兼容(2026-10-07 口径), 勿删此分支: 新发起的改期 from_status 只会是 'S2';
+      // 原 S3 发起的在途申请(from_status='S3')保留回退 S3, 按原逻辑走完(不追溯, 避免卡死)
       const toStatus = pm.from_status === 'S3' ? 'S3' : 'S2';
       const won = await casStatus(o._id, 'S2_5', {
         status: toStatus,

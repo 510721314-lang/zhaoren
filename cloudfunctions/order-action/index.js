@@ -106,7 +106,7 @@ async function getOrder(orderId) {
  * @param {object} opt
  * @param {string} opt.to_openid - 收件人
  * @param {string} opt.order_id - 关联订单(可选)
- * @param {string} opt.type - 通知类型枚举: accept/pay/start/modify/modify_confirm/modify_reject/cancel/milestone/finish/evaluate/settle/pause/resume/custom
+ * @param {string} opt.type - 通知类型枚举: accept/pay/start/modify/modify_confirm/modify_reject/extend_confirm/extend_reject/cancel/milestone/finish/evaluate/settle/pause/resume/custom
  * @param {string} opt.title - 标题
  * @param {string} opt.body - 正文
  * @param {string} opt.action_key - 点击后续动作: jump_order/jump_chat/jump_pay/jump_accept_modify/jump_wallet/jump_evaluate
@@ -858,7 +858,9 @@ exports.main = async (event, context) => {
     return mins >= open && mins < close;
   }
 
-  // 改期发起:S2/S3 → S2_5(改期处理中, 等待对方确认; 超时由 order-timer 自动拒绝)
+  // 改期发起:S2 → S2_5(改期处理中, 等待对方确认; 超时由 order-timer 自动拒绝)
+  // 口径(2026-10-07): 仅 S2(已支付待履约)可发起改期; S3 履约中/S3.5 中断均不可
+  // 存量兼容: 原 S3 发起的在途 S2_5(from_status='S3')保留原回退分支, 由确认/拒绝/超时按原逻辑走完(不追溯)
   // 注意: 确认前不改写 start_time, 新时间暂存 pending_modify; modify_count 在确认通过时才消耗
   if (action === 'modify') {
     const { new_start_time, reason } = event;
@@ -871,8 +873,8 @@ exports.main = async (event, context) => {
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
     const role = roleOf(order, openid);
     if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
-    // 改期前置:已支付(S2)或履约中(S3), 且不能已有在途改期
-    if (order.status !== 'S2' && order.status !== 'S3') {
+    // 改期前置:仅已支付待履约(S2); S3/S3.5 不可改期(2026-10-07 收窄)
+    if (order.status !== 'S2') {
       return { ok: false, code: 'oa_modify_status', msg: `订单当前状态(${order.status})不可改期` };
     }
     const config = await getConfig();
@@ -905,7 +907,7 @@ exports.main = async (event, context) => {
       const chk = await checkText(openid, reason);
       if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
     }
-    const won = await casStatus(order_id, ['S2', 'S3'], {
+    const won = await casStatus(order_id, 'S2', {
       status: 'S2_5',
       pending_modify: {
         from_status: fromStatus,
@@ -977,7 +979,7 @@ exports.main = async (event, context) => {
       if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
       await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_reject' : 'partner_modify_reject', openid);
       log.d(`modify rejected: ${order.order_no} S2_5→${toStatus} by=${role}`);
-      writeNotice({
+      await writeNotice({
         to_openid: pending.by_openid, order_id, type: 'modify_reject',
         title: '改期已被拒绝', body: `${role === 'user' ? '发单人' : '耍伴'}拒绝了你的改期申请`,
         action_key: 'jump_order', action_payload: { order_id }
@@ -1006,9 +1008,23 @@ exports.main = async (event, context) => {
       updated_at: now
     });
     if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+    // 改期生效: 重置四项确认(8 确认位清零, 与 S1 update_item 同口径; value 保留)
+    // 目的: start_time 已变更, 双方需重新确认新时间; 确认位仅在 S1 四确认流程消费, 不影响 S2 履约流转
+    try {
+      const conf = await getConfirmation(order_id);
+      if (conf && conf.items) {
+        const resetPatch = { version: (Number(conf.version) || 1) + 1, updated_at: now };
+        for (const f of CONFIRM_FIELDS) {
+          resetPatch['items.' + f + '.user_ok'] = false;
+          resetPatch['items.' + f + '.partner_ok'] = false;
+        }
+        await col('order_confirmations').doc(conf._id).update({ data: resetPatch });
+        log.d(`modify confirmed: confirmations reset ok ${order.order_no}`);
+      }
+    } catch (e) { log.d(`modify_confirm reset confirmations fail: ${e.message}`); }
     await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_confirm' : 'partner_modify_confirm', openid);
     log.d(`modify confirmed: ${order.order_no} S2_5→${toStatus} newStart=${pending.new_start_time} by=${role}`);
-    writeNotice({
+    await writeNotice({
       to_openid: pending.by_openid, order_id, type: 'modify_confirm',
       title: '改期已确认', body: `新时间已生效, 订单状态回到${toStatus === 'S3' ? '履约中' : '待履约'}`,
       action_key: 'jump_order', action_payload: { order_id }
@@ -1118,8 +1134,8 @@ exports.main = async (event, context) => {
       });
       if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
       await logStatus(order_id, 'S3', 'S3', role === 'user' ? 'user_extend_reject' : 'partner_extend_reject', openid);
-      writeNotice({
-        to_openid: pending.by_openid, order_id, type: 'custom',
+      await writeNotice({
+        to_openid: pending.by_openid, order_id, type: 'extend_reject',
         title: '加时申请已被拒绝',
         body: `${role === 'user' ? '发单人' : '耍伴'}拒绝了你的加时申请`,
         action_key: 'jump_order', action_payload: { order_id }
@@ -1149,8 +1165,8 @@ exports.main = async (event, context) => {
     if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     await logStatus(order_id, 'S3', 'S3', role === 'user' ? 'user_extend_confirm' : 'partner_extend_confirm', openid);
     log.d(`order extend confirmed: ${order.order_no} +${addH}h addFen=${addFen} totalFen=${newTotalFen}`);
-    writeNotice({
-      to_openid: pending.by_openid, order_id, type: 'custom',
+    await writeNotice({
+      to_openid: pending.by_openid, order_id, type: 'extend_confirm',
       title: '加时申请已确认',
       body: `服务时长延长至 ${newDurationH} 小时, 加时金额 ¥${(addFen / 100).toFixed(2)} 已合并进结算`,
       action_key: 'jump_order', action_payload: { order_id }

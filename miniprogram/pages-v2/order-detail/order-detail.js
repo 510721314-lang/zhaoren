@@ -333,8 +333,49 @@ Page({
       tipTotalYuan: ((order.tip_total_fen || 0) / 100).toFixed(2),
       modifyDateMin: this.fmtDate(new Date()),
       timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),
-      nextStep
+      nextStep,
+      finishingService: false
     });
+    // 醒目即时提醒: 有待自己确认的加时/改期时, 进页即弹 modal + 震动
+    // 同单同类型只弹一次, 避免 onShow 轮询重复刷屏
+    this.__pendingAlerted = this.__pendingAlerted || {};
+    const _pe = order.pending_extend;
+    const _pm = order.pending_modify;
+    if (_pe && _pe.can_respond) {
+      const key = `${order.order_id}|extend|${_pe.expire_at || 0}`;
+      if (!this.__pendingAlerted[key]) {
+        this.__pendingAlerted[key] = 1;
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: '⏰ 有待确认的加时申请',
+          content: `对方申请加时 ${_pe.add_hours} 小时 · ¥${(_pe.add_amount_fen / 100).toFixed(2)}\n${_pe.expire_text}，超时自动拒绝`,
+          confirmText: '去处理',
+          cancelText: '稍后',
+          success: (res) => {
+            if (res.confirm) {
+              wx.pageScrollTo({ selector: '.od__pending-banner', duration: 300 });
+            }
+          }
+        });
+      }
+    } else if (_pm && _pm.can_respond) {
+      const key = `${order.order_id}|modify|${_pm.expire_at || 0}`;
+      if (!this.__pendingAlerted[key]) {
+        this.__pendingAlerted[key] = 1;
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: '📅 有待确认的改期申请',
+          content: `对方申请改至 ${_pm.new_date} ${_pm.new_time}\n${statusInfo.timeoutText || '请及时处理'}，超时自动拒绝`,
+          confirmText: '去处理',
+          cancelText: '稍后',
+          success: (res) => {
+            if (res.confirm) {
+              wx.pageScrollTo({ selector: '.od__pending-banner', duration: 300 });
+            }
+          }
+        });
+      }
+    }
     // 有打赏的订单拉逐笔明细(双方可见, 展示在打赏行下)
     if (order.tip_total_fen > 0) this.fetchTipList();
   },
@@ -369,16 +410,33 @@ Page({
         this.setData({ tipNotices: [...items, ...this.data.tipNotices] });
         // 即时提示: 对方(需求方/耍伴)对该订单的变动, toast 醒目提示; 关键类型用明确文案
         // 四确认单步通知(title=订单沟通)只进横幅不弹 toast, 避免逐项刷屏
-        const key = fresh[0];
-        const TITLE_OF = {
-          accept: '有人接单了', paid: '对方已支付',
-          modify_confirm: '对方已同意改期', modify_reject: '对方已拒绝改期',
-          confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
-          finish: '履约已完成', milestone: '履约进度更新',
-          cancel: '订单已取消', tip: '收到打赏'
+        // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)
+        const RESPOND_ALERT = {
+          extend_confirm: '✅ 对方已同意加时',
+          extend_reject: '❌ 对方已拒绝加时',
+          modify_confirm: '✅ 对方已同意改期',
+          modify_reject: '❌ 对方已拒绝改期'
         };
-        const toastTitle = TITLE_OF[key.type] || (key.title && key.title !== '订单沟通' ? key.title : '');
-        if (toastTitle) wx.showToast({ title: toastTitle.slice(0, 12), icon: 'none', duration: 2500 });
+        const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
+        if (respondHit) {
+          try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+          wx.showModal({
+            title: RESPOND_ALERT[respondHit.type],
+            content: respondHit.body || '',
+            showCancel: false,
+            confirmText: '知道了'
+          });
+        } else {
+          const key = fresh[0];
+          const TITLE_OF = {
+            accept: '有人接单了', paid: '对方已支付',
+            confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
+            finish: '履约已完成', milestone: '履约进度更新',
+            cancel: '订单已取消', tip: '收到打赏'
+          };
+          const toastTitle = TITLE_OF[key.type] || (key.title && key.title !== '订单沟通' ? key.title : '');
+          if (toastTitle) wx.showToast({ title: toastTitle.slice(0, 12), icon: 'none', duration: 2500 });
+        }
         // 静默刷新同步最新状态/时间(不闪 loading)
         this.fetchData({ orderId: this.__orderId }, true);
       }).catch(() => {});
@@ -770,6 +828,11 @@ Page({
 
   // O4 改期: 内联卡(原生 date/time picker) + showModal 二次确认, 替代 bottom-sheet
   onModify() {
+    // 2026-10-07 口径: 仅 S2(已支付待履约)可发起改期; S3 履约中/S3.5 中断均不可
+    if (!this.data.order || this.data.order.status !== 'S2') {
+      wx.showToast({ title: '当前状态不可申请改期', icon: 'none' });
+      return;
+    }
     if (this.data.modifyUsedUp) {
       wx.showToast({ title: '修改次数已用完', icon: 'none' });
       return;
@@ -916,10 +979,13 @@ Page({
       confirmText: '完成',
       success(res) {
         if (!res.confirm) return;
+        // 乐观更新: 立即隐藏加时按钮 + 禁用完成按钮, 杜绝"已点完成却还能加时"的矛盾窗口
+        that.setData({ finishingService: true });
         wx.showLoading({ title: '处理中', mask: true });
         callCloud('order-action', { action: 'complete_service', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
+            that.setData({ finishingService: false });
             wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
             return;
           }
@@ -930,6 +996,7 @@ Page({
           // partner 完成后不自动跳评价, 只有 user 视角进 S5 才能点评价
         }).catch(() => {
           wx.hideLoading();
+          that.setData({ finishingService: false });
           wx.showToast({ title: '网络异常', icon: 'none' });
         });
       }
