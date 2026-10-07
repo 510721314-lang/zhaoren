@@ -57,7 +57,8 @@
 
 - error_scan 每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) / **网关鉴权失败突增(窗口内 ≥3 次才报, 2026-10-07 补 ④)** → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`，**心跳 `error_scan_heartbeat_at`（2026-10-06 补）**
 - 网关告警数据源：admin-web 对 bad_key/missing_key 拒绝时 **await** 写 `platform_event(P2, type=gateway_bad_key)`（2026-10-07 补；await 保证响应前事件落库，防运行时回收截断；内部吞异常不影响 401 响应；密钥本身不入 payload）
-- **auditPrune 审计留存（2026-10-07 补）**：order-timer 每日 UTC 19 点(≈北京 03:00)删除 90 天前 `audit_log`；默认 **dry-run 只统计**（开关 `admin_config.audit_prune_dry_run`，后台「通用开关-审计日志清理」可配）；真删同一天只执行一次（`audit_prune_last_day` 幂等）
+- **auditPrune 审计留存（2026-10-07 补）**：order-timer 每日 UTC 19 点(≈北京 03:00)删除 90 天前 `audit_log`；默认 **dry-run 只统计**（开关 `admin_config.audit_prune_dry_run`，后台「通用开关-审计日志清理」可配）；真删同一天只执行一次（`audit_prune_last_day` 幂等）；**结果落库** `admin_config.audit_prune_last`（`{at,dry_run,matched,pruned,cutoff,days}`，config_get 可直接读，dry-run 也记录 → 「先看统计再置 false」流程可执行）
+- **前置条件核查结论（2026-10-07）**：①触发器正常（心跳闭环）；②当前 `matched=0`（audit_log 全部在 2026-09-23 之后，90 天前为 0 条）→ 即便立刻置 false 也不会删任何数据，真正开始删约在 **2026-12-22**；③**哈希链安全**：`audit_verify` 只重算每条内容哈希 + 校验 `i>0` 的 `prev_hash` 链接（**起点 i=0 豁免**），删除「最早的连续时间段」不会产生断链告警，verdict 仍为 `ok`；④backup 已就绪可取证
 - **config_history（2026-10-07 补）**：admin-action `config_set` 成功后自动追加快照（before/after/keys/reason/operator），敏感键掩码 `***`，保留最近 100 版；集合与 admin_accounts 等同批 ensureAdminColls 幂等创建；**已纳入 EXPORT_COLLECTIONS**，查看方式：`{"action":"export_collection","collection":"config_history","confirm":true,"page":1,"page_size":20}`
 - **零副作用验证手法**（改配置前想试通道时用）：`config_set` 传某 int 键的**当前值**（值不变但 patch 非空）→ 会成功写入并产生 config_history 快照，不改变任何线上行为
 - 演练：管理员 `{action:'run', drill:true}`

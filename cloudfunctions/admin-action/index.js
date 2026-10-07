@@ -1826,6 +1826,7 @@ exports.main = async (event, context) => {
       test_openids: config.test_openids || [],   // D4-5 测试身份白名单(后台可见可管理)
       error_scan_last_at: config.error_scan_last_at || 0,   // D7 巡检游标(order-timer 每 5min 推进; >0 即巡检在跑)
       error_scan_heartbeat_at: config.error_scan_heartbeat_at || 0,   // D7 心跳(order-timer 每轮刷新; 门禁 check-heartbeat 据此判断巡检是否存活)
+      audit_prune_last: config.audit_prune_last || null,   // P2 审计留存清理最近一轮结果(order-timer auditPrune 每轮写; {at,dry_run,matched,pruned,cutoff,days})
       timeouts: {
         // 显式 undefined 判断兜底: 值为 0 时不得被 || 改写成默认值(config_get 掩码修复 2026-09-23)
         s0_timeout_min: config.s0_timeout_min !== undefined ? config.s0_timeout_min : 30,

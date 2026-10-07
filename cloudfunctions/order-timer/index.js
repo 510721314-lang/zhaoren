@@ -105,6 +105,10 @@ async function errorScan(now, cfg, adminOpenids) {
 // ───────── audit_log 留存清理(P2): 每日 UTC 19 点(≈北京 03:00)删除 90 天前 audit_log ─────────
 // 幂等: admin_config.audit_prune_last_day 记已执行 UTC 日期, 同一天只清一次(定时器每 5 分钟可能命中多次 19 点档)。
 // 安全: 默认 dry-run 只统计(admin_config.audit_prune_dry_run 缺省 true); 人工确认数量合理后经 config_set 置 false 才真删。
+// 结果落库(2026-10-07 补): 每轮(含 dry-run)把 {at,dry_run,matched,pruned,cutoff,days} 写入 admin_config.audit_prune_last,
+//   供 config_get / export_collection 观测——此前结果只在函数返回值里, 而 order-timer 不经 HTTP 网关代理, 无法读取。
+// 链安全: audit_verify 只重算每条内容哈希 + 校验 i>0 的 prev_hash 链接(起点 i=0 豁免),
+//   故删除「最早的连续时间段」不会产生断链告警, 校验仍为 verdict=ok。
 // 真删: 分页取 _id 批量删, 单次上限 5000 防跑飞。
 const PRUNE_DAYS = 90;
 const PRUNE_CAP = 5000;
@@ -120,23 +124,25 @@ async function auditPrune(now, cfg) {
     const cnt = await col('audit_log').where({ at: _.lt(cutoff) }).count();
     matched = cnt.total || 0;
   } catch (e) { log.d(`auditPrune count fail: ${e.message}`); }
-  if (dryRun) {
-    // dry-run 不记 last_day, 置 false 后下一个 UTC 19 点档立即真删
-    return { pruned: 0, dry_run: true, matched, skipped: '' };
-  }
   let pruned = 0;
-  try {
-    while (pruned < PRUNE_CAP) {
-      const r = await col('audit_log').where({ at: _.lt(cutoff) }).limit(100).get();
-      const list = r.data || [];
-      if (!list.length) break;
-      await Promise.allSettled(list.map((d) => col('audit_log').doc(d._id).remove()));
-      pruned += list.length;
-      if (list.length < 100) break;
-    }
-  } catch (e) { log.d(`auditPrune delete fail: ${e.message}`); }
-  await col('admin_config').doc('global').update({ data: { audit_prune_last_day: dayKey, updated_at: now } }).catch(() => {});
-  return { pruned, dry_run: false, matched, skipped: '' };
+  if (!dryRun) {
+    try {
+      while (pruned < PRUNE_CAP) {
+        const r = await col('audit_log').where({ at: _.lt(cutoff) }).limit(100).get();
+        const list = r.data || [];
+        if (!list.length) break;
+        await Promise.allSettled(list.map((d) => col('audit_log').doc(d._id).remove()));
+        pruned += list.length;
+        if (list.length < 100) break;
+      }
+    } catch (e) { log.d(`auditPrune delete fail: ${e.message}`); }
+  }
+  // 结果落库(含 dry-run): 供 config_get / export_collection 观测;
+  // dry-run 不写 last_day, 保持「置 false 后下一个 UTC 19 点档立即真删」的语义。
+  const patch = { audit_prune_last: { at: now, dry_run: dryRun, matched, pruned, cutoff, days: PRUNE_DAYS } };
+  if (!dryRun) patch.audit_prune_last_day = dayKey;
+  await col('admin_config').doc('global').update({ data: patch }).catch(() => {});
+  return { pruned, dry_run: dryRun, matched, skipped: '' };
 }
 
 exports.main = async (event, context) => {
