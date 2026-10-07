@@ -74,6 +74,15 @@
   font-weight: 700;
   box-shadow: var(--shadow-card);
 }
+/* B2+ 计价方式(时薪 / 一口价; 商业付费时展示) */
+.pub__pricing {
+  margin-top: 20rpx;
+}
+.pub__pricing-label {
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  margin-bottom: 12rpx;
+}
 .pub__welfare-tip {
   margin-top: 16rpx;
   background: var(--func-success-light);

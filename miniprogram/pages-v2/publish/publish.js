@@ -259,6 +259,8 @@ Page({
             'form.scene_code': d.scene_code || '',
             'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
             'form.project_attr': d.project_attr || 'commercial',
+            'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 一口价需求编辑回填(否则价格行整块错位)
+            'form.fixed_price': d.fixed_price_fen ? String(Number(d.fixed_price_fen) / 100) : '',
             'form.title': d.title || '',
             'form.description': d.description || '',
             'form.service_date': d.service_date,
@@ -370,7 +372,10 @@ Page({
     const f = this.data.form;
     return {
       project_attr: f.project_attr,
+      pricing_type: f.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // B2+ 计价(必存: 恢复后价格行按它渲染)
+      fixed_price: f.fixed_price || '',                               // B2+ 一口价(元, 字符串原样存)
       scene_code: f.scene_code,
+      content_options: Array.isArray(f.content_options) ? f.content_options : [],
       title: f.title,
       description: f.description,
       service_date: f.service_date,
@@ -433,6 +438,8 @@ Page({
     this.setData({
       form: {
         project_attr: d.project_attr || 'commercial',
+        pricing_type: d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 老草稿无该字段 → 兜底 hourly
+        fixed_price: d.fixed_price != null ? String(d.fixed_price) : '',
         scene_code: d.scene_code || '',
         content_options: Array.isArray(d.content_options) ? d.content_options : [],
         title: d.title || '',
