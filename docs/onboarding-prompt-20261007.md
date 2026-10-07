@@ -23,11 +23,11 @@
 |---|---|---|
 | 工作目录 | c:\zhaoren 存在 | Test-Path |
 | git remote | github.com/510721314-lang/zhaoren.git | git remote -v |
-| HEAD/工作区 | 42d8aa9（P0 四项 + 专家复核 + orderTimer 触发器闭环；本模板刷新为紧随其后的一笔 docs 提交，以实测为准），工作区干净，origin 领先 0/落后 0（已全推） | git log -1 + status --short + rev-list 双向 count |
+| HEAD/工作区 | f597263（P0 四项 + 专家复核 + 触发器闭环 + 观测落库 + 技术债收敛 + B4-B7 清单；本模板刷新为紧随其后的一笔 docs 提交，以实测为准），工作区干净，origin 领先 0/落后 0（已全推） | git log -1 + status --short + rev-list 双向 count |
 | appid | wxbc4a4afacdf234f5 | project.config.json |
 | 云端 env | prod；mock_payment_enabled=true（实测，quick_check mock_gate 将 BLOCK，上线前必须置回 false） | 网关 config_get 只读调用 |
 | 心跳状态 | **已闭环**：`error_scan_heartbeat_at > 0`（2026-10-07 10:40 恢复），check-heartbeat 输出 OK 且 WARN 已升级 FAIL；根因＝order-timer 的 `isTimer` 判定只认 `context.TRIGGER_NAME`，与腾讯云 SCF 定时触发器事件格式（在 `event` 里）不兼容 → 每轮被 ot_forbidden 拦截，已修复 | 网关 config_get + scripts\check-heartbeat.ps1 |
-| 备份产物 | 以 `C:\zhaoren-bak\CHECKSUMS.txt` 末条为准（2026-10-07 当日产出：EOD bundle、热备、云端 DB 全量 35 集合、多条部署前归档 bundle）；云端 DB 全量最近为 `zhaoren_backup_20261007-0843` | Get-ChildItem C:\zhaoren-bak |
+| 备份产物 | 以 `C:\zhaoren-bak\CHECKSUMS.txt` 末条为准（2026-10-07 当日产出：多条 EOD bundle + 热备 + 云端 DB 全量 35 集合 + 多条部署前归档 bundle）；云端 DB 全量最近为 `zhaoren_backup_20261007-1108` | Get-ChildItem C:\zhaoren-bak |
 | 体验版 | 以微信后台实测为准（勿凭记忆报版本号） | mp 后台/负责人确认 |
 
 【工具链·网关】
