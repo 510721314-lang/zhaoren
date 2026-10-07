@@ -59,11 +59,22 @@
 
 目标：**本机损坏时，备份不丢**（当前所有产物都在 `C:\zhaoren-bak`，与机器同命）。
 
-- [ ] 选定异地存储（飞书云空间 / 腾讯云 COS / 其他云盘任选）
-- [ ] 建立目录，例如「飞书云空间 / zhaoren-backup」
-- [ ] 上传当前最新产物：git bundle（含 tags）+ `CHECKSUMS.txt` + 云端 DB 备份目录的 `manifest.json`
-- [ ] 设定更新节奏（建议：每个工作日收工 / 至少每周一次）
-- [ ] **验证**：从异地下载 bundle → `git clone <bundle> restore` → `git -C restore rev-parse HEAD` 与本地一致
+- [x] **选定并已开通**：飞书云空间（lark-cli 已配置，用户身份 `李劲松`，已授权 `drive:file:upload` / `space:folder:create`）
+- [x] **目录已建**：`zhaoren-backup`，folder_token = `RCsff3kGUlKhpud1KVFckJOhnGc`
+      URL：https://hcn9befivuyv.feishu.cn/drive/folder/RCsff3kGUlKhpud1KVFckJOhnGc
+- [x] **首批已上传并校验**（2026-10-07）：git bundle + 云端 DB 压缩包 + `CHECKSUMS.txt`；`drive +status` **精确模式（SHA-256）**结果：`unchanged` 3/3、`new_remote` 0（远端无缺失）
+- [ ] **设定更新节奏**：每个工作日收工 / 至少每周，重跑一次上传（命令见下）
+- [ ] **验证（暂缓）**：从异地下载 bundle → `git clone <bundle> restore` → `git -C restore rev-parse HEAD` 与本地一致
+
+### 后续每期上传命令（照抄即可）
+```powershell
+# 1) 把当期产物放进一个暂存目录（bundle + 云端DB zip + CHECKSUMS.txt）
+# 2) 上传（cwd 必须在暂存目录内 —— lark-cli 只接受相对路径）
+lark-cli drive +upload --file "./<文件名>" --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --as user
+# 3) 校验（精确模式逐个 SHA-256 比对，期望 unchanged 全中、new_remote 为 0）
+lark-cli drive +status --local-dir . --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --as user
+```
+> 授权有效期：user token 至 `2026-10-07 14:13`（约 2 小时），refresh token 至 `2026-10-14`；过期后重新取链接：`lark-cli auth login --domain drive --no-wait --json`（用 `lark-cli auth qrcode <url> -o <相对路径>.png` 出二维码）。
 
 ---
 
