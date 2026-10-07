@@ -71,7 +71,7 @@
 - ✅ 另修复：check-heartbeat.ps1 解析（data 嵌套层，实测 source=data-nested）；端到端实证 config_history（同值 config_set 零副作用触发 → export 读出 total=1 结构完整）+ gateway_bad_key（3 次错误密钥 → 401×3 + 事件增量 4）
 - ✅ orderTimer 触发器已闭环（2026-10-07）：根因＝`isTimer` 判定只认 `context.TRIGGER_NAME`，与腾讯云 SCF 定时触发器事件格式（信息在 `event`）不兼容 → 每轮被 `ot_forbidden` 拦截；已修复（兼容 SCF 事件且要求本次无 OPENID 防伪造），实测心跳 10:40:06 恢复、gate 第 7 步 OK，check-heartbeat 的 WARN 已升级 FAIL
 - P1（用户侧余项）：auditPrune 首次真删前在后台把 `audit_prune_dry_run` 置 false 并核对统计量；order-timer runtime 现为 Nodejs16.13（rules 要求 Node 18，控制台可升）
-- P1（用户侧，催办不阻塞）：B4 账号恢复矩阵填凭证；B5 真人接管演练；B6 公众平台运营者+GitHub collaborator；B7 Lark 备份授权
+- P1（用户侧，催办不阻塞，**详细可勾选清单见 docs\runbooks\user-side-todo.md**）：B4 账号恢复矩阵填凭证；B5 真人接管演练；B6 公众平台运营者+GitHub collaborator；B7 备份异地化（当前产物全在单机 C:\zhaoren-bak）
 
 【经验沉淀机制（强制执行）】
 - 里程碑收尾、测试通过或用户说「总结/沉淀」时：主动把本轮经验/教训追加到 project_memory.md 并向用户展示写入原文；重要变更同步刷新 docs\onboarding-prompt-YYYYMMDD.md 的基线表。

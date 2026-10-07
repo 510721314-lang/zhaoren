@@ -21,7 +21,8 @@
 | [ops-runbook.md](ops-runbook.md) | init-db / purge / env 切换 / 白名单 / 巡检演练 |
 | [audit-checklist.md](audit-checklist.md) | 提审前门禁全序列与已知风险点 |
 | [config-sync.md](config-sync.md) | 全仓配置同步清单（SCENE 等） |
-| [troubleshooting.md](troubleshooting.md) | 坑位速查（代理/herdoc/网关限制等） |
+| [troubleshooting.md](troubleshooting.md) | 坑位速查（代理/GitHub 单 IP 阻断绕过/网关限制等） |
+| [user-side-todo.md](user-side-todo.md) | **用户侧待办 B4-B7**（凭证矩阵填写 / 真人接管演练 / 第二运营者 / 异地备份），当前项目最大剩余风险 |
 
 ## 账号恢复矩阵（B4，凭证只存仓库外 C:\zhaoren-bak，勿入 git）
 
@@ -36,6 +37,8 @@
 | 计费与续费责任 | ⚠ 待填（用户侧） | — |
 
 > ⚠ **换机取证铁律**：admin_web_key 只存于 `C:\zhaoren-bak\admin-key-*.txt` 与本机 User 环境变量（AWK_KEY），**不随 git 走**。换机/重装前必须手工带走 key 文件（U 盘/密码管理器/加密盘）。若机器已坏且 key 丢失 → 走 key-rotation.md「换机取证与失钥恢复」重新生成。
+>
+> 📋 完整用户侧待办（B4 填凭证 / B5 真人演练 / B6 第二运营者 / B7 异地备份）见 [user-side-todo.md](user-side-todo.md)。
 
 ## 知识冻结 3 问（每次会话收尾执行）
 
