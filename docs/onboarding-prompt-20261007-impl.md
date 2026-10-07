@@ -2,6 +2,7 @@
 
 > 用法：新建 TRAE 任务，首条消息直接粘贴下方「提示词正文（从这里复制）」整段。
 > 本次任务依据：`docs/design-20261007-pricing-noshow-modify.md`（设计稿，含现状行号与已确认口径）
+> ⚠ **本文件内容已整合进 `docs/onboarding-prompt-20261007-full.md`（整合版，推荐投喂那一份）**；本文件保留备查。
 > 通用衔接模板（完整基线/硬约束/校验表）：`docs/onboarding-prompt-20261007.md`
 
 ---
