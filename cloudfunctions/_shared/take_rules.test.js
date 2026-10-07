@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const {
   CN_OFFSET_MS, DAY_MS, TAKE_MAX_DISTANCE_KM,
   cnDayStart, cnWeekday, isServiceTimeAllowed,
-  readRateRange, parseSlot, rangeInSlot, slotCovers,
+  readRateRange, suspendLeftDays, parseSlot, rangeInSlot, slotCovers,
   haversineKm
 } = require('./take_rules');
 
@@ -92,6 +92,31 @@ test('价格: 单侧 null 不钳制另一侧', () => {
 });
 test('价格: 平台边界缺省 3000/10000', () => {
   assert.deepStrictEqual(readRateRange({ accept_rate_min_fen: 1000, accept_rate_max_fen: 99999 }, {}), [3000, 10000]);
+});
+
+// ── suspendLeftDays(断链②: 停用剩余天数; 仅拦新行为入口, 到期/缺值按 normal 放行) ──
+const NOW = Date.UTC(2026, 9, 6, 12, 0);   // 固定 now, 保证取整判定精确
+test('停用: 非 suspended / 空文档 一律 0', () => {
+  assert.strictEqual(suspendLeftDays(null), 0);
+  assert.strictEqual(suspendLeftDays({}), 0);
+  assert.strictEqual(suspendLeftDays({ status: 'normal' }), 0);
+  assert.strictEqual(suspendLeftDays({ status: 'frozen', suspend_until: NOW + DAY_MS }), 0);
+  assert.strictEqual(suspendLeftDays({ status: 'banned', suspend_until: NOW + DAY_MS }), 0);
+});
+test('停用: 停用中向上取整, 最小 1 天', () => {
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: NOW + 7 * DAY_MS }, NOW), 7);
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: NOW + 6.5 * DAY_MS }, NOW), 7);
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: NOW + 1000 }, NOW), 1);
+});
+test('停用: 已到期 / 恰到期 / 缺 suspend_until / 非法值 → 0(按 normal 放行)', () => {
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: NOW - 1 }, NOW), 0);
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: NOW }, NOW), 0);
+  assert.strictEqual(suspendLeftDays({ status: 'suspended' }, NOW), 0);
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: 'bad' }, NOW), 0);
+});
+test('停用: now 缺省用当前时间(不传第二个参数)', () => {
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: Date.now() + 2 * DAY_MS }), 2);
+  assert.strictEqual(suspendLeftDays({ status: 'suspended', suspend_until: Date.now() - 1 }), 0);
 });
 
 // ── parseSlot(时段解析: 结构化 + 旧字符串格式) ──

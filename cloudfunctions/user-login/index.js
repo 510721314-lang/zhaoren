@@ -174,6 +174,31 @@ function safeUserDoc(u) {
   };
 }
 
+// 断链②修复(第三批爽约): 停用到期惰性恢复(在登录读取用户处调用)。
+// 停用中不拦截登录(保证在途履约/申诉举证可进行); 仅在 status='suspended' 且已到期
+//(或 suspend_until 缺失, 视为历史异常数据按已到期处理)时写回 normal 并通知。
+async function maybeRestoreSuspend(u) {
+  if (!u || u.status !== 'suspended') return u;
+  const until = Number(u.suspend_until) || 0;
+  if (until > Date.now()) return u;
+  const now = Date.now();
+  try {
+    // 条件更新: 并发登录时只有一方真正写回, 通知不重复发
+    const r = await col('user_account').where({ _id: u._id, status: 'suspended' }).update({ data: {
+      status: 'normal', suspend_restored_at: now, updated_at: now
+    }});
+    if (r && r.stats && r.stats.updated > 0) {
+      await col('system_notice').add({ data: {
+        to_openid: u.openid, type: 'account_restored',
+        title: '账号已恢复', body: '账号停用期已结束,已恢复',
+        read: false, created_at: now, updated_at: now, is_deleted: false
+      }});
+    }
+  } catch (e) { log.d(`restore suspend fail: ${e && e.message}`); }
+  u.status = 'normal';   // 写回失败也按已到期放行(fail-open: 处罚已到期, 不阻塞登录)
+  return u;
+}
+
 // ── 地图即时定位共享辅助 ──
 function pickGps(u) {
   const g = u && u.map_gps;
@@ -282,6 +307,7 @@ exports.main = async (event, context) => {
         const r = await col('user_account').where({ openid }).limit(1).get();
         if (r.data && r.data.length > 0) {
           const u = r.data[0];
+          await maybeRestoreSuspend(u);   // 断链②: 停用到期惰性恢复(停用中不拦登录)
           if (u.status === 'frozen') {
             return { ok: false, code: 'login_account_frozen', msg: '账号已冻结,请联系管理员' };
           }
@@ -734,6 +760,7 @@ exports.main = async (event, context) => {
           return { ok: true, data: { found: false } };
         }
         const u = r.data[0];
+        await maybeRestoreSuspend(u);   // 断链②: 停用到期惰性恢复(停用中不拦登录)
         if (u.status === 'frozen') return { ok: true, data: { found: true, frozen: true, msg: '账号已冻结' } };
         if (u.status === 'banned') return { ok: true, data: { found: true, banned: true, msg: '账号已封禁' } };
         if (u.status === 'closed') return { ok: true, data: { found: true, closed: true, msg: '账号已注销' } };
@@ -905,6 +932,7 @@ exports.main = async (event, context) => {
         const pendingShellId = (localDoc && localDoc.register_source === 'phone_pending') ? localDoc._id : null;
         const u = (localDoc && localDoc.register_source !== 'phone_pending') ? localDoc : null;
         if (u) {
+          await maybeRestoreSuspend(u);   // 断链②: 停用到期惰性恢复(停用中不拦登录)
           if (u.status === 'frozen') return { ok: false, code: 'login_account_frozen', msg: '账号已冻结,请联系管理员' };
           if (u.status === 'banned') return { ok: false, code: 'login_account_banned', msg: '账号已封禁,请联系客服' };
           if (u.status === 'closed') return { ok: false, code: 'login_account_closed', msg: '该账号已注销' };
@@ -923,6 +951,7 @@ exports.main = async (event, context) => {
         const phoneR = await col('user_account').where({ phone }).get();
         const real = (phoneR.data || []).find(x => x.register_source !== 'phone_pending');
         if (real) {
+          await maybeRestoreSuspend(real);   // 断链②: 停用到期惰性恢复(停用中不拦登录)
           if (real.status === 'frozen') return { ok: false, code: 'login_account_frozen', msg: '账号已冻结' };
           if (real.status === 'banned') return { ok: false, code: 'login_account_banned', msg: '账号已封禁' };
           if (real.status === 'closed') return { ok: false, code: 'login_account_closed', msg: '该账号已注销' };
@@ -1100,6 +1129,7 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'password_wrong', msg: '账号或密码错误' };
         }
         const u = r.data[0];
+        await maybeRestoreSuspend(u);   // 断链②: 停用到期惰性恢复(停用中不拦登录)
         if (u.status === 'frozen') return { ok: false, code: 'login_account_frozen', msg: '账号已冻结' };
         if (u.status === 'banned') return { ok: false, code: 'login_account_banned', msg: '账号已封禁' };
         if (u.status === 'closed') return { ok: false, code: 'login_account_closed', msg: '账号已注销' };

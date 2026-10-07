@@ -7,7 +7,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SYNC_MAP = {
-  'take_rules.js': ['order-create', 'demand-publish', 'order-action', 'home-action'],
+  'take_rules.js': ['order-create', 'demand-publish', 'order-action', 'home-action', 'partner-apply', 'partner-action'],
   'money_rules.js': ['payment-mock', 'order-create', 'order-action'],
   'test_data.js': ['demand-publish', 'order-create', 'admin-action', 'init-db'],
   'partner_audit.js': ['partner-action', 'admin-action']

@@ -5,6 +5,8 @@
 //   cloudfunctions/demand-publish/take_rules.js
 //   cloudfunctions/order-action/take_rules.js
 //   cloudfunctions/home-action/take_rules.js
+//   cloudfunctions/partner-apply/take_rules.js
+//   cloudfunctions/partner-action/take_rules.js
 // (各函数用本地 ./take_rules.js, 与本项目 ./logger 惯例一致)
 // 抽取来源(2026-10-06 D2-3 防漂移):
 //   order-create: CN_OFFSET_MS/isServiceTimeAllowed/cnDayStart/cnWeekday/DAY_MS/
@@ -72,6 +74,18 @@ function readTotalRange(profile) {
   return [mn, mx];
 }
 
+// ── 账号停用(suspended)剩余天数 · 断链②修复(2026-10-07 第三批爽约) ──
+// 停用仅拦截「新行为入口」(发单/接单/接单申请/发布更新); 登录与在途订单操作不拦截。
+// 返回 >0 = 停用中剩余天数(向上取整, 最小 1 天); 返回 0 = 非停用 / 已到期 /
+// suspend_until 缺失(历史异常数据, 视为已到期按 normal 放行)。
+function suspendLeftDays(u, now) {
+  if (!u || u.status !== 'suspended') return 0;
+  const until = Number(u.suspend_until) || 0;
+  const t = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+  if (until <= t) return 0;
+  return Math.max(1, Math.ceil((until - t) / DAY_MS));
+}
+
 // ── 每周接单时段 ──
 // 时段解析: 兼容结构化 {start,end}(分钟) 与旧格式 {time:'09:00-18:00'}
 function parseSlot(s) {
@@ -132,6 +146,6 @@ const TAKE_MAX_DISTANCE_KM = 50;
 module.exports = {
   CN_OFFSET_MS, DAY_MS, DAY_KEY,
   cnDayStart, cnWeekday, isServiceTimeAllowed,
-  readRateRange, readTotalRange, parseSlot, rangeInSlot, slotCovers,
+  readRateRange, readTotalRange, suspendLeftDays, parseSlot, rangeInSlot, slotCovers,
   haversineKm, TAKE_MAX_DISTANCE_KM
 };

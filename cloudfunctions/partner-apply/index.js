@@ -7,6 +7,8 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步各函数)
+const { suspendLeftDays } = require('./take_rules');
 
 // 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
@@ -130,6 +132,11 @@ exports.main = async (event, context) => {
   }
   if (user.status === 'closed') {
     return { ok: false, code: 'apply_closed', msg: '账号已注销' };
+  }
+  // 断链②修复(第三批爽约): 停用中拦截「新申请」; 到期/缺 suspend_until 视为已恢复按 normal 放行
+  const suspendDays = suspendLeftDays(user);
+  if (suspendDays > 0) {
+    return { ok: false, code: 'apply_suspended', msg: `账号停用中,${suspendDays}天后自动恢复` };
   }
 
   // ── upsert partner_profile ──

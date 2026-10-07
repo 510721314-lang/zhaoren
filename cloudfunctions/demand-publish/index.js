@@ -170,7 +170,7 @@ function genDemandNo() {
 }
 
 // D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
-const { isServiceTimeAllowed, haversineKm } = require('./take_rules');
+const { isServiceTimeAllowed, suspendLeftDays, haversineKm } = require('./take_rules');
 // D4-5 防漂移抽取: 测试数据打标规范源 _shared/test_data.js(修改后跑 sync-test-data.ps1 同步)
 const { isTestOpenid } = require('./test_data');
 
@@ -359,6 +359,11 @@ exports.main = async (event, context) => {
       }
       if (user.status === 'closed') {
         return { ok: false, code: 'publish_closed', msg: '账号已注销' };
+      }
+      // 断链②修复(第三批爽约): 停用中拦截「新发单」; 到期/缺 suspend_until 视为已恢复按 normal 放行
+      const suspendDays = suspendLeftDays(user);
+      if (suspendDays > 0) {
+        return { ok: false, code: 'publish_suspended', msg: `账号停用中,${suspendDays}天后自动恢复` };
       }
 
       // ── 实名门禁(发布前必须完成实名; 测试期可在「实名认证」页模拟通过) ──
@@ -1085,6 +1090,11 @@ exports.main = async (event, context) => {
       if (user.status === 'frozen') return { ok: false, code: 'update_frozen', msg: '账号已冻结' };
       if (user.status === 'banned') return { ok: false, code: 'update_banned', msg: '账号已封禁' };
       if (user.status === 'closed') return { ok: false, code: 'update_closed', msg: '账号已注销' };
+      // 断链②修复(第三批爽约): 停用中拦截「发布更新」; 到期/缺 suspend_until 视为已恢复按 normal 放行
+      const suspendDaysU = suspendLeftDays(user);
+      if (suspendDaysU > 0) {
+        return { ok: false, code: 'update_suspended', msg: `账号停用中,${suspendDaysU}天后自动恢复` };
+      }
 
       // ── 场景白名单(动态从 admin_config.scene_list 读取) ──
       const sceneCodes2 = await getSceneCodes();

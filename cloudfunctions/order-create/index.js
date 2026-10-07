@@ -72,7 +72,7 @@ async function getConfig() {
 // D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
 const {
   isServiceTimeAllowed, readRateRange, readTotalRange, slotCovers, cnDayStart, DAY_MS,
-  haversineKm, TAKE_MAX_DISTANCE_KM
+  suspendLeftDays, haversineKm, TAKE_MAX_DISTANCE_KM
 } = require('./take_rules');
 // D4-5 防漂移抽取: 资金规则规范源 _shared/money_rules.js(修改后跑 sync-money-rules.ps1 同步)
 const { splitOrderAmount } = require('./money_rules');
@@ -313,6 +313,12 @@ exports.main = async (event, context) => {
   if (partnerUser.status === 'frozen') {
     await logReject(openid, demand_id, 'partner_frozen');
     return { ok: false, code: 'order_frozen', msg: '账号已冻结,不可接单' };
+  }
+  // 断链②修复(第三批爽约): 停用中拦截「新接单」; 到期/缺 suspend_until 视为已恢复按 normal 放行
+  const partnerSuspendDays = suspendLeftDays(partnerUser);
+  if (partnerSuspendDays > 0) {
+    await logReject(openid, demand_id, 'partner_suspended');
+    return { ok: false, code: 'order_suspended', msg: `账号停用中,${partnerSuspendDays}天后自动恢复` };
   }
 
   // ── 实名门禁(接单前必须完成实名; 测试期可在「实名认证」页模拟通过) ──
@@ -557,6 +563,12 @@ exports.main = async (event, context) => {
   if (creator.status === 'banned') {
     await logReject(openid, demand_id, 'creator_banned');
     return { ok: false, code: 'order_creator_banned', msg: '对方账号已封禁' };
+  }
+  // 断链②修复(第三批爽约): 停用中发布者的需求不再产生新订单(不追溯在途订单)
+  const creatorSuspendDays = suspendLeftDays(creator);
+  if (creatorSuspendDays > 0) {
+    await logReject(openid, demand_id, 'creator_suspended');
+    return { ok: false, code: 'order_creator_suspended', msg: '对方账号停用中,暂不可接单' };
   }
   if (creator.status === 'closed') {
     await logReject(openid, demand_id, 'creator_closed');

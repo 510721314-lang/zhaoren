@@ -1,4 +1,4 @@
-# Sync take_rules.js (canonical) -> local copies in order-create, demand-publish, order-action, home-action
+# Sync take_rules.js (canonical) -> local copies in order-create, demand-publish, order-action, home-action, partner-apply, partner-action
 # Usage: powershell -File cloudfunctions/_shared/sync-take-rules.ps1
 # Canonical source: _shared/take_rules.js ; run this script after ANY edit to it.
 $ErrorActionPreference = 'Stop'
@@ -8,7 +8,9 @@ $dsts = @(
   (Join-Path $root 'order-create\take_rules.js'),
   (Join-Path $root 'demand-publish\take_rules.js'),
   (Join-Path $root 'order-action\take_rules.js'),
-  (Join-Path $root 'home-action\take_rules.js')
+  (Join-Path $root 'home-action\take_rules.js'),
+  (Join-Path $root 'partner-apply\take_rules.js'),
+  (Join-Path $root 'partner-action\take_rules.js')
 )
 if (-not (Test-Path $src)) { throw "canonical source missing: $src" }
 foreach ($d in $dsts) {

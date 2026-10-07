@@ -9,6 +9,8 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
 const { buildAuditPatch } = require('./partner_audit');
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步各函数)
+const { suspendLeftDays } = require('./take_rules');
 
 // 耍伴审核通知推送(system_notice): 提交/通过/驳回都主动推给耍伴
 // 去重合并: 同收件人+order_id('' 无订单)+type 未读则覆盖正文与时间, 避免刷屏
@@ -340,6 +342,12 @@ exports.main = async (event, context) => {
       const uaCol = col('user_account');
       const ua = await uaCol.where({ openid }).limit(1).get();
       if (!ua.data.length) return { ok: false, code: 'pa_no_user', msg: '请先登录' };
+      // 断链②修复(第三批爽约): 停用中拦截「新申请」(前端「成为耍伴」实际走本入口);
+      // 到期/缺 suspend_until 视为已恢复按 normal 放行
+      const applySuspendDays = suspendLeftDays(ua.data[0]);
+      if (applySuspendDays > 0) {
+        return { ok: false, code: 'pa_suspended', msg: `账号停用中,${applySuspendDays}天后自动恢复` };
+      }
 
       // 加 partner role(仅审核通过后; pending_review 不授予)
       const curRoles = ua.data[0].roles || [];

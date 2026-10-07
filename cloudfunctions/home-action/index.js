@@ -461,8 +461,9 @@ exports.main = async (event, context) => {
             .limit(20)
             .get()
             .catch(() => ({ data: [] })),
+          // 断链②修复(第三批爽约): 停用中用户不进入活跃用户栏(推荐栏为白名单 in 查询, suspended 天然不在内)
           col('user_account')
-            .where({ is_deleted: _.neq(true), status: _.nin(['frozen', 'banned', 'closed']) })
+            .where({ is_deleted: _.neq(true), status: _.nin(['frozen', 'banned', 'closed', 'suspended']) })
             .orderBy('created_at', 'desc')
             .limit(20)
             .get()
