@@ -8,11 +8,11 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
-| 2026-10-07 | admin-web | d13e7ad | _待填_ | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0② 网关鉴权失败告警(bad_key/missing_key → platform_event) |
-| 2026-10-07 | order-timer | d13e7ad | _待填_ | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0②③ error_scan 巡检项④网关鉴权突增 + auditPrune 90 天留存 |
-| 2026-10-07 | admin-action | d13e7ad | _待填_ | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0④ config_history 集合 + config_set 快照 + 敏感键掩码 + 保留 100 版 |
+| 2026-10-07 | admin-web | d13e7ad | ebc2f4b | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0② 网关鉴权失败告警(bad_key/missing_key → platform_event) |
+| 2026-10-07 | order-timer | d13e7ad | ebc2f4b | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0②③ error_scan 巡检项④网关鉴权突增 + auditPrune 90 天留存 |
+| 2026-10-07 | admin-action | d13e7ad | ebc2f4b | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0④ config_history 集合 + config_set 快照 + 敏感键掩码 + 保留 100 版 |
 
-> 备注：本次三次部署共用同一部署前归档 bundle（zhaoren-deploy-20261007-20261007-081223.bundle，SHA256 已记 CHECKSUMS.txt，git-head=d13e7ad，即当前云端版本）；表内各行「后 commit」与 bundle 行待部署完成后统一回填。
+> 备注：本次三次部署共用同一部署前归档 bundle（zhaoren-deploy-20261007-20261007-081223.bundle，SHA256 已记 CHECKSUMS.txt，git-head=d13e7ad，即部署前云端版本）；部署后 commit=ebc2f4b（全部三函数一次提交，回滚点=d13e7ad）。
 
 ## 使用说明
 
