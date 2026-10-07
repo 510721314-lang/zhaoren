@@ -360,13 +360,15 @@ exports.main = async (event, context) => {
       const homeLocation = sanitizeHomeLocation(event.home_location);
 
       // 补全场景考核分: 非 W1 场景默认 100, W1(就医陪诊) 强制默认 0 防止架空国标考核
-      // prod 环境 W1 必须由 partner-apply 入口显式提交 >= 80 分才能开通
+      // W1 开通线口径统一(2026-10-07 P6 小修): 与接单/考试同源 → exam_bank.pass_line(兜底 100)
       const defaultExam = sceneCodes.reduce((a, c) => { a[c] = c === 'W1' ? 0 : 100; return a; }, {});
+      const w1Bank = (await getExamBank()).W1 || {};
+      const w1PassLine = Number(w1Bank.pass_line) || 100;
 
-      // 若显式传了 W1 分数, 同 partner-apply 对齐强制 >= 80
+      // 若显式传了 W1 分数, 按 exam_bank.pass_line 校验(与 order-create 接单校验同口径)
       if (event.exam_scores && Number(event.exam_scores.W1)) {
-        if (Number(event.exam_scores.W1) < 80) {
-          return { ok: false, code: 'pa_w1_exam_failed', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
+        if (Number(event.exam_scores.W1) < w1PassLine) {
+          return { ok: false, code: 'pa_w1_exam_failed', msg: `就医陪诊场景需通过国标专项考核(>=${w1PassLine}分)` };
         }
         defaultExam.W1 = Number(event.exam_scores.W1);
       }
