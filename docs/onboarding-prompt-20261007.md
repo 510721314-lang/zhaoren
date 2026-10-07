@@ -23,11 +23,11 @@
 |---|---|---|
 | 工作目录 | c:\zhaoren 存在 | Test-Path |
 | git remote | github.com/510721314-lang/zhaoren.git | git remote -v |
-| HEAD/工作区 | d13e7ad，工作区干净，origin 领先 0/落后 0（已全推） | git log -1 + status --short + rev-list 双向 count |
+| HEAD/工作区 | 534860d（P0 四项落地后，ebc2f4b 为功能提交），工作区干净，origin 领先 0/落后 0（已全推） | git log -1 + status --short + rev-list 双向 count |
 | appid | wxbc4a4afacdf234f5 | project.config.json |
 | 云端 env | prod；mock_payment_enabled=true（实测，quick_check mock_gate 将 BLOCK，上线前必须置回 false） | 网关 config_get 只读调用 |
-| 心跳状态 | error_scan_heartbeat_at=0、error_scan_last_at=0（orderTimer 触发器待用户控制台确认；check-heartbeat 输出 WARN 属预期，不阻塞门禁） | 网关 config_get + scripts\check-heartbeat.ps1 |
-| 备份产物 | bundle zhaoren-20261006-171343.bundle（CHECKSUMS.txt 在案）；云端DB全量 zhaoren_backup_20261005-2204 | Get-ChildItem C:\zhaoren-bak |
+| 心跳状态 | error_scan_heartbeat_at=0、error_scan_last_at=0（orderTimer 触发器待用户控制台确认；check-heartbeat 输出 WARN 属预期，不阻塞门禁；**脚本解析已修复 2026-10-07**：现读 data 嵌套层，实测 source=data-nested） | 网关 config_get + scripts\check-heartbeat.ps1 |
+| 备份产物 | EOD bundle zhaoren-20261007-20261007-082829.bundle（git-head=534860d，SHA 已记 CHECKSUMS.txt）+ 热备 zhaoren_files_20261007-082837（634 文件缺失 0）+ 部署前归档 zhaoren-deploy-20261007-20261007-081223.bundle；云端DB全量 zhaoren_backup_20261005-2204 | Get-ChildItem C:\zhaoren-bak |
 | 体验版 | 以微信后台实测为准（勿凭记忆报版本号） | mp 后台/负责人确认 |
 
 【工具链·网关】
@@ -66,16 +66,10 @@
 3. 五问全对且带依据 = 通过；错 ≥2 视为未理解，重新吸收后再答。
 4. 通过后列出「最紧急待办 + 行动边界」，等待我确认；未经确认不得提交 git、切环境、部署云函数或上传体验版。
 
-【当前待办（2026-10-07，按优先级）】
-- P0：**专家优化建议 4 项落地**（上一任务已定位代码点、未动工，执行依据 p0-p2-status-20261006.md 第三节）：
-  ① 部署回滚最小方案：新建 docs\deploy-log.md 部署记录表（日期/函数/前后 commit/回滚点），deploy.md 增加「部署前 git bundle 归档上一版」步骤
-  ② error_scan 网关告警：admin-web\index.js L146-152 bad_key/missing_key 拒绝时写 platform_event(P2, type=gateway_bad_key)；order-timer errorScan 新增巡检项④网关鉴权失败突增（窗口内 ≥3 次才报，防单次误输噪声）
-  ③ audit_log 留存：order-timer 新增 auditPrune——每日一次（UTC 19 点≈北京 03:00）删除 at 早于 90 天前的 audit_log
-  ④ config_history：admin-action ensureAdminColls 增 config_history；config_set 成功后（L2163 logEvent 附近）追加变更快照（before/after/keys/reason/operator），敏感键 admin_web_key、idcard_aes_key 必须掩码 '***'，保留最近 100 版
-  - 完成链路：node --check ×3 → npm test → 串行部署 admin-web、order-timer、admin-action → gate.ps1 全量 → 更新 p0-p2-status 表状态与 ops-runbook 巡检节 → commit+push
-- P1 用户侧催办（不阻塞 P0，勿反复跑 check-heartbeat 等 OK）：
-  · 控制台确认 orderTimer 触发器（每 5 分钟）生效 → heartbeat>0 后把 check-heartbeat WARN 升级为 FAIL 并回报（注：prod 下控制台手动 run 传 mock_openid 会被忽略 → ot_forbidden；心跳验证以触发器为准，不以手动演练替代）
-  · B4 账号恢复矩阵填凭证（微信管理员/第二运营者/计费）；B5 真人接管演练；B6 公众平台运营者+GitHub collaborator；B7 Lark 云端备份授权
+【当前待办（2026-10-07 更新：P0 专家建议四项已落地，commit ebc2f4b + 文档 534860d，已推）】
+- ✅ P0 已落地：① docs\deploy-log.md 记录表 + deploy.md「部署前 bundle 归档」节；② admin-web bad_key/missing_key → platform_event(P2, type=gateway_bad_key)（fire-and-forget）+ order-timer 巡检项④（窗口≥3 才报）；③ order-timer auditPrune（每日 UTC19 点删 90 天前 audit_log，默认 dry-run，后台开关 audit_prune_dry_run）；④ admin-action config_history（config_set 快照，敏感键掩码，保留 100 版）；另修复 check-heartbeat.ps1 解析（data 嵌套层）
+- P1（用户侧）：控制台确认 orderTimer 触发器生效 → 心跳>0 后把 check-heartbeat WARN 升级 FAIL；auditPrune 首次真删前在后台把 audit_prune_dry_run 置 false 并核对统计量
+- P1（用户侧，催办不阻塞）：B4 账号恢复矩阵填凭证；B5 真人接管演练；B6 公众平台运营者+GitHub collaborator；B7 Lark 备份授权
 
 【经验沉淀机制（强制执行）】
 - 里程碑收尾、测试通过或用户说「总结/沉淀」时：主动把本轮经验/教训追加到 project_memory.md 并向用户展示写入原文；重要变更同步刷新 docs\onboarding-prompt-YYYYMMDD.md 的基线表。
