@@ -2188,6 +2188,23 @@ exports.main = async (event, context) => {
     return ok({ updated: changed });
   }
 
+  // ───────── 8.35 配置版本历史查询(config_history 分页倒序; 由 config_set 自动追加, 敏感键已掩码) ─────────
+  if (action === 'config_history_list') {
+    const pg = pager(event);
+    const q = {};
+    if (event.key) q.keys = String(event.key); // keys 是数组字段, 云数据库 where 对数组字段按「包含」匹配
+    const cnt = await col('config_history').where(q).count().catch(() => ({ total: 0 }));
+    const r = await col('config_history').where(q).orderBy('at', 'desc')
+      .skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }));
+    return ok({
+      total: cnt.total || 0, page: pg.page, size: pg.size,
+      list: (r.data || []).map((x) => ({
+        _id: x._id, keys: x.keys || [], before: x.before || {}, after: x.after || {},
+        reason: x.reason || '', operator: x.operator || '', at: x.at
+      }))
+    });
+  }
+
   // ───────── 8.4 参数变更日志(platform_event type=config_change 分页倒序) ─────────
   if (action === 'config_log_list') {
     const pg = pager(event);

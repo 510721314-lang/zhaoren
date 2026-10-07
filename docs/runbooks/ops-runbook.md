@@ -68,6 +68,18 @@
 - 巡检闭环：`config_get` 看 `error_scan_last_at > 0` 即巡检在跑；**心跳自观测**：`powershell -File scripts/check-heartbeat.ps1`（需 `$env:AWK_KEY`）——心跳为 0 或超 30 分钟未刷新输出 **FAIL 并阻塞门禁**（2026-10-07 起，此前为 WARN）；实测 2026-10-07 10:40 心跳恢复、gate 输出 `OK: last beat 1.3 min ago`（config_get 已透出 `test_openids`/`error_scan_last_at`/`error_scan_heartbeat_at`；`admin_openids` 不透出，属设计）
 - 危险操作每步改后用 `config_get` / `quick_check` 复核实际值
 
+## 定期巡检清单（2026-10-07 补）
+
+| 频率 | 项 | 命令 | 期望 |
+|---|---|---|---|
+| 每次交付前 | 全量门禁 7 步 | `powershell -File scripts/gate.ps1` | exit 0 → `ALL PASS` |
+| 每天（建议） | order-timer 心跳 | `powershell -File scripts/check-heartbeat.ps1` | `OK: last beat N min ago`（心跳 0 / 超 30min → FAIL 阻塞门禁） |
+| 每天 03:00 后 | auditPrune 产物 | `powershell -File scripts/check-audit-prune.ps1` | `PASS (dry_run=true, matched=0)`；结果同时写 `C:\zhaoren-bak\audit-prune-check.log` |
+| 改配置后 | 配置版本史 | 网关 `{"action":"config_history_list","page":1}` | 出现本次变更快照（敏感键已掩码为 `***`） |
+| 重要节点 | 三重备份 | git bundle + robocopy + `.predeploy/manual-backup.ps1` | 全部记入 `C:\zhaoren-bak\CHECKSUMS.txt`（备份脚本已含 config_history） |
+
+> 系统级自动定时（Windows 计划任务）**需管理员权限注册**：本机 PowerShell 未提升时 `schtasks /create` 与 `Register-ScheduledTask` 均报 `Access is denied`。未注册时按上表手动跑；需自动化请以管理员身份注册任务或让 AI 会话内守候（后者依赖进程存活）。
+
 ## 坑
 
 - admin-web → admin-action（proxy）→ init-db 时**上下游都用 `action` 字段路由**：直传 `{"action":"init_db"}` 会 fallback 到默认逻辑 → proxying 时用 `__init_db_action` 存真实 action、`action:"init_db"` 走路由
