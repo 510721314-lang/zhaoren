@@ -145,8 +145,15 @@ exports.main = async (event, context) => {
 
   // ── 鉴权: 仅定时触发器或管理员可调 ──
   const wxCtx = cloud.getWXContext();
-  const isTimer = !!(context && context.TRIGGER_NAME);
   const openid = await resolveOpenid(cloud, event);
+  // 定时器识别(2026-10-07 修复): 本环境实际生效的是「腾讯云 SCF 标准定时触发器」, 其触发器信息在
+  //   event({Type:'Timer',TriggerName:'orderTimer',Time,Message}) 里, context 无 TRIGGER_NAME,
+  //   旧判定 isTimer=context.TRIGGER_NAME 恒为 false → 每轮被 ot_forbidden 拦截, 心跳/巡检从未运行(探针实证)。
+  // 安全约束: SCF 分支要求「本次调用无用户 OPENID」——小程序端 callFunction 必带 OPENID,
+  //   客户端即使伪造 event 也会因带 OPENID 而落回原鉴权逻辑, 无法绕过; 且 TriggerName 须与配置名一致。
+  const SCF_TIMER_NAME = 'orderTimer';
+  const isTimer = (!!(context && context.TRIGGER_NAME))
+    || (!openid && !!(event && event.Type === 'Timer') && String(event.TriggerName || '') === SCF_TIMER_NAME);
   const cfg = await getConfig();
   const adminOpenids = cfg.admin_openids || [];
   const isAdmin = !!openid && adminOpenids.indexOf(openid) >= 0;

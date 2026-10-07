@@ -82,9 +82,11 @@
 - **危险操作确认门**：config_set 切 env=dev 须 `confirm:'SWITCH_DEV'`（切回 prod 免确认）；admin-web Config.vue 已同步弹窗输入。
 - **error_scan 巡检**（order-timer）：每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`（config_get 可见，>0 即巡检在跑）。演练：管理员 `{action:'run', drill:true}`。**心跳自观测**（2026-10-06）：每轮同时写 `error_scan_heartbeat_at`，门禁第 7 步 `scripts/check-heartbeat.ps1` 检测存活——心跳为 0 / 超 30 分钟未刷新输出 WARN + 排障指引（不阻断门禁，等触发器确认后可升级为 FAIL）
 
-### 待办（用户侧 2 分钟）
-1. 控制台 → 云函数 → order-timer → 触发器：确认 `orderTimer` 每 5 分钟且已启用（部署后 error_scan_last_at 仍为 0，疑似触发器未生效/被暂停）。
-2. 触发器确认后等一个周期，config_get 看 `error_scan_last_at > 0` 且 `error_scan_heartbeat_at > 0`（或跑 `scripts/check-heartbeat.ps1` 输出 `[heartbeat] OK`）即巡检闭环。
+### 待办（已于 2026-10-07 完成，闭环记录）
+1. ~~控制台 → order-timer → 触发器确认~~ ✅ 已核实：触发器 `orderTimer` 一直在运行（腾讯云 SCF 标准触发器，每 5 分钟）
+2. ~~等一个周期看心跳~~ ✅ 已闭环：`error_scan_last_at` / `error_scan_heartbeat_at` 均已推进，`scripts/check-heartbeat.ps1` 输出 `[heartbeat] OK`
+3. **根因（重要）**：触发器本身没问题，是 order-timer 的定时器判定 `context.TRIGGER_NAME` 与 SCF 定时触发器的事件格式不兼容（SCF 把触发器信息放在 `event` 里：`{Type:'Timer',TriggerName:'orderTimer'}`），导致每轮被 `ot_forbidden` 拦截 → 心跳恒为 0。已修复：判定兼容 SCF 事件格式（且要求本次调用无用户 OPENID，防伪造绕过）
+4. 2026-10-07 起 check-heartbeat 的 WARN 已升级为 **FAIL**（心跳为 0 或超 30 分钟未刷新即阻塞门禁）
 
 ## 六、事故记录
 

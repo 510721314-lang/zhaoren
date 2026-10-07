@@ -64,7 +64,7 @@
 
 ## 验证
 
-- 巡检闭环：`config_get` 看 `error_scan_last_at > 0` 即巡检在跑；**心跳自观测**：`powershell -File scripts/check-heartbeat.ps1`（需 `$env:AWK_KEY`）——心跳为 0 或超 30 分钟未刷新输出 WARN，即 orderTimer 触发器异常（config_get 已透出 `test_openids`/`error_scan_last_at`/`error_scan_heartbeat_at`；`admin_openids` 不透出，属设计）
+- 巡检闭环：`config_get` 看 `error_scan_last_at > 0` 即巡检在跑；**心跳自观测**：`powershell -File scripts/check-heartbeat.ps1`（需 `$env:AWK_KEY`）——心跳为 0 或超 30 分钟未刷新输出 **FAIL 并阻塞门禁**（2026-10-07 起，此前为 WARN）；实测 2026-10-07 10:40 心跳恢复、gate 输出 `OK: last beat 1.3 min ago`（config_get 已透出 `test_openids`/`error_scan_last_at`/`error_scan_heartbeat_at`；`admin_openids` 不透出，属设计）
 - 危险操作每步改后用 `config_get` / `quick_check` 复核实际值
 
 ## 坑
@@ -72,6 +72,6 @@
 - admin-web → admin-action（proxy）→ init-db 时**上下游都用 `action` 字段路由**：直传 `{"action":"init_db"}` 会 fallback 到默认逻辑 → proxying 时用 `__init_db_action` 存真实 action、`action:"init_db"` 走路由
 - proxy 层必须**完整传 `mock_openid` 等下游关键字段**，不能假设自动映射
 - prod 环境控制台手动 run 传 `mock_openid` 会被忽略 → `ot_forbidden`，drill 演练需临时切 dev（现有 SWITCH_DEV 确认门）
-- 部署后 `error_scan_last_at` 仍为 0（约 5 个周期未触发）→ 需在控制台核实 `orderTimer` 触发器是否被暂停/失效（config.json triggers CLI 部署不生效）
+- ~~部署后 `error_scan_last_at` 仍为 0（约 5 个周期未触发）~~ → **2026-10-07 已闭环**。真实根因不是触发器停摆：`orderTimer` 每 5 分钟确实在调用函数，但 order-timer 的 `isTimer` 判定只认 `context.TRIGGER_NAME`，而**腾讯云 SCF 标准定时触发器把信息放在 `event` 里**（`{Type:'Timer',TriggerName:'orderTimer',Time,Message}`）→ 每轮被 `ot_forbidden` 拦截。已改为兼容 SCF 事件格式（并要求本次调用无用户 OPENID，防伪造绕过）。**方法论教训**：判断"定时器没生效"必须分两层——先证「有没有被调用」（入口埋探针写时间戳），再证「有没有通过鉴权」；两件事的修法完全不同，只看心跳=0 会误判成"触发器被暂停"
 - mock 通道：`simulate_realname`/`submit_realname` 仅 env=dev 可用；读不到 env 按 prod 兜底（fail-closed）
 - `purge_test_data` 类批量软删会因集合收缩导致 skip 偏移漏删 → 必须重复执行直到 count=0

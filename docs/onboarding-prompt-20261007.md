@@ -26,7 +26,7 @@
 | HEAD/工作区 | 0059b0f（P0 四项 + 专家复核整改后；本模板刷新为紧随其后的一笔 docs 提交，实测可能再前进 1 笔，以实测为准），工作区干净，origin 领先 0/落后 0（已全推） | git log -1 + status --short + rev-list 双向 count |
 | appid | wxbc4a4afacdf234f5 | project.config.json |
 | 云端 env | prod；mock_payment_enabled=true（实测，quick_check mock_gate 将 BLOCK，上线前必须置回 false） | 网关 config_get 只读调用 |
-| 心跳状态 | error_scan_heartbeat_at=0、error_scan_last_at=0（orderTimer 触发器待用户控制台确认；check-heartbeat 输出 WARN 属预期，不阻塞门禁；**脚本解析已修复 2026-10-07**：现读 data 嵌套层，实测 source=data-nested） | 网关 config_get + scripts\check-heartbeat.ps1 |
+| 心跳状态 | **已闭环**：`error_scan_heartbeat_at > 0`（2026-10-07 10:40 恢复），check-heartbeat 输出 OK 且 WARN 已升级 FAIL；根因＝order-timer 的 `isTimer` 判定只认 `context.TRIGGER_NAME`，与腾讯云 SCF 定时触发器事件格式（在 `event` 里）不兼容 → 每轮被 ot_forbidden 拦截，已修复 | 网关 config_get + scripts\check-heartbeat.ps1 |
 | 备份产物 | EOD bundle zhaoren-20261007-20261007-082829.bundle（git-head=534860d，SHA 已记 CHECKSUMS.txt）+ 热备 zhaoren_files_20261007-082837（634 文件缺失 0）+ 部署前归档 zhaoren-deploy-20261007-20261007-081223.bundle；云端DB全量 zhaoren_backup_20261005-2204 | Get-ChildItem C:\zhaoren-bak |
 | 体验版 | 以微信后台实测为准（勿凭记忆报版本号） | mp 后台/负责人确认 |
 
@@ -69,7 +69,8 @@
 【当前待办（2026-10-07 更新：P0 四项 + 专家复核整改均已落地，commit ebc2f4b/534860d/0051ba0/0059b0f）】
 - ✅ P0 已落地：① docs\deploy-log.md 记录表 + deploy.md「部署前 bundle 归档」节；② admin-web bad_key/missing_key → platform_event(P2, type=gateway_bad_key)（**await 写**，防响应后运行时回收截断）+ order-timer 巡检项④（窗口≥3 才报）；③ order-timer auditPrune（每日 UTC19 点删 90 天前 audit_log，默认 dry-run，后台开关 audit_prune_dry_run）；④ admin-action config_history（config_set 快照，敏感键掩码，保留 100 版，已入 EXPORT_COLLECTIONS 可导出）
 - ✅ 另修复：check-heartbeat.ps1 解析（data 嵌套层，实测 source=data-nested）；端到端实证 config_history（同值 config_set 零副作用触发 → export 读出 total=1 结构完整）+ gateway_bad_key（3 次错误密钥 → 401×3 + 事件增量 4）
-- P1（用户侧）：控制台确认 orderTimer 触发器生效 → 心跳>0 后把 check-heartbeat WARN 升级 FAIL；auditPrune 首次真删前在后台把 audit_prune_dry_run 置 false 并核对统计量；order-timer runtime 现为 Nodejs16.13（rules 要求 Node 18，控制台可升）
+- ✅ orderTimer 触发器已闭环（2026-10-07）：根因＝`isTimer` 判定只认 `context.TRIGGER_NAME`，与腾讯云 SCF 定时触发器事件格式（信息在 `event`）不兼容 → 每轮被 `ot_forbidden` 拦截；已修复（兼容 SCF 事件且要求本次无 OPENID 防伪造），实测心跳 10:40:06 恢复、gate 第 7 步 OK，check-heartbeat 的 WARN 已升级 FAIL
+- P1（用户侧余项）：auditPrune 首次真删前在后台把 `audit_prune_dry_run` 置 false 并核对统计量；order-timer runtime 现为 Nodejs16.13（rules 要求 Node 18，控制台可升）
 - P1（用户侧，催办不阻塞）：B4 账号恢复矩阵填凭证；B5 真人接管演练；B6 公众平台运营者+GitHub collaborator；B7 Lark 备份授权
 
 【经验沉淀机制（强制执行）】
