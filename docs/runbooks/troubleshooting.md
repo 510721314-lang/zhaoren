@@ -20,6 +20,29 @@
 - 恢复后清掉全局代理再推：`git config --global --unset http.proxy` / `git config --global --unset https.proxy`
 - 检测：`curl` 测 github.com 数据面（恢复=200，受限=000 超时）；`api.github.com` 可作基准
 
+### 1b. git push 被 GitHub 数据面「单 IP 阻断」拦住（http.curloptResolve 绕过）
+
+- 症状（2026-10-07 实测）：清掉死代理后仍推不动，报 `Recv failure: Connection was reset` / `Failed to connect to github.com:443`
+- 诊断三步：
+  ```powershell
+  # ① 网络整体是否正常（对照站点应 200）
+  curl.exe -s -o NUL -w "baidu:%{http_code}`n" --max-time 15 https://www.baidu.com/
+  # ② api.github.com 通常可达（基准）
+  curl.exe -s -o NUL -w "api:%{http_code}`n" --max-time 15 https://api.github.com/
+  # ③ 关键：逐 IP 探测 github.com:443，找出可达 IP（DNS 解析到的那个 IP 常被阻断）
+  foreach ($ip in @('20.205.243.166','140.82.112.3','140.82.113.3','20.27.177.113','20.200.245.247')) {
+    curl.exe -s -o NUL -w "$ip : %{http_code}`n" --max-time 8 --resolve "github.com:443:$ip" https://github.com/
+  }
+  ```
+- 实测结论：`20.205.243.166`（当时 DNS 解析结果）与 `140.82.112/113/114.3` 均超时(000)；**`20.27.177.113` / `20.200.245.247` 可达(200)**
+- **绕过（无需改 hosts、无需管理员权限）**：让 git 用可达 IP 连接
+  ```powershell
+  git -C c:\zhaoren -c http.proxy= -c https.proxy= -c http.curloptResolve="github.com:443:20.27.177.113" push origin master
+  ```
+  Git 支持 `http.curloptResolve`（等价 curl 的 `--resolve`）；实测一次推成功 `e7321f1..e5b310a`，`origin/master` 与本地一致
+- 备用通道：`Test-NetConnection github.com -Port 22` 实测 True（SSH 可达），若已配 SSH key 可改走 `git@github.com:...`
+- 注意：DNS 解析结果会变，每次遇到阻断请重新按 ③ 逐 IP 探测，取**当前**可达 IP
+
 ### 2. PowerShell 无 heredoc / commit 报错
 
 - bash `<<'EOF'` 在 PowerShell 报错 → git commit 用**单行 `-m`**：
