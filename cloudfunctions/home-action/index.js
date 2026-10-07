@@ -149,14 +149,12 @@ async function loadSceneList() {
 
 // 首页场景分组计算(9 场景 demand 并行查询 + 批量补姓氏), 结果按访客维度缓存 60s
 async function buildSceneGroups(scenes, vRange) {
-  const rateCond = vRange
-    ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
-    : null;
+  const priceWhere = priceRangeWhere(vRange);
   const now = Date.now();
   const pad = (n) => n < 10 ? '0' + n : '' + n;
   const sceneRs = await Promise.all(scenes.map((sceneDef) =>
     col('demand')
-      .where(hallWhere(Object.assign({ scene: sceneDef.code }, rateCond || {})))
+      .where(priceWhere ? _.and([ hallWhere({ scene: sceneDef.code }), priceWhere ]) : hallWhere({ scene: sceneDef.code }))
       .orderBy('created_at', 'desc')
       .limit(HOME_GROUP_SIZE + 1)
       .get()
@@ -209,7 +207,10 @@ function mapDemand(d, now, pad) {
     district: (d.location && d.location.city) || '',
     distance_km: null,
     headcount: 1,
-    budget: Math.round((d.rate_fen || 0) / 100),
+    pricing_type: d.pricing_type || 'hourly',
+    budget: (d.pricing_type === 'fixed')
+      ? Math.round((d.total_fen || 0) / 100)
+      : Math.round((d.rate_fen || 0) / 100),
     aa_estimate: d.aa_tier || '0-50',
     status: d.status,
     match_mode: d.match_mode || 'broadcast',
@@ -248,6 +249,16 @@ function hallWhere(extra) {
     expire_at: _.gt(Date.now()),
     broadcast: true
   }, extra || {});
+}
+
+// 价格区间过滤下推: 时薪命中区间 OR 一口价单(fixed 的 rate_fen=null 会被时薪区间漏掉);
+// 公益单归入 fixed 同样放行(豁免价格区间筛选); 未传 vRange → null(不过滤)
+function priceRangeWhere(vRange) {
+  if (!vRange) return null;
+  return _.or([
+    { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) },
+    { pricing_type: 'fixed' }
+  ]);
 }
 
 // 广场(抢单入口)访问者过滤数据: 接单价格区间 + 最大接单距离 + 日常位置(非耍伴/游客=不限)
@@ -397,6 +408,7 @@ exports.main = async (event, context) => {
               scene_name: SCENE_NAMES_LEGACY[d.scene] || d.scene || '',
               content_options: d.content_options || (d.content_option ? [d.content_option] : []),
               location_name: (d.location && d.location.name) || '',
+              pricing_type: d.pricing_type || 'hourly',
               rate_fen: d.rate_fen || 0,
               start_time: d.start_time,
               created_at: d.created_at
@@ -423,14 +435,13 @@ exports.main = async (event, context) => {
         const openid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
         const vp = await loadVisitorPartner(openid);
         const vRange = vp && vp.range;
-        const rateCond = vRange
-          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
-          : null;
+        const priceWhere = priceRangeWhere(vRange);
 
         // 自己的需求恒可见: 发布者(无论当前前端身份)总能看见自己刚发布的需求,
         // 不受自身耍伴接单配置(价格区间/接单距离)过滤; 他人视角仍按接单配置过滤
         const ownWhere = openid ? Object.assign(hallWhere(), { creator_openid: openid }) : null;
-        const squareWhere = ownWhere ? _.or([hallWhere(rateCond), ownWhere]) : hallWhere(rateCond);
+        const hallWithPrice = priceWhere ? _.and([ hallWhere(), priceWhere ]) : hallWhere();
+        const squareWhere = ownWhere ? _.or([hallWithPrice, ownWhere]) : hallWithPrice;
 
         // 轻量并行: demand + partner + active_user, 不查 scene_groups(5个额外查询导致冷启动超时,
         // 场景分组改由 scene_groups action 单独懒加载)
@@ -588,13 +599,11 @@ exports.main = async (event, context) => {
         const vOpenid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
         const vp = await loadVisitorPartner(vOpenid);
         const vRange = vp && vp.range;
-        const rateCond = vRange
-          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
-          : null;
+        const priceWhere = priceRangeWhere(vRange);
 
         // 取 51 条判定是否还有下一页
         const demandR = await col('demand')
-          .where(hallWhere(Object.assign({ scene: sceneCode }, rateCond || {})))
+          .where(priceWhere ? _.and([ hallWhere({ scene: sceneCode }), priceWhere ]) : hallWhere({ scene: sceneCode }))
           .orderBy('created_at', 'desc')
           .skip(skip)
           .limit(SCENE_PAGE_SIZE + 1)
@@ -639,9 +648,7 @@ exports.main = async (event, context) => {
 
         // 接单价格区间过滤(与广场同口径; 非耍伴/未设置 → 不过滤)
         const vRange = vp.range;
-        const rateCond = vRange
-          ? { rate_fen: _.gte(vRange[0] === null ? 0 : vRange[0]).and(_.lte(vRange[1] === null ? 99999999 : vRange[1])) }
-          : null;
+        const priceWhere = priceRangeWhere(vRange);
 
         // 场景白名单(与首页宫格同源 admin_config.scene_list)
         const { scenes } = await loadSceneList();
@@ -651,13 +658,14 @@ exports.main = async (event, context) => {
         // 平台最大接单距离阈值(take_distance_max_km)
         const effMaxKm = await loadTakeDistanceCap();
 
-        const where = Object.assign({
+        const baseWhere = {
           is_deleted: false,
           status: 'matching',
           match_mode: _.neq('direct'),        // 定向需求不进池
           creator_openid: _.neq(openid),      // 不展示自己的需求
           scene: _.in(whitelist)
-        }, rateCond || {});
+        };
+        const where = priceWhere ? _.and([ baseWhere, priceWhere ]) : baseWhere;
 
         // 按 created_at 降序分页(多取1条判定是否还有下一页)
         const demandR = await col('demand')

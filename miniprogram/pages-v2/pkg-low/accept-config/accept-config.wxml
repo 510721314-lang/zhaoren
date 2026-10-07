@@ -118,6 +118,22 @@
       </view>
     </view>
 
+    <!-- 3b. 一口价(客单价)接单区间: 仅用于一口价订单的抢单校验; 留空=不限 -->
+    <view class="ac__card">
+      <view class="ac__card-title">一口价接单区间</view>
+      <view class="ac__card-sub">按单总价（元）过滤一口价订单；留空表示不限制</view>
+      <view class="ac__row">
+        <text class="ac__field-label">最低</text>
+        <input class="ac__input" type="digit" value="{{form.totalMinPrice}}" bindinput="onTotalMinInput" placeholder="不限" />
+        <text class="ac__unit">元</text>
+      </view>
+      <view class="ac__row">
+        <text class="ac__field-label">最高</text>
+        <input class="ac__input" type="digit" value="{{form.totalMaxPrice}}" bindinput="onTotalMaxInput" placeholder="不限" />
+        <text class="ac__unit">元</text>
+      </view>
+    </view>
+
     <!-- 4. 最大距离 -->
     <view class="ac__card">
       <view class="ac__card-title">最大接单距离</view>

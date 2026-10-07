@@ -73,6 +73,7 @@ Page({
         sceneContentText: (d.content_options || []).join('/'),
         serviceFee: (totalFen / 100).toFixed(2),
         unitPriceYuan: (totalFen / hours / 100).toFixed(2),
+        isFixedPricing: d.pricing_type === 'fixed',
         totalFee: (totalFen / 100).toFixed(2),
         totalFen: totalFen,
         needAaPromise: !!d.need_aa_promise,

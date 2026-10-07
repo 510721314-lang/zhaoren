@@ -81,6 +81,8 @@ Page({
     // 表单
     form: {
       project_attr: 'commercial',  // B2
+      pricing_type: 'hourly',       // B2+ 计价: hourly 时薪 / fixed 一口价(公益恒 fixed)
+      fixed_price: '',              // B2+ 一口价(元; pricing_type=fixed 且商业时必填)
       scene_code: '',               // B3
       content_options: [],          // B3.1 服务内容(子服务项)勾选, 至少 1 项最多 3 项
       title: '',                    // B4
@@ -461,10 +463,22 @@ Page({
     const attr = e.currentTarget.dataset.attr;
     const form = Object.assign({}, this.data.form);
     form.project_attr = attr;
-    // 公益 → 隐藏预算
     if (attr === 'public_welfare') {
+      form.pricing_type = 'fixed';   // 公益归入一口价(价格由后台 welfare_fixed_price_fen 决定)
       form.budget = '';
+    } else if (form.pricing_type === 'fixed' && !form.fixed_price) {
+      form.pricing_type = 'hourly';  // 切回商业且未填一口价 → 回时薪, 避免空价提交
     }
+    this.setData({ form });
+  },
+
+  // ── B2+ 计价方式切换(时薪 / 一口价); 公益锁 fixed 不可切 ──
+  setPricing(e) {
+    const pt = e.currentTarget.dataset.pt;
+    if (pt !== 'hourly' && pt !== 'fixed') return;
+    const form = Object.assign({}, this.data.form);
+    if (form.project_attr === 'public_welfare') return;
+    form.pricing_type = pt;
     this.setData({ form });
   },
 
@@ -727,6 +741,11 @@ Page({
     this.setData({ 'form.budget': e.detail.value });
   },
 
+  // ── B2+ 一口价输入 ──
+  onFixedPriceInput(e) {
+    this.setData({ 'form.fixed_price': e.detail.value });
+  },
+
   // ── B7 AA费用 ──
   setAA(e) {
     const val = e.currentTarget.dataset.val;
@@ -944,8 +963,13 @@ Page({
     if (!f.duration_hours && !f.duration_custom) errs.push('请选择时长');
     if (!f.location_name) errs.push('请输入地点');
     if (f.project_attr === 'commercial') {
-      const bv = redline.validateBudget(Number(f.budget), f.project_attr);
-      if (!bv.ok) errs.push(bv.msg);
+      if (f.pricing_type === 'fixed') {
+        const fp = Number(f.fixed_price);
+        if (!Number.isInteger(fp) || fp <= 0) errs.push('请输入有效的一口价（正整数元）');
+      } else {
+        const bv = redline.validateBudget(Number(f.budget), f.project_attr);
+        if (!bv.ok) errs.push(bv.msg);
+      }
     }
     if (!f.aa_estimate) errs.push('请选择AA费用预估');
     // W9 宠物照料授权(电子确认凭证; PRD R9 无凭证不得履约, 服务端同口径兜底)
@@ -958,7 +982,7 @@ Page({
     // 18-22岁青年保护（文案由 redline 统一基于 CONFIG.YOUTH 返回）
     if (f.project_attr === 'commercial') {
       const dur = f.duration_hours || Number(f.duration_custom) || 0;
-      const amount = Number(f.budget) * dur;
+      const amount = f.pricing_type === 'fixed' ? Number(f.fixed_price) : Number(f.budget) * dur;
       const youth = redline.validateYouthAmount(amount, this.data.user.age);
       if (!youth.ok) {
         errs.push(`${youth.msg}，请缩短时长或降低费率`);
@@ -1048,9 +1072,17 @@ Page({
       Number(timeParts[0]), Number(timeParts[1]) || 0, 0
     ).getTime();
 
-    // 时薪 → 分（云函数 rate_fen 要求分单位）
-    const welfareRateFen = Number(CONFIG.WELFARE.hourlyRateFen) || 3000;
-    const rateFen = f.project_attr === 'public_welfare' ? welfareRateFen : Math.round(Number(f.budget) * 100);
+    // 计价分支(与云端 demand-publish 同口径): 公益→fixed+后台价; 商业 fixed→fixed_price_fen; hourly→rate_fen
+    const isWelfarePub = f.project_attr === 'public_welfare';
+    const pricingType = isWelfarePub ? 'fixed' : (f.pricing_type === 'fixed' ? 'fixed' : 'hourly');
+    let rateFen = null;
+    let fixedPriceFen = null;
+    if (!isWelfarePub && pricingType === 'fixed') {
+      fixedPriceFen = Math.round(Number(f.fixed_price) * 100);
+    } else if (!isWelfarePub) {
+      rateFen = Math.round(Number(f.budget) * 100);
+    }
+    // 公益单价格由后台 welfare_fixed_price_fen 决定, 前端不传价(传 project_attr 让云端落库)
 
     // 履约地点坐标（如果用户选了点就有，否则兜底 0,0）
     const location = {
@@ -1072,7 +1104,10 @@ Page({
       // 发布地址: 新建时传真实GPS, 编辑模式传原发布地址(只读留痕不可改)
       publish_location: this.__editMode ? null : pubLoc,
       remark: `${f.title}｜${f.description}`,
+      pricing_type: pricingType,
+      project_attr: f.project_attr,
       rate_fen: rateFen,
+      fixed_price_fen: fixedPriceFen,
       aa_tier: f.aa_estimate,
       aa_promise_checked: true,
       disclaimer_signed: this.data.disclaimerChecked,

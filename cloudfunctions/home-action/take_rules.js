@@ -61,6 +61,17 @@ function readRateRange(profile, config) {
   return [mn, mx];
 }
 
+// ── 接单客单价区间(一口价 fixed 单) ──
+// 与 readRateRange 区别: 无平台默认边界钳制(一口价区间由耍伴自配, 未配置=不限, 宁松勿错)
+// 0 是合法下限(不用 || 兜底); 读 profile.accept_total_min_fen / accept_total_max_fen
+function readTotalRange(profile) {
+  const raw = (v) => (v === undefined || v === null ? null : Number(v));
+  const mn = raw(profile.accept_total_min_fen);
+  const mx = raw(profile.accept_total_max_fen);
+  if (mn !== null && mx !== null && mn > mx) return [mx, mn];   // 异常数据兜底
+  return [mn, mx];
+}
+
 // ── 每周接单时段 ──
 // 时段解析: 兼容结构化 {start,end}(分钟) 与旧格式 {time:'09:00-18:00'}
 function parseSlot(s) {
@@ -121,6 +132,6 @@ const TAKE_MAX_DISTANCE_KM = 50;
 module.exports = {
   CN_OFFSET_MS, DAY_MS, DAY_KEY,
   cnDayStart, cnWeekday, isServiceTimeAllowed,
-  readRateRange, parseSlot, rangeInSlot, slotCovers,
+  readRateRange, readTotalRange, parseSlot, rangeInSlot, slotCovers,
   haversineKm, TAKE_MAX_DISTANCE_KM
 };

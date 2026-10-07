@@ -754,6 +754,7 @@ Page({
       extendPanelVisible: true,
       extendHours: 1,
       extendRefPriceFen: hourRateFen,
+      extendIsFixed: order.pricing_type === 'fixed',
       extendReason: ''
     });
   },

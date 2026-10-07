@@ -29,7 +29,8 @@
         <text class="pay__fee-label">服务费</text>
         <text class="pay__fee-val">¥{{serviceFee}}</text>
       </view>
-      <view class="pay__fee-sub">单价 ¥{{unitPriceYuan}}/小时 × {{order.duration_hours}}小时</view>
+      <view class="pay__fee-sub" wx:if="{{isFixedPricing}}">一口价 ¥{{totalFee}}（服务 {{order.duration_hours}} 小时）</view>
+      <view class="pay__fee-sub" wx:else>单价 ¥{{unitPriceYuan}}/小时 × {{order.duration_hours}}小时</view>
       <view class="pay__fee-row">
         <text class="pay__fee-label">保险费</text>
         <text class="pay__fee-val pay__fee-val--free">¥{{insuranceFee}}</text>

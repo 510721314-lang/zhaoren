@@ -22,6 +22,13 @@
     <view class="pub__welfare-tip" wx:if="{{form.project_attr === 'public_welfare'}}">
       {{welfareText}}
     </view>
+    <view class="pub__pricing" wx:if="{{form.project_attr === 'commercial'}}">
+      <view class="pub__pricing-label">计价方式</view>
+      <view class="pub__segment">
+        <view class="pub__seg {{form.pricing_type === 'hourly' ? 'is-on' : ''}}" data-pt="hourly" bindtap="setPricing">⏱ 按小时</view>
+        <view class="pub__seg {{form.pricing_type === 'fixed' ? 'is-on' : ''}}" data-pt="fixed" bindtap="setPricing">🎯 一口价</view>
+      </view>
+    </view>
   </view>
 
   <!-- B3 场景选择 -->
@@ -135,10 +142,15 @@
         <view class="pub__step-btn" bindtap="incHeadcount">+</view>
       </view>
     </view>
-    <view class="pub__row" wx:if="{{form.project_attr === 'commercial'}}">
+    <view class="pub__row" wx:if="{{form.project_attr === 'commercial' && form.pricing_type === 'hourly'}}">
       <text class="pub__row-label">预算</text>
       <input class="pub__budget-input" type="digit" value="{{form.budget}}" placeholder="{{budgetPlaceholder}}" bindinput="onBudgetInput" />
       <text class="pub__row-unit">元/小时</text>
+    </view>
+    <view class="pub__row" wx:if="{{form.project_attr === 'commercial' && form.pricing_type === 'fixed'}}">
+      <text class="pub__row-label">一口价</text>
+      <input class="pub__budget-input" type="digit" value="{{form.fixed_price}}" placeholder="总价（元）" bindinput="onFixedPriceInput" />
+      <text class="pub__row-unit">元</text>
     </view>
   </view>
 

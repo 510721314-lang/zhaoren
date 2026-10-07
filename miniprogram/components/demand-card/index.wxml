@@ -23,7 +23,8 @@
     <block wx:if="{{demand.project_attr === 'commercial'}}">
       <view class="dcard__price">
         <text class="dcard__price-num">¥{{demand.budget}}</text>
-        <text class="dcard__price-unit">元/小时 · AA线下自理</text>
+        <text class="dcard__price-unit" wx:if="{{demand.pricing_type === 'fixed'}}">一口价 · AA线下自理</text>
+        <text class="dcard__price-unit" wx:else>元/小时 · AA线下自理</text>
       </view>
     </block>
     <block wx:else>

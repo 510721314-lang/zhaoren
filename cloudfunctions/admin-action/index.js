@@ -114,6 +114,9 @@ const CONFIG_SCHEMA = [
   // ── 费率 ──
   { f: 'rate_min_fen', t: 'int', g: '费率', label: '最低时薪', unit: '分', min: 0, max: 100000, def: 3000 },
   { f: 'rate_max_fen', t: 'int', g: '费率', label: '最高时薪', unit: '分', min: 0, max: 100000, def: 10000 },
+  // 一口价区间(无 def=留空不钳制; 显式判空, 禁 || 兜底; 0 是合法下限)
+  { f: 'fixed_price_min_fen', t: 'int', g: '费率', label: '一口价下限(留空不钳制)', unit: '分', min: 0, max: 10000000 },
+  { f: 'fixed_price_max_fen', t: 'int', g: '费率', label: '一口价上限(留空不钳制)', unit: '分', min: 0, max: 10000000 },
   { f: 'scene_default_rate_fen', t: 'int', g: '费率', label: '场景默认时薪', unit: '分', min: 0, max: 100000, def: 5000 },
   // ── 保险与提现 ──
   { f: 'insurance_coverage_accident_fen', t: 'int', g: '保险与提现', label: '意外险保额', unit: '分', min: 0, max: 1000000000, def: 50000000 },
@@ -167,6 +170,8 @@ const CONFIG_SCHEMA = [
   { f: 'order_reason_max_len', t: 'int', g: '发布与展示', label: '改期/加时原因字数上限', unit: '字', min: 20, max: 500, def: 200 },
   // ── 费率(公益单时薪后台可调) ──
   { f: 'welfare_hourly_rate_fen', t: 'int', g: '费率', label: '公益单时薪', unit: '分', min: 0, max: 100000, def: 3000 },
+  // 公益一口价(无 def=留空; 未配置时公益单不可发布, fail-closed)
+  { f: 'welfare_fixed_price_fen', t: 'int', g: '费率', label: '公益一口价(留空=公益不可发布)', unit: '分', min: 0, max: 1000000 },
   // ── 信用阈值(好评星级阈值; 决定评价自动勾选口碑标签的分界) ──
   { f: 'order_good_review_min_stars', t: 'int', g: '信用阈值', label: '好评星级阈值', unit: '星', min: 1, max: 5, def: 4 },
   // ── 耍伴资料(个人简介字数上限) ──
@@ -466,6 +471,10 @@ exports.main = async (event, context) => {
       publish: {
         content_options_max: cfgRaw.publish_content_options_max !== undefined ? cfgRaw.publish_content_options_max : 3,
         welfare_hourly_rate_fen: cfgRaw.welfare_hourly_rate_fen !== undefined ? cfgRaw.welfare_hourly_rate_fen : 3000,
+        // 一口价(留空=不钳制/不可用; 显式判空, 不给默认, 禁 || 兜底)
+        fixed_price_min_fen: cfgRaw.fixed_price_min_fen,
+        fixed_price_max_fen: cfgRaw.fixed_price_max_fen,
+        welfare_fixed_price_fen: cfgRaw.welfare_fixed_price_fen,
         good_review_min_stars: cfgRaw.order_good_review_min_stars !== undefined ? cfgRaw.order_good_review_min_stars : 4,
         reason_max_len: cfgRaw.order_reason_max_len !== undefined ? cfgRaw.order_reason_max_len : 200,
         share_title_max: cfgRaw.share_title_max !== undefined ? cfgRaw.share_title_max : 30
@@ -1997,6 +2006,12 @@ exports.main = async (event, context) => {
       const minF = patch.rate_min_fen !== undefined ? patch.rate_min_fen : (config.rate_min_fen || 3000);
       const maxF = patch.rate_max_fen !== undefined ? patch.rate_max_fen : (config.rate_max_fen || 10000);
       if (minF >= maxF) return fail('config_bad_rate_range', '最低时薪必须小于最高时薪');
+    }
+    // 一口价区间交叉校验(任一端留空=不钳制, 跳过比较)
+    if (patch.fixed_price_min_fen !== undefined || patch.fixed_price_max_fen !== undefined) {
+      const fmin = patch.fixed_price_min_fen !== undefined ? patch.fixed_price_min_fen : config.fixed_price_min_fen;
+      const fmax = patch.fixed_price_max_fen !== undefined ? patch.fixed_price_max_fen : config.fixed_price_max_fen;
+      if (fmin !== undefined && fmax !== undefined && fmin > fmax) return fail('config_bad_fixed_range', '一口价下限必须不高于上限');
     }
 
     // 接单时间红线联动校验: close>0 时 open 必须早于 close; close=0 表示全天开放(open 值无意义)

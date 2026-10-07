@@ -192,6 +192,7 @@ exports.main = async (event, context) => {
           total_fen: order.total_fen,
           fee_fen: order.fee_fen,
           aa_tier: order.aa_tier || '',
+          pricing_type: order.pricing_type || 'hourly',
           need_aa_promise: needAaPromise,
           status: order.status,
           pay_expire_at: order.pay_expire_at,

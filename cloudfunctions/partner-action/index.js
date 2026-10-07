@@ -593,6 +593,28 @@ exports.main = async (event, context) => {
         if (hasMax) update.accept_rate_max_fen = nextMax === null ? _.remove() : nextMax;
       }
 
+      // 一口价接单区间(客单价, 分; null=不限; 无平台钳制, 宁松勿错)
+      const hasTMi = event.accept_total_min_fen !== undefined;
+      const hasTMa = event.accept_total_max_fen !== undefined;
+      if (hasTMi || hasTMa) {
+        const normT = (v) => (v === null ? null : Number(v));
+        const curTMi = profile.accept_total_min_fen === undefined ? null : profile.accept_total_min_fen;
+        const curTMa = profile.accept_total_max_fen === undefined ? null : profile.accept_total_max_fen;
+        const nextTMi = hasTMi ? normT(event.accept_total_min_fen) : curTMi;
+        const nextTMa = hasTMa ? normT(event.accept_total_max_fen) : curTMa;
+        if (nextTMi !== null && (!Number.isInteger(nextTMi) || nextTMi < 0)) {
+          return { ok: false, code: 'pa_total_min_bad', msg: '最低客单价需为不小于 0 的整数(分)' };
+        }
+        if (nextTMa !== null && (!Number.isInteger(nextTMa) || nextTMa < 0)) {
+          return { ok: false, code: 'pa_total_max_bad', msg: '最高客单价需为不小于 0 的整数(分)' };
+        }
+        if (nextTMi !== null && nextTMa !== null && nextTMi > nextTMa) {
+          return { ok: false, code: 'pa_total_cross', msg: '最低客单价不能高于最高客单价' };
+        }
+        if (hasTMi) update.accept_total_min_fen = nextTMi === null ? _.remove() : nextTMi;
+        if (hasTMa) update.accept_total_max_fen = nextTMa === null ? _.remove() : nextTMa;
+      }
+
       await col('partner_profile').doc(profile._id).update({ data: update });
       log.d(`partner config updated: ${openid}`);
       const updated = Object.keys(update).filter(k => k !== 'updated_at');
@@ -638,6 +660,8 @@ exports.main = async (event, context) => {
             weekly_slots: profile.weekly_slots || null,
             accept_rate_min_fen: profile.accept_rate_min_fen === undefined ? null : profile.accept_rate_min_fen,
             accept_rate_max_fen: profile.accept_rate_max_fen === undefined ? null : profile.accept_rate_max_fen,
+            accept_total_min_fen: profile.accept_total_min_fen === undefined ? null : profile.accept_total_min_fen,
+            accept_total_max_fen: profile.accept_total_max_fen === undefined ? null : profile.accept_total_max_fen,
             max_distance_km: profile.max_distance_km === undefined ? null : profile.max_distance_km,
             exam_scores: profile.exam_scores || {},
             city: profile.city, accept_switch: profile.accept_switch,

@@ -71,7 +71,7 @@ async function getConfig() {
 // ── 接单配置校验辅助(时间红线 / 价格区间 / 每周时段 / 距离) ──
 // D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
 const {
-  isServiceTimeAllowed, readRateRange, slotCovers, cnDayStart, DAY_MS,
+  isServiceTimeAllowed, readRateRange, readTotalRange, slotCovers, cnDayStart, DAY_MS,
   haversineKm, TAKE_MAX_DISTANCE_KM
 } = require('./take_rules');
 // D4-5 防漂移抽取: 资金规则规范源 _shared/money_rules.js(修改后跑 sync-money-rules.ps1 同步)
@@ -510,15 +510,33 @@ exports.main = async (event, context) => {
   }
 
   // ── 接单价格区间(耍伴在接单配置设的区间; 未设置=不限) ──
-  const [rateLo, rateHi] = readRateRange(profile, config);
-  const demandRate = Number(demand.rate_fen) || 0;
-  if (rateLo !== null && demandRate < rateLo) {
-    await logReject(openid, demand_id, 'rate_below_min');
-    return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，低于你的最低单价 ¥${rateLo / 100}/小时，可在接单配置调整` };
-  }
-  if (rateHi !== null && demandRate > rateHi) {
-    await logReject(openid, demand_id, 'rate_above_max');
-    return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，高于你的最高单价 ¥${rateHi / 100}/小时，可在接单配置调整` };
+  // 计价分支: hourly 走时薪区间(readRateRange); fixed 走客单价区间(readTotalRange); 公益单豁免价格区间
+  const isFixedDemand = demand.pricing_type === 'fixed';
+  const isWelfareDemand = demand.project_attr === 'public_welfare';
+  if (!isWelfareDemand) {
+    if (isFixedDemand) {
+      const [totalLo, totalHi] = readTotalRange(profile);
+      const demandTotal = Number(demand.total_fen) || 0;
+      if (totalLo !== null && demandTotal < totalLo) {
+        await logReject(openid, demand_id, 'total_below_min');
+        return { ok: false, code: 'order_total_out_of_range', msg: `该需求一口价 ¥${demandTotal / 100}，低于你的最低客单价 ¥${totalLo / 100}，可在接单配置调整` };
+      }
+      if (totalHi !== null && demandTotal > totalHi) {
+        await logReject(openid, demand_id, 'total_above_max');
+        return { ok: false, code: 'order_total_out_of_range', msg: `该需求一口价 ¥${demandTotal / 100}，高于你的最高客单价 ¥${totalHi / 100}，可在接单配置调整` };
+      }
+    } else {
+      const [rateLo, rateHi] = readRateRange(profile, config);
+      const demandRate = Number(demand.rate_fen) || 0;
+      if (rateLo !== null && demandRate < rateLo) {
+        await logReject(openid, demand_id, 'rate_below_min');
+        return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，低于你的最低单价 ¥${rateLo / 100}/小时，可在接单配置调整` };
+      }
+      if (rateHi !== null && demandRate > rateHi) {
+        await logReject(openid, demand_id, 'rate_above_max');
+        return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，高于你的最高单价 ¥${rateHi / 100}/小时，可在接单配置调整` };
+      }
+    }
   }
 
   // ── 接单时段(服务时间段必须完全落在你启用的时段内; 未设置=不限) ──
@@ -599,7 +617,9 @@ exports.main = async (event, context) => {
     location: demand.location,
     publish_location: demand.publish_location || null,   // 发布地址(留痕, 来自需求)
     content_options: demand.content_options || [],
-    rate_fen: demand.rate_fen,
+    pricing_type: demand.pricing_type || 'hourly',   // 计价快照(hourly/fixed; fixed 含公益)
+    project_attr: demand.project_attr || 'commercial',
+    rate_fen: demand.rate_fen,            // hourly=分; fixed=null
     total_fen: totalFen,
     fee_fen: feeFen,
     partner_income_fen: partnerIncomeFen,

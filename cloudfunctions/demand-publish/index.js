@@ -256,8 +256,13 @@ exports.main = async (event, context) => {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
         match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id,
+        pricing_type, fixed_price_fen, project_attr,
         client_request_id
       } = event;
+      // 计价模式归一化(缺省 hourly 兼容存量; 未传 project_attr 视为商业)
+      const pricingType = pricing_type === 'fixed' ? 'fixed' : 'hourly';
+      const projectAttr = project_attr === 'public_welfare' ? 'public_welfare' : 'commercial';
+      const isWelfare = projectAttr === 'public_welfare';
 
       // ── 基础校验 ──
       const sceneCodes = await getSceneCodes();
@@ -282,8 +287,11 @@ exports.main = async (event, context) => {
       if (!duration_h || duration_h < 1 || duration_h > 12) {
         return { ok: false, code: 'publish_duration', msg: '时长需 1-12 小时' };
       }
-      if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
-        return { ok: false, code: 'publish_rate', msg: '时薪金额格式有误' };
+      // 时薪模式才校验 rate_fen; 一口价/公益用 fixed_price_fen, 不传 rate_fen 合法
+      if (pricingType === 'hourly' && !isWelfare) {
+        if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
+          return { ok: false, code: 'publish_rate', msg: '时薪金额格式有误' };
+        }
       }
       // 履约地点: MVP 阶段只校验 name 非空, 经纬度可选(隐私指引审核期间用户无法选点, 允许 0)
       if (!location || !location.name) {
@@ -359,8 +367,38 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证后再发布需求' };
       }
 
-      // ── 时薪需在平台区间内(与编辑口径一致; 0 为合法下限, 不用 || 兜底) ──
-      {
+      // ── 计价分支(时薪 hourly / 一口价 fixed; 公益归入 fixed 特例) ──
+      // 0 是合法值, 显式判空禁 || 兜底; 区间留空(非有限数) = 不钳制
+      // 青年限额/红线/时间冲突均收敛到 total_fen, 下方无需再分支
+      let docPricingType, docRateFen, docFixedPriceFen, docProjectAttr, total_fen;
+      docProjectAttr = projectAttr;
+      if (isWelfare) {
+        // 公益单: 一等公民, 归入一口价; 价格取后台 welfare_fixed_price_fen, 未配置则不可发布
+        const wFen = Number(config.welfare_fixed_price_fen);
+        if (!Number.isFinite(wFen)) {
+          return { ok: false, code: 'publish_welfare_not_open', msg: '公益单暂未开放,请稍后再试' };
+        }
+        docPricingType = 'fixed';
+        docFixedPriceFen = wFen;
+        docRateFen = null;
+        total_fen = wFen;
+      } else if (pricingType === 'fixed') {
+        if (!fixed_price_fen || typeof fixed_price_fen !== 'number' || fixed_price_fen <= 0) {
+          return { ok: false, code: 'publish_fixed_price', msg: '一口价金额格式有误' };
+        }
+        const _fLo = Number(config.fixed_price_min_fen);
+        const _fHi = Number(config.fixed_price_max_fen);
+        if (Number.isFinite(_fLo) && fixed_price_fen < _fLo) {
+          return { ok: false, code: 'publish_fixed_range', msg: `一口价需不低于 ${_fLo / 100} 元` };
+        }
+        if (Number.isFinite(_fHi) && fixed_price_fen > _fHi) {
+          return { ok: false, code: 'publish_fixed_range', msg: `一口价需不高于 ${_fHi / 100} 元` };
+        }
+        docPricingType = 'fixed';
+        docFixedPriceFen = fixed_price_fen;
+        docRateFen = null;
+        total_fen = fixed_price_fen;
+      } else {
         const _pLo = Number(config.rate_min_fen);
         const _pHi = Number(config.rate_max_fen);
         const pLo = Number.isFinite(_pLo) ? _pLo : 3000;
@@ -368,6 +406,10 @@ exports.main = async (event, context) => {
         if (rate_fen < pLo || rate_fen > pHi) {
           return { ok: false, code: 'publish_rate_range', msg: `时薪需在 ${pLo / 100}-${pHi / 100} 元/小时之间` };
         }
+        docPricingType = 'hourly';
+        docFixedPriceFen = null;
+        docRateFen = rate_fen;
+        total_fen = rate_fen * duration_h;
       }
       if (!hasEC) {
         // MVP bootstrap: 首次发布自动创建一个占位紧急联系人
@@ -422,8 +464,7 @@ exports.main = async (event, context) => {
         }
       }
 
-      // ── 金额校验(分单位 · rules.md 三.7; 时薪区间已在上方统一校验) ──
-      const total_fen = rate_fen * duration_h;
+      // ── 金额校验(分单位 · rules.md 三.7; total_fen 已在计价分支算出) ──
       if (typeof total_fen !== 'number' || total_fen <= 0) {
         return { ok: false, code: 'publish_total_invalid', msg: '总价计算异常' };
       }
@@ -538,7 +579,7 @@ exports.main = async (event, context) => {
         client_request_id: client_request_id || '',   // 幂等键: 弱网重试据其查重, 避免重复建需求
         creator_openid: openid,
         scene,
-        project_attr: 'commercial',
+        project_attr: docProjectAttr,
         start_time,
         duration_h,
         location: { name: location.name, latitude: location.latitude, longitude: location.longitude, city },
@@ -555,7 +596,9 @@ exports.main = async (event, context) => {
         content_option: opts[0],  // 兼容旧字段:取首项
         content_options: opts,    // 多选全量
         remark: remarkStr,
-        rate_fen,
+        pricing_type: docPricingType,   // hourly | fixed(含公益)
+        rate_fen: docRateFen,            // hourly=分; fixed=null(不写 0)
+        fixed_price_fen: docFixedPriceFen, // fixed=分; hourly=null
         total_fen,
         aa_tier,
         aa_promise_signed: !!aa_promise_checked,   // rules.md 三.6 AA承诺书(服务端已兜底校验)
@@ -677,7 +720,7 @@ exports.main = async (event, context) => {
           openid, role: 'user', category: 'business', action: 'demand_publish',
           target_type: 'demand', target_id: addRes._id,
           detail: {
-            demand_no, scene, match_mode: mode, rate_fen, aa_tier,
+            demand_no, scene, match_mode: mode, pricing_type: docPricingType, rate_fen: docRateFen, total_fen, aa_tier,
             duration_h, aa_promise_checked: !!aa_promise_checked,
             pet_auth: scene === 'W9' && !!pet_auth_checked,
             evidence_ids: [evidenceId, petEvidenceId].filter(Boolean)
@@ -856,7 +899,12 @@ exports.main = async (event, context) => {
           address_text: addressText,
           distance_km: distanceKm,
           headcount: d.headcount || 1,
-          budget: Math.round((d.rate_fen || 0) / 100),
+          // 计价分支: hourly=时薪(元); fixed=一口价(元, 取 total_fen); 存量无 pricing_type 按 hourly
+          pricing_type: d.pricing_type || 'hourly',
+          fixed_price_fen: d.fixed_price_fen || null,
+          budget: (d.pricing_type === 'fixed')
+            ? Math.round((d.total_fen || 0) / 100)
+            : Math.round((d.rate_fen || 0) / 100),
           aa_estimate: d.aa_tier || '0-50',
           match_mode: d.match_mode || 'broadcast',
           gender_pref: d.gender_pref || '不限',
@@ -1008,7 +1056,12 @@ exports.main = async (event, context) => {
     case 'update': {
       const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
-        match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id } = event;
+        match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id,
+        pricing_type, fixed_price_fen, project_attr } = event;
+      // 计价模式归一化(与 publish 同口径; 缺省 hourly/commercial 兼容存量)
+      const pricingTypeU = pricing_type === 'fixed' ? 'fixed' : 'hourly';
+      const projectAttrU = project_attr === 'public_welfare' ? 'public_welfare' : 'commercial';
+      const isWelfareU = projectAttrU === 'public_welfare';
 
       if (!demand_id) return { ok: false, code: 'update_no_id', msg: '缺少需求 ID' };
       if (!isValidDocId(demand_id)) return { ok: false, code: 'update_bad_id', msg: '需求 ID 格式不正确' };
@@ -1054,17 +1107,41 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'update_duration', msg: '时长需 1-12 小时' };
       }
 
-      // ── 时薪 ≥ 100 ──
-      if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
-        return { ok: false, code: 'update_rate', msg: '时薪金额格式有误' };
-      }
-      // 0 是合法下限(不用 || 兜底); 区间与提示文案均按后台实配生成
-      const _uLo = Number(config.rate_min_fen);
-      const _uHi = Number(config.rate_max_fen);
-      const uLo = Number.isFinite(_uLo) ? _uLo : 3000;
-      const uHi = Number.isFinite(_uHi) ? _uHi : 10000;
-      if (rate_fen < uLo || rate_fen > uHi) {
-        return { ok: false, code: 'update_rate_range', msg: `时薪需在 ${uLo / 100}-${uHi / 100} 元/小时之间` };
+      // ── 计价分支(与 publish 同口径: hourly / fixed / 公益特例; 收敛到 total_fen) ──
+      let docPricingTypeU, docRateFenU, docFixedPriceFenU, docProjectAttrU, total_fen;
+      docProjectAttrU = projectAttrU;
+      if (isWelfareU) {
+        const wFen = Number(config.welfare_fixed_price_fen);
+        if (!Number.isFinite(wFen)) {
+          return { ok: false, code: 'update_welfare_not_open', msg: '公益单暂未开放,请稍后再试' };
+        }
+        docPricingTypeU = 'fixed'; docFixedPriceFenU = wFen; docRateFenU = null; total_fen = wFen;
+      } else if (pricingTypeU === 'fixed') {
+        if (!fixed_price_fen || typeof fixed_price_fen !== 'number' || fixed_price_fen <= 0) {
+          return { ok: false, code: 'update_fixed_price', msg: '一口价金额格式有误' };
+        }
+        const _uFLo = Number(config.fixed_price_min_fen);
+        const _uFHi = Number(config.fixed_price_max_fen);
+        if (Number.isFinite(_uFLo) && fixed_price_fen < _uFLo) {
+          return { ok: false, code: 'update_fixed_range', msg: `一口价需不低于 ${_uFLo / 100} 元` };
+        }
+        if (Number.isFinite(_uFHi) && fixed_price_fen > _uFHi) {
+          return { ok: false, code: 'update_fixed_range', msg: `一口价需不高于 ${_uFHi / 100} 元` };
+        }
+        docPricingTypeU = 'fixed'; docFixedPriceFenU = fixed_price_fen; docRateFenU = null; total_fen = fixed_price_fen;
+      } else {
+        if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
+          return { ok: false, code: 'update_rate', msg: '时薪金额格式有误' };
+        }
+        // 0 是合法下限(不用 || 兜底); 区间与提示文案均按后台实配生成
+        const _uLo = Number(config.rate_min_fen);
+        const _uHi = Number(config.rate_max_fen);
+        const uLo = Number.isFinite(_uLo) ? _uLo : 3000;
+        const uHi = Number.isFinite(_uHi) ? _uHi : 10000;
+        if (rate_fen < uLo || rate_fen > uHi) {
+          return { ok: false, code: 'update_rate_range', msg: `时薪需在 ${uLo / 100}-${uHi / 100} 元/小时之间` };
+        }
+        docPricingTypeU = 'hourly'; docFixedPriceFenU = null; docRateFenU = rate_fen; total_fen = rate_fen * duration_h;
       }
 
       // ── 履约地点 ──
@@ -1161,8 +1238,7 @@ exports.main = async (event, context) => {
         }
       }
 
-      // ── 金额 + 青少年保护 ──
-      const total_fen = rate_fen * duration_h;
+      // ── 青少年保护(total_fen 已在计价分支算出) ──
       if (user.age !== null && user.age !== undefined && user.age >= 18 && user.age <= 22) {
         if (total_fen > (config.youth_limit_fen || 20000)) {
           return { ok: false, code: 'update_youth_limit', msg: '18-22 岁用户单笔订单上限 200 元' };
@@ -1185,7 +1261,10 @@ exports.main = async (event, context) => {
           city
         },
         remark: remarkStr,
-        rate_fen,
+        pricing_type: docPricingTypeU,
+        project_attr: docProjectAttrU,
+        rate_fen: docRateFenU,
+        fixed_price_fen: docFixedPriceFenU,
         total_fen,
         aa_tier,
         aa_promise_signed: !!aa_promise_checked,

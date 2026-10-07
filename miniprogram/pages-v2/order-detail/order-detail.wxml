@@ -273,7 +273,8 @@
 
   <!-- 加时申请面板: 时长选择(1-12h) + 参考单价 -->
   <view class="od__modify-panel" wx:if="{{extendPanelVisible}}">
-    <view class="od__modify-tip">加时按原单价折算 · 参考单价 ¥{{extendRefPriceFen / 100}}/小时 · 对方确认后合并进结算</view>
+    <view class="od__modify-tip" wx:if="{{extendIsFixed}}">一口价订单加时不加价 · 仅延长服务时长 · 对方确认后合并进结算</view>
+    <view class="od__modify-tip" wx:else>加时按原单价折算 · 参考单价 ¥{{extendRefPriceFen / 100}}/小时 · 对方确认后合并进结算</view>
     <view class="od__picker-row">
       <text class="od__picker-label">加时时长</text>
       <view class="od__extend-hours">

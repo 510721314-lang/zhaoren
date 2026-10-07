@@ -1054,11 +1054,12 @@ exports.main = async (event, context) => {
       return { ok: false, code: 'oa_extend_exist', msg: '已有待确认的加时申请,请等待对方处理' };
     }
 
-    // 算价: 按原单价折算
+    // 算价: 时薪按原单价折算; 一口价(fixed)加时不加价 → add_amount_fen=0
+    const isFixedExtend = order.pricing_type === 'fixed';
     const durationH = Number(order.duration_h) || 1;
     const totalFen = Number(order.total_fen) || 0;
-    const addAmountFen = Math.round(totalFen / durationH * addHours);
-    if (addAmountFen <= 0) {
+    const addAmountFen = isFixedExtend ? 0 : Math.round(totalFen / durationH * addHours);
+    if (addAmountFen <= 0 && !isFixedExtend) {
       return { ok: false, code: 'oa_extend_price', msg: '加时金额计算异常,请联系客服' };
     }
 
@@ -1100,7 +1101,9 @@ exports.main = async (event, context) => {
       to_openid: role === 'user' ? order.partner_openid : order.user_openid,
       order_id, type: 'custom',
       title: `${role === 'user' ? '发单人' : '耍伴'}申请加时 ${addHours} 小时`,
-      body: `加时金额 ¥${(addAmountFen / 100).toFixed(2)}, 请在 ${confirmHours} 小时内确认或拒绝`,
+      body: isFixedExtend
+        ? `一口价订单不加价, 延长 ${addHours} 小时, 请在 ${confirmHours} 小时内确认或拒绝`
+        : `加时金额 ¥${(addAmountFen / 100).toFixed(2)}, 请在 ${confirmHours} 小时内确认或拒绝`,
       action_key: 'jump_order', action_payload: { order_id }
     });
     await writeAudit(db, log, { openid, role, category: 'business', action: 'order_extend_apply', target_type: 'order', target_id: order_id, detail: { add_hours: addHours, add_amount_fen: addAmountFen }, result: 'ok', client_ip: clientIp, device });
@@ -1147,10 +1150,13 @@ exports.main = async (event, context) => {
     // 确认: 更新金额+时长+抽成, 清 pending_extend
     const addFen = Number(pending.add_amount_fen) || 0;
     const addH = Number(pending.add_hours) || 0;
+    const isFixedConfirm = order.pricing_type === 'fixed';
     const newTotalFen = (Number(order.total_fen) || 0) + addFen;
     const newDurationH = (Number(order.duration_h) || 0) + addH;
-    const { feeFen: newFeeFen, partnerIncomeFen: newPartnerIncomeFen } =
-      splitOrderAmount(newTotalFen, (await getConfig()).platform_fee_rate_fen);
+    // 一口价加时不加价: 总金额未变, 不重算分账, 沿用原抽成/收入
+    const { feeFen: newFeeFen, partnerIncomeFen: newPartnerIncomeFen } = isFixedConfirm
+      ? { feeFen: order.fee_fen, partnerIncomeFen: order.partner_income_fen }
+      : splitOrderAmount(newTotalFen, (await getConfig()).platform_fee_rate_fen);
 
     const won = await casStatus(order_id, 'S3', {
       duration_h: newDurationH,
@@ -1168,7 +1174,9 @@ exports.main = async (event, context) => {
     await writeNotice({
       to_openid: pending.by_openid, order_id, type: 'extend_confirm',
       title: '加时申请已确认',
-      body: `服务时长延长至 ${newDurationH} 小时, 加时金额 ¥${(addFen / 100).toFixed(2)} 已合并进结算`,
+      body: isFixedConfirm
+        ? `一口价不加价, 服务时长延长至 ${newDurationH} 小时`
+        : `服务时长延长至 ${newDurationH} 小时, 加时金额 ¥${(addFen / 100).toFixed(2)} 已合并进结算`,
       action_key: 'jump_order', action_payload: { order_id }
     });
     await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_extend_confirm', target_type: 'order', target_id: order_id, detail: { duration_h: newDurationH, total_fen: newTotalFen, add_amount_fen: addFen }, result: 'ok', client_ip: clientIp, device });

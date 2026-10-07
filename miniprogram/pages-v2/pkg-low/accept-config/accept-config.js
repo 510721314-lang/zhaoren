@@ -38,6 +38,8 @@ Page({
       },
       minPrice: PA.defaultMinPrice,
       maxPrice: PA.defaultMaxPrice,
+      totalMinPrice: '',   // 一口价客单价下限(元); 空=不限
+      totalMaxPrice: '',   // 一口价客单价上限(元); 空=不限
       maxDistance: PA.defaultDistance,
       genderPref: '不限',
       dailyLimit: PA.defaultDailyLimit,   // 只读: 平台统一设定(启动时由云端 config_public 覆盖)
@@ -254,6 +256,12 @@ Page({
         ? Math.round(p.accept_rate_max_fen / 100)
         : (local.maxPrice || PA.defaultMaxPrice);
 
+      // 一口价客单价区间(元; null/空=不限)
+      const totalMinYuan = (p.accept_total_min_fen !== null && p.accept_total_min_fen !== undefined)
+        ? String(Math.round(p.accept_total_min_fen / 100)) : '';
+      const totalMaxYuan = (p.accept_total_max_fen !== null && p.accept_total_max_fen !== undefined)
+        ? String(Math.round(p.accept_total_max_fen / 100)) : '';
+
       this.setData({
         certifiedScenes: certifiedScenes,
         baseExam,
@@ -265,6 +273,8 @@ Page({
         'form.weeklySlots': slots,
         'form.minPrice': minYuan,
         'form.maxPrice': maxYuan,
+        'form.totalMinPrice': totalMinYuan,
+        'form.totalMaxPrice': totalMaxYuan,
         'form.maxDistance': (p.max_distance_km !== null && p.max_distance_km !== undefined)
           ? Number(p.max_distance_km)
           : (local.maxDistance || PA.defaultDistance),
@@ -394,6 +404,14 @@ Page({
     this.setData({ 'form.maxPrice': Number(e.detail.value) || 0 });
   },
 
+  // 一口价客单价区间(元; 空字符串=不限)
+  onTotalMinInput(e) {
+    this.setData({ 'form.totalMinPrice': String(e.detail.value || '').trim() });
+  },
+  onTotalMaxInput(e) {
+    this.setData({ 'form.totalMaxPrice': String(e.detail.value || '').trim() });
+  },
+
   onDistanceChange(e) {
     this.setData({ 'form.maxDistance': e.detail.value });
   },
@@ -449,6 +467,24 @@ Page({
       return;
     }
 
+    // 一口价客单价区间(元; 空=不限; 正整数; 无平台钳制)
+    const totalMinRaw = String(form.totalMinPrice || '').trim();
+    const totalMaxRaw = String(form.totalMaxPrice || '').trim();
+    const totalMinYuan = totalMinRaw === '' ? null : Number(totalMinRaw);
+    const totalMaxYuan = totalMaxRaw === '' ? null : Number(totalMaxRaw);
+    if (totalMinYuan !== null && (!Number.isInteger(totalMinYuan) || totalMinYuan < 0)) {
+      wx.showToast({ title: '最低客单价需为不小于 0 的整数(元)', icon: 'none' });
+      return;
+    }
+    if (totalMaxYuan !== null && (!Number.isInteger(totalMaxYuan) || totalMaxYuan < 0)) {
+      wx.showToast({ title: '最高客单价需为不小于 0 的整数(元)', icon: 'none' });
+      return;
+    }
+    if (totalMinYuan !== null && totalMaxYuan !== null && totalMinYuan > totalMaxYuan) {
+      wx.showToast({ title: '最低客单价不能高于最高客单价', icon: 'none' });
+      return;
+    }
+
     // 校验每周时段(启用日的起止不能相同; start > end 视为跨夜槽, 服务端已支持)
     const slotsPayload = {};
     for (const k of Object.keys(form.weeklySlots)) {
@@ -482,6 +518,8 @@ Page({
         weekly_slots: slotsPayload,
         accept_rate_min_fen: Math.round(minYuan * 100),
         accept_rate_max_fen: Math.round(maxYuan * 100),
+        accept_total_min_fen: totalMinYuan === null ? null : Math.round(totalMinYuan * 100),
+        accept_total_max_fen: totalMaxYuan === null ? null : Math.round(totalMaxYuan * 100),
         max_distance_km: form.maxDistance
       };
       // 日常位置: 云端 my_profile 只回传 {name,address}(不下发 gcj02 坐标), 回传旧值会被
