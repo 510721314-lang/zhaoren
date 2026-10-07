@@ -112,6 +112,20 @@ function checkAuth(cfg, key) {
   return { ok: true };
 }
 
+// P0② 网关鉴权失败告警: 鉴权拒绝时写 platform_event(P2, type=gateway_bad_key), 供 order-timer errorScan 巡检项④聚合。
+// fire-and-forget: 写失败吞异常, 绝不影响鉴权响应与网关 2.5s 时限。
+// 注意: 绝不把提交的 key 本身写入事件(payload 仅 reason/path), 防密钥泄密。
+async function recordGatewayBadKey(reason, req) {
+  try {
+    const now = Date.now();
+    await db.collection('platform_event').add({ data: {
+      level: 'P2', type: 'gateway_bad_key', openid: 'gateway',
+      payload: { reason, path: (req && req.path) || '' },
+      created_at: now, updated_at: now, is_deleted: false
+    }});
+  } catch (e) { /* 告警写失败不影响鉴权响应 */ }
+}
+
 // ── 主入口 ──
 exports.main = async (event, context) => {
   const req = event && event.requestContext ? event : { headers: {}, query: {} };
@@ -148,7 +162,11 @@ exports.main = async (event, context) => {
     const qs = req.queryStringParameters || req.query || {};
     const key = (req.headers['x-admin-key'] || qs.key || '').trim();
     const auth = checkAuth(cfg, key);
-    if (!auth.ok) return makeJson({ ok: false, code: auth.msg }, 401);
+    if (!auth.ok) {
+      // P0② 网关鉴权失败告警: fire-and-forget(不阻塞响应), 供 errorScan 巡检项④聚合(窗口≥3 才报)
+      recordGatewayBadKey(auth.msg, req).catch(() => {});
+      return makeJson({ ok: false, code: auth.msg }, 401);
+    }
   }
 
   const action = body.action;

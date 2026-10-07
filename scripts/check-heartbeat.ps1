@@ -17,9 +17,12 @@ try {
   $j = $resp.Content | ConvertFrom-Json
   $hb = $null
   if ($j -and $j.config) { $hb = $j.config.error_scan_heartbeat_at }
+  elseif ($j -and $j.data) { $hb = $j.data.error_scan_heartbeat_at }
   elseif ($j) { $hb = $j.error_scan_heartbeat_at }
   $hb = [int64]($hb | Where-Object { $_ })
-  if ($j -and $j.config) { $src = 'config-nested' } elseif ($j) { $src = 'flat' } else { $src = 'unparsed' }
+  if ($j -and $j.config) { $src = 'config-nested' }
+  elseif ($j -and $j.data) { $src = 'data-nested' }
+  elseif ($j) { $src = 'flat' } else { $src = 'unparsed' }
   Write-Host "[heartbeat] debug: parsed heartbeat=$hb source=$src"
   if ($hb -le 0) {
     Write-Host '[heartbeat] WARN: never beaten (error_scan_heartbeat_at=0) - orderTimer trigger suspended? see docs/runbooks/ops-runbook.md'

@@ -14,6 +14,18 @@
 
 ## 步骤
 
+### 0. 部署前归档上一版（铁律，回滚最小方案）
+
+每次部署任何云函数前，先把当前可用的 HEAD 归档为 bundle（部署出错可回滚；归档时机必须在**部署命令执行前**，且部署前工作区须干净）：
+
+```powershell
+git -C c:\zhaoren bundle create "C:\zhaoren-bak\zhaoren-deploy-<YYYYMMDD>-<HHMMSS>.bundle" master --tags
+# 归档后核 SHA 记入 C:\zhaoren-bak\CHECKSUMS.txt（惯例见 backup-restore.md）
+```
+
+- 每次部署后必须在 `docs/deploy-log.md` 追加一行（日期/函数/前后 commit/回滚点），回滚点 = 前一 commit
+- 回滚：`git checkout <回滚点 commit> -- cloudfunctions/<函数名>` → 重新部署该函数
+
 ### 1. 部署单个云函数（铁律：串行逐个，禁并发）
 
 ```powershell

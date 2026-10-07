@@ -1,4 +1,4 @@
-﻿// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
 // 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
 // 否则拒绝并写 platform_event(P1, admin_probe)。
 // 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
@@ -55,6 +55,7 @@ async function ensureAdminColls() {
   try { await db.createCollection('admin_accounts'); } catch (e) { /* 已存在则忽略 */ }
   try { await db.createCollection('admin_web_sessions'); } catch (e) { /* 已存在则忽略 */ }
   try { await db.createCollection('exam_bank'); } catch (e) { /* 已存在则忽略 */ }
+  try { await db.createCollection('config_history'); } catch (e) { /* 已存在则忽略 */ }
 }
 
 // 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
@@ -130,6 +131,8 @@ const CONFIG_SCHEMA = [
   // 模拟支付开关(测试期): 仅影响资金 mock 入口(mock_pay/refund/ins/withdraw/fast_withdraw), prod 开放供真机/提审演示闭环;
   // 打赏(mock_tip)恒随 env 关闭(硬约束), 正式上线前必须置回 false(fail-closed 默认关)
   { f: 'mock_payment_enabled', t: 'bool', g: '通用开关', label: '模拟支付开关(测试期)', def: false },
+  // audit_log 留存清理(2026-10-07 P2 采纳): dry-run 只统计不删; 置 false 后每日 UTC 19 点真删 90 天前 audit_log(order-timer auditPrune)
+  { f: 'audit_prune_dry_run', t: 'bool', g: '通用开关', label: '审计日志清理(仅统计不删除)', def: true },
   // ── 平台总开关(关停=维护态, 各云函数服务端拦截 + C 端维护提示) ──
   { f: 'switch_access', t: 'bool', g: '平台总开关', label: '核心交易(下单/接单)', def: true },
   { f: 'switch_blog', t: 'bool', g: '平台总开关', label: '动态社区', def: true },
@@ -2162,6 +2165,25 @@ exports.main = async (event, context) => {
     const eventPayload = { before, after: patch };
     if (reason) eventPayload.reason = reason;
     await logEvent('P2', 'config_change', openid, eventPayload);
+    // config_history 版本快照(专家优化建议 ④, 2026-10-07): 每次 config_set 成功后追加变更版本,
+    // 敏感键(admin_web_key/idcard_aes_key 及一切含 key/secret/token 的键)一律掩码 '***';
+    // 只保留被修改键的 before/after(避免整份配置冗余); 保留最近 100 版, 超出删最旧。
+    try {
+      await db.createCollection('config_history').catch(() => {});
+      const SENSITIVE_RE = /key|secret|token/i;
+      const snapshot = { keys: changed, before: {}, after: {}, reason, operator: operatorAccount || openid || '', at: now };
+      changed.forEach((k) => {
+        const mask = (v) => (SENSITIVE_RE.test(k) ? '***' : v);
+        snapshot.before[k] = mask(before[k]);
+        snapshot.after[k] = mask(patch[k]);
+      });
+      await col('config_history').add({ data: { ...snapshot, created_at: now, updated_at: now, is_deleted: false } });
+      const cnt = await col('config_history').where({ is_deleted: _.neq(true) }).count();
+      if ((cnt.total || 0) > 100) {
+        const extra = await col('config_history').where({ is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit((cnt.total || 0) - 100).get();
+        await Promise.allSettled((extra.data || []).map((d) => col('config_history').doc(d._id).remove()));
+      }
+    } catch (e) { log.d(`config_history write fail: ${e.message}`); }
     return ok({ updated: changed });
   }
 

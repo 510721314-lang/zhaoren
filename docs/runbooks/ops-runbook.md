@@ -55,7 +55,10 @@
 
 ### 4. order-timer error_scan 巡检与 drill 注错演练
 
-- error_scan 每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`，**心跳 `error_scan_heartbeat_at`（2026-10-06 补）**
+- error_scan 每轮定时扫描 P0/P1 事件 / audit_log fail / 卡死提现(>48h) / **网关鉴权失败突增(窗口内 ≥3 次才报, 2026-10-07 补 ④)** → 推管理员 system_notice；游标 `admin_config.error_scan_last_at`，**心跳 `error_scan_heartbeat_at`（2026-10-06 补）**
+- 网关告警数据源：admin-web 对 bad_key/missing_key 拒绝时 fire-and-forget 写 `platform_event(P2, type=gateway_bad_key)`（2026-10-07 补，不阻塞鉴权响应；密钥本身不入 payload）
+- **auditPrune 审计留存（2026-10-07 补）**：order-timer 每日 UTC 19 点(≈北京 03:00)删除 90 天前 `audit_log`；默认 **dry-run 只统计**（开关 `admin_config.audit_prune_dry_run`，后台「通用开关-审计日志清理」可配）；真删同一天只执行一次（`audit_prune_last_day` 幂等）
+- **config_history（2026-10-07 补）**：admin-action `config_set` 成功后自动追加快照（before/after/keys/reason/operator），敏感键掩码 `***`，保留最近 100 版；集合与 admin_accounts 等同批 ensureAdminColls 幂等创建
 - 演练：管理员 `{action:'run', drill:true}`
 
 ## 验证

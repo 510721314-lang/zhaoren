@@ -49,7 +49,7 @@ async function casStatus(orderId, expectStatus, patch) {
 // ───────── error_scan 巡检(D7): 聚合窗口内异常 → 推管理员 system_notice ─────────
 // 窗口 = 上次扫描以来(admin_config.error_scan_last_at; 缺省回看 1h, 单次最多 24h 防首次轰炸)。
 // 游标推进天然去重: 持续存在的旧异常只在进入窗口那一刻报一次, 不逐 5 分钟重复轰炸。
-// 巡检项: ①P0/P1 平台事件 ②audit_log result=fail ③卡死提现(processing 超 48h)
+// 巡检项: ①P0/P1 平台事件 ②audit_log result=fail ③卡死提现(processing 超 48h) ④网关鉴权失败突增(窗口≥3 次, 防单次误输噪声)
 async function errorScan(now, cfg, adminOpenids) {
   const lastAt = Number(cfg.error_scan_last_at) || now - 3600 * 1000;
   const windowStart = Math.max(lastAt, now - 24 * 3600 * 1000);
@@ -72,14 +72,22 @@ async function errorScan(now, cfg, adminOpenids) {
       .where({ status: 'processing', created_at: _.lt(now - 48 * 3600 * 1000), is_deleted: false }).count();
     if ((r.total || 0) > 0) issues.stuck_withdrawals = r.total;
   } catch (e) { log.d(`error_scan withdraw fail: ${e.message}`); }
+  // 4. 网关鉴权失败突增: admin-web 对 bad_key/missing_key 拒绝时写 platform_event(P2, type=gateway_bad_key)
+  //    聚合窗口内次数, ≥3 才报(单次误输/端口扫描噪声不轰炸); 连续突增通常意味着密钥泄露或被暴力尝试
+  try {
+    const r = await col('platform_event').where({ type: 'gateway_bad_key', created_at: _.gt(windowStart) }).count();
+    const gwN = r.total || 0;
+    if (gwN >= 3) issues.gateway_bad_keys = gwN;
+  } catch (e) { log.d(`error_scan gateway fail: ${e.message}`); }
 
   const issueCount = (issues.platform_events ? issues.platform_events.length : 0)
-    + (issues.audit_fails || 0) + (issues.stuck_withdrawals || 0);
+    + (issues.audit_fails || 0) + (issues.stuck_withdrawals || 0) + (issues.gateway_bad_keys || 0);
   if (issueCount > 0 && adminOpenids.length) {
     const body = [
       issues.platform_events ? `P0/P1事件 ${issues.platform_events.length} 条: ${issues.platform_events.slice(0, 5).join(', ')}` : '',
       issues.audit_fails ? `审计失败 ${issues.audit_fails} 条` : '',
-      issues.stuck_withdrawals ? `卡死提现(>48h在途) ${issues.stuck_withdrawals} 笔` : ''
+      issues.stuck_withdrawals ? `卡死提现(>48h在途) ${issues.stuck_withdrawals} 笔` : '',
+      issues.gateway_bad_keys ? `网关鉴权失败突增 ${issues.gateway_bad_keys} 次` : ''
     ].filter(Boolean).join('; ');
     await Promise.allSettled(adminOpenids.map((openid) => col('system_notice').add({ data: {
       to_openid: openid, order_id: '', type: 'error_scan',
@@ -92,6 +100,43 @@ async function errorScan(now, cfg, adminOpenids) {
   // 游标推进(无论有无异常) + 心跳: 供门禁自观测「巡检是否在跑」(观测断层补丁, 见 docs/verification/tech-review-20261006.md P1)
   await col('admin_config').doc('global').update({ data: { error_scan_last_at: now, error_scan_heartbeat_at: now, updated_at: now } }).catch(() => {});
   return { issue_count: issueCount, issues };
+}
+
+// ───────── audit_log 留存清理(P2): 每日 UTC 19 点(≈北京 03:00)删除 90 天前 audit_log ─────────
+// 幂等: admin_config.audit_prune_last_day 记已执行 UTC 日期, 同一天只清一次(定时器每 5 分钟可能命中多次 19 点档)。
+// 安全: 默认 dry-run 只统计(admin_config.audit_prune_dry_run 缺省 true); 人工确认数量合理后经 config_set 置 false 才真删。
+// 真删: 分页取 _id 批量删, 单次上限 5000 防跑飞。
+const PRUNE_DAYS = 90;
+const PRUNE_CAP = 5000;
+async function auditPrune(now, cfg) {
+  const gmtHour = new Date(now).getUTCHours();
+  if (gmtHour !== 19) return { pruned: 0, dry_run: null, matched: 0, skipped: 'not_utc19' };
+  const dayKey = new Date(now).toISOString().slice(0, 10);
+  if (cfg.audit_prune_last_day === dayKey) return { pruned: 0, dry_run: null, matched: 0, skipped: 'already_today' };
+  const cutoff = now - PRUNE_DAYS * 86400000;
+  const dryRun = cfg.audit_prune_dry_run !== false; // 缺省 dry-run(不删)
+  let matched = 0;
+  try {
+    const cnt = await col('audit_log').where({ at: _.lt(cutoff) }).count();
+    matched = cnt.total || 0;
+  } catch (e) { log.d(`auditPrune count fail: ${e.message}`); }
+  if (dryRun) {
+    // dry-run 不记 last_day, 置 false 后下一个 UTC 19 点档立即真删
+    return { pruned: 0, dry_run: true, matched, skipped: '' };
+  }
+  let pruned = 0;
+  try {
+    while (pruned < PRUNE_CAP) {
+      const r = await col('audit_log').where({ at: _.lt(cutoff) }).limit(100).get();
+      const list = r.data || [];
+      if (!list.length) break;
+      await Promise.allSettled(list.map((d) => col('audit_log').doc(d._id).remove()));
+      pruned += list.length;
+      if (list.length < 100) break;
+    }
+  } catch (e) { log.d(`auditPrune delete fail: ${e.message}`); }
+  await col('admin_config').doc('global').update({ data: { audit_prune_last_day: dayKey, updated_at: now } }).catch(() => {});
+  return { pruned, dry_run: false, matched, skipped: '' };
 }
 
 exports.main = async (event, context) => {
@@ -369,11 +414,17 @@ exports.main = async (event, context) => {
   try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
   catch (e) { log.d(`error_scan fail: ${e.message}`); }
 
+  // ───────── 6. audit_log 留存清理(P2, 每日 UTC 19 点, 默认 dry-run) ─────────
+  let auditPruneResult = null;
+  try { auditPruneResult = await auditPrune(now, cfg); }
+  catch (e) { log.d(`audit_prune fail: ${e.message}`); }
+
   return {
     ok: true,
     data: {
       ran_at: now,
       error_scan: errorScanResult,
+      audit_prune: auditPruneResult,
       thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
