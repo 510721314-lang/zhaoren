@@ -12,6 +12,7 @@
           <template #title><el-icon><Tickets /></el-icon><span>订单与履约</span></template>
           <el-menu-item index="/orders">订单列表</el-menu-item>
           <el-menu-item index="/dispute">纠纷处理</el-menu-item>
+          <el-menu-item index="/no-show">爽约申诉</el-menu-item>
           <el-menu-item index="/safety-log">安全报备</el-menu-item>
           <el-menu-item index="/insurance">保险记录</el-menu-item>
         </el-sub-menu>

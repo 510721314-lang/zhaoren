@@ -1,0 +1,57 @@
+<view class="ns">
+  <view class="ns__tip">
+    <block wx:if="{{mode === 'defense'}}">对方已提交爽约申诉。请如实说明当时情况并上传证据照片，平台将据此裁定。</block>
+    <block wx:else>约定开始时间已过且你未获得服务时，可在此提交申诉。平台核实双方举证后裁定，恶意申诉将被记录。</block>
+  </view>
+
+  <!-- 申诉原因(仅提交模式) -->
+  <view class="ns__block" wx:if="{{mode === 'submit'}}">
+    <view class="ns__label">申诉原因 <text class="ns__required">*</text></view>
+    <view class="ns__chips">
+      <view
+        class="ns__chip {{reasonType === item ? 'is-on' : ''}}"
+        wx:for="{{reasonOptions}}" wx:key="*this"
+        data-r="{{item}}" bindtap="onPickReason"
+      >{{item}}</view>
+    </view>
+  </view>
+
+  <!-- 文字说明 -->
+  <view class="ns__block">
+    <view class="ns__label">
+      {{mode === 'defense' ? '举证说明' : '申诉说明'}} <text class="ns__required">*</text>
+      <text class="ns__hint" wx:if="{{mode === 'submit'}}">（至少 {{minLen}} 字）</text>
+    </view>
+    <textarea
+      class="ns__textarea"
+      value="{{reason}}"
+      maxlength="500"
+      placeholder="{{mode === 'defense' ? '请说明当天实际情况（何时到达/如何沟通等）' : '请说明爽约具体情况（时间/地点/经过）'}}"
+      bindinput="onReasonInput"
+    />
+  </view>
+
+  <!-- 证据照片 -->
+  <view class="ns__block">
+    <view class="ns__label">证据照片 <text class="ns__hint">（选填，最多 {{maxFiles}} 张）</text></view>
+    <view class="ns__photos">
+      <view class="ns__photo" wx:for="{{files}}" wx:key="*this">
+        <image class="ns__photo-img" src="{{item}}" mode="aspectFill" data-i="{{index}}" bindtap="onPreview" />
+        <view class="ns__photo-del" data-i="{{index}}" catchtap="onDelPhoto">×</view>
+      </view>
+      <view class="ns__photo-add" wx:if="{{files.length < maxFiles}}" bindtap="onAddPhoto">
+        <text class="ns__photo-add-ic">＋</text>
+        <text class="ns__photo-add-tx">{{uploading ? '上传中…' : '添加照片'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <button
+    class="ns__submit {{submitting ? 'is-disabled' : ''}}"
+    bindtap="onSubmit"
+    disabled="{{submitting}}"
+    hover-class="btn-press"
+  >{{submitting ? '提交中…' : (mode === 'defense' ? '提交举证' : '提交申诉')}}</button>
+
+  <view class="ns__footer">提交后可在订单详情页查看处理进度</view>
+</view>

@@ -10,7 +10,8 @@ const SYNC_MAP = {
   'take_rules.js': ['order-create', 'demand-publish', 'order-action', 'home-action', 'partner-apply', 'partner-action'],
   'money_rules.js': ['payment-mock', 'order-create', 'order-action'],
   'test_data.js': ['demand-publish', 'order-create', 'admin-action', 'init-db'],
-  'partner_audit.js': ['partner-action', 'admin-action']
+  'partner_audit.js': ['partner-action', 'admin-action'],
+  'no_show_rules.js': ['order-action', 'admin-action']
 };
 
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');

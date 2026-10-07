@@ -1,0 +1,125 @@
+.ns {
+  padding: 24rpx;
+  min-height: 100vh;
+  background: var(--bg-page);
+  box-sizing: border-box;
+}
+.ns__tip {
+  background: var(--func-warning-light);
+  color: var(--text-aa);
+  border-radius: var(--r-md);
+  padding: 20rpx 24rpx;
+  font-size: var(--font-sm);
+  line-height: 1.6;
+}
+.ns__block {
+  margin-top: 24rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-md);
+  padding: 24rpx;
+  box-shadow: var(--shadow-card);
+}
+.ns__label {
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 16rpx;
+}
+.ns__required {
+  color: var(--func-danger);
+  margin-left: 4rpx;
+}
+.ns__hint {
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  font-weight: 400;
+}
+.ns__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.ns__chip {
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  background: var(--bg-segment);
+  color: var(--text-3);
+  font-size: var(--font-sm);
+}
+.ns__chip.is-on {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+}
+.ns__textarea {
+  width: 100%;
+  min-height: 200rpx;
+  font-size: var(--font-sm);
+  color: var(--text-1);
+  line-height: 1.6;
+  box-sizing: border-box;
+}
+.ns__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.ns__photo {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.ns__photo-img {
+  width: 100%;
+  height: 100%;
+}
+.ns__photo-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 40rpx;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border-bottom-left-radius: 16rpx;
+  font-size: 28rpx;
+}
+.ns__photo-add {
+  width: 160rpx;
+  height: 160rpx;
+  border: 1rpx dashed var(--border-divider);
+  border-radius: var(--r-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: var(--font-sm);
+}
+.ns__photo-add-ic {
+  font-size: 44rpx;
+  line-height: 1.2;
+}
+.ns__submit {
+  margin-top: 40rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: var(--r-md);
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: var(--font-base);
+  font-weight: 600;
+}
+.ns__submit.is-disabled {
+  opacity: 0.6;
+}
+.ns__footer {
+  margin-top: 20rpx;
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+}

@@ -63,7 +63,8 @@
         "evaluate/evaluate",
         "exam/exam",
         "exam-status/exam-status",
-        "kefu/kefu"
+        "kefu/kefu",
+        "no-show-report/no-show-report"
       ]
     }
   ],

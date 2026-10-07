@@ -12,11 +12,16 @@ const COLLECTIONS = [
   'order_status_log', 'pay_transaction', 'im_conversation', 'im_message', 'safety_report',
   'credit_score_log', 'emergency_contact', 'evaluation', 'settlement', 'platform_event', 'admin_config',
   'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock',
-  'system_notice', 'insurance_record', 'audit_log', 'admin_accounts'
+  'system_notice', 'insurance_record', 'audit_log', 'admin_accounts',
+  // 第三批 3B: 爽约申诉记录(用户举证 + 管理端裁定, 状态 received/defense/decided)
+  'no_show_report'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
 // unique 唯一索引 / 复合索引按查询模式建
+// ⚠️ 2026-10-08 实证: wx-server-sdk **无 createIndex API**(调用报 "createIndex is not a function"),
+//    故本清单仅作「索引设计台账」, 实际索引需在云开发控制台「数据库→集合→索引管理」手工创建;
+//    bootstrap 会把非"已存在"类错误写入 warnings 供识别(既往该错误被静默吞进 skipped)。
 const INDEXES = [
   { coll: 'user_account', name: 'uk_openid', keys: { openid: 1 }, unique: true },
   { coll: 'partner_profile', name: 'uk_openid', keys: { openid: 1 }, unique: true },
@@ -53,7 +58,13 @@ const INDEXES = [
   { coll: 'system_notice', name: 'idx_order_created', keys: { order_id: 1, created_at: -1 } },
   { coll: 'system_notice', name: 'idx_to_created', keys: { to_openid: 1, created_at: -1 } },
   // audit_log 行为审计: 单用户链查询(writeAudit 取上一条 orderBy at desc) 与 audit_verify 全量升序
-  { coll: 'audit_log', name: 'idx_openid_at', keys: { openid: 1, at: -1 } }
+  { coll: 'audit_log', name: 'idx_openid_at', keys: { openid: 1, at: -1 } },
+  // no_show_report(第三批 3B 爽约申诉): 幂等查重(order_id)/管理端列表(status+created_at)/被诉方历史
+  { coll: 'no_show_report', name: 'idx_order_id', keys: { order_id: 1 } },
+  { coll: 'no_show_report', name: 'idx_status_created', keys: { status: 1, created_at: -1 } },
+  { coll: 'no_show_report', name: 'idx_target_created', keys: { target_openid: 1, created_at: -1 } },
+  // credit_score_log 裁定聚合核心索引: 滚动窗口内"第 N 次爽约"(openid+type+created_at)
+  { coll: 'credit_score_log', name: 'idx_openid_type_created', keys: { openid: 1, type: 1, created_at: -1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)
@@ -489,8 +500,13 @@ exports.main = async (event, context) => {
       created.push(`index:${idx.coll}.${idx.name}`);
       console.log(`created index: ${idx.coll}.${idx.name}`);
     } catch (e) {
+      // 幂等跳过 vs 真实失败必须可区分(2026-10-08 3B: 索引静默失效教训)
       skipped.push(`index:${idx.coll}.${idx.name}`);
-      console.log(`skip index ${idx.coll}.${idx.name}: ${e.errMsg || e.message}`);
+      const msg = String((e && (e.errMsg || e.message)) || '');
+      if (!/exist|already|重复|已存在/i.test(msg)) {
+        warnings.push(`index:${idx.coll}.${idx.name} → ${msg.slice(0, 160)}`);
+      }
+      console.log(`skip index ${idx.coll}.${idx.name}: ${msg}`);
     }
   }
 

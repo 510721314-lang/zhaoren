@@ -59,8 +59,8 @@ module.exports = {
     { lead: '<4h', label: '不足4小时', rate: 0.5 }
   ],
 
-  // 爽约（拍板项2）
-  NO_SHOW: { scoreDeduct: 20, maxTimes: 3, suspendDays: 7 },
+  // 爽约（拍板项2；第三批 3B：全部数值后台可配 no_show_* 9 键，此处仅兜底默认，启动被 config_public.no_show 覆盖）
+  NO_SHOW: { scoreDeduct: 20, maxTimes: 3, suspendDays: 7, reportWindowH: 48, defenseWindowH: 48, countWindowDays: 180, evidenceMax: 3, reasonMinLen: 10, maxPerOrder: 1 },
 
   // 安全报备（PRD 3.6）
   SAFETY: { checkinMin: 30, gpsPrecision: 'block', gpsPrecisionText: '街区级（约100米）', sosCountdownSec: 10, oneKeyPressSec: 3, s35TimeoutH: 24, s35ResponseMin: 10, locationRefreshSec: 15 },

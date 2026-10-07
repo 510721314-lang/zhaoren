@@ -157,7 +157,10 @@ Page({
     insuranceWan: '',
     afterSaleDays: CONFIG.ORDER.afterSaleDays,
     // 安全中心: 进行中求助/最近报备/我的紧急联系人(由 safety-report status 填充)
-    safety: { help_flag: false, active_sos: null, checkins: [], contacts: [] }
+    safety: { help_flag: false, active_sos: null, checkins: [], contacts: [] },
+    // 爽约申诉(第三批 3B): 本订单申诉列表 + 是否可发起申诉(服务端二次校验为准)
+    noShowReports: [],
+    canNoShowReport: false
   },
   onShareAppMessage() {
     return {
@@ -194,6 +197,8 @@ Page({
       if (['S2', 'S3', 'S3_5', 'S4'].indexOf(st) >= 0) {
         this.fetchSafety();
       }
+      // 爽约申诉状态(在途/已完成阶段均可能已有记录)
+      this.fetchNoShow(r.data);
     }).catch(() => {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
@@ -220,6 +225,54 @@ Page({
         }
       });
     }).catch(() => {});
+  },
+
+  // 爽约申诉状态(第三批 3B): 列表 + 本端是否可发起申诉(客户端仅体验判断, 服务端 S2/S3.5+时限+上限二次校验)
+  fetchNoShow(d) {
+    const st = normalizeStatus(d.status);
+    if (['S2', 'S3', 'S3_5', 'S4', 'S5', 'S8', 'S9'].indexOf(st) < 0) {
+      this.setData({ noShowReports: [], canNoShowReport: false });
+      return;
+    }
+    callCloud('order-action', { action: 'no_show_report_detail', order_id: this.__orderId }).then((r) => {
+      if (!r.ok || !r.data) return;
+      const ns = CONFIG.NO_SHOW || {};
+      const now = Date.now();
+      const start = Number(d.start_time) || 0;
+      const list = (r.data.list || []).map((x) => {
+        const dl = x.evidence_deadline ? new Date(x.evidence_deadline) : null;
+        return Object.assign({}, x, {
+          status_text: x.status === 'decided'
+            ? (x.verdict === 'upheld' ? '已裁定：成立' : '已裁定：不成立')
+            : (x.status === 'defense' ? '对方已举证，待裁定' : '待对方举证'),
+          deadline_text: dl ? `${pad(dl.getMonth() + 1)}-${pad(dl.getDate())} ${pad(dl.getHours())}:${pad(dl.getMinutes())}` : '',
+          reason_display: (x.reason_type ? `【${x.reason_type}】` : '') + (x.reason || '')
+        });
+      });
+      const myReports = (r.data.list || []).filter((x) => x.my_role === 'reporter').length;
+      const statusOk = st === 'S2' || st === 'S3_5';
+      const inWindow = start > 0 && now >= start && now <= start + (Number(ns.reportWindowH) || 48) * 3600000;
+      const underLimit = myReports < (Number(ns.maxPerOrder) || 1);
+      this.setData({ noShowReports: list, canNoShowReport: statusOk && inWindow && underLimit });
+    }).catch(() => {});
+  },
+
+  // 发起爽约申诉(跳提交页; 服务端二次校验)
+  onNoShowReport() {
+    wx.navigateTo({
+      url: `/pages-v2/pkg-low/no-show-report/no-show-report?mode=submit&orderId=${this.__orderId}`,
+      fail: () => wx.showToast({ title: '页面跳转失败', icon: 'none' })
+    });
+  },
+
+  // 被诉方举证(跳举证页)
+  onNoShowDefense(e) {
+    const reportId = e.currentTarget.dataset.id || '';
+    if (!reportId) return;
+    wx.navigateTo({
+      url: `/pages-v2/pkg-low/no-show-report/no-show-report?mode=defense&reportId=${reportId}&orderId=${this.__orderId}`,
+      fail: () => wx.showToast({ title: '页面跳转失败', icon: 'none' })
+    });
   },
 
   reload() { this.fetchData(this.__lastOptions || {}); },

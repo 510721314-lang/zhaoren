@@ -11,6 +11,8 @@ const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命�
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { buildAuditPatch, FIELD_PENDING, isFieldEmpty } = require('./partner_audit');
+// 第三批 3B: 爽约申诉/举证/裁定纯规则(规范源 _shared/no_show_rules.js, 修改后跑 sync-no-show-rules.ps1)
+const { noShowCfg, verdictOutcome, VERDICTS, REPORT_STATUS, DAY_MS } = require('./no_show_rules');
 
 // ───────── RBAC 角色体系(S1, PRD §5.1 最小版: R1超管/R2审核/R3运营) ─────────
 const ADMIN_ROLE_LABEL = { R1: '超管', R2: '审核', R3: '运营' };
@@ -30,6 +32,8 @@ const ROLE_GRANTS = {
   'demand_list': ['R2', 'R3'], 'demand_offline': ['R2', 'R3'],
   'order_list': ['R2', 'R3'], 'order_query': ['R2', 'R3'], 'order_detail': ['R2', 'R3'],
   'dispute_list': ['R2', 'R3'], 'dispute_handle': ['R2'],
+  // 第三批 3B: 爽约申诉列表/裁定(裁定人 R2/R3, 设计稿 §2.2)
+  'no_show_report_list': ['R2', 'R3'], 'no_show_decide': ['R2', 'R3'],
   // ── R3 运营 ──
   'dashboard': ['R3'],
   'config_get': ['R3'], 'config_log_list': ['R3'],
@@ -175,7 +179,17 @@ const CONFIG_SCHEMA = [
   // ── 信用阈值(好评星级阈值; 决定评价自动勾选口碑标签的分界) ──
   { f: 'order_good_review_min_stars', t: 'int', g: '信用阈值', label: '好评星级阈值', unit: '星', min: 1, max: 5, def: 4 },
   // ── 耍伴资料(个人简介字数上限) ──
-  { f: 'p_bio_len', t: 'int', g: '耍伴资料', label: '个人简介字数上限', unit: '字', min: 20, max: 500, def: 200 }
+  { f: 'p_bio_len', t: 'int', g: '耍伴资料', label: '个人简介字数上限', unit: '字', min: 20, max: 500, def: 200 },
+  // ── 爽约申诉与处罚(第三批 3B, N10: 全部数值后台可配; 服务端读实配值, 前端仅兜底) ──
+  { f: 'no_show_report_window_h', t: 'int', g: '爽约处罚', label: '申诉时限(约定开始后)', unit: '小时', min: 1, max: 168, def: 48 },
+  { f: 'no_show_defense_window_h', t: 'int', g: '爽约处罚', label: '举证窗口(被诉方)', unit: '小时', min: 1, max: 168, def: 48 },
+  { f: 'no_show_score_deduct', t: 'int', g: '爽约处罚', label: '裁定成立扣分(0=仅计次)', unit: '分', min: 0, max: 100, def: 20 },
+  { f: 'no_show_suspend_threshold', t: 'int', g: '爽约处罚', label: '累计几次停用', unit: '次', min: 1, max: 10, def: 3 },
+  { f: 'no_show_suspend_days', t: 'int', g: '爽约处罚', label: '停用天数', unit: '天', min: 1, max: 90, def: 7 },
+  { f: 'no_show_count_window_days', t: 'int', g: '爽约处罚', label: '次数统计滚动窗口', unit: '天', min: 7, max: 365, def: 180 },
+  { f: 'no_show_evidence_max', t: 'int', g: '爽约处罚', label: '双方举证照片上限', unit: '张', min: 1, max: 9, def: 3 },
+  { f: 'no_show_reason_min_len', t: 'int', g: '爽约处罚', label: '申诉理由最短字数', unit: '字', min: 5, max: 200, def: 10 },
+  { f: 'no_show_max_per_order', t: 'int', g: '爽约处罚', label: '同订单单方申诉上限', unit: '条', min: 1, max: 3, def: 1 }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -400,6 +414,8 @@ exports.main = async (event, context) => {
   // 缺失字段返回 undefined, 前端 flatten+deepAssign 自动跳过, 走本地 CONFIG 兜底。
   if (action === 'config_public') {
     const cfgRaw = config || {};
+    // 显式判空(未配置/留空 → def; 0 是合法值, 禁 || 兜底)
+    const nsInt = (v, def) => (v === undefined || v === null || v === '' ? def : Number(v));
     return { ok: true, data: {
       version: cfgRaw.version,
       timeouts: {
@@ -478,6 +494,18 @@ exports.main = async (event, context) => {
         good_review_min_stars: cfgRaw.order_good_review_min_stars !== undefined ? cfgRaw.order_good_review_min_stars : 4,
         reason_max_len: cfgRaw.order_reason_max_len !== undefined ? cfgRaw.order_reason_max_len : 200,
         share_title_max: cfgRaw.share_title_max !== undefined ? cfgRaw.share_title_max : 30
+      },
+      // 爽约申诉与处罚(第三批 3B; 前端 CONFIG.NO_SHOW 仅兜底, 服务端恒读 admin_config 实配值)
+      no_show: {
+        report_window_h: nsInt(cfgRaw.no_show_report_window_h, 48),
+        defense_window_h: nsInt(cfgRaw.no_show_defense_window_h, 48),
+        score_deduct: nsInt(cfgRaw.no_show_score_deduct, 20),
+        suspend_threshold: nsInt(cfgRaw.no_show_suspend_threshold, 3),
+        suspend_days: nsInt(cfgRaw.no_show_suspend_days, 7),
+        count_window_days: nsInt(cfgRaw.no_show_count_window_days, 180),
+        evidence_max: nsInt(cfgRaw.no_show_evidence_max, 3),
+        reason_min_len: nsInt(cfgRaw.no_show_reason_min_len, 10),
+        max_per_order: nsInt(cfgRaw.no_show_max_per_order, 1)
       },
       // 列表分页大小(订单/首页/广场/附近/钱包/通知)
       paging: {
@@ -2755,6 +2783,194 @@ exports.main = async (event, context) => {
     return ok({ sent: docs.length, total_targets: targets.length, cap: 1000 });
   }
 
+  // ───────── 8.8 爽约申诉: 列表/详情 + 裁定(第三批 3B) ─────────
+  // 设计稿 §2.2-2.7: 平台不自动处罚, 管理员裁定; 成立 → 扣分(credit_score_log type='no_show')
+  // + 滚动窗口计次 + 达阈值停用(数值全部读 no_show_* 实配); 幂等键 order_id+target_openid。
+  if (action === 'no_show_report_list') {
+    const { status, report_id } = event;
+    // 详情模式: 单条 + 证据临时 URL(管理端裁定页用)
+    if (report_id) {
+      if (!isDocId(report_id)) return fail('ns_bad_id', 'ID 格式不正确');
+      let rpt = null;
+      try { rpt = (await col('no_show_report').doc(report_id).get()).data; } catch (e) { rpt = null; }
+      if (!rpt) return fail('ns_not_found', '申诉记录不存在');
+      const urlMap = await resolveTempUrls([].concat(rpt.evidence_file_ids || [], rpt.defense_file_ids || []));
+      const withUrls = (ids) => (ids || []).map((f) => ({ file_id: f, url: urlMap[f] || '' }));
+      const oids = [rpt.reporter_openid, rpt.target_openid].filter(Boolean);
+      const nameMap = {};
+      try {
+        const ur = await col('user_account').where({ openid: _.in(oids) }).limit(oids.length || 1).get();
+        (ur.data || []).forEach((u) => { nameMap[u.openid] = u.nickname || ''; });
+      } catch (e) {}
+      return ok({
+        report: Object.assign({}, rpt, {
+          report_id: rpt._id,
+          evidence: withUrls(rpt.evidence_file_ids),
+          defense_evidence: withUrls(rpt.defense_file_ids),
+          reporter_nickname: nameMap[rpt.reporter_openid] || '',
+          target_nickname: nameMap[rpt.target_openid] || ''
+        })
+      });
+    }
+    // 列表模式(状态筛选 + 待处理倒序; counts 供 tab 徽标)
+    const pg = pager(event);
+    const base = { is_deleted: _.neq(true) };
+    const cntP = (st) => col('no_show_report')
+      .where(st ? Object.assign({}, base, { status: st }) : base)
+      .count().catch(() => ({ total: 0 }));
+    const filtered = (status && ['received', 'defense', 'decided'].indexOf(status) >= 0) ? status : '';
+    const query = col('no_show_report').where(filtered ? Object.assign({}, base, { status: filtered }) : base);
+    const [totalR, r, cReceived, cDefense, cDecided] = await Promise.all([
+      cntP(filtered),
+      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] })),
+      cntP('received'), cntP('defense'), cntP('decided')
+    ]);
+    return ok({
+      list: (r.data || []).map((x) => ({
+        report_id: x._id, order_id: x.order_id, order_no: x.order_no || '',
+        reporter_openid: x.reporter_openid, reporter_role: x.reporter_role || '',
+        target_openid: x.target_openid, target_role: x.target_role || '',
+        status: x.status || '', verdict: x.verdict || '',
+        reason_type: x.reason_type || '',
+        reason: x.reason || '', defense_reason: x.defense_reason || '',
+        evidence_count: (x.evidence_file_ids || []).length,
+        defense_count: (x.defense_file_ids || []).length,
+        evidence_deadline: x.evidence_deadline || 0,
+        defense_overdue: x.defense_overdue === true,
+        created_at: x.created_at, decided_at: x.decided_at || 0,
+        decided_reason: x.decided_reason || '',
+        penalty_applied: x.penalty_applied || null
+      })),
+      counts: { received: cReceived.total || 0, defense: cDefense.total || 0, decided: cDecided.total || 0 },
+      total: totalR.total || 0, page: pg.page, size: pg.size,
+      has_more: pg.page * pg.size < (totalR.total || 0)
+    });
+  }
+
+  if (action === 'no_show_decide') {
+    const { report_id, verdict, note } = event;
+    if (!isDocId(report_id)) return fail('ns_bad_id', 'ID 格式不正确');
+    if (VERDICTS.indexOf(verdict) < 0) return fail('ns_bad_verdict', 'verdict 须为 upheld/rejected');
+    const noteText = String(note || '').trim();
+    if (!noteText) return fail('ns_no_note', '请填写裁定说明');
+    let rpt = null;
+    try { rpt = (await col('no_show_report').doc(report_id).get()).data; } catch (e) { rpt = null; }
+    if (!rpt) return fail('ns_not_found', '申诉记录不存在');
+    // 幂等: 已裁定 → 返回首次结果(不重复处罚)
+    if (rpt.status === REPORT_STATUS.DECIDED) {
+      return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict: rpt.verdict, idempotent: true, penalty_applied: rpt.penalty_applied || null });
+    }
+    const now = Date.now();
+    const cfg = noShowCfg(config);
+    // CAS: received/defense → decided(防并发双裁)
+    const dcr = await col('no_show_report').where({
+      _id: report_id, status: _.in([REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE])
+    }).update({ data: {
+      status: REPORT_STATUS.DECIDED, verdict,
+      decided_by: openid, decided_at: now, decided_reason: noteText, updated_at: now
+    }});
+    if (!dcr.stats || dcr.stats.updated !== 1) {
+      const again = await col('no_show_report').doc(report_id).get().catch(() => ({ data: null }));
+      if (again && again.data && again.data.status === REPORT_STATUS.DECIDED) {
+        return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict: again.data.verdict, idempotent: true, penalty_applied: again.data.penalty_applied || null });
+      }
+      return fail('ns_conflict', '状态已变化,请刷新后重试');
+    }
+    let penaltyApplied = { score_delta: 0, suspend_until: null, applied_at: now, times: 0 };
+    if (verdict === 'upheld') {
+      // 幂等键(order_id+target_openid): 同订单同被诉方已有成立裁定 → 仅落裁定, 不重复处罚
+      const dupR = await col('no_show_report').where({
+        order_id: rpt.order_id, target_openid: rpt.target_openid,
+        status: REPORT_STATUS.DECIDED, verdict: 'upheld',
+        _id: _.neq(report_id), is_deleted: _.neq(true)
+      }).count().catch(() => ({ total: 0 }));
+      if ((dupR.total || 0) > 0) {
+        penaltyApplied = { score_delta: 0, suspend_until: null, applied_at: now, times: 0, skipped: 'dup_order_target' };
+        await logEvent('P2', 'no_show_decide_dup_skip', openid, { report_id, order_id: rpt.order_id, target_openid: rpt.target_openid });
+      } else {
+        const scoreType = rpt.target_role === 'partner' ? 'partner' : 'user';
+        const field = scoreType === 'partner' ? 'partner_credit_score' : 'user_credit_score';
+        let targetU = null;
+        try { targetU = (await col('user_account').where({ openid: rpt.target_openid }).limit(1).get()).data[0] || null; } catch (e) { targetU = null; }
+        if (!targetU) {
+          await logEvent('P1', 'no_show_target_missing', openid, { report_id, target_openid: rpt.target_openid });
+          return fail('ns_target_missing', '被诉方账号不存在:裁定已记录,处罚未执行');
+        }
+        // 滚动窗口聚合既有 no_show 次数(不含本次) → 第 N 次判定(索引: credit_score_log openid+type+created_at)
+        const windowStart = now - cfg.countWindowDays * DAY_MS;
+        const cntR = await col('credit_score_log').where({
+          openid: rpt.target_openid, type: 'no_show', is_deleted: _.neq(true), created_at: _.gte(windowStart)
+        }).count().catch(() => ({ total: 0 }));
+        const outcome = verdictOutcome(cfg, cntR.total || 0, now);
+        const before = targetU[field] || 800;
+        const after = Math.max(0, Math.min(1000, before + outcome.scoreDelta));
+        await col('user_account').doc(targetU._id).update({ data: {
+          [field]: after, no_show_count: outcome.times, updated_at: now
+        }});
+        try {
+          await col('credit_score_log').add({ data: {
+            openid: rpt.target_openid, type: 'no_show', score_type: scoreType,
+            delta: outcome.scoreDelta, score: after,
+            reason: `爽约申诉裁定成立 订单#${rpt.order_no || ''}`.trim(),
+            order_id: rpt.order_id, report_id,
+            is_system: false, admin_openid: openid,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+        } catch (e) { log.d('no_show credit log fail:', e && e.message); }
+        penaltyApplied = { score_delta: outcome.scoreDelta, suspend_until: null, applied_at: now, times: outcome.times };
+        // 达阈值 → 停用(与 penalty(suspend_7d) 同口径, 但数值全部可配)
+        if (outcome.suspend) {
+          await col('user_account').doc(targetU._id).update({ data: {
+            status: 'suspended', suspend_until: outcome.suspendUntil,
+            suspend_reason: `累计 ${outcome.times} 次爽约裁定成立`, suspend_at: now, suspend_by: openid, updated_at: now
+          }});
+          await col('partner_profile').where({ openid: rpt.target_openid })
+            .update({ data: { accept_switch: false, updated_at: now } }).catch(() => {});
+          penaltyApplied.suspend_until = outcome.suspendUntil;
+          await logEvent('P1', 'penalty_no_show_suspend', openid, {
+            report_id, target_openid: rpt.target_openid, times: outcome.times,
+            suspend_days: cfg.suspendDays, suspend_until: outcome.suspendUntil
+          });
+          // 停用执行通知(N/M/X 动态取配置; 东八区日期)
+          const d = new Date(outcome.suspendUntil + 8 * 3600000);
+          try {
+            await col('system_notice').add({ data: {
+              to_openid: rpt.target_openid, order_id: rpt.order_id || '', type: 'account_suspended',
+              title: '账号已停用',
+              body: `信用分累计 ${outcome.times} 次爽约，账号停用 ${cfg.suspendDays} 天，将于 ${d.getUTCMonth() + 1}月${d.getUTCDate()}日自动恢复`,
+              read: false, created_at: now, updated_at: now, is_deleted: false
+            }});
+          } catch (e) {}
+        }
+        await col('no_show_report').doc(report_id).update({ data: { penalty_applied: penaltyApplied, updated_at: now } });
+      }
+    }
+    // 裁定通知双方(成立: 申诉方不暴露分值细节, 被诉方收明细; 不成立: 双方同文案)
+    const noticeTo = async (to, title, body) => {
+      if (!to) return;
+      try {
+        await col('system_notice').add({ data: {
+          to_openid: to, order_id: rpt.order_id || '', type: 'no_show_decided',
+          title, body, action_key: 'jump_order', action_payload: { order_id: rpt.order_id, report_id },
+          read: false, created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) {}
+    };
+    if (verdict === 'upheld') {
+      await noticeTo(rpt.reporter_openid, '爽约申诉已裁定：成立', '已按规则处理');
+      await noticeTo(rpt.target_openid, '爽约申诉已裁定：成立',
+        `已扣 ${Math.abs(penaltyApplied.score_delta)} 分` + (penaltyApplied.suspend_until ? `；账号停用 ${cfg.suspendDays} 天` : ''));
+    } else {
+      await noticeTo(rpt.reporter_openid, '爽约申诉已裁定：不成立', '本次申诉未获支持');
+      await noticeTo(rpt.target_openid, '爽约申诉已裁定：不成立', '本次申诉未获支持');
+    }
+    await logEvent('P2', 'no_show_decide', openid, {
+      report_id, order_id: rpt.order_id, verdict,
+      times: penaltyApplied.times || 0, suspend: !!penaltyApplied.suspend_until
+    });
+    return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict, penalty_applied: penaltyApplied });
+  }
+
   // ───────── 8.7 云端备份导出(L2 admin_config 快照 + L3 DB 分页导出) ─────────
   // 允许导出的 collection 白名单(20+)
   const EXPORT_COLLECTIONS = new Set([
@@ -2773,6 +2989,8 @@ exports.main = async (event, context) => {
     'exam_bank',
     // ── 配置变更版本史(2026-10-07 新增: config_set 快照, 敏感键已掩码入库, 纳入备份/可稽核) ──
     'config_history',
+    // ── 爽约申诉记录(2026-10-07 第三批 3B: 举证/裁定证据链, 纳入备份/可稽核) ──
+    'no_show_report',
     // ── 旧表/低频(保留兼容, 不存在返回空) ──
     'user_profile', 'partner_exam', 'partner_apply',
     'dispute', 'withdraw_request', 'credit_log',

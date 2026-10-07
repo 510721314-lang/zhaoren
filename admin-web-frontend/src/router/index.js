@@ -14,6 +14,7 @@ const routes = [
       // ── 2. 订单与履约 ──
       { path: 'orders', component: () => import('../views/Orders.vue'), meta: { title: '订单列表' } },
       { path: 'dispute', component: () => import('../views/Dispute.vue'), meta: { title: '纠纷处理' } },
+      { path: 'no-show', component: () => import('../views/NoShow.vue'), meta: { title: '爽约申诉' } },
       { path: 'safety-log', component: () => import('../views/SafetyLog.vue'), meta: { title: '安全报备' } },
       { path: 'insurance', component: () => import('../views/Insurance.vue'), meta: { title: '保险记录' } },
 

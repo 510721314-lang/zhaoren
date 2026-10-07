@@ -1,11 +1,14 @@
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
-// 17 个 action: get_confirmation / update_item / confirm_item / confirm_all /
+// 26 个 action: get_confirmation / update_item / confirm_item / confirm_all /
 //              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
 //              modify / modify_confirm / modify_reject /
 //              extend / extend_confirm / extend_reject /
 //              resume_service / partial_confirm / ratio_confirm / complaint /
-//              detail / my_orders / my_counts
+//              no_show_report_submit / no_show_report_defense / no_show_report_detail /
+//              detail / my_orders / my_counts / nudge_partner
+// 爽约申诉(第三批 3B): 用户/耍伴提交申诉 → 被诉方举证 → 管理员裁定(admin-action no_show_decide);
+//   订单状态机不因申诉改变; 数值全部后台可配(no_show_* 9 键), 规则纯函数见 ./no_show_rules
 // 四确认 SSOT:时间/地点/内容/费用四项,用户与耍伴双方各确认一次共 8 位;
 //   8 位全完成 → S1→S0(待支付,30 分钟支付时限);任一方修改任一项 → 8 位全部重置。
 const cloud = require('wx-server-sdk');
@@ -15,6 +18,8 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+// 第三批 3B: 爽约申诉/举证/裁定纯规则(规范源 _shared/no_show_rules.js, 修改后跑 sync-no-show-rules.ps1)
+const { noShowCfg, canSubmitReport, defenseDeadlineOf, REPORT_STATUS } = require('./no_show_rules');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
@@ -220,7 +225,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'nudge_partner'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'nudge_partner', 'no_show_report_submit', 'no_show_report_detail'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };
@@ -1701,6 +1706,160 @@ exports.main = async (event, context) => {
       action_payload: { order_id }
     });
     return { ok: true };
+  }
+
+  // ───────── 爽约申诉(第三批 3B): 提交受理 / 被诉方举证 / 订单内查询 ─────────
+  // 判定模型(设计稿 §2.1): 平台不自动判定"人到没到", 一切处罚必经「提交→举证→管理员裁定」。
+  // 幂等/上限: 同订单单方上限 no_show_max_per_order(默认 1, N6); 处罚幂等键 order_id+target_openid(裁定侧)。
+  if (action === 'no_show_report_submit') {
+    const { reason, reason_type, evidence_file_ids } = event;
+    const order = await getOrder(order_id);
+    const config = await getConfig();
+    const cfg = noShowCfg(config);
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    const gate = canSubmitReport(order, Date.now(), cfg);   // N1: 仅 S2/S3.5 + 开始时间已过 + 时限内
+    if (!gate.ok) return { ok: false, code: gate.code, msg: gate.msg };
+    const reasonText = String(reason || '').trim();
+    if (!reasonText) return { ok: false, code: 'no_show_no_reason', msg: '请填写申诉说明' };
+    if (reasonText.length < cfg.reasonMinLen) {
+      return { ok: false, code: 'no_show_reason_short', msg: `申诉说明至少 ${cfg.reasonMinLen} 字` };
+    }
+    // 内容安全(rules.md 六): 违规文本不落库
+    const chk = await checkText(openid, reasonText, config.block_words);
+    if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+    // 证据照片(可选; 上限后台可配)
+    const files = Array.isArray(evidence_file_ids)
+      ? evidence_file_ids.filter((f) => typeof f === 'string' && f).slice(0, cfg.evidenceMax)
+      : [];
+    // N6: 同订单单方申诉上限
+    const mine = await col('no_show_report').where({
+      order_id, reporter_openid: openid, is_deleted: _.neq(true)
+    }).count().catch(() => ({ total: 0 }));
+    if ((mine.total || 0) >= cfg.maxPerOrder) {
+      return { ok: false, code: 'no_show_report_limit', msg: `同一订单最多提交 ${cfg.maxPerOrder} 条申诉` };
+    }
+    const target = role === 'user' ? order.partner_openid : order.user_openid;
+    if (!target) return { ok: false, code: 'no_show_no_target', msg: '订单缺少对方账号信息' };
+    const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
+    const doc = {
+      order_id, order_no: order.order_no || '',
+      reporter_openid: openid, reporter_role: role,
+      target_openid: target, target_role: role === 'user' ? 'partner' : 'user',
+      reason_type: String(reason_type || '').trim().slice(0, 20),   // 原因选项(未出现/迟到超30分钟/中途离开/其他)
+      reason: reasonText, evidence_file_ids: files,
+      status: REPORT_STATUS.RECEIVED,
+      evidence_deadline: defenseDeadlineOf(now, cfg),
+      created_at: now, updated_at: now, is_deleted: false
+    };
+    let reportId = '';
+    try {
+      const addRes = await col('no_show_report').add({ data: doc });
+      reportId = (addRes && addRes._id) || '';
+    } catch (e) {
+      log.d(`no_show_report add fail: ${e.message}`);
+      return { ok: false, code: 'no_show_submit_fail', msg: '提交失败,请稍后重试' };
+    }
+    // 通知被诉方举证(N 动态取配置; fire-and-forget 反模式已规避: 显式 await)
+    await writeNotice({
+      to_openid: target, order_id, type: 'no_show_report',
+      title: '对方提交了爽约申诉',
+      body: `请在 ${cfg.defenseWindowH} 小时内提交举证`,
+      action_key: 'jump_order', action_payload: { order_id, report_id: reportId }
+    });
+    await writeAudit(db, log, {
+      openid, role, category: 'business', action: 'no_show_report_submit',
+      target_type: 'no_show_report', target_id: reportId,
+      detail: { order_no: order.order_no || '', target_role: doc.target_role, files: files.length },
+      result: 'ok', client_ip: clientIp, device
+    });
+    return { ok: true, data: { report_id: reportId, status: REPORT_STATUS.RECEIVED, evidence_deadline: doc.evidence_deadline } };
+  }
+
+  if (action === 'no_show_report_defense') {
+    const { report_id, defense_reason, defense_file_ids } = event;
+    if (!report_id || !isValidDocId(report_id)) return { ok: false, code: 'no_show_bad_report', msg: '申诉记录 ID 格式不正确' };
+    let report = null;
+    try { report = (await col('no_show_report').doc(report_id).get()).data; } catch (e) { report = null; }
+    if (!report || report.is_deleted) return { ok: false, code: 'no_show_report_missing', msg: '申诉记录不存在' };
+    if (report.target_openid !== openid) return { ok: false, code: 'no_show_not_target', msg: '仅被诉方可提交举证' };
+    if (report.status === REPORT_STATUS.DECIDED) {
+      return { ok: false, code: 'no_show_already_decided', msg: '平台已裁定,不可再补充举证' };
+    }
+    const config = await getConfig();
+    const cfg = noShowCfg(config);
+    const text = String(defense_reason || '').trim();
+    if (!text) return { ok: false, code: 'no_show_no_defense', msg: '请填写举证说明' };
+    const chk = await checkText(openid, text, config.block_words);
+    if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+    const files = Array.isArray(defense_file_ids)
+      ? defense_file_ids.filter((f) => typeof f === 'string' && f).slice(0, cfg.evidenceMax)
+      : [];
+    const now = Date.now();
+    // N2: 逾期不自动关闭; 逾期后仍允许提交, 标记 overdue 供管理端参考
+    const overdue = now > (Number(report.evidence_deadline) || 0);
+    const up = await col('no_show_report').where({
+      _id: report_id, status: _.in([REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE])
+    }).update({ data: {
+      defense_reason: text, defense_file_ids: files,
+      status: REPORT_STATUS.DEFENSE, defense_at: now, defense_overdue: overdue, updated_at: now
+    }});
+    if (!up.stats || up.stats.updated < 1) {
+      const latest = await col('no_show_report').doc(report_id).get().catch(() => ({ data: null }));
+      if (latest && latest.data && latest.data.status === REPORT_STATUS.DECIDED) {
+        return { ok: false, code: 'no_show_already_decided', msg: '平台已裁定,不可再补充举证' };
+      }
+      return { ok: false, code: 'no_show_defense_conflict', msg: '状态已变化,请刷新后重试' };
+    }
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
+    await writeNotice({
+      to_openid: report.reporter_openid, order_id: report.order_id, type: 'no_show_defense',
+      title: '对方已提交举证', body: '等待平台裁定',
+      action_key: 'jump_order', action_payload: { order_id: report.order_id, report_id }
+    });
+    await writeAudit(db, log, {
+      openid, role: 'partner', category: 'business', action: 'no_show_report_defense',
+      target_type: 'no_show_report', target_id: report_id,
+      detail: { order_no: report.order_no || '', overdue, files: files.length },
+      result: 'ok', client_ip: clientIp, device
+    });
+    return { ok: true, data: { status: REPORT_STATUS.DEFENSE, overdue } };
+  }
+
+  if (action === 'no_show_report_detail') {
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    const r = await col('no_show_report')
+      .where({ order_id, is_deleted: _.neq(true) })
+      .orderBy('created_at', 'desc').limit(10).get().catch(() => ({ data: [] }));
+    const list = (r.data || []).map((x) => {
+      const iAmReporter = x.reporter_openid === openid;
+      return {
+        report_id: x._id,
+        my_role: iAmReporter ? 'reporter' : 'target',
+        reporter_role: x.reporter_role || '',
+        status: x.status || '',
+        verdict: x.verdict || '',
+        // 被诉方需看到申诉理由/证据才能举证; 双方均可见对方已提交的内容(裁定公开口径)
+        reason_type: x.reason_type || '',
+        reason: x.reason || '',
+        evidence_file_ids: x.evidence_file_ids || [],
+        defense_reason: x.defense_reason || '',
+        defense_file_ids: x.defense_file_ids || [],
+        evidence_deadline: x.evidence_deadline || 0,
+        defense_overdue: x.defense_overdue === true,
+        decided_at: x.decided_at || 0,
+        created_at: x.created_at || 0,
+        // 被诉方视角: 未裁定即可提交/补充举证
+        can_defense: !iAmReporter && x.status !== REPORT_STATUS.DECIDED
+      };
+    });
+    return { ok: true, data: { list } };
   }
 
   return { ok: false, code: 'oa_unknown_action', msg: '未知动作' };

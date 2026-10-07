@@ -66,7 +66,17 @@ const CLOUD_MAP = {
   'switches.switch_blog': 'SWITCH.blog',
   'switches.switch_im': 'SWITCH.im',
   // ── 支付/资金能力(打赏等 mock 能力仅 dev 下发) ──
-  'payment.tip_enabled': 'PAYMENT.tipEnabled'
+  'payment.tip_enabled': 'PAYMENT.tipEnabled',
+  // ── 第三批 3B: 爽约申诉与处罚(服务端恒读 admin_config 实配值; 前端 NO_SHOW 仅兜底) ──
+  'no_show.report_window_h': 'NO_SHOW.reportWindowH',
+  'no_show.defense_window_h': 'NO_SHOW.defenseWindowH',
+  'no_show.score_deduct': 'NO_SHOW.scoreDeduct',
+  'no_show.suspend_threshold': 'NO_SHOW.maxTimes',
+  'no_show.suspend_days': 'NO_SHOW.suspendDays',
+  'no_show.count_window_days': 'NO_SHOW.countWindowDays',
+  'no_show.evidence_max': 'NO_SHOW.evidenceMax',
+  'no_show.reason_min_len': 'NO_SHOW.reasonMinLen',
+  'no_show.max_per_order': 'NO_SHOW.maxPerOrder'
 };
 
 // 深合并: 把 cloud 返回的嵌套结构展平后按映射表写入 CONFIG

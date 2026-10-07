@@ -101,6 +101,20 @@
       <view class="od__row"><text class="od__label">状态</text><text class="od__val od__val--success">{{order.insurance.status === 'insured' ? '生效中' : '待生效'}}</text></view>
     </view>
 
+    <!-- O3.5 爽约申诉(第三批 3B): 处理中/已裁定 + 被诉方举证入口 -->
+    <view class="od__card" wx:if="{{noShowReports.length > 0}}">
+      <view class="od__card-title">爽约申诉</view>
+      <view class="od__nsitem" wx:for="{{noShowReports}}" wx:key="report_id">
+        <view class="od__nsitem-head">
+          <text class="od__nsitem-role">{{item.my_role === 'reporter' ? '你提交的申诉' : '对方提交的申诉'}}</text>
+          <text class="od__nsitem-status {{item.status === 'decided' ? (item.verdict === 'upheld' ? 'is-upheld' : 'is-rejected') : 'is-pending'}}">{{item.status_text}}</text>
+        </view>
+        <view class="od__nsitem-reason" wx:if="{{item.reason_display}}">{{item.reason_display}}</view>
+        <view class="od__nsitem-sub" wx:if="{{item.status !== 'decided'}}">举证截止：{{item.deadline_text}}{{item.defense_overdue ? '（已逾期，平台可直接裁定）' : ''}}</view>
+        <button class="od__btn od__btn--primary" wx:if="{{item.can_defense}}" data-id="{{item.report_id}}" bindtap="onNoShowDefense" hover-class="btn-press">提交举证</button>
+      </view>
+    </view>
+
     <!-- O3 操作区 -->
     <view class="od__card">
       <view class="od__card-title">操作</view>
@@ -133,6 +147,8 @@
         </block>
         <!-- 改期入口: 仅 S2 可发起(2026-10-07 口径; S3 履约中/S3.5 中断均不可改期) -->
         <button class="od__btn od__btn--ghost" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
+        <!-- 报告爽约(第三批 3B): 约定开始时间已过且时限内可见; 服务端二次校验 S2/S3.5+时限 -->
+        <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
       </block>
 
       <!-- S3 履约中 -->
@@ -186,6 +202,8 @@
             <button class="od__btn od__btn--primary" bindtap="onToPartial" hover-class="btn-press">确认部分完成</button>
           </view>
         </view>
+        <!-- 报告爽约(第三批 3B): S3.5 履约中断可申诉 -->
+        <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
       </block>
 
       <!-- S4 部分完成 -->

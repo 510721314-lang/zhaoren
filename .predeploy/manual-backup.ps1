@@ -22,7 +22,8 @@ $COLLECTIONS = @(
   'dispute', 'withdraw_request', 'credit_log',
   'insurance_record', 'report', 'sms_log', 'device_bind',
   'exam_bank',
-  'config_history'
+  'config_history',
+  'no_show_report'
 )
 
 $BackupDir = "C:\zhaoren-bak\zhaoren_backup_$(Get-Date -Format 'yyyyMMdd-HHmm')"
