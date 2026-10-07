@@ -113,7 +113,7 @@ function checkAuth(cfg, key) {
 }
 
 // P0② 网关鉴权失败告警: 鉴权拒绝时写 platform_event(P2, type=gateway_bad_key), 供 order-timer errorScan 巡检项④聚合。
-// fire-and-forget: 写失败吞异常, 绝不影响鉴权响应与网关 2.5s 时限。
+// 调用方 await 本函数(见鉴权块): 保证事件落库后响应, 避免运行时回收导致写入截断; 内部 try/catch 吞异常, 不影响 401 响应。
 // 注意: 绝不把提交的 key 本身写入事件(payload 仅 reason/path), 防密钥泄密。
 async function recordGatewayBadKey(reason, req) {
   try {
@@ -163,8 +163,9 @@ exports.main = async (event, context) => {
     const key = (req.headers['x-admin-key'] || qs.key || '').trim();
     const auth = checkAuth(cfg, key);
     if (!auth.ok) {
-      // P0② 网关鉴权失败告警: fire-and-forget(不阻塞响应), 供 errorScan 巡检项④聚合(窗口≥3 才报)
-      recordGatewayBadKey(auth.msg, req).catch(() => {});
+      // P0② 网关鉴权失败告警: await 确保事件落库(HTTP 响应返回后运行时可能回收上下文,
+      // 非 await 的 fire-and-forget 有写入被截断风险); 内部已 try/catch 吞异常, 不会影响 401 响应。
+      await recordGatewayBadKey(auth.msg, req);
       return makeJson({ ok: false, code: auth.msg }, 401);
     }
   }

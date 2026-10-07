@@ -2738,6 +2738,8 @@ exports.main = async (event, context) => {
     'withdraw_record',
     // ── 认证考试题库(2026-10-03 新增: 题库为运营配置数据, 答案管理员可读, 纳入备份) ──
     'exam_bank',
+    // ── 配置变更版本史(2026-10-07 新增: config_set 快照, 敏感键已掩码入库, 纳入备份/可稽核) ──
+    'config_history',
     // ── 旧表/低频(保留兼容, 不存在返回空) ──
     'user_profile', 'partner_exam', 'partner_apply',
     'dispute', 'withdraw_request', 'credit_log',
