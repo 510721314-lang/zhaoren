@@ -387,6 +387,8 @@ exports.main = async (event, context) => {
         remark, rate_fen, aa_tier, aa_promise_checked,
         match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id,
         pricing_type, fixed_price_fen, project_attr,
+        headcount, gender_pref,
+        publish_type, service_target, proxy_signature_file_id, proxy_authorized,
         client_request_id
       } = event;
       // 计价模式归一化(缺省 hourly 兼容存量; 未传 project_attr 视为商业)
@@ -463,6 +465,30 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'publish_pet_auth_sign_required', msg: '请完成《宠物照料授权书》手写签字后重试' };
         }
       }
+
+      // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人; 代理关系必须留手写签字授权凭据 ──
+      // PRD W8 禁止代签法律文件但允许"代老人/未成年人代为下单"场景, 代理授权须签字存证(kind=proxy_authorization)。
+      const PUBLISH_TYPE_WHITELIST = ['self', 'proxy'];
+      const publishType = PUBLISH_TYPE_WHITELIST.indexOf(publish_type) >= 0 ? publish_type : 'self';
+      let proxySignature = null;
+      if (publishType === 'proxy') {
+        if (!proxy_authorized) {
+          return { ok: false, code: 'publish_proxy_authorized', msg: '代他人发布需先确认《委托授权书》' };
+        }
+        if (!service_target || !service_target.name) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请填写被代发人姓名' };
+        }
+        proxySignature = await verifySignatureFile(proxy_signature_file_id);
+        if (!proxySignature.ok) {
+          return { ok: false, code: 'publish_proxy_sign_required', msg: '请完成《委托授权书》手写签字后重试' };
+        }
+      }
+
+      // ── 需求规模/性别偏好归一化(publish 分支此前漏写, 本次补齐; 默认语义与 update 分支一致) ──
+      const headcountN = (Number.isInteger(Number(headcount)) && headcount >= 1 && headcount <= 10)
+        ? Number(headcount) : 1;
+      const genderPref = (typeof gender_pref === 'string' && gender_pref.trim())
+        ? gender_pref.trim().slice(0, 10) : '不限';
 
       // 并行拉取 配置/用户/紧急联系人(减少串行往返, 冷启动也能压进超时)
       const [config, user, hasEC] = await Promise.all([
@@ -744,6 +770,20 @@ exports.main = async (event, context) => {
         // W9 宠物照料授权电子确认凭证(PRD R9; 非 W9 恒 false)
         pet_auth_signed: scene === 'W9' ? !!pet_auth_checked : false,
         pet_auth_signed_at: (scene === 'W9' && pet_auth_checked) ? now : 0,
+        // ── 需求规模/性别偏好(此前 publish 分支漏写, 本次补齐与 update 对齐) ──
+        headcount: headcountN,
+        gender_pref: genderPref,
+        // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人 ──
+        publish_type: publishType,
+        service_target: proxySignature
+          ? {
+              name: String(service_target.name).slice(0, 20),
+              relation: String(service_target.relation || '').slice(0, 10),
+              phone_mask: String(service_target.phone_mask || '').slice(0, 20)
+            }
+          : null,
+        proxy_auth_signed: !!proxySignature,
+        proxy_auth_signed_at: proxySignature ? now : 0,
         // ── 接单模式 ──
         match_mode: mode,                            // broadcast=抢单 / select=选单
         applicants: [],                              // 选单模式:报名耍伴列表
@@ -752,6 +792,9 @@ exports.main = async (event, context) => {
         match_candidates: [],
         invited: mode === 'direct' ? [target_openid] : [],  // 定向: 仅受邀耍伴可接
         broadcast: mode === 'broadcast',  // 仅抢单模式入厅; 定向/选单不入公共大厅
+        // 抢单通知(需求①站内闭环): 待推送标记, 由 order-timer 定时分批向「范围内可接耍伴」推 system_notice 引导抢单
+        // direct 定向模式已单发邀请(L816), 不再群发; broadcast/select 需覆盖更多耍伴故置待推送
+        grab_notify_pending: mode === 'direct' ? false : true,
         is_test: isTestOpenid(config, openid),   // D4-5 测试白名单打标(供 purge_test_data 精准清理)
         expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
         created_at: now,
@@ -808,6 +851,34 @@ exports.main = async (event, context) => {
             col('platform_event').add({ data: {
               level: 'P3', type: 'evidence_write_fail', openid,
               payload: { node: 'publish_pet', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
+
+        // ── 代发留证(需求②): 委托授权书 + 本人手写签字(kind=proxy_authorization; 不阻断主流程) ──
+        // 复用 W9 同套 buildCheckboxEvidence 的 signature 覆盖 → 落 signature_file_id/SHA-256/verify_method=handwritten
+        if (publishType === 'proxy' && proxySignature) {
+          try {
+            const proxyData = buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: 'proxy_authorization',
+              config, demandId: addRes._id, signedAt: now,
+              kind: 'proxy_authorization',
+              signature: {
+                fileId: proxySignature.fileId, hash: proxySignature.hash, size: proxySignature.size
+              },
+              doc: {
+                key: 'proxy_authorization', title: '委托授权书',
+                text: `本人授权代操作人代为发布平台需求：被代发人 ${service_target.name || ''}，与本人关系 ${service_target.relation || ''}。`
+              }
+            });
+            await col('disclaimer_signature').add({ data: proxyData });
+            log.d(`proxy auth evidence written: ${demand_no}`);
+          } catch (ee) {
+            log.d(`proxy auth evidence fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'publish_proxy', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
             }}).catch(() => {});
           }

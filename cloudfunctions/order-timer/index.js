@@ -145,6 +145,80 @@ async function auditPrune(now, cfg) {
   return { pruned, dry_run: dryRun, matched, skipped: '' };
 }
 
+// ── 需求①站内抢单通知: 向「范围内可接耍伴」批量推 system_notice 引导抢单 ──
+// 触发: demand 落 grab_notify_pending=true(broadcast/select, demand-publish 写入); direct 定向已单发邀请, 不群发
+// 距离/可接过滤对齐 home-action.nearby 与 demand-publish.buildRecommendPartners;
+// system_notice 格式对齐 demand-publish direct_invite(jump_demand + demand_id)。
+// 幂等/断点续跑: 处理完该需求 CAS 置 grab_notify_pending=false; 超时留 pending 下轮续跑(范围小+本函数 60s 超时, 重推概率低)。
+// haversineKm/validLngLat 与 _shared/take_rules.js 同源(atan2 形式, 数学等价), order-timer 独立打包不自带 take_rules 故内联。
+function validLngLat(lat, lng) {
+  return typeof lat === 'number' && typeof lng === 'number'
+    && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    && !(lat === 0 && lng === 0);
+}
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+async function processDemandNotify(now, cfg) {
+  const done = [];
+  const fail = [];
+  const minCredit = num(cfg.min_credit_take_order, 600);
+  const takeCap = num(cfg.take_distance_max_km, 50);
+  const pending = (await col('demand')
+    .where({ grab_notify_pending: true, status: 'matching', is_deleted: false })
+    .orderBy('created_at', 'asc').limit(BATCH).get()).data || [];
+  await Promise.allSettled(pending.map(async (d) => {
+    const scene = d.scene || '';
+    if (!scene) { await markDone(d, now); done.push(`${d.demand_no}:no_scene`); return; }
+    // 可接耍伴候选: 同场景 + 审核通过 + 接单开 + 信用达标(同 buildRecommendPartners base)
+    const base = { status: 'approved', is_deleted: _.neq(true), accept_switch: _.neq(false), accept_scenes: scene };
+    let cands = [];
+    try { cands = (await col('partner_profile').where(Object.assign({}, base, { credit_score: _.gte(minCredit) })).limit(50).get()).data || []; } catch (e) { cands = []; }
+    if (!cands.length) { try { cands = (await col('partner_profile').where(base).limit(50).get()).data || []; } catch (e) { cands = []; } }
+    // 范围内过滤: 求「耍伴 max_distance_km 与平台 take_distance_max_km 的较小值」为有效半径; 无坐标需求/耍伴无法确认范围, 不推
+    const dLoc = d.location || {};
+    const hasLoc = validLngLat(dLoc.latitude, dLoc.longitude);
+    const targets = [];
+    for (const p of cands) {
+      const own = Number(p.max_distance_km);
+      const eff = (Number.isFinite(own) && own > 0) ? Math.min(own, takeCap) : takeCap;
+      const hl = p.home_location || {};
+      if (!hasLoc || !validLngLat(hl.latitude, hl.longitude)) continue;
+      if (haversineKm(dLoc.latitude, dLoc.longitude, hl.latitude, hl.longitude) > eff) continue;
+      targets.push(p.openid);
+    }
+    let pushed = 0;
+    if (targets.length) {
+      const subject = (d.content_options && d.content_options[0]) || '新需求';
+      const results = await Promise.allSettled(targets.map((openid) => col('system_notice').add({ data: {
+        to_openid: openid, order_id: '', demand_id: d._id, type: 'demand_grab',
+        title: '有新需求可接单',
+        body: `${String(subject).slice(0, 30)} · 距你较近, 速来抢单`,
+        action_key: 'jump_demand', action_payload: { demand_id: d._id },
+        created_at: now, read: false
+      }})));
+      pushed = results.filter((r) => r.status === 'fulfilled').length;
+    }
+    await markDone(d, now);
+    done.push(`${d.demand_no}:pushed=${pushed}`);
+  }));
+  return { done, fail, scanned: pending.length };
+
+  async function markDone(d, t) {
+    try {
+      await col('demand').where({ _id: d._id, grab_notify_pending: true }).update({
+        data: { grab_notify_pending: false, updated_at: t }
+      });
+    } catch (e) { fail.push(d.demand_no); }
+  }
+}
+
 exports.main = async (event, context) => {
   const { resolveOpenid, warmEnv } = require('./openid');
   await warmEnv(cloud); // 环境门控日志预热
@@ -434,12 +508,18 @@ exports.main = async (event, context) => {
   try { auditPruneResult = await auditPrune(now, cfg); }
   catch (e) { log.d(`audit_prune fail: ${e.message}`); }
 
+  // ───────── 7. 需求①站内抢单通知(demand.grab_notify_pending → 范围内耍伴 system_notice) ─────────
+  let demandNotify = null;
+  try { demandNotify = await processDemandNotify(now, cfg); }
+  catch (e) { log.d(`demand notify fail: ${e.message}`); }
+
   return {
     ok: true,
     data: {
       ran_at: now,
       error_scan: errorScanResult,
       audit_prune: auditPruneResult,
+      demand_notify: demandNotify,
       thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,

@@ -117,6 +117,12 @@ const MATCH_MODE = [
   { code: 'smart', name: '智能派单', desc: '系统优先匹配高信用耍伴', needVip: true }
 ];
 
+// 发布类型（需求② 代他人发布, PRD W8 允许"代老人/未成年人"场景; 代理须手写签字授权）
+const PUBLISH_TYPE = [
+  { code: 'self', name: '自己发布', desc: '为自己发布需求' },
+  { code: 'proxy', name: '代他人发布', desc: '替亲友/长者等代发, 需手写签字授权' }
+];
+
 // 项目属性（PRD 1.5）
 const PROJECT_ATTR = {
   commercial: { code: 'commercial', name: '商业付费' },
@@ -179,6 +185,7 @@ module.exports = {
   ORDER_STATUS,
   DEMAND_STATUS,
   MATCH_MODE,
+  PUBLISH_TYPE,
   PROJECT_ATTR,
   AA_ESTIMATE,
   AA_ESTIMATE_LABEL,

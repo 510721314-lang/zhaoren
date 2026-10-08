@@ -175,6 +175,35 @@
     </view>
   </view>
 
+  <!-- B12 发布类型(需求② 代他人发布) -->
+  <view class="pub__block">
+    <view class="pub__label">发布类型</view>
+    <view class="pub__mode-list">
+      <view class="pub__mode-card {{publishType === item.code ? 'is-on' : ''}}" wx:for="{{publishTypes}}" wx:key="code" data-pt="{{item.code}}" bindtap="setPublishType">
+        <view class="pub__mode-name">{{item.name}}</view>
+        <view class="pub__mode-desc">{{item.desc}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- B12.1 代他人发布: 被代发人信息 + 委托授权书手写签字 -->
+  <view class="pub__block" wx:if="{{publishType === 'proxy'}}">
+    <view class="pub__label">被代发人信息 <text class="pub__required">*</text></view>
+    <input class="pub__input" value="{{proxyName}}" placeholder="被代发人姓名" maxlength="20" bindinput="onProxyNameInput" />
+    <input class="pub__input" value="{{proxyRelation}}" placeholder="与本人的关系（父母/子女/长辈…）" maxlength="10" bindinput="onProxyRelationInput" />
+    <input class="pub__input" value="{{proxyPhone}}" placeholder="被代发人联系方式（用于履约核对）" maxlength="20" bindinput="onProxyPhoneInput" />
+    <view class="pub__pet-doc" bindtap="openProxySheet">
+      <text class="pub__pet-doc-name">《委托授权书》</text>
+      <text class="pub__pet-doc-op">{{proxyAuthChecked ? '已签署 · 点击查看' : '点击查看全文'}}</text>
+    </view>
+    <checkbox-group bindchange="onProxyAuthChange" class="pub__pet-agree">
+      <label class="pub__pet-agree-label">
+        <checkbox value="ok" checked="{{proxyAuthChecked}}" color="#22B573" />
+        <text>本人自愿授权代操作人代为发布；勾选后将弹出《委托授权书》，需手写签字确认后才生效，并作为授权凭证留存</text>
+      </label>
+    </checkbox-group>
+  </view>
+
   <!-- B9 撮合模式(定向邀约进入时锁定, 不再展示选择) -->
   <view class="pub__block" wx:if="{{!directInvite}}">
     <view class="pub__label">撮合模式</view>
@@ -251,6 +280,34 @@
       <view class="pub__petsign-foot">
         <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onPetSignCancel">取消</view>
         <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onPetSignConfirm">{{petSignSubmitting ? '提交中…' : '完成签署'}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 委托授权书(需求②代他人发布) 电子文件弹窗 -->
+  <bottom-sheet visible="{{proxySheetVisible}}" title="委托授权书" has-footer="{{true}}" bind:close="onProxyAuthCancel">
+    <scroll-view class="pub__pet-sheet-body" scroll-y>
+      <text class="pub__pet-sheet-text">{{proxyText || '授权书文本加载失败，请检查网络后重试'}}</text>
+    </scroll-view>
+    <view slot="footer" class="pub__pet-sheet-foot">
+      <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onProxyAuthCancel">取消</view>
+      <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onProxyAuthSign">本人签字确认</view>
+    </view>
+  </bottom-sheet>
+
+  <!-- 委托授权书(需求②代他人发布) 手写签字窗口 -->
+  <view class="pub__petsign-mask" wx:if="{{proxySignSheetVisible}}" catchtouchmove="noop">
+    <view class="pub__petsign-panel">
+      <view class="pub__petsign-head">
+        <text class="pub__petsign-title">本人签字确认</text>
+        <text class="pub__petsign-close" bindtap="onProxySignCancel">✕</text>
+      </view>
+      <view class="pub__petsign-tip">请在下方手写你的姓名；签字后《委托授权书》即时生效，并作为委托凭证留存</view>
+      <signature-canvas id="proxy-sign" tip="请在此处手写你的姓名"></signature-canvas>
+      <view class="pub__petsign-clear" bindtap="onProxySignClear">清除重签</view>
+      <view class="pub__petsign-foot">
+        <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onProxySignCancel">取消</view>
+        <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onProxySignConfirm">{{proxySignSubmitting ? '提交中…' : '完成签署'}}</view>
       </view>
     </view>
   </view>

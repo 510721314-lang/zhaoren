@@ -2,7 +2,7 @@
 const redline = require('../../utils/redline.js');
 const { getScene } = redline;
 const CONFIG = require('../../config/index.js');
-const { SCENES, MATCH_MODE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../config/enums.js');
+const { SCENES, MATCH_MODE, PUBLISH_TYPE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = require('../../config/enums.js');
 
 // 智能派单门槛 = L3 优质等级下限（PRD 3.1.2）
 const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
@@ -73,6 +73,7 @@ Page({
     statusBarHeight: 20,
     scenes: SCENES,
     matchModes: MATCH_MODE,
+    publishTypes: PUBLISH_TYPE,
     durationOptions: CONFIG.DURATION_OPTIONS,
     // 档位值取 CONFIG.AA_OPTIONS，展示文案取 enums AA_ESTIMATE_LABEL（PRD 3.5.1 SSOT）
     aaOptions: CONFIG.AA_OPTIONS.map((v) => ({ value: v, label: AA_ESTIMATE_LABEL[v] })),
@@ -101,6 +102,19 @@ Page({
       gender_pref: '不限',        // B8
       match_mode: 'broadcast'      // B9
     },
+    // 需求② 代他人发布
+    publishType: 'self',          // self=自己发布 / proxy=代他人发布
+    proxyName: '',                // 被代发人姓名
+    proxyRelation: '',            // 与我的关系(父母/子女/长辈/亲友等)
+    proxyPhone: '',               // 被代发人联系方式(脱敏展示)
+    // 代发授权手写签字(强制留存, 复用 W9 签字范式; kind=proxy_authorization)
+    proxyAuthChecked: false,
+    proxySheetVisible: false,     // 委托授权书弹窗
+    proxyText: '',
+    proxySheetFromCheck: false,
+    proxySignSheetVisible: false, // 手写签字窗口
+    proxySignSubmitting: false,
+    proxyAuthSignFileId: '',      // 签字图 cloud fileID(发布时上报服务端复算 SHA-256)
     titleCount: 0,
     descCount: 0,
 
@@ -574,6 +588,80 @@ Page({
     });
   },
 
+  // ── 需求② 代他人发布: 发布类型切换 ──
+  setPublishType(e) {
+    const pt = e.currentTarget ? e.currentTarget.dataset.pt : e;
+    if (pt !== 'self' && pt !== 'proxy') return;
+    this.setData({ publishType: pt });
+  },
+  onProxyNameInput(e) { this.setData({ proxyName: (e.detail.value || '').slice(0, 20) }); },
+  onProxyRelationInput(e) { this.setData({ proxyRelation: (e.detail.value || '').slice(0, 10) }); },
+  onProxyPhoneInput(e) { this.setData({ proxyPhone: (e.detail.value || '').slice(0, 20) }); },
+  // 委托授权书全文(本项目无后台该键, 用本地固定文案; 与后端留证 doc 文本语义一致)
+  _loadProxyAuthText() {
+    this.setData({
+      proxyText: '找人帮忙 委托授权书（电子确认）\n'
+        + '一、本人自愿授权代操作人代为发布平台需求；\n'
+        + '二、被代发人信息以本授权书所填为准，代操作人应如实录入服务信息；\n'
+        + '三、本人知悉：订单的支付、确认、评价等操作由代操作人账号完成，但服务受益人/需求方为被代发人；\n'
+        + '四、本人同意：本确认及手写签字将作为平台内「委托授权」凭证留存，用于履约与纠纷举证。'
+    });
+  },
+  openProxySheet() { this.setData({ proxySheetVisible: true, proxySheetFromCheck: false, proxyText: this.data.proxyText || '' }); if (!this.data.proxyText) this._loadProxyAuthText(); },
+  onProxyAuthChange(e) {
+    const on = (e.detail.value || []).length > 0;
+    if (!on) { this.setData({ proxyAuthChecked: false }); return; }
+    this.setData({ proxyAuthChecked: true, proxySheetVisible: true, proxySheetFromCheck: true });
+    if (!this.data.proxyText) this._loadProxyAuthText();
+  },
+  onProxyAuthCancel() {
+    const patch = { proxySheetVisible: false };
+    if (this.data.proxySheetFromCheck) patch.proxyAuthChecked = false;
+    this.setData(patch);
+  },
+  onProxyAuthSign() { this.setData({ proxySheetVisible: false, proxySignSheetVisible: true, proxySignSubmitting: false }); },
+  onProxySignCancel() {
+    const patch = { proxySignSheetVisible: false, proxySignSubmitting: false };
+    if (this.data.proxySheetFromCheck) patch.proxyAuthChecked = false;
+    this.setData(patch);
+  },
+  onProxySignClear() {
+    const sig = this.selectComponent('#proxy-sign');
+    if (sig) sig.clear();
+  },
+  // 完成代发授权签字: 导出签名图 → 传云存储 sign_evidence/proxy_auth_*.png → 置已签
+  onProxySignConfirm() {
+    if (this.data.proxySignSubmitting) return;
+    const sig = this.selectComponent('#proxy-sign');
+    if (!sig) { wx.showToast({ title: '签字板未就绪,请重试', icon: 'none' }); return; }
+    this.setData({ proxySignSubmitting: true });
+    const prevFileId = this.data.proxyAuthSignFileId;
+    sig.exportPNG().then((tempPath) => {
+      const rand = Math.random().toString(36).slice(2, 8);
+      const cloudPath = 'sign_evidence/proxy_auth_' + Date.now() + '_' + rand + '.png';
+      wx.cloud.uploadFile({
+        cloudPath,
+        filePath: tempPath,
+        success: (up) => {
+          if (prevFileId && prevFileId !== up.fileID) {
+            try { wx.cloud.deleteFile({ fileList: [prevFileId] }); } catch (e) {}
+          }
+          this.setData({
+            proxySignSheetVisible: false, proxySignSubmitting: false,
+            proxyAuthChecked: true, proxySheetFromCheck: false,
+            proxyAuthSignFileId: up.fileID
+          });
+          wx.showToast({ title: '已签字确认', icon: 'success' });
+        },
+        fail: () => { this.setData({ proxySignSubmitting: false }); wx.showToast({ title: '签名上传失败,请重试', icon: 'none' }); }
+      });
+    }).catch((e) => {
+      this.setData({ proxySignSubmitting: false });
+      if (e && e.message === 'empty_signature') { wx.showToast({ title: '请先手写签名', icon: 'none' }); return; }
+      wx.showToast({ title: '签字失败,请重试', icon: 'none' });
+    });
+  },
+
   setScene(e) {
     const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
     // 优先从动态场景列表找, SCENES 兜底（编辑模式回填时可能还没拉动态列表）
@@ -981,6 +1069,12 @@ Page({
     if (!f.aa_estimate) errs.push('请选择AA费用预估');
     // W9 宠物照料授权(电子确认凭证; PRD R9 无凭证不得履约, 服务端同口径兜底)
     if (f.scene_code === 'W9' && !this.data.petAuthChecked) errs.push('请确认《宠物照料授权书》');
+    // 需求② 代他人发布: 必填被代发人 + 强制手写签字授权(不做轻量勾选, 服务端强校验同口径)
+    if (this.data.publishType === 'proxy') {
+      if (!this.data.proxyName.trim()) errs.push('请填写被代发人姓名');
+      if (!this.data.proxyRelation.trim()) errs.push('请填写与本人的关系');
+      if (!this.data.proxyAuthChecked) errs.push('请完成《委托授权书》手写签字确认');
+    }
     // 敏感词
     const sen1 = detectSensitive(f.title);
     if (sen1) errs.push(sen1);
@@ -1125,6 +1219,15 @@ Page({
       // W9 宠物照料授权电子确认(服务端 W9 场景强制校验; 签字图随需求上报留证)
       pet_auth_checked: this.data.petAuthChecked,
       pet_auth_signature_file_id: this.data.petAuthSignFileId || '',
+      // 需求② 代他人发布: 发布类型 + 被代发人 + 手写签字授权(fileID 随需求上报服务端复算 SHA-256)
+      publish_type: this.data.publishType || 'self',
+      service_target: this.data.publishType === 'proxy' ? {
+        name: this.data.proxyName,
+        relation: this.data.proxyRelation,
+        phone_mask: this.data.proxyPhone
+      } : null,
+      proxy_authorized: this.data.publishType === 'proxy',
+      proxy_signature_file_id: this.data.publishType === 'proxy' ? (this.data.proxyAuthSignFileId || '') : '',
       target_openid: this.invitePartnerOpenid || '',
       draft_id: this.__draftId || '',
       client_request_id: this._clientRequestId
