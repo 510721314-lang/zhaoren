@@ -244,28 +244,34 @@ async function buildRecommendPartners(d) {
     const openids = rows.map((p) => p.openid).filter(Boolean);
     if (!openids.length) return [];
 
-    // 富化①: user_account(昵称/头像 + partner_credit_score 真值源)
-    const uMap = {};
-    try {
-      const ur = await col('user_account').where({ openid: _.in(openids) }).get();
-      (ur.data || []).forEach((u) => { uMap[u.openid] = u; });
-    } catch (e) {}
-
-    // 富化②: blog_post 每作者最新一条(status=normal)
-    const dynMap = {};
-    try {
-      const br = await col('blog_post')
-        .where({ author_openid: _.in(openids), status: 'normal', is_deleted: false })
-        .orderBy('created_at', 'desc').limit(openids.length * 3).get();
-      (br.data || []).forEach((bp) => {
-        if (dynMap[bp.author_openid]) return;
-        dynMap[bp.author_openid] = {
-          cover: (bp.images && bp.images[0]) || '',
-          title: String(bp.content || '').slice(0, 40),
-          at: timeAgoText(bp.created_at)
-        };
-      });
-    } catch (e) {}
+    // 富化(并行): user_account + blog_post 各一次批量查询(降低冷启动时延, 避免 detail 3s 超时)
+    const [uMap, dynMap] = await Promise.all([
+      (async () => {
+        const m = {};
+        try {
+          const ur = await col('user_account').where({ openid: _.in(openids) }).get();
+          (ur.data || []).forEach((u) => { m[u.openid] = u; });
+        } catch (e) {}
+        return m;
+      })(),
+      (async () => {
+        const m = {};
+        try {
+          const br = await col('blog_post')
+            .where({ author_openid: _.in(openids), status: 'normal', is_deleted: false })
+            .orderBy('created_at', 'desc').limit(openids.length * 3).get();
+          (br.data || []).forEach((bp) => {
+            if (m[bp.author_openid]) return;   // 每人仅取最新一条
+            m[bp.author_openid] = {
+              cover: (bp.images && bp.images[0]) || '',
+              title: String(bp.content || '').slice(0, 40),
+              at: timeAgoText(bp.created_at)
+            };
+          });
+        } catch (e) {}
+        return m;
+      })()
+    ]);
 
     const demandLoc = (d && d.location) || {};
     const hasDemandLoc = validLngLat(Number(demandLoc.latitude), Number(demandLoc.longitude));
@@ -296,12 +302,6 @@ async function buildRecommendPartners(d) {
         ) * 10) / 10;
       }
 
-      let orderCount = 0;
-      try {
-        const or = await col('order_main').where({ partner_openid: p.openid, is_deleted: false }).count();
-        orderCount = or.total || 0;
-      } catch (e) { orderCount = 0; }
-
       list.push({
         _id: p._id, openid: p.openid,
         nickname: u.nickname || p.nickname || '微信用户',
@@ -314,7 +314,7 @@ async function buildRecommendPartners(d) {
         certified_scenes: p.accept_scenes || [],
         city: p.city || '',
         bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
-        order_count: orderCount,
+        order_count: null,    // 不做逐人计数查询(省冷启动时延); 卡片因缺 on_time_rate/praise_rate 恒显示「数据积累中」
         on_time_rate: null,   // 项目暂无该数据源(卡片据此显示「数据积累中」)
         praise_rate: null,
         price_min: priceMin,
