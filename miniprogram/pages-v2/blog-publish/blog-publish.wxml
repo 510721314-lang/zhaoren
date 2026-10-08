@@ -1,0 +1,52 @@
+<view class="v2 bp">
+  <nav-bar title="发布动态"></nav-bar>
+
+  <view class="bp__body">
+    <!-- 正文 -->
+    <view class="card bp__card">
+      <textarea class="bp__input" placeholder="分享一次你的服务经历、陪诊心得或日常…"
+                maxlength="1000" value="{{content}}" bindinput="onContentInput"
+                auto-height show-confirm-bar="{{false}}" />
+      <view class="bp__count">{{contentLen}}/1000</view>
+    </view>
+
+    <!-- 关联服务场景 -->
+    <view class="card bp__card">
+      <view class="bp__label">关联服务场景（选填）</view>
+      <view class="bp__pick">
+        <view wx:for="{{sceneOpts}}" wx:key="code"
+              class="bp__chip {{sceneCode===item.code?'bp__chip--on':''}}"
+              bindtap="pickScene" data-code="{{item.code}}">{{item.name}}</view>
+      </view>
+    </view>
+
+    <!-- 话题标签 -->
+    <view class="card bp__card">
+      <view class="bp__label">添加话题（选填，最多 3 个）</view>
+      <view class="bp__pick">
+        <view wx:for="{{topicChks}}" wx:key="name"
+              class="bp__chip {{item.on?'bp__chip--on':''}}"
+              bindtap="pickTopic" data-name="{{item.name}}">{{item.icon}} {{item.name}}</view>
+      </view>
+    </view>
+
+    <!-- 图片 -->
+    <view class="card bp__card">
+      <view class="bp__label">添加图片（最多 9 张）</view>
+      <view class="bp__picker">
+        <view wx:for="{{images}}" wx:key="path" class="bp__picker-item">
+          <image class="bp__picker-img" src="{{item.path}}" mode="aspectFill" bindtap="previewImage" data-path="{{item.path}}" />
+          <view wx:if="{{item.uploading}}" class="bp__up-mask"><view class="bp__up-spinner"></view></view>
+          <view class="bp__up-del" catchtap="removeImage" data-path="{{item.path}}">×</view>
+        </view>
+        <view wx:if="{{canAddMore}}" class="bp__picker-add" bindtap="chooseImage" hover-class="bp__picker-add--hover">
+          <view class="bp__add-plus">＋</view>
+          <view class="bp__add-text">{{images.length}}/9</view>
+        </view>
+      </view>
+    </view>
+
+    <button class="btn-primary bp__submit" loading="{{submitting}}" bindtap="onSubmit" hover-class="btn-press">发布动态</button>
+    <view class="bp__tip">发布即表示遵守社区规范，禁止违规、导流、辱骂等内容</view>
+  </view>
+</view>

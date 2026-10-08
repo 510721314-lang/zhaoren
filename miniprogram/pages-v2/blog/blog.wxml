@@ -1,0 +1,111 @@
+<view class="v2 bl">
+  <nav-bar title="{{navTitle}}"></nav-bar>
+
+  <!-- 推荐/我的 切换(TA的动态隐藏切换与筛选) -->
+  <view class="bl__scope" wx:if="{{scope !== 'author'}}">
+    <view class="bl__scope-item {{scope==='feed'?'bl__scope-item--on':''}}" bindtap="switchScope" data-scope="feed">推荐</view>
+    <view class="bl__scope-item {{scope==='my'?'bl__scope-item--on':''}}" bindtap="switchScope" data-scope="my">我的动态</view>
+  </view>
+  <view class="bl__scope bl__scope--author" wx:else>
+    <view class="bl__scope-item bl__scope-item--on">TA的动态</view>
+  </view>
+
+  <!-- 场景筛选(仅推荐广场) -->
+  <scroll-view wx:if="{{scope==='feed'}}" class="bl__filter" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="bl__filter-row">
+      <view wx:for="{{sceneOpts}}" wx:key="code"
+            class="bl__chip {{activeScene===item.code?'bl__chip--on':''}}"
+            bindtap="switchScene" data-code="{{item.code}}">{{item.name}}</view>
+    </view>
+  </scroll-view>
+
+  <!-- 话题筛选(仅推荐广场) -->
+  <scroll-view wx:if="{{scope==='feed'}}" class="bl__filter bl__filter--topic" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="bl__filter-row">
+      <view wx:for="{{topicOpts}}" wx:key="val"
+            class="bl__topic-chip {{activeTopic===item.val?'bl__topic-chip--on':''}}"
+            bindtap="switchTopic" data-val="{{item.val}}">{{item.name}}</view>
+    </view>
+  </scroll-view>
+
+  <view class="bl__feed">
+    <!-- 骨架 -->
+    <view wx:if="{{loading}}" class="bl__skeleton-wrap">
+      <view class="bl__sk-row">
+        <view class="bl__sk bl__sk--circle"></view>
+        <view class="bl__sk-lines">
+          <view class="bl__sk bl__sk--line"></view>
+          <view class="bl__sk bl__sk--line-sm"></view>
+        </view>
+      </view>
+      <view class="bl__sk bl__sk--card"></view>
+      <view class="bl__sk bl__sk--card"></view>
+    </view>
+
+    <!-- 空态 -->
+    <empty-state
+      wx:elif="{{showEmpty}}"
+      icon="📭"
+      title="{{scope==='my' ? '你还没有发布动态' : scope==='author' ? 'TA 还没有发布动态' : '还没有动态'}}"
+      desc="{{scope==='my' ? '点右下角写一条吧' : scope==='author' ? 'TA 的动态会在这里展示' : '来发布第一条吧'}}"
+      btnText="{{scope !== 'author' ? '写动态' : ''}}"
+      bind:btntap="goPublish"
+    />
+
+    <!-- 列表 -->
+    <block wx:else>
+      <view wx:for="{{list}}" wx:key="_id" class="bl__card fade-in-up" style="animation-delay:{{index * 0.04}}s;"
+            bindtap="goDetail" data-id="{{item._id}}" hover-class="bl__card--hover">
+        <!-- 作者行 -->
+        <view class="bl__head">
+          <image wx:if="{{item.hasAvatar}}" class="bl__avatar" src="{{item.author_avatar}}" mode="aspectFill"
+                 catchtap="goAuthor" data-openid="{{item.authorOpenid}}" />
+          <view wx:else class="bl__avatar bl__avatar--default" catchtap="goAuthor" data-openid="{{item.authorOpenid}}">👤</view>
+          <view class="bl__head-mid">
+            <view class="bl__head-name">
+              <text class="bl__nick" catchtap="goAuthor" data-openid="{{item.authorOpenid}}">{{item.author_nickname}}</text>
+              <text wx:if="{{item.isPartner}}" class="bl__partner-badge">认证耍伴</text>
+            </view>
+            <view class="bl__head-sub">
+              <text wx:if="{{item.hasScene}}" class="bl__scene-tag">{{item.sceneName}}</text>
+              <text class="bl__time">{{item.timeText}}</text>
+            </view>
+          </view>
+          <text wx:if="{{item.offline}}" class="bl__offline">已下架</text>
+        </view>
+
+        <!-- 正文 -->
+        <view class="bl__content">{{item.content}}</view>
+
+        <!-- 话题标签 -->
+        <view wx:if="{{item.hasTags}}" class="bl__topic-row">
+          <text wx:for="{{item.tags}}" wx:for-item="tg" wx:key="*this" class="bl__topic-tag"
+                catchtap="goTopic" data-tag="{{tg}}">#{{tg}}</text>
+        </view>
+
+        <!-- 图片: 单图大图 / 多图九宫格 -->
+        <view wx:if="{{item.single}}" class="bl__img-single-wrap">
+          <image class="bl__img-single" src="{{item.images[0]}}" mode="widthFix" lazy-load
+                 catchtap="previewImage" data-current="{{item.images[0]}}" data-urls="{{item.images}}" />
+        </view>
+        <view wx:elif="{{item.multi}}" class="bl__img-grid bl__img-grid--{{item.gridCols}}">
+          <image wx:for="{{item.images}}" wx:for-item="img" wx:for-index="ii" wx:key="ii"
+                 class="bl__grid-img" src="{{img}}" mode="aspectFill" lazy-load
+                 catchtap="previewImage" data-current="{{img}}" data-urls="{{item.images}}" />
+        </view>
+
+        <!-- 互动栏 -->
+        <view class="bl__foot">
+          <view class="bl__foot-item {{item.likeCls}}">♡ {{item.likeCount}}</view>
+          <view class="bl__foot-item">💬 {{item.commentCount}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{hasMore}}" class="bl__more" catchtap="onLoadMore">加载更多</view>
+      <view wx:else class="bl__more bl__more--end">没有更多了</view>
+    </block>
+  </view>
+
+  <!-- 悬浮发布按钮 -->
+  <view class="bl__fab" wx:if="{{scope !== 'author'}}" bindtap="goPublish" hover-class="bl__fab--hover">＋ 发布</view>
+</view>

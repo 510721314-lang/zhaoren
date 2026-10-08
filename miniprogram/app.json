@@ -16,7 +16,10 @@
     "pages-v2/order-detail/order-detail",
     "pages-v2/workbench/workbench",
     "pages-v2/orders/orders",
-    "pages-v2/my-demands/my-demands"
+    "pages-v2/my-demands/my-demands",
+    "pages-v2/blog/blog",
+    "pages-v2/blog-publish/blog-publish",
+    "pages-v2/blog-detail/blog-detail"
   ],
   "subPackages": [
     {

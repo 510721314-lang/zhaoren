@@ -375,3 +375,13 @@
 .pd__media { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; margin-bottom: 12rpx; }
 .pd__media-img { width: 100%; height: 200rpx; border-radius: 12rpx; background: var(--bg-segment); }
 .pd__media-item { font-size: 28rpx; color: var(--text-3); line-height: 1.8; }
+
+/* T3.5 动态入口(条数 + 最新更新时间) */
+.pd__blog-entry { display: flex; align-items: center; justify-content: space-between; }
+.pd__blog-entry--hover { background: var(--bg-segment); }
+.pd__blog-left { display: flex; align-items: center; gap: 16rpx; }
+.pd__blog-icon { font-size: 40rpx; }
+.pd__blog-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); }
+.pd__blog-count { color: var(--brand-primary); font-weight: 700; }
+.pd__blog-sub { margin-top: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
+.pd__blog-arrow { font-size: 36rpx; color: var(--text-3); }

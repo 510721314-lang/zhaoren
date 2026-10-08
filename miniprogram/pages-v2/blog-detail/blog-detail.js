@@ -1,0 +1,226 @@
+// pages-v2/blog-detail/blog-detail.js · 动态详情(大图/点赞/评论/删除)
+const { timeAgo } = require('../../utils/util.js');
+const { getScene } = require('../../utils/redline.js');
+
+function callCloud(name, data) {
+  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
+}
+
+Page({
+  data: {
+    postId: '',
+    post: null,
+    comments: [],
+    page: 1,
+    hasMore: false,
+    loading: true,
+    commentText: '',
+    sending: false,
+    showCommentEmpty: false
+  },
+
+  // 分享: content 前 30 字 + post_id
+  onShareAppMessage() {
+    const p = this.data.post;
+    const title = p ? (p.content || '').slice(0, 30) + (((p.content || '').length > 30) ? '...' : '') : '找个人帮忙';
+    return {
+      title: title || '找个人帮忙',
+      path: '/pages-v2/blog-detail/blog-detail?post_id=' + (this.data.postId || ''),
+      imageUrl: (p && p.hasImages) ? p.images[0] : ''
+    };
+  },
+  // 朋友圈分享(仅 title + imageUrl)
+  onShareTimeline() {
+    const p = this.data.post;
+    return {
+      title: p ? (p.content || '').slice(0, 30) : '找个人帮忙',
+      imageUrl: (p && p.hasImages) ? p.images[0] : ''
+    };
+  },
+
+  onLoad(opts) {
+    this.setData({ postId: (opts && opts.post_id) || '' });
+    this.loadDetail();
+    this.loadComments(true);
+  },
+
+  loadDetail() {
+    if (!this.data.postId) { this.setData({ loading: false }); return; }
+    callCloud('blog-action', { action: 'detail', post_id: this.data.postId }).then((r) => {
+      if (r && r.ok && r.data && r.data.post) {
+        this.setData({ post: this.decoratePost(r.data.post), loading: false });
+      } else {
+        this.setData({ loading: false });
+        wx.showToast({ title: (r && r.msg) || '动态不存在', icon: 'none' });
+      }
+    });
+  },
+
+  decoratePost(p) {
+    const scene = getScene(p.scene);
+    return {
+      _id: p._id,
+      authorOpenid: p.author_openid || '',
+      author_nickname: p.author_nickname || '微信用户',
+      author_avatar: p.author_avatar || '',
+      hasAvatar: !!p.author_avatar,
+      isPartner: !!p.is_partner,
+      isAuthor: !!p.is_author,
+      sceneName: scene ? scene.icon + ' ' + scene.name : '',
+      hasScene: !!scene,
+      content: p.content,
+      images: p.images || [],
+      hasImages: (p.images || []).length > 0,
+      tags: p.tags || [],
+      hasTags: (p.tags || []).length > 0,
+      likeCount: p.like_count || 0,
+      commentCount: p.comment_count || 0,
+      viewCount: p.view_count || 0,
+      liked: !!p.liked,
+      likeCls: p.liked ? 'bd__like--on' : '',
+      timeText: timeAgo(p.created_at)
+    };
+  },
+
+  // → 作者公开主页
+  goAuthor() {
+    const oid = this.data.post && this.data.post.authorOpenid;
+    if (oid) wx.navigateTo({ url: '/pages-v2/partner-detail/partner-detail?partnerOpenid=' + oid, fail: () => wx.showToast({ title: '主页暂不可用', icon: 'none' }) });
+  },
+
+  // 点话题 → 同话题信息流
+  goTopic(e) {
+    const tag = e.currentTarget.dataset.tag;
+    if (tag) wx.navigateTo({ url: '/pages-v2/blog/blog?tag=' + encodeURIComponent(tag) });
+  },
+
+  loadComments(reset) {
+    const doReset = reset === true;
+    const nextPage = doReset ? 1 : this.data.page + 1;
+    callCloud('blog-action', { action: 'comment_list', post_id: this.data.postId, page: nextPage }).then((r) => {
+      if (r && r.ok) {
+        const rows = ((r.data && r.data.list) || []).map((c) => ({
+          _id: c._id,
+          author_nickname: c.author_nickname || '微信用户',
+          author_avatar: c.author_avatar || '',
+          content: c.content,
+          isAuthor: !!c.is_author,
+          timeText: timeAgo(c.created_at)
+        }));
+        const comments = doReset ? rows : this.data.comments.concat(rows);
+        this.setData({
+          comments, page: nextPage, hasMore: !!(r.data && r.data.has_more),
+          showCommentEmpty: comments.length === 0
+        });
+      }
+    });
+  },
+
+  onReachBottom() {
+    if (this.data.hasMore) this.loadComments(false);
+  },
+
+  previewImage(e) {
+    const { urls, current } = e.currentTarget.dataset;
+    wx.previewImage({ current, urls });
+  },
+
+  // 点赞 / 取消(乐观更新, 失败双回滚)
+  toggleLike() {
+    const p = this.data.post;
+    if (!p || this._liking) return;
+    this._liking = true;
+    const willLike = !p.liked;
+    const prevLiked = p.liked;
+    const prevCount = p.likeCount;
+    this.setData({
+      'post.liked': willLike,
+      'post.likeCls': willLike ? 'bd__like--on' : '',
+      'post.likeCount': Math.max(0, prevCount + (willLike ? 1 : -1))
+    });
+    callCloud('blog-action', { action: willLike ? 'like' : 'unlike', post_id: this.data.postId }).then((r) => {
+      if (!(r && r.ok)) {
+        this.setData({ 'post.liked': prevLiked, 'post.likeCls': prevLiked ? 'bd__like--on' : '', 'post.likeCount': prevCount });
+        wx.showToast({ title: (r && r.msg) || '操作失败', icon: 'none' });
+      }
+      this._liking = false;
+    });
+  },
+
+  onCommentInput(e) { this.setData({ commentText: e.detail.value }); },
+
+  onSendComment() {
+    const content = (this.data.commentText || '').trim();
+    if (!content) { wx.showToast({ title: '说点什么吧', icon: 'none' }); return; }
+    // v2 登录态检查: 禁用 app.globalData.userInfo(v2 恒 null)
+    if (!wx.getStorageSync('v2_login_ok')) {
+      wx.showModal({
+        title: '需要先登录',
+        content: '评论前请先授权登录',
+        confirmText: '去登录',
+        success: (res) => { if (res.confirm) wx.navigateTo({ url: '/pages-v2/login/login' }); }
+      });
+      return;
+    }
+    if (this.data.sending) return;
+    this.setData({ sending: true });
+    wx.showLoading({ title: '发送中', mask: true });
+    callCloud('blog-action', { action: 'comment_add', post_id: this.data.postId, content }).then((r) => {
+      wx.hideLoading();
+      this.setData({ sending: false });
+      if (r && r.ok) {
+        this.setData({ commentText: '' });
+        this.loadComments(true);
+        if (this.data.post) this.setData({ 'post.commentCount': this.data.post.commentCount + 1, showCommentEmpty: false });
+      } else {
+        wx.showToast({ title: (r && r.msg) || '评论失败', icon: 'none' });
+      }
+    });
+  },
+
+  // 删除自己的动态(二次确认)
+  onDeletePost() {
+    wx.showModal({
+      title: '删除动态',
+      content: '删除后不可恢复，确定删除这条动态吗？',
+      confirmText: '删除',
+      confirmColor: '#fa5151',
+      success: (m) => {
+        if (!m.confirm) return;
+        wx.showLoading({ title: '删除中', mask: true });
+        callCloud('blog-action', { action: 'delete_my', post_id: this.data.postId }).then((r) => {
+          wx.hideLoading();
+          if (r && r.ok) {
+            wx.showToast({ title: '已删除', icon: 'success' });
+            setTimeout(() => wx.navigateBack({ delta: 1 }), 600);
+          } else {
+            wx.showToast({ title: (r && r.msg) || '删除失败', icon: 'none' });
+          }
+        });
+      }
+    });
+  },
+
+  // 删除自己的评论(二次确认)
+  onDeleteComment(e) {
+    const id = e.currentTarget.dataset.id;
+    wx.showModal({
+      title: '删除评论',
+      content: '确定删除这条评论吗？',
+      confirmText: '删除',
+      confirmColor: '#fa5151',
+      success: (m) => {
+        if (!m.confirm) return;
+        callCloud('blog-action', { action: 'comment_delete', comment_id: id }).then((r) => {
+          if (r && r.ok) {
+            const comments = this.data.comments.filter((c) => c._id !== id);
+            this.setData({ comments, showCommentEmpty: comments.length === 0 });
+            if (this.data.post) this.setData({ 'post.commentCount': Math.max(0, this.data.post.commentCount - 1) });
+          } else {
+            wx.showToast({ title: (r && r.msg) || '删除失败', icon: 'none' });
+          }
+        });
+      }
+    });
+  }
+});

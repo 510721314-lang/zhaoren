@@ -1,0 +1,87 @@
+<view class="v2 bd">
+  <nav-bar title="动态详情"></nav-bar>
+
+  <!-- 骨架 -->
+  <view wx:if="{{loading}}" class="bd__skeleton-wrap">
+    <view class="bd__sk-row">
+      <view class="bd__sk bd__sk--circle"></view>
+      <view class="bd__sk-lines">
+        <view class="bd__sk bd__sk--line"></view>
+        <view class="bd__sk bd__sk--line-sm"></view>
+      </view>
+    </view>
+    <view class="bd__sk bd__sk--line" style="margin-top:28rpx;"></view>
+    <view class="bd__sk bd__sk--line"></view>
+    <view class="bd__sk bd__sk--line-sm"></view>
+    <view class="bd__sk bd__sk--card" style="margin-top:24rpx;"></view>
+  </view>
+
+  <block wx:elif="{{post}}">
+    <!-- 作者卡 -->
+    <view class="bd__author">
+      <image wx:if="{{post.hasAvatar}}" class="bd__avatar" src="{{post.author_avatar}}" mode="aspectFill" bindtap="goAuthor" />
+      <view wx:else class="bd__avatar bd__avatar--default" bindtap="goAuthor">👤</view>
+      <view class="bd__author-mid">
+        <view class="bd__author-name">
+          <text class="bd__nick" bindtap="goAuthor">{{post.author_nickname}}</text>
+          <text wx:if="{{post.isPartner}}" class="bd__partner-badge">认证耍伴</text>
+        </view>
+        <view class="bd__author-sub">
+          <text wx:if="{{post.hasScene}}" class="bd__scene-tag">{{post.sceneName}}</text>
+          <text class="bd__time">{{post.timeText}} · {{post.viewCount}} 次浏览</text>
+        </view>
+      </view>
+      <view wx:if="{{post.isAuthor}}" class="bd__del-entry" catchtap="onDeletePost">删除</view>
+    </view>
+
+    <!-- 正文 -->
+    <view class="bd__content">{{post.content}}</view>
+
+    <!-- 话题标签 -->
+    <view wx:if="{{post.hasTags}}" class="bd__topic-row">
+      <text wx:for="{{post.tags}}" wx:key="*this" class="bd__topic-tag" bindtap="goTopic" data-tag="{{item}}">#{{item}}</text>
+    </view>
+
+    <!-- 图片 -->
+    <view wx:if="{{post.hasImages}}" class="bd__img-list">
+      <image wx:for="{{post.images}}" wx:for-item="img" wx:for-index="ii" wx:key="ii"
+             class="bd__img" src="{{img}}" mode="widthFix"
+             bindtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}" />
+    </view>
+
+    <!-- 评论区 -->
+    <view class="bd__comment-sec">
+      <view class="bd__comment-title">评论 {{post.commentCount}}</view>
+
+      <view wx:if="{{showCommentEmpty}}" class="bd__comment-empty">还没有评论，快来抢沙发～</view>
+
+      <view wx:for="{{comments}}" wx:key="_id" class="bd__comment-item">
+        <image wx:if="{{item.author_avatar}}" class="bd__c-avatar" src="{{item.author_avatar}}" mode="aspectFill" />
+        <view wx:else class="bd__c-avatar bd__c-avatar--default">👤</view>
+        <view class="bd__c-body">
+          <view class="bd__c-name">{{item.author_nickname}}</view>
+          <view class="bd__c-content">{{item.content}}</view>
+          <view class="bd__c-time">{{item.timeText}}</view>
+        </view>
+        <view wx:if="{{item.isAuthor}}" class="bd__c-del" catchtap="onDeleteComment" data-id="{{item._id}}">删除</view>
+      </view>
+    </view>
+
+    <view class="bd__bottom-holder"></view>
+
+    <!-- 底部互动栏 -->
+    <view class="bd__bottom">
+      <view class="bd__like {{post.likeCls}}" bindtap="toggleLike">
+        <text class="bd__like-icon">{{post.liked ? '❤️' : '🤍'}}</text>
+        <text>{{post.likeCount}}</text>
+      </view>
+      <button class="bd__share" open-type="share" hover-class="bd__share--on">
+        <text class="bd__share-icon">📤</text>
+        <text>分享</text>
+      </button>
+      <input class="bd__input" placeholder="友善评论，认真交流" value="{{commentText}}"
+             bindinput="onCommentInput" confirm-type="send" bindconfirm="onSendComment" />
+      <view class="bd__send {{sending?'bd__send--disabled':''}}" bindtap="onSendComment">发送</view>
+    </view>
+  </block>
+</view>

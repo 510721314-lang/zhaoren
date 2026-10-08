@@ -119,6 +119,8 @@ Page({
           { key: 'realname', icon: '🪪', name: '实名认证', badge: uiUser.is_realname_done ? '' : '待认证' },
           // 考试认证入口(耍伴考试通过状态查询, badge 由 fetchExamBadge 更新)
           { key: 'examCert', icon: '🎓', name: '考试认证', badge: this.data.examBadge },
+          // 我的动态入口(服务动态信息流, 双身份均可见)
+          { key: 'myBlog', icon: '📝', name: '我的动态' },
           ...(identity === 'partner'
             ? [
                 { key: 'emergency', icon: '🆘', name: '紧急联系人' },
@@ -263,6 +265,7 @@ Page({
         { key: 'notices', icon: '🔔', name: '消息通知', badge: this.data.notice_unread > 0 ? this.data.notice_unread : '' },
         { key: 'realname', icon: '🪪', name: '实名认证', badge: this.data.user.is_realname_done ? '' : '待认证' },
         { key: 'examCert', icon: '🎓', name: '考试认证', badge: this.data.examBadge },
+        { key: 'myBlog', icon: '📝', name: '我的动态' },
         ...(target === 'partner'
           ? [
               { key: 'emergency', icon: '🆘', name: '紧急联系人' },
@@ -312,6 +315,8 @@ Page({
       wx.navigateTo({ url: '/pages-v2/pkg-low/realname/realname', fail: modalFail });
     } else if (key === 'examCert') {
       wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: modalFail });
+    } else if (key === 'myBlog') {
+      wx.navigateTo({ url: '/pages-v2/blog/blog?scope=my', fail: modalFail });
     } else if (key === 'myPublish') {
       wx.navigateTo({ url: '/pages-v2/my-demands/my-demands', fail: modalFail });
     } else if (key === 'about') {
