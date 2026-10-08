@@ -26,8 +26,8 @@ Component({
       const sceneList = (p.scenes || p.accept_scenes || p.certified_scenes || [])
         .map((code) => getScene(code))
         .filter(Boolean);
-      // PRD 3.2.3：数据<3次显示「数据积累中」
-      const statsText = (p.order_count != null && p.order_count < 3) ? '数据积累中' : '';
+      // PRD 3.2.3：数据<3次显示「数据积累中」；准时率/好评率无数据源时同样降级(避免渲染「准时率 %」)
+      const statsText = (p.order_count == null || p.order_count < 3 || p.on_time_rate == null || p.praise_rate == null) ? '数据积累中' : '';
       this.setData({ sceneList, statsText, normalized });
     },
     onInvite() {

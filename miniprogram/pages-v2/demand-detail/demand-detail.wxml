@@ -50,7 +50,7 @@
     <view class="dd__section-title" wx:if="{{recommendPartners.length > 0}}">推荐耍伴</view>
     <scroll-view scroll-x class="dd__partner-scroll" wx:if="{{recommendPartners.length > 0}}" enhanced show-scrollbar="{{false}}">
       <view class="dd__partner-item" wx:for="{{recommendPartners}}" wx:key="_id">
-        <partner-card partner="{{item}}" bind:cardtap="onPartnerTap" bind:invite="onPartnerTap"></partner-card>
+        <partner-card partner="{{item}}" bind:cardtap="onPartnerTap" bind:invite="onPartnerTap" bind:more="onBlogMore"></partner-card>
       </view>
     </scroll-view>
   </view>

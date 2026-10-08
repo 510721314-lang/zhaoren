@@ -66,6 +66,8 @@ Page({
       isOwner: !!demand.is_owner,
       role: demand.is_owner ? 'user' : 'partner',
       locDisplay: demand.is_owner ? '' : this.__buildLocDisplay(demand),
+      // 推荐耍伴横滑区(后端未上线/无候选时为 [], 自动隐藏)
+      recommendPartners: Array.isArray(demand.recommend_partners) ? demand.recommend_partners : [],
       loading: false
     });
     // 仅耍伴(非发布者)端触发实时定位: 授权后坐标随详情请求带回, 后端据此返回履约地址到TA的距离
@@ -259,6 +261,15 @@ Page({
     wx.navigateTo({
       url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
       fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
+    });
+  },
+  // 卡片「查看更多动态」→ 该耍伴动态流(author 模式)
+  onBlogMore(e) {
+    const openid = (e.detail && e.detail.partner && e.detail.partner.openid) || '';
+    if (!openid) return;
+    wx.navigateTo({
+      url: `/pages-v2/blog/blog?scope=author&authorOpenid=${openid}`,
+      fail: () => wx.showToast({ title: '动态页暂不可用', icon: 'none' })
     });
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }

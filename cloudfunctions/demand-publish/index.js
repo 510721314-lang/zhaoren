@@ -202,6 +202,136 @@ function contentOptionsMax(config) {
   return Number.isFinite(v) && v >= 1 ? v : 3;
 }
 
+// 信用分等级(与 partner-action 同源: L1[600,699] L2[700,799] L3[800,899] L4[900,1000])
+function creditLevelOf(score) {
+  if (!Number.isFinite(score)) return 'L1';
+  if (score >= 900) return 'L4';
+  if (score >= 800) return 'L3';
+  if (score >= 700) return 'L2';
+  return 'L1';
+}
+
+// 相对时间文案(推荐卡片最新动态用)
+function timeAgoText(ts) {
+  if (!ts) return '';
+  const diff = (Date.now() - ts) / 1000;
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  if (diff < 2592000) return Math.floor(diff / 86400) + '天前';
+  return new Date(ts).toLocaleDateString();
+}
+
+// 推荐耍伴明细(Top5): 同场景可接单 + 审核通过 + 信用达标, 按信用分降序
+// 失败/无候选一律返回 [], 绝不阻断 detail 主流程
+async function buildRecommendPartners(d) {
+  try {
+    const scene = (d && d.scene) || '';
+    if (!scene) return [];
+    let cfg = {};
+    try { cfg = await getConfig(); } catch (e) { cfg = {}; }
+    const minCredit = Number(cfg.min_credit_take_order) || 600;
+    const base = { status: 'approved', is_deleted: _.neq(true), accept_switch: _.neq(false), accept_scenes: scene };
+    const pick = async (extra) => {
+      const r = await col('partner_profile').where(Object.assign({}, base, extra))
+        .orderBy('credit_score', 'desc').limit(20).get();
+      return r.data || [];
+    };
+    let rows = [];
+    try { rows = await pick({ credit_score: _.gte(minCredit) }); } catch (e) { rows = []; }
+    if (!rows.length) { try { rows = await pick({}); } catch (e) { rows = []; } }  // 去掉信用门槛重试
+    if (!rows.length) return [];
+
+    const openids = rows.map((p) => p.openid).filter(Boolean);
+    if (!openids.length) return [];
+
+    // 富化①: user_account(昵称/头像 + partner_credit_score 真值源)
+    const uMap = {};
+    try {
+      const ur = await col('user_account').where({ openid: _.in(openids) }).get();
+      (ur.data || []).forEach((u) => { uMap[u.openid] = u; });
+    } catch (e) {}
+
+    // 富化②: blog_post 每作者最新一条(status=normal)
+    const dynMap = {};
+    try {
+      const br = await col('blog_post')
+        .where({ author_openid: _.in(openids), status: 'normal', is_deleted: false })
+        .orderBy('created_at', 'desc').limit(openids.length * 3).get();
+      (br.data || []).forEach((bp) => {
+        if (dynMap[bp.author_openid]) return;
+        dynMap[bp.author_openid] = {
+          cover: (bp.images && bp.images[0]) || '',
+          title: String(bp.content || '').slice(0, 40),
+          at: timeAgoText(bp.created_at)
+        };
+      });
+    } catch (e) {}
+
+    const demandLoc = (d && d.location) || {};
+    const hasDemandLoc = validLngLat(Number(demandLoc.latitude), Number(demandLoc.longitude));
+
+    const list = [];
+    for (const p of rows) {
+      const u = uMap[p.openid] || {};
+      const cs = Number(u.partner_credit_score);
+      const credit = (Number.isFinite(cs) && cs > 0) ? cs : (Number(p.credit_score) || 0);
+
+      // 价格: 优先该场景报价, 否则全部场景 min/max(分→元)
+      const rates = p.scene_rates || {};
+      let priceMin = null, priceMax = null;
+      const scoped = Number(rates[scene]);
+      if (Number.isFinite(scoped) && scoped > 0) {
+        priceMin = Math.round(scoped / 100); priceMax = priceMin;
+      } else {
+        const vals = Object.keys(rates).map((k) => Number(rates[k])).filter((v) => Number.isFinite(v) && v > 0);
+        if (vals.length) { priceMin = Math.round(Math.min.apply(null, vals) / 100); priceMax = Math.round(Math.max.apply(null, vals) / 100); }
+      }
+
+      // 距离(需求履约地 ↔ 耍伴日常位置; 语义为"距履约地", 无坐标则 null)
+      let distanceKm = null;
+      const hl = p.home_location || {};
+      if (hasDemandLoc && validLngLat(Number(hl.latitude), Number(hl.longitude))) {
+        distanceKm = Math.round(haversineKm(
+          Number(demandLoc.latitude), Number(demandLoc.longitude), Number(hl.latitude), Number(hl.longitude)
+        ) * 10) / 10;
+      }
+
+      let orderCount = 0;
+      try {
+        const or = await col('order_main').where({ partner_openid: p.openid, is_deleted: false }).count();
+        orderCount = or.total || 0;
+      } catch (e) { orderCount = 0; }
+
+      list.push({
+        _id: p._id, openid: p.openid,
+        nickname: u.nickname || p.nickname || '微信用户',
+        avatar: u.avatar || '',
+        real_name_verified: !!p.real_name_verified,
+        face_verified: !!p.face_verified,
+        partner_credit_score: credit,
+        partner_level: creditLevelOf(credit),
+        accept_scenes: p.accept_scenes || [],
+        certified_scenes: p.accept_scenes || [],
+        city: p.city || '',
+        bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
+        order_count: orderCount,
+        on_time_rate: null,   // 项目暂无该数据源(卡片据此显示「数据积累中」)
+        praise_rate: null,
+        price_min: priceMin,
+        price_max: priceMax,
+        distance_km: distanceKm,
+        latest_dynamic: dynMap[p.openid] || null
+      });
+    }
+    list.sort((a, b) => (b.partner_credit_score - a.partner_credit_score)
+      || ((a.distance_km == null ? 9999 : a.distance_km) - (b.distance_km == null ? 9999 : b.distance_km)));
+    return list.slice(0, 5);
+  } catch (e) {
+    log.d(`buildRecommendPartners fail: ${e.message}`);
+    return [];
+  }
+}
+
 // 服务端时间红线(R1)已收敛到 _shared/take_rules.js 统一实现(见上方 require)
 
 // 获取用户文档
@@ -887,6 +1017,9 @@ exports.main = async (event, context) => {
         // 履约地址文本: demand.location.name(发布/更新均写入 name 作地址串, 兼容 update 落 location.address)
         const addressText = String(demandLoc.name || demandLoc.address || '').trim();
 
+        // 推荐耍伴(需求详情横滑区; 失败/无候选 → [])
+        const recommend_partners = await buildRecommendPartners(d);
+
         const data = {
           _id: d._id,
           order_id,
@@ -934,7 +1067,8 @@ exports.main = async (event, context) => {
             minutes_ago
           },
           created_at: d.created_at,
-          view_count: typeof d.view_count === 'number' ? d.view_count : 0
+          view_count: typeof d.view_count === 'number' ? d.view_count : 0,
+          recommend_partners
         };
         return { ok: true, data };
       } catch (e) {
