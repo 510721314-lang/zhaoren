@@ -44,6 +44,11 @@
 | 2026-10-09 | order-timer | 2193257 | 3ce629d | zhaoren-deploy-20261009-113029.bundle | 2193257 | 订阅消息增强①·抢单提醒：processDemandNotify 推站内 system_notice 后对已授权订阅(sub_msgs.demand_grab.authorized)耍伴另发 wx 订阅消息(sendDemandSub，字段映射 admin_config.sub_msg_templates 配置化，云调用未开/无模板/配额耗尽 43101 一律静默降级)；门禁 npm test 130/130 |
 | 2026-10-09 | admin-action | 2193257 | 3ce629d | zhaoren-deploy-20261009-113029.bundle | 2193257 | 订阅消息增强②：config_public 下发 sub_msg.demand_grab(有模板才 enabled) + config_set 支持写 sub_msg_templates(白名单仅 demand_grab, 校验 tmpl_id 格式) |
 | 2026-10-09 | partner-action | 2193257 | 3ce629d | zhaoren-deploy-20261009-113029.bundle | 2193257 | 订阅消息增强③：新增 sub_authorize action 落库 partner_profile.sub_msgs.demand_grab + my_profile 回传 sub_msgs |
+| 2026-10-09 | demand-publish | 6194fba | 788b028 | zhaoren-deploy-20261009-144653.bundle | 6194fba | 走查②修复：代发联系方式必填（前后端同口径）+ detail 仅本人回传 publish_type/service_target（修复编辑不回填）+ phone_mask 存储脱敏 |
+| 2026-10-09 | demand-publish | 788b028 | 9460ac2 | zhaoren-deploy-20261009-154905.bundle | 788b028 | 走查②增强（用户要求）：代发关系选项化（「其他」20 字内补充说明）+ 电话校验（手机/带区号座机，前后端同口径）+ 座机脱敏；门禁 check-syntax 104 文件/node --check 2 文件/npm test 130 |
+| 2026-10-09 | demand-publish | 9460ac2 | 1db0216 | zhaoren-deploy-20261009-162554.bundle | 9460ac2 | 一期（联系体系）：需求详情代发标识（proxy_info 全员可见）+ 发布者联系手机号（所有发布必填，account 直取/custom 11 位校验）+ service_target 真号受限存储（输出一律脱敏）；二期（真实验证/虚拟号）作为上线前最后一步（依赖企业主体与号码保护服务开通） |
+| 2026-10-09 | order-action | 1db0216 | 66a2cfb | zhaoren-deploy-20261009-164406.bundle | 1db0216 | 联系信息过渡版：订单详情（接单方且已支付后）展示对方脱敏号（代发单=被代发人/普通单=发布者）+ 拨打占位提示（真实号一律不外传；二期接入号码保护后放开） |
+| 2026-10-09 | order-action | 66a2cfb | 4dcff3e | zhaoren-deploy-20261009-165820.bundle | 66a2cfb | 代发订单联系信息双条（用户要求）：需求发布者 + 被代发人（关系），均脱敏展示 + 拨打占位 |
 
 > 备注（第一批 3 行）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-081223.bundle`（SHA256 已记 CHECKSUMS.txt，git-head=d13e7ad，即部署前云端版本）；部署后 commit=ebc2f4b（三函数一次提交，回滚点=d13e7ad）。
 > 备注（第二批 2 行，专家复核整改）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-083725.bundle`（git-head=0051ba0）；部署后 commit=0059b0f，回滚点=0051ba0。
@@ -58,6 +63,12 @@
 > 备注（十·八批次，需求①站内抢单通知 + 需求②代他人发布，**已部署**）：【需求①】`demand-publish/publish` 写库落 `grab_notify_pending`（direct 定向不推，broadcast/select 推）；`order-timer` 新增 `processDemandNotify` 定时分批推送（对齐 `direct_invite` 的 system_notice：`type=demand_grab` / `action_key=jump_demand` / 含 `demand_id`；范围内过滤对齐 nearby/buildRecommendPartners；处理完 CAS 置 false 幂等续跑）。**【需求②】**`demand-publish/publish` 新增 `publish_type(self/proxy)` + `service_target` + 强制手写签字（`verifySignatureFile` 同 W9）+ `kind=proxy_authorization` 留证；**顺带修复 publish 分支漏写 `headcount/gender_pref`**（与 update 对齐）。前端 publish 页新增发布类型切换 + 被代发人表单 + 《委托授权书》手写签字浮层（复用 signature-canvas）。门禁：4 文件 `node --check` 通过 + 130 单测全绿。**已部署** ①`demand-publish`（success=true / packSize 31.9KB）+ `order-timer`（success=true / packSize 12.1KB）；待办 ②控制台手工建索引 `demand{grab_notify_pending,status,created_at}`（wx-server-sdk 无 createIndex）；③3B 爽约走查（提交/举证/裁定）为用户操作项。前端改动本地生效，无需云端部署。
 
 > 备注（2026-10-09 补记，新机衔接收口）：新机核对发现 `C:\zhaoren-bak` 未随迁移存在、旧机部署归档 bundle 与 CHECKSUMS.txt 在本机不可得；同日重建 `C:\zhaoren-bak` 并补打全量 bundle `zhaoren-bundle-20261009-125533.bundle`（master@a64fd4d，SHA256 A9E968DA…F376，记新建 CHECKSUMS.txt）；「订阅消息增强」投喂提示词正式入库 `docs/onboarding-prompt-20261009-submsg.md`。上表 2026-10-09 三行部署记录维持原貌（部署与云端核验当时已完成）。
+
+> 备注（2026-10-09 走查①「站内抢单通知」**通过**·用户模拟器实测）：控制台已建索引 `demand{grab_notify_pending↑, status↑, created_at↓}`（grab_pending_scan，非唯一）；发布广播需求后站内通知闭环验收通过——收到「有新需求可接单」通知并可点击跳转需求详情。走查②「代他人发布」、走查③「3B 爽约」待续。
+
+> 备注（2026-10-09 走查②「代他人发布」**通过**·用户模拟器实测）：走查发现 2 缺陷当场修复——被代发人联系方式可留空提交（前后端校验缺口）、编辑不回填代发信息（detail 未回传 + 前端遗漏），修复后部署（788b028）；随后按用户要求完成两轮迭代：①代发增强（关系选项化含「其他」20 字说明、电话校验手机/带区号座机、座机脱敏，9460ac2）②联系体系一期（需求详情代发标识、发布者联系手机号全量必填、联系方式真号受限存储+输出全链路脱敏，1db0216）。复测通过（负向拦截/编辑回填/脱敏存储/标识显示均符合预期）。走查③「3B 爽约」待续。
+
+> 备注（2026-10-09 走查③「3B 爽约」**通过**·双账号实测）：申诉提交（同订单互诉 2 条）→ 管理员后台裁定（一条成立/一条不成立；**举证环节未实测，约定下次走查补测**）→ 成立处罚链路落库：被诉方（发单人）`user_credit_score` 800→780（-20，按被诉方角色扣 user/partner 分）、`credit_score_log` type=no_show 留痕、未触发停用（第 1 次）；不成立无处罚；裁定通知按规则发双方（no_show_decided）。走查后已复原信用分（admin_adjust +20 → 800）。规则实配（后台显示=运行值）：扣 20 分 / 累计 5 次停用 3 天 / 说明≥20 字 / 证据≤5 张。**至此走查①②③全部通过**。
 
 ## 使用说明
 
