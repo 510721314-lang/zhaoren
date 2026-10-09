@@ -85,11 +85,25 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 
 - **正确脚本 = `manual-backup.ps1`**（带 `confirm$true`）。`backup.ps1` 的 L2/L3 未带 confirm → 全部返回 `export_need_confirm`，表现为每表 `[SKIP] ... 0/0`（看似成功实为空）。数据库备份入口统一用 manual-backup.ps1。
 - **备份范围已扩（2026-10-09）**：manual-backup.ps1 现含 L6（`cli cloud functions download` 逐个下载 20 个已部署云函数代码到 `meta/functions_code/<fn>/`）+ L7（`scripts/dump-index-ledger.js` 提取 init-db 的 INDEXES → `meta/index_ledger.json`）。manifest 新增 `has_functions_code` / `has_index_ledger` 布尔标记。
-- **关键限制**：wx-server-sdk **无 listIndexes API**（createIndex 也没有，见批次3），备份的索引只是设计级台账 **不是云端实际索引**。历史手工增量索引（如 `demand.grab_notify_pending` 复合索引）不在 init-db INDEXES 内，恢复/核对时要人工按台账在控制台补。
+- **「索引只能控制台核对」已过时（2026-10-09 更新，重要）**：wx-server-sdk 确实无 listIndexes/createIndex，但 **tcb CLI 直连通道已打通**——`node scripts/tcb-scan-indexes.js` 可读取**云端实际索引**（逐集合 listIndexes），`node scripts/tcb-exec.js <cmd.json>` 可执行任意 nosql 命令（含 createIndexes）。设计台账（index_ledger.json）≠ 云端实际，**一切以扫描为准**。2026-10-09 首扫实证：demand 设计 5 条索引中仅 grab_pending_scan（手工）存在，其余 4 条（含大厅查询所需 2 条）均未建 → **提审前必须跑一次扫描核对缺失清单并补齐**。
 - **L7 的坑**：①脚本顶部 `$ErrorActionPreference='Stop'` 会把 node 命令的 stderr 转成终止错误 → 调 node 前临时置 `Continue`；②dump-index-ledger.js 成功时只写 stdout 不写 stderr（成功信息走 `process.stdout.write`），否则 Stop 模式下就算文件已生成也会被 catch 误判 FAIL。
 - **admin_web_key 若遇网关 401（HTTP 401 空响应体）＝密钥失配**（期间被轮换）。处置：不能靠原 key 重试；①浏览器 admin-web F12 → `localStorage.getItem('admin_web_key')` 取当前有效 key，或 ②init-db 云端测试 `{"action":"generate_admin_web_key","reason":"..."}` 重新生成（注意：需要管理员身份 OPENID 在白名单，且回滚后旧 key 全部失效）。生成返回形如 `AWK-<64hex>`，写库后 `admin_config.admin_web_key_set=true`。
 - **36 集合全量**（2026-10-09 实导，含 exam_bank/config_history/no_show_report）：demand 780 / order_main 210 / order_status_log 843 / audit_log 3053 / platform_event 2845 等；三级校验（SHA256 回读 + JSON 可解析 + total==list.Count）异常 0。
 - **异地备份（飞书 lark-cli）**：目标 folder_token=`RCsff3kGUlKhpud1KVFckJOhnGc`。`--local-dir` 只能放 cwd/temp/home/files（cwd=c:\zhaoren 用 `C:\zhaoren\.lark-stage`）。流程：`+status` 精确比对 → `+push`（已有文件需 `--if-exists overwrite`，否则 CHECKSUMS 等被反复追加的文件被 skip）→ 再 `+status` 复核全部 unchanged。
+
+## 索引核对与创建（tcb 直连，2026-10-09 起）
+
+- **前提**：本机已安装 `@cloudbase/cli`（3.x）且 `tcb login` 过（登录态本地复用；`tcb env list` 能看到环境即就绪）。env 由脚本从 `miniprogram/envList.js` 自动读取。
+- **读云端实际索引**：`node scripts/tcb-scan-indexes.js [输出.json]`（默认落盘 `.tmp-tcb/indexes-actual.json`；摘要含每集合索引名+键+唯一性）
+- **建索引**（非唯一示例；务必带 `background:true` 不阻塞查询）：
+  1. 写命令文件 `cmd.json`：
+     ```json
+     [{"TableName":"partner_profile","CommandType":"COMMAND","Command":"{\"createIndexes\":\"partner_profile\",\"indexes\":[{\"key\":{\"status\":1,\"accept_switch\":1,\"credit_score\":1},\"name\":\"idx_status_switch_credit\",\"background\":true}]}"}]
+     ```
+  2. 执行：`node scripts/tcb-exec.js cmd.json`
+- **Windows 大坑（务必走包装器）**：PowerShell 5.1 向 CLI 传「含引号的 JSON 参数」会剥引号/双层转义错乱（表现为 `JSON position 2 / position 60 解析失败`），`cmd /c` 又会被 Trae 安全策略拦截——**一律用 `scripts/tcb-exec.js`（JSON 文件 + spawnSync 数组传参），禁止在命令行直接拼 JSON**。
+- **签名要点**：v3 参数是 `--env-id`（`--envId` 已废弃但有兼容告警）；管理命令（listIndexes/createIndexes）走 `CommandType:"COMMAND"`；加 `--json` 输出更易解析。
+- **MgoCommands 结构**：`[{TableName, CommandType(QUERY/INSERT/UPDATE/DELETE/COMMAND), Command(mongo 命令 JSON 字符串)}]`，官方文档：https://cloud.tencent.com/document/api/876/129012
 
 ## 已知限制
 

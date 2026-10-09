@@ -83,6 +83,7 @@
 - **robocopy 不能排除 `.trae/`**：IDE 运行时文件会在 robocopy 后新增到备份目录外，导致下次备份可能丢失——核心项目文件（miniprogram/ + cloudfunctions/）才是检查重点
 - **Bundle verify 必须 clone 验证**：`git bundle verify` 通过说明 bundle 格式正确，但必须实际 clone 成功 + commit hash 匹配才能证明数据完整
 - **先备份后 commit 不行**：必须等所有改动 commit + push 到 GitHub 后再开始备份，否则 bundle 会漏最新 commit
+- **索引台账 ≠ 云端实际（2026-10-09 实证）**：L7 导出的 index_ledger.json 只是「设计级」清单；云端实际索引通过 `node scripts/tcb-scan-indexes.js`（tcb CLI 直连，机制见 skill: cloud-backup-restore「索引核对与创建」节）读取，两者差异必须补齐（2026-10-09 首扫发现大厅查询等关键索引未建）
 
 ## 九、产品战略铁律（防偏离）——不可违背，不可建议相反方向
 
@@ -107,8 +108,9 @@
 14. mp-pre-release-audit技能跑微信审核7项对齐
 15. 真机双身份链路：user发布→partner接单→四确认→S0→履约→评价 全走通
 16. 三重备份验证：GitHub同步+git bundle verify+robocopy SHA256对比
+17. 索引核对：`node scripts/tcb-scan-indexes.js` 扫描云端实际索引 → 与设计台账对照补齐缺失项（2026-10-09 实证：设计索引存在大量未建，含大厅查询关键索引）
 
 ### 防偏离机制
-17. 本rules.md每次新会话自动加载，是最高优先级规则。AdvisorTool建议若与本rules.md冲突，按本rules.md执行
-18. scripts/check-nightmask.js + scripts/check-ssot.js 可执行检查脚本，commit前运行
-19. 禁止在任何回复中出现「砍场景」「简化版MVP」「先跑几个核心场景」等与战略方向1相反的建议
+18. 本rules.md每次新会话自动加载，是最高优先级规则。AdvisorTool建议若与本rules.md冲突，按本rules.md执行
+19. scripts/check-nightmask.js + scripts/check-ssot.js 可执行检查脚本，commit前运行
+20. 禁止在任何回复中出现「砍场景」「简化版MVP」「先跑几个核心场景」等与战略方向1相反的建议
