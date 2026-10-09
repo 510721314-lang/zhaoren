@@ -70,6 +70,8 @@
 
 > 备注（2026-10-09 走查③「3B 爽约」**通过**·双账号实测）：申诉提交（同订单互诉 2 条）→ 管理员后台裁定（一条成立/一条不成立；**举证环节未实测，约定下次走查补测**）→ 成立处罚链路落库：被诉方（发单人）`user_credit_score` 800→780（-20，按被诉方角色扣 user/partner 分）、`credit_score_log` type=no_show 留痕、未触发停用（第 1 次）；不成立无处罚；裁定通知按规则发双方（no_show_decided）。走查后已复原信用分（admin_adjust +20 → 800）。规则实配（后台显示=运行值）：扣 20 分 / 累计 5 次停用 3 天 / 说明≥20 字 / 证据≤5 张。**至此走查①②③全部通过**。
 
+> 备注（2026-10-09 索引补建·tcb 直连打通）：本日打通云端索引直连读/建通道（tcb CLI + `scripts/tcb-exec|tcb-scan-indexes|tcb-diff-indexes` 入库，机制见 skill: cloud-backup-restore「索引核对与创建」）。全量扫描 39 集合实证：**设计 32 条索引仅 4 条已建**（audit/no_show×2/credit×1）→ **补建 27 条成功**（demand×5、order_main×5、system_notice×3、im×3、safety×2、pay/eval/settlement/withdraw/demand_draft/no_show 等，含 4 条 unique）；1 条初拒=`admin_accounts.uk_account`（存量 **2 条重复 admin 记录**→DuplicateKey），**当日已清理**（备份完整记录→物理删除较早 1 条→保留最新，复核 count=1）并**补建成功——最终 28/28 全部到位（设计 32 条全数建成）**；**9 个设计集合实际不存在**（user_profile/partner_exam/partner_apply/dispute/withdraw_request/credit_log/report/sms_log/device_bind——幽灵集合，跳过）。另：重复 admin 记录成因已定位（admin_login 只读不写；admin_account_create 无查重、疑重复提交）——uk_account 唯一索引已建成兜底，此后重复创建将被数据库层拦截（catch 返回友好报错）。
+
 ## 使用说明
 
 - 新增部署前：`git -C c:\zhaoren bundle create "C:\zhaoren-bak\zhaoren-deploy-<YYYYMMDD>-<HHMMSS>.bundle" master --tags`，核 SHA 记 `C:\zhaoren-bak\CHECKSUMS.txt`

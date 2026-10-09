@@ -104,6 +104,7 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 - **Windows 大坑（务必走包装器）**：PowerShell 5.1 向 CLI 传「含引号的 JSON 参数」会剥引号/双层转义错乱（表现为 `JSON position 2 / position 60 解析失败`），`cmd /c` 又会被 Trae 安全策略拦截——**一律用 `scripts/tcb-exec.js`（JSON 文件 + spawnSync 数组传参），禁止在命令行直接拼 JSON**。
 - **签名要点**：v3 参数是 `--env-id`（`--envId` 已废弃但有兼容告警）；管理命令（listIndexes/createIndexes）走 `CommandType:"COMMAND"`；加 `--json` 输出更易解析。
 - **MgoCommands 结构**：`[{TableName, CommandType(QUERY/INSERT/UPDATE/DELETE/COMMAND), Command(mongo 命令 JSON 字符串)}]`，官方文档：https://cloud.tencent.com/document/api/876/129012
+- **2026-10-09 全量实战**：39 集合扫描 → 设计 32 条仅 4 条已建 → **补建 28 条全部到位**（工具链 tcb-exec/scan/diff；批次特性：逐条执行、某条失败即中止，续跑剔除后重发即可）。案例：admin_accounts 存量 2 条重复 admin 记录（admin_account_create 无查重、疑重复提交）→ 备份完整记录并物理删除较早 1 条后，unique 索引建成（复核 count=1）。幽灵集合 9 个（user_profile/partner_exam/partner_apply/dispute/withdraw_request/credit_log/report/sms_log/device_bind——扫描报 NamespaceNotFound 属正常，无对应设计索引）。
 
 ## 已知限制
 
