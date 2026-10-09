@@ -193,13 +193,26 @@ async function sendDemandSub(d, subTmpl, openid) {
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
   if (!Object.keys(data).length) return;
-  await cloud.openapi.subscribeMessage.send({
-    touser: openid,
-    templateId: subTmpl.tmpl_id,
-    page: subTmpl.page || 'pages-v2/demand-detail/demand-detail',
-    data,
-    miniprogramState: subTmpl.miniprogram_state || 'formal'
-  });
+  // 发送结果落库(成功/失败均记)→ demand.sub_msg_send_logs, 供读库确认订阅链路(自动化闭环验证 2026-10-10)
+  const entry = { openid, at: Date.now(), status: 'ok', errCode: '', errMsg: '' };
+  try {
+    await cloud.openapi.subscribeMessage.send({
+      touser: openid,
+      templateId: subTmpl.tmpl_id,
+      page: subTmpl.page || 'pages-v2/demand-detail/demand-detail',
+      data,
+      miniprogramState: subTmpl.miniprogram_state || 'formal'
+    });
+  } catch (e) {
+    entry.status = 'fail';
+    entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
+    entry.errMsg = String((e && (e.errMsg || e.message)) || '');
+    throw e; // 保持调用处 .catch 语义: log.w + 不阻断流程
+  } finally {
+    try {
+      await col('demand').doc(d._id).update({ data: { sub_msg_send_logs: _.push([entry]), updated_at: Date.now() } });
+    } catch (e2) {}
+  }
 }
 async function processDemandNotify(now, cfg) {
   const done = [];
