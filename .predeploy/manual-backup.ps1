@@ -104,10 +104,14 @@ foreach ($col in $COLLECTIONS) {
 # L6: 云函数代码（从云端下载实际部署版本）
 Write-Host "`n===== L6 云函数代码(云端下载) =====" -ForegroundColor Yellow
 $fnCodeDir = $null
-$cli = Get-ChildItem -Path 'C:\Users\Administrator\Desktop' -Directory -ErrorAction SilentlyContinue |
-  Where-Object { Test-Path (Join-Path $_.FullName 'cli.bat') } | Select-Object -First 1
-if ($cli) {
-  $cliBat = Join-Path $cli.FullName 'cli.bat'
+# CLI 路径探测(2026-10-09 新机适配): 旧机 Administrator 桌面 / 新机 DC 桌面 / 当前用户桌面
+$cliDirs = @(
+  'C:\Users\Administrator\Desktop\微信WEB开发者工具',
+  'C:\Users\DC\Desktop\微信WEB开发者工具',
+  (Join-Path $env:USERPROFILE 'Desktop\微信WEB开发者工具')
+)
+$cliBat = $cliDirs | Where-Object { Test-Path (Join-Path $_ 'cli.bat') } | Select-Object -First 1 | ForEach-Object { Join-Path $_ 'cli.bat' }
+if ($cliBat) {
   $fnRoot = "$BackupDir\meta\functions_code"
   New-Item -ItemType Directory -Force -Path $fnRoot | Out-Null
   $fnNames = @(Get-ChildItem "$PROJECT_DIR\cloudfunctions" -Directory -ErrorAction SilentlyContinue |
