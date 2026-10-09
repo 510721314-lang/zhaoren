@@ -286,6 +286,12 @@ Page({
             'form.aa_estimate': d.aa_estimate || '0-50',
             'form.match_mode': d.match_mode || 'broadcast',
             'form.gender_pref': d.gender_pref || '不限',
+            // 需求②代他人发布: 编辑回填发布类型 + 被代发人信息(服务端仅向本人返回; 代发信息发布后锁定, 编辑保存不改动)
+            publishType: d.publish_type === 'proxy' ? 'proxy' : 'self',
+            proxyName: (d.service_target && d.service_target.name) || '',
+            proxyRelation: (d.service_target && d.service_target.relation) || '',
+            proxyPhone: (d.service_target && d.service_target.phone_mask) || '',
+            proxyAuthChecked: d.publish_type === 'proxy',
             // 履约地点
             'form.location_name': (d.location && d.location.name) || '',
             'form.latitude': (d.location && d.location.latitude) || 0,
@@ -1073,6 +1079,7 @@ Page({
     if (this.data.publishType === 'proxy') {
       if (!this.data.proxyName.trim()) errs.push('请填写被代发人姓名');
       if (!this.data.proxyRelation.trim()) errs.push('请填写与本人的关系');
+      if (!this.data.proxyPhone.trim()) errs.push('请填写被代发人联系方式');
       if (!this.data.proxyAuthChecked) errs.push('请完成《委托授权书》手写签字确认');
     }
     // 敏感词

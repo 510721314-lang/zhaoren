@@ -117,6 +117,15 @@ function buildCheckboxEvidence(o) {
   return data;
 }
 
+// 联系方式脱敏(phone_mask 语义): 11 位手机号保留前 3 后 4; 其他长度保留首尾各 2 位
+function maskContact(s) {
+  const t = String(s || '').trim();
+  if (!t) return '';
+  if (/^\d{11}$/.test(t)) return t.slice(0, 3) + '****' + t.slice(7);
+  if (t.length <= 4) return t;
+  return t.slice(0, 2) + '****' + t.slice(-2);
+}
+
 // W9 手写签字图取证: 服务端下载 → PNG 魔数 + 体积校验 → SHA-256(证明入库时刻文件内容, 与实名留证同口径)
 async function verifySignatureFile(fileId) {
   if (!fileId || !/^cloud:\/\//.test(String(fileId))) return { ok: false, code: 'missing' };
@@ -478,6 +487,9 @@ exports.main = async (event, context) => {
         if (!service_target || !service_target.name) {
           return { ok: false, code: 'publish_proxy_target', msg: '请填写被代发人姓名' };
         }
+        if (!service_target.relation || !service_target.phone_mask) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请补全被代发人信息（关系/联系方式）' };
+        }
         proxySignature = await verifySignatureFile(proxy_signature_file_id);
         if (!proxySignature.ok) {
           return { ok: false, code: 'publish_proxy_sign_required', msg: '请完成《委托授权书》手写签字后重试' };
@@ -779,7 +791,7 @@ exports.main = async (event, context) => {
           ? {
               name: String(service_target.name).slice(0, 20),
               relation: String(service_target.relation || '').slice(0, 10),
-              phone_mask: String(service_target.phone_mask || '').slice(0, 20)
+              phone_mask: maskContact(service_target.phone_mask)
             }
           : null,
         proxy_auth_signed: !!proxySignature,
@@ -1119,6 +1131,9 @@ exports.main = async (event, context) => {
           gender_pref: d.gender_pref || '不限',
           // W9 宠物照料授权电子确认状态(编辑回填 + 详情展示)
           pet_auth_signed: !!d.pet_auth_signed,
+          // 代他人发布(需求②): 仅本人回传(被代发人信息属隐私, 不对他人暴露; 编辑模式回填用)
+          publish_type: (d.creator_openid === openid) ? (d.publish_type || 'self') : undefined,
+          service_target: (d.creator_openid === openid) ? (d.service_target || null) : undefined,
           // 原始发布地址(只读留痕, 编辑模式回填用; 安全: 精确坐标仅发布者本人可见, 他人不回传)
           publish_location: (d.creator_openid === openid) ? (d.publish_location || null) : null,
           // 是否入公共大厅(定向需求不在大厅/首页出现)
