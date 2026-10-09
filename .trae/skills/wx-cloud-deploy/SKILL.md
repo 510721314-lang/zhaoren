@@ -71,6 +71,7 @@ CLI `deploy` **只上传代码，不会应用函数目录下 config.json 里的 
 - `Please ensure that the IDE has been properly installed` / `ENOENT ... Default\.cli` → 新装 IDE 从未启动过，User Data 目录未创建；先手动打开一次 `微信开发者工具.exe` 并登录，再用 CLI。
 - `Updating 状态` 冲突 → 并发部署导致；改为串行 foreach，等上一个 success 再下一个。
 - 改了代码"不生效" → 99% 是没重新部署；部署后看 packSize 变化与 functions list 的更新时间。
+- 批量部署报 `40001 invalid credential, access_token is invalid or not latest` → IDE 登录凭据失效（非代码问题）。处置：`cli login -f image -o <png路径> -r <json路径>` 后台跑出二维码，用户微信扫码；注意 `cli islogin` 可能假阳性显示 `login:true`，**以实际 deploy success 为准**；扫码后若端口 45353 被旧实例占用，确认用的是桌面路径 cli.bat。
 - 云端测试 `未知动作` → 测试面板顶部的函数名与入参 action 不匹配（如在 payment-mock 面板发 confirm_all）；切到对应函数面板。
 - 云端测试返回 `{"errorCode":-1,"errorMessage":"Invoking task timed out after 3 seconds","statusCode":433}` → 函数硬超时 3 秒被杀。根因不是代码死循环，而是 CLI 部署不应用 config.json 的 timeout（见上文「config.json 不生效」）。处置：①控制台把该函数超时调大并 `functions info` 读回确认；②若免费版锁死 3 秒，则把函数内 DB 读并行化、长流程改为每步落库+幂等续跑。典型受害：冷启动的 demand-publish/detail、跨函数编排的 zz-selftest-timer（表现为"单据可能已落库但进度没存"，复用逻辑要能捞回半成品）。
 - 定时函数"整夜没跑/状态冻结" → CLI 不应用 config.json 的 triggers；去控制台「触发器」手动添加，或验证期手动连点 run。

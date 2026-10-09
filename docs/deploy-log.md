@@ -50,7 +50,9 @@
 | 2026-10-09 | order-action | 1db0216 | 66a2cfb | zhaoren-deploy-20261009-164406.bundle | 1db0216 | 联系信息过渡版：订单详情（接单方且已支付后）展示对方脱敏号（代发单=被代发人/普通单=发布者）+ 拨打占位提示（真实号一律不外传；二期接入号码保护后放开） |
 | 2026-10-09 | order-action | 66a2cfb | 4dcff3e | zhaoren-deploy-20261009-165820.bundle | 66a2cfb | 代发订单联系信息双条（用户要求）：需求发布者 + 被代发人（关系），均脱敏展示 + 拨打占位 |
 | 2026-10-09 | order-timer | 0103a6e | d88fede | zhaoren-deploy-20261009-224712.bundle | 0103a6e | 订阅消息修复：①config.json 补云调用权限声明 permissions.openapi=[subscribeMessage.send]（此前缺失→发送被拒且被 log.d 静默，即「收不到订阅消息」根因）②发送失败日志升 log.w（prod 可观测 errCode）③运行时配置 miniprogram_state formal→trial（提审前无正式版）；门禁 8 步全绿（1-6 + smoke + heartbeat）；CLI 部署 success=true/13.3KB |
+| 2026-10-09 | 9 函数（blog-action/evaluation-submit/safety-report/im-send/order-action/demand-publish/partner-action/user-login/admin-action） | d88fede | eda406c | zhaoren-deploy-20261009-231406.bundle | d88fede | 提审前声明权限+静默降级治理：9 函数 config.json 补云调用权限声明（8 函数 security.msgSecCheck + user-login 另加 phonenumber.getPhoneNumber），全部 openapi 失败日志 log.d→log.w 消除 prod 静默失败；门禁 8 步全绿；CLI 串行部署逐个 success=true；部署前曾因 IDE 登录凭据失效报 40001，扫码重登后成功 |
 
+> 备注（订阅消息修复 + 声明权限治理，2026-10-09）：订阅修复 commit=d88fede（已部署，回滚点=0103a6e）；声明权限治理 commit=eda406c（9 函数一次提交，回滚点=d88fede，部署前 bundle documented 为 zhaoren-deploy-20261009-231406.bundle）。**经验**：云调用（cloud.openapi.*）缺失 config.json permissions.openapi 声明时发送被拒且 log.d 静默 → 排查「收不到订阅消息」先查权限声明；部署批量报 40001 invalid credential = IDE 登录凭据失效（非代码），`cli login -f image -o <png>` 扫码重登后 `islogin` 可能假阳性，以实际 deploy success 为准。
 > 备注（第一批 3 行）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-081223.bundle`（SHA256 已记 CHECKSUMS.txt，git-head=d13e7ad，即部署前云端版本）；部署后 commit=ebc2f4b（三函数一次提交，回滚点=d13e7ad）。
 > 备注（第二批 2 行，专家复核整改）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-083725.bundle`（git-head=0051ba0）；部署后 commit=0059b0f，回滚点=0051ba0。
 > 备注（第三批 2 行，orderTimer 触发器根因闭环）：探针版与修复版均基于 2d918e1；探针仅作诊断且已随修复版移除；修复后心跳 10:40:06 恢复、gate 第 7 步 OK，回滚点=2d918e1。
