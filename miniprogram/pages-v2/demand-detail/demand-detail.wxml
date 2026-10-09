@@ -20,6 +20,8 @@
       <view class="dd__title">{{demand.title}}</view>
       <!-- 定向邀约标识: 仅发布者本人可见 -->
       <view class="dd__direct-tag" wx:if="{{isOwner && demand.match_mode === 'direct'}}">🎯 定向邀约中 · 仅受邀耍伴可见可接</view>
+      <!-- 代发标识: 需求② 代他人发布(对所有人可见, 提醒接单者注意服务对象) -->
+      <view class="dd__proxy-tag" wx:if="{{demand.proxy_info && demand.proxy_info.is_proxy}}">👥 代他人发布 · 服务对象为发布者的「{{demand.proxy_info.relation || '亲友'}}」，请接单后与服务对象确认细节</view>
       <view class="dd__desc">{{demand.description}}</view>
       <view class="dd__info-grid">
         <view class="dd__info-item"><text class="dd__info-label">日期</text><text class="dd__info-val">{{demand.service_date}}</text></view>

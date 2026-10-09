@@ -108,7 +108,11 @@ Page({
     proxyRelation: '',            // 与我的关系(选项值; 选「其他」时配合 proxyRelationNote)
     proxyRelationNote: '',        // 关系补充说明(仅「其他」, ≤20 字)
     relationOptions: ['父母', '子女', '配偶', '长辈', '兄弟姐妹', '亲友', '邻居', '同事', '其他'],
-    proxyPhone: '',               // 被代发人电话(手机/带区号座机, 服务端脱敏存储)
+    proxyPhone: '',               // 被代发人电话(手机/带区号座机; 服务端真号受限存储, 输出脱敏)
+    // 发布者联系手机号(所有需求必填; 二期接真实验证/虚拟号)
+    contactPhone: '',             // 手动输入的手机号(custom)
+    useAccountPhone: true,        // 默认「使用账户手机号」(账户未绑号时自动关闭)
+    accountPhoneMasked: '',       // 账户已绑手机号(脱敏, 仅展示)
     // 代发授权手写签字(强制留存, 复用 W9 签字范式; kind=proxy_authorization)
     proxyAuthChecked: false,
     proxySheetVisible: false,     // 委托授权书弹窗
@@ -299,8 +303,10 @@ Page({
             proxyName: _st.name || '',
             proxyRelation: _relValue,
             proxyRelationNote: _relNote,
-            proxyPhone: _st.phone_mask || '',
+            proxyPhone: _st.phone || _st.phone_mask || '',
             proxyAuthChecked: d.publish_type === 'proxy',
+            contactPhone: d.contact_phone_masked || '',   // 编辑暂不支持修改联系手机号(展示脱敏值)
+            useAccountPhone: false,
             // 履约地点
             'form.location_name': (d.location && d.location.name) || '',
             'form.latitude': (d.location && d.location.latitude) || 0,
@@ -356,7 +362,10 @@ Page({
           const u = r.data.user;
           this.setData({
             user: u,
-            smartLocked: (u.partner_credit_score || 0) < L3_MIN
+            smartLocked: (u.partner_credit_score || 0) < L3_MIN,
+            // 联系手机号: 账户已绑号(脱敏展示) → 默认勾选「使用账户手机号」
+            accountPhoneMasked: u.phone || '',
+            useAccountPhone: !!u.phone
           });
         }
       },
@@ -618,6 +627,12 @@ Page({
   },
   onProxyRelationNoteInput(e) { this.setData({ proxyRelationNote: (e.detail.value || '').slice(0, 20) }); },
   onProxyPhoneInput(e) { this.setData({ proxyPhone: (e.detail.value || '').slice(0, 20) }); },
+  // 发布者联系手机号(所有需求必填)
+  onContactPhoneInput(e) { this.setData({ contactPhone: (e.detail.value || '').replace(/\D/g, '').slice(0, 11) }); },
+  onUseAccountPhoneChange(e) {
+    const on = (e.detail.value || []).length > 0;
+    this.setData({ useAccountPhone: on });
+  },
   // 电话格式: 11 位手机号 或 带区号座机(如 028-88888888; 与 demand-publish 服务端同口径)
   _isPhoneOrLandline(s) {
     const t = String(s || '').trim();
@@ -1095,6 +1110,16 @@ Page({
     if (!f.aa_estimate) errs.push('请选择AA费用预估');
     // W9 宠物照料授权(电子确认凭证; PRD R9 无凭证不得履约, 服务端同口径兜底)
     if (f.scene_code === 'W9' && !this.data.petAuthChecked) errs.push('请确认《宠物照料授权书》');
+    // 联系手机号(所有需求必填; 编辑模式暂不支持修改, 跳过校验)
+    if (!this.data.isEditMode) {
+      if (!this.data.useAccountPhone) {
+        const cp = (this.data.contactPhone || '').trim();
+        if (!cp) errs.push('请填写联系手机号');
+        else if (!/^1[3-9]\d{9}$/.test(cp)) errs.push('请填写正确的 11 位联系手机号');
+      } else if (!this.data.accountPhoneMasked) {
+        errs.push('账户未绑定手机号，请手动填写联系手机号');
+      }
+    }
     // 需求② 代他人发布: 必填被代发人 + 强制手写签字授权(不做轻量勾选, 服务端强校验同口径)
     if (this.data.publishType === 'proxy') {
       if (!this.data.proxyName.trim()) errs.push('请填写被代发人姓名');
@@ -1254,8 +1279,10 @@ Page({
         name: this.data.proxyName,
         relation: this.data.proxyRelation,
         relation_note: this.data.proxyRelation === '其他' ? this.data.proxyRelationNote : '',
-        phone_mask: this.data.proxyPhone
+        phone: this.data.proxyPhone
       } : null,
+      contact_phone_source: this.data.useAccountPhone ? 'account' : 'custom',
+      contact_phone: this.data.useAccountPhone ? '' : this.data.contactPhone,
       proxy_authorized: this.data.publishType === 'proxy',
       proxy_signature_file_id: this.data.publishType === 'proxy' ? (this.data.proxyAuthSignFileId || '') : '',
       target_openid: this.invitePartnerOpenid || '',

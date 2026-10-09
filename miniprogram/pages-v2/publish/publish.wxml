@@ -175,6 +175,18 @@
     </view>
   </view>
 
+  <!-- B8.5 联系手机号(所有需求必填; 履约联系用, 二期接真实验证/虚拟号) -->
+  <view class="pub__block">
+    <view class="pub__label">联系手机号 <text class="pub__required">*</text></view>
+    <input class="pub__input" type="number" maxlength="11" value="{{contactPhone}}" disabled="{{isEditMode || useAccountPhone}}" placeholder="请输入 11 位手机号（仅平台掌握，接单方将通过保护号联系）" bindinput="onContactPhoneInput" />
+    <checkbox-group wx:if="{{!isEditMode && accountPhoneMasked}}" bindchange="onUseAccountPhoneChange" class="pub__pet-agree">
+      <label class="pub__pet-agree-label">
+        <checkbox value="ok" checked="{{useAccountPhone}}" color="#22B573" />
+        <text>使用账户绑定手机号（{{accountPhoneMasked}}）</text>
+      </label>
+    </checkbox-group>
+  </view>
+
   <!-- B12 发布类型(需求② 代他人发布) -->
   <view class="pub__block">
     <view class="pub__label">发布类型</view>

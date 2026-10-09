@@ -35,6 +35,18 @@
   font-size: var(--font-xs);
   font-weight: 600;
 }
+/* 代发标识: 需求② 代他人发布(对所有人可见, 提醒接单者注意服务对象) */
+.dd__proxy-tag {
+  margin-top: 12rpx;
+  display: inline-block;
+  background: var(--func-warning-light);
+  color: var(--text-aa);
+  border: 1rpx solid var(--func-warning-light);
+  border-radius: var(--r-sm);
+  padding: 8rpx 16rpx;
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
 .dd__desc {
   margin-top: 12rpx;
   font-size: var(--font-md);

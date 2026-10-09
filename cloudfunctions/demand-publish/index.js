@@ -405,6 +405,7 @@ exports.main = async (event, context) => {
         pricing_type, fixed_price_fen, project_attr,
         headcount, gender_pref,
         publish_type, service_target, proxy_signature_file_id, proxy_authorized,
+        contact_phone, contact_phone_source,
         client_request_id
       } = event;
       // 计价模式归一化(缺省 hourly 兼容存量; 未传 project_attr 视为商业)
@@ -500,7 +501,8 @@ exports.main = async (event, context) => {
         if (service_target.relation === '其他' && !String(service_target.relation_note || '').trim()) {
           return { ok: false, code: 'publish_proxy_target', msg: '请填写关系补充说明' };
         }
-        if (!isPhoneOrLandline(service_target.phone_mask)) {
+        // 电话: 兼容旧入参名 phone_mask; 存储升级为真号(phone), 输出层一律脱敏
+        if (!isPhoneOrLandline(service_target.phone || service_target.phone_mask)) {
           return { ok: false, code: 'publish_proxy_phone', msg: '请填写正确的手机号，或带区号的座机号（如 028-88888888）' };
         }
         proxySignature = await verifySignatureFile(proxy_signature_file_id);
@@ -520,6 +522,21 @@ exports.main = async (event, context) => {
         getConfig(), getUser(openid), hasEmergencyContact(openid)
       ]);
       if (!user) return { ok: false, code: 'publish_no_user', msg: '用户不存在,请先登录' };
+
+      // ── 联系手机号(所有需求必填): source=account 取账户已绑号(服务端直取, 不信任前端); custom 走 11 位格式校验 ──
+      const PHONE_11_RE = /^1[3-9]\d{9}$/;
+      let contactPhone = '';
+      if (contact_phone_source === 'account') {
+        contactPhone = String(user.phone || '').trim();
+        if (!PHONE_11_RE.test(contactPhone)) {
+          return { ok: false, code: 'publish_contact_required', msg: '账户未绑定手机号, 请手动填写联系手机号' };
+        }
+      } else {
+        contactPhone = String(contact_phone || '').trim();
+        if (!PHONE_11_RE.test(contactPhone)) {
+          return { ok: false, code: 'publish_contact_required', msg: '请填写正确的 11 位联系手机号' };
+        }
+      }
 
       // 服务端时间红线二次强校验(带完整 admin_config, 与前端 redline.js 同口径)
       if (!isServiceTimeAllowed(start_time, config)) {
@@ -798,6 +815,8 @@ exports.main = async (event, context) => {
         // ── 需求规模/性别偏好(此前 publish 分支漏写, 本次补齐与 update 对齐) ──
         headcount: headcountN,
         gender_pref: genderPref,
+        // ── 发布者联系手机号(履约联系用; 真号受限存储, 任何输出不回传; 二期接真实验证/虚拟号) ──
+        contact_phone: contactPhone,
         // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人 ──
         publish_type: publishType,
         service_target: proxySignature
@@ -805,7 +824,8 @@ exports.main = async (event, context) => {
               name: String(service_target.name).slice(0, 20),
               relation: String(service_target.relation || '').slice(0, 10),
               relation_note: String(service_target.relation_note || '').slice(0, 20),
-              phone_mask: maskContact(service_target.phone_mask)
+              // 真号受限存储(仅服务端使用, 为二期虚拟号/验证预埋); 任何输出接口一律 maskContact 脱敏, 不回传真号
+              phone: String(service_target.phone || service_target.phone_mask || '').trim().slice(0, 20)
             }
           : null,
         proxy_auth_signed: !!proxySignature,
@@ -1145,9 +1165,20 @@ exports.main = async (event, context) => {
           gender_pref: d.gender_pref || '不限',
           // W9 宠物照料授权电子确认状态(编辑回填 + 详情展示)
           pet_auth_signed: !!d.pet_auth_signed,
-          // 代他人发布(需求②): 仅本人回传(被代发人信息属隐私, 不对他人暴露; 编辑模式回填用)
-          publish_type: (d.creator_openid === openid) ? (d.publish_type || 'self') : undefined,
-          service_target: (d.creator_openid === openid) ? (d.service_target || null) : undefined,
+          // 代他人发布(需求②): 性质对所有人可见(需求详情标识用); 被代发人详情仅本人回传(隐私; 编辑回填用)
+          publish_type: d.publish_type || 'self',
+          proxy_info: (d.publish_type === 'proxy') ? {
+            is_proxy: true,
+            relation: (d.service_target && d.service_target.relation) || ''
+          } : { is_proxy: false, relation: '' },
+          service_target: (d.creator_openid === openid) ? (d.service_target ? {
+            name: d.service_target.name || '',
+            relation: d.service_target.relation || '',
+            relation_note: d.service_target.relation_note || '',
+            phone: maskContact(d.service_target.phone || d.service_target.phone_mask || '')
+          } : null) : undefined,
+          // 发布者联系手机号: 仅本人回传(编辑回填展示用, 脱敏); 真号一律不回传
+          contact_phone_masked: (d.creator_openid === openid) ? maskContact(d.contact_phone || '') : undefined,
           // 原始发布地址(只读留痕, 编辑模式回填用; 安全: 精确坐标仅发布者本人可见, 他人不回传)
           publish_location: (d.creator_openid === openid) ? (d.publish_location || null) : null,
           // 是否入公共大厅(定向需求不在大厅/首页出现)
