@@ -172,6 +172,18 @@
       </view>
     </view>
 
+    <!-- 7b. 抢单提醒(需求①增强 · 订阅消息): 模板未配置时开关置灰, 仅站内通知(静默降级) -->
+    <view class="ac__card">
+      <view class="ac__row-between">
+        <view>
+          <view class="ac__card-title">抢单提醒</view>
+          <view class="ac__tip" wx:if="{{subMsgCfg.enabled}}">范围内有新需求可接单时，通过微信消息提醒你</view>
+          <view class="ac__tip" wx:else>微信提醒暂未开通，接单需求仍会显示在站内通知</view>
+        </view>
+        <switch checked="{{subAuthorized}}" disabled="{{!subMsgCfg.enabled}}" color="var(--func-success)" bindchange="onSubToggle" />
+      </view>
+    </view>
+
     <!-- 8. 缓冲时间 -->
     <view class="ac__card">
       <view class="ac__card-title">接单缓冲时间</view>

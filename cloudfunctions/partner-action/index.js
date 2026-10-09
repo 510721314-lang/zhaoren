@@ -635,6 +635,25 @@ exports.main = async (event, context) => {
       return { ok: true, data: { updated } };
     }
 
+    // 3.5 抢单提醒订阅授权(需求①增强): tmpl=demand_grab, authorized=bool
+    // 将授权结果存 partner_profile.sub_msgs, 供 order-timer 抢单通知时判断是否额外发订阅消息(静默降级: 未授权仅站内)
+    case 'sub_authorize': {
+      const tmpl = String(event.tmpl || 'demand_grab');
+      if (tmpl !== 'demand_grab') return { ok: false, code: 'pa_sub_tmpl_bad', msg: '暂仅支持抢单提醒' };
+      const profile = await getProfile(openid);
+      if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
+      const sub_msgs = Object.assign({}, profile.sub_msgs || {}, {
+        [tmpl]: { authorized: !!event.authorized, updated_at: Date.now() }
+      });
+      await col('partner_profile').doc(profile._id).update({ data: { sub_msgs, updated_at: Date.now() } });
+      await writeAudit(db, log, {
+        openid, role: 'partner', category: 'business', action: 'partner_sub_authorize',
+        target_type: 'partner_profile', target_id: profile._id,
+        detail: { tmpl, authorized: !!event.authorized }, result: 'ok', client_ip: clientIp, device
+      });
+      return { ok: true, data: { sub_msgs } };
+    }
+
     // 3. 我的耍伴资料与接单统计
     case 'my_profile': {
       const profile = await getProfile(openid);
@@ -677,6 +696,7 @@ exports.main = async (event, context) => {
               name: profile.home_location.name || '',
               address: profile.home_location.address || ''
             } : null,
+            sub_msgs: profile.sub_msgs || {},
             status: profile.status, applied_at: profile.applied_at,
             // 资料维护回显: 展示快照 + 审核状态(编辑页用)
             bio: (profile.profile_audited_snapshot && profile.profile_audited_snapshot.bio) || '',

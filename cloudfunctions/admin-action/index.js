@@ -416,6 +416,15 @@ exports.main = async (event, context) => {
     const cfgRaw = config || {};
     // 显式判空(未配置/留空 → def; 0 是合法值, 禁 || 兜底)
     const nsInt = (v, def) => (v === undefined || v === null || v === '' ? def : Number(v));
+    // 订阅消息(抢单提醒): 模板未配(enabled=false)时前端授权开关置灰, 仅站内 system_notice, 静默降级
+    const subGrab = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.demand_grab) || {};
+    const demandGrab = subGrab.tmpl_id ? {
+      enabled: true,
+      tmpl_id: subGrab.tmpl_id,
+      page: subGrab.page || 'pages-v2/demand-detail/demand-detail',
+      miniprogram_state: subGrab.miniprogram_state || 'formal',
+      fields: subGrab.fields || null
+    } : { enabled: false };
     return { ok: true, data: {
       version: cfgRaw.version,
       timeouts: {
@@ -524,6 +533,11 @@ exports.main = async (event, context) => {
       // 支付/资金(dev 下发; prod 随 mock_payment_enabled 总开关 fail-closed: 测试期打开则打赏一并可用, 上线前关闭自动恢复禁用)
       payment: {
         tip_enabled: cfgRaw.env === 'dev' || cfgRaw.mock_payment_enabled === true
+      },
+      // 订阅消息(需求①增强 · 抢单提醒): 模板ID/跳转页/字段映射配置化下发; 前端授权页据此调 requestSubscribeMessage。
+      // 未配置(enabled=false)时授权开关置灰, 仅走站内 system_notice, 静默降级; 缺失走前端 CONFIG.SUB_MSG 兜底。
+      sub_msg: {
+        demand_grab: demandGrab
       }
     } };
   }
@@ -2080,6 +2094,21 @@ exports.main = async (event, context) => {
       }
       before.modify_config = config.modify_config || {};
       patch.modify_config = nextMC;
+    }
+
+    // 订阅消息模板(需求①增强): 抢单提醒模板ID/跳转页/字段映射/小游戏态, 配置化下发, 服务端不硬编码。
+    // 未配置时 order-timer 只发站内 system_notice(静默降级)。白名单仅接受 demand_grab 一个子阈值。
+    if (event.sub_msg_templates !== undefined) {
+      if (typeof event.sub_msg_templates !== 'object' || Array.isArray(event.sub_msg_templates) || event.sub_msg_templates === null) {
+        return fail('config_bad_sub_msg', 'sub_msg_templates 须为对象');
+      }
+      const cur = (config.sub_msg_templates || {}).demand_grab || {};
+      const next = Object.assign({}, cur, event.sub_msg_templates.demand_grab || {});
+      if (next.tmpl_id !== undefined && next.tmpl_id !== '' && !/^[A-Za-z0-9_-]{1,80}$/.test(String(next.tmpl_id))) {
+        return fail('config_bad_sub_tmpl', '订阅模板ID格式不符(字母数字下划线短横线, ≤80字)');
+      }
+      before.sub_msg_templates = config.sub_msg_templates || {};
+      patch.sub_msg_templates = Object.assign({}, before.sub_msg_templates, { demand_grab: next });
     }
 
     // 场景服务项增删(仅对已有场景; 新增服务项需小程序发版后才会在发布页显示)

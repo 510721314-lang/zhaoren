@@ -62,6 +62,12 @@ module.exports = {
   // 爽约（拍板项2；第三批 3B：全部数值后台可配 no_show_* 9 键，此处仅兜底默认，启动被 config_public.no_show 覆盖）
   NO_SHOW: { scoreDeduct: 20, maxTimes: 3, suspendDays: 7, reportWindowH: 48, defenseWindowH: 48, countWindowDays: 180, evidenceMax: 3, reasonMinLen: 10, maxPerOrder: 1 },
 
+  // 订阅消息（需求①增强 · 抢单提醒）：模板未配时前端授权开关置灰(静默降级仅站内)；
+  // tmplId/page 由 admin-action config_public.sub_msg.demand_grab 覆盖(SSOT)，此处仅兜底
+  SUB_MSG: {
+    demandGrab: { enabled: false, tmplId: '', page: 'pages-v2/demand-detail/demand-detail', miniprogramState: 'formal' }
+  },
+
   // 安全报备（PRD 3.6）
   SAFETY: { checkinMin: 30, gpsPrecision: 'block', gpsPrecisionText: '街区级（约100米）', sosCountdownSec: 10, oneKeyPressSec: 3, s35TimeoutH: 24, s35ResponseMin: 10, locationRefreshSec: 15 },
 

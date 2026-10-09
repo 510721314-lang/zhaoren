@@ -66,7 +66,12 @@ Page({
     genderOptions: ['不限', '男', '女'],
     loading: false,
     loadError: false,
-    isRedline: false
+    isRedline: false,
+    // 抢单提醒(需求①增强 · 订阅消息): 授权开关态 = my_profile.sub_msgs; 模板配置态 = config_public.sub_msg.demand_grab(仅兜底 CONFIG.SUB_MSG)
+    subAuthorized: false,
+    subMsgCfg: (CONFIG.SUB_MSG && CONFIG.SUB_MSG.demandGrab)
+      ? Object.assign({}, CONFIG.SUB_MSG.demandGrab)
+      : { enabled: false, tmplId: '', page: 'pages-v2/demand-detail/demand-detail' }
   },
   onShareAppMessage() {
     return {
@@ -119,11 +124,12 @@ Page({
   async fetchData() {
     this.setData({ loading: true, loadError: false });
     try {
-      // 并行拉云端 profile + 动态场景列表 + 考试科目配置(后台可增可改)
-      const [r, sgRes, exRes] = await Promise.all([
+      // 并行拉云端 profile + 动态场景列表 + 考试科目配置(后台可增可改) + 订阅消息模板配置(抢单提醒)
+      const [r, sgRes, exRes, cfRes] = await Promise.all([
         callCloud('partner-action', { action: 'my_profile' }),
         callCloud('home-action', { action: 'scene_groups' }).catch(() => ({ ok: false })),
-        callCloud('partner-action', { action: 'exam_subjects' }).catch(() => ({ ok: false }))
+        callCloud('partner-action', { action: 'exam_subjects' }).catch(() => ({ ok: false })),
+        callCloud('admin-action', { action: 'config_public' }).catch(() => ({ ok: false }))
       ]);
       if (!r.ok) {
         wx.showToast({ title: r.msg || '加载失败', icon: 'none' });
@@ -142,6 +148,16 @@ Page({
       const scenes = p.accept_scenes || [];
       const sceneRates = p.scene_rates || {};
       const examScores = p.exam_scores || {};
+
+      // 抢单提醒(订阅消息): 授权态=my_profile.sub_msgs.demand_grab.authorized; 模板配置态=config_public.sub_msg.demand_grab(缺失走 CONFIG 兜底)
+      const subAuthorized = !!(p.sub_msgs && p.sub_msgs.demand_grab && p.sub_msgs.demand_grab.authorized === true);
+      const cloudSub = (cfRes && cfRes.ok && cfRes.data && cfRes.data.sub_msg && cfRes.data.sub_msg.demand_grab) || null;
+      const subCfgFallback = (CONFIG.SUB_MSG && CONFIG.SUB_MSG.demandGrab) || {};
+      const subMsgCfg = {
+        enabled: !!(cloudSub && cloudSub.enabled),
+        tmplId: (cloudSub && cloudSub.tmpl_id) || subCfgFallback.tmplId || '',
+        page: (cloudSub && cloudSub.page) || subCfgFallback.page || 'pages-v2/demand-detail/demand-detail'
+      };
 
       // 动态场景列表 (运营后台可增删, home-action scene_groups 为 SSOT)
       const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬', W3: '🏋️', W4: '🎡', W7: '🫂', W9: '🐾' };
@@ -284,6 +300,9 @@ Page({
         'form.acceptWelfare': local.acceptWelfare !== false,
         'form.bufferMin': local.bufferMin || PA.defaultBufferMin,
         bufferIndex: PA.bufferOptions.indexOf(local.bufferMin || PA.defaultBufferMin),
+        // 抢单提醒(订阅消息): 授权回显 + 模板配置态
+        subAuthorized,
+        subMsgCfg,
         // 直读 PA(静态默认已含 3000/10000 兜底; 云端把下限配置为 0 是合法的, 不能用 || 覆盖成 30)
         rateMinYuan: Math.round(PA.rateMinFen / 100),
         rateMaxYuan: Math.round(PA.rateMaxFen / 100),
@@ -422,6 +441,43 @@ Page({
 
   onWelfareToggle(e) {
     this.setData({ 'form.acceptWelfare': e.detail.value });
+  },
+
+  // 抢单提醒开关(需求①增强 · 订阅消息): 勾选时先请求模板订阅授权, 再把授权结果落库 partner_profile.sub_msgs
+  // 模板未配置(enabled=false)时开关置灰; 授权被拒/未开通仅置灰, 不阻断站内 system_notice(静默降级)
+  async onSubToggle(e) {
+    const on = !!e.detail.value;
+    const cfg = this.data.subMsgCfg || {};
+    if (!cfg.enabled) {
+      wx.showToast({ title: '暂未开通微信抢单提醒', icon: 'none' });
+      this.setData({ subAuthorized: false });
+      return;
+    }
+    if (on) {
+      if (!cfg.tmplId) {
+        wx.showToast({ title: '暂未开通微信抢单提醒', icon: 'none' });
+        this.setData({ subAuthorized: false });
+        return;
+      }
+      let res = {};
+      try {
+        res = await wx.requestSubscribeMessage({ tmplIds: [cfg.tmplId] });
+      } catch (err) {
+        res = {};
+      }
+      // 用户同意=accept; 拒绝/取消则回退未授权
+      if (res[cfg.tmplId] !== 'accept') {
+        wx.showToast({ title: '未获得微信订阅授权', icon: 'none' });
+        this.setData({ subAuthorized: false });
+        return;
+      }
+    }
+    const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl: 'demand_grab', authorized: on });
+    this.setData({ subAuthorized: r.ok ? on : this.data.subAuthorized });
+    wx.showToast({
+      title: r.ok ? (on ? '已开启微信提醒' : '已关闭微信提醒') : (r.msg || '操作失败'),
+      icon: 'none'
+    });
   },
 
   onBufferChange(e) {

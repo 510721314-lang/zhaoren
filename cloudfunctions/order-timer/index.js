@@ -165,6 +165,42 @@ function haversineKm(lat1, lng1, lat2, lng2) {
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+function fmtDate(ts) {
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// ── 需求①增强 · 抢单提醒订阅消息(静默降级) ──
+// 触发: 站内 system_notice 推送的同时, 对「已授权订阅」的耍伴额外发一条微信订阅消息。
+// 降级原则: 云调用未开通 / 模板未配(tmpl_id 空) / 未授权(sub_msgs.demand_grab.authorized!==true) /
+//   配额耗尽(errno 43101, 一次性订阅 quota) / 字段不足 → 一律 catch 吞掉, 绝不阻断 system_notice 与原流程。
+// 字段映射通过 admin_config.sub_msg_templates.demand_grab.fields 配置化下发(缺省 thing1=内容, thing2=场景, time=开始时间),
+// 关键字→值 的 key 由模板字段号决定(thing1/thing2/time几), 不硬编码。
+async function sendDemandSub(d, subTmpl, openid) {
+  const map = Object.assign(
+    { thing1: 'subject', thing2: 'scene', time: 'start_time' },
+    (subTmpl.fields && typeof subTmpl.fields === 'object') ? subTmpl.fields : {}
+  );
+  const subject = String((d.content_options && d.content_options[0]) || (d.title || '') || '新需求').slice(0, 20);
+  const data = {};
+  for (const kw of Object.keys(map)) {
+    const s = map[kw];
+    let v = '';
+    if (s === 'subject') v = subject;
+    else if (s === 'scene') v = String(d.scene || '').slice(0, 20);
+    else if (s === 'start_time') v = (d.start_time && d.start_time > 0) ? fmtDate(d.start_time) : '';
+    else if (typeof s === 'string') v = String(s).slice(0, 20);
+    if (v) data[kw] = { value: String(v).slice(0, 20) };
+  }
+  if (!Object.keys(data).length) return;
+  await cloud.openapi.subscribeMessage.send({
+    touser: openid,
+    templateId: subTmpl.tmpl_id,
+    page: subTmpl.page || 'pages-v2/demand-detail/demand-detail',
+    data,
+    miniprogramState: subTmpl.miniprogram_state || 'formal'
+  });
+}
 async function processDemandNotify(now, cfg) {
   const done = [];
   const fail = [];
@@ -191,19 +227,29 @@ async function processDemandNotify(now, cfg) {
       const hl = p.home_location || {};
       if (!hasLoc || !validLngLat(hl.latitude, hl.longitude)) continue;
       if (haversineKm(dLoc.latitude, dLoc.longitude, hl.latitude, hl.longitude) > eff) continue;
-      targets.push(p.openid);
+      // 订阅授权标记: 抢单提醒已授权(partner_profile.sub_msgs.demand_grab.authorized===true)
+      const sub = !!(p.sub_msgs && p.sub_msgs.demand_grab && p.sub_msgs.demand_grab.authorized === true);
+      targets.push({ openid: p.openid, sub });
     }
     let pushed = 0;
     if (targets.length) {
       const subject = (d.content_options && d.content_options[0]) || '新需求';
-      const results = await Promise.allSettled(targets.map((openid) => col('system_notice').add({ data: {
-        to_openid: openid, order_id: '', demand_id: d._id, type: 'demand_grab',
+      const results = await Promise.allSettled(targets.map((t) => col('system_notice').add({ data: {
+        to_openid: t.openid, order_id: '', demand_id: d._id, type: 'demand_grab',
         title: '有新需求可接单',
         body: `${String(subject).slice(0, 30)} · 距你较近, 速来抢单`,
         action_key: 'jump_demand', action_payload: { demand_id: d._id },
         created_at: now, read: false
       }})));
       pushed = results.filter((r) => r.status === 'fulfilled').length;
+      // 订阅消息增强(静默降级): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)一律吞掉
+      const subTmpl = (cfg.sub_msg_templates && cfg.sub_msg_templates.demand_grab) || null;
+      const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub).map((t) => t.openid) : [];
+      if (subTargets.length) {
+        await Promise.allSettled(subTargets.map((openid) => sendDemandSub(d, subTmpl, openid).catch((e) => {
+          log.d(`sub_msg send fail ${openid}: ${(e && (e.errCode || e.message)) || ''}`);
+        })));
+      }
     }
     await markDone(d, now);
     done.push(`${d.demand_no}:pushed=${pushed}`);
