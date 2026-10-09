@@ -57,6 +57,8 @@
 
 > 备注（十·八批次，需求①站内抢单通知 + 需求②代他人发布，**已部署**）：【需求①】`demand-publish/publish` 写库落 `grab_notify_pending`（direct 定向不推，broadcast/select 推）；`order-timer` 新增 `processDemandNotify` 定时分批推送（对齐 `direct_invite` 的 system_notice：`type=demand_grab` / `action_key=jump_demand` / 含 `demand_id`；范围内过滤对齐 nearby/buildRecommendPartners；处理完 CAS 置 false 幂等续跑）。**【需求②】**`demand-publish/publish` 新增 `publish_type(self/proxy)` + `service_target` + 强制手写签字（`verifySignatureFile` 同 W9）+ `kind=proxy_authorization` 留证；**顺带修复 publish 分支漏写 `headcount/gender_pref`**（与 update 对齐）。前端 publish 页新增发布类型切换 + 被代发人表单 + 《委托授权书》手写签字浮层（复用 signature-canvas）。门禁：4 文件 `node --check` 通过 + 130 单测全绿。**已部署** ①`demand-publish`（success=true / packSize 31.9KB）+ `order-timer`（success=true / packSize 12.1KB）；待办 ②控制台手工建索引 `demand{grab_notify_pending,status,created_at}`（wx-server-sdk 无 createIndex）；③3B 爽约走查（提交/举证/裁定）为用户操作项。前端改动本地生效，无需云端部署。
 
+> 备注（2026-10-09 补记，新机衔接收口）：新机核对发现 `C:\zhaoren-bak` 未随迁移存在、旧机部署归档 bundle 与 CHECKSUMS.txt 在本机不可得；同日重建 `C:\zhaoren-bak` 并补打全量 bundle `zhaoren-bundle-20261009-125533.bundle`（master@a64fd4d，SHA256 A9E968DA…F376，记新建 CHECKSUMS.txt）；「订阅消息增强」投喂提示词正式入库 `docs/onboarding-prompt-20261009-submsg.md`。上表 2026-10-09 三行部署记录维持原貌（部署与云端核验当时已完成）。
+
 ## 使用说明
 
 - 新增部署前：`git -C c:\zhaoren bundle create "C:\zhaoren-bak\zhaoren-deploy-<YYYYMMDD>-<HHMMSS>.bundle" master --tags`，核 SHA 记 `C:\zhaoren-bak\CHECKSUMS.txt`
