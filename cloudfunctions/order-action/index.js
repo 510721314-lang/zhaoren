@@ -198,6 +198,17 @@ async function casStatus(orderId, expect, patch) {
 }
 
 // 判定调用者在订单中的角色
+// 电话脱敏(与 demand-publish maskContact 同口径): 手机保留前 3 后 4; 座机保留区号+后 4; 其他长度保留首尾各 2 位
+function maskContact(s) {
+  const t = String(s || '').trim();
+  if (!t) return '';
+  const ll = t.match(/^(0\d{2,3})-(\d{7,8})$/);
+  if (ll) return ll[1] + '-****' + ll[2].slice(-4);
+  if (/^1[3-9]\d{9}$/.test(t)) return t.slice(0, 3) + '****' + t.slice(7);
+  if (t.length <= 4) return t;
+  return t.slice(0, 2) + '****' + t.slice(-2);
+}
+
 function roleOf(order, openid) {
   if (order.user_openid === openid) return 'user';
   if (order.partner_openid === openid) return 'partner';
@@ -1430,6 +1441,31 @@ exports.main = async (event, context) => {
     if (uR.data && uR.data[0] && uR.data[0].nickname) userNickname = uR.data[0].nickname;
     if (pR.data && pR.data[0] && pR.data[0].nickname) partnerNickname = pR.data[0].nickname;
 
+    // 联系信息(过渡版, 2026-10-09): 接单方且订单已支付后 → 展示对方脱敏号(代发单=被代发人, 普通单=发布者);
+    // 真实号一律不外传; 拨打为占位提示(二期接入号码保护后放开)。查询失败静默, 不阻断详情。
+    let contactDisplay = null;
+    if (role === 'partner' && order.demand_id
+      && ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'].indexOf(order.status) >= 0) {
+      try {
+        const dmR = await col('demand').doc(order.demand_id).get();
+        const dm = dmR && dmR.data;
+        if (dm) {
+          const isProxy = dm.publish_type === 'proxy' && dm.service_target;
+          const rawPhone = isProxy
+            ? (dm.service_target.phone || dm.service_target.phone_mask)
+            : dm.contact_phone;
+          const masked = maskContact(rawPhone);
+          if (masked) {
+            contactDisplay = {
+              who: isProxy ? `被代发人（${dm.service_target.relation || '亲友'}）` : '需求发布者',
+              masked,
+              note: '号码保护中，暂不支持直接拨打；可先通过「联系用户」聊天沟通'
+            };
+          }
+        }
+      } catch (e) { log.d(`contact display fail: ${e.message}`); }
+    }
+
     // safety
     const safety = { help_flag: !!order.help_flag, active_sos: null, checkins: [] };
     const activeSos = sosR.data && sosR.data[0];
@@ -1457,6 +1493,7 @@ exports.main = async (event, context) => {
         aa_tier: order.aa_tier || '',
         status: order.status,
         role,
+        contact_display: contactDisplay,
         pay_expire_at: order.pay_expire_at || null,
         service_started_at: order.service_started_at || null,
         service_completed_at: order.service_completed_at || null,

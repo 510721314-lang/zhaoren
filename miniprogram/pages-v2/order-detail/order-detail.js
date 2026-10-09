@@ -160,7 +160,9 @@ Page({
     safety: { help_flag: false, active_sos: null, checkins: [], contacts: [] },
     // 爽约申诉(第三批 3B): 本订单申诉列表 + 是否可发起申诉(服务端二次校验为准)
     noShowReports: [],
-    canNoShowReport: false
+    canNoShowReport: false,
+    // 联系信息(过渡版, 2026-10-09): {who, masked, note} | null, 接单方且已支付后展示
+    contactDisplay: null
   },
   onShareAppMessage() {
     return {
@@ -188,7 +190,8 @@ Page({
         return;
       }
       this.refreshOrder(r.data);
-      this.setData({ loading: false });
+      // 联系信息(过渡版): 接单方且已支付后展示对方脱敏号(拨打为占位)
+      this.setData({ contactDisplay: r.data.contact_display || null, loading: false });
       this.startCountdown();
       // 完成态停留时轮询到账通知(被打赏等)
       this.startTipPoll();
@@ -1257,6 +1260,11 @@ Page({
         });
       }
     });
+  },
+
+  // 拨打占位(过渡版): 号码保护服务开通前提示; 二期接入虚拟号后改为真实拨打
+  onCallPlaceholder() {
+    wx.showToast({ title: '号码保护服务开通中，可先通过聊天沟通', icon: 'none' });
   },
 
   // 跳聊天(Phase 1.5: 用 redirectTo 截断订单详情, 避免栈叠加)
