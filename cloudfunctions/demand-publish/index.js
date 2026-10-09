@@ -117,11 +117,18 @@ function buildCheckboxEvidence(o) {
   return data;
 }
 
-// 联系方式脱敏(phone_mask 语义): 11 位手机号保留前 3 后 4; 其他长度保留首尾各 2 位
+// 电话格式校验: 11 位手机号 或 带区号座机(区号 0 开头 3-4 位 + 连字符 + 7-8 位号码, 如 028-88888888)
+function isPhoneOrLandline(s) {
+  const t = String(s || '').trim();
+  return /^1[3-9]\d{9}$/.test(t) || /^0\d{2,3}-\d{7,8}$/.test(t);
+}
+// 电话脱敏(phone_mask 语义): 手机保留前 3 后 4; 座机保留区号 + 后 4; 其他长度保留首尾各 2 位
 function maskContact(s) {
   const t = String(s || '').trim();
   if (!t) return '';
-  if (/^\d{11}$/.test(t)) return t.slice(0, 3) + '****' + t.slice(7);
+  const ll = t.match(/^(0\d{2,3})-(\d{7,8})$/);
+  if (ll) return ll[1] + '-****' + ll[2].slice(-4);
+  if (/^1[3-9]\d{9}$/.test(t)) return t.slice(0, 3) + '****' + t.slice(7);
   if (t.length <= 4) return t;
   return t.slice(0, 2) + '****' + t.slice(-2);
 }
@@ -487,8 +494,14 @@ exports.main = async (event, context) => {
         if (!service_target || !service_target.name) {
           return { ok: false, code: 'publish_proxy_target', msg: '请填写被代发人姓名' };
         }
-        if (!service_target.relation || !service_target.phone_mask) {
-          return { ok: false, code: 'publish_proxy_target', msg: '请补全被代发人信息（关系/联系方式）' };
+        if (!service_target.relation) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请选择与本人的关系' };
+        }
+        if (service_target.relation === '其他' && !String(service_target.relation_note || '').trim()) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请填写关系补充说明' };
+        }
+        if (!isPhoneOrLandline(service_target.phone_mask)) {
+          return { ok: false, code: 'publish_proxy_phone', msg: '请填写正确的手机号，或带区号的座机号（如 028-88888888）' };
         }
         proxySignature = await verifySignatureFile(proxy_signature_file_id);
         if (!proxySignature.ok) {
@@ -791,6 +804,7 @@ exports.main = async (event, context) => {
           ? {
               name: String(service_target.name).slice(0, 20),
               relation: String(service_target.relation || '').slice(0, 10),
+              relation_note: String(service_target.relation_note || '').slice(0, 20),
               phone_mask: maskContact(service_target.phone_mask)
             }
           : null,

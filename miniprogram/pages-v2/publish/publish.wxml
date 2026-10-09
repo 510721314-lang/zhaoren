@@ -190,8 +190,12 @@
   <view class="pub__block" wx:if="{{publishType === 'proxy'}}">
     <view class="pub__label">被代发人信息 <text class="pub__required">*</text></view>
     <input class="pub__input" value="{{proxyName}}" placeholder="被代发人姓名" maxlength="20" bindinput="onProxyNameInput" />
-    <input class="pub__input" value="{{proxyRelation}}" placeholder="与本人的关系（父母/子女/长辈…）" maxlength="10" bindinput="onProxyRelationInput" />
-    <input class="pub__input" value="{{proxyPhone}}" placeholder="被代发人联系方式（用于履约核对）" maxlength="20" bindinput="onProxyPhoneInput" />
+    <view class="pub__label">与本人的关系 <text class="pub__required">*</text></view>
+    <view class="pub__chips">
+      <view class="pub__chip {{proxyRelation === item ? 'is-on' : ''}}" wx:for="{{relationOptions}}" wx:key="*this" data-rel="{{item}}" bindtap="setProxyRelation">{{item}}</view>
+    </view>
+    <input class="pub__input" wx:if="{{proxyRelation === '其他'}}" value="{{proxyRelationNote}}" placeholder="关系补充说明（20 字内）" maxlength="20" bindinput="onProxyRelationNoteInput" />
+    <input class="pub__input" value="{{proxyPhone}}" placeholder="被代发人电话（手机或带区号座机，如 028-88888888）" maxlength="20" bindinput="onProxyPhoneInput" />
     <view class="pub__pet-doc" bindtap="openProxySheet">
       <text class="pub__pet-doc-name">《委托授权书》</text>
       <text class="pub__pet-doc-op">{{proxyAuthChecked ? '已签署 · 点击查看' : '点击查看全文'}}</text>

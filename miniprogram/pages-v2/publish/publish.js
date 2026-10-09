@@ -105,8 +105,10 @@ Page({
     // 需求② 代他人发布
     publishType: 'self',          // self=自己发布 / proxy=代他人发布
     proxyName: '',                // 被代发人姓名
-    proxyRelation: '',            // 与我的关系(父母/子女/长辈/亲友等)
-    proxyPhone: '',               // 被代发人联系方式(脱敏展示)
+    proxyRelation: '',            // 与我的关系(选项值; 选「其他」时配合 proxyRelationNote)
+    proxyRelationNote: '',        // 关系补充说明(仅「其他」, ≤20 字)
+    relationOptions: ['父母', '子女', '配偶', '长辈', '兄弟姐妹', '亲友', '邻居', '同事', '其他'],
+    proxyPhone: '',               // 被代发人电话(手机/带区号座机, 服务端脱敏存储)
     // 代发授权手写签字(强制留存, 复用 W9 签字范式; kind=proxy_authorization)
     proxyAuthChecked: false,
     proxySheetVisible: false,     // 委托授权书弹窗
@@ -261,6 +263,12 @@ Page({
             return;
           }
           const d = r.data;
+          // 代发关系回填: 存量值与选项匹配则直选; 自由文本归「其他」并塞进补充说明(≤20)
+          const _st = d.service_target || {};
+          const _relRaw = String(_st.relation || '');
+          const _relMatched = this.data.relationOptions.indexOf(_relRaw) >= 0;
+          const _relValue = _relMatched ? _relRaw : (_relRaw ? '其他' : '');
+          const _relNote = _relMatched ? '' : String(_st.relation_note || _relRaw || '').slice(0, 20);
           // 编辑模式静默回填: 不走 setScene(会弹免责声明+清空服务项+弹选择窗), 
           // 需求已发布过一次即已签署声明; 直接写 form 字段, 场景卡按 code 自动高亮, 服务项直接回填
           const dt = new Date(d.service_date + 'T' + (d.service_time || '00:00'));
@@ -288,9 +296,10 @@ Page({
             'form.gender_pref': d.gender_pref || '不限',
             // 需求②代他人发布: 编辑回填发布类型 + 被代发人信息(服务端仅向本人返回; 代发信息发布后锁定, 编辑保存不改动)
             publishType: d.publish_type === 'proxy' ? 'proxy' : 'self',
-            proxyName: (d.service_target && d.service_target.name) || '',
-            proxyRelation: (d.service_target && d.service_target.relation) || '',
-            proxyPhone: (d.service_target && d.service_target.phone_mask) || '',
+            proxyName: _st.name || '',
+            proxyRelation: _relValue,
+            proxyRelationNote: _relNote,
+            proxyPhone: _st.phone_mask || '',
             proxyAuthChecked: d.publish_type === 'proxy',
             // 履约地点
             'form.location_name': (d.location && d.location.name) || '',
@@ -601,8 +610,19 @@ Page({
     this.setData({ publishType: pt });
   },
   onProxyNameInput(e) { this.setData({ proxyName: (e.detail.value || '').slice(0, 20) }); },
-  onProxyRelationInput(e) { this.setData({ proxyRelation: (e.detail.value || '').slice(0, 10) }); },
+  // 关系选项化: 点选 chips; 选「其他」时展示补充说明输入框(≤20 字)
+  setProxyRelation(e) {
+    const v = (e.currentTarget && e.currentTarget.dataset.rel) || '';
+    if (!v) return;
+    this.setData({ proxyRelation: v });
+  },
+  onProxyRelationNoteInput(e) { this.setData({ proxyRelationNote: (e.detail.value || '').slice(0, 20) }); },
   onProxyPhoneInput(e) { this.setData({ proxyPhone: (e.detail.value || '').slice(0, 20) }); },
+  // 电话格式: 11 位手机号 或 带区号座机(如 028-88888888; 与 demand-publish 服务端同口径)
+  _isPhoneOrLandline(s) {
+    const t = String(s || '').trim();
+    return /^1[3-9]\d{9}$/.test(t) || /^0\d{2,3}-\d{7,8}$/.test(t);
+  },
   // 委托授权书全文(本项目无后台该键, 用本地固定文案; 与后端留证 doc 文本语义一致)
   _loadProxyAuthText() {
     this.setData({
@@ -1078,8 +1098,10 @@ Page({
     // 需求② 代他人发布: 必填被代发人 + 强制手写签字授权(不做轻量勾选, 服务端强校验同口径)
     if (this.data.publishType === 'proxy') {
       if (!this.data.proxyName.trim()) errs.push('请填写被代发人姓名');
-      if (!this.data.proxyRelation.trim()) errs.push('请填写与本人的关系');
-      if (!this.data.proxyPhone.trim()) errs.push('请填写被代发人联系方式');
+      if (!this.data.proxyRelation) errs.push('请选择与本人的关系');
+      if (this.data.proxyRelation === '其他' && !this.data.proxyRelationNote.trim()) errs.push('请填写关系补充说明（20 字内）');
+      if (!this.data.proxyPhone.trim()) errs.push('请填写被代发人电话');
+      else if (!this._isPhoneOrLandline(this.data.proxyPhone)) errs.push('请填写正确的手机号，或带区号的座机号（如 028-88888888）');
       if (!this.data.proxyAuthChecked) errs.push('请完成《委托授权书》手写签字确认');
     }
     // 敏感词
@@ -1231,6 +1253,7 @@ Page({
       service_target: this.data.publishType === 'proxy' ? {
         name: this.data.proxyName,
         relation: this.data.proxyRelation,
+        relation_note: this.data.proxyRelation === '其他' ? this.data.proxyRelationNote : '',
         phone_mask: this.data.proxyPhone
       } : null,
       proxy_authorized: this.data.publishType === 'proxy',
