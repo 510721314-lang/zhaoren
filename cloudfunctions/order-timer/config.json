@@ -1,5 +1,10 @@
 {
   "timeout": 60,
+  "permissions": {
+    "openapi": [
+      "subscribeMessage.send"
+    ]
+  },
   "triggers": [
     { "name": "orderTimer", "type": "timer", "config": "0 */5 * * * * *" }
   ]

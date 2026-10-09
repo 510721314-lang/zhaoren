@@ -242,12 +242,12 @@ async function processDemandNotify(now, cfg) {
         created_at: now, read: false
       }})));
       pushed = results.filter((r) => r.status === 'fulfilled').length;
-      // 订阅消息增强(静默降级): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)一律吞掉
+      // 订阅消息增强(不阻断): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)仅告警(log.w)不阻断流程
       const subTmpl = (cfg.sub_msg_templates && cfg.sub_msg_templates.demand_grab) || null;
       const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub).map((t) => t.openid) : [];
       if (subTargets.length) {
         await Promise.allSettled(subTargets.map((openid) => sendDemandSub(d, subTmpl, openid).catch((e) => {
-          log.d(`sub_msg send fail ${openid}: ${(e && (e.errCode || e.message)) || ''}`);
+          log.w(`sub_msg send fail ${openid}: errCode=${(e && e.errCode) || ''} ${(e && (e.errMsg || e.message)) || ''}`);
         })));
       }
     }
