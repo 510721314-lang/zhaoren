@@ -27,3 +27,6 @@ node_modules/
 # Git Bundle 备份产物（不入仓库，由热备目录留存）
 *.bundle
 zhaoren_backup_*/
+
+# 云端索引/tcb 临时产物（台账可由 dump-index-ledger 再生，actual 由 tcb-scan 再生）
+.tmp-tcb/

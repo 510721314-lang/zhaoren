@@ -22,9 +22,11 @@ const result = {};
 for (const col of COLLECTIONS) {
   const r = execTcbCommands(
     [{ TableName: col, CommandType: 'COMMAND', Command: JSON.stringify({ listIndexes: col }) }],
-    ['--json']
+    []
   );
   let parsed = r.parsed;
+  // 错误判定: 输出含 CloudBaseError/NamespaceNotFound 时不解析(防错误信息中的 [ ] 被误当索引数组)
+  if (/CloudBaseError|NamespaceNotFound/.test((r.stdout || '') + (r.stderr || ''))) parsed = null;
   if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.data)) parsed = parsed.data;
   result[col] = parsed;
   const n = Array.isArray(parsed) ? parsed.length : 'ERR';
