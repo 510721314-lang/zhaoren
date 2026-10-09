@@ -41,6 +41,9 @@
 | 2026-10-08 | demand-publish | f629aaf | f629aaf | zhaoren-deploy-20261008-20261008-234509.bundle | f629aaf | 十·八批次①：publish 落 grab_notify_pending 标记（direct 不推/broadcast+select 推） |
 | 2026-10-08 | order-timer | f629aaf | f629aaf | zhaoren-deploy-20261008-20261008-234509.bundle | f629aaf | 十·八批次①：processDemandNotify 定时分批推 system_notice（type=demand_grab/含 demand_id）、范围内过滤对齐、CAS 置 false 幂等续跑 |
 | 2026-10-08 | demand-publish | f629aaf | f629aaf | zhaoren-deploy-20261008-20261008-234509.bundle | f629aaf | 十·八批次②：publish_type(self/proxy) + 代发强制手写签字授权 + 修复 publish 漏写 headcount/gender_pref |
+| 2026-10-09 | order-timer | 2193257 | 3ce629d | zhaoren-deploy-20261009-113029.bundle | 2193257 | 订阅消息增强①·抢单提醒：processDemandNotify 推站内 system_notice 后对已授权订阅(sub_msgs.demand_grab.authorized)耍伴另发 wx 订阅消息(sendDemandSub，字段映射 admin_config.sub_msg_templates 配置化，云调用未开/无模板/配额耗尽 43101 一律静默降级)；门禁 npm test 130/130 |
+| 2026-10-09 | admin-action | 2193257 | 3ce629d | zhaoren-deploy-20261009-113029.bundle | 2193257 | 订阅消息增强②：config_public 下发 sub_msg.demand_grab(有模板才 enabled) + config_set 支持写 sub_msg_templates(白名单仅 demand_grab, 校验 tmpl_id 格式) |
+| 2026-10-09 | partner-action | 2193257 | 3ce629d | zhaoren-deploy-20261009-113029.bundle | 2193257 | 订阅消息增强③：新增 sub_authorize action 落库 partner_profile.sub_msgs.demand_grab + my_profile 回传 sub_msgs |
 
 > 备注（第一批 3 行）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-081223.bundle`（SHA256 已记 CHECKSUMS.txt，git-head=d13e7ad，即部署前云端版本）；部署后 commit=ebc2f4b（三函数一次提交，回滚点=d13e7ad）。
 > 备注（第二批 2 行，专家复核整改）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-083725.bundle`（git-head=0051ba0）；部署后 commit=0059b0f，回滚点=0051ba0。
