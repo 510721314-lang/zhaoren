@@ -119,11 +119,11 @@
     <view class="od__card">
       <view class="od__card-title">操作</view>
 
-      <!-- 联系信息(过渡版, 2026-10-09): 接单方且已支付后展示对方脱敏号; 拨打为占位(二期接号码保护) -->
+      <!-- 联系信息(过渡版, 2026-10-09): 接单方且已支付后展示对方脱敏号(代发单=发布者+被代发人两条); 拨打为占位 -->
       <view class="od__contact" wx:if="{{contactDisplay}}">
-        <view class="od__contact-row">
-          <text class="od__contact-who">📞 {{contactDisplay.who}}</text>
-          <text class="od__contact-num">{{contactDisplay.masked}}</text>
+        <view class="od__contact-row" wx:for="{{contactDisplay.items}}" wx:key="who">
+          <text class="od__contact-who">📞 {{item.who}}</text>
+          <text class="od__contact-num">{{item.masked}}</text>
           <view class="od__contact-call" hover-class="btn-press" bindtap="onCallPlaceholder">拨打</view>
         </view>
         <view class="od__contact-note">{{contactDisplay.note}}</view>

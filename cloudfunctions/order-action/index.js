@@ -1441,8 +1441,8 @@ exports.main = async (event, context) => {
     if (uR.data && uR.data[0] && uR.data[0].nickname) userNickname = uR.data[0].nickname;
     if (pR.data && pR.data[0] && pR.data[0].nickname) partnerNickname = pR.data[0].nickname;
 
-    // 联系信息(过渡版, 2026-10-09): 接单方且订单已支付后 → 展示对方脱敏号(代发单=被代发人, 普通单=发布者);
-    // 真实号一律不外传; 拨打为占位提示(二期接入号码保护后放开)。查询失败静默, 不阻断详情。
+    // 联系信息(过渡版, 2026-10-09): 接单方且订单已支付后 → 展示对方脱敏号;
+    // 代发单展示两条: 需求发布者 + 被代发人(关系); 普通单仅发布者。真实号一律不外传; 拨打为占位(二期接号码保护)。
     let contactDisplay = null;
     if (role === 'partner' && order.demand_id
       && ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'].indexOf(order.status) >= 0) {
@@ -1450,15 +1450,17 @@ exports.main = async (event, context) => {
         const dmR = await col('demand').doc(order.demand_id).get();
         const dm = dmR && dmR.data;
         if (dm) {
+          const items = [];
+          const ownerMasked = maskContact(dm.contact_phone);
+          if (ownerMasked) items.push({ who: '需求发布者', masked: ownerMasked });
           const isProxy = dm.publish_type === 'proxy' && dm.service_target;
-          const rawPhone = isProxy
-            ? (dm.service_target.phone || dm.service_target.phone_mask)
-            : dm.contact_phone;
-          const masked = maskContact(rawPhone);
-          if (masked) {
+          if (isProxy) {
+            const proxyMasked = maskContact(dm.service_target.phone || dm.service_target.phone_mask);
+            if (proxyMasked) items.push({ who: `被代发人（${dm.service_target.relation || '亲友'}）`, masked: proxyMasked });
+          }
+          if (items.length) {
             contactDisplay = {
-              who: isProxy ? `被代发人（${dm.service_target.relation || '亲友'}）` : '需求发布者',
-              masked,
+              items,
               note: '号码保护中，暂不支持直接拨打；可先通过「联系用户」聊天沟通'
             };
           }

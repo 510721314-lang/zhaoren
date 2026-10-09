@@ -6,6 +6,7 @@
 /* 联系信息(过渡版, 2026-10-09): 接单方且已支付后展示对方脱敏号 + 拨打占位 */
 .od__contact { margin-bottom: 16rpx; padding: 16rpx 20rpx; background: var(--bg-2, #F6F7F9); border-radius: var(--r-sm); }
 .od__contact-row { display: flex; align-items: center; }
+.od__contact-row + .od__contact-row { margin-top: 12rpx; }
 .od__contact-who { font-size: var(--font-sm); color: var(--text-2); }
 .od__contact-num { margin-left: 12rpx; font-size: var(--font-sm); font-weight: 600; color: var(--text-1); flex: 1; }
 .od__contact-call { padding: 6rpx 20rpx; font-size: var(--font-xs); color: var(--text-3); border: 1rpx solid var(--line-2, #E5E7EB); border-radius: 999rpx; }
