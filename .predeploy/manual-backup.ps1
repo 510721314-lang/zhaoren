@@ -101,6 +101,53 @@ foreach ($col in $COLLECTIONS) {
   }
 }
 
+# L6: 云函数代码（从云端下载实际部署版本）
+Write-Host "`n===== L6 云函数代码(云端下载) =====" -ForegroundColor Yellow
+$fnCodeDir = $null
+$cli = Get-ChildItem -Path 'C:\Users\Administrator\Desktop' -Directory -ErrorAction SilentlyContinue |
+  Where-Object { Test-Path (Join-Path $_.FullName 'cli.bat') } | Select-Object -First 1
+if ($cli) {
+  $cliBat = Join-Path $cli.FullName 'cli.bat'
+  $fnRoot = "$BackupDir\meta\functions_code"
+  New-Item -ItemType Directory -Force -Path $fnRoot | Out-Null
+  $fnNames = @(Get-ChildItem "$PROJECT_DIR\cloudfunctions" -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'index.js') } | ForEach-Object { $_.Name })
+  $downloaded = 0; $failed = @()
+  foreach ($fn in $fnNames) {
+    $target = Join-Path $fnRoot $fn
+    $errFile = Join-Path $fnRoot "$fn.err.txt"
+    $p = Start-Process -FilePath $cliBat `
+      -ArgumentList @('cloud','functions','download','--env',$CLOUD_ENV,'--name',$fn,'--path',$target,'--project',$PROJECT_DIR) `
+      -RedirectStandardOutput (Join-Path $fnRoot "$fn.std.txt") -RedirectStandardError $errFile -NoNewWindow -Wait -PassThru
+    $size = ((Get-ChildItem $target -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum)
+    if ($p.ExitCode -eq 0 -and $size -gt 0) { $downloaded++ }
+    else { $failed += $fn }
+  }
+  if ($downloaded -gt 0) { $fnCodeDir = $fnRoot; Write-Host "[OK] $downloaded/$($fnNames.Count) 函数已下载到 $fnRoot" -ForegroundColor Green }
+  if ($failed.Count) { Write-Host "[WARN] 下载失败: $($failed -join ',')" -ForegroundColor Magenta }
+} else { Write-Host '[SKIP] CLI 未找到, 跳过 L6' -ForegroundColor Magenta }
+
+# L7: 索引设计台账（从 init-db INDEXES 提取为 JSON）
+Write-Host "`n===== L7 INDEX LEDGER(design-level) =====" -ForegroundColor Yellow
+$indexLedgerPath = $null
+$dumpJs = "$PROJECT_DIR\scripts\dump-index-ledger.js"
+if (Test-Path $dumpJs) {
+  try {
+    $ledgerPath = Join-Path $BackupDir 'meta\index_ledger.json'
+    $ledgerLog = "$ledgerPath.node.log"
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'   # node stderr 在 Stop 模式下会被转成终止错误, 仅 node 调用期间关掉
+    & node $dumpJs $ledgerPath 2> $ledgerLog
+    $ErrorActionPreference = $prevEap
+    if (Test-Path $ledgerPath) {
+      $ledgerSha = (Get-FileHash $ledgerPath -Algorithm SHA256).Hash.ToLower()
+      [System.IO.File]::WriteAllText("$ledgerPath.sha256", $ledgerSha, [System.Text.Encoding]::ASCII)
+      $indexLedgerPath = $ledgerPath
+      Write-Host "[OK] index_ledger.json (32 indexes) SHA=$($ledgerSha.Substring(0,12))..." -ForegroundColor Green
+    } else { Write-Host '[SKIP] dump-index-ledger.js exec failed' -ForegroundColor Magenta }
+  } catch { Write-Host "[FAIL] L7 : $($_.Exception.Message)" -ForegroundColor Red }
+} else { Write-Host '[SKIP] dump-index-ledger.js not found' -ForegroundColor Magenta }
+
 # manifest
 $manifest = @{
   backup_at    = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -110,6 +157,8 @@ $manifest = @{
   appid        = 'wxbc4a4afacdf234f5'
   collections  = $exportedTables
   total_tables = $exportedTables.Count
+  has_functions_code = $fnCodeDir
+  has_index_ledger   = $indexLedgerPath
 }
 [System.IO.File]::WriteAllText("$BackupDir\manifest.json", ($manifest | ConvertTo-Json -Depth 5), [System.Text.UTF8Encoding]::new($false))
 
@@ -117,3 +166,4 @@ Write-Host "`n===== DONE =====" -ForegroundColor Green
 Write-Host "  Dir : $BackupDir"
 Write-Host "  Tbls: $($exportedTables.Count)"
 Write-Host "  Git : $gitShort"
+Write-Host "  Func-code : $(if($fnCodeDir){'yes'}else{'skip'}) | Index-ledger : $(if($indexLedgerPath){'yes'}else{'skip'})"

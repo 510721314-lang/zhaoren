@@ -8,9 +8,13 @@
 - 所有备份产物一律落 **`C:\zhaoren-bak`**（硬约束）
 - 备份脚本密钥：`-AdminKey` 参数或环境变量 **`AWK_KEY`**（backup.ps1/restore.ps1 兼容旧名 `ADMIN_WEB_KEY`）；云端 DB 导出走 admin-action `export_admin_config` / `export_collection`（需 X-Admin-Key）
 - 相关脚本（磁盘真实存在）：
-  - `c:\zhaoren\.predeploy\manual-backup.ps1`（L2+L3，等价 backup.ps1 的数据层，2026-10-01 修复两处过时：export 需 confirm 二次确认、cli 探测旧机器路径）
-  - `c:\zhaoren\.predeploy\backup.ps1`（L2+L3+L5 全量）
+  - `c:\zhaoren\.predeploy\manual-backup.ps1`（**L2+L3+L5+L6+L7 数据层正脚本**，必须用这个；2026-10-01 修复两处过时：export 需 confirm 二次确认、cli 探测旧机器路径；2026-10-09 实测 36 集合全导出 + 20 函数代码 + 32 索引台账）
+  - `c:\zhaoren\.predeploy\backup.ps1`（L2+L3+L5 全量，但 **L2/L3 未带 `confirm:true` → 直接跑会全部返回 `export_need_confirm`/0 数据，勿作为数据库备份入口**；仅 L5 函数元数据可用）
   - `c:\zhaoren\.predeploy\restore.ps1`（先 dry-run 校验 SHA256，仅恢复 admin_config）
+
+> **备份范围（2026-10-09 加入 L6/L7）**：`manual-backup.ps1` 现产出 L2 admin_config 快照 + L3 36 集合全量 + [L6] 云端下载 20 个已部署云函数代码到 `meta\functions_code\<fn>\` + [L7] 索引设计台账到 `meta\index_ledger.json`。
+> **关键限制**：wx-server-sdk **无 listIndexes API**，无法读取云端实际已建索引。`index_ledger.json` 是从 `c:\zhaoren\scripts\dump-index-ledger.js` 提取 init-db 的 `INDEXES` 常量生成的设计级台账（当前 32 条）。**云端实际索引需人工在控制台按此台账核对**（历史上部分手工增量索引如 `demand.grab_notify_pending` 复合索引不在 INDEXES 内，须手动补充核对）。恢复时按台账逐条在控制台重建。
+> ⚠️ 坑（2026-10-09 实测）：跑数据库备份请用 `manual-backup.ps1`（带 `-AdminKey` 或设 `AWK_KEY`/`ADMIN_WEB_KEY` 环境变量）。若脚本默认报 `New-Item Path 为空`，是 `-BackupDir` 解析视为空，显式传 `-BackupDir "C:\zhaoren-bak\zhaoren_backup_yyyyMMdd-HHmm"` 即可。L7 的 node 调用需临时把 `$ErrorActionPreference` 置 Continue（Stop 模式下 node 的 stderr 会被转成终止错误），且 dump 脚本成功时只写 stdout 不写 stderr。
 
 ## 步骤
 
@@ -42,6 +46,23 @@ robocopy c:\zhaoren "C:\zhaoren-bak\zhaoren_files_$(Get-Date -Format 'yyyyMMdd-H
 
 - 产物：`C:\zhaoren-bak\zhaoren_backup_<yyyyMMdd-HHmm>\`（`admin_config/` + `db/` + `manifest.json`）
 - 33 个集合导出（以 `manifest.total_tables` 为准；项目全量口径写 34，差异 1 集合待复跑 manual-backup 时与 manifest 核对——`platform_event`/`audit_log`/`order_main`/`im_message` 等，空集合也导出为 0/0）
+
+### 4. 异地备份（飞书云空间 lark-cli，可选但推荐）
+
+```powershell
+# 目标目录 folder_token=RCsff3kGUlKhpud1KVFckJOhnGc (zhaoren-backup)
+# ⚠️ --local-dir 受内置白名单限制：只能放 cwd、temp、home/files 下；cwd=c:\zhaoren 所以放 c:\zhaoren\.lark-stage
+$stage='C:\zhaoren\.lark-stage'
+# 把 bundle + CLOUDDB zip + CHECKSUMS.txt 拷进 $stage
+# 复核差异
+lark-cli drive +status --local-dir $stage --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --format pretty
+# 推送（新文件会 uploaded；更新已有文件需 --if-exists overwrite，默认 skip 不会覆盖远程同名不同内容）
+lark-cli drive +push --local-dir $stage --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --if-exists overwrite --format pretty
+# 再跑 +status 复核应全部 unchanged
+```
+
+- 铁律：**先 `+status`（精确 SHA）再 `+push`，push 后再 `+status` 复核**，三者落地才视为异地备份成功。
+- 坑：`+push` 默认 `--if-exists=skip` 不覆盖远程同名文件；CHECKSUMS 等会被反复追加的文件必须用 `--if-exists overwrite`。
 
 ### 3. 恢复演练（restore.ps1，默认 dry-run）
 

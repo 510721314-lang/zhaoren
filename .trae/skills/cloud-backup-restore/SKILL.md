@@ -81,6 +81,16 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 - L5 CLI 未找到（当前 PowerShell 会话未发现 cli.bat），但脚本正确 skip
 - 恢复脚本当前支持 SHA256 校验 + admin_config 恢复，DB restore 待 admin-action 新增 import_collection action
 
+## 实测记录（2026-10-09 补充）
+
+- **正确脚本 = `manual-backup.ps1`**（带 `confirm$true`）。`backup.ps1` 的 L2/L3 未带 confirm → 全部返回 `export_need_confirm`，表现为每表 `[SKIP] ... 0/0`（看似成功实为空）。数据库备份入口统一用 manual-backup.ps1。
+- **备份范围已扩（2026-10-09）**：manual-backup.ps1 现含 L6（`cli cloud functions download` 逐个下载 20 个已部署云函数代码到 `meta/functions_code/<fn>/`）+ L7（`scripts/dump-index-ledger.js` 提取 init-db 的 INDEXES → `meta/index_ledger.json`）。manifest 新增 `has_functions_code` / `has_index_ledger` 布尔标记。
+- **关键限制**：wx-server-sdk **无 listIndexes API**（createIndex 也没有，见批次3），备份的索引只是设计级台账 **不是云端实际索引**。历史手工增量索引（如 `demand.grab_notify_pending` 复合索引）不在 init-db INDEXES 内，恢复/核对时要人工按台账在控制台补。
+- **L7 的坑**：①脚本顶部 `$ErrorActionPreference='Stop'` 会把 node 命令的 stderr 转成终止错误 → 调 node 前临时置 `Continue`；②dump-index-ledger.js 成功时只写 stdout 不写 stderr（成功信息走 `process.stdout.write`），否则 Stop 模式下就算文件已生成也会被 catch 误判 FAIL。
+- **admin_web_key 若遇网关 401（HTTP 401 空响应体）＝密钥失配**（期间被轮换）。处置：不能靠原 key 重试；①浏览器 admin-web F12 → `localStorage.getItem('admin_web_key')` 取当前有效 key，或 ②init-db 云端测试 `{"action":"generate_admin_web_key","reason":"..."}` 重新生成（注意：需要管理员身份 OPENID 在白名单，且回滚后旧 key 全部失效）。生成返回形如 `AWK-<64hex>`，写库后 `admin_config.admin_web_key_set=true`。
+- **36 集合全量**（2026-10-09 实导，含 exam_bank/config_history/no_show_report）：demand 780 / order_main 210 / order_status_log 843 / audit_log 3053 / platform_event 2845 等；三级校验（SHA256 回读 + JSON 可解析 + total==list.Count）异常 0。
+- **异地备份（飞书 lark-cli）**：目标 folder_token=`RCsff3kGUlKhpud1KVFckJOhnGc`。`--local-dir` 只能放 cwd/temp/home/files（cwd=c:\zhaoren 用 `C:\zhaoren\.lark-stage`）。流程：`+status` 精确比对 → `+push`（已有文件需 `--if-exists overwrite`，否则 CHECKSUMS 等被反复追加的文件被 skip）→ 再 `+status` 复核全部 unchanged。
+
 ## 已知限制
 
 1. **DB 恢复需 import_collection**：restore.ps1 当前只恢复 admin_config，DB 数据恢复需要 admin-action 新增 `import_collection`（逐 collection 清旧数据 + 批量插入）
