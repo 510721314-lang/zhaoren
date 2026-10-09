@@ -1,6 +1,10 @@
 {
   "navigationBarTitleText": "附近可接",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 80,
+  "backgroundTextStyle": "dark",
   "usingComponents": {
+    "demand-card": "/components/demand-card/index",
     "ui-skeleton": "/components/ui-skeleton/ui-skeleton",
     "ui-empty": "/components/ui-empty/ui-empty"
   }
