@@ -49,6 +49,7 @@
 | 2026-10-09 | demand-publish | 9460ac2 | 1db0216 | zhaoren-deploy-20261009-162554.bundle | 9460ac2 | 一期（联系体系）：需求详情代发标识（proxy_info 全员可见）+ 发布者联系手机号（所有发布必填，account 直取/custom 11 位校验）+ service_target 真号受限存储（输出一律脱敏）；二期（真实验证/虚拟号）作为上线前最后一步（依赖企业主体与号码保护服务开通） |
 | 2026-10-09 | order-action | 1db0216 | 66a2cfb | zhaoren-deploy-20261009-164406.bundle | 1db0216 | 联系信息过渡版：订单详情（接单方且已支付后）展示对方脱敏号（代发单=被代发人/普通单=发布者）+ 拨打占位提示（真实号一律不外传；二期接入号码保护后放开） |
 | 2026-10-09 | order-action | 66a2cfb | 4dcff3e | zhaoren-deploy-20261009-165820.bundle | 66a2cfb | 代发订单联系信息双条（用户要求）：需求发布者 + 被代发人（关系），均脱敏展示 + 拨打占位 |
+| 2026-10-09 | order-timer | 0103a6e | d88fede | zhaoren-deploy-20261009-224712.bundle | 0103a6e | 订阅消息修复：①config.json 补云调用权限声明 permissions.openapi=[subscribeMessage.send]（此前缺失→发送被拒且被 log.d 静默，即「收不到订阅消息」根因）②发送失败日志升 log.w（prod 可观测 errCode）③运行时配置 miniprogram_state formal→trial（提审前无正式版）；门禁 8 步全绿（1-6 + smoke + heartbeat）；CLI 部署 success=true/13.3KB |
 
 > 备注（第一批 3 行）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-081223.bundle`（SHA256 已记 CHECKSUMS.txt，git-head=d13e7ad，即部署前云端版本）；部署后 commit=ebc2f4b（三函数一次提交，回滚点=d13e7ad）。
 > 备注（第二批 2 行，专家复核整改）：共用部署前归档 bundle `zhaoren-deploy-20261007-20261007-083725.bundle`（git-head=0051ba0）；部署后 commit=0059b0f，回滚点=0051ba0。
@@ -71,6 +72,8 @@
 > 备注（2026-10-09 走查③「3B 爽约」**通过**·双账号实测）：申诉提交（同订单互诉 2 条）→ 管理员后台裁定（一条成立/一条不成立；**举证环节未实测，约定下次走查补测**）→ 成立处罚链路落库：被诉方（发单人）`user_credit_score` 800→780（-20，按被诉方角色扣 user/partner 分）、`credit_score_log` type=no_show 留痕、未触发停用（第 1 次）；不成立无处罚；裁定通知按规则发双方（no_show_decided）。走查后已复原信用分（admin_adjust +20 → 800）。规则实配（后台显示=运行值）：扣 20 分 / 累计 5 次停用 3 天 / 说明≥20 字 / 证据≤5 张。**至此走查①②③全部通过**。
 
 > 备注（2026-10-09 索引补建·tcb 直连打通）：本日打通云端索引直连读/建通道（tcb CLI + `scripts/tcb-exec|tcb-scan-indexes|tcb-diff-indexes` 入库，机制见 skill: cloud-backup-restore「索引核对与创建」）。全量扫描 39 集合实证：**设计 32 条索引仅 4 条已建**（audit/no_show×2/credit×1）→ **补建 27 条成功**（demand×5、order_main×5、system_notice×3、im×3、safety×2、pay/eval/settlement/withdraw/demand_draft/no_show 等，含 4 条 unique）；1 条初拒=`admin_accounts.uk_account`（存量 **2 条重复 admin 记录**→DuplicateKey），**当日已清理**（备份完整记录→物理删除较早 1 条→保留最新，复核 count=1）并**补建成功——最终 28/28 全部到位（设计 32 条全数建成）**；**9 个设计集合实际不存在**（user_profile/partner_exam/partner_apply/dispute/withdraw_request/credit_log/report/sms_log/device_bind——幽灵集合，跳过）。另：重复 admin 记录成因已定位（admin_login 只读不写；admin_account_create 无查重、疑重复提交）——uk_account 唯一索引已建成兜底，此后重复创建将被数据库层拦截（catch 返回友好报错）。
+
+> 备注（2026-10-09 订阅消息「收不到」排查与修复，待复推验证）：用户实测发布需求后耍伴端无订阅消息、且「消息」页无提示。两点结论：①站内通知并未失败——22:10:04 已写 6 条 system_notice（收件含两名已授权耍伴），但展示在「我的→系统通知」页而非「消息」会话列表（后者仅 IM 会话）②订阅侧根因=order-timer/config.json 缺 permissions.openapi 声明 → cloud.openapi.subscribeMessage.send 被拒（官方：未声明无法调用 errCode -604101），且被 log.d 在 prod 静默 ⇒ 零送达无痕。修复=补声明 + 失败日志升 log.w + miniprogram_state 改 trial（提审前无正式版，formal 有 41030 风险；发布后改回）。部署后计划：约 23:04 复推 f1bd72 测试单（grab_notify_pending 置 true→定时器 ≤5min 处理）实证订阅送达；配额说明：一次性订阅每授权一次可下发一条，复测需重新授权。
 
 ## 使用说明
 
