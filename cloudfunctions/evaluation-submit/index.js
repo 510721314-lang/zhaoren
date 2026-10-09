@@ -48,6 +48,7 @@ async function checkText(openid, text) {
     }
     return false; // fail-closed
   } catch (e) {
+    log.w('msgSecCheck fail(降级本地词库):', (e && (e.errCode || e.errMsg || e.message)) || '');
     // 服务不可用/未开通: 降级本地词库, 未命中也拒绝
     const lower = text.toLowerCase();
     for (const w of BLOCK_WORDS) {

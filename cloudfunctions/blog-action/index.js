@@ -95,6 +95,7 @@ async function safeCheckText(text, blockWords) {
     if (res.errCode === 0) return { pass: true };
     return { pass: false, msg: '内容包含违规信息,请修改后发布' };
   } catch (e) {
+    log.w('msgSecCheck fail(降级本地词库):', (e && (e.errCode || e.errMsg || e.message)) || '');
     // 公开展示面(blog) fail-closed: msgSecCheck 异常时本地词库未命中即拒绝, 防止未安检内容上线
     const hit = (blockWords || []).find((w) => text.indexOf(w) >= 0);
     if (hit) return { pass: false, msg: '内容包含屏蔽词「' + hit + '」,请修改后发布' };

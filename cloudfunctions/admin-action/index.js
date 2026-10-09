@@ -1713,7 +1713,7 @@ exports.main = async (event, context) => {
     let secDegraded = false;
     try {
       const check = await cloud.openapi.security.msgSecCheck({ content: msg, version: 2, scene: 2 }).catch((e) => {
-        log.d('kefu msgSecCheck error:', e && e.message, e && e.errCode);
+        log.w('kefu msgSecCheck error:', e && e.message, e && e.errCode);
         return null;
       });
       if (check && check.errCode === 87014) return fail('kefu_blocked', '内容涉及违规,禁止发送');
@@ -1727,7 +1727,7 @@ exports.main = async (event, context) => {
           }
         }
       }
-    } catch (e) { log.d('kefu msgSecCheck throw:', e && e.message); }
+    } catch (e) { log.w('kefu msgSecCheck throw:', e && e.message); }
     const now = Date.now();
     // 写客服消息(旁路会话, 不占 user/partner 未读角标; from_role='kefu' 供前端区分)
     const msgRes = await col('im_message').add({ data: {

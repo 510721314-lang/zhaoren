@@ -162,6 +162,7 @@ async function checkText(openid, text, blockWords) {
     if (e && (e.errCode === 87014 || e.errCode === '87014')) {
       return { pass: false, reason: '内容包含违规信息,请修改后重试' };
     }
+    log.w('msgSecCheck fail(降级本地词库):', (e && (e.errCode || e.errMsg || e.message)) || '');
     // 降级:本地违禁词库
     const words = (blockWords && blockWords.length) ? blockWords : BLOCK_WORDS_FALLBACK;
     const lower = text.toLowerCase();

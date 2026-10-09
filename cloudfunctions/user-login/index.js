@@ -119,6 +119,7 @@ async function safeCheckText(text, blockWords) {
     const res = await cloud.openapi.security.msgSecCheck({ content: text });
     return { pass: res.errCode === 0, msg: res.errCode === 0 ? '' : '内容违规' };
   } catch (e) {
+    log.w('msgSecCheck fail(降级本地词库):', (e && (e.errCode || e.errMsg || e.message)) || '');
     // 降级:本地词库
     const hit = (blockWords || []).find(w => text.indexOf(w) >= 0);
     return { pass: !hit, msg: hit ? '内容包含敏感词' : '', fallback: true };
@@ -239,7 +240,7 @@ async function resolvePhone(event, callerOpenid) {
       if (p && PHONE_RE.test(p)) return { ok: true, phone: p };
       return { ok: false, code: 'phone_decrypt_fail', msg: '手机号获取失败' };
     } catch (e) {
-      log.d('resolvePhone getPhoneNumber fail:', e.errCode, e.errMsg);
+      log.w('resolvePhone getPhoneNumber fail:', e.errCode, e.errMsg);
       return { ok: false, code: 'phone_decrypt_fail', msg: '手机号获取失败:' + (e.errMsg || '请重试') };
     }
   }

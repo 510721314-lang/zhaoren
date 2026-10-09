@@ -902,6 +902,7 @@ exports.main = async (event, context) => {
           return { ok: false, code: 'pa_profile_unsafe', msg: '资料包含违规内容,请修改后重试' };
         }
       } catch (e) {
+        log.w('msgSecCheck fail(降级本地词库):', (e && (e.errCode || e.errMsg || e.message)) || '');
         const cfg = await getConfig();
         const hit = (cfg.block_words || []).find((w) => allText.indexOf(w) >= 0);
         if (hit) {
