@@ -64,7 +64,7 @@ $cli = Get-ChildItem -Path 'C:\' -Filter 'cli.bat' -Recurse
 $OutputEncoding = [System.Text.Encoding]::UTF8
 ```
 
-**zhaoren 项目约定**：所有 `.ps1` 脚本注释和字符串**全用英文**，避免编码坑。仅在输出给用户看的 `Write-Host` 消息里可以用中文，但优先英文。
+**zhaoren 项目约定**：新写 `.ps1` 建议注释/字符串全用英文（最稳）；**存量中文脚本不必重写**——按方案 A 直接加 UTF-8 BOM 即可（2026-10-10 manual-backup.ps1 实证：中文注释 + 无 BOM → ParserError，加 BOM 即修复，commit e2fa124）。输出给用户看的 `Write-Host` 消息可用中文。
 
 ---
 
@@ -189,3 +189,4 @@ Get-Content "$env:USERPROFILE\.gitconfig"
 - 最终方案：全英文注释 + UTF-8 无 BOM（PS 5 读纯 ASCII 无问题）
 - `git push 2>&1` 报 NativeCommandError 但实际成功，靠输出里 `master -> master` 判断
 - `$manifest | ConvertTo-Json | [IO.File]::WriteAllText` 报 pipeline 错，改为先存 `$json` 变量
+- 2026-10-10 manual-backup.ps1（中文注释 + UTF-8 无 BOM）→ `Unexpected token` / `Missing terminator`（表象像语法错误，实为 GBK 乱码解析）→ 方案 A 加 BOM 修复（e2fa124）；对照：JSON 配置文件反之必须**无 BOM**，勿混淆
