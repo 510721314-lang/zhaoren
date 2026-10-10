@@ -398,12 +398,14 @@ const HANDLERS = Object.assign(
   {},
   require('./action_adminlist'),
   require('./action_blog'),
-  require('./action_home_activity')
+  require('./action_home_activity'),
+  require('./action_config_read')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
   {},
-  require('./action_config_public')
+  require('./action_config_public'),
+  require('./action_auth_pre')
 );
 
 exports.main = async (event, context) => {
@@ -426,67 +428,7 @@ exports.main = async (event, context) => {
     return await HANDLERS_PRE[action](preCtx);
   }
 
-  // ───────── 例外: 白名单为空时首个管理员自助声明(仅一次, 事务 CAS 防并发刷空) ─────────
-  if (action === 'claim_admin') {
-    if (!openid) return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
-    let now = Date.now();
-    try {
-      const txRes = await db.runTransaction(async (t) => {
-        // 事务内重读: 两个并发 claim 只有一方看到空名单
-        const docR = await t.collection('admin_config').doc('global').get();
-        const list = (docR.data && docR.data.admin_openids) || [];
-        if (list.length > 0) {
-          const err = new Error('admin already initialized');
-          err.bizCode = 'admin_forbidden';
-          throw err;
-        }
-        now = Date.now();
-        await t.collection('admin_config').doc('global').update({
-          data: { admin_openids: [openid], updated_at: now }
-        });
-        return { at: now };
-      });
-      await logEvent('P2', 'admin_bootstrap', openid, { at: txRes.at });
-      return { ok: true, data: { admin_openids: [openid], msg: '管理员初始化成功' } };
-    } catch (e) {
-      if (e && e.bizCode === 'admin_forbidden') {
-        await logEvent('P1', 'admin_probe', openid, { action, reason: 'claim_after_init' });
-        return { ok: false, code: 'admin_forbidden', msg: '无权限' };
-      }
-      return { ok: false, code: 'admin_claim_fail', msg: '初始化失败' };
-    }
-  }
-
   // （config_public 已抽离到 ./action_config_public.js，由上方 HANDLERS_PRE 分发表处理）
-
-  // ───────── 账号登录(免鉴权, RBAC S1): admin_accounts 账号+密码 → admin_web_sessions 会话 ─────────
-  // 会话 token 主键存储(ADMT-*), 12h 有效; 后续请求经网关透传 __admin_token
-  if (action === 'admin_login') {
-    await ensureAdminColls();
-    const acc = String(event.account || '').trim();
-    const password = event.password || '';
-    if (!acc || !password) return { ok: false, code: 'login_invalid', msg: '账号和密码必填' };
-    const accR = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
-    const u = (accR.data && accR.data[0]) || null;
-    if (!u || u.status !== 'active') return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
-    if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
-      return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
-    }
-    const token = 'ADMT-' + crypto.randomBytes(24).toString('hex');
-    const now = Date.now();
-    const expires_at = now + 12 * 3600 * 1000;
-    await col('admin_web_sessions').doc(token).set({
-      data: { account: acc, role: u.role, openid: openid || '', created_at: now, expires_at, is_deleted: false }
-    });
-    await logEvent('P2', 'admin_login', openid, { account: acc, role: u.role });
-    return { ok: true, data: { token, role: u.role, account: acc, display_name: u.display_name || acc, expires_at } };
-  }
-
-  if (action === 'admin_logout') {
-    const t = String(event.__admin_token || '');
-    if (t) await col('admin_web_sessions').doc(t).update({ data: { is_deleted: true, updated_at: Date.now() } }).catch(() => {});
-    return { ok: true, data: {} };
-  }
 
   // ───────── 统一鉴权 ─────────
   if (!openid) {
@@ -2018,83 +1960,6 @@ exports.main = async (event, context) => {
   }
 
   // ───────── 8. 参数配置(白名单字段; 每次修改写 P2 config_change before/after) ─────────
-  if (action === 'config_get') {
-    return ok({
-      env: config.env || 'prod',   // 与 config_set 对称, 后台 UI 显示当前环境(非机密)
-      platform_fee_rate_fen: config.platform_fee_rate_fen,
-      auto_approve_partner: !!config.auto_approve_partner,
-      payment_visible: config.payment_visible !== false,   // 默认 true, false 才隐藏支付入口
-      block_words: config.block_words || [],
-      city_enabled: config.city_enabled || [],
-      test_openids: config.test_openids || [],   // D4-5 测试身份白名单(后台可见可管理)
-      error_scan_last_at: config.error_scan_last_at || 0,   // D7 巡检游标(order-timer 每 5min 推进; >0 即巡检在跑)
-      error_scan_heartbeat_at: config.error_scan_heartbeat_at || 0,   // D7 心跳(order-timer 每轮刷新; 门禁 check-heartbeat 据此判断巡检是否存活)
-      audit_prune_last: config.audit_prune_last || null,   // P2 审计留存清理最近一轮结果(order-timer auditPrune 每轮写; {at,dry_run,matched,pruned,cutoff,days})
-      timeouts: {
-        // 显式 undefined 判断兜底: 值为 0 时不得被 || 改写成默认值(config_get 掩码修复 2026-09-23)
-        s0_timeout_min: config.s0_timeout_min !== undefined ? config.s0_timeout_min : 30,
-        s1_timeout_min: config.s1_timeout_min !== undefined ? config.s1_timeout_min : 15,
-        interrupt_timeout_h: config.interrupt_timeout_h !== undefined ? config.interrupt_timeout_h : 24,
-        eval_window_h: config.eval_window_h !== undefined ? config.eval_window_h : 48,
-        default_star: config.default_star !== undefined ? config.default_star : 4,
-        milestone_confirm_min: config.milestone_confirm_min !== undefined ? config.milestone_confirm_min : 15
-      },
-      time_redline: {
-        // 禁止用 || 兜底: close=0 合法(全天开放), open=0 合法(00:00), || 会错误改写
-        close_min: config.time_redline_close_min !== undefined ? config.time_redline_close_min : 1440,
-        open_min: config.time_redline_open_min !== undefined ? config.time_redline_open_min : 360
-      },
-      limits: {
-        publish_distance_max_km: config.publish_distance_max_km !== undefined ? config.publish_distance_max_km : 50,
-        take_distance_max_km: config.take_distance_max_km !== undefined ? config.take_distance_max_km : 50,
-        youth_limit_fen: config.youth_limit_fen !== undefined ? config.youth_limit_fen : 20000
-      },
-      insurance: {
-        coverage_accident_fen: config.insurance_coverage_accident_fen !== undefined ? config.insurance_coverage_accident_fen : 50000000,
-        coverage_property_fen: config.insurance_coverage_property_fen !== undefined ? config.insurance_coverage_property_fen : 5000000
-      },
-      fast_withdraw: {
-        per_order_max_fen: config.fast_withdraw_per_order_max_fen !== undefined ? config.fast_withdraw_per_order_max_fen : 20000,
-        per_day_max_fen: config.fast_withdraw_per_day_max_fen !== undefined ? config.fast_withdraw_per_day_max_fen : 200000
-      },
-      security: {
-        security_only_template_before_confirm: config.security_only_template_before_confirm !== false
-      },
-      modify_config: Object.assign(
-        { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 },
-        config.modify_config || {}
-      ),
-      idcard_aes_key_set: !!(config.idcard_aes_key && /^[0-9a-f]{64}$/i.test(config.idcard_aes_key)),
-      credits: {
-        min_credit_take_order: config.min_credit_take_order !== undefined ? config.min_credit_take_order : 600,
-        min_credit_place_order: config.min_credit_place_order !== undefined ? config.min_credit_place_order : 600,
-        credit_freeze_line: config.credit_freeze_line !== undefined ? config.credit_freeze_line : 400
-      },
-      rate_range: {
-        rate_min_fen: config.rate_min_fen !== undefined ? config.rate_min_fen : 3000,
-        rate_max_fen: config.rate_max_fen !== undefined ? config.rate_max_fen : 10000,
-        scene_default_rate_fen: config.scene_default_rate_fen !== undefined ? config.scene_default_rate_fen : 5000
-      },
-      scene_list: config.scene_list || [],
-      system_templates: config.system_templates || [],
-      // 参数元数据(Operations.vue schema 驱动渲染的唯一来源)
-      config_schema: CONFIG_SCHEMA,
-      // 耍伴每日接单上限(平台统一设定, 耍伴端只读展示)
-      partner_daily_take_limit: config.partner_daily_take_limit || 5,
-      // ── 运营配置独立模块(前端 Operations.vue 数据来源, schema 统一生成) ──
-      operations: resolveOperations(config),
-      // ── 法律合规模块(前端 Legal.vue 数据来源) ──
-      legal: {
-        disclaimer_text: config.legal_disclaimer_text || '',
-        service_agreement: config.legal_service_agreement || '',
-        privacy_policy: config.legal_privacy_policy || '',
-        aa_promise: config.legal_aa_promise || '',
-        pet_authorization: config.legal_pet_authorization || '',
-        scene_disclaimers: config.legal_scene_disclaimers || {}
-      }
-    });
-  }
-
   if (action === 'config_set') {
     const patch = { updated_at: now };
     const before = {};
@@ -2417,50 +2282,6 @@ exports.main = async (event, context) => {
     return ok({ updated: changed });
   }
 
-  // ───────── 8.35 配置版本历史查询(config_history 分页倒序; 由 config_set 自动追加, 敏感键已掩码) ─────────
-  if (action === 'config_history_list') {
-    const pg = pager(event);
-    const q = {};
-    if (event.key) q.keys = String(event.key); // keys 是数组字段, 云数据库 where 对数组字段按「包含」匹配
-    const cnt = await col('config_history').where(q).count().catch(() => ({ total: 0 }));
-    const r = await col('config_history').where(q).orderBy('at', 'desc')
-      .skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }));
-    return ok({
-      total: cnt.total || 0, page: pg.page, size: pg.size,
-      list: (r.data || []).map((x) => ({
-        _id: x._id, keys: x.keys || [], before: x.before || {}, after: x.after || {},
-        reason: x.reason || '', operator: x.operator || '', at: x.at
-      }))
-    });
-  }
-
-  // ───────── 8.4 参数变更日志(platform_event type=config_change 分页倒序) ─────────
-  if (action === 'config_log_list') {
-    const pg = pager(event);
-    const baseQ = { type: 'config_change', is_deleted: false };
-    const cnt = await col('platform_event').where(baseQ).count();
-    const r = await col('platform_event')
-      .where(baseQ).orderBy('created_at', 'desc')
-      .skip(pg.skip).limit(pg.size).get();
-    return ok({
-      total: cnt.total, page: pg.page, size: pg.size,
-      list: r.data.map((e) => {
-        const p = e.payload || {};
-        return {
-          _id: e._id,
-          created_at: e.created_at,
-          openid: e.openid || '',
-          reason: p.reason || '',
-          before: p.before || {},
-          after: p.after || {}
-        };
-      })
-    });
-  }
-
-  // ───────── 8.7 实名与签署留证(P0 手写签名+实名正式版) ─────────
-  // 重置「模拟实名」账号(上线前必办): 仅清 is_realname_simulated=true 的测试账号,
-  // 真实证件+签名留证用户不受影响; 不传 openid 则全量重置
   if (action === 'realname_reset_simulated') {
     const target = event.openid ? String(event.openid).trim() : '';
     if (target && !isOpenid(target)) return fail('rrs_bad_openid', 'openid 格式不正确');
