@@ -5,6 +5,37 @@
 //   幂等：每段用订单标记位（urge_t0_at/urge_t1_at/urge_t2_at）防重复轰炸
 //   互斥：cancel_request.pending（协商取消挂起）或 frozen（申诉/投诉冻结）时不催办（§3.7.5）
 
+// ── JSDoc 契约类型(纯标注, 运行时零影响) ──
+/**
+ * 催办配置(从 admin_config 解析后的强类型视图)。
+ * @typedef {Object} UrgeConfig
+ * @property {number} remindAfterH    T+几小时触发 t1 用户通知(默认 1)
+ * @property {number} escalateAfterH  T+几小时触发 t2 升级申诉(默认 4)
+ * @property {number} urgeMaxCount    手动催办每单上限(默认 2)
+ */
+/**
+ * 一个到期催办阶段(dueStages 输出元素)。
+ * @typedef {Object} UrgeStage
+ * @property {'t0'|'t1'|'t2'} stage
+ * @property {'urge_t0_at'|'urge_t1_at'|'urge_t2_at'} markField  幂等标记位字段名
+ * @property {'partner'|'user'} to      通知接收方
+ * @property {string} title
+ * @property {string} body
+ */
+/**
+ * 手动催办准入结果。
+ * @typedef {Object} ManualUrgeGate
+ * @property {boolean} ok
+ * @property {string} [code]        拒绝原因码(ok=false 时)
+ * @property {number} [remaining]   剩余可催次数(ok=true 或达上限时)
+ * @property {number} [max]         每单上限
+ */
+
+/**
+ * 从原始 config 解析催办阈值(缺失回退默认值)。
+ * @param {Object} [config]  admin_config 原始对象
+ * @returns {UrgeConfig}
+ */
 function urgeCfg(config) {
   const c = config || {};
   const num = (v, d) => (v === undefined || v === null || v === '' ? d : Number(v));
@@ -16,6 +47,13 @@ function urgeCfg(config) {
 }
 
 // 判定订单本次应触发的催办阶段。返回 [{ stage, markField, to, title, body }]（按 t0→t1→t2）；无则 []
+/**
+ * 计算订单当前到期应触发的催办阶段(自动链路用, 幂等+互斥)。
+ * @param {Object} order  订单(需 status/start_time/urge_t*_at/cancel_request/frozen)
+ * @param {number} now    当前时间戳(ms)
+ * @param {Object} [cfg]  admin_config 原始对象
+ * @returns {UrgeStage[]} 按 t0→t1→t2 排序; 不满足条件返回 []
+ */
 function dueStages(order, now, cfg) {
   if (!order) return [];
   if (order.status !== 'S2') return [];
@@ -53,6 +91,13 @@ function dueStages(order, now, cfg) {
 }
 
 // 手动催办准入判定（order-action 消费）：返回 {ok, code?, remaining?, max?}
+/**
+ * 手动催办准入判定(S2+过点+未取消挂起+未冻结+未达上限)。
+ * @param {Object} order  订单
+ * @param {number} now    当前时间戳(ms)
+ * @param {Object} [cfg]  admin_config 原始对象
+ * @returns {ManualUrgeGate}
+ */
 function canManualUrge(order, now, cfg) {
   if (!order || order.status !== 'S2') return { ok: false, code: 'oa_urge_status' };
   const st = Number(order.start_time) || 0;

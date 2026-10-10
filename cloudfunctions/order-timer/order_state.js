@@ -9,6 +9,67 @@
 // ⚠️ Wave1 契约 = 行为不变: 本模块的 CAS 与既有 casStatus 语义逐字一致(含数组 expect / stats.updated 判定 / 异常返回 false);
 //    迁移白名单表此时仅作 SSOT + 单测目标 + 影子校验(不阻断), 强制拦截放后续波次。
 
+// ──────────────────────────────────────────────────────────────────
+// JSDoc 契约类型(纯类型标注, 供 IDE/重构静态检查; 运行时零影响)
+// ──────────────────────────────────────────────────────────────────
+/**
+ * 订单主轴状态码(全量合法 14 态)。
+ * @typedef {'S1'|'S0'|'S2'|'S2_5'|'S3'|'S3.5'|'S4'|'S5'|'S8'|'S10.5'|'S6'|'S7'|'S10'|'S9'} OrderStatus
+ */
+/**
+ * 评价正交位。
+ * @typedef {'pending'|'user_done'|'auto_done'} EvalState
+ */
+/**
+ * 争议正交位。
+ * @typedef {'none'|'open'|'resolved'} DisputeState
+ */
+/**
+ * 争议类型。
+ * @typedef {'complaint'|'no_show'|'refund'|''} DisputeType
+ */
+/**
+ * 结算正交位。
+ * @typedef {'pending'|'ready'|'done'} SettleState
+ */
+/**
+ * 资金正交位(随订单持久化, 单位: 分)。
+ * @typedef {Object} FundBit
+ * @property {number} paid_fen       已付金额(分)
+ * @property {number} refunded_fen   已退金额(分)
+ * @property {SettleState} settle_state
+ * @property {number} settled_at     结算完成时间戳(0=未结算)
+ */
+/**
+ * 订单正交位集合(履约进度之外的维度, 不挤占 status)。
+ * @typedef {Object} OrthoBits
+ * @property {EvalState} eval_state
+ * @property {DisputeState} dispute_state
+ * @property {DisputeType} dispute_type
+ * @property {boolean} frozen        争议/申诉期间冻结操作位
+ * @property {FundBit} fund
+ */
+/**
+ * 一条状态迁移规则(§3.3 目标迁移表)。
+ * @typedef {Object} Transition
+ * @property {number} no
+ * @property {string} event
+ * @property {'user'|'partner'|'both'|'platform'|'system'} role
+ * @property {Array<OrderStatus|'*'>} from
+ * @property {OrderStatus|null} to    null=目标由业务上下文决定
+ * @property {string} guard
+ * @property {string} money
+ * @property {string} timeout
+ */
+/**
+ * 读兼容归一化后的订单视图(mapStatus 输出)。
+ * @typedef {Object} MappedOrder
+ * @property {OrderStatus} status
+ * @property {EvalState} eval_state
+ * @property {DisputeState} dispute_state
+ * @property {boolean} frozen
+ */
+
 // ── 状态常量(§3.2): 目标主轴 9 态 + 争议占位 + 终态 + 退役态 ──
 const MAIN_AXIS = ['S1', 'S0', 'S2', 'S2_5', 'S3', 'S3.5', 'S4', 'S5', 'S8'];  // 目标主轴 9 态(S9 退役收编为 S8+eval_state=auto_done)
 const SIDE_STATES = ['S10.5'];                                                  // 争议占位(目标态由 dispute_state 正交位表达)
@@ -23,6 +84,10 @@ const SETTLE_ELIGIBLE = ['S8', 'S9', 'S10'];
 // dispute_state: none / open / resolved  —— dispute_type: complaint / no_show / refund / ''
 // fund: paid_fen(已付) / refunded_fen(已退) / settle_state(pending/ready/done) / settled_at
 // frozen: 争议/申诉期间冻结操作位(替代 S10.5 靠占主状态实现的"天然冻结")
+/**
+ * 新建订单正交位的默认值集合(创建订单或补齐字段时用)。
+ * @returns {OrthoBits}
+ */
 function orthoDefaults() {
   return {
     eval_state: 'pending',
@@ -85,6 +150,11 @@ function canTransition(event, from, to) {
 
 // ── 读兼容(§5.1): 旧 S 码 → 目标表达; 未迁移的存量数据也能被新读方正确理解 ──
 // 已有正交位字段时以其为准, 否则由旧状态推导。
+/**
+ * 把(可能含旧 S 码/缺正交位的)订单归一化为统一视图, 供读方消费。
+ * @param {Object} order  原始订单(可缺字段)
+ * @returns {MappedOrder}
+ */
 function mapStatus(order) {
   const o = order || {};
   const st = o.status;
@@ -109,6 +179,16 @@ function mapStatus(order) {
 // ── CAS 条件更新(与既有 casStatus 逐字同构, 仅增加可选影子校验) ──
 // col/'_' 依赖注入(与 _shared/heal.js 同法), 便于纯逻辑单测。
 // 仅当订单仍处于 expect(字符串或数组)时更新, 返回是否"抢到"; 异常一律返回 false(不抛)。
+/**
+ * CAS 条件更新: 仅当订单当前 status ∈ expect 时应用 patch, 实现并发安全的状态流转。
+ * @param {Function} col       集合访问器(依赖注入, 如 (name)=>db.collection(name))
+ * @param {Object} _           wx-server-sdk db command 构造器(_.in / _.eq ...)
+ * @param {string} orderId     order_main._id
+ * @param {OrderStatus|OrderStatus[]} expect  允许的当前状态(命中才更新)
+ * @param {Object} patch       要写入的字段(含 status 与正交位)
+ * @param {Object} [opts]      { event, onShadow, onError }
+ * @returns {Promise<boolean>} 是否抢到更新(异常返回 false, 不抛)
+ */
 async function casTransition(col, _, orderId, expect, patch, opts) {
   const o = opts || {};
   try {

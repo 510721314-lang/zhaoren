@@ -11,6 +11,31 @@
 //   payment-mock withdraw/fast_withdraw: 提现校验(基础段+余额段)
 //   payment-mock balance_info/withdraw: 可提现余额公式(口径必须一致)
 
+// ── JSDoc 契约类型(纯标注, 运行时零影响; 金额单位均为「分」) ──
+/**
+ * 分账结果。
+ * @typedef {Object} SplitResult
+ * @property {number} totalFen          订单总额(分)
+ * @property {number} feeFen            平台佣金(分)
+ * @property {number} partnerIncomeFen  耍伴实收(分)
+ */
+/**
+ * 校验拒绝结果(通过时函数返回 null)。
+ * @typedef {Object} ValidationError
+ * @property {string} code  错误码(与线上历史值逐字一致, 前端依赖勿改)
+ * @property {string} msg
+ */
+/**
+ * 余额计算结果。
+ * @typedef {Object} BalanceInfo
+ * @property {number} settledFen     已结算收入(含打赏)
+ * @property {number} tipFen         打赏部分
+ * @property {number} processingFen  提现处理中占用
+ * @property {number} withdrawnFen   已提现
+ * @property {number} usedFen        占用合计(processing+success)
+ * @property {number} availableFen   可提现余额(≥0)
+ */
+
 // ── 常量(与小程序 config/index.js 及 admin CONFIG_SCHEMA 对齐) ──
 const TIP_MIN_FEN = 100;          // 打赏下限 1 元
 const TIP_MAX_FEN = 50000;        // 打赏上限 500 元
@@ -23,6 +48,12 @@ const DEFAULT_FEE_RATE_FEN = 1000;      // 平台抽成默认 1000(万分比 10%
 // feeRateFen 为万分比; null/undefined/非法 → 回退默认 1000。
 // ⚠️ 显式 0 是合法费率(免佣), 必须尊重 —— 修正历史上 `config.platform_fee_rate_fen || 1000`
 //    把管理员配置的 0 误当缺省 1000 的隐患(与 readRateRange 的"0 是合法值"同类教训)。
+/**
+ * 订单金额分账: 总额 → 平台佣金 + 耍伴实收。
+ * @param {number} totalFen    订单总额(分)
+ * @param {number|null|undefined} feeRateFen  平台费率(万分比); 显式 0=免佣合法, null/缺省→默认 1000
+ * @returns {SplitResult}
+ */
 function splitOrderAmount(totalFen, feeRateFen) {
   const total = Number(totalFen) || 0;
   // 注意 Number(null) === 0 的语言坑: 必须先判 null/undefined 再转数值, 否则缺省被误判成免佣
@@ -41,6 +72,12 @@ function isValidTipAmount(v) {
 
 // ── 提现校验 · 基础段(串行锁之前执行: 格式 / 最低额 / 极速单笔上限) ──
 // 返回 null = 通过; { code, msg } = 拒绝(code 与线上历史值逐字一致, 前端依赖勿改)
+/**
+ * 提现校验·基础段(格式/最低额/极速单笔上限)。
+ * @param {number} amountFen  提现金额(分)
+ * @param {Object} [opts]     { isFast, perOrderMaxFen }
+ * @returns {ValidationError|null}
+ */
 function validateWithdrawBasic(amountFen, opts) {
   const o = opts || {};
   const amount = Number(amountFen);
@@ -61,6 +98,12 @@ function validateWithdrawBasic(amountFen, opts) {
 
 // ── 提现校验 · 余额段(聚合查询后执行: 余额充足 / 极速当日累计) ──
 // availableFen = 可提现余额(computeBalance().availableFen); todayFastFen = 当日已极速提现累计
+/**
+ * 提现校验·余额段(余额充足/极速当日累计)。
+ * @param {number} amountFen  提现金额(分)
+ * @param {Object} [opts]     { availableFen, isFast, perDayMaxFen, todayFastFen }
+ * @returns {ValidationError|null}
+ */
 function validateWithdrawBalance(amountFen, opts) {
   const o = opts || {};
   const amount = Number(amountFen);
@@ -84,6 +127,11 @@ function validateWithdrawBalance(amountFen, opts) {
 // ── 余额计算(.balance_info 与 withdraw 共用同一口径, 防两处漂移) ──
 // settledAgg: 聚合 group 首行 { total(服务收入), tip(打赏) } — 已结算状态 S8/S9/S10 口径由调用方保证
 // withdrawGroups: withdraw_record 按 status 聚合 [{ _id, total }]; 占用 = processing + success
+/**
+ * 余额计算(.balance_info 与 withdraw 共用同一口径, 防两处漂移)。
+ * @param {Object} [opts]  { settledAgg:{total,tip}, withdrawGroups:[{_id,total}] }
+ * @returns {BalanceInfo}
+ */
 function computeBalance(opts) {
   const o = opts || {};
   const row = o.settledAgg || {};
