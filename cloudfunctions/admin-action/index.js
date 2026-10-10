@@ -398,6 +398,11 @@ const HANDLERS = Object.assign(
   {},
   require('./action_adminlist')
 );
+// 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
+const HANDLERS_PRE = Object.assign(
+  {},
+  require('./action_config_public')
+);
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
@@ -408,6 +413,16 @@ exports.main = async (event, context) => {
 
   const config = await getConfig();
   const adminOpenids = config.admin_openids || [];
+
+  // 已抽离到 action_*.js 的免鉴权前置动作优先走分发表（统一鉴权门之前）
+  if (HANDLERS_PRE[action]) {
+    const preCtx = {
+      event, openid, action, wxCtx, config, adminOpenids,
+      col, db, _, log, cloud, crypto,
+      getConfig, logEvent, ensureAdminColls, hashAdminPassword
+    };
+    return await HANDLERS_PRE[action](preCtx);
+  }
 
   // ───────── 例外: 白名单为空时首个管理员自助声明(仅一次, 事务 CAS 防并发刷空) ─────────
   if (action === 'claim_admin') {
@@ -440,155 +455,7 @@ exports.main = async (event, context) => {
     }
   }
 
-  // ───────── 例外: 公开配置(免鉴权) ─────────
-  // 普通用户拉运营参数的唯一入口: 仅返回公开字段白名单(按前端 CLOUD_MAP 嵌套结构组装),
-  // 绝不返回 admin_openids/admin_web_key/idcard_aes_key/env/block_words 等敏感字段。
-  // 缺失字段返回 undefined, 前端 flatten+deepAssign 自动跳过, 走本地 CONFIG 兜底。
-  if (action === 'config_public') {
-    const cfgRaw = config || {};
-    // 显式判空(未配置/留空 → def; 0 是合法值, 禁 || 兜底)
-    const nsInt = (v, def) => (v === undefined || v === null || v === '' ? def : Number(v));
-    // 订阅消息(抢单提醒): 模板未配(enabled=false)时前端授权开关置灰, 仅站内 system_notice, 静默降级
-    const subGrab = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.demand_grab) || {};
-    const demandGrab = subGrab.tmpl_id ? {
-      enabled: true,
-      tmpl_id: subGrab.tmpl_id,
-      page: subGrab.page || 'pages-v2/demand-detail/demand-detail',
-      miniprogram_state: subGrab.miniprogram_state || 'formal',
-      fields: subGrab.fields || null
-    } : { enabled: false };
-    // Wave2 止血⑥: 催办提醒订阅模板（demand_urge；Wave0 已落库 admin_config.sub_msg_templates.demand_urge）
-    const subUrge = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.demand_urge) || {};
-    const demandUrge = subUrge.tmpl_id ? {
-      enabled: true,
-      tmpl_id: subUrge.tmpl_id,
-      page: subUrge.page || 'pages-v2/order-detail/order-detail',
-      miniprogram_state: subUrge.miniprogram_state || 'formal',
-      fields: subUrge.fields || null
-    } : { enabled: false };
-    return { ok: true, data: {
-      version: cfgRaw.version,
-      timeouts: {
-        s0_timeout_min: cfgRaw.s0_timeout_min,
-        s1_timeout_min: cfgRaw.s1_timeout_min,
-        interrupt_timeout_h: cfgRaw.interrupt_timeout_h,
-        eval_window_h: cfgRaw.eval_window_h,
-        default_star: cfgRaw.default_star
-      },
-      credits: { credit_freeze_line: cfgRaw.credit_freeze_line },
-      rate_range: { rate_min_fen: cfgRaw.rate_min_fen, rate_max_fen: cfgRaw.rate_max_fen },
-      scene_default_rate_fen: cfgRaw.scene_default_rate_fen,
-      // 扁平字段与 CONFIG_SCHEMA/config_set 写入一致; 缺省给 schema 默认值(def 1440/360)
-      time_redline: {
-        open_min: cfgRaw.time_redline_open_min !== undefined ? cfgRaw.time_redline_open_min : 360,
-        close_min: cfgRaw.time_redline_close_min !== undefined ? cfgRaw.time_redline_close_min : 1440
-      },
-      limits: {
-        publish_distance_max_km: cfgRaw.publish_distance_max_km,
-        take_distance_max_km: cfgRaw.take_distance_max_km,
-        youth_limit_fen: cfgRaw.youth_limit_fen
-      },
-      insurance: {
-        coverage_accident_fen: cfgRaw.insurance && cfgRaw.insurance.coverage_accident_fen,
-        coverage_property_fen: cfgRaw.insurance && cfgRaw.insurance.coverage_property_fen
-      },
-      fast_withdraw: {
-        per_order_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_order_max_fen,
-        per_day_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_day_max_fen
-      },
-      modify_config: cfgRaw.modify_config,
-      // 平台总开关(缺省=true 正常态; false=维护态, C 端展示维护提示并阻断入口)
-      switches: {
-        switch_access: cfgRaw.switch_access !== false,
-        switch_blog: cfgRaw.switch_blog !== false,
-        switch_im: cfgRaw.switch_im !== false
-      },
-      // 耍伴接单配置(前端「接单配置」页只读展示: 每日上限由平台统一设定)
-      partner_accept: {
-        daily_take_limit: cfgRaw.partner_daily_take_limit || 5
-      },
-      // 实名认证(实名页读取: mock=测试期模拟人脸 / wx=官方人脸核验)
-      realname: {
-        face_mode: cfgRaw.realname_face_mode || 'mock'
-      },
-      // 实名签署所需协议全文(与留证 hash 同源; 仅实名页按需读取, 不进 bootstrap 映射)
-      legal_public: {
-        service_agreement: cfgRaw.legal_service_agreement || '',
-        aa_promise: cfgRaw.legal_aa_promise || '',
-        pet_authorization: cfgRaw.legal_pet_authorization || ''
-      },
-      // 耍伴资料维护页数量/字数限制(前端校验与后端强约束同源; 缺失走 schema def, 防 0 被 || 吞)
-      partner_profile: {
-        skills_max: cfgRaw.p_skills_max !== undefined ? cfgRaw.p_skills_max : 10,
-        skills_len: cfgRaw.p_skills_len !== undefined ? cfgRaw.p_skills_len : 12,
-        highlights_max: cfgRaw.p_highlights_max !== undefined ? cfgRaw.p_highlights_max : 3,
-        highlight_len: cfgRaw.p_highlight_len !== undefined ? cfgRaw.p_highlight_len : 30,
-        media_title_max: cfgRaw.p_media_title_max !== undefined ? cfgRaw.p_media_title_max : 20,
-        media_len: cfgRaw.p_media_len !== undefined ? cfgRaw.p_media_len : 20,
-        media_photo_max: cfgRaw.p_media_photo_max !== undefined ? cfgRaw.p_media_photo_max : 6,
-        media_photo_size_mb: cfgRaw.p_media_photo_size_mb !== undefined ? cfgRaw.p_media_photo_size_mb : 3,
-        bio_len: cfgRaw.p_bio_len !== undefined ? cfgRaw.p_bio_len : 200
-      },
-      // 消息会话列表分页大小(前端 pageSize 与 im-conv 默认同源)
-      message: {
-        page_size: cfgRaw.msg_page_size !== undefined ? cfgRaw.msg_page_size : 15
-      },
-      // 发布与展示(P0-P2 后台化: 服务内容项数/公益时薪/好评阈值/分享标题/改期加时原因字数)
-      publish: {
-        content_options_max: cfgRaw.publish_content_options_max !== undefined ? cfgRaw.publish_content_options_max : 3,
-        welfare_hourly_rate_fen: cfgRaw.welfare_hourly_rate_fen !== undefined ? cfgRaw.welfare_hourly_rate_fen : 3000,
-        // 一口价(留空=不钳制/不可用; 显式判空, 不给默认, 禁 || 兜底)
-        fixed_price_min_fen: cfgRaw.fixed_price_min_fen,
-        fixed_price_max_fen: cfgRaw.fixed_price_max_fen,
-        welfare_fixed_price_fen: cfgRaw.welfare_fixed_price_fen,
-        good_review_min_stars: cfgRaw.order_good_review_min_stars !== undefined ? cfgRaw.order_good_review_min_stars : 4,
-        reason_max_len: cfgRaw.order_reason_max_len !== undefined ? cfgRaw.order_reason_max_len : 200,
-        share_title_max: cfgRaw.share_title_max !== undefined ? cfgRaw.share_title_max : 30
-      },
-      // 爽约申诉与处罚(第三批 3B; 前端 CONFIG.NO_SHOW 仅兜底, 服务端恒读 admin_config 实配值)
-      no_show: {
-        report_window_h: nsInt(cfgRaw.no_show_report_window_h, 48),
-        defense_window_h: nsInt(cfgRaw.no_show_defense_window_h, 48),
-        score_deduct: nsInt(cfgRaw.no_show_score_deduct, 20),
-        suspend_threshold: nsInt(cfgRaw.no_show_suspend_threshold, 3),
-        suspend_days: nsInt(cfgRaw.no_show_suspend_days, 7),
-        count_window_days: nsInt(cfgRaw.no_show_count_window_days, 180),
-        evidence_max: nsInt(cfgRaw.no_show_evidence_max, 3),
-        reason_min_len: nsInt(cfgRaw.no_show_reason_min_len, 10),
-        max_per_order: nsInt(cfgRaw.no_show_max_per_order, 1)
-      },
-      // 列表分页大小(订单/首页/广场/附近/钱包/通知)
-      paging: {
-        order_page_size: cfgRaw.order_page_size !== undefined ? cfgRaw.order_page_size : 20,
-        index_nearby: cfgRaw.page_index_nearby !== undefined ? cfgRaw.page_index_nearby : 10,
-        index_square: cfgRaw.page_index_square !== undefined ? cfgRaw.page_index_square : 20,
-        square_limit: cfgRaw.page_square_limit !== undefined ? cfgRaw.page_square_limit : 50,
-        nearby_limit: cfgRaw.page_nearby_limit !== undefined ? cfgRaw.page_nearby_limit : 20,
-        wallet_withdraw: cfgRaw.page_wallet_withdraw !== undefined ? cfgRaw.page_wallet_withdraw : 20,
-        notice_limit: cfgRaw.page_notice_limit !== undefined ? cfgRaw.page_notice_limit : 50
-      },
-      // 工作台(流水展示条数)
-      workbench: {
-        income_show: cfgRaw.workbench_income_show !== undefined ? cfgRaw.workbench_income_show : 5
-      },
-      // 支付/资金(dev 下发; prod 随 mock_payment_enabled 总开关 fail-closed: 测试期打开则打赏一并可用, 上线前关闭自动恢复禁用)
-      payment: {
-        tip_enabled: cfgRaw.env === 'dev' || cfgRaw.mock_payment_enabled === true
-      },
-      // 订阅消息(需求①增强 · 抢单提醒): 模板ID/跳转页/字段映射配置化下发; 前端授权页据此调 requestSubscribeMessage。
-      // 未配置(enabled=false)时授权开关置灰, 仅走站内 system_notice, 静默降级; 缺失走前端 CONFIG.SUB_MSG 兜底。
-      sub_msg: {
-        demand_grab: demandGrab,
-        demand_urge: demandUrge
-      },
-      // Wave2 止血⑥: S2 催办阈值（前端展示「已催办 N/上限」与超时警示）
-      urge: {
-        remind_after_h: nsInt(cfgRaw.remind_after_h, 1),
-        escalate_after_h: nsInt(cfgRaw.escalate_after_h, 4),
-        max_count: nsInt(cfgRaw.urge_max_count, 2)
-      }
-    } };
-  }
+  // （config_public 已抽离到 ./action_config_public.js，由上方 HANDLERS_PRE 分发表处理）
 
   // ───────── 账号登录(免鉴权, RBAC S1): admin_accounts 账号+密码 → admin_web_sessions 会话 ─────────
   // 会话 token 主键存储(ADMT-*), 12h 有效; 后续请求经网关透传 __admin_token
