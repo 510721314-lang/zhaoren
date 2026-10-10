@@ -396,7 +396,9 @@ async function sumTx(type, sinceMs) {
 // 鉴权后分组(RBAC 门之后): handler 签名 (ctx)=>result，禁止反向 require('./index')。
 const HANDLERS = Object.assign(
   {},
-  require('./action_adminlist')
+  require('./action_adminlist'),
+  require('./action_blog'),
+  require('./action_home_activity')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
@@ -2671,92 +2673,7 @@ exports.main = async (event, context) => {
     return ok({ fileID: up.fileID });
   }
 
-  // ───────── 8.5 首页活动管理(CRUD, 存 admin_config.home_activities) ─────────
-  if (action === 'home_activity_list') {
-    const list = (config.home_activities || []).slice().sort((a, b) => (b.priority || 0) - (a.priority || 0));
-    return ok({ list });
-  }
-
-  if (action === 'home_activity_create') {
-    const a = event.activity || {};
-    if (!a.title || String(a.title).length > 30) return fail('act_bad_title', '活动标题须为 1-30 字');
-    if (!a.type || !['banner', 'card', 'both'].includes(a.type)) return fail('act_bad_type', 'type 须为 banner/card/both');
-    if (!a.jump_to || !['demand_publish', 'scene_list', 'webview', 'activity_detail'].includes(a.jump_to)) {
-      return fail('act_bad_jump', 'jump_to 不合法');
-    }
-    if (a.start_at && a.end_at && a.start_at >= a.end_at) return fail('act_bad_time', '开始时间必须早于结束时间');
-    const c = a.content || {};
-    if (c && (!Array.isArray(c.rules) || c.rules.some((x) => typeof x !== 'string'))) {
-      return fail('act_bad_content', 'content.rules 须为字符串数组');
-    }
-    const list = config.home_activities || [];
-    const id = 'A' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-    const newAct = {
-      id,
-      title: String(a.title).trim(),
-      subtitle: String(a.subtitle || '').trim().slice(0, 60),
-      banner_image: String(a.banner_image || '').trim(),
-      cover_image: String(a.cover_image || '').trim(),
-      type: a.type,
-      jump_to: a.jump_to,
-      jump_param: a.jump_param || {},
-      start_at: a.start_at || now,
-      end_at: a.end_at || (now + 30 * 86400000),
-      status: a.status || 'active',
-      priority: Number(a.priority) || 0,
-      scene_code: a.scene_code || '',
-      content: {
-        time_text: String(c.time_text || '').trim().slice(0, 60),
-        location: String(c.location || '').trim().slice(0, 60),
-        rules: Array.isArray(c.rules) ? c.rules.map((r) => String(r).trim().slice(0, 60)).filter(Boolean).slice(0, 10) : [],
-        body: String(c.body || '').trim().slice(0, 500),
-        cta_text: String(c.cta_text || '').trim().slice(0, 12)
-      },
-      created_at: now,
-      created_by: openid
-    };
-    list.push(newAct);
-    await col('admin_config').where({ _id: 'global' }).update({ data: { home_activities: list, updated_at: now } });
-    await logEvent('P2', 'home_activity_create', openid, { id, title: newAct.title });
-    return ok({ activity: newAct });
-  }
-
-  if (action === 'home_activity_update') {
-    const { id, patch } = event;
-    if (!id) return fail('act_bad_id', '活动 id 必填');
-    const list = config.home_activities || [];
-    const idx = list.findIndex((a) => a.id === id);
-    if (idx < 0) return fail('act_not_found', '活动不存在');
-    const allowed = ['title', 'subtitle', 'banner_image', 'cover_image', 'type', 'jump_to', 'jump_param', 'start_at', 'end_at', 'status', 'priority', 'scene_code', 'content'];
-    const updated = Object.assign({}, list[idx]);
-    for (const k of allowed) {
-      if (patch[k] !== undefined) updated[k] = patch[k];
-    }
-    if (updated.content && (!Array.isArray(updated.content.rules) || updated.content.rules.some((x) => typeof x !== 'string'))) {
-      return fail('act_bad_content', 'content.rules 须为字符串数组');
-    }
-    if (updated.start_at && updated.end_at && updated.start_at >= updated.end_at) {
-      return fail('act_bad_time', '开始时间必须早于结束时间');
-    }
-    updated.updated_at = now;
-    updated.updated_by = openid;
-    list[idx] = updated;
-    await col('admin_config').where({ _id: 'global' }).update({ data: { home_activities: list, updated_at: now } });
-    await logEvent('P2', 'home_activity_update', openid, { id, patch });
-    return ok({ activity: updated });
-  }
-
-  if (action === 'home_activity_delete') {
-    const { id } = event;
-    if (!id) return fail('act_bad_id', '活动 id 必填');
-    const list = config.home_activities || [];
-    const idx = list.findIndex((a) => a.id === id);
-    if (idx < 0) return fail('act_not_found', '活动不存在');
-    list.splice(idx, 1);
-    await col('admin_config').where({ _id: 'global' }).update({ data: { home_activities: list, updated_at: now } });
-    await logEvent('P2', 'home_activity_delete', openid, { id });
-    return ok({ deleted: id });
-  }
+  // （home_activity_* 已抽离到 ./action_home_activity.js，由上方 HANDLERS 分发表处理）
 
   // ───────── 认证考试管理(exam_bank 独立集合, 答案不随 admin_config 导出) ─────────
   // 科目 doc: { code, title, desc, pass_line, requires[], enabled, questions[{question,options,answer_idx}], is_deleted }
@@ -3307,88 +3224,7 @@ exports.main = async (event, context) => {
 
   // （admin_list/admin_add/admin_remove 已抽离到 ./action_adminlist.js，由上方 HANDLERS 分发表处理）
 
-  // ─────────────── 服务动态(blog)管理 ───────────────
-  if (action === 'blog_list') {
-    const status = ['normal', 'offline', 'deleted'].indexOf(event.status) >= 0 ? event.status : '';
-    const { page, size, skip } = pager(event);
-    const where = status ? { status } : {};
-    const countAll = await col('blog_post').where(where).count();
-    const r = await col('blog_post').where(where).orderBy('created_at', 'desc')
-      .skip(skip).limit(size + 1).get();
-    const rows = r.data || [];
-    const has_more = rows.length > size;
-    const list = (has_more ? rows.slice(0, size) : rows).map((p) => ({
-      _id: p._id, author_openid: p.author_openid,
-      author_nickname: p.author_nickname || '微信用户',
-      scene: p.scene || '', content: p.content, image_count: (p.images || []).length,
-      like_count: p.like_count || 0, comment_count: p.comment_count || 0,
-      view_count: p.view_count || 0, status: p.status || 'normal', created_at: p.created_at
-    }));
-    return ok({ list, has_more, page, total: countAll.total });
-  }
-
-  if (action === 'blog_offline') {
-    const { post_id, note } = event;
-    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
-    if (!note || !String(note).trim()) return fail('blog_note_required', '请填写下架原因');
-    const doc = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
-    if (!doc) return fail('blog_gone', '动态不存在');
-    if (doc.status === 'offline') return fail('blog_already_offline', '该动态已下架');
-    await col('blog_post').doc(post_id).update({ data: { status: 'offline', offline_by: openid, offline_note: String(note).trim(), updated_at: now } });
-    await logEvent('P2', 'blog_offline', openid, { post_id, author_openid: doc.author_openid, note: String(note).trim() });
-    return ok({ msg: '已下架' });
-  }
-
-  if (action === 'blog_restore') {
-    const { post_id } = event;
-    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
-    const doc = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
-    if (!doc) return fail('blog_gone', '动态不存在');
-    if (doc.status !== 'offline') return fail('blog_not_offline', '仅已下架动态可恢复');
-    await col('blog_post').doc(post_id).update({ data: { status: 'normal', updated_at: now } });
-    await logEvent('P2', 'blog_restore', openid, { post_id });
-    return ok({ msg: '已恢复' });
-  }
-
-  if (action === 'blog_delete') {
-    const { post_id, note } = event;
-    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
-    if (!note || !String(note).trim()) return fail('blog_note_required', '请填写删除原因');
-    const doc = await col('blog_post').doc(post_id).get().then((r) => r.data).catch(() => null);
-    if (!doc || doc.is_deleted) return fail('blog_gone', '动态不存在');
-    await col('blog_post').doc(post_id).update({ data: { status: 'deleted', is_deleted: true, delete_by: openid, delete_note: String(note).trim(), updated_at: now } });
-    await logEvent('P2', 'blog_delete', openid, { post_id, author_openid: doc.author_openid, note: String(note).trim() });
-    return ok({ msg: '已删除' });
-  }
-
-  if (action === 'blog_comment_list') {
-    const { post_id } = event;
-    if (!isDocId(post_id)) return fail('blog_bad_id', '动态 ID 格式不正确');
-    const { page, size, skip } = pager(event);
-    const r = await col('blog_comment').where({ post_id }).orderBy('created_at', 'desc')
-      .skip(skip).limit(size + 1).get();
-    const rows = r.data || [];
-    const has_more = rows.length > size;
-    const list = (has_more ? rows.slice(0, size) : rows).map((c) => ({
-      _id: c._id, author_openid: c.author_openid, author_nickname: c.author_nickname || '微信用户',
-      content: c.content, status: c.status || 'normal', created_at: c.created_at
-    }));
-    return ok({ list, has_more, page });
-  }
-
-  if (action === 'blog_comment_delete') {
-    const { comment_id, note } = event;
-    if (!isDocId(comment_id)) return fail('blog_bad_comment_id', '评论 ID 格式不正确');
-    if (!note || !String(note).trim()) return fail('blog_note_required', '请填写删除原因');
-    const cdoc = await col('blog_comment').doc(comment_id).get().then((r) => r.data).catch(() => null);
-    if (!cdoc || cdoc.is_deleted) return fail('blog_comment_gone', '评论不存在');
-    await col('blog_comment').doc(comment_id).update({ data: { status: 'deleted', is_deleted: true, delete_by: openid, updated_at: now } });
-    if (cdoc.status !== 'deleted') {
-      await col('blog_post').doc(cdoc.post_id).update({ data: { comment_count: db.command.inc(-1) } }).catch(() => {});
-    }
-    await logEvent('P2', 'blog_comment_delete', openid, { comment_id, post_id: cdoc.post_id, note: String(note).trim() });
-    return ok({ msg: '评论已删除' });
-  }
+  // （blog_* 已抽离到 ./action_blog.js，由上方 HANDLERS 分发表处理）
 
   return fail('admin_unknown_action', '未知动作');
 };
