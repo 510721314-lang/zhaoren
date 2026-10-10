@@ -1494,9 +1494,10 @@ exports.main = async (event, context) => {
     // 退款金额(仅 refund): 缺省回落订单全额; 上限 = total_fen − 已成功退款合计
     let refFen = 0;
     let refNo = '';
+    let totalFen = 0;          // Wave1: 提到外层, 供资金位 dual-write 使用
+    let alreadyRefunded = 0;
     if (decision === 'refund') {
-      const totalFen = Number(order.total_fen) || 0;
-      let alreadyRefunded = 0;
+      totalFen = Number(order.total_fen) || 0;
       try {
         const paid = await col('pay_transaction').where({
           order_id, type: 'refund', status: 'success', is_deleted: _.neq(true)
@@ -1527,6 +1528,8 @@ exports.main = async (event, context) => {
       patch.refund_source = 'dispute';
       patch.refund_by = openid;
       patch.refunded_at = now;
+      // Wave1 正交位 dual-write(§3.2): 资金位 refunded_fen = 已退合计 + 本次(部分退款非终态)
+      patch.fund = { paid_fen: totalFen, refunded_fen: alreadyRefunded + refFen, settle_state: 'pending', settled_at: 0 };
     }
     // CAS: 仅当订单仍处于读取时的原状态才允许裁决, 防并发双处置
     const dcr = await col('order_main').where({ _id: order_id, status: before }).update({ data: patch });

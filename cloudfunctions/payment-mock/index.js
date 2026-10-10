@@ -242,7 +242,9 @@ exports.main = async (event, context) => {
       let casRes;
       try {
         casRes = await col('order_main').where({ _id: order_id, status: 'S0' }).update({
-          data: { status: 'S2', updated_at: now }
+          data: { status: 'S2', updated_at: now,
+            // Wave1 正交位 dual-write(§3.2): 资金位在支付时落 paid_fen(支付为第一笔资金动作, 无历史退款)
+            fund: { paid_fen: Number(order.total_fen) || 0, refunded_fen: 0, settle_state: 'pending', settled_at: 0 } }
         });
       } catch (e) {
         log.d(`mock_pay cas fail: ${e.message}`);
@@ -349,7 +351,9 @@ exports.main = async (event, context) => {
       try {
         casRes = await col('order_main').where({
           _id: order_id, status: _.in(['S2', 'S3'])
-        }).update({ data: { status: 'S7', refunded_at: now, updated_at: now } });
+        }).update({ data: { status: 'S7', refunded_at: now, updated_at: now,
+          // Wave1 正交位 dual-write(§3.2): 全额自助退 → paid/refunded 同步(幂等检查已保证无历史退款)
+          fund: { paid_fen: Number(order.total_fen) || 0, refunded_fen: Number(order.total_fen) || 0, settle_state: 'pending', settled_at: 0 } } });
       } catch (e) {
         log.d(`mock_refund cas fail: ${e.message}`);
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
