@@ -98,6 +98,10 @@ exports.main = async (event, context) => {
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'ev_not_found', msg: '订单不存在' };
     if (order.user_openid !== openid) return { ok: false, code: 'ev_not_owner', msg: '仅下单用户可评价' };
+    // Wave2 止血⑤(冻结位): 争议/申诉处理中禁止评价(与 order-action isFrozen 同口径)
+    if (order.frozen === true || (order.dispute_state && order.dispute_state === 'open')) {
+      return { ok: false, code: 'ev_order_frozen', msg: '订单争议/申诉处理中,暂不可评价' };
+    }
     if (order.status !== 'S5') {
       // 已评价/系统默认评价等非 S5 状态: 有评价记录则幂等返回, 便于前端重试/弱网重发
       const dup0 = await col('evaluation').where({ order_id, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));

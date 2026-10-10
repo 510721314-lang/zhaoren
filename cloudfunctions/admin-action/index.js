@@ -1488,7 +1488,11 @@ exports.main = async (event, context) => {
       after = 'S7';
     } else if (decision === 'complete') {
       if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
-      after = 'S5';
+      // Wave2 止血⑦(修 D10): 争议前已有评价的单回 S8(保留评价), 无评价才回 S5 —— 避免把已评价单退回待评价造成重复评价
+      const from = order.complaint_from_status || '';
+      const alreadyEvaluated = (from === 'S8' || from === 'S9' ||
+        order.eval_state === 'user_done' || order.eval_state === 'auto_done');
+      after = alreadyEvaluated ? 'S8' : 'S5';
     } else {
       return fail('dispute_bad_decision', 'decision 必须为 open/refund/complete');
     }
@@ -3208,6 +3212,12 @@ exports.main = async (event, context) => {
         }
         await col('no_show_report').doc(report_id).update({ data: { penalty_applied: penaltyApplied, updated_at: now } });
       }
+    }
+    // Wave2 止血⑤: 裁定完成 → 解冻订单(否则冻结位永久残留, 后续 start/modify/complete/evaluate 全被拒)
+    if (rpt.order_id) {
+      try {
+        await col('order_main').where({ _id: rpt.order_id }).update({ data: { frozen: false, updated_at: now } });
+      } catch (e) { /* 解冻失败不阻断裁定结果落库与通知 */ }
     }
     // 裁定通知双方(成立: 申诉方不暴露分值细节, 被诉方收明细; 不成立: 双方同文案)
     const noticeTo = async (to, title, body) => {

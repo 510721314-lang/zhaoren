@@ -213,6 +213,12 @@ function roleOf(order, openid) {
   return null;
 }
 
+// Wave2 止血⑤(冻结位): 争议/申诉处理期间订单冻结, 禁止推进类操作(start/modify/complete/evaluate),
+// 防止单方在申诉期推进状态破坏申诉资格前提(诊断 D9)。frozen 为 Wave1 落地的正交位。
+function isFrozen(order) {
+  return !!(order && (order.frozen === true || (order.dispute_state && order.dispute_state === 'open')));
+}
+
 // 8 个确认位是否全部完成
 function allConfirmed(items) {
   for (const f of CONFIRM_FIELDS) {
@@ -688,6 +694,7 @@ exports.main = async (event, context) => {
     if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
     if (role !== 'partner') return { ok: false, code: 'oa_start_perm', msg: '仅耍伴可开始履约' };
     if (order.status !== 'S2') return { ok: false, code: 'oa_start_status', msg: `订单当前状态(${order.status})不可开始履约` };
+    if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可开始履约' };
 
     const now = Date.now();
     const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
@@ -725,6 +732,7 @@ exports.main = async (event, context) => {
     if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
     if (role !== 'partner') return { ok: false, code: 'oa_complete_perm', msg: '仅耍伴可完成履约' };
     if (order.status !== 'S3') return { ok: false, code: 'oa_complete_status', msg: `订单当前状态(${order.status})不可完成履约` };
+    if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可完成履约' };
 
     // 里程碑校验:需提交到100%(current===3)才可完成履约
     const ms = order.milestone || { current: 0 };
@@ -891,6 +899,7 @@ exports.main = async (event, context) => {
     if (order.status !== 'S2') {
       return { ok: false, code: 'oa_modify_status', msg: `订单当前状态(${order.status})不可改期` };
     }
+    if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可改期' };
     const config = await getConfig();
     const modifyConfig = Object.assign({}, MODIFY_DEFAULTS);
     try { Object.assign(modifyConfig, config.modify_config || {}); } catch (e) {}
@@ -1870,6 +1879,11 @@ exports.main = async (event, context) => {
       log.d(`no_show_report add fail: ${e.message}`);
       return { ok: false, code: 'no_show_submit_fail', msg: '提交失败,请稍后重试' };
     }
+    // Wave2 止血⑤(冻结位): 申诉裁定前冻结订单, 禁止 start/modify/complete/evaluate
+    // (否则被诉方可单方推进状态、破坏申诉资格前提, 诊断 D9); 裁定/撤回时解冻。
+    try {
+      await col('order_main').where({ _id: order_id }).update({ data: { frozen: true, updated_at: now } });
+    } catch (e) { log.d(`no_show freeze fail: ${e.message}`); }
     // 通知被诉方举证(N 动态取配置; fire-and-forget 反模式已规避: 显式 await)
     await writeNotice({
       to_openid: target, order_id, type: 'no_show_report',
@@ -1977,6 +1991,10 @@ exports.main = async (event, context) => {
     }
     const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
     const device = String(event.device || '').slice(0, 200);
+    // Wave2 止血⑤: 撤回申诉 → 解冻(与裁定解冻同口径)
+    try {
+      await col('order_main').where({ _id: report.order_id }).update({ data: { frozen: false, updated_at: now } });
+    } catch (e) { log.d(`no_show unfreeze fail: ${e.message}`); }
     await writeNotice({
       to_openid: report.target_openid, order_id: report.order_id, type: 'no_show_report',
       title: '对方已撤回爽约申诉',
