@@ -1516,9 +1516,11 @@ exports.main = async (event, context) => {
     }
     const patch = {
       status: after, admin_note: noteText,
-      dispute_handled_by: openid, dispute_handled_at: now, updated_at: now
+      dispute_handled_by: openid, dispute_handled_at: now, updated_at: now,
+      // Wave1 正交位 dual-write(§3.2): 裁决出口 → 争议关闭并解冻
+      dispute_state: 'resolved', frozen: false
     };
-    if (decision === 'open') patch.dispute_opened_at = now;
+    if (decision === 'open') { patch.dispute_opened_at = now; patch.dispute_state = 'open'; patch.frozen = true; }
     if (decision === 'refund') {
       patch.refund_fen = refFen;
       patch.refund_no = refNo;

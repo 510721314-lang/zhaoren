@@ -139,7 +139,7 @@ exports.main = async (event, context) => {
     let casRes;
     try {
       casRes = await col('order_main').where({ _id: order_id, status: 'S5' }).update({
-        data: { status: 'S8', evaluated_at: now, updated_at: now }
+        data: { status: 'S8', evaluated_at: now, updated_at: now, eval_state: 'user_done' }
       });
     } catch (e) {
       log.d(`evaluation cas fail: ${e.message}`);
