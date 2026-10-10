@@ -404,7 +404,9 @@ const HANDLERS = Object.assign(
   require('./action_lists'),
   require('./action_admin_account'),
   require('./action_user_moderation'),
-  require('./action_user_ops')
+  require('./action_user_ops'),
+  require('./action_partner_review'),
+  require('./action_order_demand_ops')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
@@ -743,146 +745,6 @@ exports.main = async (event, context) => {
   }
 
   // 强制下架/恢复耍伴接单(不影响其发单人身份)
-  if (action === 'partner_offline' || action === 'partner_online') {
-    const { target_openid, reason } = event;
-    if (!isOpenid(target_openid)) return fail('partner_bad_openid', 'openid 格式不正确');
-    const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
-    if (!pr.data || !pr.data[0]) return fail('partner_not_found', '耍伴不存在');
-    const online = action === 'partner_online';
-    if (pr.data[0].status !== 'approved' && online) return fail('partner_not_approved', '仅审核通过的耍伴可恢复接单');
-    await col('partner_profile').doc(pr.data[0]._id).update({
-      data: { accept_switch: online, updated_at: now }
-    });
-    await logEvent('P2', online ? 'partner_online' : 'partner_offline', openid, {
-      target_openid, reason: reason || '', before: pr.data[0].accept_switch, after: online
-    });
-    return ok({ openid: target_openid, accept_switch: online });
-  }
-
-  // 耍伴资料审核待审列表(profile_audit_status='pending'; 返回待审内容 + 现快照对比)
-  if (action === 'partner_profile_pending_list') {
-    const pg = pager(event);
-    const query = col('partner_profile').where({ profile_audit_status: 'pending', is_deleted: _.neq(true) });
-    const [totalR, rows] = await Promise.all([
-      query.count().catch(() => ({ total: 0 })),
-      query.orderBy('profile_submit_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
-    ]);
-    // 死锁治愈: status=pending 但所有栏目待审内容为空(旧版"部分通过"锁判定 bug 遗留)
-    //   → 自动解锁 approved 并移出队列, 避免后台队列显示空待审且前端永久锁定
-    const healedNow = Date.now();
-    const rowsAll = rows.data || [];
-    const stillPending = [];
-    for (const p of rowsAll) {
-      const allEmpty = Object.keys(FIELD_PENDING).every((f) => isFieldEmpty(f, p[FIELD_PENDING[f]]));
-      if (allEmpty) {
-        col('partner_profile').doc(p._id).update({ data: { profile_audit_status: 'approved', profile_reject_reason: '', updated_at: healedNow } }).catch(() => {});
-        log.d('heal deadlock audit lock:', p.openid);
-      } else {
-        stillPending.push(p);
-      }
-    }
-    rows.data = stillPending;
-    if (stillPending.length !== rowsAll.length) {
-      totalR.total = Math.max(0, (totalR.total || 0) - (rowsAll.length - stillPending.length));
-    }
-    const openids = (rows.data || []).map((p) => p.openid);
-    const userMap = {};
-    if (openids.length) {
-      const ur = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get().catch(() => ({ data: [] }));
-      for (const u of (ur.data || [])) userMap[u.openid] = { nickname: u.nickname || '', avatar: u.avatar || '' };
-    }
-    // 收集需展示缩略图的云存储 fileID(待审+快照的资质/荣誉 photos) → 统一切成临时 URL
-    const fileIDSet = new Set();
-    for (const p of (rows.data || [])) {
-      const cols = [
-        p.qualifications_pending && p.qualifications_pending.photos,
-        p.honors_pending && p.honors_pending.photos,
-        p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications && p.profile_audited_snapshot.qualifications.photos,
-        p.profile_audited_snapshot && p.profile_audited_snapshot.honors && p.profile_audited_snapshot.honors.photos
-      ];
-      for (const arr of cols) if (Array.isArray(arr)) for (const f of arr) if (f && typeof f === 'string') fileIDSet.add(f);
-    }
-    const urlMap = await resolveTempUrls([...fileIDSet]);
-    // photos → [{fileid, url}] (前端缩略图/原图用 url)
-    const toPhotos = (photos) => (Array.isArray(photos) ? photos.map((f) => ({ fileid: f, url: urlMap[f] || '' })) : []);
-    const list = (rows.data || []).map((p) => ({
-      openid: p.openid,
-      nickname: p.nickname || (userMap[p.openid] && userMap[p.openid].nickname) || '耍伴',
-      avatar: p.avatar || (userMap[p.openid] && userMap[p.openid].avatar) || '',
-      pending: { bio: p.bio_pending || '', skills: p.skills_pending || [], highlights: p.highlights_pending || [],
-        qualifications: { titles: (p.qualifications_pending && p.qualifications_pending.titles) || [], photos: toPhotos(p.qualifications_pending && p.qualifications_pending.photos) },
-        honors: { titles: (p.honors_pending && p.honors_pending.titles) || [], photos: toPhotos(p.honors_pending && p.honors_pending.photos) } },
-      current: {
-        bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
-        skills: (p.profile_audited_snapshot && p.profile_audited_snapshot.skills) || [],
-        highlights: (p.profile_audited_snapshot && p.profile_audited_snapshot.highlights) || [],
-        qualifications: { titles: (p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications && p.profile_audited_snapshot.qualifications.titles) || [], photos: toPhotos(p.profile_audited_snapshot && p.profile_audited_snapshot.qualifications && p.profile_audited_snapshot.qualifications.photos) },
-        honors: { titles: (p.profile_audited_snapshot && p.profile_audited_snapshot.honors && p.profile_audited_snapshot.honors.titles) || [], photos: toPhotos(p.profile_audited_snapshot && p.profile_audited_snapshot.honors && p.profile_audited_snapshot.honors.photos) }
-      },
-      reject_reason: p.profile_reject_reason || '',
-      submitted_at: p.profile_submit_at,
-      audit_history: (p.profile_audit_history || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
-    }));
-    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
-  }
-
-  // 耍伴资料审核(approve 覆盖快照+留 prev / reject 留原因), 并推送 system_notice 给耍伴
-  if (action === 'partner_profile_review') {
-    // 支持按栏目独立通过/驳回: items=[{field,pass,reason}]
-    const { target_openid, items } = event;
-    if (!isOpenid(target_openid)) return fail('pp_bad_openid', 'openid 格式不正确');
-    const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
-    const p = pr.data && pr.data[0];
-    if (!p) return fail('pp_not_found', '耍伴不存在');
-    if (p.profile_audit_status !== 'pending') return fail('pp_no_pending', '该耍伴资料不在审核队列');
-    if (!Array.isArray(items) || items.length === 0) return fail('pp_no_items', '缺少审核项');
-    const _n = Date.now();
-    // 收敛: 审核增量由 _shared/partner_audit 唯一实现(与 partner-action 同源, 防漂移)
-    const { patch, hist, hasRemainingPending, anyPatched } = buildAuditPatch(p, items, _n, openid);
-    if (!anyPatched || Object.keys(patch).length === 0) return fail('pp_no_pending_scope', '所选审核项均无待审内容');
-    patch.profile_audit_history = _.push(...hist);
-    await col('partner_profile').doc(p._id).update({ data: patch });
-    try {
-      await col('system_notice').add({ data: {
-        to_openid: target_openid, order_id: '', type: hasRemainingPending ? 'partner_profile_rejected' : 'partner_profile_approved',
-        title: hasRemainingPending ? '部分资料未通过' : '资料审核通过',
-        body: hasRemainingPending ? '你的部分耍伴资料未通过审核，请修改未通过的栏目后重新提交；已通过的栏目已展示。'
-          : '你的耍伴资料已通过审核，已在耍伴卡片与详情页展示。',
-        action_key: 'partner_profile_edit', action_payload: {}, created_at: _n, updated_at: _n, read: false
-      }});
-    } catch (e) {}
-    await logEvent('P2', hasRemainingPending ? 'pp_profile_partial' : 'pp_profile_approved', openid, { target_openid, fields: items.map((i) => i.field).join(',') });
-    return ok({ target_openid, profile_audit_status: hasRemainingPending ? 'pending' : 'approved' });
-  }
-
-  // 耍伴审核(通过/驳回)
-  if (action === 'review') {
-    const { target_openid, decision, note } = event;
-    if (!isOpenid(target_openid)) return fail('review_no_openid', '缺少耍伴 openid');
-    if (decision !== 'approve' && decision !== 'reject') {
-      return fail('review_bad_decision', 'decision 必须为 approve/reject');
-    }
-    const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
-    if (!pr.data || !pr.data[0]) return fail('review_not_found', '耍伴申请不存在');
-    const profile = pr.data[0];
-    const newStatus = decision === 'approve' ? 'approved' : 'rejected';
-    await col('partner_profile').doc(profile._id).update({
-      data: {
-        status: newStatus, review_note: note || '', reviewed_by: openid, reviewed_at: now,
-        accept_switch: decision === 'approve' ? true : profile.accept_switch, updated_at: now
-      }
-    });
-    if (decision === 'approve') {
-      await col('user_account').where({ openid: target_openid }).update({
-        data: { roles: _.addToSet('partner'), updated_at: now }
-      }).catch(() => {});
-    }
-    await logEvent('P2', 'partner_review_' + decision, openid, {
-      target_openid, before: profile.status, after: newStatus, note: note || ''
-    });
-    return ok({ openid: target_openid, status: newStatus });
-  }
-
   // ───────── 4. 需求管理 ─────────
   if (action === 'demand_list') {
     const { keyword, scene, status } = event;
@@ -923,27 +785,6 @@ exports.main = async (event, context) => {
       admin_note: d.admin_note || '', created_at: d.created_at
     }));
     return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
-  }
-
-  // 强制下架违规需求(仅 matching 可下架; 记 admin_note + P2)
-  if (action === 'demand_offline') {
-    const { demand_id, note } = event;
-    if (!isDocId(demand_id)) return fail('demand_bad_id', '需求 ID 格式不正确');
-    if (!note || !String(note).trim()) return fail('demand_no_note', '请填写下架原因');
-    let d;
-    try { d = (await col('demand').doc(demand_id).get()).data; } catch (e) { d = null; }
-    if (!d) return fail('demand_not_found', '需求不存在');
-    if (d.status !== 'matching') return fail('demand_bad_status', `当前状态(${d.status})不可下架,仅匹配中需求可下架`);
-    await col('demand').doc(demand_id).update({
-      data: {
-        status: 'cancelled', admin_note: String(note).trim(),
-        offline_by: openid, offline_at: now, updated_at: now
-      }
-    });
-    await logEvent('P2', 'demand_offline', openid, {
-      demand_id, demand_no: d.demand_no, reason: String(note).trim()
-    });
-    return ok({ demand_id, status: 'cancelled' });
   }
 
   // ───────── 5. 订单管理 ─────────
@@ -1046,42 +887,6 @@ exports.main = async (event, context) => {
         }))
       } : null
     });
-  }
-
-  // 人工强制取消订单(S1/S0 → S6; S1 释放需求回匹配池; 记流水 + P2)
-  if (action === 'order_force_cancel') {
-    const { order_id, note } = event;
-    if (!isDocId(order_id)) return fail('order_bad_id', '订单 ID 格式不正确');
-    if (!note || !String(note).trim()) return fail('cancel_no_note', '请填写取消原因');
-    let o;
-    try { o = (await col('order_main').doc(order_id).get()).data; } catch (e) { o = null; }
-    if (!o) return fail('order_not_found', '订单不存在');
-    if (o.status !== 'S1' && o.status !== 'S0') {
-      return fail('cancel_bad_status', `当前状态(${o.status})不可强制取消,仅待确认/待支付订单可取消`);
-    }
-    const before = o.status;
-    // CAS: 仅 S1/S0→S6, 与用户取消/定时器/支付互斥
-    const cr = await col('order_main').where({ _id: order_id, status: _.in(['S1', 'S0']) }).update({
-      data: { status: 'S6', admin_note: String(note).trim(), cancel_by: openid, cancel_at: now, updated_at: now }
-    });
-    if (!cr.stats || cr.stats.updated !== 1) {
-      return fail('cancel_conflict', '订单状态已变化,请刷新后重试');
-    }
-    // 释放需求回匹配池(条件更新, 仅 matched→matching)
-    if (o.demand_id && before === 'S1') {
-      await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({ data: { status: 'matching', updated_at: now } }).catch(() => {});
-    }
-    try {
-      await col('order_status_log').add({ data: {
-        order_id, order_no: o.order_no, from_status: before, to_status: 'S6',
-        actor: 'admin', actor_openid: openid, action: 'admin_force_cancel',
-        note: String(note).trim(), created_at: now, updated_at: now, is_deleted: false
-      }});
-    } catch (e) {}
-    await logEvent('P2', 'order_force_cancel', openid, {
-      order_id, order_no: o.order_no, before, after: 'S6', note: String(note).trim()
-    });
-    return ok({ order_id, before, after: 'S6' });
   }
 
   // ───────── 争议处置(S10→S10.5→裁决 S7/S5) ─────────
