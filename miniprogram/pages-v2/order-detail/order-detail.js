@@ -256,7 +256,8 @@ Page({
       });
       const myReports = (r.data.list || []).filter((x) => x.my_role === 'reporter').length;
       const statusOk = st === 'S2' || st === 'S3_5';
-      const inWindow = start > 0 && now >= start && now <= start + (Number(ns.reportWindowH) || 48) * 3600000;
+      // 2026-10-10 口径变更: 去掉「必须已到约定开始时间」→ S2 付款后即可申诉(至 开始时间+48h 截止)
+      const inWindow = start > 0 && now <= start + (Number(ns.reportWindowH) || 48) * 3600000;
       const underLimit = myReports < (Number(ns.maxPerOrder) || 1);
       this.setData({ noShowReports: list, canNoShowReport: statusOk && inWindow && underLimit });
     }).catch(() => {});

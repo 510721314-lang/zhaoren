@@ -1,5 +1,5 @@
 // no_show_rules.js 爽约申诉/举证/裁定规则单测(零依赖 node:test)
-// 覆盖: 9 键读取与钳制 / 申诉资格(S2·S3.5+时限) / 举证截止 / 裁定处罚(第 N 次·阈值停用) / 撤回资格
+// 覆盖: 9 键读取与钳制 / 申诉资格(S2·S3.5, 2026-10-10 起不限开始时间) / 举证截止 / 裁定处罚(第 N 次·阈值停用) / 撤回资格
 // 运行: 根目录 `npm test`  或  `node --test cloudfunctions/_shared/no_show_rules.test.js`
 const test = require('node:test');
 const assert = require('node:assert');
@@ -51,10 +51,9 @@ test('申诉: 非 S2/S3.5(如 S3 履约中/S5 已完成)拒绝', () => {
     assert.strictEqual(r.code, 'no_show_bad_status');
   }
 });
-test('申诉: 开始时间未到 → 拒绝(不可预告式申诉)', () => {
+test('申诉: 开始时间未到 → 放行(2026-10-10 口径变更: S2 付款后即可申诉)', () => {
   const r = canSubmitReport({ status: 'S2', start_time: NOW + HOUR_MS }, NOW, noShowCfg({}));
-  assert.strictEqual(r.ok, false);
-  assert.strictEqual(r.code, 'no_show_not_started');
+  assert.strictEqual(r.ok, true);
 });
 test('申诉: 缺 start_time → 拒绝', () => {
   const r = canSubmitReport({ status: 'S2' }, NOW, noShowCfg({}));
