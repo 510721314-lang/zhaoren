@@ -392,6 +392,13 @@ async function sumTx(type, sinceMs) {
   } catch (e) { return { total: 0, fee: 0 }; }
 }
 
+// ── action 分发表：已物理抽到同级 action_*.js 的 handler 在此注册，ctx 注入共享符号 ──
+// 鉴权后分组(RBAC 门之后): handler 签名 (ctx)=>result，禁止反向 require('./index')。
+const HANDLERS = Object.assign(
+  {},
+  require('./action_adminlist')
+);
+
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
   const { resolveOpenid } = require('./openid');
@@ -657,6 +664,26 @@ exports.main = async (event, context) => {
   if (operatorRole !== 'R1' && (!grants || grants.indexOf(operatorRole) < 0)) {
     await logEvent('P1', 'role_forbidden', openid, { action, role: operatorRole, account: operatorAccount });
     return { ok: false, code: 'role_forbidden', msg: `无权限执行此操作(需 ${(grants || ['R1']).map((r) => ADMIN_ROLE_LABEL[r]).join('/')} 角色)` };
+  }
+
+  // 已抽离到 action_*.js 的鉴权后动作优先走分发表（ctx 注入共享符号，行为与原内联逐字一致）
+  if (HANDLERS[action]) {
+    const ctx = {
+      event, openid, action, wxCtx, config, adminOpenids,
+      col, db, _, $, log, cloud, crypto,
+      now, ok, fail,
+      getConfig, logEvent, ensureAdminColls, resolveTempUrls, maskDocDeep,
+      pager, isOpenid, isDocId, genPayNo, sumTx,
+      ADMIN_ROLE_LABEL, ADMIN_ROLES, ROLE_GRANTS,
+      operatorRole, operatorAccount,
+      noShowCfg, verdictOutcome, VERDICTS, REPORT_STATUS, DAY_MS,
+      buildAuditPatch, FIELD_PENDING, isFieldEmpty,
+      ACTIVE_STATUS, PAGE_SIZE, SCENE_NAME, BLOCK_WORDS_FALLBACK,
+      STATUS_LABEL, TX_LABEL, CONFIG_SCHEMA,
+      hashAdminPassword, maskPhone, maskIp, maskIdCard, maskDoc, SENSITIVE_MASK,
+      resolveOperations, todayStart, dayKey, last7Days, bucketCount, bucketFen
+    };
+    return await HANDLERS[action](ctx);
   }
 
   // ───────── 账号管理(仅 R1 超管) ─────────
@@ -3411,36 +3438,7 @@ exports.main = async (event, context) => {
     return ok({ openid: target_openid, level, status: patch.status });
   }
 
-  // ───────── 10. 管理员权限 ─────────
-  if (action === 'admin_list') {
-    return ok({ admins: adminOpenids, count: adminOpenids.length });
-  }
-
-  if (action === 'admin_add') {
-    const { target_openid } = event;
-    if (!isOpenid(target_openid)) return fail('admin_bad_openid', 'openid 格式不正确');
-    if (adminOpenids.indexOf(target_openid) >= 0) return fail('admin_exists', '该 openid 已是管理员');
-    const next = adminOpenids.concat([target_openid]);
-    await col('admin_config').where({ _id: 'global' }).update({
-      data: { admin_openids: next, updated_at: now }
-    });
-    await logEvent('P2', 'admin_add', openid, { target_openid });
-    return ok({ admins: next });
-  }
-
-  if (action === 'admin_remove') {
-    const { target_openid } = event;
-    if (!isOpenid(target_openid)) return fail('admin_bad_openid', 'openid 格式不正确');
-    if (target_openid === openid) return fail('admin_cannot_remove_self', '不能移除当前登录的管理员自己');
-    if (adminOpenids.length <= 1) return fail('admin_last_one', '至少保留 1 名管理员');
-    const next = adminOpenids.filter((x) => x !== target_openid);
-    if (next.length === adminOpenids.length) return fail('admin_not_found', '该 openid 不在管理员名单');
-    await col('admin_config').where({ _id: 'global' }).update({
-      data: { admin_openids: next, updated_at: now }
-    });
-    await logEvent('P2', 'admin_remove', openid, { target_openid });
-    return ok({ admins: next });
-  }
+  // （admin_list/admin_add/admin_remove 已抽离到 ./action_adminlist.js，由上方 HANDLERS 分发表处理）
 
   // ─────────────── 服务动态(blog)管理 ───────────────
   if (action === 'blog_list') {
