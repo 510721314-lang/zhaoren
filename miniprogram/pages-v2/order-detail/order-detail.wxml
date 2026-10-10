@@ -230,6 +230,8 @@
         <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'user'}}" bindtap="onEvaluate" hover-class="btn-press">去评价</button>
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
         <button class="od__btn od__btn--ghost" wx:elif="{{order.my_role !== 'user'}}" disabled>⏳ 等待用户评价</button>
+        <!-- 履约完成(S5)即可投诉，无需等到评价完成(S8): 需求发起端(2026-10-10) -->
+        <button class="od__btn od__btn--danger" wx:if="{{order.my_role === 'user'}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
