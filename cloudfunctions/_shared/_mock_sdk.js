@@ -12,9 +12,15 @@ function makeSentinel(name) {
   return function (...args) { return { __sentinel: name, args }; };
 }
 
+// db.command.aggregate 操作符（$.sum 等）→ 透传标记
+const aggregateProxy = new Proxy({}, {
+  get(_t, prop) { return makeSentinel('agg.' + prop); }
+});
+
 // db.command 操作符（_.gte / _.inc / _.push / _.or 等）→ 透传标记，不参与断言
 const commandProxy = new Proxy({}, {
   get(_t, prop) {
+    if (prop === 'aggregate') return aggregateProxy;
     if (prop === 'or' || prop === 'and') {
       return (...args) => ({ __op: prop, args });
     }
@@ -22,10 +28,12 @@ const commandProxy = new Proxy({}, {
   }
 });
 
-function makeSdk(opts = {}) {
+  function makeSdk(opts = {}) {
   const openid = opts.openid || 'test_openid';
   // store: { collectionName: { docId: docData } }  —— 模拟 doc().get() / where().get()
   const store = opts.store || {};
+  // agg: { collectionName: [ {total, tip, ...} ] }  —— 模拟 aggregate().end() 的 list
+  const agg = opts.agg || {};
   // 写入捕获：{ collectionName: [ {where, data} ... ] }
   const writes = {};
   const calls = [];
@@ -38,6 +46,18 @@ function makeSdk(opts = {}) {
         (writes[name] = writes[name] || []).push({ add: true, data: payload && payload.data });
         const _id = 'mock_id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         return { _id };
+      },
+      aggregate() {
+        calls.push({ method: 'aggregate', name });
+        const chain = {
+          match() { return chain; },
+          group() { return chain; },
+          async end() {
+            calls.push({ method: 'aggregate.end', name });
+            return { list: agg[name] || [] };
+          }
+        };
+        return chain;
       },
       doc(id) {
         return {
