@@ -55,11 +55,11 @@ Page({
       if (reset) {
         this.setData({
           orderList: decorated,
-          entries: { system: null, kefu: null }, // 系统通知/客服入口后续接
           hasMore: !!r.data.hasMore,
           loading: false,
           loadingMore: false
         });
+        this.fetchSystemEntry();   // M2 系统通知入口(2026-10-10): 接 notice_list, 出未读徽标+最近一条摘要
       } else {
         this.setData({
           orderList: this.data.orderList.concat(decorated),
@@ -70,6 +70,27 @@ Page({
     }).catch(() => {
       this.setData({ loading: false, loadingMore: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
+  },
+
+  // M2 系统通知入口(2026-10-10): 复用 order-action notice_list 取未读数与最近一条通知,
+  // 使「需求发布成功 / 抢单提醒 / 评价提醒」等站内通知在消息页有入口与红点(此前 entries.system 恒为 null 不显示)
+  fetchSystemEntry() {
+    callCloud('order-action', { action: 'notice_list', limit: 1 }).then((r) => {
+      if (!r || !r.ok) return;
+      const latest = (r.data && r.data.list && r.data.list[0]) || null;
+      const unread = Number((r.data && r.data.unread) || 0);
+      this.setData({
+        entries: Object.assign({}, this.data.entries, {
+          system: {
+            avatar: '🔔',
+            counterpart: '系统通知',
+            last_msg: latest ? (latest.title || latest.body || '') : '暂无新通知',
+            last_msg_at: latest ? this.formatTime(latest.created_at) : '',
+            unread_count: unread
+          }
+        })
+      });
+    }).catch(() => {});
   },
 
   // 会话装饰: 排序/未读/概要(userEnter 后端已生成 order_summary)

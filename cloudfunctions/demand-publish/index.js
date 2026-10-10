@@ -954,6 +954,67 @@ exports.main = async (event, context) => {
           }
         }
 
+        // 发布者站内通知(2026-10-10): 发布成功即时回执, 使「消息→系统通知」出现未读提示(不阻断主流程)
+        try {
+          await col('system_notice').add({ data: {
+            to_openid: openid,
+            order_id: '',
+            demand_id: addRes._id,
+            type: 'demand_published',
+            title: '需求发布成功',
+            body: mode === 'direct'
+              ? '已向指定耍伴发出邀约, 等待对方响应'
+              : '正在为你匹配附近耍伴, 有人接单会第一时间通知你',
+            action_key: 'jump_demand',
+            action_payload: { demand_id: addRes._id },
+            created_at: now, read: false
+          }});
+        } catch (ne) { log.d(`publish notice fail: ${ne.message}`); }
+
+        // 抢单通知即时化(2026-10-10): broadcast/select 发布时立即向「范围内可接耍伴」推站内通知(选取/文案与
+        // order-timer.processDemandNotify 同口径); 候选数 > IMMEDIATE_CAP 时不即时推, 保留 grab_notify_pending
+        // 交定时器兜底(避免超时); 仅当全部推送成功才清 pending, 否则留标由定时器重试。全程不阻断主流程。
+        const IMMEDIATE_CAP = 20;
+        if (mode !== 'direct') {
+          try {
+            const minCredit = Number(config.min_credit_take_order) || 600;
+            const takeCap = Number(config.take_distance_max_km) || 50;
+            const pBase = { status: 'approved', is_deleted: _.neq(true), accept_switch: _.neq(false), accept_scenes: scene };
+            let cands = [];
+            try { cands = (await col('partner_profile').where(Object.assign({}, pBase, { credit_score: _.gte(minCredit) })).limit(50).get()).data || []; } catch (e) { cands = []; }
+            if (!cands.length) { try { cands = (await col('partner_profile').where(pBase).limit(50).get()).data || []; } catch (e) { cands = []; } }
+            const dLoc = doc.location || {};
+            const hasLoc = Number.isFinite(Number(dLoc.latitude)) && Number.isFinite(Number(dLoc.longitude));
+            const targets = [];
+            for (const p of cands) {
+              const own = Number(p.max_distance_km);
+              const eff = (Number.isFinite(own) && own > 0) ? Math.min(own, takeCap) : takeCap;
+              const hl = p.home_location || {};
+              if (!hasLoc || !Number.isFinite(Number(hl.latitude)) || !Number.isFinite(Number(hl.longitude))) continue;
+              if (haversineKm(Number(dLoc.latitude), Number(dLoc.longitude), Number(hl.latitude), Number(hl.longitude)) > eff) continue;
+              targets.push(p.openid);
+            }
+            if (targets.length && targets.length <= IMMEDIATE_CAP) {
+              const subject = (doc.content_options && doc.content_options[0]) || '新需求';
+              const results = await Promise.allSettled(targets.map((o) => col('system_notice').add({ data: {
+                to_openid: o, order_id: '', demand_id: addRes._id, type: 'demand_grab',
+                title: '有新需求可接单',
+                body: `${String(subject).slice(0, 30)} · 距你较近, 速来抢单`,
+                action_key: 'jump_demand', action_payload: { demand_id: addRes._id },
+                created_at: now, read: false
+              }})));
+              const okAll = results.every((r) => r.status === 'fulfilled');
+              log.d(`grab immediate push: ${demand_no} targets=${targets.length} okAll=${okAll}`);
+              if (okAll) {
+                await col('demand').where({ _id: addRes._id, grab_notify_pending: true })
+                  .update({ data: { grab_notify_pending: false, updated_at: Date.now() } });
+              }
+            } else if (targets.length > IMMEDIATE_CAP) {
+              log.d(`grab push deferred to timer: ${demand_no} targets=${targets.length}`);
+            }
+          } catch (ge) { log.d(`grab immediate push fail: ${ge.message}`); }
+        }
+
         // 发布成功后清理来源草稿(若本次发布由草稿发起), 避免残留草稿导致重复发布
         let draftCleared = false;
         const srcDraftId = event.draft_id;
