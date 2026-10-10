@@ -14,7 +14,9 @@ const COLLECTIONS = [
   'disclaimer_signature', 'withdraw_record', 'demand_draft', 'withdraw_lock',
   'system_notice', 'insurance_record', 'audit_log', 'admin_accounts',
   // 第三批 3B: 爽约申诉记录(用户举证 + 管理端裁定, 状态 received/defense/decided)
-  'no_show_report'
+  'no_show_report',
+  // 2026-10-10 补登记: 投诉记录(order-action complaint 写入, 后台纠纷处理详情时间线数据源)
+  'complaint'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)

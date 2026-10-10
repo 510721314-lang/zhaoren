@@ -31,7 +31,7 @@ const ROLE_GRANTS = {
   'blog_comment_list': ['R2'], 'blog_comment_delete': ['R2'],
   'demand_list': ['R2', 'R3'], 'demand_offline': ['R2', 'R3'],
   'order_list': ['R2', 'R3'], 'order_query': ['R2', 'R3'], 'order_detail': ['R2', 'R3'],
-  'dispute_list': ['R2', 'R3'], 'dispute_handle': ['R2'],
+  'dispute_list': ['R2', 'R3'], 'dispute_detail': ['R2', 'R3'], 'dispute_handle': ['R2'],
   // 第三批 3B: 爽约申诉列表/裁定(裁定人 R2/R3, 设计稿 §2.2)
   'no_show_report_list': ['R2', 'R3'], 'no_show_decide': ['R2', 'R3'],
   // ── R3 运营 ──
@@ -325,6 +325,22 @@ function isOpenid(s) {
 function isDocId(s) {
   return typeof s === 'string' && /^[a-f0-9]{32}$/i.test(s);
 }
+// 支付/退款流水号生成(与 payment-mock genPayNo 同构: prefix + YYYYMMDD + 16hex 随机, 防并发碰撞)
+function genPayNo(prefix) {
+  const d = new Date();
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const r = crypto.randomBytes(8).toString('hex');
+  return `${prefix}${ymd}${r}`;
+}
+// 订单状态中文名(云函数侧无 enums 模块, 与 miniprogram/config/enums.js 对齐)
+const STATUS_LABEL = {
+  S0: '待支付', S1: '待确认', S2: '履约中', S3: '已确认', 'S3.5': '履约完成',
+  S4: '部分完成', S5: '已完成', S6: '已取消', S7: '已退款', S8: '已结算',
+  S9: '已评价', S10: '已关闭', 'S10.5': '争议处理中'
+};
+// 支付流水类型中文名
+const TX_LABEL = { pay: '支付', refund: '退款', tip: '打赏', tip_refund: '打赏退款', withdraw: '提现', settle: '结算' };
 function dayKey(ts) {
   const d = new Date(ts);
   const pad = (n) => n < 10 ? '0' + n : '' + n;
@@ -1294,11 +1310,23 @@ exports.main = async (event, context) => {
   }
 
   // ───────── 争议处置(S10→S10.5→裁决 S7/S5) ─────────
+  // 2026-10-10: scope 视图(active 处理中 / history 已处置 / all 全部, 默认 active 保持向后兼容)
   if (action === 'dispute_list') {
     const pg = pager(event);
-    const query = col('order_main').where({
-      status: _.in(['S10.5', 'S10']), is_deleted: _.neq(true)
-    });
+    const scope = ['active', 'history', 'all'].indexOf(event.scope) >= 0 ? event.scope : 'active';
+    const base = { is_deleted: _.neq(true) };
+    let q = base;
+    if (scope === 'active') {
+      q = Object.assign({}, base, { status: _.in(['S10.5', 'S10']) });
+    } else if (scope === 'history') {
+      q = Object.assign({}, base, { dispute_handled_at: _.gt(0) });
+    } else {
+      q = _.and([base, _.or([
+        { status: _.in(['S10.5', 'S10']) },
+        { dispute_handled_at: _.gt(0) }
+      ])]);
+    }
+    const query = col('order_main').where(q);
     const [totalR, r] = await Promise.all([
       query.count().catch(() => ({ total: 0 })),
       query.orderBy('updated_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
@@ -1307,10 +1335,135 @@ exports.main = async (event, context) => {
       list: (r.data || []).map((o) => ({
         order_id: o._id, order_no: o.order_no, status: o.status, scene: o.scene,
         user_openid: o.user_openid, partner_openid: o.partner_openid,
-        total_fen: o.total_fen, dispute_reason: o.dispute_reason || '',
-        admin_note: o.admin_note || '', updated_at: o.updated_at
+        total_fen: o.total_fen, tip_total_fen: o.tip_total_fen || 0,
+        // 投诉原因实际写入 complaint_reason(order-action), 历史字段 dispute_reason 兜底
+        complaint_reason: o.complaint_reason || o.dispute_reason || '',
+        dispute_reason: o.dispute_reason || '',
+        admin_note: o.admin_note || '',
+        dispute_opened_at: o.dispute_opened_at || 0,
+        dispute_handled_at: o.dispute_handled_at || 0,
+        refund_fen: o.refund_fen || 0,
+        updated_at: o.updated_at
       })),
-      total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0)
+      total: totalR.total || 0, page: pg.page, scope,
+      has_more: pg.page * pg.size < (totalR.total || 0)
+    });
+  }
+
+  // 纠纷全流程留痕(订单 + 状态流水 + 投诉 + 爽约申诉 + 支付/退款流水 → 统一时间线)
+  if (action === 'dispute_detail') {
+    const { order_id } = event;
+    if (!isDocId(order_id)) return fail('dispute_bad_id', '订单 ID 格式不正确');
+    let o;
+    try { o = (await col('order_main').doc(order_id).get()).data; } catch (e) { o = null; }
+    if (!o) return fail('dispute_not_found', '订单不存在');
+    const [logsR, cR, nsR, txR] = await Promise.all([
+      col('order_status_log').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(100).get().catch(() => ({ data: [] })),
+      col('complaint').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(20).get().catch(() => ({ data: [] })),
+      col('no_show_report').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(20).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(50).get().catch(() => ({ data: [] }))
+    ]);
+    const logs = logsR.data || [];
+    const complaints = cR.data || [];
+    const reports = nsR.data || [];
+    const txs = txR.data || [];
+    // 批量解析昵称(失败降级为角色标签)
+    const oidSet = new Set();
+    logs.forEach((l) => { if (l.actor_openid) oidSet.add(l.actor_openid); if (l.operator) oidSet.add(l.operator); });
+    complaints.forEach((c) => { if (c.initiator_openid) oidSet.add(c.initiator_openid); });
+    reports.forEach((r) => { if (r.reporter_openid) oidSet.add(r.reporter_openid); if (r.target_openid) oidSet.add(r.target_openid); if (r.decided_by) oidSet.add(r.decided_by); });
+    txs.forEach((t) => { if (t.operator_openid) oidSet.add(t.operator_openid); });
+    [o.user_openid, o.partner_openid].forEach((x) => { if (x) oidSet.add(x); });
+    const openids = Array.from(oidSet).slice(0, 30);
+    const nm = {};
+    if (openids.length) {
+      try {
+        const ur = await col('user_account').where({ openid: _.in(openids) }).limit(30).get();
+        (ur.data || []).forEach((u) => { nm[u.openid] = u.nickname || ''; });
+      } catch (e) {}
+    }
+    const roleOf = (oid) => {
+      if (!oid) return '系统';
+      if (oid === o.user_openid) return '发单人';
+      if (oid === o.partner_openid) return '耍伴';
+      return '客服/系统';
+    };
+    const actorText = (oid, fallback) => {
+      if (!oid) return fallback || '系统';
+      const who = nm[oid] ? `${nm[oid]}(${roleOf(oid)})` : roleOf(oid);
+      return fallback ? `${who} · ${fallback}` : who;
+    };
+    const sl = (s) => s ? `${s} ${STATUS_LABEL[s] || ''}`.trim() : '';
+    const tl = [];
+    logs.forEach((l) => tl.push({
+      ts: l.created_at || l.updated_at || 0, tag: 'status',
+      title: `${sl(l.from_status) || '—'} → ${sl(l.to_status) || '—'}`,
+      desc: l.note || l.action || '',
+      actor_text: actorText(l.actor_openid || l.operator, l.action || '')
+    }));
+    complaints.forEach((c) => tl.push({
+      ts: c.created_at || 0, tag: 'complaint',
+      title: c.status === 'withdrawn' ? '投诉已撤回' : '发起投诉',
+      desc: c.reason || '',
+      actor_text: actorText(c.initiator_openid, c.initiator_role === 'partner' ? '耍伴' : '发单人')
+    }));
+    reports.forEach((rp) => {
+      tl.push({
+        ts: rp.created_at || 0, tag: 'nosh',
+        title: `爽约申诉(${rp.reason_type || '提交'})`,
+        desc: rp.reason || '',
+        actor_text: actorText(rp.reporter_openid, rp.reporter_role === 'partner' ? '耍伴' : '发单人')
+      });
+      if (rp.defense_at) tl.push({
+        ts: rp.defense_at, tag: 'nosh', title: '申诉举证',
+        desc: rp.defense_reason || '', actor_text: actorText(rp.target_openid, '被诉方')
+      });
+      if (rp.decided_at) tl.push({
+        ts: rp.decided_at, tag: 'nosh',
+        title: `申诉裁定：${rp.verdict === 'upheld' ? '成立' : '不成立'}`,
+        desc: rp.decided_reason || '', actor_text: actorText(rp.decided_by, '管理员')
+      });
+      if (rp.withdrawn_at) tl.push({
+        ts: rp.withdrawn_at, tag: 'nosh', title: '申诉已撤回',
+        desc: '', actor_text: actorText(rp.reporter_openid, '申诉人')
+      });
+    });
+    txs.forEach((t) => tl.push({
+      ts: t.created_at || t.paid_at || 0, tag: 'money',
+      title: `${TX_LABEL[t.type] || t.type} ¥${((t.amount_fen || 0) / 100).toFixed(2)}`,
+      desc: t.pay_no || '', actor_text: actorText(t.operator_openid, t.status || '')
+    }));
+    tl.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    return ok({
+      order: maskDoc({
+        order_id: o._id, order_no: o.order_no, status: o.status, scene: o.scene,
+        scene_name: SCENE_NAME[o.scene] || o.scene,
+        user_openid: o.user_openid, partner_openid: o.partner_openid,
+        user_nick: nm[o.user_openid] || '', partner_nick: nm[o.partner_openid] || '',
+        total_fen: o.total_fen, tip_total_fen: o.tip_total_fen || 0,
+        fee_fen: o.fee_fen, partner_income_fen: o.partner_income_fen,
+        refund_fen: o.refund_fen || 0, refund_no: o.refund_no || '',
+        complaint_reason: o.complaint_reason || o.dispute_reason || '',
+        complaint_at: o.complaint_at || 0, complaint_by: o.complaint_by || '',
+        complaint_withdrawn_at: o.complaint_withdrawn_at || 0,
+        dispute_opened_at: o.dispute_opened_at || 0,
+        dispute_handled_by: o.dispute_handled_by || '', dispute_handled_at: o.dispute_handled_at || 0,
+        refunded_at: o.refunded_at || 0, admin_note: o.admin_note || '',
+        created_at: o.created_at
+      }),
+      timeline: tl,
+      complaint: complaints.length ? complaints[complaints.length - 1] : null,
+      no_show_reports: reports.map((rp) => ({
+        report_id: rp._id, status: rp.status, verdict: rp.verdict || '',
+        reason_type: rp.reason_type || '', reason: rp.reason || '',
+        defense_reason: rp.defense_reason || '', decided_reason: rp.decided_reason || '',
+        penalty_applied: rp.penalty_applied || null,
+        created_at: rp.created_at, decided_at: rp.decided_at || 0, withdrawn_at: rp.withdrawn_at || 0
+      })),
+      transactions: txs.map((t) => ({
+        pay_no: t.pay_no || '', type: t.type, amount_fen: t.amount_fen || 0,
+        status: t.status, source: t.source || '', created_at: t.created_at || t.paid_at || 0
+      }))
     });
   }
 
@@ -1335,27 +1488,96 @@ exports.main = async (event, context) => {
       return fail('dispute_bad_decision', 'decision 必须为 open/refund/complete');
     }
     if (!note || !String(note).trim()) return fail('dispute_no_note', '请填写处置说明');
+    const noteText = String(note).trim();
+    // 退款金额(仅 refund): 缺省回落订单全额; 上限 = total_fen − 已成功退款合计
+    let refFen = 0;
+    let refNo = '';
+    if (decision === 'refund') {
+      const totalFen = Number(order.total_fen) || 0;
+      let alreadyRefunded = 0;
+      try {
+        const paid = await col('pay_transaction').where({
+          order_id, type: 'refund', status: 'success', is_deleted: _.neq(true)
+        }).limit(50).get();
+        alreadyRefunded = (paid.data || []).reduce((s, t) => s + (Number(t.amount_fen) || 0), 0);
+      } catch (e) {}
+      const refFenMax = Math.max(0, totalFen - alreadyRefunded);
+      const raw = event.refund_fen;
+      refFen = (raw === undefined || raw === null || raw === '') ? totalFen : Number(raw);
+      if (!Number.isInteger(refFen) || refFen <= 0) {
+        return fail('dispute_bad_amount', '退款金额须为正整数(单位:分)');
+      }
+      if (refFen > refFenMax) {
+        return fail('dispute_amount_exceed', `退款金额不得超过可退上限 ¥${(refFenMax / 100).toFixed(2)}`);
+      }
+      refNo = genPayNo('REF');
+    }
     const patch = {
-      status: after, admin_note: String(note).trim(),
+      status: after, admin_note: noteText,
       dispute_handled_by: openid, dispute_handled_at: now, updated_at: now
     };
     if (decision === 'open') patch.dispute_opened_at = now;
+    if (decision === 'refund') {
+      patch.refund_fen = refFen;
+      patch.refund_no = refNo;
+      patch.refund_source = 'dispute';
+      patch.refund_by = openid;
+      patch.refunded_at = now;
+    }
     // CAS: 仅当订单仍处于读取时的原状态才允许裁决, 防并发双处置
     const dcr = await col('order_main').where({ _id: order_id, status: before }).update({ data: patch });
     if (!dcr.stats || dcr.stats.updated !== 1) {
       return fail('dispute_conflict', '订单状态已变化,请刷新后重试');
     }
+    // 退款流水落库(pay_transaction, 与 payment-mock mock_refund 同表同结构); 失败补偿订单回原状态
+    if (decision === 'refund') {
+      try {
+        await col('pay_transaction').add({ data: {
+          pay_no: refNo, order_id, order_no: order.order_no, type: 'refund',
+          amount_fen: refFen, channel: 'mock', is_mock: true, status: 'success',
+          source: 'dispute', operator_openid: openid, note: noteText,
+          paid_at: now, created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) {
+        log.w(`dispute_refund txn write fail: ${e.message}; compensating order ${order_id} → ${before}`);
+        await col('order_main').where({ _id: order_id, status: 'S7' }).update({
+          data: { status: before, refunded_at: 0, refund_fen: 0, refund_no: '', updated_at: Date.now() }
+        }).catch(() => {});
+        return fail('refund_db_fail', '退款流水写入失败,请重试');
+      }
+    }
     try {
       await col('order_status_log').add({ data: {
         order_id, order_no: order.order_no, from_status: before, to_status: after,
         actor: 'admin', actor_openid: openid, action: 'dispute_' + decision,
-        note: String(note).trim(), created_at: now, updated_at: now, is_deleted: false
+        note: decision === 'refund' ? `${noteText}（退款 ¥${(refFen / 100).toFixed(2)}）` : noteText,
+        created_at: now, updated_at: now, is_deleted: false
       }});
     } catch (e) {}
+    // 退款成功通知双方(await 落库, 防函数 return 后异步写被回收; 失败不阻断资金链路)
+    if (decision === 'refund') {
+      const amtYuan = (refFen / 100).toFixed(2);
+      await Promise.allSettled([
+        col('system_notice').add({ data: {
+          to_openid: order.user_openid, order_id, type: 'refund',
+          title: '退款成功', body: `争议裁决退款 ¥${amtYuan}，金额将原路返回`,
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }}),
+        col('system_notice').add({ data: {
+          to_openid: order.partner_openid, order_id, type: 'refund',
+          title: '订单已退款', body: `该订单经争议裁决退款 ¥${amtYuan}`,
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }})
+      ]);
+    }
     await logEvent('P2', 'dispute_' + decision, openid, {
-      order_id, order_no: order.order_no, before, after, note: String(note).trim()
+      order_id, order_no: order.order_no, before, after, note: noteText,
+      refund_fen: decision === 'refund' ? refFen : undefined,
+      refund_no: decision === 'refund' ? refNo : undefined
     });
-    return ok({ order_id, before, after });
+    return ok({ order_id, before, after, refund_fen: decision === 'refund' ? refFen : undefined, refund_no: decision === 'refund' ? refNo : undefined });
   }
 
   // ───────── 6. 财务流水 ─────────
@@ -3023,6 +3245,8 @@ exports.main = async (event, context) => {
     'config_history',
     // ── 爽约申诉记录(2026-10-07 第三批 3B: 举证/裁定证据链, 纳入备份/可稽核) ──
     'no_show_report',
+    // ── 投诉记录(2026-10-10: 纠纷处理详情时间线数据源, 纳入备份/可稽核) ──
+    'complaint',
     // ── 旧表/低频(保留兼容, 不存在返回空) ──
     'user_profile', 'partner_exam', 'partner_apply',
     'dispute', 'withdraw_request', 'credit_log',

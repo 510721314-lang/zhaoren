@@ -6,6 +6,14 @@ export function fenToYuan(fen) {
   return v.toFixed(2);
 }
 
+// 元(可含小数) → 整数分(四舍五入); 空值返回 0
+export function yuanToFen(yuan) {
+  if (yuan === '' || yuan === null || yuan === undefined) return 0;
+  const n = Number(yuan);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100);
+}
+
 export function formatTime(ts) {
   if (!ts) return '-';
   const d = new Date(Number(ts));

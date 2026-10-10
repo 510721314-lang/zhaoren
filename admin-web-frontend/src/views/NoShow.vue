@@ -93,6 +93,18 @@
             style="width:96px;height:96px;margin-right:8px;border-radius:4px" :preview-src-list="detail.defense_evidence.map(x => x.url)" />
         </div>
 
+        <div style="margin-top:12px" v-if="timeline.length">
+          <div style="font-weight:600;margin-bottom:6px">处理时间线</div>
+          <el-timeline>
+            <el-timeline-item v-for="(t, i) in timeline" :key="i" :timestamp="formatTime(t.ts)" placement="top"
+              :type="t.tag === 'money' ? 'success' : t.tag === 'complaint' ? 'danger' : t.tag === 'nosh' ? 'warning' : 'primary'">
+              <div><strong>{{ t.title }}</strong></div>
+              <div v-if="t.desc" style="color:#606266;font-size:12px">{{ t.desc }}</div>
+              <div style="color:#909399;font-size:12px">{{ t.actor_text || '-' }}</div>
+            </el-timeline-item>
+          </el-timeline>
+        </div>
+
         <!-- 裁定区 -->
         <div v-if="detail.status !== 'decided' && detail.status !== 'withdrawn'" style="margin-top:16px;border-top:1px solid #ebeef5;padding-top:12px">
           <div style="font-weight:600;margin-bottom:8px">裁定</div>
@@ -139,6 +151,7 @@ const loading = ref(false);
 const cfg = ref(null);
 
 const detailVisible = ref(false); const detail = ref(null); const detailLoading = ref(false);
+const timeline = ref([]);
 const note = ref(''); const submitting = ref(false);
 
 function statusLabel(row) {
@@ -186,12 +199,16 @@ function onFilter() { page.value = 1; load(); }
 
 async function openDetail(row) {
   detailVisible.value = true;
-  detail.value = null; note.value = '';
+  detail.value = null; note.value = ''; timeline.value = [];
   detailLoading.value = true;
-  const r = await call('no_show_report_list', { report_id: row.report_id });
+  const [r, tl] = await Promise.all([
+    call('no_show_report_list', { report_id: row.report_id }),
+    call('dispute_detail', { order_id: row.order_id })
+  ]);
   detailLoading.value = false;
   if (r.ok && r.data && r.data.report) {
     detail.value = r.data.report;
+    timeline.value = (tl.ok && tl.data && tl.data.timeline) ? tl.data.timeline : [];
   } else {
     ElMessage.error(r.msg || r.code || '详情加载失败');
     detailVisible.value = false;

@@ -28,6 +28,8 @@ $COLLECTIONS = @(
   'safety_report',
   'im_conversation', 'im_message',
   'withdraw_record',
+  # ── 3B 爽约申诉 + 投诉记录(2026-10-10 补登记: 纠纷/申诉证据链与裁定留痕, 纳入备份) ──
+  'no_show_report', 'complaint',
   # ── 旧表/低频(不存在自动 SKIP) ──
   'user_profile', 'partner_exam', 'partner_apply',
   'dispute', 'withdraw_request', 'credit_log',
