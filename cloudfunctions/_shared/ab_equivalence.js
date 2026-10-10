@@ -43,6 +43,12 @@ const CASES = [
   { name: 'extend_reject_no_pending', openid: PARTNER, event: { action: 'extend_reject', order_id: OID, mock_openid: PARTNER } },
   { name: 'partial_status', openid: USER, event: { action: 'partial_confirm', order_id: OID, mock_openid: USER } },
   { name: 'ratio_status', openid: USER, event: { action: 'ratio_confirm', order_id: OID, mock_openid: USER } },
+  { name: 'complaint_status', openid: USER, event: { action: 'complaint', order_id: OID, mock_openid: USER } },
+  { name: 'complaint_not_participant', openid: STRANGER, event: { action: 'complaint', order_id: OID, mock_openid: STRANGER } },
+  { name: 'cw_status', openid: USER, event: { action: 'complaint_withdraw', order_id: OID, mock_openid: USER } },
+  { name: 'ns_bad_report', openid: PARTNER, event: { action: 'no_show_report_defense', report_id: 'x', mock_openid: PARTNER } },
+  { name: 'nsw_bad_report', openid: USER, event: { action: 'no_show_report_withdraw', report_id: 'x', mock_openid: USER } },
+  { name: 'ns_detail_not_participant', openid: STRANGER, event: { action: 'no_show_report_detail', order_id: OID, mock_openid: STRANGER } },
 ];
 
 function loadWith(file, sdk) {
