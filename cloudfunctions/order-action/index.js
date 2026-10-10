@@ -22,6 +22,8 @@ const log = require('./logger');
 const { writeAudit } = require('./audit');
 // 第三批 3B: 爽约申诉/举证/裁定纯规则(规范源 _shared/no_show_rules.js, 修改后跑 sync-no-show-rules.ps1)
 const { noShowCfg, canSubmitReport, defenseDeadlineOf, canWithdrawReport, REPORT_STATUS } = require('./no_show_rules');
+// Wave1 状态机单源(规范源 _shared/order_state.js, 修改后跑 sync-order-state.ps1): CAS 语义收敛
+const { casTransition } = require('./order_state');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
@@ -188,16 +190,9 @@ async function logStatus(orderId, from, to, action, operator) {
 }
 
 // CAS 条件更新: 仅当订单仍处于期望状态(字符串或数组)时更新, 防止并发/重复流转
-// 与 order-timer.casStatus 同构; 返回是否"抢到"
+// 语义收敛至 _shared/order_state.js 的 casTransition(规范源); 本处仅注入本地 col/_/log。
 async function casStatus(orderId, expect, patch) {
-  try {
-    const cond = Array.isArray(expect) ? _.in(expect) : expect;
-    const r = await col('order_main').where({ _id: orderId, status: cond }).update({ data: patch });
-    return !!(r.stats && r.stats.updated === 1);
-  } catch (e) {
-    log.d(`casStatus fail: ${e.message}`);
-    return false;
-  }
+  return casTransition(col, _, orderId, expect, patch, { onError: (e) => log.d(`casStatus fail: ${e.message}`) });
 }
 
 // 判定调用者在订单中的角色
@@ -1364,7 +1359,11 @@ exports.main = async (event, context) => {
       complaint_from_status: fromStatus,          // 撤回投诉时回退用(2026-10-10); 回退目标仅 S5/S8/S9
       complaint_withdrawn_at: 0,                  // 重新发起时清掉上一次的撤回痕迹
       complaint_withdrawn_by: '',
-      updated_at: now
+      updated_at: now,
+      // Wave1 正交位 dual-write(§3.2): 争议维度不再只靠 S10.5 占位表达; 旧 status 保留(读兼容)
+      dispute_state: 'open',
+      dispute_type: 'complaint',
+      frozen: true
     });
     if (!won) {
       const latest = await getOrder(order_id);
@@ -1434,7 +1433,9 @@ exports.main = async (event, context) => {
     const device = String(event.device || '').slice(0, 200);
     // CAS: 仅当订单仍为 S10.5 时回退(与客服处置并发互斥)
     const won = await casStatus(order_id, 'S10.5', {
-      status: restore, complaint_withdrawn_at: now, complaint_withdrawn_by: openid, updated_at: now
+      status: restore, complaint_withdrawn_at: now, complaint_withdrawn_by: openid, updated_at: now,
+      // Wave1 正交位 dual-write(§3.2): 撤回 → 争议关闭并解冻
+      dispute_state: 'resolved', dispute_type: '', frozen: false
     });
     if (!won) {
       const latest = await getOrder(order_id);

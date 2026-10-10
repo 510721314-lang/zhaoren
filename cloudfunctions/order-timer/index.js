@@ -12,6 +12,8 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+// Wave1 状态机单源(规范源 _shared/order_state.js, 修改后跑 sync-order-state.ps1): CAS 语义收敛
+const { casTransition } = require('./order_state');
 
 const BATCH = 50; // 单次每类状态最多处理笔数, 防止超时
 
@@ -37,13 +39,9 @@ async function logStatus(orderId, from, to, action, operator) {
 }
 
 // 条件更新(防并发/防重复跑): 仅当订单仍处于 expectStatus 时更新, 返回是否"抢到"
+// 语义收敛至 _shared/order_state.js 的 casTransition(规范源); 本处仅注入本地 col/_。
 async function casStatus(orderId, expectStatus, patch) {
-  try {
-    const r = await col('order_main').where({ _id: orderId, status: expectStatus }).update({ data: patch });
-    return r.stats && r.stats.updated === 1;
-  } catch (e) {
-    return false;
-  }
+  return casTransition(col, _, orderId, expectStatus, patch);
 }
 
 // ───────── error_scan 巡检(D7): 聚合窗口内异常 → 推管理员 system_notice ─────────
@@ -501,7 +499,7 @@ exports.main = async (event, context) => {
       // 幂等: 已有评价记录但订单仍停在 S5(异常兜底) → 直接补转 S8
       const evR = await col('evaluation').where({ order_id: o._id, is_deleted: false }).limit(1).get();
       if (evR.data && evR.data[0]) {
-        const won = await casStatus(o._id, 'S5', { status: 'S8', evaluated_at: evR.data[0].created_at || now, updated_at: now });
+        const won = await casStatus(o._id, 'S5', { status: 'S8', evaluated_at: evR.data[0].created_at || now, updated_at: now, eval_state: 'user_done' });
         if (won) {
           evalResults.push({ o, from: 'S5', to: 'S8', action: 'timeout_eval_backfill' });
           log.d(`backfill S5→S8: ${o.order_no}`);
@@ -509,7 +507,7 @@ exports.main = async (event, context) => {
         return;
       }
 
-      const won = await casStatus(o._id, 'S5', { status: 'S9', evaluated_at: now, updated_at: now });
+      const won = await casStatus(o._id, 'S5', { status: 'S9', evaluated_at: now, updated_at: now, eval_state: 'auto_done' });
       if (!won) { out.skipped.push(o.order_no + ':S5竞态'); return; }
 
       // 写系统默认评价(文案固定「系统默认评价」)
