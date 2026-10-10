@@ -10,6 +10,9 @@ const swr = require('../../utils/swr.js');
 // S8 SWR: 首页广场数据本地缓存 10 分钟, 冷启动先渲染旧数据秒开, 网络回来静默覆盖
 const SQUARE_CACHE_KEY = 'home_square_v1';
 const SQUARE_TTL_MS = 10 * 60 * 1000;
+// 2026-10-10 性能: 场景宫格同样本地缓存 —— 云端 square 刻意不内联 scene_groups(5 个额外查询会致冷启动超时),
+// 故独立 scene_groups action 每次进首页都会被调一次; 加缓存后第 2 次起免掉这次往返(与 square 同 TTL)
+const SCENE_GROUPS_CACHE_KEY = 'home_scene_groups_v1';
 
 function callCloud(name, data) {
   return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
@@ -130,8 +133,12 @@ Page({
     this.setData(patch);
     if (Array.isArray(d.scene_groups) && d.scene_groups.length) {
       this.renderSceneGroups(d.scene_groups);
+      swr.set(SCENE_GROUPS_CACHE_KEY, d.scene_groups);
     } else if (allowFallback) {
-      this.fetchSceneGroups();
+      // 性能(2026-10-10): 命中本地缓存则直接渲染, 不再打 scene_groups(每次进首页一次的额外云调用)
+      const cachedGroups = swr.get(SCENE_GROUPS_CACHE_KEY, SQUARE_TTL_MS);
+      if (Array.isArray(cachedGroups) && cachedGroups.length) this.renderSceneGroups(cachedGroups);
+      else this.fetchSceneGroups();
     }
     if (!Array.isArray(d.banners) && allowFallback) {
       this.fetchActivities();
@@ -200,6 +207,7 @@ Page({
     const r = await app.cloudCall('home-action', { action: 'scene_groups' });
     if (r.ok && r.data && r.data.scene_groups) {
       this.renderSceneGroups(r.data.scene_groups);
+      swr.set(SCENE_GROUPS_CACHE_KEY, r.data.scene_groups);   // 供下次进首页免调(2026-10-10)
     }
   },
 
