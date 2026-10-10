@@ -400,7 +400,10 @@ const HANDLERS = Object.assign(
   require('./action_blog'),
   require('./action_home_activity'),
   require('./action_config_read'),
-  require('./action_misc')
+  require('./action_misc'),
+  require('./action_lists'),
+  require('./action_admin_account'),
+  require('./action_user_moderation')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
@@ -496,51 +499,6 @@ exports.main = async (event, context) => {
       resolveOperations, todayStart, dayKey, last7Days, bucketCount, bucketFen
     };
     return await HANDLERS[action](ctx);
-  }
-
-  // ───────── 账号管理(仅 R1 超管) ─────────
-  if (action === 'admin_account_list') {
-    const r = await col('admin_accounts').where({ is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
-    return ok({ list: (r.data || []).map((a) => ({
-      account: a.account, role: a.role, display_name: a.display_name || '',
-      status: a.status || 'active', created_at: a.created_at
-    })) });
-  }
-
-  if (action === 'admin_account_create') {
-    await ensureAdminColls();
-    const acc = String(event.account || '').trim();
-    const { password, role, display_name } = event;
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(acc)) return fail('acc_bad_account', '登录名需 3-20 位字母/数字/下划线');
-    if (!password || String(password).length < 8) return fail('acc_bad_pwd', '密码至少 8 位');
-    if (!ADMIN_ROLES.includes(role)) return fail('acc_bad_role', '角色只能是 R1/R2/R3');
-    const salt = crypto.randomBytes(16).toString('hex');
-    try {
-      await col('admin_accounts').add({ data: {
-        account: acc, password_hash: hashAdminPassword(password, salt), password_salt: salt,
-        role, display_name: String(display_name || '').slice(0, 30),
-        status: 'active', created_at: Date.now(), updated_at: Date.now(), is_deleted: false
-      } });
-      await logEvent('P2', 'admin_account_create', openid, { account: acc, role, by: operatorAccount });
-      return ok({ account: acc, role });
-    } catch (e) { return fail('acc_fail', '创建失败: ' + ((e && e.errCode) || (e && e.message) || e)); }
-  }
-
-  if (action === 'admin_account_set_status') {
-    const { account, status } = event;
-    const acc = String(account || '').trim();
-    if (!['active', 'disabled'].includes(status)) return fail('acc_bad_status', '状态只能是 active/disabled');
-    if (acc === operatorAccount && status === 'disabled') return fail('acc_self', '不能禁用自己');
-    const r = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
-    if (!(r.data && r.data[0])) return fail('acc_not_found', '账号不存在');
-    await col('admin_accounts').doc(r.data[0]._id).update({ data: { status, updated_at: Date.now() } });
-    if (status === 'disabled') {
-      await col('admin_web_sessions').where({ account: acc, is_deleted: _.neq(true) }).update({
-        data: { is_deleted: true, updated_at: Date.now() }
-      }).catch(() => {});
-    }
-    await logEvent('P2', 'admin_account_set_status', openid, { account: acc, status, by: operatorAccount });
-    return ok({ account: acc, status });
   }
 
   // ───────── 1. 数据看板(统计卡 + 7天趋势 + 待办 + 财务汇总) ─────────
@@ -1577,98 +1535,9 @@ exports.main = async (event, context) => {
   }
 
   // ───────── 7. 风控: 举报 / 平台事件 ─────────
-  if (action === 'report_list') {
-    const { status: rStatus } = event;
-    const pg = pager(event);
-    let q = { is_deleted: _.neq(true) };
-    if (rStatus) q.status = rStatus;
-    const query = col('safety_report').where(q);
-    const [totalR, rows] = await Promise.all([
-      query.count().catch(() => ({ total: 0 })),
-      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
-    ]);
-    const list = (rows.data || []).map((r) => ({
-      report_id: r._id, order_id: r.order_id, order_no: r.order_no || '',
-      reporter_openid: r.reporter_openid, reporter_role: r.reporter_role || '',
-      type: r.type, status: r.status, note: r.note || '',
-      resolve_note: r.resolve_note || '',
-      location: r.location ? (r.location.name || '') : '',
-      resolved_at: r.resolved_at, created_at: r.created_at
-    }));
-    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
-  }
-
-  if (action === 'report_handle') {
-    const { report_id, note } = event;
-    if (!isDocId(report_id)) return fail('report_bad_id', '举报记录 ID 格式不正确');
-    if (!note || !String(note).trim()) return fail('report_no_note', '请填写处理说明');
-    let r;
-    try { r = (await col('safety_report').doc(report_id).get()).data; } catch (e) { r = null; }
-    if (!r) return fail('report_not_found', '举报记录不存在');
-    await col('safety_report').doc(report_id).update({
-      data: {
-        status: 'resolved', resolve_note: String(note).trim(),
-        resolved_by: openid, resolved_at: now, updated_at: now
-      }
-    });
-    await logEvent('P2', 'report_resolved', openid, {
-      report_id, order_no: r.order_no, type: r.type, note: String(note).trim()
-    });
-    return ok({ report_id, status: 'resolved' });
-  }
-
   // 安全报备/SOS 流水(只读, 事故回溯用)
   // 集合现状: safety_report 仅有 sos(含 sub_type=silent) 与 checkin 两类;
   // 举报类记录未来独立走 report_list, 此处显式限定两类, 口径不混。
-  if (action === 'safety_log_list') {
-    const { kind, status: slStatus, order_id: slOrderId, target_openid } = event;
-    const pg = pager(event);
-    const q = { type: _.in(['sos', 'checkin']), is_deleted: _.neq(true) };
-    if (kind === 'sos' || kind === 'checkin') q.type = kind;
-    if (slStatus) q.status = String(slStatus);
-    if (slOrderId) q.order_id = String(slOrderId);
-    if (isOpenid(target_openid)) q.reporter_openid = target_openid;
-    return paginateList('safety_report', q, pg, (r) => ({
-      report_id: r._id, order_id: r.order_id, order_no: r.order_no || '',
-      type: r.type, sub_type: r.sub_type || '', status: r.status,
-      reporter_openid: r.reporter_openid, reporter_role: r.reporter_role || '',
-      note: r.note || '',
-      location_name: r.location ? (r.location.name || '') : '',
-      resolved_at: r.resolved_at || null, created_at: r.created_at
-    }));
-  }
-
-  if (action === 'event_list') {
-    const { level, type: evType } = event;
-    const pg = pager(event);
-    let q = { is_deleted: _.neq(true) };
-    if (level) q.level = level;
-    if (evType) q.type = evType;
-    const query = col('platform_event').where(q);
-    const [totalR, rows] = await Promise.all([
-      query.count().catch(() => ({ total: 0 })),
-      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
-    ]);
-    const list = (rows.data || []).map((e) => ({
-      event_id: e._id, level: e.level, type: e.type, openid: e.openid,
-      payload: e.payload || {}, created_at: e.created_at
-    }));
-    return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
-  }
-
-  // ───────── 7.5 用户中心只读: 信用流水/提现/结算/保险 ─────────
-  // 仅查询, 不做任何资金写操作(提现审核待接真实支付后单独上双人复核)
-  function paginateList(collName, where, pg, mapper) {
-    const query = col(collName).where(where);
-    return Promise.all([
-      query.count().catch(() => ({ total: 0 })),
-      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }))
-    ]).then(([totalR, rows]) => {
-      const list = (rows.data || []).map(mapper);
-      return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
-    });
-  }
-
   // ───────── IM 内容安全降级消息补审 ─────────
   // sec_degraded 消息 = msgSecCheck 异常时放行并标记的消息(IM 强交互链路不 fail-closed),
   // 后台提供补审列表, 运营人工判断后决定是否删除
@@ -1865,33 +1734,6 @@ exports.main = async (event, context) => {
     return ok({ updated });
   }
 
-  if (action === 'credit_log_list') {
-    const { target_openid, log_type } = event;
-    const pg = pager(event);
-    const q = { is_deleted: _.neq(true) };
-    if (isOpenid(target_openid)) q.openid = target_openid;
-    if (log_type) q.type = String(log_type);
-    return paginateList('credit_score_log', q, pg, (l) => ({
-      log_id: l._id, openid: l.openid, type: l.type, delta: l.delta, score: l.score,
-      reason: l.reason || '', is_system: !!l.is_system, created_at: l.created_at
-    }));
-  }
-
-  if (action === 'withdraw_list') {
-    const { target_openid, status: wdStatus, wd_type } = event;
-    const pg = pager(event);
-    const q = { is_deleted: _.neq(true) };
-    if (isOpenid(target_openid)) q.openid = target_openid;
-    if (wdStatus) q.status = String(wdStatus);
-    if (wd_type) q.type = String(wd_type);
-    return paginateList('withdraw_record', q, pg, (w) => ({
-      withdraw_id: w._id, withdraw_no: w.withdraw_no, openid: w.openid,
-      type: w.type, amount_fen: w.amount_fen, status: w.status,
-      expect_arrive_at: w.expect_arrive_at || null, arrived_at: w.arrived_at || null,
-      is_mock: !!w.is_mock, created_at: w.created_at
-    }));
-  }
-
   // ───────── 提现审批(PRD §5.1 职责分离: 财务/超管双人复核; 仅处理普通提现 processing) ─────────
   // 账号体系启用时强制双人(第一人提交 → 不同账号确认); 仅 admin_web_key 代理链路(无账号体系)单步放行
   if (action === 'withdraw_review') {
@@ -1929,38 +1771,6 @@ exports.main = async (event, context) => {
     return ok({ withdraw_id, step: rbacEnabled ? 2 : 1, status: patch.status });
   }
 
-  if (action === 'settlement_list') {
-    const { target_openid, order_id, status: stStatus } = event;
-    const pg = pager(event);
-    const q = { is_deleted: _.neq(true) };
-    if (isOpenid(target_openid)) q.openid = target_openid;
-    if (order_id) q.order_id = String(order_id);
-    if (stStatus) q.status = String(stStatus);
-    // settlement 集合字段可能随结算批次演进, 这里白名单透传常见金额/状态字段, 不臆造
-    return paginateList('settlement', q, pg, (s) => ({
-      settlement_id: s._id, order_id: s.order_id || '', openid: s.openid || '',
-      type: s.type || '', amount_fen: s.amount_fen, fee_fen: s.fee_fen,
-      income_fen: s.income_fen, status: s.status || '', batch_no: s.batch_no || '',
-      created_at: s.created_at
-    }));
-  }
-
-  if (action === 'insurance_list') {
-    const { target_openid, order_id, policy_no } = event;
-    const pg = pager(event);
-    const q = { is_deleted: _.neq(true) };
-    if (isOpenid(target_openid)) q.openid = target_openid;
-    if (order_id) q.order_id = String(order_id);
-    if (policy_no) q.policy_no = String(policy_no);
-    return paginateList('insurance_record', q, pg, (i) => ({
-      insurance_id: i._id, order_id: i.order_id, policy_no: i.policy_no,
-      openid: i.openid, scene_code: i.scene_code || '', status: i.status,
-      coverage_accident_fen: i.coverage_accident_fen, coverage_property_fen: i.coverage_property_fen,
-      premium_fen: i.premium_fen, created_at: i.created_at
-    }));
-  }
-
-  // ───────── 8. 参数配置(白名单字段; 每次修改写 P2 config_change before/after) ─────────
   if (action === 'config_set') {
     const patch = { updated_at: now };
     const before = {};
@@ -2896,72 +2706,6 @@ exports.main = async (event, context) => {
       truncated: total > 10000,
       list
     });
-  }
-
-  // ───────── 9. 封禁/解封 ─────────
-  if (action === 'user_ban' || action === 'user_unban') {
-    const { target_openid, reason } = event;
-    if (!isOpenid(target_openid)) return fail('ban_bad_openid', 'openid 格式不正确');
-    const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
-    if (!ur.data || !ur.data[0]) return fail('ban_user_not_found', '用户不存在');
-    const ban = action === 'user_ban';
-    if (ban && (!reason || !String(reason).trim())) return fail('ban_no_reason', '请填写封禁原因');
-    const patch = { status: ban ? 'banned' : 'normal', updated_at: now };
-    if (ban) {
-      patch.banned_reason = String(reason).trim();
-      patch.banned_at = now; patch.banned_by = openid;
-    } else {
-      patch.unbanned_at = now; patch.unbanned_by = openid;
-    }
-    await col('user_account').doc(ur.data[0]._id).update({ data: patch });
-    if (ban) {
-      await col('partner_profile').where({ openid: target_openid }).update({
-        data: { accept_switch: false, updated_at: now }
-      }).catch(() => {});
-    }
-    await logEvent('P2', ban ? 'user_banned' : 'user_unbanned', openid, {
-      target_openid, reason: reason || '', before: ur.data[0].status, after: patch.status
-    });
-    return ok({ openid: target_openid, status: patch.status });
-  }
-
-  // ───────── V3 分级处罚: warning(警告) / suspend_7d(暂停7天) / ban(永久封号) ─────────
-  if (action === 'penalty') {
-    const { target_openid, level, reason } = event;
-    if (!isOpenid(target_openid)) return fail('pen_bad_openid', 'openid 格式不正确');
-    if (!['warning', 'suspend_7d', 'ban'].includes(level)) {
-      return fail('pen_bad_level', 'level 须为 warning/suspend_7d/ban');
-    }
-    if (!reason || !String(reason).trim()) return fail('pen_no_reason', '请填写处罚原因');
-    const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
-    if (!ur.data || !ur.data[0]) return fail('pen_user_not_found', '用户不存在');
-
-    const now = Date.now();
-    let patch = { updated_at: now };
-    if (level === 'warning') {
-      patch.status = 'normal';
-      patch.last_warning = { reason: String(reason).trim(), at: now, by: openid };
-    } else if (level === 'suspend_7d') {
-      patch.status = 'suspended';
-      patch.suspend_until = now + 7 * 24 * 3600 * 1000;
-      patch.suspend_reason = String(reason).trim();
-      patch.suspend_at = now; patch.suspend_by = openid;
-    } else {
-      patch.status = 'banned';
-      patch.banned_reason = String(reason).trim();
-      patch.banned_at = now; patch.banned_by = openid;
-    }
-    await col('user_account').doc(ur.data[0]._id).update({ data: patch });
-    // 暂停/封号时关闭耍伴接单开关
-    if (level !== 'warning') {
-      await col('partner_profile').where({ openid: target_openid }).update({
-        data: { accept_switch: false, updated_at: now }
-      }).catch(() => {});
-    }
-    await logEvent('P1', `penalty_${level}`, openid, {
-      target_openid, reason: reason, level
-    });
-    return ok({ openid: target_openid, level, status: patch.status });
   }
 
   // （admin_list/admin_add/admin_remove 已抽离到 ./action_adminlist.js，由上方 HANDLERS 分发表处理）
