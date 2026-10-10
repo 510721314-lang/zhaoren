@@ -180,7 +180,19 @@
           <view class="ac__tip" wx:if="{{subMsgCfg.enabled}}">范围内有新需求可接单时，通过微信消息提醒你</view>
           <view class="ac__tip" wx:else>微信提醒暂未开通，接单需求仍会显示在站内通知</view>
         </view>
-        <switch checked="{{subAuthorized}}" disabled="{{!subMsgCfg.enabled}}" color="var(--func-success)" bindchange="onSubToggle" />
+        <switch checked="{{subAuthorized}}" disabled="{{!subMsgCfg.enabled}}" color="var(--func-success)" data-tmpl="demand_grab" bindchange="onSubToggle" />
+      </view>
+    </view>
+
+    <!-- 7c. 催办提醒(Wave2 止血⑥ · 订阅消息): 耍伴授权接收用户催办的微信提醒 -->
+    <view class="ac__card">
+      <view class="ac__row-between">
+        <view>
+          <view class="ac__card-title">催办提醒</view>
+          <view class="ac__tip" wx:if="{{urgeSubMsgCfg.enabled}}">发单人催办履约时，通过微信消息提醒你</view>
+          <view class="ac__tip" wx:else>微信提醒暂未开通，催办仍会显示在站内通知</view>
+        </view>
+        <switch checked="{{urgeSubAuthorized}}" disabled="{{!urgeSubMsgCfg.enabled}}" color="var(--func-success)" data-tmpl="demand_urge" bindchange="onSubToggle" />
       </view>
     </view>
 

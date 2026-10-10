@@ -638,8 +638,9 @@ exports.main = async (event, context) => {
     // 3.5 抢单提醒订阅授权(需求①增强): tmpl=demand_grab, authorized=bool
     // 将授权结果存 partner_profile.sub_msgs, 供 order-timer 抢单通知时判断是否额外发订阅消息(静默降级: 未授权仅站内)
     case 'sub_authorize': {
+      // 授权模板白名单: demand_grab(抢单提醒) / demand_urge(催办提醒, Wave2 止血⑥)
       const tmpl = String(event.tmpl || 'demand_grab');
-      if (tmpl !== 'demand_grab') return { ok: false, code: 'pa_sub_tmpl_bad', msg: '暂仅支持抢单提醒' };
+      if (['demand_grab', 'demand_urge'].indexOf(tmpl) < 0) return { ok: false, code: 'pa_sub_tmpl_bad', msg: '不支持的订阅模板' };
       const profile = await getProfile(openid);
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
       const sub_msgs = Object.assign({}, profile.sub_msgs || {}, {

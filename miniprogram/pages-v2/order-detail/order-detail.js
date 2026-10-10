@@ -389,6 +389,7 @@ Page({
       status: normalizeStatus(d.status),
       my_role: d.role || '',
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
+      urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
       modify_count: d.modify_count || 0,
       pending_modify: pendingModify,
       pending_extend: pendingExtend,
@@ -631,20 +632,32 @@ Page({
       cancelText: '关闭',
       success: (res) => {
         if (!res.confirm) return;
+        const urge = o.urge || { count: 0, max: 2, can_urge: true };
+        const nudgeLabel = urge.can_urge ? `📢 催办 (${urge.count}/${urge.max})` : `📢 已催办 (${urge.count}/${urge.max})`;
         wx.showActionSheet({
-          itemList: ['💬 联系耍伴', '📅 发起改期', '📢 催促耍伴'],
+          itemList: ['💬 联系耍伴', '📅 发起改期', nudgeLabel],
           success: (r) => {
             if (r.tapIndex === 0) this.goChat();
             else if (r.tapIndex === 1) this.onModify();
             else if (r.tapIndex === 2) {
-              // 催促耍伴: 后端写一条 system_notice 给耍伴
+              // 催办耍伴: 每单上限 urge_max 次（后端 CAS 兜底）；耍伴收站内+订阅（已授权时）
+              if (!urge.can_urge) {
+                wx.showToast({ title: `已达催办上限(${urge.max}次)`, icon: 'none' });
+                return;
+              }
               wx.showLoading({ title: '发送中', mask: true });
               callCloud('order-action', {
                 action: 'nudge_partner',
                 order_id: o._id
               }).then((rr) => {
                 wx.hideLoading();
-                wx.showToast({ title: rr.ok ? '已通知耍伴' : (rr.msg || '发送失败'), icon: rr.ok ? 'success' : 'none' });
+                if (rr.ok) {
+                  const rem = (rr.data && rr.data.remaining !== undefined) ? rr.data.remaining : 0;
+                  wx.showToast({ title: `已催办，剩余${rem}次`, icon: 'success' });
+                  this.fetchData({ orderId: o._id }, true);
+                } else {
+                  wx.showToast({ title: rr.msg || '发送失败', icon: 'none' });
+                }
               }).catch(() => {
                 wx.hideLoading();
                 wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' });

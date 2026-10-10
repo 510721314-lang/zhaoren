@@ -14,6 +14,8 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 // Wave1 状态机单源(规范源 _shared/order_state.js, 修改后跑 sync-order-state.ps1): CAS 语义收敛
 const { casTransition } = require('./order_state');
+// Wave2 止血⑥: S2 履约催办三段式纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
+const { dueStages } = require('./urge_rules');
 
 const BATCH = 50; // 单次每类状态最多处理笔数, 防止超时
 
@@ -274,6 +276,40 @@ async function processDemandNotify(now, cfg) {
       });
     } catch (e) { fail.push(d.demand_no); }
   }
+}
+
+// ───────── S2 履约催办三段式(Wave2 止血⑥): 到点提醒耍伴 → T+1h 用户通知 → T+4h 引导申诉 ─────────
+// 仅发站内 system_notice（订阅消息：order-timer 由定时触发器触发、无小程序上下文，云调用必报 -501001，
+//   故自动链路降级站内；手动催办由小程序端触发 order-action，云调用有效，走订阅+站内双通道）。
+// 幂等：每段先 CAS 写订单标记位(urge_t0_at/urge_t1_at/urge_t2_at，仅当字段不存在时写入)，抢到才发通知；
+// 互斥：取消挂起(cancel_request.pending)/冻结(frozen)在 dueStages 纯规则内已跳过。
+async function processUrgeReminder(now, cfg) {
+  const s2s = (await col('order_main').where({ status: 'S2' }).limit(BATCH).get()).data || [];
+  const done = { t0: [], t1: [], t2: [] };
+  await Promise.allSettled(s2s.map(async (o) => {
+    const stages = dueStages(o, now, cfg);
+    if (!stages.length) return;
+    for (const s of stages) {
+      const cond = { _id: o._id, status: 'S2' };
+      cond[s.markField] = _.exists(false);   // 仅当该段标记位不存在时才抢（幂等防并发重复）
+      const patch = { updated_at: now };
+      patch[s.markField] = now;
+      const upd = await col('order_main').where(cond).update({ data: patch });
+      if (!upd.stats || upd.stats.updated !== 1) continue; // 已被抢先标记，跳过本段
+      const receiver = s.to === 'partner' ? o.partner_openid : o.user_openid;
+      if (receiver) {
+        await col('system_notice').add({ data: {
+          to_openid: receiver, order_id: o._id, type: 'urge_' + s.stage,
+          title: s.title, body: s.body,
+          action_key: 'jump_order', action_payload: { order_id: o._id },
+          created_at: now, read: false
+        }}).catch(() => {});
+      }
+      done[s.stage].push(o.order_no);
+      log.d(`urge ${s.stage} -> ${s.to}: ${o.order_no}`);
+    }
+  }));
+  return { t0: done.t0.length, t1: done.t1.length, t2: done.t2.length, nos: done.t0.concat(done.t1, done.t2) };
 }
 
 exports.main = async (event, context) => {
@@ -614,6 +650,11 @@ exports.main = async (event, context) => {
     }));
   } catch (e) { log.d(`s4 scan fail: ${e.message}`); }
 
+  // ───────── 4.7 S2 履约催办三段式(Wave2 止血⑥) ─────────
+  let urgeRemind = null;
+  try { urgeRemind = await processUrgeReminder(now, cfg); }
+  catch (e) { log.d(`urge remind fail: ${e.message}`); }
+
   // ───────── 5. error_scan 巡检(D7) ─────────
   let errorScanResult = null;
   try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
@@ -636,6 +677,7 @@ exports.main = async (event, context) => {
       error_scan: errorScanResult,
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
+      urge_remind: urgeRemind,
       thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,

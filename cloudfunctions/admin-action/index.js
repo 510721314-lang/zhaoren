@@ -108,6 +108,10 @@ const CONFIG_SCHEMA = [
   // Wave2 止血: S8 售后窗口届满归档 / S4 裁定期兜底（此前仅前端 CONFIG 有值，服务端无对应键）
   { f: 'after_sale_days', t: 'int', g: '订单超时', label: '售后窗口', unit: '天', min: 1, max: 365, def: 15 },
   { f: 'partial_judge_days', t: 'int', g: '订单超时', label: 'S4 裁定期', unit: '天', min: 1, max: 90, def: 7 },
+  // Wave2 止血⑥: S2 履约催办三段式阈值（自动链路 order-timer + 手动催办上限）
+  { f: 'remind_after_h', t: 'int', g: '订单超时', label: '催办-用户通知', unit: '小时', min: 0, max: 168, def: 1 },
+  { f: 'escalate_after_h', t: 'int', g: '订单超时', label: '催办-引导申诉', unit: '小时', min: 1, max: 336, def: 4 },
+  { f: 'urge_max_count', t: 'int', g: '订单超时', label: '催办-手动上限', unit: '次', min: 1, max: 10, def: 2 },
   { f: 'eval_window_h', t: 'int', g: '订单超时', label: '评价窗口', unit: '小时', min: 1, max: 720, def: 48 },
   { f: 'milestone_confirm_min', t: 'int', g: '订单超时', label: '里程碑确认', unit: '分钟', min: 1, max: 1440, def: 15 },
   { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4 },
@@ -446,6 +450,15 @@ exports.main = async (event, context) => {
       miniprogram_state: subGrab.miniprogram_state || 'formal',
       fields: subGrab.fields || null
     } : { enabled: false };
+    // Wave2 止血⑥: 催办提醒订阅模板（demand_urge；Wave0 已落库 admin_config.sub_msg_templates.demand_urge）
+    const subUrge = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.demand_urge) || {};
+    const demandUrge = subUrge.tmpl_id ? {
+      enabled: true,
+      tmpl_id: subUrge.tmpl_id,
+      page: subUrge.page || 'pages-v2/order-detail/order-detail',
+      miniprogram_state: subUrge.miniprogram_state || 'formal',
+      fields: subUrge.fields || null
+    } : { enabled: false };
     return { ok: true, data: {
       version: cfgRaw.version,
       timeouts: {
@@ -558,7 +571,14 @@ exports.main = async (event, context) => {
       // 订阅消息(需求①增强 · 抢单提醒): 模板ID/跳转页/字段映射配置化下发; 前端授权页据此调 requestSubscribeMessage。
       // 未配置(enabled=false)时授权开关置灰, 仅走站内 system_notice, 静默降级; 缺失走前端 CONFIG.SUB_MSG 兜底。
       sub_msg: {
-        demand_grab: demandGrab
+        demand_grab: demandGrab,
+        demand_urge: demandUrge
+      },
+      // Wave2 止血⑥: S2 催办阈值（前端展示「已催办 N/上限」与超时警示）
+      urge: {
+        remind_after_h: nsInt(cfgRaw.remind_after_h, 1),
+        escalate_after_h: nsInt(cfgRaw.escalate_after_h, 4),
+        max_count: nsInt(cfgRaw.urge_max_count, 2)
       }
     } };
   }
@@ -2332,19 +2352,24 @@ exports.main = async (event, context) => {
       patch.modify_config = nextMC;
     }
 
-    // 订阅消息模板(需求①增强): 抢单提醒模板ID/跳转页/字段映射/小游戏态, 配置化下发, 服务端不硬编码。
-    // 未配置时 order-timer 只发站内 system_notice(静默降级)。白名单仅接受 demand_grab 一个子阈值。
+    // 订阅消息模板: 模板ID/跳转页/字段映射/小游戏态, 配置化下发, 服务端不硬编码。
+    // 未配置时只发站内 system_notice(静默降级)。白名单接受 demand_grab(抢单) / demand_urge(催办)。
     if (event.sub_msg_templates !== undefined) {
       if (typeof event.sub_msg_templates !== 'object' || Array.isArray(event.sub_msg_templates) || event.sub_msg_templates === null) {
         return fail('config_bad_sub_msg', 'sub_msg_templates 须为对象');
       }
-      const cur = (config.sub_msg_templates || {}).demand_grab || {};
-      const next = Object.assign({}, cur, event.sub_msg_templates.demand_grab || {});
-      if (next.tmpl_id !== undefined && next.tmpl_id !== '' && !/^[A-Za-z0-9_-]{1,80}$/.test(String(next.tmpl_id))) {
-        return fail('config_bad_sub_tmpl', '订阅模板ID格式不符(字母数字下划线短横线, ≤80字)');
-      }
+      const TMPL_WHITELIST = ['demand_grab', 'demand_urge'];
       before.sub_msg_templates = config.sub_msg_templates || {};
-      patch.sub_msg_templates = Object.assign({}, before.sub_msg_templates, { demand_grab: next });
+      const merged = Object.assign({}, before.sub_msg_templates);
+      for (const tk of TMPL_WHITELIST) {
+        const cur = (before.sub_msg_templates || {})[tk] || {};
+        const next = Object.assign({}, cur, event.sub_msg_templates[tk] || {});
+        if (next.tmpl_id !== undefined && next.tmpl_id !== '' && !/^[A-Za-z0-9_-]{1,80}$/.test(String(next.tmpl_id))) {
+          return fail('config_bad_sub_tmpl', `订阅模板(${tk})ID格式不符(字母数字下划线短横线, ≤80字)`);
+        }
+        merged[tk] = next;
+      }
+      patch.sub_msg_templates = merged;
     }
 
     // 场景服务项增删(仅对已有场景; 新增服务项需小程序发版后才会在发布页显示)

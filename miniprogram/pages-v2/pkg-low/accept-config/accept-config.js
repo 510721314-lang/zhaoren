@@ -71,7 +71,12 @@ Page({
     subAuthorized: false,
     subMsgCfg: (CONFIG.SUB_MSG && CONFIG.SUB_MSG.demandGrab)
       ? Object.assign({}, CONFIG.SUB_MSG.demandGrab)
-      : { enabled: false, tmplId: '', page: 'pages-v2/demand-detail/demand-detail' }
+      : { enabled: false, tmplId: '', page: 'pages-v2/demand-detail/demand-detail' },
+    // Wave2 止血⑥: 催办提醒(订阅消息) · 耍伴授权接收用户催办的微信提醒
+    urgeSubAuthorized: false,
+    urgeSubMsgCfg: (CONFIG.SUB_MSG && CONFIG.SUB_MSG.demandUrge)
+      ? Object.assign({}, CONFIG.SUB_MSG.demandUrge)
+      : { enabled: false, tmplId: '', page: 'pages-v2/order-detail/order-detail' }
   },
   onShareAppMessage() {
     return {
@@ -157,6 +162,15 @@ Page({
         enabled: !!(cloudSub && cloudSub.enabled),
         tmplId: (cloudSub && cloudSub.tmpl_id) || subCfgFallback.tmplId || '',
         page: (cloudSub && cloudSub.page) || subCfgFallback.page || 'pages-v2/demand-detail/demand-detail'
+      };
+      // Wave2 止血⑥: 催办提醒订阅(耍伴侧授权接收用户催办的微信提醒)
+      const urgeSubAuthorized = !!(p.sub_msgs && p.sub_msgs.demand_urge && p.sub_msgs.demand_urge.authorized === true);
+      const urgeCloudSub = (cfRes && cfRes.ok && cfRes.data && cfRes.data.sub_msg && cfRes.data.sub_msg.demand_urge) || null;
+      const urgeSubCfgFallback = (CONFIG.SUB_MSG && CONFIG.SUB_MSG.demandUrge) || {};
+      const urgeSubMsgCfg = {
+        enabled: !!(urgeCloudSub && urgeCloudSub.enabled),
+        tmplId: (urgeCloudSub && urgeCloudSub.tmpl_id) || urgeSubCfgFallback.tmplId || '',
+        page: (urgeCloudSub && urgeCloudSub.page) || urgeSubCfgFallback.page || 'pages-v2/order-detail/order-detail'
       };
 
       // 动态场景列表 (运营后台可增删, home-action scene_groups 为 SSOT)
@@ -303,6 +317,9 @@ Page({
         // 抢单提醒(订阅消息): 授权回显 + 模板配置态
         subAuthorized,
         subMsgCfg,
+        // Wave2 止血⑥: 催办提醒(订阅消息) · 耍伴侧授权回显 + 模板配置态
+        urgeSubAuthorized,
+        urgeSubMsgCfg,
         // 直读 PA(静态默认已含 3000/10000 兜底; 云端把下限配置为 0 是合法的, 不能用 || 覆盖成 30)
         rateMinYuan: Math.round(PA.rateMinFen / 100),
         rateMaxYuan: Math.round(PA.rateMaxFen / 100),
@@ -443,20 +460,25 @@ Page({
     this.setData({ 'form.acceptWelfare': e.detail.value });
   },
 
-  // 抢单提醒开关(需求①增强 · 订阅消息): 勾选时先请求模板订阅授权, 再把授权结果落库 partner_profile.sub_msgs
+  // 订阅消息开关(抢单提醒 demand_grab / 催办提醒 demand_urge): 勾选时先请求模板订阅授权, 再落库 partner_profile.sub_msgs
   // 模板未配置(enabled=false)时开关置灰; 授权被拒/未开通仅置灰, 不阻断站内 system_notice(静默降级)
   async onSubToggle(e) {
+    const tmpl = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.tmpl) || 'demand_grab';
+    const isUrge = tmpl === 'demand_urge';
+    const authKey = isUrge ? 'urgeSubAuthorized' : 'subAuthorized';
+    const cfgKey = isUrge ? 'urgeSubMsgCfg' : 'subMsgCfg';
+    const label = isUrge ? '催办提醒' : '抢单提醒';
     const on = !!e.detail.value;
-    const cfg = this.data.subMsgCfg || {};
+    const cfg = this.data[cfgKey] || {};
     if (!cfg.enabled) {
-      wx.showToast({ title: '暂未开通微信抢单提醒', icon: 'none' });
-      this.setData({ subAuthorized: false });
+      wx.showToast({ title: `暂未开通微信${label}`, icon: 'none' });
+      this.setData({ [authKey]: false });
       return;
     }
     if (on) {
       if (!cfg.tmplId) {
-        wx.showToast({ title: '暂未开通微信抢单提醒', icon: 'none' });
-        this.setData({ subAuthorized: false });
+        wx.showToast({ title: `暂未开通微信${label}`, icon: 'none' });
+        this.setData({ [authKey]: false });
         return;
       }
       let res = {};
@@ -465,17 +487,16 @@ Page({
       } catch (err) {
         res = {};
       }
-      // 用户同意=accept; 拒绝/取消则回退未授权
       if (res[cfg.tmplId] !== 'accept') {
         wx.showToast({ title: '未获得微信订阅授权', icon: 'none' });
-        this.setData({ subAuthorized: false });
+        this.setData({ [authKey]: false });
         return;
       }
     }
-    const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl: 'demand_grab', authorized: on });
-    this.setData({ subAuthorized: r.ok ? on : this.data.subAuthorized });
+    const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl, authorized: on });
+    this.setData({ [authKey]: r.ok ? on : this.data[authKey] });
     wx.showToast({
-      title: r.ok ? (on ? '已开启微信提醒' : '已关闭微信提醒') : (r.msg || '操作失败'),
+      title: r.ok ? (on ? `已开启${label}` : `已关闭${label}`) : (r.msg || '操作失败'),
       icon: 'none'
     });
   },
