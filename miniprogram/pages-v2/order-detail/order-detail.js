@@ -244,10 +244,12 @@ Page({
       const start = Number(d.start_time) || 0;
       const list = (r.data.list || []).map((x) => {
         const dl = x.evidence_deadline ? new Date(x.evidence_deadline) : null;
+        let statusText = '待对方举证';
+        if (x.status === 'withdrawn') statusText = '已撤回';
+        else if (x.status === 'decided') statusText = x.verdict === 'upheld' ? '已裁定：成立' : '已裁定：不成立';
+        else if (x.status === 'defense') statusText = '对方已举证，待裁定';
         return Object.assign({}, x, {
-          status_text: x.status === 'decided'
-            ? (x.verdict === 'upheld' ? '已裁定：成立' : '已裁定：不成立')
-            : (x.status === 'defense' ? '对方已举证，待裁定' : '待对方举证'),
+          status_text: statusText,
           deadline_text: dl ? `${pad(dl.getMonth() + 1)}-${pad(dl.getDate())} ${pad(dl.getHours())}:${pad(dl.getMinutes())}` : '',
           reason_display: (x.reason_type ? `【${x.reason_type}】` : '') + (x.reason || '')
         });
@@ -275,6 +277,29 @@ Page({
     wx.navigateTo({
       url: `/pages-v2/pkg-low/no-show-report/no-show-report?mode=defense&reportId=${reportId}&orderId=${this.__orderId}`,
       fail: () => wx.showToast({ title: '页面跳转失败', icon: 'none' })
+    });
+  },
+
+  // 撤回申诉(2026-10-10): 入口仅申诉人、裁定前可见(can_withdraw 由服务端计算); 二次确认后调云端(服务端二次校验)
+  onNoShowWithdraw(e) {
+    const reportId = e.currentTarget.dataset.id || '';
+    if (!reportId) return;
+    wx.showModal({
+      title: '撤回申诉',
+      content: '撤回后不可恢复，该订单不可再次提交申诉',
+      confirmText: '确认撤回',
+      confirmColor: '#fa5151',
+      success: (r) => {
+        if (!r.confirm) return;
+        callCloud('order-action', { action: 'no_show_report_withdraw', report_id: reportId }).then((res) => {
+          if (!res || !res.ok) {
+            wx.showToast({ title: (res && res.msg) || '撤回失败，请重试', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: '申诉已撤回', icon: 'success' });
+          this.reload();
+        }).catch(() => wx.showToast({ title: '网络异常，请重试', icon: 'none' }));
+      }
     });
   },
 

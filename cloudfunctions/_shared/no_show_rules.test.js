@@ -1,11 +1,11 @@
 // no_show_rules.js 爽约申诉/举证/裁定规则单测(零依赖 node:test)
-// 覆盖: 9 键读取与钳制 / 申诉资格(S2·S3.5+时限) / 举证截止 / 裁定处罚(第 N 次·阈值停用)
+// 覆盖: 9 键读取与钳制 / 申诉资格(S2·S3.5+时限) / 举证截止 / 裁定处罚(第 N 次·阈值停用) / 撤回资格
 // 运行: 根目录 `npm test`  或  `node --test cloudfunctions/_shared/no_show_rules.test.js`
 const test = require('node:test');
 const assert = require('node:assert');
 const {
   DAY_MS, HOUR_MS,
-  noShowCfg, canSubmitReport, defenseDeadlineOf, verdictOutcome,
+  noShowCfg, canSubmitReport, defenseDeadlineOf, verdictOutcome, canWithdrawReport,
   REPORT_STATUS, VERDICTS
 } = require('./no_show_rules');
 
@@ -112,8 +112,24 @@ test('裁定: 既有次数非法值(负/NaN)按 0 容错', () => {
   assert.strictEqual(verdictOutcome(noShowCfg({}), 'x', NOW).times, 1);
 });
 
+// ── canWithdrawReport(N8 变更 2026-10-10: 仅申诉人本人 + 裁定前可撤) ──
+test('撤回: 申诉人在 received/defense 可撤', () => {
+  assert.strictEqual(canWithdrawReport(REPORT_STATUS.RECEIVED, true), true);
+  assert.strictEqual(canWithdrawReport(REPORT_STATUS.DEFENSE, true), true);
+});
+test('撤回: 非申诉人一律不可撤(全状态矩阵)', () => {
+  [REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE, REPORT_STATUS.DECIDED, REPORT_STATUS.WITHDRAWN].forEach((st) => {
+    assert.strictEqual(canWithdrawReport(st, false), false);
+  });
+});
+test('撤回: 已裁定/已撤回/状态缺失不可撤', () => {
+  assert.strictEqual(canWithdrawReport(REPORT_STATUS.DECIDED, true), false);
+  assert.strictEqual(canWithdrawReport(REPORT_STATUS.WITHDRAWN, true), false);
+  assert.strictEqual(canWithdrawReport('', true), false);
+});
+
 // ── 常量口径 ──
 test('常量: 状态词串与裁定枚举锁定(与设计稿 §2.5 一致)', () => {
-  assert.deepStrictEqual(REPORT_STATUS, { RECEIVED: 'received', DEFENSE: 'defense', DECIDED: 'decided' });
+  assert.deepStrictEqual(REPORT_STATUS, { RECEIVED: 'received', DEFENSE: 'defense', DECIDED: 'decided', WITHDRAWN: 'withdrawn' });
   assert.deepStrictEqual(VERDICTS, ['upheld', 'rejected']);
 });

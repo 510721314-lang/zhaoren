@@ -7,6 +7,8 @@
 // 口径来源: docs/design-20261007-pricing-noshow-flows.md §2.2-2.5 / §2.11
 //   (N1 可申诉=S2/S3.5 且开始时间已过; N2 逾期不自动关闭; N3 滚动窗口分角色计数;
 //    N6 同订单单方上限; N10 全部数值后台可配, 服务端读实配值)
+//   N8 变更(2026-10-10): 撤回通道由「一期不做」变更为「做」→ 新增 WITHDRAWN 状态与 canWithdrawReport
+//   实现方案: .trae/documents/3B爽约申诉-撤销能力-实现方案.md
 
 const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
@@ -74,11 +76,19 @@ function verdictOutcome(cfg, priorCount, now) {
   };
 }
 
-const REPORT_STATUS = { RECEIVED: 'received', DEFENSE: 'defense', DECIDED: 'decided' };
+const REPORT_STATUS = { RECEIVED: 'received', DEFENSE: 'defense', DECIDED: 'decided', WITHDRAWN: 'withdrawn' };
 const VERDICTS = ['upheld', 'rejected'];
+
+// 撤回资格(N8 由「一期不做」变更为「做」, 2026-10-10): 仅申诉人本人, 且裁定前(received/defense)可撤;
+// 已裁定(decided)不可撤; already-withdrawn 的幂等短路由调用方先行处理(此处按不可撤返回 false)。
+// 注: 撤回占用 N6 配额(不写 is_deleted), 故撤回后同单同人不可再提交。
+function canWithdrawReport(status, isReporter) {
+  if (!isReporter) return false;
+  return status === REPORT_STATUS.RECEIVED || status === REPORT_STATUS.DEFENSE;
+}
 
 module.exports = {
   DAY_MS, HOUR_MS,
-  noShowCfg, canSubmitReport, defenseDeadlineOf, verdictOutcome,
+  noShowCfg, canSubmitReport, defenseDeadlineOf, verdictOutcome, canWithdrawReport,
   REPORT_STATUS, VERDICTS
 };

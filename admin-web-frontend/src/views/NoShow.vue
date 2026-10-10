@@ -10,6 +10,7 @@
         <el-radio-button label="received">待举证 ({{ counts.received }})</el-radio-button>
         <el-radio-button label="defense">举证中 ({{ counts.defense }})</el-radio-button>
         <el-radio-button label="decided">已裁定 ({{ counts.decided }})</el-radio-button>
+        <el-radio-button label="withdrawn">已撤回 ({{ counts.withdrawn }})</el-radio-button>
       </el-radio-group>
       <el-button type="primary" :loading="loading" @click="load">刷新</el-button>
       <span v-if="cfg" style="color:#909399;font-size:12px">
@@ -54,7 +55,7 @@
       <el-table-column label="操作" width="170" fixed="right">
         <template #default="{row}">
           <el-button size="small" @click="openDetail(row)">详情</el-button>
-          <el-button v-if="row.status !== 'decided'" size="small" type="primary" @click="openDetail(row)">裁定</el-button>
+          <el-button v-if="row.status !== 'decided' && row.status !== 'withdrawn'" size="small" type="primary" @click="openDetail(row)">裁定</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -93,7 +94,7 @@
         </div>
 
         <!-- 裁定区 -->
-        <div v-if="detail.status !== 'decided'" style="margin-top:16px;border-top:1px solid #ebeef5;padding-top:12px">
+        <div v-if="detail.status !== 'decided' && detail.status !== 'withdrawn'" style="margin-top:16px;border-top:1px solid #ebeef5;padding-top:12px">
           <div style="font-weight:600;margin-bottom:8px">裁定</div>
           <el-alert v-if="cfg" type="warning" :closable="false" show-icon style="margin-bottom:8px"
             :title="`若裁定成立将执行：扣 ${cfg.score_deduct} 分（第 N 次；滚动 ${cfg.count_window_days} 天内累计满 ${cfg.suspend_threshold} 次则账号停用 ${cfg.suspend_days} 天）`" />
@@ -104,6 +105,9 @@
           </el-form>
           <el-button :loading="submitting" @click="doDecide('rejected')">裁定：不成立</el-button>
           <el-button type="danger" :loading="submitting" @click="doDecide('upheld')">裁定：成立并处罚</el-button>
+        </div>
+        <div v-else-if="detail.status === 'withdrawn'" style="margin-top:12px;color:#909399">
+          <b>已撤回：</b>申诉人于 {{ formatTime(detail.withdrawn_at) }} 自行撤回（未裁定，无处罚）
         </div>
         <div v-else style="margin-top:12px;color:#606266">
           <b>裁定结果：</b>{{ detail.verdict === 'upheld' ? '成立' : '不成立' }}
@@ -128,7 +132,7 @@ import { call } from '../api/admin.js';
 import { formatTime } from '../utils/format.js';
 
 const list = ref([]); const total = ref(0); const totalAll = ref(0);
-const counts = ref({ received: 0, defense: 0, decided: 0 });
+const counts = ref({ received: 0, defense: 0, decided: 0, withdrawn: 0 });
 const page = ref(1); const size = ref(15);
 const statusFilter = ref('');
 const loading = ref(false);
@@ -139,11 +143,13 @@ const note = ref(''); const submitting = ref(false);
 
 function statusLabel(row) {
   if (row.status === 'decided') return row.verdict === 'upheld' ? '已裁定·成立' : '已裁定·不成立';
+  if (row.status === 'withdrawn') return '已撤回';
   if (row.status === 'defense') return '举证中';
   return '待举证';
 }
 function statusType(row) {
   if (row.status === 'decided') return row.verdict === 'upheld' ? 'danger' : 'info';
+  if (row.status === 'withdrawn') return 'info';
   return row.status === 'defense' ? 'warning' : 'primary';
 }
 
@@ -156,8 +162,8 @@ async function load() {
   if (r.ok) {
     list.value = r.data.list || [];
     total.value = r.data.total || 0;
-    counts.value = r.data.counts || { received: 0, defense: 0, decided: 0 };
-    totalAll.value = (counts.value.received || 0) + (counts.value.defense || 0) + (counts.value.decided || 0);
+    counts.value = r.data.counts || { received: 0, defense: 0, decided: 0, withdrawn: 0 };
+    totalAll.value = (counts.value.received || 0) + (counts.value.defense || 0) + (counts.value.decided || 0) + (counts.value.withdrawn || 0);
   } else {
     ElMessage.error(r.msg || r.code || '加载失败');
   }

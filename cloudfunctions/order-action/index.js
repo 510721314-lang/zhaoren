@@ -1,14 +1,15 @@
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
-// 26 个 action: get_confirmation / update_item / confirm_item / confirm_all /
+// 27 个 action: get_confirmation / update_item / confirm_item / confirm_all /
 //              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
 //              modify / modify_confirm / modify_reject /
 //              extend / extend_confirm / extend_reject /
 //              resume_service / partial_confirm / ratio_confirm / complaint /
-//              no_show_report_submit / no_show_report_defense / no_show_report_detail /
+//              no_show_report_submit / no_show_report_defense / no_show_report_withdraw / no_show_report_detail /
 //              detail / my_orders / my_counts / nudge_partner
 // 爽约申诉(第三批 3B): 用户/耍伴提交申诉 → 被诉方举证 → 管理员裁定(admin-action no_show_decide);
 //   订单状态机不因申诉改变; 数值全部后台可配(no_show_* 9 键), 规则纯函数见 ./no_show_rules
+//   撤回申诉(2026-10-10, N8 由「一期不做」变更为「做」): 仅申诉人本人、裁定前可撤, 撤回占 N6 配额
 // 四确认 SSOT:时间/地点/内容/费用四项,用户与耍伴双方各确认一次共 8 位;
 //   8 位全完成 → S1→S0(待支付,30 分钟支付时限);任一方修改任一项 → 8 位全部重置。
 const cloud = require('wx-server-sdk');
@@ -19,7 +20,7 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
 // 第三批 3B: 爽约申诉/举证/裁定纯规则(规范源 _shared/no_show_rules.js, 修改后跑 sync-no-show-rules.ps1)
-const { noShowCfg, canSubmitReport, defenseDeadlineOf, REPORT_STATUS } = require('./no_show_rules');
+const { noShowCfg, canSubmitReport, defenseDeadlineOf, canWithdrawReport, REPORT_STATUS } = require('./no_show_rules');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
@@ -1869,6 +1870,61 @@ exports.main = async (event, context) => {
     return { ok: true, data: { status: REPORT_STATUS.DEFENSE, overdue } };
   }
 
+  // 撤回申诉(N8 于 2026-10-10 由「一期不做」变更为「做」): 仅申诉人本人, 裁定前(received/defense)可撤
+  // 口径: 撤回占 N6 配额(不写 is_deleted → 同单同人不可再提交); 通知被诉方时复用 no_show_report type
+  //       覆盖正文(writeNotice 去重键含 type, 复用可避免出现「已提交+已撤回」两条未读)
+  if (action === 'no_show_report_withdraw') {
+    const { report_id } = event;
+    if (!report_id || !isValidDocId(report_id)) return { ok: false, code: 'no_show_bad_report', msg: '申诉记录 ID 格式不正确' };
+    let report = null;
+    try { report = (await col('no_show_report').doc(report_id).get()).data; } catch (e) { report = null; }
+    if (!report || report.is_deleted) return { ok: false, code: 'no_show_report_missing', msg: '申诉记录不存在' };
+    if (report.reporter_openid !== openid) return { ok: false, code: 'no_show_not_reporter', msg: '仅申诉人可撤回申诉' };
+    // 幂等前置: 已撤回直接成功(重复点击/网络重试)
+    if (report.status === REPORT_STATUS.WITHDRAWN) {
+      return { ok: true, data: { status: REPORT_STATUS.WITHDRAWN, withdrawn_at: report.withdrawn_at || 0, idempotent: true } };
+    }
+    if (report.status === REPORT_STATUS.DECIDED) {
+      return { ok: false, code: 'no_show_already_decided', msg: '平台已裁定,不可撤回申诉' };
+    }
+    if (!canWithdrawReport(report.status, true)) {
+      return { ok: false, code: 'no_show_withdraw_not_allowed', msg: '当前状态不可撤回申诉' };
+    }
+    const now = Date.now();
+    // CAS: 仅当仍为 received/defense 时置 withdrawn(与举证/裁定并发互斥)
+    const up = await col('no_show_report').where({
+      _id: report_id, status: _.in([REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE])
+    }).update({ data: {
+      status: REPORT_STATUS.WITHDRAWN, withdrawn_at: now, withdrawn_by: openid, updated_at: now
+    }});
+    if (!up.stats || up.stats.updated < 1) {
+      const latest = await col('no_show_report').doc(report_id).get().catch(() => ({ data: null }));
+      const st = latest && latest.data && latest.data.status;
+      if (st === REPORT_STATUS.WITHDRAWN) {
+        return { ok: true, data: { status: REPORT_STATUS.WITHDRAWN, withdrawn_at: (latest.data.withdrawn_at || 0), idempotent: true } };
+      }
+      if (st === REPORT_STATUS.DECIDED) {
+        return { ok: false, code: 'no_show_already_decided', msg: '平台已裁定,不可撤回申诉' };
+      }
+      return { ok: false, code: 'no_show_withdraw_conflict', msg: '状态已变化,请刷新后重试' };
+    }
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
+    await writeNotice({
+      to_openid: report.target_openid, order_id: report.order_id, type: 'no_show_report',
+      title: '对方已撤回爽约申诉',
+      body: '该申诉已撤回, 无需再提交举证',
+      action_key: 'jump_order', action_payload: { order_id: report.order_id, report_id }
+    });
+    await writeAudit(db, log, {
+      openid, role: report.reporter_role || '', category: 'business', action: 'no_show_report_withdraw',
+      target_type: 'no_show_report', target_id: report_id,
+      detail: { order_no: report.order_no || '', prev_status: report.status || '' },
+      result: 'ok', client_ip: clientIp, device
+    });
+    return { ok: true, data: { status: REPORT_STATUS.WITHDRAWN, withdrawn_at: now } };
+  }
+
   if (action === 'no_show_report_detail') {
     const order = await getOrder(order_id);
     if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -1894,9 +1950,12 @@ exports.main = async (event, context) => {
         evidence_deadline: x.evidence_deadline || 0,
         defense_overdue: x.defense_overdue === true,
         decided_at: x.decided_at || 0,
+        withdrawn_at: x.withdrawn_at || 0,
         created_at: x.created_at || 0,
-        // 被诉方视角: 未裁定即可提交/补充举证
-        can_defense: !iAmReporter && x.status !== REPORT_STATUS.DECIDED
+        // 被诉方视角: 仅 received/defense 可提交/补充举证(已裁定/已撤回均不可)
+        can_defense: !iAmReporter && x.status !== REPORT_STATUS.DECIDED && x.status !== REPORT_STATUS.WITHDRAWN,
+        // 申诉人视角: 裁定前可撤回(纯规则同源 _shared/no_show_rules.canWithdrawReport)
+        can_withdraw: canWithdrawReport(x.status, iAmReporter)
       };
     });
     return { ok: true, data: { list } };

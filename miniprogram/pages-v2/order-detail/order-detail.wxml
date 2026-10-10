@@ -107,11 +107,12 @@
       <view class="od__nsitem" wx:for="{{noShowReports}}" wx:key="report_id">
         <view class="od__nsitem-head">
           <text class="od__nsitem-role">{{item.my_role === 'reporter' ? '你提交的申诉' : '对方提交的申诉'}}</text>
-          <text class="od__nsitem-status {{item.status === 'decided' ? (item.verdict === 'upheld' ? 'is-upheld' : 'is-rejected') : 'is-pending'}}">{{item.status_text}}</text>
+          <text class="od__nsitem-status {{item.status === 'withdrawn' ? 'is-withdrawn' : (item.status === 'decided' ? (item.verdict === 'upheld' ? 'is-upheld' : 'is-rejected') : 'is-pending')}}">{{item.status_text}}</text>
         </view>
         <view class="od__nsitem-reason" wx:if="{{item.reason_display}}">{{item.reason_display}}</view>
-        <view class="od__nsitem-sub" wx:if="{{item.status !== 'decided'}}">举证截止：{{item.deadline_text}}{{item.defense_overdue ? '（已逾期，平台可直接裁定）' : ''}}</view>
+        <view class="od__nsitem-sub" wx:if="{{item.status !== 'decided' && item.status !== 'withdrawn'}}">举证截止：{{item.deadline_text}}{{item.defense_overdue ? '（已逾期，平台可直接裁定）' : ''}}</view>
         <button class="od__btn od__btn--primary" wx:if="{{item.can_defense}}" data-id="{{item.report_id}}" bindtap="onNoShowDefense" hover-class="btn-press">提交举证</button>
+        <button class="od__btn od__btn--ghost" wx:if="{{item.can_withdraw}}" data-id="{{item.report_id}}" bindtap="onNoShowWithdraw" hover-class="btn-press">撤回申诉</button>
       </view>
     </view>
 

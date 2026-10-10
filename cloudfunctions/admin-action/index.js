@@ -2815,6 +2815,8 @@ exports.main = async (event, context) => {
   // ───────── 8.8 爽约申诉: 列表/详情 + 裁定(第三批 3B) ─────────
   // 设计稿 §2.2-2.7: 平台不自动处罚, 管理员裁定; 成立 → 扣分(credit_score_log type='no_show')
   // + 滚动窗口计次 + 达阈值停用(数值全部读 no_show_* 实配); 幂等键 order_id+target_openid。
+  // 2026-10-10: 新增 withdrawn(申诉人自行撤回, 由 order-action no_show_report_withdraw 写入)→ 列表筛选/徽标纳入;
+  //   已撤回记录不可裁定(decide 的 CAS 三值不含 withdrawn, 天然排除)。
   if (action === 'no_show_report_list') {
     const { status, report_id } = event;
     // 详情模式: 单条 + 证据临时 URL(管理端裁定页用)
@@ -2847,12 +2849,12 @@ exports.main = async (event, context) => {
     const cntP = (st) => col('no_show_report')
       .where(st ? Object.assign({}, base, { status: st }) : base)
       .count().catch(() => ({ total: 0 }));
-    const filtered = (status && ['received', 'defense', 'decided'].indexOf(status) >= 0) ? status : '';
+    const filtered = (status && ['received', 'defense', 'decided', 'withdrawn'].indexOf(status) >= 0) ? status : '';
     const query = col('no_show_report').where(filtered ? Object.assign({}, base, { status: filtered }) : base);
-    const [totalR, r, cReceived, cDefense, cDecided] = await Promise.all([
+    const [totalR, r, cReceived, cDefense, cDecided, cWithdrawn] = await Promise.all([
       cntP(filtered),
       query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] })),
-      cntP('received'), cntP('defense'), cntP('decided')
+      cntP('received'), cntP('defense'), cntP('decided'), cntP('withdrawn')
     ]);
     return ok({
       list: (r.data || []).map((x) => ({
@@ -2867,10 +2869,11 @@ exports.main = async (event, context) => {
         evidence_deadline: x.evidence_deadline || 0,
         defense_overdue: x.defense_overdue === true,
         created_at: x.created_at, decided_at: x.decided_at || 0,
+        withdrawn_at: x.withdrawn_at || 0,
         decided_reason: x.decided_reason || '',
         penalty_applied: x.penalty_applied || null
       })),
-      counts: { received: cReceived.total || 0, defense: cDefense.total || 0, decided: cDecided.total || 0 },
+      counts: { received: cReceived.total || 0, defense: cDefense.total || 0, decided: cDecided.total || 0, withdrawn: cWithdrawn.total || 0 },
       total: totalR.total || 0, page: pg.page, size: pg.size,
       has_more: pg.page * pg.size < (totalR.total || 0)
     });

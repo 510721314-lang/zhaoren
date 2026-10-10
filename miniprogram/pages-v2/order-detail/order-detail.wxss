@@ -300,5 +300,6 @@
 .od__nsitem-status.is-pending { color: var(--func-warning); }
 .od__nsitem-status.is-upheld { color: var(--func-danger); }
 .od__nsitem-status.is-rejected { color: var(--text-3); }
+.od__nsitem-status.is-withdrawn { color: var(--text-3); }
 .od__nsitem-reason { margin-top: 8rpx; font-size: var(--font-sm); color: var(--text-2); line-height: 1.5; }
 .od__nsitem-sub { margin-top: 6rpx; font-size: var(--font-sm); color: var(--text-3); }
