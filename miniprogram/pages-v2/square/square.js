@@ -249,7 +249,7 @@ Page({
   onCardTap(e) {
     wx.navigateTo({
       url: `/pages-v2/demand-detail/demand-detail?id=${e.detail.demand._id}`,
-      fail: () => wx.showToast({ title: '需求详情将在批次2上线', icon: 'none' })
+      fail: () => wx.showToast({ title: '打开失败，请稍后重试', icon: 'none' })
     });
   },
 

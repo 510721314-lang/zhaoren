@@ -762,7 +762,7 @@ Page({
     console.log('[goPay-debug] navigToPay orderId=', this.data.orderId, 'status=', this.data.orderStatus);
     wx.navigateTo({
       url: `/pages-v2/pay/pay?orderId=${this.data.orderId}`,
-      fail: () => wx.showToast({ title: '支付页即将开放', icon: 'none' })
+      fail: () => wx.showToast({ title: '打开失败，请稍后重试', icon: 'none' })
     });
   },
 
@@ -771,7 +771,7 @@ Page({
     if (!this.data.orderId) return;
     wx.redirectTo({
       url: `/pages-v2/order-detail/order-detail?orderId=${this.data.orderId}`,
-      fail: () => wx.showToast({ title: '订单详情即将开放', icon: 'none' })
+      fail: () => wx.showToast({ title: '打开失败，请稍后重试', icon: 'none' })
     });
   },
 
