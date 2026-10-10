@@ -6,7 +6,7 @@
 ## ⚠️ 开场回执校验（先做，缺项/数值不符即视为未理解，先纠正再动手）
 
 请先回执以下五项并与实际核对；数值不符时，先报告差异来源、确认无误再动工：
-1. `git -C C:\zhaoren log --oneline -1` → 应为 `d271a24` **或其后的仅含 docs/备份类提交**（本提示词的刷新/修正 commit 属预期）；请 `git log -3` 核对提交信息
+1. `git -C C:\zhaoren log --oneline -1` → 应为 `8eeb3ea` **或其后的仅含 docs/备份类提交**（本提示词的刷新/修正 commit 属预期）；请 `git log -3` 核对提交信息
 2. 云环境 ID → `cloud1-d9gkefwcp5c777088`
 3. 工作目录 → `C:\zhaoren`（唯一可信；IDE 若打开 Desktop\zhaoren 旧克隆，编辑/部署一律用 C:\zhaoren）
 4. 部署状态 → `docs/deploy-log.md` 最近 2 行：order-timer `bcf4fcf`（订阅诊断落库版，13.5KB）+ 9 函数 `eda406c`（openapi 权限声明+log.w）
@@ -23,8 +23,8 @@
 
 ## 二、基线（2026-10-10）
 
-- **git**：HEAD=`d271a24`（或其后的仅含 docs/备份类提交）；远端已含至 `2aa9fc1`（本日前 8 个 commit 已推送），本地领先 3（`e2fa124` BOM 修复 + `d271a24` 刷新 + 本次一致性修正，push 成功后 `0 0`）；工作树干净
-- **本会话归档**：`docs/tech-review-20261010.md`（专家技术评审）、`docs/onboarding-prompt-20261010.md`（本文档，刷新版）
+- **git**：HEAD=`8eeb3ea`（或其后的仅含 docs/备份类提交）；远端已含至 `2aa9fc1`（本日前 8 个 commit 已推送），本地领先均为 docs/备份类 commit（`e2fa124` BOM 修复、`d271a24` 刷新、`8eeb3ea` 及本沉淀批修正；如已 push 则为 `0 0`）；工作树干净
+- **本会话归档**：`docs/verification/tech-review-20261010.md`（专家技术评审，1006 基线版同目录）、`docs/onboarding-prompt-20261010.md`（本文档，刷新版）
 - **云函数**：实际 20 个目录。正式业务 17 个：user-login / demand-publish / demand-match / partner-apply / partner-action / order-create / order-action / order-timer / payment-mock / safety-report / im-conv / im-send / evaluation-submit / admin-action / init-db / home-action / blog-action；另有 admin-web（网关函数，代理 Vue SPA）、zz-seed-orders / zz-warmup（临时自测，勿动勿部署；zz-selftest-timer 已删）。部署记录在 `docs/deploy-log.md`，回滚点=各 commit
 - **索引**：设计台账 32 条已全部建成（2026-10-09 实证补建 28 条 + uk_account）；9 个幽灵集合不存在（user_profile/partner_exam/partner_apply/dispute/withdraw_request/credit_log/report/sms_log/device_bind）
 - **门禁**：gate.ps1 8 步（nightmask/SSOT/syntax/shared-sync/npm test 130 条/index-ledger/smoke/heartbeat），需 `$env:AWK_KEY`（在 `C:\zhaoren-bak\admin-key-20261009.txt`）；跑法 `powershell -ExecutionPolicy Bypass -File C:\zhaoren\scripts\gate.ps1`
@@ -92,7 +92,7 @@
 ## 七、待办
 
 **提审前（当前优先级）**
-1. **push 待推 commit**（`e2fa124` + `d271a24` + 本次修正，共 3 个；网络恢复后 `git push origin master`，成功后 rev-list 应为 0 0）
+1. **push 待推 commit**（`e2fa124`、`d271a24`、`8eeb3ea` 及本沉淀批修正；网络恢复后 `git push origin master`，成功后 rev-list 应为 0 0）
 2. **走查③举证环节补测**（3B 爽约：提交申诉→对方举证→管理端裁定；测试账号信用分已复原 800；举证环节此前留待补测）
 3. **上传体验版**（提审前最后一步；订阅 miniprogram_state 保持 trial）
 4. 订阅闭环已定论（-501001 设计约束），无需再测
