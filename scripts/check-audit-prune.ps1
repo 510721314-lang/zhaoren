@@ -1,4 +1,4 @@
-# check-audit-prune.ps1 - verify auditPrune dry-run record (one-off / daily watchdog)
+﻿# check-audit-prune.ps1 - verify auditPrune dry-run record (one-off / daily watchdog)
 # Purpose: confirm order-timer's auditPrune actually ran at the UTC 19:00 slot (Beijing 03:00)
 #          and wrote admin_config.audit_prune_last = {at,dry_run,matched,pruned,cutoff,days}.
 # Expected first-run result: dry_run=true, matched=0 (audit_log keeps only records newer than 90 days).
@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 
 $key = $env:AWK_KEY
 if (-not $key) {
-  $kf = 'C:\zhaoren-bak\admin-key-20261006.txt'
+  $kf = 'C:\zhaoren-bak\admin-key-20261009.txt'
   if (Test-Path $kf) { $key = (Get-Content $kf -Raw).Trim() }
 }
 $logPath = 'C:\zhaoren-bak\audit-prune-check.log'

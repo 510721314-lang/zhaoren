@@ -1,4 +1,4 @@
-# zhaoren Cloud Backup Script L2+L3+L5
+﻿# zhaoren Cloud Backup Script L2+L3+L5
 # Usage: .\backup.ps1 [-BackupDir C:\zhaoren_backup_YYYYMMDD] [-AdminKey AWK-...]
 #        or set $env:ADMIN_WEB_KEY before running
 param(
@@ -78,7 +78,7 @@ Write-Host "[GIT] HEAD: $gitHead ($gitShort)" -ForegroundColor Cyan
 
 # L2: admin_config snapshot
 Write-Host "`n===== L2 admin_config =====" -ForegroundColor Yellow
-$cfgResp = Invoke-AdminApi 'export_admin_config'
+$cfgResp = Invoke-AdminApi 'export_admin_config' @{ confirm = $true }
 if ($cfgResp -and $cfgResp.ok) {
   $cfgData = @{
     config     = $cfgResp.data.config
@@ -99,7 +99,7 @@ $exportedTables = @()
 foreach ($col in $COLLECTIONS) {
   $page = 1; $allDocs = @(); $total = 0; $truncated = $false
   while ($true) {
-    $resp = Invoke-AdminApi 'export_collection' @{ collection = $col; page = $page; page_size = 100 }
+    $resp = Invoke-AdminApi 'export_collection' @{ collection = $col; page = $page; page_size = 100; confirm = $true }
     if (-not $resp -or -not $resp.ok) { Write-Host "  [SKIP] $col" -ForegroundColor Magenta; break }
     $total = $resp.data.total
     $truncated = $resp.data.truncated
