@@ -29,7 +29,7 @@ const commandProxy = new Proxy({}, {
 });
 
   function makeSdk(opts = {}) {
-  const openid = opts.openid || 'test_openid';
+  const openid = opts.openid != null ? opts.openid : 'test_openid';
   // store: { collectionName: { docId: docData } }  —— 模拟 doc().get() / where().get()
   const store = opts.store || {};
   // agg: { collectionName: [ {total, tip, ...} ] }  —— 模拟 aggregate().end() 的 list

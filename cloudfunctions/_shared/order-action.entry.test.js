@@ -85,5 +85,14 @@ test('nudge_partner: 合法催办 → ok + 写 order_main 与 system_notice', as
   assert.strictEqual(notice.data.to_openid, PARTNER);
 });
 
+// 6. cancel: 非订单参与方 → oa_not_participant（roleOf 门，与 nudge 的精确匹配门互补）
+test('cancel: 非参与方 → oa_not_participant', async () => {
+  const sdk = makeSdk({ openid: 'o_stranger', store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'cancel', order_id: OID, mock_openid: 'o_stranger' }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_not_participant');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });
