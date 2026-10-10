@@ -77,6 +77,8 @@ const commandProxy = new Proxy({}, {
         const q = query || {};
         return {
           limit() { return this; },
+          orderBy() { return this; },
+          skip() { return this; },
           async get() {
             calls.push({ method: 'where.get', name, query: q });
             // 简易匹配：按 q 的等值字段过滤 store[name] 的所有文档
