@@ -22,7 +22,7 @@ async function getConfig() {
     const r = await col('admin_config').doc('global').get();
     if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) {}
-  return { s1_timeout_min: 15, s0_timeout_min: 30, interrupt_timeout_h: 24, eval_window_h: 48, default_star: 4 };
+  return { s1_timeout_min: 15, s0_timeout_min: 30, interrupt_timeout_h: 24, eval_window_h: 48, default_star: 4, after_sale_days: 15, partial_judge_days: 7 };
 }
 
 function num(v, fallback) {
@@ -323,12 +323,14 @@ exports.main = async (event, context) => {
   const evalH = num(cfg.eval_window_h, 48);
   const defaultStar = num(cfg.default_star, 4);
   const msConfirmMin = num(cfg.milestone_confirm_min, 15); // 里程碑提交后自动确认时限(分钟)
+  const afterSaleDays = num(cfg.after_sale_days, 15);       // Wave2 止血: S8 售后窗口(天) → 届满归档 S10
+  const partialJudgeDays = num(cfg.partial_judge_days, 7);  // Wave2 止血: S4 裁定期(天) → 届满转平台介入
   // 改期确认时限: 统一读 admin_config.modify_config.confirmHours(与 order-action 创建时算死 expire_at 同一口径)
   // 不再读独立键 modify_confirm_h(admin-action 白名单已移除, 存量历史无 expire_at 的订单仍走此兜底)
   const mcDefaults = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
   const modifyConfirmH = num(Object.assign({}, mcDefaults, cfg.modify_config || {}).confirmHours, 24);
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -361,7 +363,7 @@ exports.main = async (event, context) => {
     s1OK.forEach(o => { out.s1_cancel.push(o.order_no); log.d(`timeout S1→S6: ${o.order_no}`); });
   } catch (e) { log.d(`s1 scan fail: ${e.message}`); }
 
-  // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 ─────────
+  // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 + 释放需求(与 S1 对称, 修 D12) ─────────
   try {
     const q = { status: 'S0', pay_expire_at: _.lt(now) };
     const s0s = (await col('order_main').where(q).limit(BATCH).get()).data || [];
@@ -370,6 +372,12 @@ exports.main = async (event, context) => {
       if (!(o.pay_expire_at && o.pay_expire_at < now)) return;
       const won = await casStatus(o._id, 'S0', { status: 'S6', updated_at: now });
       if (!won) { out.skipped.push(o.order_no + ':S0竞态'); return; }
+      // Wave2 止血①(D12): S0 超时同样释放需求回 matching, 否则需求被已取消订单永久占用
+      if (o.demand_id) {
+        await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
+          data: { status: 'matching', updated_at: now }
+        }).catch(() => {});
+      }
       s0OK.push(o);
     }));
     await Promise.allSettled(s0OK.map(o => logStatus(o._id, 'S0', 'S6', 'timeout_s0_close', 'system')));
@@ -379,7 +387,7 @@ exports.main = async (event, context) => {
       return receivers.map(openid => col('system_notice').add({ data: {
         to_openid: openid, order_id: o._id, type: 'timeout_cancel',
         title: '支付超时,订单已取消',
-        body: '未在30分钟内完成支付,订单已自动取消',
+        body: '未在30分钟内完成支付,订单已自动取消,需求已重新开放',
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
@@ -559,6 +567,53 @@ exports.main = async (event, context) => {
     }
   } catch (e) { log.d(`s5 scan fail: ${e.message}`); }
 
+  // ───────── 4.5 S8 售后窗口届满 → S10 归档(Wave2 止血④): 给 S10 唯一合法生产方 ─────────
+  try {
+    const aCut = now - afterSaleDays * 24 * 3600 * 1000;
+    const s8s = (await col('order_main').where({ status: 'S8' }).limit(BATCH).get()).data || [];
+    const s8OK = [];
+    await Promise.allSettled(s8s.map(async (o) => {
+      const anchor = o.evaluated_at || o.updated_at || 0;
+      if (!anchor || anchor >= aCut) return;
+      // 争议/申诉冻结中的单不归档(解冻回主轴后再走)
+      if (o.frozen === true || (o.dispute_state && o.dispute_state !== 'none')) return;
+      // fund 合并: 保留已有字段, 仅标记结算完成(settle_state=done)
+      const fund = Object.assign(
+        { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'done', settled_at: now },
+        o.fund || {}, { settle_state: 'done', settled_at: now }
+      );
+      const won = await casStatus(o._id, 'S8', { status: 'S10', archived_at: now, fund, updated_at: now });
+      if (!won) { out.skipped.push(o.order_no + ':S8竞态'); return; }
+      s8OK.push(o);
+    }));
+    await Promise.allSettled(s8OK.map(o => logStatus(o._id, 'S8', 'S10', 'after_sale_expire', 'system')));
+    s8OK.forEach(o => { out.s8_archive.push(o.order_no); log.d(`archive S8→S10: ${o.order_no}`); });
+  } catch (e) { log.d(`s8 scan fail: ${e.message}`); }
+
+  // ───────── 4.6 S4 部分完成裁定期届满 → 平台介入工单(Wave2 止血③): 防双方僵持永久滞留 ─────────
+  try {
+    const pCut = now - partialJudgeDays * 24 * 3600 * 1000;
+    const s4s = (await col('order_main').where({ status: 'S4' }).limit(BATCH).get()).data || [];
+    await Promise.allSettled(s4s.map(async (o) => {
+      const anchor = o.updated_at || 0;
+      if (!anchor || anchor >= pCut) return;
+      if (o.s4_escalated_at) return;   // 已升级过, 防重复轰炸
+      const upd = await col('order_main').where({ _id: o._id, status: 'S4' }).update({
+        data: { s4_escalated_at: now, updated_at: now }
+      });
+      if (!upd.stats || upd.stats.updated !== 1) return;
+      try {
+        await col('platform_event').add({ data: {
+          level: 'P1', type: 's4_stale_escalate', openid: o.user_openid || '',
+          payload: { order_id: o._id, order_no: o.order_no, judge_days: partialJudgeDays },
+          created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) { log.d(`s4 escalate event fail: ${e.message}`); }
+      out.s4_escalate.push(o.order_no);
+      log.d(`escalate S4 stale: ${o.order_no}`);
+    }));
+  } catch (e) { log.d(`s4 scan fail: ${e.message}`); }
+
   // ───────── 5. error_scan 巡检(D7) ─────────
   let errorScanResult = null;
   try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
@@ -581,13 +636,15 @@ exports.main = async (event, context) => {
       error_scan: errorScanResult,
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
       modify_auto_reject: out.modify_auto_reject,
       milestone_auto_confirm: out.milestone_auto_confirm,
       auto_eval: out.auto_eval,
+      s8_archive: out.s8_archive,
+      s4_escalate: out.s4_escalate,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
@@ -595,7 +652,9 @@ exports.main = async (event, context) => {
         interrupt_partial: out.interrupt_partial.length,
         modify_auto_reject: out.modify_auto_reject.length,
         milestone_auto_confirm: out.milestone_auto_confirm.length,
-        auto_eval: out.auto_eval.length
+        auto_eval: out.auto_eval.length,
+        s8_archive: out.s8_archive.length,
+        s4_escalate: out.s4_escalate.length
       }
     }
   };

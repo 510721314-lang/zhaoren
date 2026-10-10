@@ -255,6 +255,24 @@ exports.main = async (event, context) => {
         help_flag: true, help_at: now, updated_at: now
       }});
 
+      // Wave2 止血②(PRD 3408): 安全报备触发即中断 —— 履约中(S3)订单联动写入 S3.5
+      // (此前 S3.5 全仓无生产方, resume/partial/24h 兜底/申诉资格四条链全不可达)。
+      // 仅 CAS 命中才写状态流水; 全程静默降级, 不阻断求助主流程(安全优先)。
+      if (order && order.status === 'S3') {
+        try {
+          const s35 = await col('order_main').where({ _id: order_id, status: 'S3' }).update({
+            data: { status: 'S3.5', interrupted_at: now, interrupted_by: openid, updated_at: now }
+          });
+          if (s35 && s35.stats && s35.stats.updated === 1) {
+            await col('order_status_log').add({ data: {
+              order_id, from_status: 'S3', to_status: 'S3.5',
+              action: 'sos_interrupt', operator: openid,
+              created_at: now, updated_at: now, is_deleted: false
+            }});
+          }
+        } catch (e) { log.d(`sos S3.5 write fail: ${e.message}`); }
+      }
+
       await logEvent('P0', 'safety_sos', openid, {
         order_id, order_no: order.order_no, role, sub_type: subType, location, note
       });
