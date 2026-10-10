@@ -303,6 +303,28 @@ Page({
     });
   },
 
+  // 撤回投诉(2026-10-10): 入口仅投诉发起人、平台受理前可见(can_withdraw_complaint 由服务端计算);
+  // 撤回后订单回退到投诉前状态, 页面「争议处理中/售后处理中」随之消失
+  onComplaintWithdraw() {
+    wx.showModal({
+      title: '撤回投诉',
+      content: '撤回后平台不再介入，订单将恢复到投诉前的状态',
+      confirmText: '确认撤回',
+      confirmColor: '#fa5151',
+      success: (r) => {
+        if (!r.confirm) return;
+        callCloud('order-action', { action: 'complaint_withdraw', order_id: this.__orderId }).then((res) => {
+          if (!res || !res.ok) {
+            wx.showToast({ title: (res && res.msg) || '撤回失败，请重试', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: '投诉已撤回', icon: 'success' });
+          this.reload();
+        }).catch(() => wx.showToast({ title: '网络异常，请重试', icon: 'none' }));
+      }
+    });
+  },
+
   reload() { this.fetchData(this.__lastOptions || {}); },
 
   onShow() {
@@ -365,6 +387,7 @@ Page({
       order_no: d.order_no,
       status: normalizeStatus(d.status),
       my_role: d.role || '',
+      can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
       modify_count: d.modify_count || 0,
       pending_modify: pendingModify,
       pending_extend: pendingExtend,

@@ -263,6 +263,7 @@
       <block wx:elif="{{order.status === 'S10_5'}}">
         <view class="od__terminated-tip">{{statusInfo.name}}</view>
         <view class="od__after-sale-tip">{{statusInfo.timeoutText}}</view>
+        <button class="od__btn od__btn--ghost" wx:if="{{order.can_withdraw_complaint}}" bindtap="onComplaintWithdraw" hover-class="btn-press">撤回投诉</button>
       </block>
 
       <!-- S6/S7/S9/S10 已终止态（PRD 3.5.2 nextActions 为空） -->

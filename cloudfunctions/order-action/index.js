@@ -1,15 +1,16 @@
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
-// 27 个 action: get_confirmation / update_item / confirm_item / confirm_all /
+// 28 个 action: get_confirmation / update_item / confirm_item / confirm_all /
 //              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
 //              modify / modify_confirm / modify_reject /
 //              extend / extend_confirm / extend_reject /
-//              resume_service / partial_confirm / ratio_confirm / complaint /
+//              resume_service / partial_confirm / ratio_confirm / complaint / complaint_withdraw /
 //              no_show_report_submit / no_show_report_defense / no_show_report_withdraw / no_show_report_detail /
 //              detail / my_orders / my_counts / nudge_partner
 // 爽约申诉(第三批 3B): 用户/耍伴提交申诉 → 被诉方举证 → 管理员裁定(admin-action no_show_decide);
 //   订单状态机不因申诉改变; 数值全部后台可配(no_show_* 9 键), 规则纯函数见 ./no_show_rules
 //   撤回申诉(2026-10-10, N8 由「一期不做」变更为「做」): 仅申诉人本人、裁定前可撤, 撤回占 N6 配额
+// 撤回投诉(2026-10-10): 仅投诉发起人、平台受理前(订单仍 S10.5)可撤, 撤回后订单回退投诉前状态(S5/S8/S9)
 // 四确认 SSOT:时间/地点/内容/费用四项,用户与耍伴双方各确认一次共 8 位;
 //   8 位全完成 → S1→S0(待支付,30 分钟支付时限);任一方修改任一项 → 8 位全部重置。
 const cloud = require('wx-server-sdk');
@@ -238,7 +239,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'nudge_partner', 'no_show_report_submit', 'no_show_report_detail'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'no_show_report_submit', 'no_show_report_detail'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };
@@ -1360,6 +1361,9 @@ exports.main = async (event, context) => {
       complaint_at: now,
       complaint_by: openid,
       complaint_reason: reason || '',
+      complaint_from_status: fromStatus,          // 撤回投诉时回退用(2026-10-10); 回退目标仅 S5/S8/S9
+      complaint_withdrawn_at: 0,                  // 重新发起时清掉上一次的撤回痕迹
+      complaint_withdrawn_by: '',
       updated_at: now
     });
     if (!won) {
@@ -1397,6 +1401,66 @@ exports.main = async (event, context) => {
     });
     await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complaint_open', target_type: 'order', target_id: order_id, detail: { from_status: fromStatus, status: 'S10.5', reason_type: String(reason || '').slice(0, 20) }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S10.5' } };
+  }
+
+  // 撤回投诉(2026-10-10): 仅发起人本人, 且平台未受理前(订单仍 S10.5)可撤;
+  // 撤回后订单回退到投诉前状态(complaint_from_status; 存量单从 order_status_log 回查), 管理端纠纷待办随之消失;
+  // 注意: 不动 help_flag(SOS 紧急求助与之共用该字段, 一刀切清零会误清 SOS)
+  if (action === 'complaint_withdraw') {
+    const order = await getOrder(order_id);
+    if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+    const role = roleOf(order, openid);
+    if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+    if (order.status !== 'S10.5') {
+      // 幂等: 本人已撤过
+      if (order.complaint_withdrawn_by === openid) return { ok: true, data: { status: order.status || '', idempotent: true } };
+      return { ok: false, code: 'oa_complaint_not_open', msg: '当前订单不在争议处理中, 不可撤回' };
+    }
+    if (order.complaint_by !== openid) return { ok: false, code: 'oa_not_complaint_owner', msg: '仅投诉发起人可撤回' };
+    // 回退目标: 优先发起时记录的 complaint_from_status; 存量单回查 order_status_log(最近一次 →S10.5 的 from_status)
+    let restore = order.complaint_from_status || '';
+    if (!restore) {
+      try {
+        const lg = await col('order_status_log').where({ order_id, to_status: 'S10.5' })
+          .orderBy('created_at', 'desc').limit(1).get();
+        restore = (lg.data && lg.data[0] && lg.data[0].from_status) || '';
+      } catch (e) { restore = ''; }
+    }
+    if (!['S5', 'S8', 'S9'].includes(restore)) {
+      return { ok: false, code: 'oa_complaint_no_restore', msg: '该投诉不支持自助撤回, 请联系客服' };
+    }
+    const now = Date.now();
+    const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+    const device = String(event.device || '').slice(0, 200);
+    // CAS: 仅当订单仍为 S10.5 时回退(与客服处置并发互斥)
+    const won = await casStatus(order_id, 'S10.5', {
+      status: restore, complaint_withdrawn_at: now, complaint_withdrawn_by: openid, updated_at: now
+    });
+    if (!won) {
+      const latest = await getOrder(order_id);
+      if (latest && latest.complaint_withdrawn_by === openid) return { ok: true, data: { status: latest.status || '', idempotent: true } };
+      return { ok: false, code: 'oa_complaint_handled', msg: '平台已受理该投诉, 不可撤回' };
+    }
+    await logStatus(order_id, 'S10.5', restore, 'complaint_withdraw', openid);
+    // complaint 集合标记(仲裁跟踪用; 失败不阻断)
+    try {
+      const c = await col('complaint').where({ order_id, initiator_openid: openid, is_deleted: _.neq(true) })
+        .orderBy('created_at', 'desc').limit(1).get();
+      if (c.data && c.data[0]) {
+        await col('complaint').doc(c.data[0]._id).update({ data: { status: 'withdrawn', withdrawn_at: now, updated_at: now } });
+      }
+    } catch (e) { log.d(`complaint withdraw mark fail: ${e.message}`); }
+    log.d(`complaint withdrawn: ${order.order_no} S10.5→${restore} by=${role}`);
+    // 通知对端(复用 type='complaint' 覆盖原未读, 避免出现「已发起+已撤回」两条)
+    writeNotice({
+      to_openid: role === 'user' ? order.partner_openid : order.user_openid,
+      order_id, type: 'complaint',
+      title: '对方已撤回投诉',
+      body: '该投诉已撤回, 平台不再介入',
+      action_key: 'jump_order', action_payload: { order_id }
+    });
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complaint_withdraw', target_type: 'order', target_id: order_id, detail: { from_status: 'S10.5', to_status: restore }, result: 'ok', client_ip: clientIp, device });
+    return { ok: true, data: { status: restore } };
   }
 
   // ───────── 订单详情(全字段 + 四确认状态 + 评价, 仅参与方可读) ─────────
@@ -1512,6 +1576,8 @@ exports.main = async (event, context) => {
         modify_count: Number(order.modify_count) || 0,
         pending_modify: order.pending_modify || null,
         pending_extend: order.pending_extend || null,
+        // 撤回投诉入口(仅发起人、且平台未受理=订单仍 S10.5 时可见); SOS 的 help_flag 与本流程无关, 不复用
+        can_withdraw_complaint: order.status === 'S10.5' && order.complaint_by === openid,
         order_summary: buildOrderSummary(order)
       }
     };
