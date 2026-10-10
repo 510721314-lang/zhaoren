@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>履约域（付款后）业务逻辑与流程设计方案 · 项目研发文档</title>
+<style>
+:root{
+  color-scheme:light;
+  --surface:#F7F7F8;--surface-muted:#EFEFF2;
+  --text:#171717;--text-muted:#52525B;--border:rgba(23,23,23,.12);
+  --brand:#0FDC78;--brand-soft:#E5FFF2;--brand-text:#004D26;
+  --warning:#EFAA17;--warning-soft:#FDF4E3;
+  --danger:#E8463A;--danger-soft:#FDEBE9;
+  --font-sans:"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:0 16px 64px;font:400 15px/1.75 var(--font-sans);color:var(--text);background:#fff}
+.page{max-width:960px;margin:0 auto}
+header.cover{padding:48px 0 24px;border-bottom:3px solid var(--brand)}
+header.cover .eyebrow{color:var(--brand-text);font-weight:600;letter-spacing:.12em;font-size:13px;margin:0 0 8px}
+header.cover h1{font-size:28px;line-height:1.35;margin:0 0 12px}
+header.cover .meta{color:var(--text-muted);font-size:13px;margin:4px 0}
+nav.toc{padding:16px 0;border-bottom:1px solid var(--border);font-size:14px}
+nav.toc a{color:var(--brand-text);text-decoration:none;margin-right:18px;white-space:nowrap}
+nav.toc a:hover{text-decoration:underline}
+section{padding:36px 0 8px}
+h2{font-size:21px;margin:0 0 16px;padding-left:12px;border-left:4px solid var(--brand)}
+h3{font-size:17px;margin:28px 0 10px}
+h4{font-size:15px;margin:22px 0 8px}
+p{margin:8px 0}
+ul,ol{padding-left:22px;margin:8px 0}
+li{margin:4px 0}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;line-height:1.6}
+th{background:var(--surface-muted);text-align:left;font-weight:600}
+th,td{border:1px solid var(--border);padding:8px 10px;vertical-align:top}
+tr:nth-child(even) td{background:var(--surface)}
+code{font-family:Consolas,Menlo,monospace;font-size:13px;background:var(--surface-muted);padding:1px 5px;border-radius:4px}
+blockquote{margin:14px 0;padding:10px 16px;border-left:4px solid var(--brand);background:var(--brand-soft);border-radius:0 8px 8px 0;font-size:14px}
+.badge{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.b-p1{background:#FDF4E3;color:#8A5A00;border:1px solid #EFAA17}
+.b-p2{background:#E5FFF2;color:#004D26;border:1px solid #0FDC78}
+.b-p3{background:var(--surface-muted);color:var(--text-muted);border:1px solid var(--border)}
+.b-bug{background:#FDEBE9;color:#A32017;border:1px solid #E8463A}
+.b-debt{background:var(--surface-muted);color:#52525B;border:1px solid var(--border)}
+.b-ok{background:#E5FFF2;color:#004D26;border:1px solid #0FDC78}
+.fig{margin:20px 0;padding:16px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.fig svg{width:100%;height:auto;display:block}
+.fig .figcap{font-size:12.5px;color:var(--text-muted);text-align:center;margin-top:10px}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.6}
+footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--border);color:var(--text-muted);font-size:13px}
+.n-main{fill:var(--brand-soft);stroke:var(--brand);stroke-width:1.5}
+.n-end{fill:var(--surface-muted);stroke:var(--text-muted);stroke-width:1.1}
+.n-warn{fill:var(--warning-soft);stroke:var(--warning);stroke-width:1.5}
+.n-dan{fill:var(--danger-soft);stroke:var(--danger);stroke-width:1.5}
+.n{fill:var(--surface-muted);stroke:var(--border);stroke-width:1.2}
+.panel{fill:var(--surface);stroke:var(--border);stroke-width:1}
+.t{font:600 13px var(--font-sans);fill:var(--text)}
+.ts{font:400 10.5px var(--font-sans);fill:var(--text-muted)}
+.lb{font:400 11px var(--font-sans);fill:var(--text-muted)}
+.pt{font:600 14px var(--font-sans);fill:var(--text)}
+.e{stroke:var(--text-muted);stroke-width:1.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.eb{stroke:var(--brand);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ed{stroke-dasharray:5 4}
+@media print{body{padding:0}nav.toc{display:none}section{page-break-inside:auto}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="cover">
+  <p class="eyebrow">项目研发文档 · 供评审 · 未实施</p>
+  <h1>履约域（付款后）业务逻辑与流程设计方案</h1>
+  <p class="meta">版本 v1.1（业务实际逐项复核后修订）· 2026-10-10 · 基线 commit <code>276b946</code></p>
+  <p class="meta">范围：需求发布/接单撮合之后、订单进入履约期的全部业务情形（四确认 → 支付 → 履约 → 完成 → 评价 → 结算 → 售后）</p>
+  <p class="meta">依据：全部结论来自代码实证，行号以基线 <code>276b946</code> 为准；配套源文档 <code>docs/履约域业务逻辑与流程设计方案.md</code></p>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1 一页结论</a>
+  <a href="#s2">2 现状诊断摘要</a>
+  <a href="#s3">3 目标状态机</a>
+  <a href="#s4">4 节点规则速查</a>
+  <a href="#s5">5 资金与结算</a>
+  <a href="#s6">6 界面与菜单设计</a>
+  <a href="#s7">7 S2 协商取消链</a>
+  <a href="#s8">8 履约催办</a>
+  <a href="#s9">9 分期落地</a>
+  <a href="#s10">10 横向保障规则</a>
+</nav>
+
+<main>
+
+<!-- ================= 1 ================= -->
+<section id="s1">
+<h2>1. 一页结论</h2>
+
+<h3>1.1 现状三个结构性病灶（15 条诊断，完整版见源文档 §2）</h3>
+<ol>
+  <li><strong>状态机是“补丁演化”产物</strong>：13 个状态中 <code>S3.5 履约中断</code> 和 <code>S10 已关闭</code> 是<strong>孤儿状态</strong>（全仓无任何代码写入，但各自挂着 3~4 个消费者死守）；S8/S9 双轨评价、S2_5/S3.5/S10.5 编码风格不一——本质是把「履约进度、评价方式、争议、资金」四个维度压进了一个 <code>status</code> 字段。</li>
+  <li><strong>资金动作缺乏一致的规则面</strong>：退款能力与 PRD 梯度退款设计背离（前端无入口、云函数层却放行 S2/S3 全额自助退）；部分退款即终态（退 ¥10，80 元单直接关闭）；<code>ratio_fen</code> 比例确认落库但<strong>结算完全不消费</strong>（部分完成按 100% 结算，违背 PRD「部分完成按比例结算」）；加时费“确认即负债”无二次支付。</li>
+  <li><strong>“等待”没有守夜人</strong>：S2 待履约、S4 部分完成两个状态<strong>无任何超时兜底</strong>（前端却宣称 S4 有“裁定期”）；爽约申诉与订单状态完全解耦且不联动资金救济。</li>
+</ol>
+
+<h3>1.2 目标设计五个原则</h3>
+<ol>
+  <li>主状态只表达<strong>履约进度轴</strong>，争议/评价/资金/冻结用正交字段；</li>
+  <li>每个“等待中的动作”必有<strong>超时兜底</strong>（timer 全覆盖）；</li>
+  <li>每笔资金动作必有三件套：<strong>流水 + 订单字段 + 双方通知</strong>；</li>
+  <li>用户自助操作<strong>不得直接触发资金流出</strong>（退款必经对方确认或平台裁决）；</li>
+  <li>状态迁移唯一入口 <code>casTransition</code>（from × event → to 表驱动，全量单测）。</li>
+</ol>
+
+<blockquote><strong>分期路线一句话</strong>：提审前零行为改动；提审后 P1 批止血（补超时兜底/孤儿状态/冻结位），P2 批资金安全（退款收敛/比例结算/加时补付），P3 批结构重构（正交位 + 迁移表驱动）。</blockquote>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="s2">
+<h2>2. 现状诊断摘要</h2>
+
+<p>15 条诊断按性质分级：<span class="badge b-bug">Bug</span>＝违背 PRD 或自证意图的缺陷（6 条）；<span class="badge b-debt">设计债务</span>＝规则面缺失或口径不一（9 条）。关键条目：</p>
+
+<table>
+<tr><th>#</th><th>诊断</th><th>性质</th><th>处置批次</th></tr>
+<tr><td>D5</td><td>S3.5 孤儿状态：PRD 3408 设计安全报备触发进入 S3.5，<code>safety-report:255</code> 只写 help_flag 漏写 status，resume/partial/24h 兜底/爽约申诉资格四条消费链全部不可达</td><td><span class="badge b-bug">Bug</span></td><td><span class="badge b-p1">P1</span></td></tr>
+<tr><td>D9</td><td>S10 孤儿状态：全仓无写方；admin dispute open 分支（S10→S10.5）永不可用</td><td><span class="badge b-bug">Bug</span></td><td><span class="badge b-p1">P1</span></td></tr>
+<tr><td>D3</td><td>S0 超时 → S6 但<strong>不释放 demand</strong>，需求被单据尸体占坑</td><td><span class="badge b-bug">Bug</span></td><td><span class="badge b-p1">P1</span></td></tr>
+<tr><td>D2</td><td>结算基数不消费 <code>ratio_fen</code>：部分完成按 100% 结算，违背 PRD 3235 分段口径（≥50% 按比例 / &lt;50% 到场补偿）</td><td><span class="badge b-bug">Bug</span></td><td><span class="badge b-p2">P2</span></td></tr>
+<tr><td>D7</td><td>部分退款即终态：退部分金额订单直接 S7 关闭，应回主轴冲减结算基数</td><td><span class="badge b-bug">Bug</span></td><td><span class="badge b-p2">P2</span></td></tr>
+<tr><td>D1</td><td>退款能力敞口：<code>mock_refund</code> 云函数放行 S2/S3 用户全额自助退（前端无入口），与 PRD 梯度退款背离</td><td><span class="badge b-debt">设计债务</span></td><td><span class="badge b-p2">P2</span></td></tr>
+<tr><td>D6</td><td>admin <code>STATUS_LABEL</code> 与前端 enums 语义冲突：S3.5 两端完全相反（‘履约完成’ vs ‘履约中断’），S8/S9 亦有出入</td><td><span class="badge b-bug">Bug</span></td><td><span class="badge b-p1">P0'/P1</span></td></tr>
+<tr><td>D10</td><td>重复评价幂等短路不报错（返回 ok 不转 S8），48h 后 timer backfill 自愈——已复核降级为低危</td><td><span class="badge b-debt">设计债务</span></td><td><span class="badge b-p1">P1</span></td></tr>
+<tr><td>D12</td><td>爽约申诉不联动订单冻结，申诉期间仍可 start/complete</td><td><span class="badge b-debt">设计债务</span></td><td><span class="badge b-p1">P1</span></td></tr>
+<tr><td>D8/D11/D13/D14/D15</td><td>其余：争议 complete 固定回 S5 忽略 from_status、加时费确认即负债、状态编码风格不一、结算口径散落 3 处硬编码等（详见源文档 §2）</td><td><span class="badge b-debt">设计债务</span></td><td><span class="badge b-p3">P3</span></td></tr>
+</table>
+</section>
+
+<!-- ================= 3 ================= -->
+<section id="s3">
+<h2>3. 目标状态机</h2>
+
+<h3>3.1 主轴状态机（黄金路径 + 异常分支）</h3>
+<div class="fig">
+<svg viewBox="0 0 720 884" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="订单履约主轴状态机（垂直版）">
+<defs>
+<marker id="am" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--text-muted)"/></marker>
+<marker id="ab" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--brand)"/></marker>
+</defs>
+<text x="360" y="30" text-anchor="middle" style="font:600 15px var(--font-sans);fill:var(--text)">订单履约主轴 · 状态机（垂直版）</text>
+<line x1="200" y1="56" x2="232" y2="56" class="eb"/><text x="238" y="60" class="lb">黄金路径</text>
+<line x1="308" y1="56" x2="340" y2="56" class="e"/><text x="346" y="60" class="lb">异常分支</text>
+<line x1="430" y1="56" x2="462" y2="56" class="e ed"/><text x="468" y="60" class="lb">可协商/可恢复</text>
+<path d="M360,140 L360,202" class="eb" marker-end="url(#ab)"/><text x="368" y="174" class="lb">八位四确认</text>
+<path d="M360,260 L360,322" class="eb" marker-end="url(#ab)"/><text x="368" y="294" class="lb">支付成功</text>
+<path d="M360,380 L360,442" class="eb" marker-end="url(#ab)"/><text x="368" y="414" class="lb">开始履约</text>
+<path d="M360,500 L360,562" class="eb" marker-end="url(#ab)"/><text x="368" y="534" class="lb">里程碑100%</text>
+<path d="M360,620 L360,682" class="eb" marker-end="url(#ab)"/><text x="368" y="654" class="lb">评价 / 48h默认</text>
+<path d="M360,740 L360,802" class="eb" marker-end="url(#ab)"/><text x="368" y="774" class="lb">窗口届满</text>
+<path d="M260,112 L150,112 L150,209" class="e" marker-end="url(#am)"/><text x="205" y="104" text-anchor="middle" class="lb">超时·取消</text>
+<path d="M260,236 L191,236" class="e" marker-end="url(#am)"/><text x="225" y="228" text-anchor="middle" class="lb">超时30min</text>
+<path d="M260,352 L115,352 L115,369" class="e" marker-end="url(#am)"/><text x="187" y="344" text-anchor="middle" class="lb">协商取消</text>
+<path d="M260,472 L115,472 L115,423" class="e" marker-end="url(#am)"/><text x="187" y="464" text-anchor="middle" class="lb">争议全退</text>
+<path d="M460,350 L527,350" class="e" marker-end="url(#am)" marker-start="url(#am)"/><text x="493" y="341" text-anchor="middle" class="lb">申请/确认</text>
+<path d="M460,460 L527,460" class="e" marker-end="url(#am)"/><text x="493" y="451" text-anchor="middle" class="lb">中断·SOS</text>
+<path d="M527,476 L460,476" class="e ed" marker-end="url(#am)"/><text x="493" y="491" text-anchor="middle" class="lb">恢复</text>
+<path d="M605,484 L605,543" class="e" marker-end="url(#am)"/><text x="613" y="517" class="lb">24h超时/转部分</text>
+<path d="M530,570 C498,570 492,586 461,590" class="eb" marker-end="url(#ab)"/><text x="504" y="560" text-anchor="middle" class="lb">比例确认</text>
+<path d="M460,612 L560,612 L560,651" class="e" marker-end="url(#am)"/><text x="510" y="604" text-anchor="middle" class="lb">发起投诉</text>
+<path d="M460,712 L700,712 L700,678 L681,678" class="e" marker-end="url(#am)"/><text x="580" y="726" text-anchor="middle" class="lb">S5/S8均可发起</text>
+<rect x="260" y="84" width="200" height="56" rx="10" class="n-main"/><text x="360" y="110" text-anchor="middle" class="t">S1 · 待确认</text><text x="360" y="128" text-anchor="middle" class="ts">超时15min → S6</text>
+<rect x="260" y="204" width="200" height="56" rx="10" class="n-main"/><text x="360" y="230" text-anchor="middle" class="t">S0 · 待支付</text><text x="360" y="248" text-anchor="middle" class="ts">超时30min → S6</text>
+<rect x="260" y="324" width="200" height="56" rx="10" class="n-main"/><text x="360" y="350" text-anchor="middle" class="t">S2 · 待开始</text><text x="360" y="368" text-anchor="middle" class="ts">start_time 履约催办</text>
+<rect x="260" y="444" width="200" height="56" rx="10" class="n-main"/><text x="360" y="470" text-anchor="middle" class="t">S3 · 履约中</text><text x="360" y="488" text-anchor="middle" class="ts">里程碑 30 / 60 / 100</text>
+<rect x="260" y="564" width="200" height="56" rx="10" class="n-main"/><text x="360" y="590" text-anchor="middle" class="t">S5 · 待验收</text><text x="360" y="608" text-anchor="middle" class="ts">48h默认4星</text>
+<rect x="260" y="684" width="200" height="56" rx="10" class="n-main"/><text x="360" y="710" text-anchor="middle" class="t">S8 · 售后窗口</text><text x="360" y="728" text-anchor="middle" class="ts">届满 → 归档</text>
+<rect x="260" y="804" width="200" height="56" rx="10" class="n-main"/><text x="360" y="830" text-anchor="middle" class="t">S10 · 已归档</text><text x="360" y="848" text-anchor="middle" class="ts">∗ 终态 · 完结</text>
+<rect x="40" y="212" width="150" height="48" rx="9" class="n-end"/><text x="115" y="236" text-anchor="middle" class="t">S6 · 已取消</text><text x="115" y="253" text-anchor="middle" class="ts">∗ 终态 · 释放需求</text>
+<rect x="40" y="372" width="150" height="48" rx="9" class="n-end"/><text x="115" y="396" text-anchor="middle" class="t">S7 · 已退款</text><text x="115" y="413" text-anchor="middle" class="ts">∗ 终态 · 全额退款</text>
+<rect x="530" y="326" width="150" height="48" rx="9" class="n-end"/><text x="605" y="350" text-anchor="middle" class="t">S2_5 · 改期中</text><text x="605" y="367" text-anchor="middle" class="ts">确认/超时自动拒绝</text>
+<rect x="530" y="436" width="150" height="48" rx="9" class="n-end"/><text x="605" y="460" text-anchor="middle" class="t">S3_5 · 已中断</text><text x="605" y="477" text-anchor="middle" class="ts">24h超时 → S4</text>
+<rect x="530" y="546" width="150" height="48" rx="9" class="n-end"/><text x="605" y="570" text-anchor="middle" class="t">S4 · 部分完成</text><text x="605" y="587" text-anchor="middle" class="ts">待比例确认</text>
+<rect x="530" y="654" width="150" height="48" rx="9" class="n-warn"/><text x="605" y="678" text-anchor="middle" class="t">S10_5 · 争议中</text><text x="605" y="695" text-anchor="middle" class="ts">冻结 · 三出口裁决</text>
+</svg>
+<p class="figcap">图 1 · 订单履约主轴状态机：黄金路径自上而下贯通；取消/退款终态居左，改期/中断/部分/争议居右；虚线为可协商/可恢复路径</p>
+</div>
+
+<h3>3.2 异常分支处理</h3>
+<div class="fig">
+<svg viewBox="0 0 720 988" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="订单异常分支处理（垂直版）">
+<defs>
+<marker id="am2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--text-muted)"/></marker>
+<marker id="ab2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--brand)"/></marker>
+</defs>
+<text x="360" y="30" text-anchor="middle" style="font:600 15px var(--font-sans);fill:var(--text)">异常分支处理（垂直版）</text>
+<rect x="30" y="56" width="660" height="434" rx="12" class="panel"/>
+<text x="60" y="90" class="pt">① 中断与部分完成 · 分段结算</text>
+<path d="M200,172 L200,231" class="e" marker-end="url(#am2)"/><text x="208" y="205" class="lb">中断申报 / SOS报备</text>
+<path d="M200,282 L200,341" class="e" marker-end="url(#am2)"/><text x="208" y="315" class="lb">24h超时 / 协商转部分</text>
+<path d="M280,262 L345,262 L345,148 L283,148" class="e ed" marker-end="url(#am2)"/><text x="353" y="209" class="lb">恢复履约</text>
+<path d="M280,368 L520,368 L520,395" class="eb" marker-end="url(#ab2)"/><text x="400" y="360" text-anchor="middle" class="lb">双方比例确认 · 分段结算</text>
+<text x="520" y="466" text-anchor="middle" class="lb">结算：≥50% 按比例 · &lt;50% 到场补偿 10-20%</text>
+<rect x="120" y="124" width="160" height="48" rx="9" class="n"/><text x="200" y="147" text-anchor="middle" class="t">S3 · 履约中</text><text x="200" y="164" text-anchor="middle" class="ts">里程碑 30/60/100</text>
+<rect x="120" y="234" width="160" height="48" rx="9" class="n"/><text x="200" y="257" text-anchor="middle" class="t">S3_5 · 已中断</text><text x="200" y="274" text-anchor="middle" class="ts">协商 · 恢复或转部分</text>
+<rect x="120" y="344" width="160" height="48" rx="9" class="n"/><text x="200" y="367" text-anchor="middle" class="t">S4 · 部分完成</text><text x="200" y="384" text-anchor="middle" class="ts">待比例确认</text>
+<rect x="420" y="398" width="200" height="48" rx="9" class="n-main"/><text x="520" y="421" text-anchor="middle" class="t">S5 · 待验收</text><text x="520" y="438" text-anchor="middle" class="ts">重回主轴</text>
+<rect x="30" y="510" width="660" height="462" rx="12" class="panel"/>
+<text x="60" y="544" class="pt">② 争议冻结 · 三出口</text>
+<path d="M190,626 L190,685" class="e" marker-end="url(#am2)"/><text x="198" y="658" class="lb">订单冻结</text>
+<path d="M300,700 L370,700 L370,612 L416,612" class="e" marker-end="url(#am2)"/><text x="378" y="659" class="lb">裁决·继续</text>
+<path d="M300,712 L416,712" class="e" marker-end="url(#am2)"/>
+<path d="M300,724 L370,724 L370,812 L416,812" class="e" marker-end="url(#am2)"/><text x="378" y="772" class="lb">裁决·全退</text>
+<rect x="80" y="578" width="220" height="48" rx="9" class="n"/><text x="190" y="601" text-anchor="middle" class="t">发起投诉</text><text x="190" y="618" text-anchor="middle" class="ts">S5/S8 订单 · 双方均可</text>
+<rect x="80" y="688" width="220" height="48" rx="9" class="n-warn"/><text x="190" y="711" text-anchor="middle" class="t">S10_5 · 争议中</text><text x="190" y="728" text-anchor="middle" class="ts">冻结待裁决</text>
+<rect x="420" y="588" width="240" height="48" rx="9" class="n"/><text x="540" y="611" text-anchor="middle" class="t">① 继续履约</text><text x="540" y="628" text-anchor="middle" class="ts">解冻 · 回 from_status</text>
+<rect x="420" y="688" width="240" height="48" rx="9" class="n"/><text x="540" y="711" text-anchor="middle" class="t">② 部分退款</text><text x="540" y="728" text-anchor="middle" class="ts">回主轴 · 冲减结算基数</text>
+<rect x="420" y="788" width="240" height="48" rx="9" class="n-dan"/><text x="540" y="811" text-anchor="middle" class="t">③ 全额退款 S7</text><text x="540" y="828" text-anchor="middle" class="ts">∗ 终态</text>
+<rect x="80" y="866" width="580" height="86" rx="10" fill="var(--surface-muted)" stroke="var(--border)"/>
+<text x="370" y="894" text-anchor="middle" style="font:600 12px var(--font-sans);fill:var(--text)">爽约申诉 · 同一冻结机制</text>
+<text x="370" y="918" text-anchor="middle" class="lb">S2/S3.5 可申诉 · 对方48h举证 · 申诉人可随时撤回</text>
+<text x="370" y="938" text-anchor="middle" class="lb">成立：扣信用分20分/次 · 满3次停用7天 · 订单额10%赔付退款</text>
+</svg>
+<p class="figcap">图 2 · 异常分支：面板一为中断协商链（分段结算口径），面板二为争议冻结三出口与爽约申诉共用冻结机制</p>
+</div>
+
+<h3>3.3 主要状态迁移表（目标态）</h3>
+<table>
+<tr><th>From</th><th>Event</th><th>To</th><th>守夜人 / 备注</th></tr>
+<tr><td>S1</td><td>8 位四确认完成</td><td>S0</td><td>15min 超时 → S6（释放 demand）</td></tr>
+<tr><td>S1 / S0</td><td>取消 / 超时</td><td>S6</td><td>S1 双方可取消；S0 仅用户；均释放 demand <span class="badge b-p1">P1 补 S0 释放</span></td></tr>
+<tr><td>S0</td><td>支付成功</td><td>S2</td><td>锁定资金</td></tr>
+<tr><td>S2</td><td>任一方申请改期</td><td>S2_5</td><td>confirmHours 超时自动拒绝回 S2</td></tr>
+<tr><td>S2</td><td>start_service</td><td>S3</td><td>初始化里程碑 {0,[F,F,F]}</td></tr>
+<tr><td>S2</td><td>协商取消（对方确认）</td><td>S7</td><td>PRD 梯度退款 <span class="badge b-p2">P2</span></td></tr>
+<tr><td>S3</td><td>中断申报 / SOS 报备</td><td>S3.5</td><td>PRD 3408，safety 链补写 status <span class="badge b-p1">P1</span></td></tr>
+<tr><td>S3.5</td><td>resume_service</td><td>S3</td><td>已实现（当前不可达，随 P1 修复复活）</td></tr>
+<tr><td>S3.5</td><td>24h 超时 / 协商转部分</td><td>S4</td><td>已实现</td></tr>
+<tr><td>S3</td><td>complete_service（里程碑 100%）</td><td>S5</td><td>通知用户评价</td></tr>
+<tr><td>S4</td><td>双方比例确认</td><td>S5</td><td>写 ratio_fen，分段结算 <span class="badge b-p2">P2</span></td></tr>
+<tr><td>S5</td><td>用户评价 / 48h 默认</td><td>S8</td><td>默认 4 星 + 信用分聚合</td></tr>
+<tr><td>S5 / S8</td><td>发起投诉</td><td>S10.5</td><td>记 complaint_from_status 供回退</td></tr>
+<tr><td>S10.5</td><td>裁决继续履约</td><td>from_status</td><td>解冻回原状态 <span class="badge b-p1">P1</span>（现状固定回 S5）</td></tr>
+<tr><td>S10.5</td><td>裁决部分退款</td><td>回主轴</td><td>冲减结算基数，不进 S7 <span class="badge b-p2">P2</span></td></tr>
+<tr><td>S10.5 / S3</td><td>裁决全额退款</td><td>S7</td><td>已上线（金额可设）</td></tr>
+<tr><td>S8</td><td>售后窗口届满</td><td>S10</td><td>给 S10 生产方 <span class="badge b-p1">P1</span>（现状孤儿）</td></tr>
+<tr><td>S4</td><td>裁定期届满</td><td>平台介入工单</td><td><span class="badge b-p1">P1</span>（现状无守夜人）</td></tr>
+</table>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="s4">
+<h2>4. 节点业务逻辑与异常处理规则速查</h2>
+
+<blockquote>口径以目标态为准；与现状有差距处标注 <span class="badge b-p1">P1</span> / <span class="badge b-p2">P2</span>（对应 §9 分期批次）。</blockquote>
+
+<h3>4.1 主轴节点（黄金路径）</h3>
+
+<h4>S1 · 待确认</h4>
+<ul>
+<li>进入：耍伴接单（grab），订单与 demand 锁定。</li>
+<li>节点逻辑：双方对「时间/地点/内容/费用」四项各自确认，共 8 位；顺序不限，任一项变更需重新确认。</li>
+<li>正常出口：8 位全确认 → S0。</li>
+<li>异常与守夜人：15min 超时 → S6（释放 demand）；任一方取消 → S6（释放 demand）——均已实现。</li>
+</ul>
+
+<h4>S0 · 待支付</h4>
+<ul>
+<li>进入：八位四确认完成。</li>
+<li>节点逻辑：用户支付（现 mock_pay）；支付成功即锁定资金 → S2。</li>
+<li>异常与守夜人：30min 超时 → S6；仅用户可取消 → S6；支付失败停留 S0 可重试。</li>
+<li><span class="badge b-p1">P1</span>：现状 timer S0→S6 不释放 demand，需求被单据尸体占坑，需补「释放需求」动作。</li>
+</ul>
+
+<h4>S2 · 待开始</h4>
+<ul>
+<li>进入：支付成功。</li>
+<li>节点逻辑：等待约定 start_time；耍伴 start_service → S3；修改订单信息仅本状态允许，确认后重置 8 位确认。</li>
+<li>异常与守夜人：start_time 前协商取消 → PRD 梯度退款 → S7 <span class="badge b-p2">P2</span>（详见 §7）；到期未开始 → 履约催办 <span class="badge b-p1">P1</span>（详见 §8）；疑似爽约 → 爽约申诉（付款后即可）；任一方申请改期 → S2_5。</li>
+</ul>
+
+<h4>S5 · 待验收</h4>
+<ul>
+<li>进入：里程碑 100% 且耍伴 complete_service；或 S4 比例确认后转入。</li>
+<li>节点逻辑：用户评价；里程碑各段 15min 确认窗，超时自动全确认（已实现）。</li>
+<li>正常出口：评价 → S8；48h 未评价 → timer 默认 4 星 → S8（含信用分聚合）。</li>
+<li>异常处理：重复评价幂等短路（返回 ok 不转 S8），48h 后 timer backfill 自愈；S5 起双方可见「发起投诉」→ S10.5。</li>
+</ul>
+
+<h4>S8 · 售后窗口</h4>
+<ul>
+<li>进入：评价完成（settle ready，余额可提现）。</li>
+<li>节点逻辑：售后窗口监控期，双方仍可投诉。</li>
+<li>正常出口：窗口届满 → S10 归档。</li>
+<li><span class="badge b-p1">P1</span>：现状 S8 无届满守夜人，S10 全仓无写方（孤儿状态），需补 timer 规则。</li>
+<li>争议回退时：已有评价 → 回 S8 而非 S5（避免重复评价）<span class="badge b-p1">P1</span>。</li>
+</ul>
+
+<h4>S10 · 已归档（终态）</h4>
+<ul><li>订单完结，仅参与查询与结算统计（结算口径 = S8/S9/S10）。</li></ul>
+
+<h3>4.2 异常分支节点</h3>
+
+<h4>S2_5 · 改期中</h4>
+<ul>
+<li>进入：S2 状态任一方申请改期。</li>
+<li>节点逻辑：对方确认新时间；确认后时间项确认位重置。</li>
+<li>出口与守夜人：确认 → S2（新时间）；拒绝或 confirmHours（24h）超时 → 自动拒绝回 S2（已实现）。</li>
+</ul>
+
+<h4>S3_5 · 已中断</h4>
+<ul>
+<li>进入：履约中中断申报 / SOS 安全报备（PRD 3408）<span class="badge b-p1">P1</span>——现状 safety-report 只写 help_flag 不写 status，是漏实现。</li>
+<li>节点逻辑：双方协商「恢复」或「转部分完成」。</li>
+<li>出口与守夜人：resume → S3（已实现）；24h 超时 → S4（已实现）。</li>
+<li>本状态下仍可提交爽约申诉（S2/S3.5 是申诉资格窗口）。</li>
+</ul>
+
+<h4>S4 · 部分完成</h4>
+<ul>
+<li>进入：中断 24h 届满或双方协商转部分。</li>
+<li>节点逻辑：双方确认完成比例 ratio_fen → S5，按分段口径结算：≥50% 按比例 / &lt;50% 到场补偿 10-20%（可配）<span class="badge b-p2">P2</span>（现状 ratio_fen 落库但结算不消费）。</li>
+<li><span class="badge b-p1">P1</span>：现状 S4 无裁定期守夜人，双方僵持则永久滞留——需补「裁定期届满 → 平台介入工单」。</li>
+</ul>
+
+<h4>S10_5 · 争议中</h4>
+<ul>
+<li>进入：S5/S8 双方发起投诉（冻结，记 complaint_from_status 供回退）；设计上 S3 亦可进入。</li>
+<li>节点逻辑：订单冻结，管理端裁决，三出口：
+  <ol>
+    <li>继续履约：解冻回 from_status <span class="badge b-p1">P1</span>（现状 complete 固定回 S5，忽略原状态）；</li>
+    <li>部分退款：回主轴 + 冲减结算基数（金额可设已上线；不进 S7）<span class="badge b-p2">P2</span>（回主轴部分）；</li>
+    <li>全额退款：→ S7 终态（已上线）。</li>
+  </ol></li>
+<li>投诉可撤回：回 from_status，不动 help_flag（SOS 共用）。</li>
+<li>爽约申诉共用冻结机制：S2/S3.5 提交 → 对方 48h 举证 → 裁定（成立：扣 20 分/次、满 3 次停 7 天、10% 赔付工单）；申诉人裁定期内可随时撤回。</li>
+<li><span class="badge b-p1">P1</span>：一审时限届满 → 升级催办（30 天预留人工处理，不做自动升级）。</li>
+</ul>
+
+<h4>S6 · 已取消（终态）</h4>
+<ul><li>进入即释放 demand（S1/S0 均释放）；无资金流动（未支付）。</li></ul>
+
+<h4>S7 · 已退款（终态）</h4>
+<ul><li>仅全额退款进入；部分退款回主轴不进 S7；到账时效按 PRD：系统类 T+1 / 人工类 3+2 工作日；退款上限 = 订单总额 − Σ成功退款（不含打赏）。</li></ul>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="s5">
+<h2>5. 资金与结算规则汇总</h2>
+<ol>
+<li><strong>可退上限</strong> = <code>total_fen − Σ成功退款</code>（已上线，维持）；不含 tip（独立流水，维持）。</li>
+<li><strong>资金流出的三类合法出口</strong>：对方确认的取消退款 / 平台裁决退款 / 提现。用户自助动作不再直接划款。</li>
+<li><strong>部分退款不终态</strong>：冲减结算基数，订单回主轴；全额退款才 S7。</li>
+<li><strong>结算基数（对齐 PRD 3235-3332 分段口径）</strong>：<code>ratio ≥ 50% → (total_fen − refunded_fen) × ratio% − fee_fen</code>；<code>ratio &lt; 50% → 到场补偿 10-20%（可配）− fee_fen</code>（不再线性全额）；加时款付清才进 total_fen。</li>
+<li><strong>打赏</strong>独立于结算基数（现状维持）。</li>
+<li><strong>公益/0 元单</strong>：<code>total_fen=0</code> 时退款上限自然为 0、结算基数为 0，规则面显式豁免；平台补贴部分不参与退款与结算基数（口径待与发布端 <code>publish.js:511-512/175</code> 对齐确认）。</li>
+</ol>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="s6">
+<h2>6. 付款后界面功能与菜单设计</h2>
+
+<h3>6.1 设计总纲</h3>
+<p><strong>三层载体</strong>：订单详情页（主战场）→ 订单列表（状态徽标 + 待办红点）→ 消息触达（站内 system_notice + 订阅消息）。</p>
+<p><strong>四条原则</strong>：</p>
+<ol>
+<li><strong>按钮表驱动</strong>：可见按钮 = <code>nextActions[状态]</code> ∩ 角色过滤，按钮 ↔ 云函数 action 一一对应，禁止前端私设状态分支。</li>
+<li><strong>资金操作二次确认</strong>：取消退款、加时费、打赏均弹确认窗并展示金额。</li>
+<li><strong>异常入口恒显示</strong>：投诉 / 申诉 / SOS 按状态启停（置灰+原因），不隐藏——沿用「资质添加入口满额 toast」教训。</li>
+<li><strong>等待必有守夜人提示</strong>：每个等待态在状态横幅显示 <code>timeoutText</code> 倒计时（已实现）。</li>
+</ol>
+
+<h3>6.2 核心矩阵：状态 × 角色 × 界面菜单</h3>
+<table>
+<tr><th>状态</th><th>需求发布者（用户端）</th><th>耍伴（履约端）</th></tr>
+<tr><td><strong>S2 待开始</strong></td><td>服务倒计时、耍伴卡（脱敏联系+虚拟号说明）、代发标识（如适用）；菜单：申请改期、协商取消 <span class="badge b-p2">P2</span>（详见 §7）、履约催办 <span class="badge b-p1">P1</span>（详见 §8）、爽约申诉（到期未开始）</td><td>菜单：<strong>开始履约</strong>（主按钮）、申请改期、处理取消申请 <span class="badge b-p2">P2</span></td></tr>
+<tr><td><strong>S2_5 改期中</strong></td><td>新旧时间对比卡；菜单：确认 / 拒绝改期</td><td>同（对方发起时镜像）</td></tr>
+<tr><td><strong>S3 履约中</strong></td><td>里程碑进度条（30/60/100）+ 逐段验收按钮（15min 自动确认提示）、地图位置共享开关（双向对称，15min 有效）；菜单：<strong>确认当前段</strong>、SOS、发起投诉（设计扩展 <span class="badge b-p1">P1</span>）</td><td>菜单：<strong>标记段完成</strong>、申请加时（弹窗：新结束时间+金额，对方确认后并入总额）、<strong>提请完成</strong>（100% 后）、SOS</td></tr>
+<tr><td><strong>S3_5 已中断</strong></td><td>中断原因卡 + 协商面板；菜单：同意恢复 / 申请转部分、爽约申诉、催办</td><td>菜单：<strong>申请恢复</strong>、转部分完成、爽约举证（被诉方 48h 倒计时）</td></tr>
+<tr><td><strong>S4 部分完成</strong></td><td>比例确认（预设档 100/80/50/30% + 自定义）+ 结算预览实时计算（≥50% 按比例 / &lt;50% 到场补偿）<span class="badge b-p2">P2</span>；菜单：<strong>确认比例</strong>（双方各自确认）</td><td>同左镜像</td></tr>
+<tr><td><strong>S5 待验收</strong></td><td>评价表单（星级+标签+文字）；菜单：<strong>提交评价</strong>、追加打赏、发起投诉（已上线）、爽约申诉（窗口内）</td><td>菜单：等待评价（默认 4 星提示）、发起投诉（已上线）、爽约举证</td></tr>
+<tr><td><strong>S8 售后窗口</strong></td><td>结算金额明细 + 售后倒计时；菜单：<strong>发起投诉</strong>（窗口内）</td><td>同 + <strong>余额/提现入口</strong>（结算就绪提示）</td></tr>
+<tr><td><strong>S10_5 争议中</strong></td><td>冻结横幅 + 统一争议时间线（状态流水/投诉/申诉/退款四类合并，已上线）+ 举证上传；菜单：<strong>撤回投诉</strong>（已上线）、补充举证</td><td>同左镜像</td></tr>
+<tr><td><strong>S6/S7/S10 终态</strong></td><td>结果卡：取消原因 / 退款金额+到账时效（T+1 / 3+2 工作日）/ 归档说明；无操作</td><td>S7 同；S10 显示结算入账</td></tr>
+</table>
+
+<h3>6.3 订单详情页骨架（双角色复用同一页面）</h3>
+<pre>┌ 状态横幅：状态名 + 色标 + timeoutText 倒计时 ┐
+├ 订单概况卡（buildOrderSummary 同源，三页一致）─┤
+├ 对方信息卡：昵称/信用分/联系入口            │
+│   └ 代发单附加：👥 代他人发布·服务对象为[关系] │
+├ 履约动态区（按状态切换，见矩阵）              │
+├ 时间线卡：状态流水+投诉+申诉+退款（统一结构）   │
+└ 底部操作区：主按钮（1个）+ 次按钮组（角色过滤）  │</pre>
+
+<h3>6.4 特殊场景界面</h3>
+<ul>
+<li><strong>爽约申诉流</strong>：入口（S2/S3_5 详情页 + 列表待办红点）→ 提交页（截图举证 ≥10 字）→ 举证等待（对方 48h 倒计时条）→ 裁定结果通知；全程「撤回申诉」恒显。</li>
+<li><strong>争议工单</strong>：投诉弹窗（原因+举证图）→ 冻结横幅（红）→ 三出口裁决结果分别落到继续履约 / 部分退款（明细）/ S7。</li>
+<li><strong>地图共享</strong>：S3 起显示「位置共享」入口卡，开关即 <code>allow_map_share</code>，关闭自动清坐标；marker 绿（耍伴）/蓝（发布者）。</li>
+</ul>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="s7">
+<h2>7. S2 协商取消链交互细节 <span class="badge b-p2">P2</span></h2>
+
+<h3>7.1 数据与状态</h3>
+<p>不新增订单状态，S2 挂 <code>cancel_request = { from: 'user'|'partner', reason, custom_reason, refund_fen, compensate_fen, expire_at, status: 'pending'|'escalated' }</code>（仿 grab_notify_pending 挂起模式，对齐「一主轴+正交位」原则）。</p>
+
+<h3>7.2 退款梯度（PRD 8.3 / 6087-6093，角色不对称）</h3>
+<table>
+<tr><th>取消方</th><th>距开始时间</th><th>退款</th><th>差额去向</th><th>信用分</th></tr>
+<tr><td>用户</td><td>≥24h</td><td>全额</td><td>—</td><td>无扣分</td></tr>
+<tr><td>用户</td><td>4-24h</td><td>80%</td><td>20% 补偿耍伴</td><td>无扣分</td></tr>
+<tr><td>用户</td><td>&lt;4h</td><td>50%</td><td>50% 补偿耍伴</td><td>无扣分</td></tr>
+<tr><td>耍伴</td><td>任意</td><td>全额 + 平台赔付 20%</td><td>—</td><td>扣 20 分</td></tr>
+</table>
+<p>注：AA 费用不进梯度，原路全退（PRD 3090），预览卡服务费与 AA 分行展示。</p>
+
+<h3>7.3 双方交互流</h3>
+<h4>发起方</h4>
+<ol>
+<li>入口：S2 详情页底部次按钮「协商取消」（恒显示）。</li>
+<li>半屏页：取消原因（预设：计划有变/时间冲突/健康原因/其他+20字）→ <strong>退款预览卡按梯度实时计算</strong>（角色感知：耍伴发起时额外红字提示「信用分 -20 + 平台赔付 20%」）→ 二次确认（文案含金额：「确认申请，预计退款 ¥80」）。</li>
+<li>提交后：按钮区变「等待对方确认（2h 倒计时）」+「撤回申请」。</li>
+</ol>
+<h4>对方</h4>
+<ol>
+<li>触达：订阅消息 + 站内通知（「对方申请取消订单，2 小时内需处理」）+ 列表红点。</li>
+<li>详情页红色横幅 + 挂起卡（原因 + 双方金额后果对比）。</li>
+<li>「同意取消」→ 二次确认（展示自己视角金额）→ 执行退款 → S7；「拒绝取消」→ 拒绝理由（可选）→ 回 S2。</li>
+<li><strong>2h 超时不自动同意</strong>（防误伤）→ 自动转平台裁决工单（S10_5），双方收升级通知。</li>
+</ol>
+
+<h3>7.4 异常处理规则（五类 19 条）</h3>
+
+<h4>一、状态与并发</h4>
+<table>
+<tr><th>异常</th><th>处理规则</th></tr>
+<tr><td>挂起期间耍伴点「开始履约」</td><td>拦截 start_service，提示「有取消申请待处理，请先处理」——pending 期间 start/modify 均冻结</td></tr>
+<tr><td>取消申请与爽约申诉并存</td><td>申诉提交时自动撤回 pending 的取消申请（申诉冻结优先级更高，链路单一化）</td></tr>
+<tr><td>对方同意/拒绝与守夜人转裁决竞态</td><td>casStatus + <code>cancel_request.status='pending'</code> 双重前置校验，先到先得；后到操作返回「已转裁决」并展示工单入口</td></tr>
+<tr><td>重复点击同意 / 网络重试</td><td>同意、拒绝、撤回三操作均以 <code>status='pending'</code> 为前置条件，非 pending 幂等返回当前态，不重复执行资金动作</td></tr>
+</table>
+
+<h4>二、资金</h4>
+<table>
+<tr><th>异常</th><th>处理规则</th></tr>
+<tr><td>退款执行失败（渠道故障）</td><td>复用已上线「退款失败自动补偿回滚」机制：订单状态不前进，<code>cancel_request</code> 标记 <code>refund_failed</code>，重试上限后转人工工单；<strong>禁止绕过标记重复发起退款</strong>（防重复打款）</td></tr>
+<tr><td>确认时点跨梯度边界（发起时 25h、确认时 23h）</td><td><strong>金额冻结口径</strong>：确认路径按发起时点计算并冻结于 <code>cancel_request.refund_fen</code>（预览即最终承诺，防对方拖延受损）；超时转裁决路径由平台按<strong>裁决时点</strong>梯度重核（堵「卡边界发起全额申请拖时间」漏洞）</td></tr>
+<tr><td>start_time 已过才发起取消</td><td>允许（用户不追究爽约、只求退出），按最严档 &lt;4h（退款 50%）计算</td></tr>
+<tr><td>金额边界</td><td>梯度计算四舍五入到分（fen 整数），退款+补偿合计 ≤ total_fen；沿用既有拦截：超额、零额、非整数退款均拒绝</td></tr>
+<tr><td>公益 0 元单</td><td>退款额自然为 0，不生成退款流水，取消直接 S6（不进 S7）</td></tr>
+<tr><td>耍伴取消的平台赔付 20%</td><td>与用户退款并行两笔流水，赔付走平台营销/风险预算科目，不占订单可退上限</td></tr>
+</table>
+
+<h4>三、通知（fail-closed）</h4>
+<table>
+<tr><th>通道</th><th>可用性</th><th>规则</th></tr>
+<tr><td>发起方触达对方</td><td>小程序端触发 order-action，云调用有效</td><td>订阅消息 + 站内双发；订阅失败降级站内，不阻断申请提交</td></tr>
+<tr><td>守夜人转裁决通知</td><td>order-timer 定时触发，云调用必然 -501001（项目已定论）</td><td><strong>只发站内 system_notice + 订单列表红点</strong>，不依赖订阅消息；转裁决为重要事件，站内通知置顶</td></tr>
+<tr><td>通知发送失败</td><td>—</td><td>不改变状态机推进（fail-closed），失败日志 log.w 可观测；对方入口以详情页横幅为准，通知仅增强触达</td></tr>
+</table>
+
+<h4>四、频率与反滥用</h4>
+<table>
+<tr><th>异常</th><th>处理规则</th></tr>
+<tr><td>被拒后同方重发</td><td>同一方被拒后不可再次发起取消申请，按钮置灰提示「对方已拒绝，可申请平台介入」——再想退出走裁决入口</td></tr>
+<tr><td>双方拉锯（你拒我、我拒你）</td><td>每单取消申请总次数上限 2 次（双方合计），满额后仅剩「申请平台裁决」入口</td></tr>
+<tr><td>撤回后重发</td><td>允许（撤回是主动让步，不占用次数上限；但发起计入次数）</td></tr>
+<tr><td>恶意申请骚扰</td><td>取消申请发起频率与信用分联动（P3 评估），P1/P2 不做自动处罚仅记录</td></tr>
+</table>
+
+<h4>五、链路交叉与裁决出口</h4>
+<table>
+<tr><th>边界</th><th>处理规则</th></tr>
+<tr><td>确认窗跨 start_time（距开始 &lt;2h 发起，2h 窗口覆盖履约开始时刻）</td><td>expire_at 仍为 now+2h 不缩短；但 cancel_request pending 期间<strong>催办链互斥跳过</strong>（timer 扫到 S2 且 start_time 已过且有 pending 取消申请时不发催办，避免双链同时轰炸耍伴）；到期未处理转裁决，订单停留 S2 由裁决定走向</td></tr>
+<tr><td>催办与取消并存的通知合并</td><td>需要提醒时检测到 cancel_request.pending，通知文案附带「对方已申请取消」上下文，一并发送不拆两条</td></tr>
+<tr><td>转裁决后的裁决出口（取消争议专用）</td><td>非通用三出口，用<strong>专用双出口</strong>：① 同意取消——按<strong>裁决时点</strong>梯度重核金额（见资金类冻结口径）→ 退款 → S7；② 驳回取消——清 cancel_request 回 S2，提示按约履行；若服务时间已过且未开始（履约事实不可能），驳回时同步引导爽约申诉，不留死路</td></tr>
+<tr><td>escalated 后数据终态</td><td><code>status='escalated'</code> 保留原申请数据（原因/发起方/发起时冻结金额）供裁决参考，不再接受任何一方操作；裁决完成补写 <code>outcome</code> 后冻结归档</td></tr>
+<tr><td>守夜人巡检延迟容忍</td><td>timer 周期（5min）内 expire_at 刚过尚未扫到的窗口期，对方操作仍按 pending 正常处理（先到先得，见竞态行）；守夜人只在扫到时转裁决，不回溯作废窗口期内的合法操作</td></tr>
+</table>
+</section>
+
+<!-- ================= 8 ================= -->
+<section id="s8">
+<h2>8. 履约催办交互细节 <span class="badge b-p1">P1</span></h2>
+
+<h3>8.1 自动链路（order-timer 三段式，阈值均可配）</h3>
+<table>
+<tr><th>时点</th><th>条件</th><th>动作</th></tr>
+<tr><td>T-0（start_time 到）</td><td>仍 S2</td><td>耍伴收「履约提醒」推送</td></tr>
+<tr><td>T+1h（remind_after_h）</td><td>仍未开始</td><td>用户收「对方未开始履约」通知；详情页出现催办入口 + 申诉引导</td></tr>
+<tr><td>T+Yh（escalate_after_h，默认 4h）</td><td>仍未开始</td><td>自动推送爽约申诉直达引导（S2 申诉资格：付款后即可）</td></tr>
+</table>
+
+<h3>8.2 手动催办（用户端）</h3>
+<ol>
+<li>入口：start_time 过后，S2 详情页「催办提醒」按钮（与协商取消并列）。</li>
+<li>点击 → 耍伴收加急通知（订阅消息 + 站内）。</li>
+<li><strong>频率限制：每单最多 2 次</strong>（<code>urge_count</code> 落订单），满额按钮置灰显示「已催办（2/2）」，防骚扰。</li>
+<li>催办记录在详情页展示：「你已催办 1 次 · 10:32」。</li>
+</ol>
+
+<h3>8.3 耍伴端与守夜人</h3>
+<ul>
+<li>耍伴端：start_time 过后 S2 详情页醒目警示条「已超时未开始」+ 主按钮「立即开始履约」置顶；多次催办后前置告知爽约后果（申诉成立扣 20 分/次、满 3 次停 7 天、10% 赔付）。</li>
+<li>守夜人：timer 巡检 <code>status=S2 && start_time &lt; now</code> 分段推送；<strong>不自动转状态</strong>（PRD 无 S2 自动取消规则，取消必须走协商链或申诉链）。</li>
+</ul>
+</section>
+
+<!-- ================= 9 ================= -->
+<section id="s9">
+<h2>9. 分期落地（提审冻结边界）</h2>
+<table>
+<tr><th>批次</th><th>时机</th><th>内容</th><th>对应诊断</th></tr>
+<tr><td><strong>P0'（可选，提审前）</strong></td><td>零行为变更</td><td>仅 admin-web <code>STATUS_LABEL</code> 的 S8/S9/S3.5 标签对齐前端（纯展示）；本文档入库</td><td>D6</td></tr>
+<tr><td><strong>P1 止血批</strong></td><td>提审后第 1 批</td><td>① S4 裁定期超时兜底；② S0 超时释放 demand；③ 安全报备/中断申报写 S3.5（PRD 3408 链路修复，替代孤儿）；④ S8 售后窗口届满→S10（给 S10 生产方，复活 dispute open 分支）；⑤ no_show 申诉冻结位（申诉期禁 start/complete）；⑥ S2 履约超时催办（§8）；⑦ dispute complete 已有评价→回 S8</td><td>D2(卡死侧)/D3/D5/D9(冻结侧)/D10/D12</td></tr>
+<tr><td><strong>P2 资金安全批</strong></td><td>提审后第 2 批</td><td>① 取消/退款链路按 PRD 梯度重建（补前端入口，详见 §7；撤销 mock_refund 全退敞口）；② 结算基数分段化（PRD 3235：≥50% 比例 / &lt;50% 到场补偿）；③ 部分退款非终态化；④ 加时补付；⑤ 爽约赔付 10% 可配化；⑥ 公益/0 元单资金口径对齐；⑦ youth_limit_fen 消费点核对</td><td>D1/D2(资金侧)/D4/D7</td></tr>
+<tr><td><strong>P3 结构批</strong></td><td>与既定「订单状态机收敛」迭代项合并</td><td>① <code>casTransition</code> 表驱动 + <code>_shared/order_state.js</code> 单源（含状态分组 SSOT）；② eval/dispute/settle 正交位落库，S9/S10.5 退役读兼容；③ 里程碑确认窗可配化；④ 迁移表 + 分账/退款全量单测（node:test）</td><td>D6/D8/D11/D13/D14/D15</td></tr>
+</table>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="s10">
+<h2>10. 横向保障规则（贯穿所有节点）</h2>
+<table>
+<tr><th>规则</th><th>内容</th></tr>
+<tr><td>并发保护</td><td>所有状态迁移走 casStatus（<code>where({_id, status})</code> 乐观锁），防双端竞态</td></tr>
+<tr><td>等待必有守夜人</td><td>每个等待类状态都有 timer 兜底：S1 15min / S0 30min / S2_5 24h / S3.5 24h / S5 48h / S8 窗口 / S10_5 一审时限（<span class="badge b-p1">P1</span> 补 S0 释放、S4 裁定期、S8 届满）</td></tr>
+<tr><td>资金三件套</td><td>资金流出仅三类出口：对方确认的取消退款 / 平台裁决退款 / 提现；用户自助动作不直接划款</td></tr>
+<tr><td>fail-closed</td><td>通知/订阅/AI 失败只降级不阻断主流程，失败可观测（log.w + 落库）</td></tr>
+<tr><td>状态语义统一</td><td>admin <code>STATUS_LABEL</code> 与前端 enums 须同源 <span class="badge b-p1">P1</span>（现状 S3.5 两端语义相反）</td></tr>
+</table>
+</section>
+
+</main>
+
+<footer>
+  <p>本文档由多轮方案设计会话整理生成（2026-10-10），与 <code>docs/履约域业务逻辑与流程设计方案.md</code>（v1.1）同源；诊断完整 15 条、现状盘点代码行号证据及复核纪要见源文档 §1/§2/§6。</p>
+  <p>状态：<strong>设计方案（供评审，未实施）</strong> · 基线 commit <code>276b946</code> · 提审前零行为改动。</p>
+</footer>
+
+</div>
+</body>
+</html>
