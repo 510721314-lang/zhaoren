@@ -36,6 +36,13 @@ const CASES = [
   { name: 'complete_status', openid: PARTNER, event: { action: 'complete_service', order_id: OID, mock_openid: PARTNER } },
   { name: 'ms_invalid', openid: USER, event: { action: 'milestone_confirm', order_id: OID, mock_openid: USER } },
   { name: 'resume_status', openid: PARTNER, event: { action: 'resume_service', order_id: OID, mock_openid: PARTNER } },
+  { name: 'modify_bad_time', openid: USER, event: { action: 'modify', order_id: OID, new_start_time: Date.now() - 1000, mock_openid: USER } },
+  { name: 'modify_not_participant', openid: STRANGER, event: { action: 'modify', order_id: OID, new_start_time: Date.now() + 86400000, mock_openid: STRANGER } },
+  { name: 'extend_hours_bad', openid: USER, event: { action: 'extend', order_id: OID, add_hours: 0, mock_openid: USER } },
+  { name: 'extend_status', openid: PARTNER, event: { action: 'extend', order_id: OID, add_hours: 1, mock_openid: PARTNER } },
+  { name: 'extend_reject_no_pending', openid: PARTNER, event: { action: 'extend_reject', order_id: OID, mock_openid: PARTNER } },
+  { name: 'partial_status', openid: USER, event: { action: 'partial_confirm', order_id: OID, mock_openid: USER } },
+  { name: 'ratio_status', openid: USER, event: { action: 'ratio_confirm', order_id: OID, mock_openid: USER } },
 ];
 
 function loadWith(file, sdk) {
