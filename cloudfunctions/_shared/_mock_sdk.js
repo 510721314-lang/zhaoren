@@ -87,18 +87,42 @@ const commandProxy = new Proxy({}, {
       },
       where(query) {
         const q = query || {};
+        // 解释 db.command 操作符哨兵，让带 _.neq / _.in / _.gte 等的查询能正确匹配
+        const matchVal = (dv, qv) => {
+          if (qv && typeof qv === 'object' && qv.__sentinel) {
+            const op = qv.__sentinel, a = qv.args || [];
+            switch (op) {
+              case 'neq': return dv !== a[0];
+              case 'eq': return dv === a[0];
+              case 'in': return Array.isArray(a[0]) && a[0].includes(dv);
+              case 'nin': return !(Array.isArray(a[0]) && a[0].includes(dv));
+              case 'gt': return typeof dv === 'number' && dv > a[0];
+              case 'gte': return typeof dv === 'number' && dv >= a[0];
+              case 'lt': return typeof dv === 'number' && dv < a[0];
+              case 'lte': return typeof dv === 'number' && dv <= a[0];
+              case 'exists': return (dv !== undefined) === a[0];
+              default: return dv === qv;
+            }
+          }
+          return dv === qv;
+        };
+        const matchDoc = (doc) => {
+          // 顶层 _.or / _.and
+          if (q && typeof q === 'object' && q.__op) {
+            const subs = q.args || [];
+            if (q.__op === 'or') return subs.some((s) => Object.keys(s).every((k) => matchVal(doc[k], s[k])));
+            if (q.__op === 'and') return subs.every((s) => Object.keys(s).every((k) => matchVal(doc[k], s[k])));
+          }
+          return Object.keys(q).every((k) => matchVal(doc[k], q[k]));
+        };
         return {
           limit() { return this; },
           orderBy() { return this; },
           skip() { return this; },
           async get() {
             calls.push({ method: 'where.get', name, query: q });
-            // 简易匹配：按 q 的等值字段过滤 store[name] 的所有文档
             const all = store[name] ? Object.values(store[name]) : [];
-            const matched = all.filter((doc) =>
-              Object.keys(q).every((k) => doc[k] === q[k])
-            );
-            return { data: matched };
+            return { data: all.filter(matchDoc) };
           },
           async count() {
             calls.push({ method: 'where.count', name, query: q });
@@ -116,6 +140,7 @@ const commandProxy = new Proxy({}, {
 
   const db = {
     collection,
+    async createCollection() { return {}; },
     get command() { return commandProxy; }
   };
 

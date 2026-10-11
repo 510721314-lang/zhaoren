@@ -3,6 +3,7 @@ const path = require('path');
 const Module = require('module');
 const assert = require('assert');
 const { makeSdk } = require('./_mock_sdk');
+const crypto = require('crypto');
 
 const USER = 'o_user_1', PARTNER = 'o_partner_1', STRANGER = 'o_stranger';
 const ADMIN = 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c';
@@ -64,6 +65,23 @@ const CASES = [
   { fn: 'admin-action', name: 'dispute_bad_decision', openid: ADMIN, store: adminStore(), event: { action: 'dispute_handle', order_id: OID, decision: 'nope', note: 'x', mock_openid: ADMIN } },
   { fn: 'admin-action', name: 'audit_bad_openid', openid: ADMIN, store: adminStore(), event: { action: 'audit_verify', openid: 'x', mock_openid: ADMIN } },
   { fn: 'admin-action', name: 'audit_empty', openid: ADMIN, store: adminStore(), event: { action: 'audit_verify', openid: ADMIN, mock_openid: ADMIN } },
+  // ── 5 个核心块「成功路径」深覆盖（富夹具 + 合法入参 → 抵达 ok:true），与上面对应的拒绝分支正反对照 ──
+  { fn: 'admin-action', name: 'cfg_set_ok', openid: ADMIN, store: adminStore(),
+    event: { action: 'config_set', mock_openid: ADMIN, block_words_add: ['测试屏蔽词'] } },
+  { fn: 'admin-action', name: 'dispute_open_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-X', status: 'S10', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
+    event: { action: 'dispute_handle', mock_openid: ADMIN, order_id: OID, decision: 'open', note: '登记争议' } },
+  { fn: 'admin-action', name: 'noshow_decide_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { no_show_report: { ['b'.repeat(32)]: { _id: 'b'.repeat(32), status: 'decided', order_id: OID, verdict: 'rejected' } } }),
+    event: { action: 'no_show_decide', mock_openid: ADMIN, report_id: 'b'.repeat(32), verdict: 'rejected', note: '驳回' } },
+  { fn: 'admin-action', name: 'exam_create_ok', openid: ADMIN, store: adminStore(),
+    event: { action: 'exam_subject_create', mock_openid: ADMIN, code: 'NEWSUBJ', title: '新科目', pass_line: 60, requires: [], questions: [{ question: 'q?', options: ['a', 'b'], answer_idx: 0 }] } },
+  (() => {
+    const at = 1700000000000; const chain = crypto.createHash('sha256').update(['', ADMIN, 'act_x', '', at, JSON.stringify({})].join('|'), 'utf8').digest('hex');
+    return { fn: 'admin-action', name: 'audit_verify_ok', openid: ADMIN,
+      store: Object.assign(adminStore(), { audit_log: { r1: { _id: 'r1', prev_hash: '', openid: ADMIN, action: 'act_x', target_id: '', at, detail: {}, chain_hash: chain } } }),
+      event: { action: 'audit_verify', mock_openid: ADMIN, openid: ADMIN } };
+  })(),
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
