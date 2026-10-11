@@ -410,7 +410,10 @@ const HANDLERS = Object.assign(
   require('./action_im_kefu'),
   require('./action_user_partner_views'),
   require('./action_demand_order_views'),
-  require('./action_finance_dispute_views')
+  require('./action_finance_dispute_views'),
+  require('./action_notice'),
+  require('./action_noshow_list'),
+  require('./action_export')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
@@ -1518,120 +1521,11 @@ exports.main = async (event, context) => {
     return ok({ created, skipped });
   }
 
-  // ───────── 8.6 通知群发(system_notice 广播 → 用户消息中心) ─────────
-  // audience: all(全部用户) / partner(仅耍伴) / user(仅普通用户) / one(指定用户)
-  // 频控: 群发(>1 人)同操作者 10 分钟内仅 1 次; 发送记录走 logEvent P2(platform_event + audit_log), 无需额外表
-  if (action === 'notice_send') {
-    const t = String(event.title || '').trim();
-    const b = String(event.body || '').trim();
-    const audience = event.audience;
-    if (!t || t.length > 30) return fail('notice_bad_title', '标题必填且不超过30字');
-    if (!b || b.length > 500) return fail('notice_bad_body', '内容必填且不超过500字');
-    if (['all', 'partner', 'user', 'one'].indexOf(audience) < 0) {
-      return fail('notice_bad_audience', '群发对象不合法');
-    }
-    // 目标 openid 集合
-    let targets = [];
-    if (audience === 'one') {
-      if (!isOpenid(event.target_openid)) return fail('notice_bad_openid', 'openid 格式不正确');
-      targets = [event.target_openid];
-    } else {
-      const q = { is_deleted: _.neq(true) };
-      if (audience === 'partner') q.roles = 'partner';
-      else if (audience === 'user') q.roles = _.neq('partner');
-      const ur = await col('user_account').where(q).field({ openid: true }).limit(1000).get()
-        .catch(() => ({ data: [] }));
-      targets = (ur.data || []).map((d) => d.openid).filter(Boolean);
-    }
-    if (targets.length === 0) return fail('notice_no_target', '没有可发送的目标用户');
-    // 群发频控(>1 人): 10 分钟内同操作者仅 1 次
-    if (targets.length > 1) {
-      const recent = await col('platform_event').where({
-        type: 'notice_send', openid, created_at: _.gte(now - 10 * 60 * 1000)
-      }).count().catch(() => ({ total: 0 }));
-      if ((recent.total || 0) > 0) return fail('notice_too_frequent', '群发10分钟内仅可1次');
-    }
-    // fan-out 批量写入(单次上限 1000 人, 分块 100 写避免超时/批量上限)
-    const cap = Math.min(targets.length, 1000);
-    const docs = targets.slice(0, cap).map((to) => ({
-      to_openid: to, type: 'broadcast', title: t, body: b,
-      action_key: '', action_payload: {}, read: false,
-      created_at: now, updated_at: now, is_deleted: false
-    }));
-    for (let i = 0; i < docs.length; i += 100) {
-      await col('system_notice').add({ data: docs.slice(i, i + 100) });
-    }
-    await logEvent('P2', 'notice_send', openid, { audience, count: docs.length, total_targets: targets.length, title: t });
-    return ok({ sent: docs.length, total_targets: targets.length, cap: 1000 });
-  }
-
   // ───────── 8.8 爽约申诉: 列表/详情 + 裁定(第三批 3B) ─────────
   // 设计稿 §2.2-2.7: 平台不自动处罚, 管理员裁定; 成立 → 扣分(credit_score_log type='no_show')
   // + 滚动窗口计次 + 达阈值停用(数值全部读 no_show_* 实配); 幂等键 order_id+target_openid。
   // 2026-10-10: 新增 withdrawn(申诉人自行撤回, 由 order-action no_show_report_withdraw 写入)→ 列表筛选/徽标纳入;
   //   已撤回记录不可裁定(decide 的 CAS 三值不含 withdrawn, 天然排除)。
-  if (action === 'no_show_report_list') {
-    const { status, report_id } = event;
-    // 详情模式: 单条 + 证据临时 URL(管理端裁定页用)
-    if (report_id) {
-      if (!isDocId(report_id)) return fail('ns_bad_id', 'ID 格式不正确');
-      let rpt = null;
-      try { rpt = (await col('no_show_report').doc(report_id).get()).data; } catch (e) { rpt = null; }
-      if (!rpt) return fail('ns_not_found', '申诉记录不存在');
-      const urlMap = await resolveTempUrls([].concat(rpt.evidence_file_ids || [], rpt.defense_file_ids || []));
-      const withUrls = (ids) => (ids || []).map((f) => ({ file_id: f, url: urlMap[f] || '' }));
-      const oids = [rpt.reporter_openid, rpt.target_openid].filter(Boolean);
-      const nameMap = {};
-      try {
-        const ur = await col('user_account').where({ openid: _.in(oids) }).limit(oids.length || 1).get();
-        (ur.data || []).forEach((u) => { nameMap[u.openid] = u.nickname || ''; });
-      } catch (e) {}
-      return ok({
-        report: Object.assign({}, rpt, {
-          report_id: rpt._id,
-          evidence: withUrls(rpt.evidence_file_ids),
-          defense_evidence: withUrls(rpt.defense_file_ids),
-          reporter_nickname: nameMap[rpt.reporter_openid] || '',
-          target_nickname: nameMap[rpt.target_openid] || ''
-        })
-      });
-    }
-    // 列表模式(状态筛选 + 待处理倒序; counts 供 tab 徽标)
-    const pg = pager(event);
-    const base = { is_deleted: _.neq(true) };
-    const cntP = (st) => col('no_show_report')
-      .where(st ? Object.assign({}, base, { status: st }) : base)
-      .count().catch(() => ({ total: 0 }));
-    const filtered = (status && ['received', 'defense', 'decided', 'withdrawn'].indexOf(status) >= 0) ? status : '';
-    const query = col('no_show_report').where(filtered ? Object.assign({}, base, { status: filtered }) : base);
-    const [totalR, r, cReceived, cDefense, cDecided, cWithdrawn] = await Promise.all([
-      cntP(filtered),
-      query.orderBy('created_at', 'desc').skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] })),
-      cntP('received'), cntP('defense'), cntP('decided'), cntP('withdrawn')
-    ]);
-    return ok({
-      list: (r.data || []).map((x) => ({
-        report_id: x._id, order_id: x.order_id, order_no: x.order_no || '',
-        reporter_openid: x.reporter_openid, reporter_role: x.reporter_role || '',
-        target_openid: x.target_openid, target_role: x.target_role || '',
-        status: x.status || '', verdict: x.verdict || '',
-        reason_type: x.reason_type || '',
-        reason: x.reason || '', defense_reason: x.defense_reason || '',
-        evidence_count: (x.evidence_file_ids || []).length,
-        defense_count: (x.defense_file_ids || []).length,
-        evidence_deadline: x.evidence_deadline || 0,
-        defense_overdue: x.defense_overdue === true,
-        created_at: x.created_at, decided_at: x.decided_at || 0,
-        withdrawn_at: x.withdrawn_at || 0,
-        decided_reason: x.decided_reason || '',
-        penalty_applied: x.penalty_applied || null
-      })),
-      counts: { received: cReceived.total || 0, defense: cDefense.total || 0, decided: cDecided.total || 0, withdrawn: cWithdrawn.total || 0 },
-      total: totalR.total || 0, page: pg.page, size: pg.size,
-      has_more: pg.page * pg.size < (totalR.total || 0)
-    });
-  }
-
   if (action === 'no_show_decide') {
     const { report_id, verdict, note } = event;
     if (!isDocId(report_id)) return fail('ns_bad_id', 'ID 格式不正确');
@@ -1760,81 +1654,6 @@ exports.main = async (event, context) => {
       times: penaltyApplied.times || 0, suspend: !!penaltyApplied.suspend_until
     });
     return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict, penalty_applied: penaltyApplied });
-  }
-
-  // ───────── 8.7 云端备份导出(L2 admin_config 快照 + L3 DB 分页导出) ─────────
-  // 允许导出的 collection 白名单(20+)
-  const EXPORT_COLLECTIONS = new Set([
-    // ── 实际在用(2026-09-22 按云函数代码核实) ──
-    'admin_config', 'admin_web_sessions',
-    'user_account', 'partner_profile',
-    'demand', 'demand_draft',
-    'order_main', 'order_status_log', 'order_confirmations',
-    'emergency_contact', 'credit_score_log', 'platform_event', 'audit_log',
-    'system_notice', 'disclaimer_signature', 'evaluation',
-    'blog_post', 'blog_like', 'blog_comment',
-    'safety_report',
-    'im_conversation', 'im_message',
-    'withdraw_record',
-    // ── 认证考试题库(2026-10-03 新增: 题库为运营配置数据, 答案管理员可读, 纳入备份) ──
-    'exam_bank',
-    // ── 配置变更版本史(2026-10-07 新增: config_set 快照, 敏感键已掩码入库, 纳入备份/可稽核) ──
-    'config_history',
-    // ── 爽约申诉记录(2026-10-07 第三批 3B: 举证/裁定证据链, 纳入备份/可稽核) ──
-    'no_show_report',
-    // ── 投诉记录(2026-10-10: 纠纷处理详情时间线数据源, 纳入备份/可稽核) ──
-    'complaint',
-    // ── 旧表/低频(保留兼容, 不存在返回空) ──
-    'user_profile', 'partner_exam', 'partner_apply',
-    'dispute', 'withdraw_request', 'credit_log',
-    'insurance_record', 'report', 'sms_log', 'device_bind'
-  ]);
-  // 敏感字段脱敏规则: 字段名 → 脱敏函数
-  // 2026-09-23 备份查证补全: idcard(历史明文证件号)/sms_target(原样手机号)/sms_code(验证码)/
-  //   *_aes_key/*_web_key(密钥, 此前 export_collection 会原样导出) 均在 L3 导出中泄露过
-  // 敏感字段脱敏规则与递归脱敏已提升到模块顶层(SENSITIVE_MASK / maskDocDeep), 避免函数内声明 TDZ 崩溃
-  // L2: admin_config 完整快照(不走 export_collection, 因为只有一个 _id=global 文档且字段特殊)
-  if (action === 'export_admin_config') {
-    // 二次确认(敏感导出, PRD §17.2 敏感接口二次鉴权)
-    if (event.confirm !== true) return fail('export_need_confirm', '敏感导出需 confirm:true 二次确认');
-    const cfgR = await col('admin_config').doc('global').get();
-    const cfg = (cfgR.data) || {};
-    const safe = maskDocDeep(cfg);
-    // 密钥类字段只返回存在性布尔, 不返回值
-    if (safe.idcard_aes_key !== undefined) safe.idcard_aes_key_set = !!safe.idcard_aes_key;
-    delete safe.idcard_aes_key;
-    if (safe.admin_web_key !== undefined) safe.admin_web_key_set = !!safe.admin_web_key;
-    delete safe.admin_web_key;
-    await logEvent('P2', 'export_admin_config', openid, { size: JSON.stringify(safe).length });
-    return ok({ config: safe, exported_at: now });
-  }
-
-  // L3: 按 collection 分页导出
-  if (action === 'export_collection') {
-    // 二次确认(敏感导出, PRD §17.2 敏感接口二次鉴权)
-    if (event.confirm !== true) return fail('export_need_confirm', '敏感导出需 confirm:true 二次确认');
-    const collection = String(event.collection || '').trim();
-    if (!EXPORT_COLLECTIONS.has(collection)) {
-      return fail('export_bad_collection', `不在导出白名单: ${collection}`);
-    }
-    const page = Math.max(1, parseInt(event.page, 10) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(event.page_size, 10) || 100));
-    const skip = (page - 1) * pageSize;
-    const limit = Math.min(10000, skip + pageSize);
-    const totalR = await col(collection).count().catch(() => ({ total: 0 }));
-    const total = totalR.total || 0;
-    const docs = await col(collection).skip(skip).limit(pageSize).get().catch(() => ({ data: [] }));
-    const list = (docs.data || []).map(maskDocDeep);
-    await logEvent('P2', 'export_collection', openid, { collection, page, pageSize, count: list.length });
-    return ok({
-      collection,
-      page,
-      page_size: pageSize,
-      total,
-      has_more: (page * pageSize) < total && (page * pageSize) < 10000,
-      truncated: total > 10000,
-      list
-    });
   }
 
   // （admin_list/admin_add/admin_remove 已抽离到 ./action_adminlist.js，由上方 HANDLERS 分发表处理）
