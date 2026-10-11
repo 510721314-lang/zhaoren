@@ -86,10 +86,16 @@ const AUTO_SEEDS = [
     name: `auto_order_${a}`, openid: USER,
     event: { action: a, order_id: OID, mock_openid: USER, page: 1, size: 5, limit: 20 },
   })),
-  // admin-action：管理员 ADMIN + 通用分页参数，越过鉴权门进入参数/业务校验分支
+  // admin-action：管理员 ADMIN + 通用分页参数 + 通用参数包，越过「参数校验门」进入更深业务分支
   ...enumerateActions('admin-action').map((a) => ({
     fn: 'admin-action', name: `auto_admin_${a}`, openid: ADMIN, store: adminStore(),
-    event: { action: a, order_id: OID, mock_openid: ADMIN, page: 1, size: 5, limit: 20 },
+    event: {
+      action: a, order_id: OID, mock_openid: ADMIN, page: 1, size: 5, limit: 20,
+      openid: ADMIN, target_openid: ADMIN, id: OID, blog_id: OID, comment_id: OID,
+      demand_id: OID, activity_id: OID, report_id: OID, conv_id: OID,
+      code: 'SUBJ01', title: 't', name: 'n', note: 'n', decision: 'open',
+      confirm: true, data: {}, status: 'active', hours: 1, fen: 100,
+    },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
