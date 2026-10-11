@@ -82,6 +82,21 @@ const CASES = [
       store: Object.assign(adminStore(), { audit_log: { r1: { _id: 'r1', prev_hash: '', openid: ADMIN, action: 'act_x', target_id: '', at, detail: {}, chain_hash: chain } } }),
       event: { action: 'audit_verify', mock_openid: ADMIN, openid: ADMIN } };
   })(),
+  // ── Batch 1: 厚业务逻辑成功路径（状态机/多表写/处罚链/退款），与自动种子的拒绝分支正反对照 ──
+  { fn: 'admin-action', name: 'force_cancel_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S1' } }, order_status_log: {} }),
+    event: { action: 'order_force_cancel', mock_openid: ADMIN, order_id: OID, note: '测试取消' } },
+  { fn: 'admin-action', name: 'withdraw_approve_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { withdraw_record: { ['c'.repeat(32)]: { _id: 'c'.repeat(32), status: 'processing', amount_fen: 1000 } } }),
+    event: { action: 'withdraw_review', mock_openid: ADMIN, withdraw_id: 'c'.repeat(32), decision: 'approve' } },
+  { fn: 'admin-action', name: 'dispute_refund_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-2', status: 'S10.5', total_fen: 1000, user_openid: USER, partner_openid: PARTNER, complaint_from_status: '' } }, pay_transaction: {}, system_notice: {} }),
+    event: { action: 'dispute_handle', mock_openid: ADMIN, order_id: OID, decision: 'refund', note: '退款裁决' } },
+  { fn: 'admin-action', name: 'noshow_upheld_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), {
+      no_show_report: { ['d'.repeat(32)]: { _id: 'd'.repeat(32), status: 'received', order_id: OID, order_no: 'ORD-3', target_openid: PARTNER, target_role: 'partner', reporter_openid: USER } },
+      user_account: { [PARTNER]: { _id: 'ua1', openid: PARTNER, partner_credit_score: 800, status: 'normal' } }, credit_score_log: {}, system_notice: {}, partner_profile: {} }),
+    event: { action: 'no_show_decide', mock_openid: ADMIN, report_id: 'd'.repeat(32), verdict: 'upheld', note: '成立' } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
@@ -156,9 +171,10 @@ function loadWith(dir, file, sdk) {
 })();
 
 function normalize(v) {
-  // 剔除非确定性：Date.now 时间戳 / 自增计数造成的差异不影响结构等价
+  // 剔除非确定性：Date.now 时间戳 / 自增计数 / 随机单号 造成的差异不影响结构等价
   return JSON.parse(JSON.stringify(v, (k, val) => {
     if (typeof val === 'number' && val > 1e12) return '<ts>';
+    if (typeof val === 'string' && /^(REF|ORD|WD|TX|DR)[0-9a-f]+$/i.test(val)) return '<id>';
     return val;
   }));
 }
