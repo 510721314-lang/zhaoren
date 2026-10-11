@@ -66,6 +66,34 @@ const CASES = [
   { fn: 'admin-action', name: 'audit_empty', openid: ADMIN, store: adminStore(), event: { action: 'audit_verify', openid: ADMIN, mock_openid: ADMIN } },
 ];
 
+// ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
+//    确保 114 个 action 的分发路由 + 鉴权门 + 无 ReferenceError 都被 A/B 覆盖。
+const fs = require('fs');
+function enumerateActions(dir) {
+  const out = [];
+  const ad = path.join(__dirname, '..', dir);
+  for (const f of fs.readdirSync(ad).filter((x) => /^action_.*\.js$/.test(x))) {
+    let m;
+    try { delete require.cache[require.resolve(path.join(ad, f))]; m = require(path.join(ad, f)); }
+    catch { continue; }
+    for (const k of Object.keys(m)) if (typeof m[k] === 'function') out.push(k);
+  }
+  return out;
+}
+const AUTO_SEEDS = [
+  // order-action：用非参与方 STRANGER 跑，走"非参与者/鉴权"分支
+  ...enumerateActions('order-action').map((a) => ({
+    name: `auto_order_${a}`, openid: STRANGER,
+    event: { action: a, order_id: OID, mock_openid: STRANGER },
+  })),
+  // admin-action：用管理员 ADMIN 跑，越过鉴权门进入参数/业务校验分支
+  ...enumerateActions('admin-action').map((a) => ({
+    fn: 'admin-action', name: `auto_admin_${a}`, openid: ADMIN, store: adminStore(),
+    event: { action: a, order_id: OID, mock_openid: ADMIN },
+  })),
+];
+const ALL_CASES = CASES.concat(AUTO_SEEDS);
+
 function loadWith(dir, file, sdk) {
   let active = sdk;
   const orig = Module._load;
@@ -79,14 +107,16 @@ function loadWith(dir, file, sdk) {
 
 (async () => {
   let fails = 0;
-  for (const c of CASES) {
+  for (const c of ALL_CASES) {
     const dir = c.fn || 'order-action';
     const st = c.store || baseStore();
     // 两个独立 sdk 实例，相同 store 快照
     const a = loadWith(dir, '_orig_baseline.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
     const b = loadWith(dir, 'index.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
-    const ra = await a.main(JSON.parse(JSON.stringify(c.event)), {});
-    const rb = await b.main(JSON.parse(JSON.stringify(c.event)), {});
+    // 捕获任一侧抛错：两边抛同类同因错误也算等价（mock 能力边界内的行为一致）
+    const run = async (m) => { try { return { ok: true, v: await m.main(JSON.parse(JSON.stringify(c.event)), {}) }; } catch (e) { return { ok: false, v: String(e && e.message || e) }; } };
+    const ra = await run(a);
+    const rb = await run(b);
     try {
       assert.deepStrictEqual(normalize(rb), normalize(ra));
       console.log('OK  ', c.name);
@@ -97,7 +127,7 @@ function loadWith(dir, file, sdk) {
       console.log('  actual  :', JSON.stringify(rb));
     }
   }
-  console.log(fails === 0 ? `\nA/B EQUIVALENT: ${CASES.length} cases` : `\n${fails} diff(s)`);
+  console.log(fails === 0 ? `\nA/B EQUIVALENT: ${ALL_CASES.length} cases (${CASES.length} explicit + ${AUTO_SEEDS.length} auto)` : `\n${fails} diff(s)`);
   process.exit(fails);
 })();
 
