@@ -418,7 +418,9 @@ const HANDLERS = Object.assign(
   require('./action_finance'),
   require('./action_dispute_detail'),
   require('./action_noshow_decide'),
-  require('./action_exam')
+  require('./action_exam'),
+  require('./action_dispute_handle'),
+  require('./action_audit')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
@@ -520,128 +522,6 @@ exports.main = async (event, context) => {
   // ───────── 争议处置(S10→S10.5→裁决 S7/S5) ─────────
   // 2026-10-10: scope 视图(active 处理中 / history 已处置 / all 全部, 默认 active 保持向后兼容)
   // 纠纷全流程留痕(订单 + 状态流水 + 投诉 + 爽约申诉 + 支付/退款流水 → 统一时间线)
-  if (action === 'dispute_handle') {
-    const { order_id, decision, note } = event;
-    if (!isDocId(order_id)) return fail('dispute_bad_id', '订单 ID 格式不正确');
-    let order;
-    try { order = (await col('order_main').doc(order_id).get()).data; } catch (e) { order = null; }
-    if (!order) return fail('dispute_not_found', '订单不存在');
-    const before = order.status;
-    let after;
-    if (decision === 'open') {
-      if (before !== 'S10') return fail('dispute_bad_transition', '仅 S10 已关闭订单可登记争议');
-      after = 'S10.5';
-    } else if (decision === 'refund') {
-      if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
-      after = 'S7';
-    } else if (decision === 'complete') {
-      if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
-      // Wave2 止血⑦(修 D10): 争议前已有评价的单回 S8(保留评价), 无评价才回 S5 —— 避免把已评价单退回待评价造成重复评价
-      const from = order.complaint_from_status || '';
-      const alreadyEvaluated = (from === 'S8' || from === 'S9' ||
-        order.eval_state === 'user_done' || order.eval_state === 'auto_done');
-      after = alreadyEvaluated ? 'S8' : 'S5';
-    } else {
-      return fail('dispute_bad_decision', 'decision 必须为 open/refund/complete');
-    }
-    if (!note || !String(note).trim()) return fail('dispute_no_note', '请填写处置说明');
-    const noteText = String(note).trim();
-    // 退款金额(仅 refund): 缺省回落订单全额; 上限 = total_fen − 已成功退款合计
-    let refFen = 0;
-    let refNo = '';
-    let totalFen = 0;          // Wave1: 提到外层, 供资金位 dual-write 使用
-    let alreadyRefunded = 0;
-    if (decision === 'refund') {
-      totalFen = Number(order.total_fen) || 0;
-      try {
-        const paid = await col('pay_transaction').where({
-          order_id, type: 'refund', status: 'success', is_deleted: _.neq(true)
-        }).limit(50).get();
-        alreadyRefunded = (paid.data || []).reduce((s, t) => s + (Number(t.amount_fen) || 0), 0);
-      } catch (e) {}
-      const refFenMax = Math.max(0, totalFen - alreadyRefunded);
-      const raw = event.refund_fen;
-      refFen = (raw === undefined || raw === null || raw === '') ? totalFen : Number(raw);
-      if (!Number.isInteger(refFen) || refFen <= 0) {
-        return fail('dispute_bad_amount', '退款金额须为正整数(单位:分)');
-      }
-      if (refFen > refFenMax) {
-        return fail('dispute_amount_exceed', `退款金额不得超过可退上限 ¥${(refFenMax / 100).toFixed(2)}`);
-      }
-      refNo = genPayNo('REF');
-    }
-    const patch = {
-      status: after, admin_note: noteText,
-      dispute_handled_by: openid, dispute_handled_at: now, updated_at: now,
-      // Wave1 正交位 dual-write(§3.2): 裁决出口 → 争议关闭并解冻
-      dispute_state: 'resolved', frozen: false
-    };
-    if (decision === 'open') { patch.dispute_opened_at = now; patch.dispute_state = 'open'; patch.frozen = true; }
-    if (decision === 'refund') {
-      patch.refund_fen = refFen;
-      patch.refund_no = refNo;
-      patch.refund_source = 'dispute';
-      patch.refund_by = openid;
-      patch.refunded_at = now;
-      // Wave1 正交位 dual-write(§3.2): 资金位 refunded_fen = 已退合计 + 本次(部分退款非终态)
-      patch.fund = { paid_fen: totalFen, refunded_fen: alreadyRefunded + refFen, settle_state: 'pending', settled_at: 0 };
-    }
-    // CAS: 仅当订单仍处于读取时的原状态才允许裁决, 防并发双处置
-    const dcr = await col('order_main').where({ _id: order_id, status: before }).update({ data: patch });
-    if (!dcr.stats || dcr.stats.updated !== 1) {
-      return fail('dispute_conflict', '订单状态已变化,请刷新后重试');
-    }
-    // 退款流水落库(pay_transaction, 与 payment-mock mock_refund 同表同结构); 失败补偿订单回原状态
-    if (decision === 'refund') {
-      try {
-        await col('pay_transaction').add({ data: {
-          pay_no: refNo, order_id, order_no: order.order_no, type: 'refund',
-          amount_fen: refFen, channel: 'mock', is_mock: true, status: 'success',
-          source: 'dispute', operator_openid: openid, note: noteText,
-          paid_at: now, created_at: now, updated_at: now, is_deleted: false
-        }});
-      } catch (e) {
-        log.w(`dispute_refund txn write fail: ${e.message}; compensating order ${order_id} → ${before}`);
-        await col('order_main').where({ _id: order_id, status: 'S7' }).update({
-          data: { status: before, refunded_at: 0, refund_fen: 0, refund_no: '', updated_at: Date.now() }
-        }).catch(() => {});
-        return fail('refund_db_fail', '退款流水写入失败,请重试');
-      }
-    }
-    try {
-      await col('order_status_log').add({ data: {
-        order_id, order_no: order.order_no, from_status: before, to_status: after,
-        actor: 'admin', actor_openid: openid, action: 'dispute_' + decision,
-        note: decision === 'refund' ? `${noteText}（退款 ¥${(refFen / 100).toFixed(2)}）` : noteText,
-        created_at: now, updated_at: now, is_deleted: false
-      }});
-    } catch (e) {}
-    // 退款成功通知双方(await 落库, 防函数 return 后异步写被回收; 失败不阻断资金链路)
-    if (decision === 'refund') {
-      const amtYuan = (refFen / 100).toFixed(2);
-      await Promise.allSettled([
-        col('system_notice').add({ data: {
-          to_openid: order.user_openid, order_id, type: 'refund',
-          title: '退款成功', body: `争议裁决退款 ¥${amtYuan}，金额将原路返回`,
-          action_key: 'jump_order', action_payload: { order_id },
-          created_at: now, read: false
-        }}),
-        col('system_notice').add({ data: {
-          to_openid: order.partner_openid, order_id, type: 'refund',
-          title: '订单已退款', body: `该订单经争议裁决退款 ¥${amtYuan}`,
-          action_key: 'jump_order', action_payload: { order_id },
-          created_at: now, read: false
-        }})
-      ]);
-    }
-    await logEvent('P2', 'dispute_' + decision, openid, {
-      order_id, order_no: order.order_no, before, after, note: noteText,
-      refund_fen: decision === 'refund' ? refFen : undefined,
-      refund_no: decision === 'refund' ? refNo : undefined
-    });
-    return ok({ order_id, before, after, refund_fen: decision === 'refund' ? refFen : undefined, refund_no: decision === 'refund' ? refNo : undefined });
-  }
-
   // ───────── 7. 风控: 举报 / 平台事件 ─────────
   // 安全报备/SOS 流水(只读, 事故回溯用)
   // 集合现状: safety_report 仅有 sos(含 sub_type=silent) 与 checkin 两类;
@@ -972,63 +852,6 @@ exports.main = async (event, context) => {
   // ───────── 8.8 行为审计留痕·证据链(认证/授权/确认/注册/平台操作) ─────────
   // audit_log 集合: 每条记录带 prev_hash→chain_hash 哈希链, 事后篡改/删除可被 audit_verify 检出。
   // 写入侧见各业务云函数 audit.js(writeAudit); 本处提供 建集合/查询/链校验 三个动作。
-  if (action === 'audit_init') {
-    let created = false;
-    try {
-      await db.createCollection('audit_log');
-      created = true;
-    } catch (e) {
-      log.d(`audit_init createCollection: ${(e && e.message) || e}`);
-    }
-    // 链查询索引(openid+at): SDK 不支持时降级跳过, 返回 note 说明(不影响写入, 链校验会体现)
-    let index = { created: false, note: '' };
-    try {
-      await col('audit_log').createIndex({ name: 'idx_openid_at', keys: { openid: 1, at: -1 } });
-      index = { created: true, note: '' };
-    } catch (e) {
-      index = { created: false, note: String((e && e.errMsg) || (e && e.message) || e).slice(0, 200) };
-    }
-    const cnt = await col('audit_log').count().catch(() => ({ total: 0 }));
-    await logEvent('P2', 'audit_init', openid, { created, index, total: cnt.total || 0 });
-    return ok({ created, index, total: cnt.total || 0 });
-  }
-
-  // 审计记录查询(openid/category/result/action/时间范围 过滤, 分页倒序)
-  // 注意: event.action 已被本函数占用于动作路由, 审计动作名过滤参数为 action_name
-  if (action === 'audit_query') {
-    const pg = pager(event);
-    const q = {};
-    if (event.openid) {
-      if (!isOpenid(String(event.openid))) return fail('aq_bad_openid', 'openid 格式不正确');
-      q.openid = String(event.openid);
-    }
-    if (event.action_name) q.action = String(event.action_name);
-    if (event.category) q.category = String(event.category);
-    if (event.result) q.result = String(event.result);
-    if (event.target_id) q.target_id = String(event.target_id);
-    const win = [];
-    const s = parseInt(event.start_ts, 10);
-    const e2 = parseInt(event.end_ts, 10);
-    if (Number.isInteger(s)) win.push({ at: _.gte(s) });
-    if (Number.isInteger(e2)) win.push({ at: _.lte(e2) });
-    const where = win.length ? _.and([q].concat(win)) : q;
-    const cnt = await col('audit_log').where(where).count().catch(() => ({ total: 0 }));
-    const r = await col('audit_log').where(where).orderBy('at', 'desc')
-      .skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }));
-    return ok({
-      total: cnt.total || 0, page: pg.page, size: pg.size,
-      list: (r.data || []).map((x) => ({
-        _id: x._id, openid: x.openid || '', role: x.role || '',
-        category: x.category || '', action: x.action || '',
-        target_type: x.target_type || '', target_id: x.target_id || '',
-        detail: x.detail || {}, evidence_id: x.evidence_id || '', doc_hash: x.doc_hash || '',
-        result: x.result || 'ok', code: x.code || '',
-        client_ip: maskIp(x.client_ip), device: x.device || '', platform: x.platform || '',
-        at: x.at, prev_hash: x.prev_hash || '', chain_hash: x.chain_hash || ''
-      }))
-    });
-  }
-
   // 证据链校验: 按 openid 拉全量(时间升序)逐条重算哈希, 报首个断点(chain_hash_mismatch / prev_hash_link_break)
   // 分页: keyset 游标((at,_id) 元组升序)替代旧 skip<5000 上限 —— 无条数上限, 大 openid 也不会截断
   if (action === 'audit_verify') {
