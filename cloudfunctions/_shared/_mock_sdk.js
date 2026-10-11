@@ -41,6 +41,18 @@ const commandProxy = new Proxy({}, {
   function collection(name) {
     calls.push({ method: 'collection', name });
     return {
+      async count() {
+        calls.push({ method: 'count', name });
+        return { total: 0 };
+      },
+      async createCollection() {
+        calls.push({ method: 'createCollection', name });
+        return {};
+      },
+      async createIndex() {
+        calls.push({ method: 'createIndex', name });
+        return {};
+      },
       async add(payload) {
         calls.push({ method: 'add', name, payload });
         (writes[name] = writes[name] || []).push({ add: true, data: payload && payload.data });

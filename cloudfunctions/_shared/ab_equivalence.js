@@ -81,15 +81,15 @@ function enumerateActions(dir) {
   return out;
 }
 const AUTO_SEEDS = [
-  // order-action：用非参与方 STRANGER 跑，走"非参与者/鉴权"分支
+  // order-action：用订单参与方 USER（baseStore 含真实订单），穿透到「取单→角色校验→状态机校验」业务分支
   ...enumerateActions('order-action').map((a) => ({
-    name: `auto_order_${a}`, openid: STRANGER,
-    event: { action: a, order_id: OID, mock_openid: STRANGER },
+    name: `auto_order_${a}`, openid: USER,
+    event: { action: a, order_id: OID, mock_openid: USER, page: 1, size: 5, limit: 20 },
   })),
-  // admin-action：用管理员 ADMIN 跑，越过鉴权门进入参数/业务校验分支
+  // admin-action：管理员 ADMIN + 通用分页参数，越过鉴权门进入参数/业务校验分支
   ...enumerateActions('admin-action').map((a) => ({
     fn: 'admin-action', name: `auto_admin_${a}`, openid: ADMIN, store: adminStore(),
-    event: { action: a, order_id: OID, mock_openid: ADMIN },
+    event: { action: a, order_id: OID, mock_openid: ADMIN, page: 1, size: 5, limit: 20 },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
