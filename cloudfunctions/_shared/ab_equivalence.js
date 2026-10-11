@@ -5,11 +5,18 @@ const assert = require('assert');
 const { makeSdk } = require('./_mock_sdk');
 
 const USER = 'o_user_1', PARTNER = 'o_partner_1', STRANGER = 'o_stranger';
+const ADMIN = 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c';
 const OID = 'a'.repeat(32);
 const baseStore = () => ({
   admin_config: { global: { env: 'dev' } },
   order_main: { [OID]: { _id: OID, status: 'S2', user_openid: USER, partner_openid: PARTNER, start_time: Date.now() - 60000, urge_count: 0 } },
   system_notice: {}, user_account: {}, demand: {}
+});
+// admin-action: 白名单含 ADMIN，env=dev 放行 mock_openid 测试管理员
+const adminStore = () => ({
+  admin_config: { global: { env: 'dev', admin_openids: [ADMIN] } },
+  order_main: { [OID]: { _id: OID, order_no: 'ORD-TEST', status: 'S10', user_openid: USER, partner_openid: PARTNER } },
+  platform_event: {}, config_history: {}, audit_log: {}
 });
 
 const CASES = [
@@ -49,13 +56,21 @@ const CASES = [
   { name: 'ns_bad_report', openid: PARTNER, event: { action: 'no_show_report_defense', report_id: 'x', mock_openid: PARTNER } },
   { name: 'nsw_bad_report', openid: USER, event: { action: 'no_show_report_withdraw', report_id: 'x', mock_openid: USER } },
   { name: 'ns_detail_not_participant', openid: STRANGER, event: { action: 'no_show_report_detail', order_id: OID, mock_openid: STRANGER } },
+  // ── admin-action：核心逻辑块补 A/B 证据（拆分前 git 版本作 baseline）──
+  { fn: 'admin-action', name: 'cfg_no_change', openid: ADMIN, store: adminStore(), event: { action: 'config_set', mock_openid: ADMIN } },
+  { fn: 'admin-action', name: 'cfg_bad_int', openid: ADMIN, store: adminStore(), event: { action: 'config_set', s0_timeout_min: 0, mock_openid: ADMIN } },
+  { fn: 'admin-action', name: 'cfg_bad_env', openid: ADMIN, store: adminStore(), event: { action: 'config_set', env: 'staging', mock_openid: ADMIN } },
+  { fn: 'admin-action', name: 'dispute_bad_id', openid: ADMIN, store: adminStore(), event: { action: 'dispute_handle', order_id: 'bad', decision: 'open', note: 'x', mock_openid: ADMIN } },
+  { fn: 'admin-action', name: 'dispute_bad_decision', openid: ADMIN, store: adminStore(), event: { action: 'dispute_handle', order_id: OID, decision: 'nope', note: 'x', mock_openid: ADMIN } },
+  { fn: 'admin-action', name: 'audit_bad_openid', openid: ADMIN, store: adminStore(), event: { action: 'audit_verify', openid: 'x', mock_openid: ADMIN } },
+  { fn: 'admin-action', name: 'audit_empty', openid: ADMIN, store: adminStore(), event: { action: 'audit_verify', openid: ADMIN, mock_openid: ADMIN } },
 ];
 
-function loadWith(file, sdk) {
+function loadWith(dir, file, sdk) {
   let active = sdk;
   const orig = Module._load;
   Module._load = function (r) { if (r === 'wx-server-sdk') return active; return orig.apply(this, arguments); };
-  const full = path.join(__dirname, '..', 'order-action', file);
+  const full = path.join(__dirname, '..', dir, file);
   delete require.cache[require.resolve(full)];
   const mod = require(full);
   Module._load = orig;
@@ -65,10 +80,11 @@ function loadWith(file, sdk) {
 (async () => {
   let fails = 0;
   for (const c of CASES) {
+    const dir = c.fn || 'order-action';
     const st = c.store || baseStore();
     // 两个独立 sdk 实例，相同 store 快照
-    const a = loadWith('_orig_baseline.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
-    const b = loadWith('index.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
+    const a = loadWith(dir, '_orig_baseline.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
+    const b = loadWith(dir, 'index.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
     const ra = await a.main(JSON.parse(JSON.stringify(c.event)), {});
     const rb = await b.main(JSON.parse(JSON.stringify(c.event)), {});
     try {
