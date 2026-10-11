@@ -413,7 +413,9 @@ const HANDLERS = Object.assign(
   require('./action_finance_dispute_views'),
   require('./action_notice'),
   require('./action_noshow_list'),
-  require('./action_export')
+  require('./action_export'),
+  require('./action_dashboard'),
+  require('./action_finance')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
@@ -509,58 +511,6 @@ exports.main = async (event, context) => {
       resolveOperations, todayStart, dayKey, last7Days, bucketCount, bucketFen
     };
     return await HANDLERS[action](ctx);
-  }
-
-  // ───────── 1. 数据看板(统计卡 + 7天趋势 + 待办 + 财务汇总) ─────────
-  if (action === 'dashboard') {
-    const t7 = todayStart() - 6 * 86400000;
-    const [userR, partnerR, reviewR, demandR, activeR, disputeR,
-           users7, demands7, orders7, pays7, reportR, payExpiredR,
-           payAgg, refundAgg, tipAgg] = await Promise.all([
-      col('user_account').where({ is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('partner_profile').where({ status: 'approved', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('partner_profile').where({ status: 'pending_review', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('demand').where({ created_at: _.gte(todayStart()), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('order_main').where({ status: _.in(ACTIVE_STATUS), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('order_main').where({ status: 'S10.5', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('user_account').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
-      col('demand').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
-      col('order_main').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
-      col('pay_transaction').where({ type: 'pay', status: 'success', created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
-      col('safety_report').where({ status: 'active', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      col('order_main').where({ status: 'S0', pay_expire_at: _.lt(now), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-      // 资金聚合带 90 天窗: 规避全表扫描触达网关 3s 硬限(上线至今未满 90 天语义等价全量)
-      sumTx('pay', now - 90 * 86400000), sumTx('refund', now - 90 * 86400000), sumTx('tip', now - 90 * 86400000)
-    ]);
-    const days = last7Days();
-    return ok({
-      user_count: userR.total || 0,
-      partner_count: partnerR.total || 0,
-      today_demand_count: demandR.total || 0,
-      active_order_count: activeR.total || 0,
-      pending_review_count: reviewR.total || 0,
-      dispute_count: disputeR.total || 0,
-      gmv_fen: payAgg.total || 0,
-      trend: {
-        days,
-        users: bucketCount(days, users7.data, 'created_at'),
-        demands: bucketCount(days, demands7.data, 'created_at'),
-        orders: bucketCount(days, orders7.data, 'created_at'),
-        gmv_fen: bucketFen(days, pays7.data)
-      },
-      todo: {
-        pending_review: reviewR.total || 0,
-        dispute: disputeR.total || 0,
-        report_active: reportR.total || 0,
-        pay_expired: payExpiredR.total || 0
-      },
-      finance: {
-        gmv_fen: payAgg.total || 0,
-        refund_fen: refundAgg.total || 0,
-        tip_fen: tipAgg.total || 0,
-        fee_fen: payAgg.fee || 0
-      }
-    });
   }
 
   // 强制下架/恢复耍伴接单(不影响其发单人身份)
@@ -803,99 +753,6 @@ exports.main = async (event, context) => {
       refund_no: decision === 'refund' ? refNo : undefined
     });
     return ok({ order_id, before, after, refund_fen: decision === 'refund' ? refFen : undefined, refund_no: decision === 'refund' ? refNo : undefined });
-  }
-
-  // 财务概览(服务端 aggregate; 禁止前端全量拉取明细做统计, 会触发超时)
-  // 入参: days=1-90(默认30) 或 start_ts/end_ts(毫秒, 跨度≤90天)
-  if (action === 'finance_stats') {
-    const MAX_DAYS = 90;
-    const TREND_CAP = 5000;
-    let startTs;
-    let rangeEnd;
-    if (event.start_ts !== undefined || event.end_ts !== undefined) {
-      const s = parseInt(event.start_ts, 10);
-      const e = parseInt(event.end_ts, 10);
-      if (!Number.isInteger(s) || !Number.isInteger(e) || s >= e) {
-        return fail('fs_bad_range', 'start_ts/end_ts 须为整数毫秒且 start < end');
-      }
-      if (e - s > MAX_DAYS * 86400000) return fail('fs_range_too_long', '区间最长 90 天');
-      if (s < 1577808000000) return fail('fs_bad_start', '开始时间不合理');
-      if (e > Date.now() + 86400000) return fail('fs_bad_end', '结束时间不能晚于明天');
-      startTs = s; rangeEnd = e;
-    } else {
-      let days = parseInt(event.days, 10);
-      if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) days = 30;
-      startTs = todayStart() - (days - 1) * 86400000;
-      rangeEnd = todayStart() + 86400000;   // 含今天全天
-    }
-    const start0 = new Date(startTs); start0.setHours(0, 0, 0, 0);
-    startTs = start0.getTime();
-
-    // ① 区间内交易按类型一次分组(pay/refund/tip 的金额/手续费; 笔数走 count 与全仓口径一致)
-    // ② 耍伴已结算收入: 对齐 payment-mock settledFen 口径仅 S8/S9/S10
-    //    (S5=已完成待评价, 收入尚未结算; S7=已退款不计)
-    // ③ 趋势明细(仅 pay/refund, 带上限保护, 超量返回 truncated 标志)
-    // 注意: 时间区间必须用 _.and 组合, 对象字面量写两个同名 created_at 键会被后者覆盖(丢下界)
-    const win = [{ created_at: _.gte(startTs) }, { created_at: _.lt(rangeEnd) }];
-    const txBase = { status: 'success', is_deleted: _.neq(true) };
-    const incomeBase = { status: _.in(['S8', 'S9', 'S10']), is_deleted: _.neq(true) };
-    const [typeAgg, incomeAgg, trendR, payCnt, refundCnt, incomeCnt] = await Promise.all([
-      col('pay_transaction').aggregate()
-        .match(_.and([txBase].concat(win)))
-        .group({ _id: '$type', total: $.sum('$amount_fen'), fee: $.sum('$fee_fen') })
-        .end().catch(() => ({ list: [] })),
-      col('order_main').aggregate()
-        .match(_.and([incomeBase].concat(win)))
-        .group({ _id: null, income: $.sum('$partner_income_fen') })
-        .end().catch(() => ({ list: [] })),
-      col('pay_transaction').where({
-        type: _.in(['pay', 'refund']), status: 'success', is_deleted: _.neq(true),
-        created_at: _.gte(startTs)
-      }).limit(TREND_CAP).get().catch(() => ({ data: [] })),
-      col('pay_transaction').where(_.and([Object.assign({}, txBase, { type: 'pay' })].concat(win))).count().catch(() => ({ total: 0 })),
-      col('pay_transaction').where(_.and([Object.assign({}, txBase, { type: 'refund' })].concat(win))).count().catch(() => ({ total: 0 })),
-      col('order_main').where(_.and([incomeBase].concat(win))).count().catch(() => ({ total: 0 }))
-    ]);
-    const typeMap = {};
-    (typeAgg.list || []).forEach((r) => { typeMap[r._id] = r; });
-    const pay = typeMap.pay || { total: 0, fee: 0 };
-    const refund = typeMap.refund || { total: 0, fee: 0 };
-    const tip = typeMap.tip || { total: 0, fee: 0 };
-    const incomeRow = (incomeAgg.list || [])[0] || { income: 0 };
-
-    // 按天分桶(与 dashboard 趋势口径一致: paid_at 优先, 回退 created_at)
-    const days = [];
-    for (let t = startTs; t < rangeEnd; t += 86400000) days.push(dayKey(t));
-    const gmvB = {}, refundB = {}, cntB = {};
-    days.forEach((d) => { gmvB[d] = 0; refundB[d] = 0; cntB[d] = 0; });
-    (trendR.data || []).forEach((t) => {
-      const k = dayKey(t.paid_at || t.created_at);
-      if (gmvB[k] === undefined) return;
-      if (t.type === 'pay') { gmvB[k] += (t.amount_fen || 0); cntB[k] += 1; }
-      else if (t.type === 'refund') refundB[k] += (t.amount_fen || 0);
-    });
-
-    return ok({
-      range: { start_ts: startTs, end_ts: rangeEnd, days: days.length },
-      summary: {
-        gmv_fen: pay.total || 0,
-        refund_fen: refund.total || 0,
-        net_gmv_fen: (pay.total || 0) - (refund.total || 0),
-        tip_fen: tip.total || 0,
-        platform_fee_fen: pay.fee || 0,
-        partner_income_fen: incomeRow.income || 0,
-        partner_order_count: incomeCnt.total || 0,
-        pay_count: payCnt.total || 0,
-        refund_count: refundCnt.total || 0
-      },
-      trend: {
-        days,
-        gmv_fen: days.map((d) => gmvB[d]),
-        refund_fen: days.map((d) => refundB[d]),
-        pay_count: days.map((d) => cntB[d])
-      },
-      trend_truncated: (trendR.data || []).length >= TREND_CAP
-    });
   }
 
   // ───────── 7. 风控: 举报 / 平台事件 ─────────
