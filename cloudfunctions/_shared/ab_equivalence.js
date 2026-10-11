@@ -97,6 +97,22 @@ const CASES = [
       no_show_report: { ['d'.repeat(32)]: { _id: 'd'.repeat(32), status: 'received', order_id: OID, order_no: 'ORD-3', target_openid: PARTNER, target_role: 'partner', reporter_openid: USER } },
       user_account: { [PARTNER]: { _id: 'ua1', openid: PARTNER, partner_credit_score: 800, status: 'normal' } }, credit_score_log: {}, system_notice: {}, partner_profile: {} }),
     event: { action: 'no_show_decide', mock_openid: ADMIN, report_id: 'd'.repeat(32), verdict: 'upheld', note: '成立' } },
+  // ── Batch 2: 中逻辑成功路径（题目更新/删除、资料审核、信用分、举报处理），与拒绝分支正反对照 ──
+  { fn: 'admin-action', name: 'exam_update_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { exam_bank: { e1: { _id: 'e1', code: 'SUBJ2', is_deleted: false } } }),
+    event: { action: 'exam_subject_update', mock_openid: ADMIN, code: 'SUBJ2', title: '新名', pass_line: 70, requires: [], questions: [{ question: 'q?', options: ['a', 'b'], answer_idx: 0 }] } },
+  { fn: 'admin-action', name: 'exam_delete_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { exam_bank: { e1: { _id: 'e1', code: 'SUBJ2', requires: [], is_deleted: false } } }),
+    event: { action: 'exam_subject_delete', mock_openid: ADMIN, code: 'SUBJ2' } },
+  { fn: 'admin-action', name: 'pp_review_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { partner_profile: { p1: { _id: 'p1', openid: PARTNER, profile_audit_status: 'pending', bio_pending: '一段简介', is_deleted: false } }, system_notice: {} }),
+    event: { action: 'partner_profile_review', mock_openid: ADMIN, target_openid: PARTNER, items: [{ field: 'bio', pass: true }] } },
+  { fn: 'admin-action', name: 'credit_adjust_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { user_account: { u1: { _id: 'u1', openid: PARTNER, partner_credit_score: 800 } }, credit_score_log: {} }),
+    event: { action: 'user_credit_adjust', mock_openid: ADMIN, target_openid: PARTNER, score_type: 'partner', delta: 20, reason: '测试加分' } },
+  { fn: 'admin-action', name: 'report_handle_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { safety_report: { ['b'.repeat(32)]: { _id: 'b'.repeat(32), type: 'spam', order_no: '' } } }),
+    event: { action: 'report_handle', mock_openid: ADMIN, report_id: 'b'.repeat(32), note: '已处理' } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
