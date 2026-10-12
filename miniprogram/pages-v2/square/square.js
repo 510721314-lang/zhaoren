@@ -4,6 +4,7 @@ const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
 const { takeOrder } = require('../../utils/take-order.js');
 const swr = require('../../utils/swr.js');
+const { callCloud } = require('../../utils/cloud.js');
 
 // S8 SWR: 需求广场列表本地缓存 10 分钟, 冷启动先渲染旧数据秒开, 网络回来静默覆盖
 const SQUARE_PAGE_KEY = 'square_page_v1';
@@ -70,19 +71,12 @@ Page({
   },
 
   onPullDownRefresh() {
-    wx.cloud.callFunction({
-      name: 'home-action',
-      data: { action: 'square', limit: CONFIG.PAGING.squareLimit },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          this.applySquareList(r.data);
-          swr.set(SQUARE_PAGE_KEY, r.data);   // 手动刷新后同步更新冷启缓存
-        }
-        wx.stopPullDownRefresh();
-      },
-      fail: () => wx.stopPullDownRefresh()
-    });
+    callCloud('home-action', { action: 'square', limit: CONFIG.PAGING.squareLimit }).then((r) => {
+      if (r.ok && r.data) {
+        this.applySquareList(r.data);
+        swr.set(SQUARE_PAGE_KEY, r.data);   // 手动刷新后同步更新冷启缓存
+      }
+    }).catch(() => {}).then(() => wx.stopPullDownRefresh());
   },
 
   // 广场列表渲染落点(SWR 缓存与网络数据共用)
@@ -104,19 +98,12 @@ Page({
         this.setData({ loading: false });
       }
     }
-    wx.cloud.callFunction({
-      name: 'home-action',
-      data: { action: 'square', limit: CONFIG.PAGING.squareLimit },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          this.applySquareList(r.data);
-          swr.set(SQUARE_PAGE_KEY, r.data);
-        }
-      },
-      fail: () => {},
-      complete: () => { this.setData({ loading: false }); }
-    });
+    callCloud('home-action', { action: 'square', limit: CONFIG.PAGING.squareLimit }).then((r) => {
+      if (r.ok && r.data) {
+        this.applySquareList(r.data);
+        swr.set(SQUARE_PAGE_KEY, r.data);
+      }
+    }).catch(() => {}).then(() => { this.setData({ loading: false }); });
   },
 
   onChipTap(e) {
@@ -143,17 +130,11 @@ Page({
 
   // ───────── 活动卡片 ─────────
   fetchActivities() {
-    wx.cloud.callFunction({
-      name: 'home-action',
-      data: { action: 'home_activity_list' },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          this.setData({ cards: r.data.cards || [] });
-        }
-      },
-      fail: () => { /* 活动拉取失败静默降级, 广场仍可用 */ }
-    });
+    callCloud('home-action', { action: 'home_activity_list' }).then((r) => {
+      if (r.ok && r.data) {
+        this.setData({ cards: r.data.cards || [] });
+      }
+    }).catch(() => { /* 活动拉取失败静默降级, 广场仍可用 */ });
   },
 
   onActivityTap(e) {
