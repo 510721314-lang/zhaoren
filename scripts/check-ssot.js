@@ -57,6 +57,30 @@ console.log(`\n=== SSOT 硬编码审计 ===`);
 console.log(`config/index.js 总行数: ${lines.length}`);
 console.log(`可疑硬编码: ${findings.length}`);
 
+// ── 场景配置跨端一致性(2026-10-12 P2 整改) ──
+// 场景 code 存在三处定义: 前端 enums.SCENES(展示源) / 云函数 demand-publish SCENE_CODES_FALLBACK(兜底白名单)
+//                        / 云端 admin_config.scene_list(真 SSOT, 动态)。
+// 不变量: 兜底白名单的每个 code 必须在前端 SCENES 中有定义(否则兜底会引入前端不认识的场景 → 无图标/免责)。
+const ENUMS_JS = path.resolve(__dirname, '..', 'miniprogram', 'config', 'enums.js');
+const DP_JS = path.resolve(__dirname, '..', 'cloudfunctions', 'demand-publish', 'index.js');
+const sceneDrift = [];
+try {
+  const enumCodes = new Set(Array.from(fs.readFileSync(ENUMS_JS, 'utf8').matchAll(/code:\s*'(W\d+)'/g)).map((m) => m[1]));
+  const dpMatch = fs.readFileSync(DP_JS, 'utf8').match(/SCENE_CODES_FALLBACK\s*=\s*\[([^\]]*)\]/);
+  const dpCodes = dpMatch ? Array.from(dpMatch[1].matchAll(/'(W\d+)'/g)).map((m) => m[1]) : [];
+  if (!dpCodes.length) sceneDrift.push('demand-publish SCENE_CODES_FALLBACK 解析为空(常量被改名?)');
+  for (const c of dpCodes) if (!enumCodes.has(c)) sceneDrift.push(`demand-publish 兜底场景 ${c} 不在前端 enums.SCENES 中`);
+} catch (e) {
+  sceneDrift.push('场景一致性检查失败: ' + e.message);
+}
+
+console.log(`\n=== 场景配置跨端一致性 ===`);
+if (sceneDrift.length) {
+  for (const d of sceneDrift) console.error('  [DRIFT] ' + d);
+} else {
+  console.log(`✅ 兜底场景白名单与前端 SCENES 一致`);
+}
+
 if (findings.length > 0) {
   console.log(`\n⚠️ 以下硬编码建议迁移到 admin_config 云端可配:`);
   for (const f of findings.slice(0, 20)) { // 最多显示20条
@@ -64,6 +88,8 @@ if (findings.length > 0) {
   }
   if (findings.length > 20) console.log(`  ... 还有 ${findings.length - 20} 条`);
   console.log(`\n迁移方式: admin_config.global 新增字段 → 前端启动时 callCloud config_get → Object.assign(CONFIG, cloudConfig)`);
+}
+if (findings.length > 0 || sceneDrift.length > 0) {
   process.exit(1);
 } else {
   console.log(`\n✅ config/index.js 无新增硬编码，或全部已标注待迁移`);

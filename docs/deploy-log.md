@@ -106,6 +106,8 @@
 
 > 备注（2026-10-12 走查通过 · 用户模拟器实测）：**①订单详情投诉/爽约入口 + 订单事件时间线**（对应 2026-10-12 两行 order-action 部署）——S2/S3/S3.5/S4 双方可见「发起投诉」、发起后转「争议处理中」、冻结态（爽约申诉在途）入口消失、底部「订单动态」倒序展示状态流转/投诉/爽约/改期/加时/里程碑/支付/催办且无 openid 外显、撤回后留痕回退、关单态只读回看，**全部通过**。**②首页「更多场景」折叠**（纯前端，commit `4f9fb4c`，无云函数部署）——主宫格 5 个 + 「更多场景」入口格、就地展开 4 个（学习/出行/健身/线上）并变「收起」、搜索「健身」直接命中、清空搜索回折叠态，**全部通过**。
 
+> 备注（2026-10-12 手机号存量回填 + P2 场景守护，**无云函数部署**）：**①存量手机号就地加密回填**——新增一次性迁移脚本 `scripts/backfill-phone-enc.js`（两阶段：先写 `phone_enc`/`phone_hash`/`phone_mask`，校验齐全后再 `unset` 明文；幂等、可重跑；**全程不打印任何手机号/密文原值**；Tip 走 `scripts/tcb-exec.js` 的 `db nosql execute` 直连）。执行结果：`admin_config.phone_aes_key` **新建并落库**（此前 lazy 未生成）、扫描明文文档 2 条 → 回填 2 条、清理历史明文 `sms_target` 1 条；**终校验：解密往返 + HMAC 一致 + 掩码一致 = 2/2，异常 0；残留明文 phone = 0、残留明文 sms_target = 0**。至此 P0-3「core 表」明文已清零（`emergency_contact.phone` / `demand.contact_phone` 仍按拍板保留明文，待后续批次）。**②P2 场景配置跨端守护**——`scripts/check-ssot.js` 新增不变量校验「demand-publish `SCENE_CODES_FALLBACK` 的每个 code 必须存在于前端 `enums.SCENES`」（防兜底引入前端不认识的场景 → 无图标/免责），并修正 `enums.js` 中引用的过时常量名（`SCENE_WHITELIST` 已不存在，实为 `SCENE_CODES_FALLBACK` + 云端 `admin_config.scene_list`）。门禁：单测 **240/0**、check-syntax 167 文件 OK、check-handlers 115 OK、shared-sync ALL OK、nightmask/ssot(含新校验)/index-ledger(33) OK。
+
 ## 使用说明
 
 - 新增部署前：`git -C c:\zhaoren bundle create "C:\zhaoren-bak\zhaoren-deploy-<YYYYMMDD>-<HHMMSS>.bundle" master --tags`，核 SHA 记 `C:\zhaoren-bak\CHECKSUMS.txt`

@@ -5,7 +5,8 @@
 
 const CONFIG = require('./index.js');
 
-// 一期场景白名单（PRD 3.3.1，硬编码校验 R9）。code 与云函数 demand-publish SCENE_WHITELIST 对齐
+// 一期场景白名单（PRD 3.3.1，硬编码校验 R9）。场景 code 与云函数 demand-publish
+// SCENE_CODES_FALLBACK 保持子集关系(由 scripts/check-ssot.js 守护); 运行时真 SSOT 为云端 admin_config.scene_list
 // disclaimer 与云函数 DISCLAIMER_TYPE_MAP 对齐：每个场景都有对应免责类型，选中即弹（合规双签）
 const SCENES = [
   {
