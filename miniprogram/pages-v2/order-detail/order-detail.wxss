@@ -303,3 +303,9 @@
 .od__nsitem-status.is-withdrawn { color: var(--text-3); }
 .od__nsitem-reason { margin-top: 8rpx; font-size: var(--font-sm); color: var(--text-2); line-height: 1.5; }
 .od__nsitem-sub { margin-top: 6rpx; font-size: var(--font-sm); color: var(--text-3); }
+
+/* 改期结果(2026-10-12): 双方可见的最近一次改期处理结果 */
+.od__modify-result { display: flex; align-items: center; gap: 8rpx; margin: 0 0 16rpx; padding: 16rpx 20rpx; border-radius: 12rpx; font-size: 26rpx; line-height: 1.4; }
+.od__modify-result.is-ok { background: #eaf7ee; color: #1f8f4a; }
+.od__modify-result.is-rej { background: #fdeeee; color: #c0392b; }
+

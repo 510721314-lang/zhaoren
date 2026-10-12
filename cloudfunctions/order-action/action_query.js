@@ -125,6 +125,9 @@ async function detail(ctx) {
       milestone: order.milestone || null,
       modify_count: Number(order.modify_count) || 0,
       pending_modify: order.pending_modify || null,
+      // 改期结果(2026-10-12): 供详情页**双方**展示最近一次改期处理结果(同意/拒绝), 前端据此在 S2/S2_5 展示
+      modify_confirmed_at: Number(order.modify_confirmed_at) || 0,
+      modify_rejected_at: Number(order.modify_rejected_at) || 0,
       pending_extend: order.pending_extend || null,
       // 撤回投诉入口(仅发起人、且平台未受理=订单仍 S10.5 时可见); SOS 的 help_flag 与本流程无关, 不复用
       can_withdraw_complaint: order.status === 'S10.5' && order.complaint_by === openid,

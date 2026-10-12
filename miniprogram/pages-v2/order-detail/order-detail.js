@@ -382,6 +382,13 @@ Page({
         can_respond: !!d.role && !!pe.by_role && d.role !== pe.by_role
       };
     }
+    // 改期结果(2026-10-12): 由云端返回的最近一次改期处理时间戳推导, 供双方详情页展示(不再仅发起方一次性 toast)
+    const mcAt = Number(d.modify_confirmed_at) || 0;
+    const mrAt = Number(d.modify_rejected_at) || 0;
+    const modifyResult = (!mcAt && !mrAt) ? null
+      : (mcAt >= mrAt
+        ? { type: 'confirmed', text: '改期已确认，服务时间已更新' }
+        : { type: 'rejected', text: '改期申请已被拒绝，服务时间不变' });
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
@@ -391,6 +398,7 @@ Page({
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
       urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
       modify_count: d.modify_count || 0,
+      modify_result: modifyResult,
       pending_modify: pendingModify,
       pending_extend: pendingExtend,
       scene_code: d.scene,

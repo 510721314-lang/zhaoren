@@ -148,6 +148,11 @@
 
       <!-- S2 已支付待履约 -->
       <block wx:elif="{{order.status === 'S2'}}">
+        <!-- 改期结果(2026-10-12): 双方可见最近一次改期处理结果(同意/拒绝), 解决「结果仅发起方一次性 toast」缺口 -->
+        <view class="od__modify-result {{order.modify_result.type === 'confirmed' ? 'is-ok' : 'is-rej'}}" wx:if="{{order.modify_result}}">
+          <text>{{order.modify_result.type === 'confirmed' ? '✅' : '❌'}}</text>
+          <text>{{order.modify_result.text}}</text>
+        </view>
         <block wx:if="{{order.my_role === 'partner'}}">
           <button class="od__btn od__btn--primary" bindtap="onStartService" hover-class="btn-press">开始履约</button>
           <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
