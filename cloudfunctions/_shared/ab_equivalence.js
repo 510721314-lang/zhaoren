@@ -187,6 +187,22 @@ const CASES = [
   { fn: 'order-action', name: 'complaint_withdraw_ok', openid: USER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S10.5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, complaint_by: USER, complaint_from_status: 'S8' } }, complaint: {} }),
     event: { action: 'complaint_withdraw', mock_openid: USER, order_id: OID } },
+  // ── P1 前段: 恢复/里程碑/加时 链路(嵌套 CAS milestone.* + fixed 定价避开金额分摊) ──
+  { fn: 'order-action', name: 'resume_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3.5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
+    event: { action: 'resume_service', mock_openid: PARTNER, order_id: OID } },
+  { fn: 'order-action', name: 'milestone_submit_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, milestone: { current: 0, confirmed: [false, false, false], evidence: [] } } } }),
+    event: { action: 'milestone_submit', mock_openid: PARTNER, order_id: OID } },
+  { fn: 'order-action', name: 'milestone_confirm_ok', openid: USER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, milestone: { current: 1, confirmed: [false, false, false], evidence: [] } } } }),
+    event: { action: 'milestone_confirm', mock_openid: USER, order_id: OID, milestone: 1 } },
+  { fn: 'order-action', name: 'extend_apply_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, pricing_type: 'fixed', duration_h: 2 } } }),
+    event: { action: 'extend', mock_openid: PARTNER, order_id: OID, add_hours: 2 } },
+  { fn: 'order-action', name: 'extend_confirm_ok', openid: USER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, pricing_type: 'fixed', duration_h: 2, fee_fen: 100, partner_income_fen: 900, pending_extend: { add_hours: 2, add_amount_fen: 0, by_openid: PARTNER, created_at: 1, expire_at: Date.now() + 86400000 } } } }),
+    event: { action: 'extend_confirm', mock_openid: USER, order_id: OID } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
