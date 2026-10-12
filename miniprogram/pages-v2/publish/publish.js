@@ -176,7 +176,7 @@ Page({
 
   async fetchScenes() {
     try {
-      const r = await wx.cloud.callFunction({ name: 'home-action', data: { action: 'scene_groups' } }).then((res) => res.result || {});
+      const r = await callCloud('home-action', { action: 'scene_groups' });
       if (r.ok && r.data && r.data.scene_groups) {
         const ICON_FB = { W1: '🏥', W2: '📚', W8: '🛠️', W10: '🚄', W11: '💬', W3: '🏋️', W4: '🎡', W7: '🫂', W9: '🐾' };
         const COLOR_FB = { W1: '#E8F1FF', W2: '#EDE8FF', W8: '#FFF3E0', W10: '#E0F5F4', W11: '#FFE9EC', W3: '#E8FFF0', W4: '#FFF0E8', W7: '#FFE8F3', W9: '#E8F5FF' };
@@ -250,11 +250,8 @@ Page({
       wx.setNavigationBarTitle({ title: '修改需求' });
       this.setData({ isEditMode: true, navTitle: '修改需求' });
       // 拉需求详情回填表单
-      wx.cloud.callFunction({
-        name: 'demand-publish',
-        data: { action: 'detail', demand_id: options.demand_id },
-        success: (res) => {
-          const r = res.result || {};
+      callCloud('demand-publish', { action: 'detail', demand_id: options.demand_id })
+        .then((r) => {
           if (!r.ok || !r.data) {
             wx.showToast({ title: '需求不存在', icon: 'none' });
             setTimeout(() => wx.navigateBack(), 1200);
@@ -319,12 +316,11 @@ Page({
               updatedAt: ''
             } : null
           });
-        },
-        fail: () => {
+        })
+        .catch(() => {
           wx.showToast({ title: '加载需求失败', icon: 'none' });
           setTimeout(() => wx.navigateBack(), 1200);
-        }
-      });
+        });
     }
 
     // 场景预选中: 存到 pending 等 fetchScenes 完成后再调 setScene
@@ -347,24 +343,18 @@ Page({
       this._locatePublish(false);
     }
     // 拉用户信息 (peek_login) 替代 CURRENT_USER
-    wx.cloud.callFunction({
-      name: 'user-login',
-      data: { action: 'peek_login' },
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data && r.data.found && r.data.user) {
-          const u = r.data.user;
-          this.setData({
-            user: u,
-            smartLocked: (u.partner_credit_score || 0) < L3_MIN,
-            // 联系手机号: 账户已绑号(脱敏展示) → 默认勾选「使用账户手机号」
-            accountPhoneMasked: u.phone || '',
-            useAccountPhone: !!u.phone
-          });
-        }
-      },
-      fail: () => {}
-    });
+    callCloud('user-login', { action: 'peek_login' }).then((r) => {
+      if (r.ok && r.data && r.data.found && r.data.user) {
+        const u = r.data.user;
+        this.setData({
+          user: u,
+          smartLocked: (u.partner_credit_score || 0) < L3_MIN,
+          // 联系手机号: 账户已绑号(脱敏展示) → 默认勾选「使用账户手机号」
+          accountPhoneMasked: u.phone || '',
+          useAccountPhone: !!u.phone
+        });
+      }
+    }).catch(() => {});
     // B5 日期范围
     const now = new Date();
     const todayStr = this.fmtDate(now);
@@ -1284,60 +1274,54 @@ Page({
       client_request_id: this._clientRequestId
     };
 
-    wx.cloud.callFunction({
-      name: 'demand-publish',
-      data: params,
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          const demandId = r.data._id;
-          this.__draftId = null;
-          this._clientRequestId = null;  // 发布成功清除幂等键, 下一单复用新 id
-          this.invitePartnerOpenid = '';
-          require('../../utils/report.js').report(this.__editMode ? 'demand_update' : 'demand_publish', {
-            scene: this.data.form.scene || params.scene || '',
-            match_mode: (this.data.form.match_mode) || params.match_mode || ''
-          });
-          wx.showToast({
-            title: this.__editMode
-              ? '更新成功'
-              : (f.match_mode === 'direct' ? '定向发布成功' : '发布成功'),
-            icon: 'success'
-          });
-          setTimeout(() => {
-            if (this.__editMode) {
-              // 编辑成功 → 返回详情页(会自动 onShow 刷新)
-              wx.navigateBack({ fail: () => {
-                wx.redirectTo({ url: `/pages-v2/demand-detail/demand-detail?id=${demandId}` });
-              }});
-            } else {
-              wx.redirectTo({
-                url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
-                fail: () => {
-                  wx.switchTab({
-                    url: '/pages-v2/square/square',
-                    fail: () => wx.showToast({ title: '发布成功，请在广场查看', icon: 'none' })
-                  });
-                }
-              });
-            }
-          }, 800);
-        } else {
-          // 服务端实名门禁(publish_not_realname): 给「去实名」按钮引导, 而非只弹 toast 无出路
-          const bs = require('../../utils/bootstrap.js');
-          if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
-            bs.showRealnameGuide(r.msg);
+    callCloud('demand-publish', params).then((r) => {
+      if (r.ok && r.data) {
+        const demandId = r.data._id;
+        this.__draftId = null;
+        this._clientRequestId = null;  // 发布成功清除幂等键, 下一单复用新 id
+        this.invitePartnerOpenid = '';
+        require('../../utils/report.js').report(this.__editMode ? 'demand_update' : 'demand_publish', {
+          scene: this.data.form.scene || params.scene || '',
+          match_mode: (this.data.form.match_mode) || params.match_mode || ''
+        });
+        wx.showToast({
+          title: this.__editMode
+            ? '更新成功'
+            : (f.match_mode === 'direct' ? '定向发布成功' : '发布成功'),
+          icon: 'success'
+        });
+        setTimeout(() => {
+          if (this.__editMode) {
+            // 编辑成功 → 返回详情页(会自动 onShow 刷新)
+            wx.navigateBack({ fail: () => {
+              wx.redirectTo({ url: `/pages-v2/demand-detail/demand-detail?id=${demandId}` });
+            }});
           } else {
-            wx.showToast({ title: r.msg || '操作失败', icon: 'none', duration: 2500 });
+            wx.redirectTo({
+              url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
+              fail: () => {
+                wx.switchTab({
+                  url: '/pages-v2/square/square',
+                  fail: () => wx.showToast({ title: '发布成功，请在广场查看', icon: 'none' })
+                });
+              }
+            });
           }
-          this.setData({ publishing: false });
+        }, 800);
+      } else {
+        // 服务端实名门禁(publish_not_realname): 给「去实名」按钮引导, 而非只弹 toast 无出路
+        const bs = require('../../utils/bootstrap.js');
+        if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
+          bs.showRealnameGuide(r.msg);
+        } else {
+          wx.showToast({ title: r.msg || '操作失败', icon: 'none', duration: 2500 });
         }
-      },
-      fail: (err) => {
-        console.error('[confirmPublish] cloud fail:', err);
-        wx.showToast({ title: '网络异常，请重试', icon: 'none' });
         this.setData({ publishing: false });
       }
+    }).catch((err) => {
+      console.error('[confirmPublish] cloud fail:', err);
+      wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+      this.setData({ publishing: false });
     });
   },
   // 放弃修改(编辑模式): 二次确认后返回

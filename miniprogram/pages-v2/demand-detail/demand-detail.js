@@ -3,6 +3,7 @@ const redline = require('../../utils/redline.js');
 const { getScene } = redline;
 const CONFIG = require('../../config/index.js');
 const { takeOrder } = require('../../utils/take-order.js');
+const { callCloud } = require('../../utils/cloud.js');
 
 Page({
   data: {
@@ -41,20 +42,14 @@ Page({
       payload.viewer_lat = this.__viewerCoords.latitude;
       payload.viewer_lng = this.__viewerCoords.longitude;
     }
-    wx.cloud.callFunction({
-      name: 'demand-publish',
-      data: payload,
-      success: (res) => {
-        const r = res.result || {};
-        if (r.ok && r.data) {
-          this.__renderDemand(r.data);
-        } else {
-          this.setData({ loading: false, loadError: true, loadErrMsg: (r.msg || r.code || '详情加载失败') });
-        }
-      },
-      fail: (err) => {
-        this.setData({ loading: false, loadError: true, loadErrMsg: (err && err.errMsg) || '详情加载失败' });
+    callCloud('demand-publish', payload).then((r) => {
+      if (r.ok && r.data) {
+        this.__renderDemand(r.data);
+      } else {
+        this.setData({ loading: false, loadError: true, loadErrMsg: (r.msg || r.code || '详情加载失败') });
       }
+    }).catch(() => {
+      this.setData({ loading: false, loadError: true, loadErrMsg: '详情加载失败' });
     });
   },
 
@@ -117,40 +112,35 @@ Page({
     if (this.__ownerPrompted) return;
     const id = this.__lastOptions && this.__lastOptions.id;
     if (!id) return;
-    wx.cloud.callFunction({
-      name: 'demand-publish',
-      data: { action: 'detail_light', demand_id: id },
-      success: (res) => {
-        const d = (res.result && res.result.ok && res.result.data) || null;
-        if (!d || !d.is_owner) { this.stopOwnerPoll(); return; }
-        if (d.status && d.status !== 'matching') {
-          this.stopOwnerPoll();
-          if (d.order_id && !this.__ownerPrompted) {
-            this.__ownerPrompted = true;
-            wx.showModal({
-              title: '👥 已有人接单',
-              content: '耍伴已接单并发起确认，是否前往核对确认？',
-              confirmText: '去确认',
-              cancelText: '稍后',
-              confirmColor: '#07C160',
-              success: (res) => {
-                if (res.confirm) {
-                  wx.redirectTo({
-                    url: `/pages-v2/chat/chat?orderId=${d.order_id}`,
-                    fail: () => { this.__ownerPrompted = false; }
-                  });
-                }
-                // 点"稍后": 停轮询, 留在详情页, 不反复弹; 需求发布者之后可从订单/消息进入
-              },
-              fail: () => { this.__ownerPrompted = false; }
-            });
-          }
-        } else if (this.__ownerPollLaunch && Date.now() - this.__ownerPollLaunch > 90000) {
-          this.stopOwnerPoll();
+    callCloud('demand-publish', { action: 'detail_light', demand_id: id }).then((r) => {
+      const d = (r.ok && r.data) || null;
+      if (!d || !d.is_owner) { this.stopOwnerPoll(); return; }
+      if (d.status && d.status !== 'matching') {
+        this.stopOwnerPoll();
+        if (d.order_id && !this.__ownerPrompted) {
+          this.__ownerPrompted = true;
+          wx.showModal({
+            title: '👥 已有人接单',
+            content: '耍伴已接单并发起确认，是否前往核对确认？',
+            confirmText: '去确认',
+            cancelText: '稍后',
+            confirmColor: '#07C160',
+            success: (res) => {
+              if (res.confirm) {
+                wx.redirectTo({
+                  url: `/pages-v2/chat/chat?orderId=${d.order_id}`,
+                  fail: () => { this.__ownerPrompted = false; }
+                });
+              }
+              // 点"稍后": 停轮询, 留在详情页, 不反复弹; 需求发布者之后可从订单/消息进入
+            },
+            fail: () => { this.__ownerPrompted = false; }
+          });
         }
-      },
-      fail: () => {}
-    });
+      } else if (this.__ownerPollLaunch && Date.now() - this.__ownerPollLaunch > 90000) {
+        this.stopOwnerPoll();
+      }
+    }).catch(() => {});
   },
   stopOwnerPoll() {
     if (this.__ownerPoll) { clearInterval(this.__ownerPoll); this.__ownerPoll = null; }
@@ -232,20 +222,14 @@ Page({
       confirmColor: '#fa5151',
       success: (res) => {
         if (res.confirm) {
-          wx.cloud.callFunction({
-            name: 'demand-publish',
-            data: { action: 'cancel', demand_id: this.data.demand._id },
-            success: (r) => {
-              const rr = r.result || {};
-              if (rr.ok) {
-                wx.showToast({ title: '需求已取消', icon: 'none' });
-                setTimeout(() => wx.navigateBack(), 800);
-              } else {
-                wx.showToast({ title: rr.msg || '取消失败', icon: 'none' });
-              }
-            },
-            fail: () => wx.showToast({ title: '网络异常', icon: 'none' })
-          });
+          callCloud('demand-publish', { action: 'cancel', demand_id: this.data.demand._id }).then((rr) => {
+            if (rr.ok) {
+              wx.showToast({ title: '需求已取消', icon: 'none' });
+              setTimeout(() => wx.navigateBack(), 800);
+            } else {
+              wx.showToast({ title: rr.msg || '取消失败', icon: 'none' });
+            }
+          }).catch(() => wx.showToast({ title: '网络异常', icon: 'none' }));
         }
       }
     });
