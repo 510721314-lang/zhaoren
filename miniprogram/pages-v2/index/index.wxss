@@ -208,6 +208,13 @@
   font-size: var(--font-sm);
   color: var(--text-2);
 }
+/* 「更多场景」入口格(2026-10-12): 与真实场景格区分, 弱化图标底色 */
+.home__cell--more .home__cell-ic {
+  background: var(--bg-segment);
+  font-size: var(--font-md);
+  color: var(--text-3);
+}
+.home__cell--more .home__cell-name { color: var(--text-3); }
 .home__gb-badge {
   position: absolute;
   top: -12rpx;

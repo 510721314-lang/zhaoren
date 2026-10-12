@@ -7,6 +7,44 @@ const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
 const swr = require('../../utils/swr.js');
 
+// ── 首页场景宫格: 常用场景常驻 + 「更多场景」折叠(2026-10-12 需求) ──
+// 归入「更多场景」的场景(按需求给定顺序展示); 其余留主宫格
+const MORE_SCENE_CODES = ['W2', 'W10', 'W3', 'W11'];
+const MORE_CELL = { code: '__MORE__', name: '更多场景', icon: '➕', color: 'var(--bg-segment)', isMore: true };
+const COLLAPSE_CELL = { code: '__MORE__', name: '收起', icon: '➖', color: 'var(--bg-segment)', isMore: true };
+
+// 按 MORE_SCENE_CODES 拆分为 常用/更多 两组
+function splitScenes(list) {
+  const primary = [];
+  const more = [];
+  (list || []).forEach((s) => { (MORE_SCENE_CODES.indexOf(s.code) >= 0 ? more : primary).push(s); });
+  more.sort((a, b) => MORE_SCENE_CODES.indexOf(a.code) - MORE_SCENE_CODES.indexOf(b.code));
+  return { primary, more };
+}
+
+// 宫格实际渲染列表: 搜索态平铺命中; 常态 = 常用(+展开的更多) + 「更多场景/收起」入口格
+function buildGrid(primary, more, expanded, searchKey, filtered) {
+  if (searchKey) return filtered || [];
+  const cells = (primary || []).slice();
+  if (more && more.length) {
+    if (expanded) cells.push.apply(cells, more);
+    cells.push(expanded ? COLLAPSE_CELL : MORE_CELL);
+  }
+  return cells;
+}
+
+// 关键词过滤(场景名 / 子服务)
+function matchScenes(list, key) {
+  const kw = String(key || '').toLowerCase();
+  return (list || []).filter((s) => {
+    const inName = String(s.name || '').toLowerCase().indexOf(kw) >= 0;
+    const inOptions = (s.options || []).some((o) => String(o).toLowerCase().indexOf(kw) >= 0);
+    return inName || inOptions;
+  });
+}
+
+const INITIAL_SPLIT = splitScenes(SCENES);
+
 // S8 SWR: 首页广场数据本地缓存 10 分钟, 冷启动先渲染旧数据秒开, 网络回来静默覆盖
 const SQUARE_CACHE_KEY = 'home_square_v1';
 const SQUARE_TTL_MS = 10 * 60 * 1000;
@@ -26,6 +64,10 @@ Page({
     greeting: '你好',
     scenes: SCENES,
     filteredScenes: SCENES,   // 搜索关键词实时过滤后的场景
+    primaryScenes: INITIAL_SPLIT.primary,   // 主宫格常驻场景(更多场景之外)
+    moreScenes: INITIAL_SPLIT.more,         // 「更多场景」折叠区场景
+    gridScenes: buildGrid(INITIAL_SPLIT.primary, INITIAL_SPLIT.more, false, '', SCENES),  // 宫格实际渲染
+    showMoreScenes: false,                  // 「更多场景」展开态
     searchKey: '',
     activePartners: [],       // 活跃耍伴(头像横滑+信用分)
     banners: [],              // 运营 banner 轮播(home_activity 后台管理)
@@ -230,12 +272,30 @@ Page({
         disclaimer_title: hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.title : '免责声明'
       };
     });
-    this.setData({
-      scenes,
-      filteredScenes: scenes
-    });
+    this.applySceneList(scenes);
     // 同步到全局, redline.js R9 白名单校验 + 组件 getScene 动态兜底(存完整场景对象)
     if (app) app.globalData.availableScenes = scenes;
+  },
+
+  // 场景列表统一落点(云端 scene_groups 与硬编码 SCENES 共用):
+  // 拆分为 常用/更多 两组并重建宫格; 搜索态下按关键词过滤平铺(不受折叠影响)
+  applySceneList(list) {
+    const { primary, more } = splitScenes(list);
+    const patch = { scenes: list, primaryScenes: primary, moreScenes: more };
+    if (this.data.searchKey) {
+      patch.filteredScenes = matchScenes(list, this.data.searchKey);
+      patch.gridScenes = patch.filteredScenes;
+    } else {
+      patch.filteredScenes = list;
+      patch.gridScenes = buildGrid(primary, more, this.data.showMoreScenes, '', list);
+    }
+    this.setData(patch);
+  },
+
+  // 仅重建宫格(展开/收起「更多场景」时复用)
+  rebuildGrid() {
+    const d = this.data;
+    this.setData({ gridScenes: buildGrid(d.primaryScenes, d.moreScenes, d.showMoreScenes, d.searchKey, d.filteredScenes) });
   },
 
   async onPullDownRefresh() {
@@ -261,7 +321,7 @@ Page({
     this.setData({ searchKey: key }, () => this.filterScenes(key));
   },
   onSearchClear() {
-    this.setData({ searchKey: '', filteredScenes: SCENES });
+    this.setData({ searchKey: '' }, () => this.applySceneList(this.data.scenes || SCENES));
   },
   onSearchConfirm() {
     // 键盘搜索: 唯一匹配场景直接进发布, 否则保留过滤结果供点选
@@ -273,17 +333,18 @@ Page({
     }
   },
   filterScenes(key) {
+    const list = this.data.scenes || SCENES;
     if (!key) {
-      this.setData({ filteredScenes: SCENES });
+      // 清空搜索: 回到 常用 + 更多 折叠态
+      this.setData({
+        filteredScenes: list,
+        gridScenes: buildGrid(this.data.primaryScenes, this.data.moreScenes, this.data.showMoreScenes, '', list)
+      });
       return;
     }
-    const kw = key.toLowerCase();
-    const hit = SCENES.filter((s) => {
-      const inName = s.name.toLowerCase().indexOf(kw) >= 0;
-      const inOptions = (s.options || []).some((o) => o.toLowerCase().indexOf(kw) >= 0);
-      return inName || inOptions;
-    });
-    this.setData({ filteredScenes: hit });
+    // 搜索态平铺命中(含「更多场景」内的场景, 搜索不受折叠限制)
+    const hit = matchScenes(list, key);
+    this.setData({ filteredScenes: hit, gridScenes: hit });
   },
   onBellTap() {
     wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
@@ -298,9 +359,14 @@ Page({
     this.setData({ showEmergency: false });
   },
 
-  // H4 场景宫格 → P06 预选场景
+  // H4 场景宫格 → P06 预选场景; 「更多场景」入口格 → 就地展开/收起
   onSceneTap(e) {
     const { code } = e.currentTarget.dataset;
+    if (code === '__MORE__') {
+      this.setData({ showMoreScenes: !this.data.showMoreScenes });
+      this.rebuildGrid();
+      return;
+    }
     this.enterScene(code);
   },
   enterScene(code) {
