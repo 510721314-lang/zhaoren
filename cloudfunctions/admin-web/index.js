@@ -12,7 +12,7 @@ const path = require('path');
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type,X-Admin-Key',
+  'Access-Control-Allow-Headers': 'Content-Type,X-Admin-Key,X-Admin-Token',
 };
 
 const GATEWAY_HARD_TIMEOUT_MS = 3000;
@@ -112,6 +112,19 @@ function checkAuth(cfg, key) {
   return { ok: true };
 }
 
+// 批4.2: 会话令牌校验(复用 admin_action 签发的 admin_web_sessions, 12h)。
+// 令牌有效 → 放行(账号密码登录链路, 无需每次携带长期静态 key); 无效 → 调用方回退 key 校验。
+async function loadSession(token) {
+  if (!token) return null;
+  try {
+    const r = await db.collection('admin_web_sessions').doc(token).get();
+    return r && r.data ? r.data : null;
+  } catch (e) { return null; }
+}
+function sessionValid(sess) {
+  return !!(sess && sess.is_deleted !== true && (sess.expires_at || 0) > Date.now());
+}
+
 // P0② 网关鉴权失败告警: 鉴权拒绝时写 platform_event(P2, type=gateway_bad_key), 供 order-timer errorScan 巡检项④聚合。
 // 调用方 await 本函数(见鉴权块): 保证事件落库后响应, 避免运行时回收导致写入截断; 内部 try/catch 吞异常, 不影响 401 响应。
 // 注意: 绝不把提交的 key 本身写入事件(payload 仅 reason/path), 防密钥泄密。
@@ -153,25 +166,27 @@ exports.main = async (event, context) => {
   let body = {};
   try { body = reqBodyStr ? JSON.parse(reqBodyStr) : (req.body || {}); } catch(e) {}
 
-  // 鉴权: 一律校验 X-Admin-Key(含 generate_admin_web_key)。
-  // 修复: 原 bootstrap 跳过导致任何人可无凭据重置后台密钥并明文获取新 key(活体高危)。
-  // 首次建钥(admin_web_key 缺失)仍由 checkAuth bootstrap 分支放行——此时库中无密钥,无保护对象;
-  // key 一旦生成,重置必须携带当前有效 key。后续真实环境初始化走 IDE 控制台 init-db。
-  {
-    // CloudBase HTTP 事件查询参数字段为 queryStringParameters (无 query 字段, 直接访问会抛异常)
-    const qs = req.queryStringParameters || req.query || {};
-    const key = (req.headers['x-admin-key'] || qs.key || '').trim();
-    const auth = checkAuth(cfg, key);
-    if (!auth.ok) {
-      // P0② 网关鉴权失败告警: await 确保事件落库(HTTP 响应返回后运行时可能回收上下文,
-      // 非 await 的 fire-and-forget 有写入被截断风险); 内部已 try/catch 吞异常, 不会影响 401 响应。
-      await recordGatewayBadKey(auth.msg, req);
-      return makeJson({ ok: false, code: auth.msg }, 401);
-    }
-  }
-
   const action = body.action;
   if (!action) return makeJson({ ok: false, code: 'no_action' }, 400);
+
+  // 鉴权(批4.2): 优先级 会话令牌 X-Admin-Token > 登录端点放行 > 静态 key X-Admin-Key。
+  // 令牌有效 → 账号密码登录链路放行(无需每次携带长期 key); admin_login 本身免 key(由 admin_action 校验账号密码);
+  // 其余回退静态 key(密钥模式 + 首次建钥 bootstrap)。三者皆不满足 → 401。
+  {
+    const qs = req.queryStringParameters || req.query || {};
+    const token = (req.headers['x-admin-token'] || '').trim();
+    const key = (req.headers['x-admin-key'] || qs.key || '').trim();
+    let authOk = false;
+    if (token) { const sess = await loadSession(token); authOk = sessionValid(sess); }
+    if (!authOk && action === 'admin_login') authOk = true; // 登录端点: admin_action 校验账号密码
+    if (!authOk) {
+      const auth = checkAuth(cfg, key);
+      if (!auth.ok) {
+        await recordGatewayBadKey(auth.msg, req);
+        return makeJson({ ok: false, code: auth.msg }, 401);
+      }
+    }
+  }
 
   const adminOpenid = (cfg.admin_openids && cfg.admin_openids[0]) || null;
 

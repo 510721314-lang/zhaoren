@@ -11,16 +11,18 @@ const BASE_URL = PROD_ROOT;
 const http = axios.create({ baseURL: BASE_URL, timeout: 15000 });
 
 http.interceptors.request.use((config) => {
-  // 只在 headers 里没显式传 X-Admin-Key 时才从 localStorage 读
-  // 登录页 call('config_get', {}, keyOverride) 显式传 key → 不能被 localStorage 旧 key 覆盖
+  // 账号会话(批4.2): 若已登录账号, 注入 X-Admin-Token 供网关会话校验, 无需每次携带长期静态 key
+  const token = localStorage.getItem('admin_token') || '';
+  if (token) {
+    config.headers['X-Admin-Token'] = token;
+    if (config.data && typeof config.data === 'object') {
+      config.data.__admin_token = token; // 后端 RBAC 角色门控仍读 body 内 __admin_token
+    }
+  }
+  // 只在 headers 里没显式传 X-Admin-Key 时才从 localStorage 读(密钥模式兜底)
   if (!config.headers['X-Admin-Key']) {
     const key = localStorage.getItem('admin_web_key') || '';
     if (key) config.headers['X-Admin-Key'] = key;
-  }
-  // 账号会话(RBAC): 若已登录账号, 注入 __admin_token 供后端角色门控
-  const token = localStorage.getItem('admin_token') || '';
-  if (token && config.data && typeof config.data === 'object') {
-    config.data.__admin_token = token;
   }
   return config;
 });
@@ -31,6 +33,15 @@ http.interceptors.response.use(
     // 业务层 bad_key / missing_key → 清 localStorage + 跳 login
     if (d && d.ok === false && (d.code === 'bad_key' || d.code === 'missing_key' || d.code === 'admin_web_key_not_set')) {
       localStorage.removeItem('admin_web_key');
+      if (window.location.hash !== '#/login') {
+        window.location.hash = '#/login';
+      }
+    }
+    // 批4.2: 会话过期(bad_token) → 清 token 跳登录
+    if (d && d.ok === false && d.code === 'bad_token') {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_role');
+      localStorage.removeItem('admin_account');
       if (window.location.hash !== '#/login') {
         window.location.hash = '#/login';
       }

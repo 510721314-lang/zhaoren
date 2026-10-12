@@ -418,6 +418,19 @@ async function revertExpiredDev(now, cfg) {
   return { reverted: true, reason: 'expired', dev_until: du };
 }
 
+// 批4.2: 清理过期/已删除的 admin_web_sessions(12h 会话), 防集合无限膨胀。每轮扫删 expires_at 已过或 is_deleted 的记录。
+async function pruneSessions(now) {
+  try {
+    const r = await col('admin_web_sessions').where(_.or([
+      { expires_at: _.lt(now) }, { is_deleted: true }
+    ])).limit(200).get();
+    const rows = (r && r.data) || [];
+    if (!rows.length) return { pruned: 0 };
+    await Promise.allSettled(rows.map((s) => col('admin_web_sessions').doc(s._id).remove()));
+    return { pruned: rows.length };
+  } catch (e) { return { pruned: 0, err: e.message }; }
+}
+
 exports.main = async (event, context) => {
   const { resolveOpenid, warmEnv } = require('./openid');
   await warmEnv(cloud); // 环境门控日志预热
@@ -446,6 +459,11 @@ exports.main = async (event, context) => {
   try { devRevert = await revertExpiredDev(Date.now(), cfg); }
   catch (e) { log.d(`revertExpiredDev fail: ${e.message}`); }
   if (devRevert && devRevert.reverted) cfg.env = 'prod'; // 本轮后续步骤按 prod 口径
+
+  // ── 0b. admin_web_sessions 过期清理(批4.2) ──
+  let sessionsPruned = null;
+  try { sessionsPruned = await pruneSessions(Date.now()); }
+  catch (e) { log.d(`pruneSessions fail: ${e.message}`); }
 
   // 管理员手动触发时可传 action=run 表明意图(默认也放行, 但拒绝其他 action)
   if (event.action && event.action !== 'run') {
@@ -865,6 +883,7 @@ exports.main = async (event, context) => {
       ran_at: now,
       backlog: _backlog,
       dev_revert: devRevert,
+      sessions_pruned: sessionsPruned,
       error_scan: errorScanResult,
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
