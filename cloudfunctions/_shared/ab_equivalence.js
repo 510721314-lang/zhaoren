@@ -20,6 +20,11 @@ const adminStore = () => ({
   platform_event: {}, config_history: {}, audit_log: {}
 });
 
+// P1 E2E: CN 12:00 安全时间戳(落在 redline 运营时段内), A/B 两侧同值故不影响等价
+const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
+const NEW_TS = _tsD.getTime();
+const START_TS = NEW_TS - 24 * 3600 * 1000;
+
 const CASES = [
   { name: 'detail_ok', openid: USER, event: { action: 'detail', order_id: OID, mock_openid: USER } },
   { name: 'detail_not_found', openid: USER, store: { admin_config: { global: { env: 'dev' } }, order_main: {} }, event: { action: 'detail', order_id: OID, mock_openid: USER } },
@@ -163,6 +168,25 @@ const CASES = [
   { fn: 'admin-action', name: 'dispute_refund_partial_ok', openid: ADMIN,
     store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-2', status: 'S10.5', total_fen: 1000, user_openid: USER, partner_openid: PARTNER, complaint_from_status: 'S3' } }, pay_transaction: { t1: { _id: 't1', order_id: OID, type: 'refund', status: 'success', amount_fen: 800, is_deleted: false } }, system_notice: {} }),
     event: { action: 'dispute_handle', mock_openid: ADMIN, order_id: OID, decision: 'refund', refund_fen: 200, note: '部分退200' } },
+  // ── P1 E2E: 履约中段链路(改期/部分完成/比例确认/投诉开闭) 全链路成功 + CAS + 副作用 ──
+  { fn: 'order-action', name: 'modify_apply_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, start_time: START_TS, modify_count: 0 } } }),
+    event: { action: 'modify', mock_openid: PARTNER, order_id: OID, new_start_time: NEW_TS } },
+  { fn: 'order-action', name: 'modify_confirm_ok', openid: USER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2_5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, start_time: START_TS, modify_count: 0, pending_modify: { from_status: 'S2', new_start_time: NEW_TS, by_openid: PARTNER, created_at: START_TS, expire_at: NEW_TS + 86400000 } } } }),
+    event: { action: 'modify_confirm', mock_openid: USER, order_id: OID } },
+  { fn: 'order-action', name: 'partial_confirm_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3.5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
+    event: { action: 'partial_confirm', mock_openid: PARTNER, order_id: OID } },
+  { fn: 'order-action', name: 'ratio_confirm_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S4', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
+    event: { action: 'ratio_confirm', mock_openid: PARTNER, order_id: OID, ratio: 50 } },
+  { fn: 'order-action', name: 'complaint_open_ok', openid: USER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S8', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } }, complaint: {} }),
+    event: { action: 'complaint', mock_openid: USER, order_id: OID, reason: '服务问题' } },
+  { fn: 'order-action', name: 'complaint_withdraw_ok', openid: USER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S10.5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, complaint_by: USER, complaint_from_status: 'S8' } }, complaint: {} }),
+    event: { action: 'complaint_withdraw', mock_openid: USER, order_id: OID } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
