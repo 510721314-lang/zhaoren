@@ -16,8 +16,17 @@ const log = require('./logger');
 const { casTransition } = require('./order_state');
 // Wave2 止血⑥: S2 履约催办三段式纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
 const { dueStages } = require('./urge_rules');
+// 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
+const { starCreditDelta } = require('./credit_rules');
 
 const BATCH = 50; // 单次每类状态最多处理笔数, 防止超时
+
+// 积压监控(P2): 某类扫描取满 BATCH 说明可能有 >BATCH 笔待处理(本轮只推进前 BATCH 笔),
+//   记录到本次运行结果的 backlog 字段并告警, 供运维观测; 持续积压时需提高 BATCH 或分页循环。
+const _backlog = [];
+function trackBacklog(tag, arr) {
+  if (arr && arr.length >= BATCH) { _backlog.push(tag + ':' + arr.length); log.w(`[backlog] ${tag} 取满 ${arr.length}/${BATCH}, 可能有积压`); }
+}
 
 async function getConfig() {
   try {
@@ -342,6 +351,7 @@ exports.main = async (event, context) => {
 
   // 阈值一律只读 admin_config, 拒绝 event 覆盖(防恶意篡改超时窗口)
   const now = Date.now();
+  _backlog.length = 0; // 每次运行重置积压记录(模块级变量, 防热实例跨次累积)
 
   // ── 注错演练(D7, 仅管理员): 写入一条 P1 演练事件 → 本次巡检立即捕获并推送, 验证巡检链路 ──
   if (event.drill && isAdmin) {
@@ -373,6 +383,7 @@ exports.main = async (event, context) => {
   try {
     const s1Cut = now - s1Min * 60 * 1000;
     const s1s = (await col('order_main').where({ status: 'S1', created_at: _.lt(s1Cut) }).limit(BATCH).get()).data || [];
+    trackBacklog('S1', s1s);
     const s1OK = [];
     await Promise.allSettled(s1s.map(async (o) => {
       const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now }, 'cancel');
@@ -403,6 +414,7 @@ exports.main = async (event, context) => {
   try {
     const q = { status: 'S0', pay_expire_at: _.lt(now) };
     const s0s = (await col('order_main').where(q).limit(BATCH).get()).data || [];
+    trackBacklog('S0', s0s);
     const s0OK = [];
     await Promise.allSettled(s0s.map(async (o) => {
       if (!(o.pay_expire_at && o.pay_expire_at < now)) return;
@@ -435,6 +447,7 @@ exports.main = async (event, context) => {
   try {
     const iCut = now - interruptH * 3600 * 1000;
     const s35s = (await col('order_main').where({ status: 'S3.5' }).limit(BATCH).get()).data || [];
+    trackBacklog('S3.5', s35s);
     const s35OK = [];
     await Promise.allSettled(s35s.map(async (o) => {
       const anchor = o.interrupted_at || o.updated_at || 0;
@@ -461,6 +474,7 @@ exports.main = async (event, context) => {
   // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
   try {
     const m25s = (await col('order_main').where({ status: 'S2_5' }).limit(BATCH).get()).data || [];
+    trackBacklog('S2_5', m25s);
     const mOK = [];
     await Promise.allSettled(m25s.map(async (o) => {
       const pm = o.pending_modify || {};
@@ -512,6 +526,7 @@ exports.main = async (event, context) => {
   try {
     const msCut = now - msConfirmMin * 60 * 1000;
     const s3s = (await col('order_main').where({ status: 'S3' }).limit(BATCH).get()).data || [];
+    trackBacklog('S3', s3s);
     const msOK = [];
     await Promise.allSettled(s3s.map(async (o) => {
       const ms = o.milestone || {};
@@ -531,10 +546,11 @@ exports.main = async (event, context) => {
   try {
     const eCut = now - evalH * 3600 * 1000;
     const s5s = (await col('order_main').where({ status: 'S5' }).limit(BATCH).get()).data || [];
+    trackBacklog('S5', s5s);
     const evalResults = [];  // 收集需要写 status_log 的结果
     // creditDeltas: { partner_openid: [{ delta, order_id, order_no }] } 收集后聚合原子 inc
     const creditDeltas = {};
-    const starDelta = defaultStar >= 5 ? 2 : defaultStar === 4 ? 1 : defaultStar === 3 ? 0 : defaultStar === 2 ? -2 : -5;
+    const starDelta = starCreditDelta(defaultStar);
 
     await Promise.allSettled(s5s.map(async (o) => {
       const anchor = o.service_completed_at || o.updated_at || 0;
@@ -607,6 +623,7 @@ exports.main = async (event, context) => {
   try {
     const aCut = now - afterSaleDays * 24 * 3600 * 1000;
     const s8s = (await col('order_main').where({ status: 'S8' }).limit(BATCH).get()).data || [];
+    trackBacklog('S8', s8s);
     const s8OK = [];
     await Promise.allSettled(s8s.map(async (o) => {
       const anchor = o.evaluated_at || o.updated_at || 0;
@@ -630,6 +647,7 @@ exports.main = async (event, context) => {
   try {
     const pCut = now - partialJudgeDays * 24 * 3600 * 1000;
     const s4s = (await col('order_main').where({ status: 'S4' }).limit(BATCH).get()).data || [];
+    trackBacklog('S4', s4s);
     await Promise.allSettled(s4s.map(async (o) => {
       const anchor = o.updated_at || 0;
       if (!anchor || anchor >= pCut) return;
@@ -674,6 +692,7 @@ exports.main = async (event, context) => {
     ok: true,
     data: {
       ran_at: now,
+      backlog: _backlog,
       error_scan: errorScanResult,
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,

@@ -9,6 +9,8 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+// 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
+const { starCreditDelta } = require('./credit_rules');
 
 const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
@@ -136,8 +138,8 @@ exports.main = async (event, context) => {
     }
 
     const now = Date.now();
-    // 信用 delta:5星+2, 4星+1, 3星0, 2星-2, 1星-5(冷启动期简化规则)
-    const delta = star >= 5 ? 2 : star === 4 ? 1 : star === 3 ? 0 : star === 2 ? -2 : -5;
+    // 信用 delta:5星+2, 4星+1, 3星0, 2星-2, 1星-5(规则收敛到 _shared/credit_rules.js 防漂移)
+    const delta = starCreditDelta(star);
 
     // ① CAS 抢占 S5→S8: 用户评价与 order-timer 自动评价互斥, 并发双提仅一方成功
     let casRes;

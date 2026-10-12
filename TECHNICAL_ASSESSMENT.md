@@ -104,14 +104,14 @@
 | 级别 | 事项 | 状态 |
 |---|---|---|
 | **P0** | openid.js 纳入共享同步守护 | ✅ 已执行（规范源 `_shared/openid.js` + `sync-openid.ps1` + SYNC_MAP 15 目录；admin-action/init-db 显式排除为有意变体） |
-| **P1** | 信用分规则抽 `_shared/credit_rules.js` | ⏸ 暂缓（未选） |
+| **P1** | 信用分规则抽 `_shared/credit_rules.js` | ✅ 已执行（规范源 + `sync-credit-rules.ps1` + SYNC_MAP；evaluation-submit L142 / order-timer L539 改用 `starCreditDelta`；+单测） |
 | **P1** | `ctx` 补 `@typedef` JSDoc | ✅ 已执行（order-action `HandlerCtx` / admin-action `AdminHandlerCtx`，注释级、零运行时） |
 | **P2** | 状态机迁移表开强制拦截 | ✅ 已执行（`casTransition` 事件驱动拦截；20 个调用点补 event；退役态 S9 兼容放行；A/B 201 cases 0 diff 证明未误伤真实迁移） |
-| **P2** | order-timer 积压监控 | ⏸ 待办 |
+| **P2** | order-timer 积压监控 | ✅ 已执行（各状态扫描取满 BATCH 时 `trackBacklog` 记录 + `log.w` 告警，结果经 `data.backlog` 暴露；每次运行重置防热实例累积） |
 | **P2** | 提审前真实环境只读烟雾 | ⏸ 待办（需环境） |
 
-> 整改后回归：单测 216/0、A/B 201 cases 0 diff、守门 114/0、shared-sync ALL OK。
-> **注意**：P2 强制拦截为行为增强，`order-action`/`order-timer` 变更后**需重新部署**方在线上生效（本地已改，云端未部署）。
+> 整改后回归：单测 218/0、A/B 201 cases 0 diff、守门 114/0、shared-sync ALL OK（含 openid/credit_rules）。
+> **注意**：P2 强制拦截 / 信用分抽离 / 积压监控均为行为或代码变更，`order-action`/`order-timer`/`evaluation-submit` 变更后**需重新部署**方在线上生效（本地已改，云端未部署）。
 
 ---
 

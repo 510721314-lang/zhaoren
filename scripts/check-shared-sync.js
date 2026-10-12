@@ -14,6 +14,7 @@ const SYNC_MAP = {
   'no_show_rules.js': ['order-action', 'admin-action'],
   'order_state.js': ['order-action', 'order-timer'],
   'urge_rules.js': ['order-timer', 'order-action'],
+  'credit_rules.js': ['evaluation-submit', 'order-timer'],
   // openid.js(安全关键, fail-closed 环境门控): 15 个函数共用规范源; 以下有意变体**显式排除**、不参与同步:
   //   admin-action(超集: 含 admin-web 网关密钥校验) / init-db(独立变体)
   'openid.js': [
