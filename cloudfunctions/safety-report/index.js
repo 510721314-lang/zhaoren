@@ -48,7 +48,8 @@ async function checkText(openid, text, blockWords) {
         return { pass: false, reason: '内容包含平台禁止的内容(如联系方式/转账),请修改后重试' };
       }
     }
-    return { pass: true };
+    // fail-closed(评审整改 P1): msgSecCheck 不可用时不再放行, 避免违规内容绕过(与 blog/evaluation 同口径)
+    return { pass: false, reason: '内容安全校验暂不可用,请稍后重试', degraded: true };
   }
 }
 

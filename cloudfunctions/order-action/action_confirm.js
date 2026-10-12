@@ -67,7 +67,7 @@ async function update_item(ctx) {
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
-  if (!role) return { ok: false, code: 'oa_not_participant', msg: `你不是该订单参与方(你的:${openid},user:${order.user_openid},partner:${order.partner_openid})` };
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (order.status !== 'S1') {
     return { ok: false, code: 'oa_not_editable', msg: '订单当前状态不可修改确认项' };
   }
@@ -176,7 +176,7 @@ async function confirm_item(ctx) {
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
-  if (!role) return { ok: false, code: 'oa_not_participant', msg: `你不是该订单参与方(你的:${openid},user:${order.user_openid},partner:${order.partner_openid})` };
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (order.status !== 'S1') {
     return { ok: false, code: 'oa_not_confirmable', msg: '订单当前状态不可确认' };
   }
@@ -273,7 +273,7 @@ async function confirm_all(ctx) {
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
-  if (!role) return { ok: false, code: 'oa_not_participant', msg: `你不是该订单参与方(你的:${openid},user:${order.user_openid},partner:${order.partner_openid})` };
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (order.status !== 'S1') {
     return { ok: false, code: 'oa_not_confirmable', msg: '订单当前状态不可确认' };
   }

@@ -11,14 +11,14 @@
    node scripts/check-ssot.js          # exit 0
    node scripts/check-syntax.js        # exit 0（全部云函数 node --check）
    node scripts/check-shared-sync.js   # exit 0（共享模块防漂移哈希校验）
-   npm test                            # 108 条单测全绿（node:test 零依赖）
+   npm test                            # 240 条单测全绿 + A/B 等价比对(缺基线自动 SKIP)
    ```
 2. **网关冒烟**（自动验证云端核心链路在用；改密钥后须先 `$env:AWK_KEY=<新钥>`）
    ```powershell
    powershell -File .predeploy/smoke-check.ps1        # exit 0 = SMOKE ALL PASS
    powershell -File scripts/check-heartbeat.ps1       # order-timer 巡检心跳（缺跳仅 WARN 不阻断，输出排障指引）
    ```
-   或一条命令跑完七步：`powershell -File scripts/gate.ps1`（B2 一键门禁，含上面全部）
+   或一条命令跑完八步：`powershell -File scripts/gate.ps1`（B2 一键门禁，含上面全部）
 3. **CI**（GitHub Actions，push master 自动跑单测+静态检查；见 .github/workflows/ci.yml）
 4. **人工抽验**：只抽验与本次改动相关的链路（见下表），不必全跑。
 

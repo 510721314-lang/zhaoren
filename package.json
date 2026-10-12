@@ -4,6 +4,8 @@
   "private": true,
   "description": "找人帮忙小程序 - 自动测试入口(零依赖, Node 内置 node:test)",
   "scripts": {
-    "test": "node --test \"cloudfunctions/_shared/*.test.js\""
+    "test": "node --test \"cloudfunctions/_shared/*.test.js\" && node cloudfunctions/_shared/ab_equivalence.js",
+    "test:unit": "node --test \"cloudfunctions/_shared/*.test.js\"",
+    "test:ab": "node cloudfunctions/_shared/ab_equivalence.js"
   }
 }

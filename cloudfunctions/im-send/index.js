@@ -171,7 +171,7 @@ async function checkText(openid, text, blockWords) {
         return { pass: false, reason: '消息包含平台禁止的内容(如联系方式/转账),请通过平台沟通' };
       }
     }
-    return { pass: true, degraded: true };
+    return { pass: false, reason: '内容安全校验暂不可用,请稍后重试', degraded: true };
   }
 }
 

@@ -2,7 +2,8 @@
 // 设计: 每个用户(openid)一条哈希链 —— 新记录带 prev_hash(上一条 chain_hash) + chain_hash(本条内容摘要);
 //       事后任何篡改/删除都会在 admin-action audit_verify 校验时暴露断链。
 // 记录不含敏感明文(证件号/手机号等一律不写入, 只写掩码或摘要)。
-// 说明: 各云函数自包含副本(与 openid.js/logger.js 同惯例), 修改时须同步所有副本。
+// 说明: 本文件为「规范源」(_shared/audit.js, P1 整改纳入 SYNC_MAP); 修改后须运行 sync-audit.ps1
+//       同步到 11 个函数副本, 由 scripts/check-shared-sync.js 守护零漂移。
 const crypto = require('crypto');
 
 function sha256hex(s) {

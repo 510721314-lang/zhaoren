@@ -15,6 +15,18 @@ const SYNC_MAP = {
   'order_state.js': ['order-action', 'order-timer'],
   'urge_rules.js': ['order-timer', 'order-action'],
   'credit_rules.js': ['evaluation-submit', 'order-timer'],
+  // 手机号加密存储 + 确定性查询键(P0-3 整改): user-login 写入/查询, demand-publish/admin-action 读取真号
+  'phone_crypt.js': ['user-login', 'demand-publish', 'admin-action'],
+  // 日志/审计留痕(P1 整改): 此前为「各函数自包含副本」零漂移校验, 现纳入规范源统一守护
+  'logger.js': [
+    'admin-action', 'blog-action', 'demand-match', 'demand-publish', 'evaluation-submit', 'home-action',
+    'im-conv', 'im-send', 'order-action', 'order-create', 'order-timer',
+    'partner-action', 'partner-apply', 'payment-mock', 'safety-report', 'user-login'
+  ],
+  'audit.js': [
+    'admin-action', 'blog-action', 'demand-publish', 'evaluation-submit', 'im-send',
+    'order-action', 'order-create', 'partner-action', 'payment-mock', 'safety-report', 'user-login'
+  ],
   // openid.js(安全关键, fail-closed 环境门控): 15 个函数共用规范源; 以下有意变体**显式排除**、不参与同步:
   //   admin-action(超集: 含 admin-web 网关密钥校验) / init-db(独立变体)
   'openid.js': [

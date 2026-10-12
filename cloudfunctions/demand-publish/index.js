@@ -11,6 +11,8 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+// 手机号加密(P0-3 整改): 账户已绑号现为密文, 取真号须解密(兼容存量明文)
+const phoneCrypt = require('./phone_crypt');
 
 // 场景白名单: 动态从 admin_config.scene_list 读取(SSOT), 兜底与 init-db 种子对齐
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
@@ -173,7 +175,8 @@ async function checkText(openid, text, blockWords) {
         return { pass: false, reason: '备注包含平台禁止的内容(如联系方式/转账),请修改后重试' };
       }
     }
-    return { pass: true };
+    // fail-closed(评审整改 P1): msgSecCheck 不可用时不再放行, 避免违规内容绕过(与 blog/evaluation 同口径)
+    return { pass: false, reason: '内容安全校验暂不可用,请稍后重试', degraded: true };
   }
 }
 
@@ -528,7 +531,9 @@ exports.main = async (event, context) => {
       const PHONE_11_RE = /^1[3-9]\d{9}$/;
       let contactPhone = '';
       if (contact_phone_source === 'account') {
-        contactPhone = String(user.phone || '').trim();
+        // 账户已绑号现为 AES 密文存储(P0-3): 解密取真号(兼容存量明文), 仍按原口径落 demand.contact_phone
+        const _cfgP = await getConfig();
+        contactPhone = String(phoneCrypt.readPhone(user, _cfgP && _cfgP.phone_aes_key) || '').trim();
         if (!PHONE_11_RE.test(contactPhone)) {
           return { ok: false, code: 'publish_contact_required', msg: '账户未绑定手机号, 请手动填写联系手机号' };
         }

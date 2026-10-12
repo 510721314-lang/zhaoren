@@ -292,8 +292,9 @@ exports.main = async (event, context) => {
         });
       } catch (e) {
         log.d(`mock_pay txn fail: ${e.message}; compensating order ${order_id} → S0`);
+        // 补偿须同时回滚 CAS 已写的资金正交位(paid_fen), 否则订单回到未支付(S0)却留有已付金额 → 结算/对账口径不一致
         await col('order_main').where({ _id: order_id, status: 'S2' }).update({
-          data: { status: 'S0', updated_at: Date.now() }
+          data: { status: 'S0', fund: { paid_fen: 0, refunded_fen: 0, settle_state: 'pending', settled_at: 0 }, updated_at: Date.now() }
         }).catch(() => {});
         return { ok: false, code: 'pay_db_fail', msg: '支付失败,请稍后重试' };
       }
@@ -393,8 +394,9 @@ exports.main = async (event, context) => {
         });
       } catch (e) {
         log.d(`mock_refund txn fail: ${e.message}; compensating order ${order_id} → ${fromStatus}`);
+        // 补偿须同时把 CAS 已写的已退金额清零(fund.refunded_fen), 否则订单回原态却显示"已退"
         await col('order_main').where({ _id: order_id, status: 'S7' }).update({
-          data: { status: fromStatus, updated_at: Date.now() }
+          data: { status: fromStatus, refunded_at: 0, 'fund.refunded_fen': 0, updated_at: Date.now() }
         }).catch(() => {});
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
       }

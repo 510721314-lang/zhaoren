@@ -263,6 +263,19 @@ function loadWith(dir, file, sdk) {
 }
 
 (async () => {
+  // P1 整改: 纳入门禁后须对「基线缺失」优雅跳过(基线由 git show <old>:.../index.js 临时生成, 跑完即删)。
+  // 缺基线 → 打印醒目 SKIP 并 0 退出(不阻塞门禁); 存在则正常比对, 有差异即非 0 退出。
+  const dirs = Array.from(new Set(ALL_CASES.map((c) => c.fn || 'order-action')));
+  const missing = dirs.filter((d) => {
+    try { require('fs').accessSync(path.join(__dirname, '..', d, '_orig_baseline.js')); return false; }
+    catch (e) { return true; }
+  });
+  if (missing.length) {
+    console.log('[SKIP] A/B equgivalence: 缺少基线文件 _orig_baseline.js, 跳过比对');
+    console.log('       缺基线的函数: ' + missing.join(', '));
+    console.log('       生成方式: git show <old-commit>:cloudfunctions/<fn>/index.js > cloudfunctions/<fn>/_orig_baseline.js');
+    process.exit(0);
+  }
   let fails = 0;
   for (const c of ALL_CASES) {
     const dir = c.fn || 'order-action';

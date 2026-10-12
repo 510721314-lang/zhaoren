@@ -93,6 +93,35 @@ function encryptIdCard(plain, keyHex) {
   return Buffer.concat([iv, tag, ct]).toString('hex');
 }
 
+// ─────────────── 手机号加密(评审整改 P0-3, 2026-10-12) ───────────────
+// 规范源 _shared/phone_crypt.js(修改后跑 sync-phone-crypt.ps1 同步三副本); 禁止明文落库。
+// 密钥 admin_config.phone_aes_key(64 hex), 首次写号时 lazy 生成并写回(与 idcard_aes_key 同法)。
+// 落库 phone_enc(密文) + phone_hash(HMAC 确定性查询键) + phone_mask(展示掩码); 查询一律用 phone_hash。
+const phoneCrypt = require('./phone_crypt');
+async function ensurePhoneKey() {
+  const cfg = await getConfig();
+  if (phoneCrypt.isHexKey(cfg.phone_aes_key)) return cfg.phone_aes_key;
+  const key = crypto.randomBytes(32).toString('hex');
+  try {
+    await col('admin_config').where({ _id: 'global' }).update({
+      data: { phone_aes_key: key, updated_at: Date.now() }
+    });
+    return key;
+  } catch (e) {
+    // 并发首次写号落败: 重读拿到另一方写入的 key
+    const r = await col('admin_config').doc('global').get().catch(() => ({ data: {} }));
+    const k = r.data && r.data.phone_aes_key;
+    if (phoneCrypt.isHexKey(k)) return k;
+    throw new Error('phone_key_unavailable');
+  }
+}
+// 生成写补丁(加密三字段 + 清除存量明文 phone) 并给出确定性查询键
+async function phoneKeyAndPatch(plain) {
+  const key = await ensurePhoneKey();
+  const patch = Object.assign(phoneCrypt.phonePatch(plain, key), { phone: _.remove() });
+  return { key, patch, hash: patch.phone_hash };
+}
+
 // ─────────────── 实名签署协议兜底文案(admin_config.legal_* 未配置时使用) ───────────────
 // 正式文案由后台「法律合规」模块维护; 留证时以服务端读取到的全文计算 SHA-256 并随记录入库
 const DEFAULT_SERVICE_AGREEMENT = [
@@ -166,7 +195,7 @@ function safeUserDoc(u) {
     is_realname_simulated: u.is_realname_simulated,
     realname_method: u.realname_method || '',
     realname_done_at: u.realname_done_at || 0,
-    age: u.age, status: u.status, phone: u.phone ? maskPhone(u.phone) : '',
+    age: u.age, status: u.status, phone: phoneCrypt.displayPhone(u),
     idcard_masked: u.idcard_mask || (u.idcard ? maskIdCard(u.idcard) : ''),
     register_source: u.register_source,
     // 地图即时定位共享开关(双向对称: 允许 TA 通过地图找到我; 默认关闭, 隐私)
@@ -254,7 +283,9 @@ async function resolvePhone(event, callerOpenid) {
       if (u.sms_lock_until && u.sms_lock_until > Date.now()) {
         return { ok: false, code: 'sms_locked', msg: '验证码错误次数过多,请10分钟后再试' };
       }
-      if (!u.sms_code || !u.sms_target || u.sms_target !== phone) {
+      // sms_target 现为手机号 HMAC(新写入); 兼容存量明文 shell
+      const targetHash = phoneCrypt.phoneHash(phone, await ensurePhoneKey());
+      if (!u.sms_code || !u.sms_target || (u.sms_target !== targetHash && u.sms_target !== phone)) {
         return { ok: false, code: 'sms_no_code', msg: '未发送验证码或手机号不匹配' };
       }
       if (u.sms_expire_at < Date.now()) {
@@ -271,9 +302,10 @@ async function resolvePhone(event, callerOpenid) {
         await col('user_account').doc(u._id).update({ data: patch });
         return { ok: false, code: 'sms_wrong', msg: '验证码错误' };
       }
-      // 验证通过, 消耗验证码、清零失败计数并写入手机号
+      // 验证通过, 消耗验证码、清零失败计数并写入手机号(加密落库, 不写明文)
+      const smsPatch = await phoneKeyAndPatch(phone);
       await col('user_account').doc(u._id).update({
-        data: { sms_code: '', sms_expire_at: 0, sms_target: '', sms_fail_count: 0, sms_lock_until: 0, phone, updated_at: Date.now() }
+        data: Object.assign({ sms_code: '', sms_expire_at: 0, sms_target: '', sms_fail_count: 0, sms_lock_until: 0, updated_at: Date.now() }, smsPatch.patch)
       });
       return { ok: true, phone };
     } catch (e) {
@@ -397,10 +429,9 @@ exports.main = async (event, context) => {
       const rp = await resolvePhone(event, openid);
       if (!rp.ok) return { ok: false, code: rp.code, msg: rp.msg };
       try {
-        await col('user_account').where({ openid }).update({ data: {
-          phone: rp.phone, updated_at: Date.now()
-        }});
-        return { ok: true, data: { phone: maskPhone(rp.phone) } };
+        const bp = await phoneKeyAndPatch(rp.phone);
+        await col('user_account').where({ openid }).update({ data: Object.assign({ updated_at: Date.now() }, bp.patch) });
+        return { ok: true, data: { phone: phoneCrypt.maskPhone(rp.phone) } };
       } catch (e) {
         return { ok: false, code: 'phone_save_fail', msg: '手机号保存失败' };
       }
@@ -884,11 +915,13 @@ exports.main = async (event, context) => {
         }
         const code = genSmsCode();
         const expireAt = Date.now() + 5 * 60 * 1000; // 5 分钟
+        // sms_target 只存手机号的确定性 HMAC(不落明文), 便于验证时比对且不残留 PII
+        const smsTarget = phoneCrypt.phoneHash(phone, await ensurePhoneKey());
         let docId;
         if (r.data && r.data.length > 0) {
           docId = r.data[0]._id;
           await col('user_account').doc(docId).update({ data: {
-            sms_code: code, sms_expire_at: expireAt, sms_target: phone, updated_at: Date.now()
+            sms_code: code, sms_expire_at: expireAt, sms_target: smsTarget, updated_at: Date.now()
           }});
         } else {
           const now = Date.now();
@@ -899,7 +932,7 @@ exports.main = async (event, context) => {
             is_realname_done: false, is_realname_simulated: true,
             age: null, status: 'normal',
             register_source: 'phone_pending',
-            phone: '', sms_code: code, sms_expire_at: expireAt, sms_target: phone,
+            phone: '', sms_code: code, sms_expire_at: expireAt, sms_target: smsTarget,
             created_at: now, updated_at: now, is_deleted: false
           };
           const addRes = await col('user_account').add({ data: newUser });
@@ -937,9 +970,11 @@ exports.main = async (event, context) => {
           if (u.status === 'frozen') return { ok: false, code: 'login_account_frozen', msg: '账号已冻结,请联系管理员' };
           if (u.status === 'banned') return { ok: false, code: 'login_account_banned', msg: '账号已封禁,请联系客服' };
           if (u.status === 'closed') return { ok: false, code: 'login_account_closed', msg: '该账号已注销' };
-          if (!u.phone || u.phone !== phone) {
-            await col('user_account').doc(u._id).update({ data: { phone, updated_at: Date.now() }});
-            u.phone = phone;
+          const pp = await phoneKeyAndPatch(phone);
+          // 未迁移(无 phone_enc)或号码变更 → 以密文三字段覆盖并清除明文(惰性迁移)
+          if (!u.phone_enc || u.phone_hash !== pp.hash) {
+            await col('user_account').doc(u._id).update({ data: Object.assign({ updated_at: Date.now() }, pp.patch) });
+            u.phone_enc = pp.patch.phone_enc; u.phone_hash = pp.patch.phone_hash; u.phone_mask = pp.patch.phone_mask; u.phone = '';
           }
           await writeAudit(db, log, {
             openid, role: 'user', category: 'auth', action: 'phone_login',
@@ -949,16 +984,22 @@ exports.main = async (event, context) => {
           return { ok: true, data: { user: safeUserDoc(u) } };
         }
         // 2. openid 下无正式账号: 按手机号查正式账号(换设备/换微信登录后重绑定); 排除 phone_pending 空壳
-        const phoneR = await col('user_account').where({ phone }).get();
+        // 查询用确定性 HMAC 键(phone_hash); 未迁移的存量文档(仅明文)回退明文查询, 保证登录不断
+        const pp2 = await phoneKeyAndPatch(phone);
+        let phoneR = await col('user_account').where({ phone_hash: pp2.hash }).get();
+        if (!(phoneR.data && phoneR.data.length)) {
+          phoneR = await col('user_account').where({ phone }).get();
+        }
         const real = (phoneR.data || []).find(x => x.register_source !== 'phone_pending');
         if (real) {
           await maybeRestoreSuspend(real);   // 断链②: 停用到期惰性恢复(停用中不拦登录)
           if (real.status === 'frozen') return { ok: false, code: 'login_account_frozen', msg: '账号已冻结' };
           if (real.status === 'banned') return { ok: false, code: 'login_account_banned', msg: '账号已封禁' };
           if (real.status === 'closed') return { ok: false, code: 'login_account_closed', msg: '该账号已注销' };
-          // 重绑定 openid 到正式账号
-          await col('user_account').doc(real._id).update({ data: { openid, phone, updated_at: Date.now() }});
-          real.openid = openid; real.phone = phone;
+          // 重绑定 openid 到正式账号(同时把手机号迁移为密文落库)
+          await col('user_account').doc(real._id).update({ data: Object.assign({ openid, updated_at: Date.now() }, pp2.patch) });
+          real.openid = openid; real.phone = '';
+          real.phone_enc = pp2.patch.phone_enc; real.phone_hash = pp2.patch.phone_hash; real.phone_mask = pp2.patch.phone_mask;
           // 清理当前 openid 下的短信空壳, 避免同一手机号出现两条记录
           if (pendingShellId) {
             await col('user_account').doc(pendingShellId).remove();
@@ -973,14 +1014,16 @@ exports.main = async (event, context) => {
         // 3. 既无 openid 正式账号也无手机号正式账号: 一键登录语义 → 自动注册
         //    (用户已完成 getPhoneNumber 授权或短信验证, 且前端已校验勾选协议)
         const now = Date.now();
+        const pp3 = await phoneKeyAndPatch(phone);
         const baseData = {
           nickname: '微信用户', avatar: '',
           roles: ['user'],
           user_credit_score: 800, partner_credit_score: 800,
           is_realname_done: false, is_realname_simulated: true,
           age: null, status: 'normal',
-          register_source: 'phone', phone,
-          updated_at: now
+          register_source: 'phone',
+          updated_at: now,
+          phone_enc: pp3.patch.phone_enc, phone_hash: pp3.patch.phone_hash, phone_mask: pp3.patch.phone_mask
         };
         let newId;
         if (pendingShellId) {
@@ -1012,8 +1055,12 @@ exports.main = async (event, context) => {
       if (!rp.ok) return { ok: false, code: rp.code, msg: rp.msg };
       const phone = rp.phone;
       try {
-        // 查 phone 是否已被正式账号占用(可能同时命中本 openid 的 phone_pending 空壳, 必须取全部再过滤, 不能 limit(1))
-        const phoneAll = await col('user_account').where({ phone }).get();
+        // 查 phone 是否已被正式账号占用(用确定性 hash 键; 未迁移存量回退明文查询)
+        const regPatch = await phoneKeyAndPatch(phone);
+        let phoneAll = await col('user_account').where({ phone_hash: regPatch.hash }).get();
+        if (!(phoneAll.data && phoneAll.data.length)) {
+          phoneAll = await col('user_account').where({ phone }).get();
+        }
         const phoneDup = (phoneAll.data || []).find(x => x.register_source !== 'phone_pending');
         if (phoneDup) {
           if (phoneDup.status === 'closed') return { ok: false, code: 'login_account_closed', msg: '该账号已注销,无法重新注册' };
@@ -1033,11 +1080,12 @@ exports.main = async (event, context) => {
               user_credit_score: 800, partner_credit_score: 800,
               is_realname_done: false, is_realname_simulated: true,
               age: null, status: 'normal',
-              register_source: 'phone', phone,
-              updated_at: now
+              register_source: 'phone',
+              updated_at: now,
+              phone_enc: regPatch.patch.phone_enc, phone_hash: regPatch.patch.phone_hash, phone_mask: regPatch.patch.phone_mask
             }});
             await logCredit(openid, 'init', 0, 800, 'phone register init credit');
-            const updated = Object.assign({}, u, { nickname: '微信用户', roles: ['user'], user_credit_score: 800, partner_credit_score: 800, register_source: 'phone', phone, status: 'normal' });
+            const updated = Object.assign({}, u, { nickname: '微信用户', roles: ['user'], user_credit_score: 800, partner_credit_score: 800, register_source: 'phone', phone: '', phone_enc: regPatch.patch.phone_enc, phone_hash: regPatch.patch.phone_hash, phone_mask: regPatch.patch.phone_mask, status: 'normal' });
             log.d(`phone register filled pending shell: ${openid}`);
             await writeAudit(db, log, {
               openid, role: 'user', category: 'auth', action: 'phone_register',
@@ -1058,8 +1106,9 @@ exports.main = async (event, context) => {
           user_credit_score: 800, partner_credit_score: 800,
           is_realname_done: false, is_realname_simulated: true,
           age: null, status: 'normal',
-          register_source: 'phone', phone,
-          created_at: now, updated_at: now, is_deleted: false
+          register_source: 'phone',
+          created_at: now, updated_at: now, is_deleted: false,
+          phone_enc: regPatch.patch.phone_enc, phone_hash: regPatch.patch.phone_hash, phone_mask: regPatch.patch.phone_mask
         };
         const addRes = await col('user_account').add({ data: newUser });
         await logCredit(openid, 'init', 0, 800, 'phone register init credit');

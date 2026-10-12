@@ -215,7 +215,9 @@ exports.main = async (event, context) => {
     };
     const seedAction = SEED_MAP[action];
     const seedOpenid = body.seed_openid || 'seed_admin';
-    const seedData = { action: seedAction, mock_openid: seedOpenid };
+    // 2026-10-12 评审整改 P0: zz-seed-orders 已改 fail-closed 鉴权, 云函数间调用无 OPENID,
+    // 故代理须携共享密钥握手(与本文件其他 proxy 分支口径一致)。缺此键 → zz-seed-orders 返 seed_forbidden。
+    const seedData = { action: seedAction, mock_openid: seedOpenid, __admin_web_proxy: true, _admin_web_proxy_key: cfg.admin_web_key || '' };
     if (seedAction === 'run' && body.per) seedData.per = body.per;
     if (seedAction === 'service_orders' || seedAction === 'night_orders' || seedAction === 'cleanup_seed_orders' || seedAction === 'scene_demands') {
       if (body.partner_openid) seedData.partner_openid = body.partner_openid;

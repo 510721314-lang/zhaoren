@@ -264,7 +264,25 @@ async function softDeleteAll(colName, whereQuery, field) {
 
 exports.main = async (event) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID || event.mock_openid || '';
+  const callerOpenid = wxCtx.OPENID || '';
+
+  // ── 鉴权(fail-closed, 2026-10-12 评审整改 P0): 本函数可批量建/软删种子数据, 匿名可调用=管理面暴露 ──
+  // 放行条件(二选一):
+  //   ① 调用者真实 OPENID ∈ admin_config.global.admin_openids(小程序端管理员直调);
+  //   ② admin-web 网关代理携 _admin_web_proxy_key 且与 admin_config.admin_web_key 一致
+  //      (网关已被 X-Admin-Key 鉴权; 云函数间调用无 OPENID, 故以共享密钥握手)。
+  // 不再信任 event.mock_openid 作为身份; admin_openids 为空且无合法代理密钥时一律拒绝。
+  let _cfg = null;
+  try { _cfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) { _cfg = null; }
+  const _admins = (_cfg && Array.isArray(_cfg.admin_openids)) ? _cfg.admin_openids : [];
+  const _isAdmin = !!callerOpenid && _admins.indexOf(callerOpenid) >= 0;
+  const _proxyKey = String(event._admin_web_proxy_key || '');
+  const _isProxy = !!_proxyKey && !!_cfg && !!_cfg.admin_web_key && _proxyKey === _cfg.admin_web_key;
+  if (!(_isAdmin || _isProxy)) {
+    return { ok: false, code: 'seed_forbidden', msg: '无权限,仅管理员可执行' };
+  }
+
+  const openid = callerOpenid || event.mock_openid || '';
   if (!openid) return { ok: false, code: 'no_openid', msg: '未获取到登录身份' };
   const action = event.action || 'run';
 

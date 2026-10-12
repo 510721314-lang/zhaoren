@@ -1,8 +1,10 @@
 // admin-action · 用户/耍伴列表与详情视图（从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
+// phone_crypt: 手机号密文存储(P0-3 整改)后, 展示一律取落库掩码(displayPhone), 无需解密
+const phoneCrypt = require('./phone_crypt');
 
 async function user_list(ctx) {
-  const { event, pager, col, _, db, isOpenid, maskPhone, ok } = ctx;
+  const { event, pager, col, _, db, isOpenid, ok } = ctx;
   const { keyword, status, is_partner, sort } = event;
   const pg = pager(event);
   let q = { is_deleted: _.neq(true) };
@@ -30,7 +32,7 @@ async function user_list(ctx) {
     user_credit_score: u.user_credit_score || 800,
     partner_credit_score: u.partner_credit_score || 800,
     is_realname_done: !!u.is_realname_done,
-    phone: maskPhone(u.phone),
+    phone: phoneCrypt.displayPhone(u),
     created_at: u.created_at
   }));
   return ok({ list, total: totalR.total || 0, page: pg.page, has_more: pg.page * pg.size < (totalR.total || 0) });
@@ -58,7 +60,7 @@ async function user_detail(ctx) {
       openid: u.openid, nickname: u.nickname, avatar: u.avatar, roles: u.roles || [],
       status: u.status || 'normal', age: u.age || null,
       user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
-      is_realname_done: !!u.is_realname_done, phone: u.phone, id_card: u.id_card,
+      is_realname_done: !!u.is_realname_done, phone: phoneCrypt.displayPhone(u), id_card: u.id_card,
       banned_reason: u.banned_reason || '', created_at: u.created_at
     }),
     partner: p ? {
@@ -111,7 +113,7 @@ async function user_ec_update(ctx) {
 }
 
 async function partner_list(ctx) {
-  const { event, pager, col, _, maskPhone, ok } = ctx;
+  const { event, pager, col, _, ok } = ctx;
   const { status } = event;
   const pg = pager(event);
   let q = { is_deleted: _.neq(true) };
@@ -127,7 +129,7 @@ async function partner_list(ctx) {
     const ur = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get().catch(() => ({ data: [] }));
     for (const u of (ur.data || [])) {
       userMap[u.openid] = {
-        nickname: u.nickname || '', phone: maskPhone(u.phone),
+        nickname: u.nickname || '', phone: phoneCrypt.displayPhone(u),
         user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
         age: u.age || '', status: u.status || 'normal'
       };
@@ -177,7 +179,7 @@ async function partner_detail(ctx) {
       applied_at: p.applied_at, reviewed_at: p.reviewed_at, review_note: p.review_note || ''
     },
     user: u ? maskDoc({
-      nickname: u.nickname, phone: u.phone, status: u.status || 'normal',
+      nickname: u.nickname, phone: phoneCrypt.displayPhone(u), status: u.status || 'normal',
       user_credit_score: u.user_credit_score || 800, partner_credit_score: u.partner_credit_score || 800,
       is_realname_done: !!u.is_realname_done
     }) : null,

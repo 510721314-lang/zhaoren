@@ -35,8 +35,10 @@
 | 21 | 爽约裁定 | * | 受害方退款通道、赔付 10% | ✅ | ✅upheld | ✅ | ✅submit/defense/withdraw |
 | 22 | 结算 | S8/S9/S10 | 余额=Σ基数−已提现 | ✅ | — | — | ✅entry(balance_info 可提现口径+到账回写) |
 | 23 | 订单事件时间线 | *（只读） | 多源合并/倒序/去重/限流 50/隐私（不外显 openid） | — | — | ✅entry(缺order_id/越权) | ✅entry(5 源合并+倒序+去重+限流+隐私) |
+| 24 | 种子工具鉴权（P0 整改） | * | fail-closed：真实 OPENID∈admin_openids 或 admin-web 代理共享密钥握手；不再信任 mock_openid | — | — | ✅entry(越权/伪造/空白名单) | ✅entry(6 例：拒/放行两路) |
+| 25 | 手机号加密（P0 整改） | * | AES-256-GCM 密文 + HMAC 确定性查询键 + 掩码；dual-read 兼容存量明文 | ✅(8 例:加密/解密/哈希/掩码/回退) | — | — | ✅user-login 写读全链路 + demand-publish 解密取号 |
 
-> 注：#15 评价位于独立云函数 `evaluation-submit`、系统态定时任务位于 `order-timer`、#22 结算位于 `payment-mock`（均未参与 index.js 拆分，A/B 等价不适用），以入口契约测试覆盖（`order-action.entry.test.js` 16 例 + `evaluation-submit.entry.test.js` 11 例 + `order-timer.entry.test.js` 11 例 + `payment-mock.entry.test.js` 结算 4 例）。
+> 注：#15 评价位于独立云函数 `evaluation-submit`、系统态定时任务位于 `order-timer`、#22 结算位于 `payment-mock`（均未参与 index.js 拆分，A/B 等价不适用），以入口契约测试覆盖（`order-action.entry.test.js` 16 例 + `zz-seed-orders.entry.test.js` 6 例 + `evaluation-submit.entry.test.js` 11 例 + `order-timer.entry.test.js` 11 例 + `payment-mock.entry.test.js` 结算 4 例）。
 
 ## 二、正交/并发/兼容异常
 
@@ -50,7 +52,7 @@
 | 资金结算资格 | S8/S9/S10 才算已结算 | ✅ | — | — | — |
 
 ## 三、当前结论
-- **规则层（R）**：状态机 22 迁移 + CAS + 兼容 + 资金/爽约/催单/接单规则 → **已充分单测**（当前 **225/0**：含规则 + 各入口契约 + action 级 CAS 落败 + 本次新增 complaint/timeline 7 例）。
+- **规则层（R）**：状态机 22 迁移 + CAS + 兼容 + 资金/爽约/催单/接单规则 + 手机号加密 → **已充分单测**（当前 **240/0**，含规则 + 各入口契约 + action 级 CAS 落败 + phone_crypt 8 例 + zz-seed-orders 鉴权 6 例）。
 - **action 拒绝分支（A_fail）**：全部 115 action 经自动种子覆盖到合法 fail code（另有 evaluation-submit + order-timer 鉴权门）。
 - **action 成功路径（A_ok）**：admin 侧（取消/争议退款/投诉/爽约）+ order 侧（取消/开始/完成/改期/里程碑/加时/等）+ 争议完成裁决 均有显式 ok 用例；#15 评价走入口契约。
 - **端到端（E2E）**：已补 action 级（A/B 0 diff）+ **入口契约**（order-action 16 + evaluation-submit 11 + order-timer 11 + payment-mock 结算 4）。order-timer 覆盖 8 类系统态扫描（S1/S0 超时取消、S3.5 中断→S4、S2_5 改期自动拒绝、S3 里程碑自动确认、S5 超时默认评价→S9、S8 售后归档→S10、S4 裁定期升级，含冻结/未到期守卫）；#22 结算覆盖可提现口径（Σ基数−提现占用）+ T+1 到账回写；#23 时间线覆盖 5 源合并/倒序/去重/限流/隐私。**剩余仅：#2取消申请/#7中断（无独立 action）。**

@@ -26,6 +26,8 @@ const COLLECTIONS = [
 //    bootstrap 会把非"已存在"类错误写入 warnings 供识别(既往该错误被静默吞进 skipped)。
 const INDEXES = [
   { coll: 'user_account', name: 'uk_openid', keys: { openid: 1 }, unique: true },
+  // P0-3 整改(2026-10-12): 手机号改密文存储后, 登录/注册按确定性 HMAC 键查询 → 需索引
+  { coll: 'user_account', name: 'idx_phone_hash', keys: { phone_hash: 1 } },
   { coll: 'partner_profile', name: 'uk_openid', keys: { openid: 1 }, unique: true },
   { coll: 'demand', name: 'idx_creator_status_created', keys: { creator_openid: 1, status: 1, created_at: -1 } },
   { coll: 'demand', name: 'idx_status_created', keys: { status: 1, created_at: -1 } },
