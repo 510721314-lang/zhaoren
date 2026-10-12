@@ -364,17 +364,24 @@ async function config_set(ctx) {
   if (!changed.length) return fail('config_no_change', '没有需要修改的字段');
   await col('admin_config').where({ _id: 'global' }).update({ data: patch });
   const reason = event.reason !== undefined ? String(event.reason).trim().slice(0, 100) : '';
-  const eventPayload = { before, after: patch };
+  // 审计日志同样须掩码敏感字段(含嵌套 secret), 避免明文落入 platform_event
+  const _SENSITIVE_RE = /key|secret|token/i;
+  const _deepMask = (v) => {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const o = {}; for (const [kk, vv] of Object.entries(v)) o[kk] = _SENSITIVE_RE.test(kk) ? '***' : _deepMask(vv); return o;
+    }
+    if (Array.isArray(v)) return v.map(_deepMask);
+    return v;
+  };
+  const eventPayload = { before: _deepMask(before), after: _deepMask(patch) };
   if (reason) eventPayload.reason = reason;
   await logEvent('P2', 'config_change', openid, eventPayload);
   try {
     await db.createCollection('config_history').catch(() => {});
-    const SENSITIVE_RE = /key|secret|token/i;
     const snapshot = { keys: changed, before: {}, after: {}, reason, operator: operatorAccount || openid || '', at: now };
     changed.forEach((k) => {
-      const mask = (v) => (SENSITIVE_RE.test(k) ? '***' : v);
-      snapshot.before[k] = mask(before[k]);
-      snapshot.after[k] = mask(patch[k]);
+      snapshot.before[k] = _SENSITIVE_RE.test(k) ? '***' : _deepMask(before[k]);
+      snapshot.after[k] = _SENSITIVE_RE.test(k) ? '***' : _deepMask(patch[k]);
     });
     await col('config_history').add({ data: { ...snapshot, created_at: now, updated_at: now, is_deleted: false } });
     const cnt = await col('config_history').where({ is_deleted: _.neq(true) }).count();
