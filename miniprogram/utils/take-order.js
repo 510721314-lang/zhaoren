@@ -2,6 +2,13 @@
 // 流程: 实名门禁 → 场景免责声明(wx.showModal·接单方双签) → wx.getLocation → sign_disclaimer(幂等) → create_from_take
 // 拒绝规则(身份/资料审核/信用分/距离50km/时间冲突/接单范围)以后端 order-create 为准, 前端只做入口校验
 const { getScene } = require('./redline.js');
+const { callCloud } = require('./cloud.js');
+
+// 网络不确定类错误码: app.cloudCall 超时/失败时 resolve 而非 reject(写操作不重试),
+// 这两个码等价于旧直调时的 reject, 需走「订单可能已建」的捞回分支
+function _isNetUncertain(r) {
+  return !!r && (r.code === 'cloud_timeout' || r.code === 'cloud_error');
+}
 
 // demand: 需求对象(需 _id / scene_code / match_mode)
 // opts:   { onSuccess(data), onError(result) }  data = { order_id, order_no, status: 'S1', ... }
@@ -34,12 +41,8 @@ function takeOrder(demand, opts) {
     // - !signed            → 弹免责 modal(首次需签署; 网络异常也走此兜底)
     // - signed && !certified → 维持 ④ 直走定位(后端 order_scene_not_accepted 清晰拒绝)
     _grabInFlight = true;
-    wx.cloud.callFunction({
-      name: 'order-create',
-      data: { action: 'check_signed', scene: demand.scene_code }
-    }).then((res) => {
-      const r = (res && res.result) || {};
-      const d0 = r.data || {};
+    callCloud('order-create', { action: 'check_signed', scene: demand.scene_code }).then((r) => {
+      const d0 = (r && r.data) || {};
       if (d0.signed && d0.certified) {
         // 一键接单: 免责已签 + 权限已开 → 单次确认后进入定位+建单
         wx.showModal({
@@ -128,31 +131,26 @@ function _deviceInfo() {
 
 function _signThenCreate(demand, loc, opts) {
   wx.showLoading({ title: '接单中...', mask: true });
-  wx.cloud.callFunction({
-    name: 'order-create',
-    data: Object.assign({ action: 'sign_disclaimer', scene: demand.scene_code }, { device: _deviceInfo() })
-  }).then((res) => {
-    const r = res.result || {};
+  callCloud('order-create', Object.assign({ action: 'sign_disclaimer', scene: demand.scene_code }, { device: _deviceInfo() })).then((r) => {
     if (!r.ok) {
       wx.hideLoading();
       wx.showToast({ title: r.msg || '签署失败,请重试', icon: 'none' });
       _release();
       return;
     }
-    return wx.cloud.callFunction({
-      name: 'order-create',
-      data: Object.assign({
-        action: 'create_from_take',
-        demand_id: demand._id,
-        partner_location: loc
-      }, { device: _deviceInfo() })
-    }).then((res2) => {
+    return callCloud('order-create', Object.assign({
+      action: 'create_from_take',
+      demand_id: demand._id,
+      partner_location: loc
+    }, { device: _deviceInfo() })).then((r2) => {
       wx.hideLoading();
-      const r2 = res2.result || {};
       if (r2.ok && r2.data) {
         _release(); // 成功路径在跳转前释放, 防止返回广场后无法再次抢单
         try { require('./report.js').report('order_take', { demand_id: demand && demand._id }); } catch (e) {}
         if (opts && opts.onSuccess) opts.onSuccess(r2.data);
+      } else if (_isNetUncertain(r2)) {
+        // 写操作不重试, 超时/断链由 cloudCall resolve 成错误码 → 与旧直调 reject 同义, 走捞回
+        _recoverTakeResult(demand, opts);
       } else {
         // 服务端实名门禁(order_realname_required): 给「去实名」按钮引导
         const bs = require('./bootstrap.js');
@@ -168,29 +166,30 @@ function _signThenCreate(demand, loc, opts) {
     });
   }).catch(() => {
     wx.hideLoading();
-    // 网络异常兜底: 可能是"订单已建但响应未达"(云函数超时/网关断链), 查询捞回而不是直接失败
-    wx.cloud.callFunction({
-      name: 'order-create',
-      data: { action: 'check_take_result', demand_id: demand._id }
-    }).then((cr) => {
-      const crr = (cr && cr.result && cr.result.data) || {};
-      if (crr.state === 'taken' && crr.order_id) {
-        // 已建单: 捞回跳转, 提示网络慢但订单已生效
-        _release();
-        if (opts && opts.onSuccess) opts.onSuccess({ order_id: crr.order_id, order_no: crr.order_no, status: crr.status, recovered: true });
-        return;
-      }
-      if (crr.state === 'released') {
-        wx.showToast({ title: '接单中断,需求已释放,请重试', icon: 'none' });
-        _release();
-        return;
-      }
-      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    _recoverTakeResult(demand, opts);
+  });
+}
+
+// 网络异常兜底: 可能是"订单已建但响应未达"(云函数超时/网关断链), 查询捞回而不是直接失败
+function _recoverTakeResult(demand, opts) {
+  callCloud('order-create', { action: 'check_take_result', demand_id: demand._id }).then((r) => {
+    const crr = (r && r.data) || {};
+    if (crr.state === 'taken' && crr.order_id) {
+      // 已建单: 捞回跳转, 提示网络慢但订单已生效
       _release();
-    }).catch(() => {
-      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+      if (opts && opts.onSuccess) opts.onSuccess({ order_id: crr.order_id, order_no: crr.order_no, status: crr.status, recovered: true });
+      return;
+    }
+    if (crr.state === 'released') {
+      wx.showToast({ title: '接单中断,需求已释放,请重试', icon: 'none' });
       _release();
-    });
+      return;
+    }
+    wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    _release();
+  }).catch(() => {
+    wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    _release();
   });
 }
 
