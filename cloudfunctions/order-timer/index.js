@@ -262,7 +262,7 @@ function fmtDate(ts) {
 //   配额耗尽(errno 43101, 一次性订阅 quota) / 字段不足 → 一律 catch 吞掉, 绝不阻断 system_notice 与原流程。
 // 字段映射通过 admin_config.sub_msg_templates.demand_grab.fields 配置化下发(缺省 thing1=内容, thing2=场景, time=开始时间),
 // 关键字→值 的 key 由模板字段号决定(thing1/thing2/time几), 不硬编码。
-async function sendDemandSub(d, subTmpl, openid) {
+async function sendDemandSub(d, subTmpl, openid, httpsPusher) {
   const map = Object.assign(
     { thing1: 'subject', thing2: 'scene', time: 'start_time' },
     (subTmpl.fields && typeof subTmpl.fields === 'object') ? subTmpl.fields : {}
@@ -281,14 +281,25 @@ async function sendDemandSub(d, subTmpl, openid) {
   if (!Object.keys(data).length) return;
   // 发送结果落库(成功/失败均记)→ demand.sub_msg_send_logs, 供读库确认订阅链路(自动化闭环验证 2026-10-10)
   const entry = { openid, at: Date.now(), status: 'ok', errCode: '', errMsg: '' };
+  const sendArgs = {
+    touser: openid,
+    templateId: subTmpl.tmpl_id,
+    page: subTmpl.page || 'pages-v2/demand-detail/demand-detail',
+    data,
+    miniprogramState: subTmpl.miniprogram_state || 'formal'
+  };
   try {
-    await cloud.openapi.subscribeMessage.send({
-      touser: openid,
-      templateId: subTmpl.tmpl_id,
-      page: subTmpl.page || 'pages-v2/demand-detail/demand-detail',
-      data,
-      miniprogramState: subTmpl.miniprogram_state || 'formal'
-    });
+    // 批 6.1: 配置了 sub_msg_https(appid+secret) 则走 HTTPS 直连微信, 否则回退云调用
+    if (httpsPusher) {
+      entry.channel = 'https';
+      await httpsPusher.send(sendArgs);
+    } else {
+      entry.channel = 'cloud';
+      await cloud.openapi.subscribeMessage.send({
+        touser: sendArgs.touser, templateId: sendArgs.templateId,
+        page: sendArgs.page, data: sendArgs.data, miniprogramState: sendArgs.miniprogramState
+      });
+    }
   } catch (e) {
     entry.status = 'fail';
     entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
@@ -344,8 +355,11 @@ async function processDemandNotify(now, cfg) {
       // 订阅消息增强(不阻断): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)仅告警(log.w)不阻断流程
       const subTmpl = (cfg.sub_msg_templates && cfg.sub_msg_templates.demand_grab) || null;
       const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub).map((t) => t.openid) : [];
+      // 批 6.1: admin_config.sub_msg_https = { appid, secret } 配置后走 HTTPS 通道, 否则回退云调用
+      const httpsCfg = (cfg.sub_msg_https && cfg.sub_msg_https.appid && cfg.sub_msg_https.secret) ? cfg.sub_msg_https : null;
+      const httpsPusher = httpsCfg ? require('./push_https').createHttpsPusher(httpsCfg) : null;
       if (subTargets.length) {
-        await Promise.allSettled(subTargets.map((openid) => sendDemandSub(d, subTmpl, openid).catch((e) => {
+        await Promise.allSettled(subTargets.map((openid) => sendDemandSub(d, subTmpl, openid, httpsPusher).catch((e) => {
           log.w(`sub_msg send fail ${openid}: errCode=${(e && e.errCode) || ''} ${(e && (e.errMsg || e.message)) || ''}`);
         })));
       }
