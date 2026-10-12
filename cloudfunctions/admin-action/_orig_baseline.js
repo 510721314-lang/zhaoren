@@ -1,0 +1,1664 @@
+﻿// 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
+// 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
+// 否则拒绝并写 platform_event(P1, admin_probe)。
+// 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
+const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const db = cloud.database();
+const _ = db.command;
+const $ = db.command.aggregate;   // 聚合管道命令(sum/avg 等只在此命名空间下)
+const col = (n) => db.collection(n);
+const log = require('./logger');
+const { buildAuditPatch, FIELD_PENDING, isFieldEmpty } = require('./partner_audit');
+// 第三批 3B: 爽约申诉/举证/裁定纯规则(规范源 _shared/no_show_rules.js, 修改后跑 sync-no-show-rules.ps1)
+const { noShowCfg, verdictOutcome, VERDICTS, REPORT_STATUS, DAY_MS } = require('./no_show_rules');
+
+// ───────── RBAC 角色体系(S1, PRD §5.1 最小版: R1超管/R2审核/R3运营) ─────────
+const ADMIN_ROLE_LABEL = { R1: '超管', R2: '审核', R3: '运营' };
+const ADMIN_ROLES = ['R1', 'R2', 'R3'];
+// 非 R1 角色的 action 放行表; 未列出的 action 仅 R1 可执行(敏感: export_*/config_set/force 类)
+// R2=审核专员: 审核/证据/举报/IM监管/内容下架; R3=运营: 配置/活动/通知/订单/财务只读/用户查询
+const ROLE_GRANTS = {
+  // ── R2 审核 ──
+  'audit_init': ['R2'], 'audit_query': ['R2'], 'audit_verify': ['R2'],
+  'evidence_query': ['R2'],
+  'partner_profile_pending_list': ['R2'], 'partner_profile_review': ['R2'], 'review': ['R2'],
+  'im_degraded_list': ['R2'], 'im_message_admin_list': ['R2'],
+  'report_list': ['R2', 'R3'], 'report_handle': ['R2'],
+  'safety_log_list': ['R2'], 'insurance_list': ['R2'],
+  'blog_list': ['R2', 'R3'], 'blog_offline': ['R2'], 'blog_restore': ['R2'], 'blog_delete': ['R2'],
+  'blog_comment_list': ['R2'], 'blog_comment_delete': ['R2'],
+  'demand_list': ['R2', 'R3'], 'demand_offline': ['R2', 'R3'],
+  'order_list': ['R2', 'R3'], 'order_query': ['R2', 'R3'], 'order_detail': ['R2', 'R3'],
+  'dispute_list': ['R2', 'R3'], 'dispute_detail': ['R2', 'R3'], 'dispute_handle': ['R2'],
+  // 第三批 3B: 爽约申诉列表/裁定(裁定人 R2/R3, 设计稿 §2.2)
+  'no_show_report_list': ['R2', 'R3'], 'no_show_decide': ['R2', 'R3'],
+  // ── R3 运营 ──
+  'dashboard': ['R3'],
+  'config_get': ['R3'], 'config_log_list': ['R3'],
+  'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'], 'upload_image': ['R3'],
+  'notice_send': ['R3'],
+  'kefu_conv_list': ['R3'], 'kefu_conv_reply': ['R3'],
+  'user_list': ['R3'], 'user_detail': ['R3'],
+  'partner_list': ['R3'], 'partner_detail': ['R3'],
+  'finance_list': ['R3'], 'finance_stats': ['R3'],
+  'withdraw_list': ['R3'], 'settlement_list': ['R3'],
+  'credit_log_list': ['R3'], 'penalty': ['R2', 'R3'],
+  // ── 认证考试管理(题库/通过规则, 配置化) ──
+  'exam_subject_list': ['R3'], 'exam_subject_detail': ['R3'],
+  'exam_subject_create': ['R3'], 'exam_subject_update': ['R3'], 'exam_subject_delete': ['R3'],
+  'exam_bank_seed': ['R1', 'R3']
+};
+// 后台账号密码 hash(SHA256(salt+pwd+salt), 与 user-login hashPassword 同构)
+function hashAdminPassword(password, salt) {
+  return crypto.createHash('sha256').update(salt + password + salt).digest('hex');
+}
+// admin_accounts/admin_web_sessions 集合幂等创建(add/set 不自动建集合, 缺集合报 -502005; 云函数管理权限可 createCollection)
+async function ensureAdminColls() {
+  try { await db.createCollection('admin_accounts'); } catch (e) { /* 已存在则忽略 */ }
+  try { await db.createCollection('admin_web_sessions'); } catch (e) { /* 已存在则忽略 */ }
+  try { await db.createCollection('exam_bank'); } catch (e) { /* 已存在则忽略 */ }
+  try { await db.createCollection('config_history'); } catch (e) { /* 已存在则忽略 */ }
+}
+
+// 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
+async function resolveTempUrls(fileIDs) {
+  const ids = Array.isArray(fileIDs) ? fileIDs.filter((f) => f && typeof f === 'string') : [];
+  if (ids.length === 0) return {};
+  const map = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    try {
+      const r = await cloud.getTempFileURL({ fileList: batch });
+      const list = (r && r.fileList) || [];
+      for (const it of list) {
+        if (it && it.fileID) map[it.fileID] = it.tempFileURL || '';
+      }
+    } catch (e) {
+      log.d('getTempFileURL batch fail:', e && e.message);
+    }
+  }
+  return map;
+}
+
+// 进行中订单(数据看板口径)
+const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+const PAGE_SIZE = 15;
+// 场景中文名(与 order-action 等 SCENE_NAME 同源, 全仓同步维护; 后台新增动态场景未列出的回退显示 code)
+const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 本地违禁词兜底(与 im-send/order-action/demand-publish 同款; msgSecCheck 不可用时降级)
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
+
+// ───────── 参数元数据(单一真相 SSOT) ─────────
+// config_set 区间校验 + config_get 输出 schema + admin-web Operations.vue 动态渲染,
+// 新增参数只需在此加一行, 三端自动生效。字段:
+//   f=admin_config 键名  t=int|bool  g=卡片分组  label=中文标签
+//   unit=单位(渲染)  min/max=区间  def=默认值
+const CONFIG_SCHEMA = [
+  // ── 距离与限额 ──
+  { f: 'publish_distance_max_km', t: 'int', g: '距离与限额', label: '发布距离上限', unit: 'km', min: 1, max: 500, def: 50 },
+  { f: 'take_distance_max_km', t: 'int', g: '距离与限额', label: '接单距离上限', unit: 'km', min: 1, max: 500, def: 50 },
+  { f: 'youth_limit_fen', t: 'int', g: '距离与限额', label: '青年最低预算', unit: '分', min: 1000, max: 100000, def: 20000 },
+  { f: 'partner_daily_take_limit', t: 'int', g: '距离与限额', label: '耍伴每日接单上限', unit: '单', min: 1, max: 50, def: 5 },
+  // ── 订单超时 ──
+  { f: 's0_timeout_min', t: 'int', g: '订单超时', label: 'S0 待支付', unit: '分钟', min: 1, max: 1440, def: 30 },
+  { f: 's1_timeout_min', t: 'int', g: '订单超时', label: 'S1 待确认', unit: '分钟', min: 1, max: 1440, def: 15 },
+  { f: 'interrupt_timeout_h', t: 'int', g: '订单超时', label: '中断超时', unit: '小时', min: 1, max: 168, def: 24 },
+  // Wave2 止血: S8 售后窗口届满归档 / S4 裁定期兜底（此前仅前端 CONFIG 有值，服务端无对应键）
+  { f: 'after_sale_days', t: 'int', g: '订单超时', label: '售后窗口', unit: '天', min: 1, max: 365, def: 15 },
+  { f: 'partial_judge_days', t: 'int', g: '订单超时', label: 'S4 裁定期', unit: '天', min: 1, max: 90, def: 7 },
+  // Wave2 止血⑥: S2 履约催办三段式阈值（自动链路 order-timer + 手动催办上限）
+  { f: 'remind_after_h', t: 'int', g: '订单超时', label: '催办-用户通知', unit: '小时', min: 0, max: 168, def: 1 },
+  { f: 'escalate_after_h', t: 'int', g: '订单超时', label: '催办-引导申诉', unit: '小时', min: 1, max: 336, def: 4 },
+  { f: 'urge_max_count', t: 'int', g: '订单超时', label: '催办-手动上限', unit: '次', min: 1, max: 10, def: 2 },
+  { f: 'eval_window_h', t: 'int', g: '订单超时', label: '评价窗口', unit: '小时', min: 1, max: 720, def: 48 },
+  { f: 'milestone_confirm_min', t: 'int', g: '订单超时', label: '里程碑确认', unit: '分钟', min: 1, max: 1440, def: 15 },
+  { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4 },
+  // ── 时间红线 ──
+  { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 1440 },
+  { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 360 },
+  // ── 信用阈值 ──
+  { f: 'min_credit_take_order', t: 'int', g: '信用阈值', label: '最低接单刷分', unit: '分', min: 0, max: 1000, def: 600 },
+  { f: 'min_credit_place_order', t: 'int', g: '信用阈值', label: '最低发单刷分', unit: '分', min: 0, max: 1000, def: 600 },
+  { f: 'credit_freeze_line', t: 'int', g: '信用阈值', label: '冻结线', unit: '分', min: 0, max: 1000, def: 400 },
+  // ── 费率 ──
+  { f: 'rate_min_fen', t: 'int', g: '费率', label: '最低时薪', unit: '分', min: 0, max: 100000, def: 3000 },
+  { f: 'rate_max_fen', t: 'int', g: '费率', label: '最高时薪', unit: '分', min: 0, max: 100000, def: 10000 },
+  // 一口价区间(无 def=留空不钳制; 显式判空, 禁 || 兜底; 0 是合法下限)
+  { f: 'fixed_price_min_fen', t: 'int', g: '费率', label: '一口价下限(留空不钳制)', unit: '分', min: 0, max: 10000000 },
+  { f: 'fixed_price_max_fen', t: 'int', g: '费率', label: '一口价上限(留空不钳制)', unit: '分', min: 0, max: 10000000 },
+  { f: 'scene_default_rate_fen', t: 'int', g: '费率', label: '场景默认时薪', unit: '分', min: 0, max: 100000, def: 5000 },
+  // ── 保险与提现 ──
+  { f: 'insurance_coverage_accident_fen', t: 'int', g: '保险与提现', label: '意外险保额', unit: '分', min: 0, max: 1000000000, def: 50000000 },
+  { f: 'insurance_coverage_property_fen', t: 'int', g: '保险与提现', label: '财产险保额', unit: '分', min: 0, max: 1000000000, def: 5000000 },
+  { f: 'fast_withdraw_per_order_max_fen', t: 'int', g: '保险与提现', label: '极速提现单笔上限', unit: '分', min: 0, max: 1000000, def: 20000 },
+  { f: 'fast_withdraw_per_day_max_fen', t: 'int', g: '保险与提现', label: '极速提现日上限', unit: '分', min: 0, max: 10000000, def: 200000 },
+  // ── AA 记账防滥用(线下台账仅记账不代收, 上限防刷) ──
+  { f: 'aa_record_max_fen', t: 'int', g: 'AA记账', label: 'AA单笔记账上限', unit: '分', min: 100, max: 10000000, def: 100000 },
+  { f: 'aa_ledger_max_fen', t: 'int', g: 'AA记账', label: 'AA单订单累计上限', unit: '分', min: 100, max: 100000000, def: 300000 },
+  { f: 'aa_ledger_max_records', t: 'int', g: 'AA记账', label: 'AA单订单条数上限', unit: '条', min: 1, max: 1000, def: 50 },
+  // ── 通用开关 ──
+  { f: 'auto_approve_partner', t: 'bool', g: '通用开关', label: '自动通过耍伴申请', def: false },
+  { f: 'payment_visible', t: 'bool', g: '通用开关', label: '显示支付入口', def: true },
+  { f: 'platform_fee_rate_fen', t: 'int', g: '通用开关', label: '平台抽成', unit: '万分比', min: 0, max: 10000, def: 1000 },
+  // 模拟支付开关(测试期): 仅影响资金 mock 入口(mock_pay/refund/ins/withdraw/fast_withdraw), prod 开放供真机/提审演示闭环;
+  // 打赏(mock_tip)恒随 env 关闭(硬约束), 正式上线前必须置回 false(fail-closed 默认关)
+  { f: 'mock_payment_enabled', t: 'bool', g: '通用开关', label: '模拟支付开关(测试期)', def: false },
+  // audit_log 留存清理(2026-10-07 P2 采纳): dry-run 只统计不删; 置 false 后每日 UTC 19 点真删 90 天前 audit_log(order-timer auditPrune)
+  { f: 'audit_prune_dry_run', t: 'bool', g: '通用开关', label: '审计日志清理(仅统计不删除)', def: true },
+  // ── 平台总开关(关停=维护态, 各云函数服务端拦截 + C 端维护提示) ──
+  { f: 'switch_access', t: 'bool', g: '平台总开关', label: '核心交易(下单/接单)', def: true },
+  { f: 'switch_blog', t: 'bool', g: '平台总开关', label: '动态社区', def: true },
+  { f: 'switch_im', t: 'bool', g: '平台总开关', label: '私信沟通', def: true },
+  // ── 私信频控(滑动窗口; im-send 服务端计数拦截) ──
+  { f: 'im_rate_window_min', t: 'int', g: '私信频控', label: '频控统计窗口', unit: '分钟', min: 1, max: 60, def: 5 },
+  { f: 'im_rate_max_count', t: 'int', g: '私信频控', label: '窗口内最多消息', unit: '条', min: 1, max: 200, def: 30 },
+  // ── 实名与签署(测试期 mock; 类目资质审批后切 wx 走微信官方人脸核验) ──
+  { f: 'realname_face_mode', t: 'enum', opts: ['mock', 'wx'], g: '实名与签署', label: '人脸核验模式', def: 'mock' },
+  // ── 耍伴资料(数量/字数限制后台可配; 前端校验+后端强约束+后台表单同源) ──
+  { f: 'p_skills_max', t: 'int', g: '耍伴资料', label: '技能标签条数上限', unit: '条', min: 1, max: 50, def: 10 },
+  { f: 'p_skills_len', t: 'int', g: '耍伴资料', label: '技能标签单条字数', unit: '字', min: 1, max: 50, def: 12 },
+  { f: 'p_highlights_max', t: 'int', g: '耍伴资料', label: '服务亮点条数上限', unit: '条', min: 1, max: 20, def: 3 },
+  { f: 'p_highlight_len', t: 'int', g: '耍伴资料', label: '服务亮点单条字数', unit: '字', min: 1, max: 100, def: 30 },
+  { f: 'p_media_title_max', t: 'int', g: '耍伴资料', label: '资质/荣誉标题条数上限', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'p_media_len', t: 'int', g: '耍伴资料', label: '资质/荣誉单条标题字数', unit: '字', min: 1, max: 50, def: 20 },
+  { f: 'p_media_photo_max', t: 'int', g: '耍伴资料', label: '资质/荣誉照片张数上限', unit: '张', min: 1, max: 20, def: 6 },
+  { f: 'p_media_photo_size_mb', t: 'int', g: '耍伴资料', label: '资质/荣誉单张照片大小上限', unit: 'MB', min: 1, max: 20, def: 3 },
+  // ── 消息(会话列表分页大小; 前端 pageSize 与 im-conv 默认一致) ──
+  { f: 'msg_page_size', t: 'int', g: '消息', label: '消息会话每页加载数', unit: '条', min: 5, max: 50, def: 15 },
+  // ── 发布与展示(P0-P2 数量/分页/字数后台化; 前端 CONFIG 兜底同源, 服务端强约束在上) ──
+  { f: 'publish_content_options_max', t: 'int', g: '发布与展示', label: '服务内容最多项数', unit: '项', min: 1, max: 10, def: 3 },
+  { f: 'workbench_income_show', t: 'int', g: '发布与展示', label: '工作台流水展示条数', unit: '条', min: 1, max: 20, def: 5 },
+  { f: 'order_page_size', t: 'int', g: '发布与展示', label: '订单列表每页条数', unit: '条', min: 5, max: 50, def: 20 },
+  { f: 'page_index_nearby', t: 'int', g: '发布与展示', label: '首页附近单页条数', unit: '条', min: 1, max: 50, def: 10 },
+  { f: 'page_index_square', t: 'int', g: '发布与展示', label: '首页广场单页条数', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'page_square_limit', t: 'int', g: '发布与展示', label: '广场列表单页条数', unit: '条', min: 1, max: 100, def: 50 },
+  { f: 'page_nearby_limit', t: 'int', g: '发布与展示', label: '附近列表分页条数', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'page_wallet_withdraw', t: 'int', g: '发布与展示', label: '钱包提现单页条数', unit: '条', min: 1, max: 50, def: 20 },
+  { f: 'page_notice_limit', t: 'int', g: '发布与展示', label: '通知单页条数', unit: '条', min: 1, max: 100, def: 50 },
+  { f: 'share_title_max', t: 'int', g: '发布与展示', label: '分享标题字数上限', unit: '字', min: 5, max: 60, def: 30 },
+  { f: 'order_reason_max_len', t: 'int', g: '发布与展示', label: '改期/加时原因字数上限', unit: '字', min: 20, max: 500, def: 200 },
+  // ── 费率(公益单时薪后台可调) ──
+  { f: 'welfare_hourly_rate_fen', t: 'int', g: '费率', label: '公益单时薪', unit: '分', min: 0, max: 100000, def: 3000 },
+  // 公益一口价(无 def=留空; 未配置时公益单不可发布, fail-closed)
+  { f: 'welfare_fixed_price_fen', t: 'int', g: '费率', label: '公益一口价(留空=公益不可发布)', unit: '分', min: 0, max: 1000000 },
+  // ── 信用阈值(好评星级阈值; 决定评价自动勾选口碑标签的分界) ──
+  { f: 'order_good_review_min_stars', t: 'int', g: '信用阈值', label: '好评星级阈值', unit: '星', min: 1, max: 5, def: 4 },
+  // ── 耍伴资料(个人简介字数上限) ──
+  { f: 'p_bio_len', t: 'int', g: '耍伴资料', label: '个人简介字数上限', unit: '字', min: 20, max: 500, def: 200 },
+  // ── 爽约申诉与处罚(第三批 3B, N10: 全部数值后台可配; 服务端读实配值, 前端仅兜底) ──
+  { f: 'no_show_report_window_h', t: 'int', g: '爽约处罚', label: '申诉时限(约定开始后)', unit: '小时', min: 1, max: 168, def: 48 },
+  { f: 'no_show_defense_window_h', t: 'int', g: '爽约处罚', label: '举证窗口(被诉方)', unit: '小时', min: 1, max: 168, def: 48 },
+  { f: 'no_show_score_deduct', t: 'int', g: '爽约处罚', label: '裁定成立扣分(0=仅计次)', unit: '分', min: 0, max: 100, def: 20 },
+  { f: 'no_show_suspend_threshold', t: 'int', g: '爽约处罚', label: '累计几次停用', unit: '次', min: 1, max: 10, def: 3 },
+  { f: 'no_show_suspend_days', t: 'int', g: '爽约处罚', label: '停用天数', unit: '天', min: 1, max: 90, def: 7 },
+  { f: 'no_show_count_window_days', t: 'int', g: '爽约处罚', label: '次数统计滚动窗口', unit: '天', min: 7, max: 365, def: 180 },
+  { f: 'no_show_evidence_max', t: 'int', g: '爽约处罚', label: '双方举证照片上限', unit: '张', min: 1, max: 9, def: 3 },
+  { f: 'no_show_reason_min_len', t: 'int', g: '爽约处罚', label: '申诉理由最短字数', unit: '字', min: 5, max: 200, def: 10 },
+  { f: 'no_show_max_per_order', t: 'int', g: '爽约处罚', label: '同订单单方申诉上限', unit: '条', min: 1, max: 3, def: 1 }
+];
+
+// 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
+function resolveOperations(config) {
+  const ops = { city_enabled: config.city_enabled || [] };
+  CONFIG_SCHEMA.forEach((s) => {
+    const raw = config[s.f];
+    if (s.t === 'bool') ops[s.f] = raw === undefined ? s.def : !!raw;
+    else if (s.t === 'enum') ops[s.f] = raw === undefined ? s.def : String(raw);
+    else ops[s.f] = raw === undefined ? s.def : Number(raw);
+  });
+  return ops;
+}
+
+async function getConfig() {
+  try {
+    const r = await db.collection('admin_config').doc('global').get();
+    if (r.data) return r.data;
+  } catch (e) {}
+  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true, test_openids: [] };
+}
+
+// 平台事件(P0 紧急 / P1 安全/越权 / P2 运营 / P3 业务异常)
+// Phase2-A5 管理端操作镜像: P2(运营写操作) 除 platform_event 外同步写 audit_log(role=admin), 供审计证据链留痕
+async function logEvent(level, type, openid, payload) {
+  const now = Date.now();
+  try {
+    await col('platform_event').add({ data: {
+      level, type, openid: openid || 'unknown', payload: payload || {},
+      created_at: now, updated_at: now, is_deleted: false
+    }});
+  } catch (e) {
+    log.d(`platform_event write fail: ${e.message}`);
+  }
+  if (level === 'P2') {
+    try {
+      const { writeAudit } = require('./audit');
+      const pl = payload || {};
+      // 镜像审计: 管理写操作留痕(不含敏感明文; 展示用 detail 为 payload 摘要)
+      const detail = {};
+      Object.keys(pl).forEach((k) => {
+        const v = pl[k];
+        if (v === undefined || v === null) return;
+        detail[k] = (typeof v === 'object') ? JSON.stringify(v) : v;
+      });
+      await writeAudit(db, log, {
+        openid: openid || '', role: 'admin', category: 'business',
+        action: 'admin_' + type,
+        target_type: 'platform_event', target_id: '',
+        detail, result: 'ok', client_ip: '', device: 'admin-web', at: now
+      });
+    } catch (e) {
+      log.d(`audit mirror fail: ${(e && e.message) || e}`);
+    }
+  }
+}
+
+// ── 敏感信息脱敏 ──
+function maskPhone(p) {
+  if (!p || typeof p !== 'string') return p || '';
+  return p.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+}
+// IP 脱敏: 1.2.3.4 → 1.2.*.*(审计列表展示用; 原始 IP 仍存于记录, 举证时不脱敏)
+function maskIp(ip) {
+  if (!ip || typeof ip !== 'string') return ip || '';
+  return ip.replace(/^(\d+)\.(\d+)\.\d+\.\d+$/, '$1.$2.*.*');
+}
+function maskIdCard(id) {
+  if (!id || typeof id !== 'string') return id || '';
+  return id.replace(/^(.{4}).+(.{4})$/, '$1**********$2');
+}
+function maskDoc(o) {
+  if (!o) return o;
+  const out = Object.assign({}, o);
+  Object.keys(out).forEach((k) => {
+    if (/phone/i.test(k) && typeof out[k] === 'string') out[k] = maskPhone(out[k]);
+    if (/idcard|id_card/i.test(k) && typeof out[k] === 'string') out[k] = maskIdCard(out[k]);
+  });
+  return out;
+}
+
+// 敏感字段脱敏规则(顶层常量, 供递归 maskDocDeep 使用)
+// 2026-09-23 备份查证补全: idcard(历史明文证件号)/sms_target(原样手机号)/sms_code(验证码)/
+//   *_aes_key/*_web_key(密钥, 此前 export_collection 会原样导出) 均在 L3 导出中泄露过
+const SENSITIVE_MASK = {
+  phone: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
+  idcard_no: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+  idcard: (v) => typeof v === 'string' && v.length >= 8 ? v.slice(0, 4) + '********' + v.slice(-4) : v,
+  sms_target: (v) => typeof v === 'string' && v.length >= 7 ? v.slice(0, 3) + '****' + v.slice(-4) : v,
+  sms_code: () => '***REDACTED***',
+  real_name: (v) => typeof v === 'string' && v.length >= 2 ? v[0] + '*' + (v.length > 2 ? v.slice(-1) : '') : v,
+  address: (v) => typeof v === 'string' && v.length > 6 ? v.slice(0, 6) + '***' : v,
+  openid: (v) => typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-6) : v,
+  wx_nickname: (v) => typeof v === 'string' ? v.slice(0, 1) + '***' : v,
+  admin_openids: (v) => Array.isArray(v)
+    ? v.map((o) => typeof o === 'string' && o.length > 8 ? o.slice(0, 4) + '****' + o.slice(-6) : o)
+    : v
+};
+// 递归脱敏(嵌套对象/数组逐层应用, 深度 ≤4 防循环引用)
+// 顶层定义: 避免在 exports.main 内 function 声明提升造成对 SENSITIVE_MASK 的 TDZ 引用崩溃
+function maskDocDeep(doc, depth = 0) {
+  if (!doc || typeof doc !== 'object') return doc;
+  if (depth > 4) return doc;
+  if (Array.isArray(doc)) return doc.map((x) => maskDocDeep(x, depth + 1));
+  const out = {};
+  for (const k of Object.keys(doc)) {
+    const v = doc[k];
+    if (SENSITIVE_MASK[k]) out[k] = SENSITIVE_MASK[k](v);
+    else if (k.includes('password') || k.includes('secret') || k.includes('token')
+      || k.includes('aes_key') || k.includes('web_key')) out[k] = '***REDACTED***';
+    else if (v && typeof v === 'object') out[k] = maskDocDeep(v, depth + 1);
+    else out[k] = v;
+  }
+  return out;
+}
+
+function todayStart() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// ── 分页参数 ──
+function pager(event) {
+  const page = Math.max(1, parseInt(event.page, 10) || 1);
+  // 支持调用方指定 size(默认 PAGE_SIZE), 钳到 1-100 防滥用
+  const size = Math.min(100, Math.max(1, parseInt(event.size, 10) || PAGE_SIZE));
+  return { page, size, skip: (page - 1) * size };
+}
+function isOpenid(s) {
+  return typeof s === 'string' && /^[a-zA-Z0-9_-]{10,40}$/.test(s);
+}
+function isDocId(s) {
+  return typeof s === 'string' && /^[a-f0-9]{32}$/i.test(s);
+}
+// 支付/退款流水号生成(与 payment-mock genPayNo 同构: prefix + YYYYMMDD + 16hex 随机, 防并发碰撞)
+function genPayNo(prefix) {
+  const d = new Date();
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const r = crypto.randomBytes(8).toString('hex');
+  return `${prefix}${ymd}${r}`;
+}
+// 订单状态中文名(云函数侧无 enums 模块, 与 miniprogram/config/enums.js 对齐)
+// Wave1 标签对齐(2026-10-10, Q2=A 以前端 enums.js ORDER_STATUS 为准), 修正 5 处错位:
+//   S2 履约中→已支付待履约 / S3 已确认→履约中 / S3.5 履约完成→履约中断 / S8 已结算→已评价 / S9 已评价→评价超时
+const STATUS_LABEL = {
+  S0: '待支付', S1: '待确认', S2: '已支付待履约', S3: '履约中', 'S3.5': '履约中断',
+  S4: '部分完成', S5: '已完成', S6: '已取消', S7: '已退款', S8: '已评价',
+  S9: '评价超时', S10: '已关闭', 'S10.5': '争议处理中'
+};
+// 支付流水类型中文名
+const TX_LABEL = { pay: '支付', refund: '退款', tip: '打赏', tip_refund: '打赏退款', withdraw: '提现', settle: '结算' };
+function dayKey(ts) {
+  const d = new Date(ts);
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function last7Days() {
+  const arr = [];
+  const base = todayStart();
+  for (let i = 6; i >= 0; i--) arr.push(dayKey(base - i * 86400000));
+  return arr;
+}
+// 按天分桶计数
+function bucketCount(days, arr, tsField) {
+  const m = {};
+  days.forEach((d) => { m[d] = 0; });
+  (arr || []).forEach((x) => {
+    const k = dayKey(x[tsField] || x.created_at);
+    if (m[k] !== undefined) m[k]++;
+  });
+  return days.map((d) => m[d]);
+}
+function bucketFen(days, arr) {
+  const m = {};
+  days.forEach((d) => { m[d] = 0; });
+  (arr || []).forEach((x) => {
+    const k = dayKey(x.paid_at || x.created_at);
+    if (m[k] !== undefined) m[k] += (x.amount_fen || 0);
+  });
+  return days.map((d) => m[d]);
+}
+async function sumTx(type, sinceMs) {
+  try {
+    const q = { type, status: 'success', is_deleted: _.neq(true) };
+    if (sinceMs) q.created_at = _.gte(sinceMs);
+    const r = await col('pay_transaction').aggregate()
+      .match(q)
+      .group({ _id: null, total: $.sum('$amount_fen'), fee: $.sum('$fee_fen') })
+      .end();
+    return r.list && r.list[0] ? r.list[0] : { total: 0, fee: 0 };
+  } catch (e) { return { total: 0, fee: 0 }; }
+}
+
+// ── action 分发表：已物理抽到同级 action_*.js 的 handler 在此注册，ctx 注入共享符号 ──
+// 鉴权后分组(RBAC 门之后): handler 签名 (ctx)=>result，禁止反向 require('./index')。
+const HANDLERS = Object.assign(
+  {},
+  require('./action_adminlist'),
+  require('./action_blog'),
+  require('./action_home_activity'),
+  require('./action_config_read'),
+  require('./action_misc'),
+  require('./action_lists'),
+  require('./action_admin_account'),
+  require('./action_user_moderation'),
+  require('./action_user_ops'),
+  require('./action_partner_review'),
+  require('./action_order_demand_ops'),
+  require('./action_im_kefu'),
+  require('./action_user_partner_views'),
+  require('./action_demand_order_views'),
+  require('./action_finance_dispute_views'),
+  require('./action_notice'),
+  require('./action_noshow_list'),
+  require('./action_export')
+);
+// 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
+const HANDLERS_PRE = Object.assign(
+  {},
+  require('./action_config_public'),
+  require('./action_auth_pre')
+);
+
+exports.main = async (event, context) => {
+  const wxCtx = cloud.getWXContext();
+  const { resolveOpenid } = require('./openid');
+  const openid = await resolveOpenid(cloud, event);
+  const action = event.action;
+  log.d(`admin-action action=${action} openid=${openid || 'none'}`);
+
+  const config = await getConfig();
+  const adminOpenids = config.admin_openids || [];
+
+  // 已抽离到 action_*.js 的免鉴权前置动作优先走分发表（统一鉴权门之前）
+  if (HANDLERS_PRE[action]) {
+    const preCtx = {
+      event, openid, action, wxCtx, config, adminOpenids,
+      col, db, _, log, cloud, crypto,
+      getConfig, logEvent, ensureAdminColls, hashAdminPassword
+    };
+    return await HANDLERS_PRE[action](preCtx);
+  }
+
+  // （config_public 已抽离到 ./action_config_public.js，由上方 HANDLERS_PRE 分发表处理）
+
+  // ───────── 统一鉴权 ─────────
+  if (!openid) {
+    await logEvent('P1', 'admin_probe', '', { action, reason: 'no_openid' });
+    return { ok: false, code: 'admin_no_openid', msg: '未获取到登录身份' };
+  }
+  // mock 测试环境:仅 dev 且 resolveOpenid 已确认 dev 时, mock_openid 视为测试管理员; prod/读不到配置一律关闭
+  const { getCachedEnv } = require('./openid');
+  const isMockAdmin = !!event.mock_openid && getCachedEnv() === 'dev';
+  if (adminOpenids.indexOf(openid) < 0 && !isMockAdmin) {
+    await logEvent('P1', 'admin_probe', openid, { action, reason: 'not_in_whitelist' });
+    if (adminOpenids.length === 0) {
+      return { ok: false, code: 'admin_empty', msg: '后台尚未初始化管理员' };
+    }
+    return { ok: false, code: 'admin_forbidden', msg: '无权限,该操作已被记录' };
+  }
+
+  const now = Date.now();
+  const ok = (data) => ({ ok: true, data: data || {} });
+  const fail = (code, msg) => ({ ok: false, code, msg });
+
+  // ───────── RBAC 操作者角色解析(S1) ─────────
+  // 优先级: 账号会话 token(admin_accounts 登录) > 网关 admin_web_key 代理/白名单 openid(视为 R1)
+  // admin_login/admin_logout 已在统一鉴权前处理, 此处面向其余 action
+  let operatorRole = 'R1';
+  let operatorAccount = '';
+  const adminToken = String(event.__admin_token || '');
+  if (adminToken) {
+    const sessR = await col('admin_web_sessions').doc(adminToken).get().catch(() => null);
+    const sess = sessR && sessR.data;
+    if (!sess || sess.is_deleted || (sess.expires_at || 0) < Date.now()) {
+      return { ok: false, code: 'bad_token', msg: '登录已过期, 请重新登录' };
+    }
+    const accR = await col('admin_accounts').where({ account: sess.account || '', is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const acc = (accR.data && accR.data[0]) || null;
+    if (!acc || acc.status !== 'active') {
+      return { ok: false, code: 'bad_token', msg: '账号已被禁用, 请联系超管' };
+    }
+    operatorAccount = acc.account;
+    operatorRole = acc.role || 'R1'; // 会话角色以账号当前角色为准
+  }
+  // 角色门控: 已声明的 action 检查放行角色; 未声明(敏感: export_*/config_set/账号管理/force 类)默认仅 R1; R1 超管拥有全部权限
+  const grants = ROLE_GRANTS[action];
+  if (operatorRole !== 'R1' && (!grants || grants.indexOf(operatorRole) < 0)) {
+    await logEvent('P1', 'role_forbidden', openid, { action, role: operatorRole, account: operatorAccount });
+    return { ok: false, code: 'role_forbidden', msg: `无权限执行此操作(需 ${(grants || ['R1']).map((r) => ADMIN_ROLE_LABEL[r]).join('/')} 角色)` };
+  }
+
+  // 已抽离到 action_*.js 的鉴权后动作优先走分发表（ctx 注入共享符号，行为与原内联逐字一致）
+  if (HANDLERS[action]) {
+    const ctx = {
+      event, openid, action, wxCtx, config, adminOpenids,
+      col, db, _, $, log, cloud, crypto,
+      now, ok, fail,
+      getConfig, logEvent, ensureAdminColls, resolveTempUrls, maskDocDeep,
+      pager, isOpenid, isDocId, genPayNo, sumTx,
+      ADMIN_ROLE_LABEL, ADMIN_ROLES, ROLE_GRANTS,
+      operatorRole, operatorAccount,
+      noShowCfg, verdictOutcome, VERDICTS, REPORT_STATUS, DAY_MS,
+      buildAuditPatch, FIELD_PENDING, isFieldEmpty,
+      ACTIVE_STATUS, PAGE_SIZE, SCENE_NAME, BLOCK_WORDS_FALLBACK,
+      STATUS_LABEL, TX_LABEL, CONFIG_SCHEMA,
+      hashAdminPassword, maskPhone, maskIp, maskIdCard, maskDoc, SENSITIVE_MASK,
+      resolveOperations, todayStart, dayKey, last7Days, bucketCount, bucketFen
+    };
+    return await HANDLERS[action](ctx);
+  }
+
+  // ───────── 1. 数据看板(统计卡 + 7天趋势 + 待办 + 财务汇总) ─────────
+  if (action === 'dashboard') {
+    const t7 = todayStart() - 6 * 86400000;
+    const [userR, partnerR, reviewR, demandR, activeR, disputeR,
+           users7, demands7, orders7, pays7, reportR, payExpiredR,
+           payAgg, refundAgg, tipAgg] = await Promise.all([
+      col('user_account').where({ is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('partner_profile').where({ status: 'approved', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('partner_profile').where({ status: 'pending_review', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('demand').where({ created_at: _.gte(todayStart()), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ status: _.in(ACTIVE_STATUS), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ status: 'S10.5', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('user_account').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('demand').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('order_main').where({ created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where({ type: 'pay', status: 'success', created_at: _.gte(t7), is_deleted: _.neq(true) }).limit(1000).get().catch(() => ({ data: [] })),
+      col('safety_report').where({ status: 'active', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      col('order_main').where({ status: 'S0', pay_expire_at: _.lt(now), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+      // 资金聚合带 90 天窗: 规避全表扫描触达网关 3s 硬限(上线至今未满 90 天语义等价全量)
+      sumTx('pay', now - 90 * 86400000), sumTx('refund', now - 90 * 86400000), sumTx('tip', now - 90 * 86400000)
+    ]);
+    const days = last7Days();
+    return ok({
+      user_count: userR.total || 0,
+      partner_count: partnerR.total || 0,
+      today_demand_count: demandR.total || 0,
+      active_order_count: activeR.total || 0,
+      pending_review_count: reviewR.total || 0,
+      dispute_count: disputeR.total || 0,
+      gmv_fen: payAgg.total || 0,
+      trend: {
+        days,
+        users: bucketCount(days, users7.data, 'created_at'),
+        demands: bucketCount(days, demands7.data, 'created_at'),
+        orders: bucketCount(days, orders7.data, 'created_at'),
+        gmv_fen: bucketFen(days, pays7.data)
+      },
+      todo: {
+        pending_review: reviewR.total || 0,
+        dispute: disputeR.total || 0,
+        report_active: reportR.total || 0,
+        pay_expired: payExpiredR.total || 0
+      },
+      finance: {
+        gmv_fen: payAgg.total || 0,
+        refund_fen: refundAgg.total || 0,
+        tip_fen: tipAgg.total || 0,
+        fee_fen: payAgg.fee || 0
+      }
+    });
+  }
+
+  // 强制下架/恢复耍伴接单(不影响其发单人身份)
+  // ───────── 争议处置(S10→S10.5→裁决 S7/S5) ─────────
+  // 2026-10-10: scope 视图(active 处理中 / history 已处置 / all 全部, 默认 active 保持向后兼容)
+  // 纠纷全流程留痕(订单 + 状态流水 + 投诉 + 爽约申诉 + 支付/退款流水 → 统一时间线)
+  if (action === 'dispute_detail') {
+    const { order_id } = event;
+    if (!isDocId(order_id)) return fail('dispute_bad_id', '订单 ID 格式不正确');
+    let o;
+    try { o = (await col('order_main').doc(order_id).get()).data; } catch (e) { o = null; }
+    if (!o) return fail('dispute_not_found', '订单不存在');
+    const [logsR, cR, nsR, txR] = await Promise.all([
+      col('order_status_log').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(100).get().catch(() => ({ data: [] })),
+      col('complaint').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(20).get().catch(() => ({ data: [] })),
+      col('no_show_report').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(20).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where({ order_id, is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(50).get().catch(() => ({ data: [] }))
+    ]);
+    const logs = logsR.data || [];
+    const complaints = cR.data || [];
+    const reports = nsR.data || [];
+    const txs = txR.data || [];
+    // 批量解析昵称(失败降级为角色标签)
+    const oidSet = new Set();
+    logs.forEach((l) => { if (l.actor_openid) oidSet.add(l.actor_openid); if (l.operator) oidSet.add(l.operator); });
+    complaints.forEach((c) => { if (c.initiator_openid) oidSet.add(c.initiator_openid); });
+    reports.forEach((r) => { if (r.reporter_openid) oidSet.add(r.reporter_openid); if (r.target_openid) oidSet.add(r.target_openid); if (r.decided_by) oidSet.add(r.decided_by); });
+    txs.forEach((t) => { if (t.operator_openid) oidSet.add(t.operator_openid); });
+    [o.user_openid, o.partner_openid].forEach((x) => { if (x) oidSet.add(x); });
+    const openids = Array.from(oidSet).slice(0, 30);
+    const nm = {};
+    if (openids.length) {
+      try {
+        const ur = await col('user_account').where({ openid: _.in(openids) }).limit(30).get();
+        (ur.data || []).forEach((u) => { nm[u.openid] = u.nickname || ''; });
+      } catch (e) {}
+    }
+    const roleOf = (oid) => {
+      if (!oid) return '系统';
+      if (oid === o.user_openid) return '发单人';
+      if (oid === o.partner_openid) return '耍伴';
+      return '客服/系统';
+    };
+    const actorText = (oid, fallback) => {
+      if (!oid) return fallback || '系统';
+      const who = nm[oid] ? `${nm[oid]}(${roleOf(oid)})` : roleOf(oid);
+      return fallback ? `${who} · ${fallback}` : who;
+    };
+    const sl = (s) => s ? `${s} ${STATUS_LABEL[s] || ''}`.trim() : '';
+    const tl = [];
+    logs.forEach((l) => tl.push({
+      ts: l.created_at || l.updated_at || 0, tag: 'status',
+      title: `${sl(l.from_status) || '—'} → ${sl(l.to_status) || '—'}`,
+      desc: l.note || l.action || '',
+      actor_text: actorText(l.actor_openid || l.operator, l.action || '')
+    }));
+    complaints.forEach((c) => tl.push({
+      ts: c.created_at || 0, tag: 'complaint',
+      title: c.status === 'withdrawn' ? '投诉已撤回' : '发起投诉',
+      desc: c.reason || '',
+      actor_text: actorText(c.initiator_openid, c.initiator_role === 'partner' ? '耍伴' : '发单人')
+    }));
+    reports.forEach((rp) => {
+      tl.push({
+        ts: rp.created_at || 0, tag: 'nosh',
+        title: `爽约申诉(${rp.reason_type || '提交'})`,
+        desc: rp.reason || '',
+        actor_text: actorText(rp.reporter_openid, rp.reporter_role === 'partner' ? '耍伴' : '发单人')
+      });
+      if (rp.defense_at) tl.push({
+        ts: rp.defense_at, tag: 'nosh', title: '申诉举证',
+        desc: rp.defense_reason || '', actor_text: actorText(rp.target_openid, '被诉方')
+      });
+      if (rp.decided_at) tl.push({
+        ts: rp.decided_at, tag: 'nosh',
+        title: `申诉裁定：${rp.verdict === 'upheld' ? '成立' : '不成立'}`,
+        desc: rp.decided_reason || '', actor_text: actorText(rp.decided_by, '管理员')
+      });
+      if (rp.withdrawn_at) tl.push({
+        ts: rp.withdrawn_at, tag: 'nosh', title: '申诉已撤回',
+        desc: '', actor_text: actorText(rp.reporter_openid, '申诉人')
+      });
+    });
+    txs.forEach((t) => tl.push({
+      ts: t.created_at || t.paid_at || 0, tag: 'money',
+      title: `${TX_LABEL[t.type] || t.type} ¥${((t.amount_fen || 0) / 100).toFixed(2)}`,
+      desc: t.pay_no || '', actor_text: actorText(t.operator_openid, t.status || '')
+    }));
+    tl.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    return ok({
+      order: maskDoc({
+        order_id: o._id, order_no: o.order_no, status: o.status, scene: o.scene,
+        scene_name: SCENE_NAME[o.scene] || o.scene,
+        user_openid: o.user_openid, partner_openid: o.partner_openid,
+        user_nick: nm[o.user_openid] || '', partner_nick: nm[o.partner_openid] || '',
+        total_fen: o.total_fen, tip_total_fen: o.tip_total_fen || 0,
+        fee_fen: o.fee_fen, partner_income_fen: o.partner_income_fen,
+        refund_fen: o.refund_fen || 0, refund_no: o.refund_no || '',
+        complaint_reason: o.complaint_reason || o.dispute_reason || '',
+        complaint_at: o.complaint_at || 0, complaint_by: o.complaint_by || '',
+        complaint_withdrawn_at: o.complaint_withdrawn_at || 0,
+        dispute_opened_at: o.dispute_opened_at || 0,
+        dispute_handled_by: o.dispute_handled_by || '', dispute_handled_at: o.dispute_handled_at || 0,
+        refunded_at: o.refunded_at || 0, admin_note: o.admin_note || '',
+        created_at: o.created_at
+      }),
+      timeline: tl,
+      complaint: complaints.length ? complaints[complaints.length - 1] : null,
+      no_show_reports: reports.map((rp) => ({
+        report_id: rp._id, status: rp.status, verdict: rp.verdict || '',
+        reason_type: rp.reason_type || '', reason: rp.reason || '',
+        defense_reason: rp.defense_reason || '', decided_reason: rp.decided_reason || '',
+        penalty_applied: rp.penalty_applied || null,
+        created_at: rp.created_at, decided_at: rp.decided_at || 0, withdrawn_at: rp.withdrawn_at || 0
+      })),
+      transactions: txs.map((t) => ({
+        pay_no: t.pay_no || '', type: t.type, amount_fen: t.amount_fen || 0,
+        status: t.status, source: t.source || '', created_at: t.created_at || t.paid_at || 0
+      }))
+    });
+  }
+
+  if (action === 'dispute_handle') {
+    const { order_id, decision, note } = event;
+    if (!isDocId(order_id)) return fail('dispute_bad_id', '订单 ID 格式不正确');
+    let order;
+    try { order = (await col('order_main').doc(order_id).get()).data; } catch (e) { order = null; }
+    if (!order) return fail('dispute_not_found', '订单不存在');
+    const before = order.status;
+    let after;
+    if (decision === 'open') {
+      if (before !== 'S10') return fail('dispute_bad_transition', '仅 S10 已关闭订单可登记争议');
+      after = 'S10.5';
+    } else if (decision === 'refund') {
+      if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
+      after = 'S7';
+    } else if (decision === 'complete') {
+      if (before !== 'S10.5') return fail('dispute_bad_transition', '仅争议处理中订单可裁决');
+      // Wave2 止血⑦(修 D10): 争议前已有评价的单回 S8(保留评价), 无评价才回 S5 —— 避免把已评价单退回待评价造成重复评价
+      const from = order.complaint_from_status || '';
+      const alreadyEvaluated = (from === 'S8' || from === 'S9' ||
+        order.eval_state === 'user_done' || order.eval_state === 'auto_done');
+      after = alreadyEvaluated ? 'S8' : 'S5';
+    } else {
+      return fail('dispute_bad_decision', 'decision 必须为 open/refund/complete');
+    }
+    if (!note || !String(note).trim()) return fail('dispute_no_note', '请填写处置说明');
+    const noteText = String(note).trim();
+    // 退款金额(仅 refund): 缺省回落订单全额; 上限 = total_fen − 已成功退款合计
+    let refFen = 0;
+    let refNo = '';
+    let totalFen = 0;          // Wave1: 提到外层, 供资金位 dual-write 使用
+    let alreadyRefunded = 0;
+    if (decision === 'refund') {
+      totalFen = Number(order.total_fen) || 0;
+      try {
+        const paid = await col('pay_transaction').where({
+          order_id, type: 'refund', status: 'success', is_deleted: _.neq(true)
+        }).limit(50).get();
+        alreadyRefunded = (paid.data || []).reduce((s, t) => s + (Number(t.amount_fen) || 0), 0);
+      } catch (e) {}
+      const refFenMax = Math.max(0, totalFen - alreadyRefunded);
+      const raw = event.refund_fen;
+      refFen = (raw === undefined || raw === null || raw === '') ? totalFen : Number(raw);
+      if (!Number.isInteger(refFen) || refFen <= 0) {
+        return fail('dispute_bad_amount', '退款金额须为正整数(单位:分)');
+      }
+      if (refFen > refFenMax) {
+        return fail('dispute_amount_exceed', `退款金额不得超过可退上限 ¥${(refFenMax / 100).toFixed(2)}`);
+      }
+      refNo = genPayNo('REF');
+    }
+    const patch = {
+      status: after, admin_note: noteText,
+      dispute_handled_by: openid, dispute_handled_at: now, updated_at: now,
+      // Wave1 正交位 dual-write(§3.2): 裁决出口 → 争议关闭并解冻
+      dispute_state: 'resolved', frozen: false
+    };
+    if (decision === 'open') { patch.dispute_opened_at = now; patch.dispute_state = 'open'; patch.frozen = true; }
+    if (decision === 'refund') {
+      patch.refund_fen = refFen;
+      patch.refund_no = refNo;
+      patch.refund_source = 'dispute';
+      patch.refund_by = openid;
+      patch.refunded_at = now;
+      // Wave1 正交位 dual-write(§3.2): 资金位 refunded_fen = 已退合计 + 本次(部分退款非终态)
+      patch.fund = { paid_fen: totalFen, refunded_fen: alreadyRefunded + refFen, settle_state: 'pending', settled_at: 0 };
+    }
+    // CAS: 仅当订单仍处于读取时的原状态才允许裁决, 防并发双处置
+    const dcr = await col('order_main').where({ _id: order_id, status: before }).update({ data: patch });
+    if (!dcr.stats || dcr.stats.updated !== 1) {
+      return fail('dispute_conflict', '订单状态已变化,请刷新后重试');
+    }
+    // 退款流水落库(pay_transaction, 与 payment-mock mock_refund 同表同结构); 失败补偿订单回原状态
+    if (decision === 'refund') {
+      try {
+        await col('pay_transaction').add({ data: {
+          pay_no: refNo, order_id, order_no: order.order_no, type: 'refund',
+          amount_fen: refFen, channel: 'mock', is_mock: true, status: 'success',
+          source: 'dispute', operator_openid: openid, note: noteText,
+          paid_at: now, created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) {
+        log.w(`dispute_refund txn write fail: ${e.message}; compensating order ${order_id} → ${before}`);
+        await col('order_main').where({ _id: order_id, status: 'S7' }).update({
+          data: { status: before, refunded_at: 0, refund_fen: 0, refund_no: '', updated_at: Date.now() }
+        }).catch(() => {});
+        return fail('refund_db_fail', '退款流水写入失败,请重试');
+      }
+    }
+    try {
+      await col('order_status_log').add({ data: {
+        order_id, order_no: order.order_no, from_status: before, to_status: after,
+        actor: 'admin', actor_openid: openid, action: 'dispute_' + decision,
+        note: decision === 'refund' ? `${noteText}（退款 ¥${(refFen / 100).toFixed(2)}）` : noteText,
+        created_at: now, updated_at: now, is_deleted: false
+      }});
+    } catch (e) {}
+    // 退款成功通知双方(await 落库, 防函数 return 后异步写被回收; 失败不阻断资金链路)
+    if (decision === 'refund') {
+      const amtYuan = (refFen / 100).toFixed(2);
+      await Promise.allSettled([
+        col('system_notice').add({ data: {
+          to_openid: order.user_openid, order_id, type: 'refund',
+          title: '退款成功', body: `争议裁决退款 ¥${amtYuan}，金额将原路返回`,
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }}),
+        col('system_notice').add({ data: {
+          to_openid: order.partner_openid, order_id, type: 'refund',
+          title: '订单已退款', body: `该订单经争议裁决退款 ¥${amtYuan}`,
+          action_key: 'jump_order', action_payload: { order_id },
+          created_at: now, read: false
+        }})
+      ]);
+    }
+    await logEvent('P2', 'dispute_' + decision, openid, {
+      order_id, order_no: order.order_no, before, after, note: noteText,
+      refund_fen: decision === 'refund' ? refFen : undefined,
+      refund_no: decision === 'refund' ? refNo : undefined
+    });
+    return ok({ order_id, before, after, refund_fen: decision === 'refund' ? refFen : undefined, refund_no: decision === 'refund' ? refNo : undefined });
+  }
+
+  // 财务概览(服务端 aggregate; 禁止前端全量拉取明细做统计, 会触发超时)
+  // 入参: days=1-90(默认30) 或 start_ts/end_ts(毫秒, 跨度≤90天)
+  if (action === 'finance_stats') {
+    const MAX_DAYS = 90;
+    const TREND_CAP = 5000;
+    let startTs;
+    let rangeEnd;
+    if (event.start_ts !== undefined || event.end_ts !== undefined) {
+      const s = parseInt(event.start_ts, 10);
+      const e = parseInt(event.end_ts, 10);
+      if (!Number.isInteger(s) || !Number.isInteger(e) || s >= e) {
+        return fail('fs_bad_range', 'start_ts/end_ts 须为整数毫秒且 start < end');
+      }
+      if (e - s > MAX_DAYS * 86400000) return fail('fs_range_too_long', '区间最长 90 天');
+      if (s < 1577808000000) return fail('fs_bad_start', '开始时间不合理');
+      if (e > Date.now() + 86400000) return fail('fs_bad_end', '结束时间不能晚于明天');
+      startTs = s; rangeEnd = e;
+    } else {
+      let days = parseInt(event.days, 10);
+      if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) days = 30;
+      startTs = todayStart() - (days - 1) * 86400000;
+      rangeEnd = todayStart() + 86400000;   // 含今天全天
+    }
+    const start0 = new Date(startTs); start0.setHours(0, 0, 0, 0);
+    startTs = start0.getTime();
+
+    // ① 区间内交易按类型一次分组(pay/refund/tip 的金额/手续费; 笔数走 count 与全仓口径一致)
+    // ② 耍伴已结算收入: 对齐 payment-mock settledFen 口径仅 S8/S9/S10
+    //    (S5=已完成待评价, 收入尚未结算; S7=已退款不计)
+    // ③ 趋势明细(仅 pay/refund, 带上限保护, 超量返回 truncated 标志)
+    // 注意: 时间区间必须用 _.and 组合, 对象字面量写两个同名 created_at 键会被后者覆盖(丢下界)
+    const win = [{ created_at: _.gte(startTs) }, { created_at: _.lt(rangeEnd) }];
+    const txBase = { status: 'success', is_deleted: _.neq(true) };
+    const incomeBase = { status: _.in(['S8', 'S9', 'S10']), is_deleted: _.neq(true) };
+    const [typeAgg, incomeAgg, trendR, payCnt, refundCnt, incomeCnt] = await Promise.all([
+      col('pay_transaction').aggregate()
+        .match(_.and([txBase].concat(win)))
+        .group({ _id: '$type', total: $.sum('$amount_fen'), fee: $.sum('$fee_fen') })
+        .end().catch(() => ({ list: [] })),
+      col('order_main').aggregate()
+        .match(_.and([incomeBase].concat(win)))
+        .group({ _id: null, income: $.sum('$partner_income_fen') })
+        .end().catch(() => ({ list: [] })),
+      col('pay_transaction').where({
+        type: _.in(['pay', 'refund']), status: 'success', is_deleted: _.neq(true),
+        created_at: _.gte(startTs)
+      }).limit(TREND_CAP).get().catch(() => ({ data: [] })),
+      col('pay_transaction').where(_.and([Object.assign({}, txBase, { type: 'pay' })].concat(win))).count().catch(() => ({ total: 0 })),
+      col('pay_transaction').where(_.and([Object.assign({}, txBase, { type: 'refund' })].concat(win))).count().catch(() => ({ total: 0 })),
+      col('order_main').where(_.and([incomeBase].concat(win))).count().catch(() => ({ total: 0 }))
+    ]);
+    const typeMap = {};
+    (typeAgg.list || []).forEach((r) => { typeMap[r._id] = r; });
+    const pay = typeMap.pay || { total: 0, fee: 0 };
+    const refund = typeMap.refund || { total: 0, fee: 0 };
+    const tip = typeMap.tip || { total: 0, fee: 0 };
+    const incomeRow = (incomeAgg.list || [])[0] || { income: 0 };
+
+    // 按天分桶(与 dashboard 趋势口径一致: paid_at 优先, 回退 created_at)
+    const days = [];
+    for (let t = startTs; t < rangeEnd; t += 86400000) days.push(dayKey(t));
+    const gmvB = {}, refundB = {}, cntB = {};
+    days.forEach((d) => { gmvB[d] = 0; refundB[d] = 0; cntB[d] = 0; });
+    (trendR.data || []).forEach((t) => {
+      const k = dayKey(t.paid_at || t.created_at);
+      if (gmvB[k] === undefined) return;
+      if (t.type === 'pay') { gmvB[k] += (t.amount_fen || 0); cntB[k] += 1; }
+      else if (t.type === 'refund') refundB[k] += (t.amount_fen || 0);
+    });
+
+    return ok({
+      range: { start_ts: startTs, end_ts: rangeEnd, days: days.length },
+      summary: {
+        gmv_fen: pay.total || 0,
+        refund_fen: refund.total || 0,
+        net_gmv_fen: (pay.total || 0) - (refund.total || 0),
+        tip_fen: tip.total || 0,
+        platform_fee_fen: pay.fee || 0,
+        partner_income_fen: incomeRow.income || 0,
+        partner_order_count: incomeCnt.total || 0,
+        pay_count: payCnt.total || 0,
+        refund_count: refundCnt.total || 0
+      },
+      trend: {
+        days,
+        gmv_fen: days.map((d) => gmvB[d]),
+        refund_fen: days.map((d) => refundB[d]),
+        pay_count: days.map((d) => cntB[d])
+      },
+      trend_truncated: (trendR.data || []).length >= TREND_CAP
+    });
+  }
+
+  // ───────── 7. 风控: 举报 / 平台事件 ─────────
+  // 安全报备/SOS 流水(只读, 事故回溯用)
+  // 集合现状: safety_report 仅有 sos(含 sub_type=silent) 与 checkin 两类;
+  // 举报类记录未来独立走 report_list, 此处显式限定两类, 口径不混。
+  // ───────── IM 内容安全降级消息补审 ─────────
+  if (action === 'config_set') {
+    const patch = { updated_at: now };
+    const before = {};
+    const touch = (k, v) => { before[k] = config[k]; patch[k] = v; };
+
+    // bool 字段统一处理(区间/类型由 schema 声明): auto_approve_partner/payment_visible/三个总开关
+    for (const s of CONFIG_SCHEMA) {
+      if (s.t === 'bool' && event[s.f] !== undefined) touch(s.f, !!event[s.f]);
+    }
+    // enum 字段统一校验(CONFIG_SCHEMA 声明 opts 白名单; 超集直接拒绝, 防脏值入库)
+    for (const s of CONFIG_SCHEMA) {
+      if (s.t !== 'enum' || event[s.f] === undefined) continue;
+      const v = String(event[s.f]);
+      if (!Array.isArray(s.opts) || s.opts.indexOf(v) < 0) {
+        return fail('config_bad_' + s.f, `${s.f} 仅支持: ${(s.opts || []).join(' / ')}`);
+      }
+      touch(s.f, v);
+    }
+    // 四确认前仅允许模板消息(关闭后自由聊天, 仅 super 应可操作)
+    if (event.security_only_template_before_confirm !== undefined) {
+      touch('security_only_template_before_confirm', !!event.security_only_template_before_confirm);
+    }
+    // 环境开关: dev(允许 mock_openid 测试身份) / prod(强制忽略, 见各函数 openid.js)
+    // D6 危险操作确认: 切到 dev 会开放 mock 身份门控(资金/接单全 mock), 须显式 confirm; 切回 prod 是安全方向免确认
+    if (event.env !== undefined) {
+      const envVal = String(event.env);
+      if (envVal !== 'dev' && envVal !== 'prod') return fail('config_bad_env', 'env 仅支持 dev 或 prod');
+      if (envVal === 'dev' && (config.env || 'prod') !== 'dev' && event.confirm !== 'SWITCH_DEV') {
+        return fail('config_need_confirm', '切到 dev 将开放 mock 身份门控, 须传 confirm=SWITCH_DEV');
+      }
+      touch('env', envVal);
+    }
+
+    // admin_web_key 轮换(安全加固: 历史泄露后紧急轮换, 仅 super 可操作, 需 reason 审计)
+    if (event.admin_web_key !== undefined) {
+      const newKey = String(event.admin_web_key).trim();
+      if (!/^AWK-[a-f0-9]{64}$/.test(newKey)) return fail('config_bad_key', 'admin_web_key 格式不符 AWK-+64位hex');
+      if (!event.reason) return fail('config_need_reason', '轮换 admin_web_key 需填 reason');
+      touch('admin_web_key', newKey);
+      logEvent('P2', 'config_rotate_web_key', openid, { reason: event.reason });
+    }
+
+    // 屏蔽词增删
+    let words = (config.block_words || []).slice();
+    let wordsTouched = false;
+    if (Array.isArray(event.block_words_add)) {
+      event.block_words_add.map((w) => String(w).trim()).filter(Boolean).forEach((w) => {
+        if (words.indexOf(w) < 0) { words.push(w); wordsTouched = true; }
+      });
+    }
+    if (Array.isArray(event.block_words_remove)) {
+      const rm = event.block_words_remove.map((w) => String(w).trim());
+      const next = words.filter((w) => rm.indexOf(w) < 0);
+      if (next.length !== words.length) wordsTouched = true;
+      words = next;
+    }
+    if (wordsTouched) { before.block_words = config.block_words || []; patch.block_words = words; }
+
+    // 测试身份白名单增删(D4-5 is_test 打标源; 命中者建需求/建单自动打标, 供 purge_test_data 精准清理)
+    let testOids = (config.test_openids || []).slice();
+    let testTouched = false;
+    if (Array.isArray(event.test_openids_add)) {
+      event.test_openids_add.map((w) => String(w).trim()).filter(Boolean).forEach((w) => {
+        if (testOids.indexOf(w) < 0) { testOids.push(w); testTouched = true; }
+      });
+    }
+    if (Array.isArray(event.test_openids_remove)) {
+      const rm = event.test_openids_remove.map((w) => String(w).trim());
+      const next = testOids.filter((w) => rm.indexOf(w) < 0);
+      if (next.length !== testOids.length) testTouched = true;
+      testOids = next;
+    }
+    if (testTouched) { before.test_openids = config.test_openids || []; patch.test_openids = testOids; }
+
+    // 开通城市增删
+    let cities = (config.city_enabled || []).slice();
+    let citiesTouched = false;
+    if (Array.isArray(event.city_add)) {
+      event.city_add.map((c) => String(c).trim()).filter(Boolean).forEach((c) => {
+        if (cities.indexOf(c) < 0) { cities.push(c); citiesTouched = true; }
+      });
+    }
+    if (Array.isArray(event.city_remove)) {
+      const rm = event.city_remove.map((c) => String(c).trim());
+      const next = cities.filter((c) => rm.indexOf(c) < 0);
+      if (next.length !== cities.length) citiesTouched = true;
+      cities = next;
+    }
+    if (citiesTouched) { before.city_enabled = config.city_enabled || []; patch.city_enabled = cities; }
+
+    // int 参数统一校验(区间由 CONFIG_SCHEMA 单一真相声明; 新增参数零改动)
+    const intFields = CONFIG_SCHEMA
+      .filter((s) => s.t === 'int')
+      .map((s) => [s.f, s.min, s.max]);
+    for (const [f, lo, hi] of intFields) {
+      if (event[f] !== undefined) {
+        const v = parseInt(event[f], 10);
+        if (!Number.isInteger(v) || v < lo || v > hi) return fail('config_bad_' + f, `${f} 须为 ${lo}-${hi} 的整数`);
+        touch(f, v);
+      }
+    }
+    if (patch.rate_min_fen !== undefined || patch.rate_max_fen !== undefined) {
+      const minF = patch.rate_min_fen !== undefined ? patch.rate_min_fen : (config.rate_min_fen || 3000);
+      const maxF = patch.rate_max_fen !== undefined ? patch.rate_max_fen : (config.rate_max_fen || 10000);
+      if (minF >= maxF) return fail('config_bad_rate_range', '最低时薪必须小于最高时薪');
+    }
+    // 一口价区间交叉校验(任一端留空=不钳制, 跳过比较)
+    if (patch.fixed_price_min_fen !== undefined || patch.fixed_price_max_fen !== undefined) {
+      const fmin = patch.fixed_price_min_fen !== undefined ? patch.fixed_price_min_fen : config.fixed_price_min_fen;
+      const fmax = patch.fixed_price_max_fen !== undefined ? patch.fixed_price_max_fen : config.fixed_price_max_fen;
+      if (fmin !== undefined && fmax !== undefined && fmin > fmax) return fail('config_bad_fixed_range', '一口价下限必须不高于上限');
+    }
+
+    // 接单时间红线联动校验: close>0 时 open 必须早于 close; close=0 表示全天开放(open 值无意义)
+    if (patch.time_redline_close_min !== undefined || patch.time_redline_open_min !== undefined) {
+      const parseCur = (v, d) => { const n = parseInt(v, 10); return Number.isInteger(n) ? n : d; };
+      const closeR = patch.time_redline_close_min !== undefined
+        ? patch.time_redline_close_min
+        : parseCur(config.time_redline_close_min, 1440);
+      const openR = patch.time_redline_open_min !== undefined
+        ? patch.time_redline_open_min
+        : parseCur(config.time_redline_open_min, 360);
+      if (closeR > 0 && openR >= closeR) {
+        return fail('config_bad_time_redline', '接单开放须早于接单截止；截止设 0 表示全天开放');
+      }
+    }
+
+    // 改期规则对象(部分更新; 与库内已有对象合并, 仅接受 4 个白名单子字段)
+    if (event.modify_config !== undefined) {
+      if (typeof event.modify_config !== 'object' || Array.isArray(event.modify_config) || event.modify_config === null) {
+        return fail('config_bad_modify_config', 'modify_config 须为对象');
+      }
+      const mcRanges = [
+        ['minLeadHours', 0, 72], ['maxTimes', 0, 10],
+        ['maxSpanH', 1, 720], ['confirmHours', 1, 168]
+      ];
+      const nextMC = Object.assign(
+        { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 },
+        config.modify_config || {}
+      );
+      for (const [k, lo, hi] of mcRanges) {
+        if (event.modify_config[k] !== undefined) {
+          const v = parseInt(event.modify_config[k], 10);
+          if (!Number.isInteger(v) || v < lo || v > hi) {
+            return fail('config_bad_modify_' + k, `modify_config.${k} 须为 ${lo}-${hi} 的整数`);
+          }
+          nextMC[k] = v;
+        }
+      }
+      before.modify_config = config.modify_config || {};
+      patch.modify_config = nextMC;
+    }
+
+    // 订阅消息模板: 模板ID/跳转页/字段映射/小游戏态, 配置化下发, 服务端不硬编码。
+    // 未配置时只发站内 system_notice(静默降级)。白名单接受 demand_grab(抢单) / demand_urge(催办)。
+    if (event.sub_msg_templates !== undefined) {
+      if (typeof event.sub_msg_templates !== 'object' || Array.isArray(event.sub_msg_templates) || event.sub_msg_templates === null) {
+        return fail('config_bad_sub_msg', 'sub_msg_templates 须为对象');
+      }
+      const TMPL_WHITELIST = ['demand_grab', 'demand_urge'];
+      before.sub_msg_templates = config.sub_msg_templates || {};
+      const merged = Object.assign({}, before.sub_msg_templates);
+      for (const tk of TMPL_WHITELIST) {
+        const cur = (before.sub_msg_templates || {})[tk] || {};
+        const next = Object.assign({}, cur, event.sub_msg_templates[tk] || {});
+        if (next.tmpl_id !== undefined && next.tmpl_id !== '' && !/^[A-Za-z0-9_-]{1,80}$/.test(String(next.tmpl_id))) {
+          return fail('config_bad_sub_tmpl', `订阅模板(${tk})ID格式不符(字母数字下划线短横线, ≤80字)`);
+        }
+        merged[tk] = next;
+      }
+      patch.sub_msg_templates = merged;
+    }
+
+    // 场景服务项增删(仅对已有场景; 新增服务项需小程序发版后才会在发布页显示)
+    let scenes = (config.scene_list || []).map((s) => Object.assign({}, s, { options: (s.options || []).slice() }));
+    let scenesTouched = false;
+    const sceneOpt = event.scene_option_add || event.scene_option_remove;
+    if (sceneOpt) {
+      const isAdd = !!event.scene_option_add;
+      const req = isAdd ? event.scene_option_add : event.scene_option_remove;
+      const sc = scenes.find((s) => s.code === req.scene);
+      if (!sc) return fail('config_scene_not_found', '场景不存在: ' + req.scene);
+      const opt = String(req.option || '').trim();
+      if (!opt || opt.length > 10) return fail('config_bad_option', '服务项名称须为 1-10 字');
+      if (isAdd) {
+        if ((sc.options || []).length >= 8) return fail('config_too_many_options', '单场景服务项最多 8 个');
+        if (sc.options.indexOf(opt) < 0) { sc.options.push(opt); scenesTouched = true; }
+      } else {
+        const next = sc.options.filter((x) => x !== opt);
+        if (next.length !== sc.options.length) { sc.options = next; scenesTouched = true; }
+      }
+    }
+    if (scenesTouched) { before.scene_list = config.scene_list || []; patch.scene_list = scenes; }
+
+    // 场景新增(自定义场景, builtin=false)
+    if (event.scene_add) {
+      const req = event.scene_add;
+      const code = String(req.code || '').trim().toUpperCase();
+      const name = String(req.name || '').trim();
+      if (!code || !/^W\d{1,3}$/.test(code)) return fail('config_bad_scene_code', '场景编码须为 W + 1-3 位数字(如 W12)');
+      if (!name || name.length > 12) return fail('config_bad_scene_name', '场景名称须为 1-12 字');
+      if (scenes.find((s) => s.code === code)) return fail('config_scene_exists', '场景编码已存在: ' + code);
+      const newScene = {
+        code, name,
+        options: (req.options || []).map((o) => String(o).trim()).filter(Boolean).slice(0, 8),
+        disclaimer_type: String(req.disclaimer_type || 'general_disclaimer').trim(),
+        builtin: false,
+        created_at: now
+      };
+      scenes.push(newScene);
+      before.scene_list = config.scene_list || [];
+      patch.scene_list = scenes;
+      scenesTouched = true;
+    }
+
+    // 场景删除(仅自定义场景可删; builtin=true 的种子场景拦截)
+    if (event.scene_delete) {
+      const code = String(event.scene_delete || '').trim().toUpperCase();
+      const idx = scenes.findIndex((s) => s.code === code);
+      if (idx < 0) return fail('config_scene_not_found', '场景不存在: ' + code);
+      if (scenes[idx].builtin) return fail('config_scene_builtin', `内置场景 ${code} 不可删除, 仅可修改服务项`);
+      if (scenes[idx].options && scenes[idx].options.length > 0) {
+        return fail('config_scene_has_options', `场景 ${code} 还有服务项, 请先清空服务项再删除`);
+      }
+      scenes.splice(idx, 1);
+      before.scene_list = config.scene_list || [];
+      patch.scene_list = scenes;
+      scenesTouched = true;
+    }
+
+    // 一次性迁移: 给所有现有场景补 builtin:true(种子场景, 历史遗漏)
+    if (event.scene_migrate_builtin) {
+      let touched = 0;
+      before.scene_list = config.scene_list || [];
+      scenes.forEach((s) => { if (s.builtin !== true) { s.builtin = true; touched++; } });
+      if (touched > 0) {
+        patch.scene_list = scenes;
+        scenesTouched = true;
+        logEvent('P2', 'scene_migrate_builtin', openid, { count: touched });
+      }
+    }
+
+    // IM 模板增删
+    let templates = (config.system_templates || []).slice();
+    let tplTouched = false;
+    if (event.template_add) {
+      const text = String(event.template_add).trim();
+      if (!text || text.length > 30) return fail('config_bad_template', '模板文案须为 1-30 字');
+      const maxNum = templates.reduce((m, t) => {
+        const n = parseInt(String(t.id || '').replace(/^T/, ''), 10);
+        return Number.isInteger(n) && n > m ? n : m;
+      }, 0);
+      templates.push({ id: 'T' + (maxNum + 1), text });
+      tplTouched = true;
+    }
+    if (event.template_remove) {
+      const id = String(event.template_remove).trim();
+      const next = templates.filter((t) => t.id !== id);
+      if (next.length !== templates.length) { templates = next; tplTouched = true; }
+    }
+    if (tplTouched) { before.system_templates = config.system_templates || []; patch.system_templates = templates; }
+
+    // 法律文件/免责声明(大文本, 限长, P2 config_change 审计)
+    const legalFields = [
+      ['legal_disclaimer_text', 0, 8000],      // 通用免责声明(发布前弹)
+      ['legal_service_agreement', 0, 20000],   // 服务协议
+      ['legal_privacy_policy', 0, 20000],      // 隐私政策
+      ['legal_aa_promise', 0, 8000],            // 费用自理承诺书(实名签署留证对象)
+      ['legal_pet_authorization', 0, 8000]     // 宠物照料授权书(W9 电子确认留证对象)
+    ];
+    for (const [f, lo, hi] of legalFields) {
+      if (event[f] !== undefined) {
+        const v = String(event[f]);
+        if (v.length < lo || v.length > hi) return fail('config_bad_' + f, `${f} 长度须为 ${lo}-${hi}`);
+        touch(f, v);
+      }
+    }
+    // 各场景专属免责声明({scene_code: text})
+    if (event.legal_scene_disclaimers !== undefined) {
+      if (typeof event.legal_scene_disclaimers !== 'object' || Array.isArray(event.legal_scene_disclaimers)) {
+        return fail('config_bad_scene_disclaimers', 'legal_scene_disclaimers 须为 {scene_code: text} 对象');
+      }
+      const next = {};
+      for (const [code, text] of Object.entries(event.legal_scene_disclaimers)) {
+        const t = String(text || '');
+        if (t.length > 4000) return fail('config_bad_scene_disclaimer_' + code, `${code} 免责声明不得超过 4000 字`);
+        if (t) next[code] = t;
+      }
+      before.legal_scene_disclaimers = config.legal_scene_disclaimers || {};
+      patch.legal_scene_disclaimers = next;
+    }
+
+    const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
+    if (!changed.length) return fail('config_no_change', '没有需要修改的字段');
+    await col('admin_config').where({ _id: 'global' }).update({ data: patch });
+    // 变更原因(前端 diff 确认弹窗必填; 旧客户端可能不带, 兼容空值)
+    const reason = event.reason !== undefined ? String(event.reason).trim().slice(0, 100) : '';
+    const eventPayload = { before, after: patch };
+    if (reason) eventPayload.reason = reason;
+    await logEvent('P2', 'config_change', openid, eventPayload);
+    // config_history 版本快照(专家优化建议 ④, 2026-10-07): 每次 config_set 成功后追加变更版本,
+    // 敏感键(admin_web_key/idcard_aes_key 及一切含 key/secret/token 的键)一律掩码 '***';
+    // 只保留被修改键的 before/after(避免整份配置冗余); 保留最近 100 版, 超出删最旧。
+    try {
+      await db.createCollection('config_history').catch(() => {});
+      const SENSITIVE_RE = /key|secret|token/i;
+      const snapshot = { keys: changed, before: {}, after: {}, reason, operator: operatorAccount || openid || '', at: now };
+      changed.forEach((k) => {
+        const mask = (v) => (SENSITIVE_RE.test(k) ? '***' : v);
+        snapshot.before[k] = mask(before[k]);
+        snapshot.after[k] = mask(patch[k]);
+      });
+      await col('config_history').add({ data: { ...snapshot, created_at: now, updated_at: now, is_deleted: false } });
+      const cnt = await col('config_history').where({ is_deleted: _.neq(true) }).count();
+      if ((cnt.total || 0) > 100) {
+        const extra = await col('config_history').where({ is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit((cnt.total || 0) - 100).get();
+        await Promise.allSettled((extra.data || []).map((d) => col('config_history').doc(d._id).remove()));
+      }
+    } catch (e) { log.d(`config_history write fail: ${e.message}`); }
+    return ok({ updated: changed });
+  }
+
+  // ───────── 8.8 行为审计留痕·证据链(认证/授权/确认/注册/平台操作) ─────────
+  // audit_log 集合: 每条记录带 prev_hash→chain_hash 哈希链, 事后篡改/删除可被 audit_verify 检出。
+  // 写入侧见各业务云函数 audit.js(writeAudit); 本处提供 建集合/查询/链校验 三个动作。
+  if (action === 'audit_init') {
+    let created = false;
+    try {
+      await db.createCollection('audit_log');
+      created = true;
+    } catch (e) {
+      log.d(`audit_init createCollection: ${(e && e.message) || e}`);
+    }
+    // 链查询索引(openid+at): SDK 不支持时降级跳过, 返回 note 说明(不影响写入, 链校验会体现)
+    let index = { created: false, note: '' };
+    try {
+      await col('audit_log').createIndex({ name: 'idx_openid_at', keys: { openid: 1, at: -1 } });
+      index = { created: true, note: '' };
+    } catch (e) {
+      index = { created: false, note: String((e && e.errMsg) || (e && e.message) || e).slice(0, 200) };
+    }
+    const cnt = await col('audit_log').count().catch(() => ({ total: 0 }));
+    await logEvent('P2', 'audit_init', openid, { created, index, total: cnt.total || 0 });
+    return ok({ created, index, total: cnt.total || 0 });
+  }
+
+  // 审计记录查询(openid/category/result/action/时间范围 过滤, 分页倒序)
+  // 注意: event.action 已被本函数占用于动作路由, 审计动作名过滤参数为 action_name
+  if (action === 'audit_query') {
+    const pg = pager(event);
+    const q = {};
+    if (event.openid) {
+      if (!isOpenid(String(event.openid))) return fail('aq_bad_openid', 'openid 格式不正确');
+      q.openid = String(event.openid);
+    }
+    if (event.action_name) q.action = String(event.action_name);
+    if (event.category) q.category = String(event.category);
+    if (event.result) q.result = String(event.result);
+    if (event.target_id) q.target_id = String(event.target_id);
+    const win = [];
+    const s = parseInt(event.start_ts, 10);
+    const e2 = parseInt(event.end_ts, 10);
+    if (Number.isInteger(s)) win.push({ at: _.gte(s) });
+    if (Number.isInteger(e2)) win.push({ at: _.lte(e2) });
+    const where = win.length ? _.and([q].concat(win)) : q;
+    const cnt = await col('audit_log').where(where).count().catch(() => ({ total: 0 }));
+    const r = await col('audit_log').where(where).orderBy('at', 'desc')
+      .skip(pg.skip).limit(pg.size).get().catch(() => ({ data: [] }));
+    return ok({
+      total: cnt.total || 0, page: pg.page, size: pg.size,
+      list: (r.data || []).map((x) => ({
+        _id: x._id, openid: x.openid || '', role: x.role || '',
+        category: x.category || '', action: x.action || '',
+        target_type: x.target_type || '', target_id: x.target_id || '',
+        detail: x.detail || {}, evidence_id: x.evidence_id || '', doc_hash: x.doc_hash || '',
+        result: x.result || 'ok', code: x.code || '',
+        client_ip: maskIp(x.client_ip), device: x.device || '', platform: x.platform || '',
+        at: x.at, prev_hash: x.prev_hash || '', chain_hash: x.chain_hash || ''
+      }))
+    });
+  }
+
+  // 证据链校验: 按 openid 拉全量(时间升序)逐条重算哈希, 报首个断点(chain_hash_mismatch / prev_hash_link_break)
+  // 分页: keyset 游标((at,_id) 元组升序)替代旧 skip<5000 上限 —— 无条数上限, 大 openid 也不会截断
+  if (action === 'audit_verify') {
+    const target = String(event.openid || '').trim();
+    if (!isOpenid(target)) return fail('av_bad_openid', 'openid 格式不正确');
+    const crypto = require('crypto');
+    const recs = [];
+    const BATCH = 100;
+    let cursorAt = null;
+    let cursorId = null;
+    for (let guard = 0; guard < 500; guard++) { // 500 批=最多 5 万条, 超出视为异常截断(防死循环)
+      const where = cursorAt === null
+        ? { openid: target }
+        : _.and([
+            { openid: target },
+            _.or([
+              { at: _.gt(cursorAt) },
+              { at: _.eq(cursorAt), _id: _.gt(cursorId) }
+            ])
+          ]);
+      const r = await col('audit_log').where(where)
+        .orderBy('at', 'asc').orderBy('_id', 'asc').limit(BATCH).get().catch(() => ({ data: [] }));
+      const rows = r.data || [];
+      for (const x of rows) recs.push(x);
+      if (rows.length < BATCH) break;
+      const last = rows[rows.length - 1];
+      cursorAt = last.at;
+      cursorId = last._id;
+    }
+    // 篡改 vs 分叉噪声区分(Phase2-A2):
+    // - chain_hash_mismatch(重算哈希对不上本条内容) = 真篡改/内容被改, 立即中断并报 broken
+    // - prev_hash_link_break 但本条自身哈希可重算通过 = 并发写入/同毫秒多条导致的分叉或排序噪声,
+    //   收集到 noise 列表继续校验(内容未被篡改); 终极消除需引入 audit_chain_head 事务链头
+    let broken = null;
+    const noise = [];
+    let prevChain = '';
+    for (let i = 0; i < recs.length; i++) {
+      const x = recs[i];
+      const expect = crypto.createHash('sha256').update([
+        x.prev_hash || '', x.openid || '', x.action || '', x.target_id || '', x.at,
+        JSON.stringify(x.detail || {})
+      ].join('|'), 'utf8').digest('hex');
+      const mismatch = expect !== (x.chain_hash || '');
+      const linkBreak = i > 0 && (x.prev_hash || '') !== prevChain;
+      if (mismatch) {
+        broken = {
+          index: i, record_id: x._id, action: x.action, at: x.at,
+          reason: 'chain_hash_mismatch'
+        };
+        break;
+      }
+      if (linkBreak) {
+        noise.push({ index: i, record_id: x._id, action: x.action, at: x.at, reason: 'prev_hash_link_break' });
+      }
+      prevChain = x.chain_hash || '';
+    }
+    const verdict = broken ? 'tampered' : (noise.length ? 'fork_noise' : 'ok');
+    return ok({
+      openid: target, total: recs.length,
+      ok: !broken && noise.length === 0,
+      verdict,
+      first_ts: recs.length ? recs[0].at : 0,
+      last_ts: recs.length ? recs[recs.length - 1].at : 0,
+      broken,
+      noise,
+      note: noise.length
+        ? '存在分叉/排序噪声(同毫秒多条或并发写入), 未发现内容篡改; 如需消除分叉需引入 audit_chain_head 事务链头'
+        : '',
+      checked_at: now
+    });
+  }
+
+  // （home_activity_* 已抽离到 ./action_home_activity.js，由上方 HANDLERS 分发表处理）
+
+  // ───────── 认证考试管理(exam_bank 独立集合, 答案不随 admin_config 导出) ─────────
+  // 科目 doc: { code, title, desc, pass_line, requires[], enabled, questions[{question,options,answer_idx}], is_deleted }
+  // 题目上限 60 题/科目(网关 100KB body 限制); 删除科目须无其它科目 requires 引用(防悬挂)
+  // 题库 FALLBACK(SSOT 与 partner-action EXAM_BANK 同源): 仅 exam_bank_seed 使用, 读库失败兜底由 partner-action 自己持有
+  const EXAM_BANK_FALLBACK = {
+    base: { title: '耍伴基础考试', desc: '全体耍伴接单前置，满分 100 分通过', pass_line: 100, requires: [], questions: [
+      { question: '接单前需要确认什么？', options: ['需求内容与时间地点', '直接按导航出发', '先收钱再谈', '到地方再问'], answer_idx: 0 },
+      { question: '遇到服务价格争议时应该？', options: ['现场理论自行解决', '联系平台客服介入', '直接结束服务', '要求对方加钱'], answer_idx: 1 },
+      { question: '订单时间临时变更时应该？', options: ['自行改时间', '先与需求方沟通确认', '拒绝服务', '不理会'], answer_idx: 1 },
+      { question: '关于平台信用分，正确的是？', options: ['完成优质服务可提升', '与服务质量无关', '花钱可买', '接单越多分越高不看出勤'], answer_idx: 0 },
+      { question: '履约前需要做好的准备是？', options: ['熟悉需求内容并准点到达', '先索要好评', '只做自己方便的部分', '让需求方多等一会'], answer_idx: 0 },
+      { question: '夜间服务(23:00-7:00)的正确做法是？', options: ['照常接单不理会', '平台有夜间红线,按规则暂停', '只接远距离单', '私下加价接单'], answer_idx: 1 },
+      { question: '服务过程中发现问题(如信息不符)应该？', options: ['拍照留证并联系平台', '默默做完', '直接走人', '与对方争吵'], answer_idx: 0 },
+      { question: '关于客户隐私信息，正确的是？', options: ['不外传对方联系方式与照片', '可以发朋友圈', '告诉亲友无妨', '保存备用'], answer_idx: 0 },
+      { question: '被差评或投诉后正确的做法是？', options: ['申诉并提供证据', '恶意报复', '注销账号', '拉黑对方'], answer_idx: 0 },
+      { question: '平台禁止的行为是？', options: ['线下绕开平台交易', '按时履约', '提前沟通', '如实描述服务'], answer_idx: 0 }
+    ] },
+    W1: { title: '陪诊提升考试', desc: '就医陪诊场景专项，满分 100 分通过；需先通过基础考试', pass_line: 100, requires: ['base'], questions: [
+      { question: '陪诊服务的首要原则是？', options: ['以患者需求与医嘱为中心', '节省时间即可', '听家属意见就行', '按自己经验处理'], answer_idx: 0 },
+      { question: '发现患者突发不适时应该？', options: ['立即通知医护人员并协助', '自行离开', '喂药处理', '等待家属'], answer_idx: 0 },
+      { question: '陪诊时能否代患者做医疗决策？', options: ['不能,医疗决策须由医生/患者', '可以,图方便', '家属要求就可以', '看情况'], answer_idx: 0 },
+      { question: '陪诊中涉及患者隐私(病历/报告)应？', options: ['妥善保管不外传', '拍照发给亲友', '发朋友圈', '保存备用'], answer_idx: 0 },
+      { question: '取药送药服务需注意？', options: ['核对医嘱与用量,当面交付', '放前台即可', '让患者自取', '交家属就算完成'], answer_idx: 0 },
+      { question: '陪诊中遇到挂号排队久等，正确做法是？', options: ['耐心陪同并安抚患者情绪', '催促插队', '中途离开', '让患者自己等'], answer_idx: 0 },
+      { question: '患者提出与医嘱相悖的要求时应该？', options: ['耐心解释并咨询医护人员', '照做', '批评患者', '忽视'], answer_idx: 0 },
+      { question: '陪诊结束后应？', options: ['如实反馈就诊要点与医嘱', '直接结束', '索要好评', '不说明'], answer_idx: 0 },
+      { question: '陪诊中对收费或流程有疑问时？', options: ['咨询医院收费处/导诊', '让患者自己问', '替患者做主缴费', '忽略'], answer_idx: 0 },
+      { question: '以下哪种情况应立即求助医护人员？', options: ['患者面色异常或突然不适', '患者稍显疲惫', '排队时间长', '找不到科室'], answer_idx: 0 }
+    ] }
+  };
+
+  // 校验题目/科目数据(返回 fail 结果或 null=通过)
+  function validateExamSubject(d, existingCodes, allowCode) {
+    const code = String(d.code || '').trim();
+    if (!/^[A-Za-z0-9_]{1,20}$/.test(code)) return fail('exam_bad_code', '科目 code 须为 1-20 位字母/数字/下划线');
+    const title = String(d.title || '').trim();
+    if (!title || title.length > 20) return fail('exam_bad_title', '科目标题须为 1-20 字');
+    if (d.desc !== undefined && String(d.desc).length > 100) return fail('exam_bad_desc', '科目说明不超过 100 字');
+    const passLine = Number(d.pass_line);
+    if (!Number.isInteger(passLine) || passLine < 0 || passLine > 100) return fail('exam_bad_pass_line', '通过线须为 0-100 整数');
+    if (!Array.isArray(d.requires)) return fail('exam_bad_requires', 'requires 须为数组');
+    for (const r of d.requires) {
+      if (!existingCodes.includes(r)) return fail('exam_bad_require_ref', `前置科目 ${r} 不存在`);
+      if (r === code) return fail('exam_bad_require_self', '科目不能前置自身');
+    }
+    const qs = d.questions;
+    if (!Array.isArray(qs) || qs.length < 1 || qs.length > 60) return fail('exam_bad_qcount', '题目须为 1-60 条');
+    for (let i = 0; i < qs.length; i++) {
+      const q = qs[i];
+      if (!q || typeof q !== 'object') return fail('exam_bad_q', `第 ${i + 1} 题格式错误`);
+      const text = String(q.question || '').trim();
+      if (!text || text.length > 500) return fail('exam_bad_q_text', `第 ${i + 1} 题题干须为 1-500 字`);
+      if (!Array.isArray(q.options) || q.options.length < 2 || q.options.length > 6) return fail('exam_bad_q_opts', `第 ${i + 1} 题须 2-6 个选项`);
+      for (let j = 0; j < q.options.length; j++) {
+        const o = String(q.options[j] || '').trim();
+        if (!o || o.length > 50) return fail('exam_bad_q_opt', `第 ${i + 1} 题第 ${j + 1} 个选项须为 1-50 字`);
+      }
+      const ai = Number(q.answer_idx);
+      if (!Number.isInteger(ai) || ai < 0 || ai >= q.options.length) return fail('exam_bad_q_ans', `第 ${i + 1} 题答案索引不合法`);
+    }
+    return null;
+  }
+  // 整理单科目输出(列表脱敏: 不含 questions)
+  const examSubjectMeta = (s) => ({
+    code: s.code, title: s.title, desc: s.desc || '', pass_line: s.pass_line,
+    requires: s.requires || [], enabled: !!s.enabled,
+    question_count: Array.isArray(s.questions) ? s.questions.length : 0,
+    updated_at: s.updated_at || 0
+  });
+
+  if (action === 'exam_subject_list') {
+    await ensureAdminColls();
+    const r = await col('exam_bank').where({ is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
+    const list = (r.data || []).sort((a, b) => (a.code === 'base' ? 0 : 1) - (b.code === 'base' ? 0 : 1) || (a.created_at || 0) - (b.created_at || 0));
+    return ok({ list: list.map(examSubjectMeta) });
+  }
+
+  if (action === 'exam_subject_detail') {
+    await ensureAdminColls();
+    const code = String(event.code || '').trim();
+    if (!code) return fail('exam_bad_code', '科目 code 必填');
+    const r = await col('exam_bank').where({ code, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const s = (r.data && r.data[0]) || null;
+    if (!s) return fail('exam_not_found', '科目不存在');
+    return ok({ subject: examSubjectMeta(s), questions: s.questions || [] });
+  }
+
+  if (action === 'exam_subject_create' || action === 'exam_subject_update') {
+    await ensureAdminColls();
+    const isCreate = action === 'exam_subject_create';
+    const code = String(event.code || '').trim();
+    const allR = await col('exam_bank').where({ is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
+    const existingCodes = (allR.data || []).map((s) => s.code);
+    if (isCreate && existingCodes.includes(code)) return fail('exam_exists', `科目 ${code} 已存在, 请用编辑`);
+    if (!isCreate && !existingCodes.includes(code)) return fail('exam_not_found', '科目不存在');
+    const v = validateExamSubject({ code, title: event.title, desc: event.desc, pass_line: event.pass_line, requires: event.requires, questions: event.questions }, existingCodes, code);
+    if (v) return v;
+    const cleanQs = (event.questions || []).map((q) => ({
+      question: String(q.question || '').trim().slice(0, 500),
+      options: q.options.map((o) => String(o || '').trim().slice(0, 50)),
+      answer_idx: Number(q.answer_idx)
+    }));
+    if (isCreate) {
+      const doc = {
+        code, title: String(event.title).trim(), desc: String(event.desc || '').trim().slice(0, 100),
+        pass_line: Number(event.pass_line), requires: (event.requires || []).filter((r) => existingCodes.includes(r)),
+        enabled: event.enabled !== false, questions: cleanQs,
+        is_deleted: false, created_at: now, updated_at: now, created_by: openid, updated_by: openid
+      };
+      await col('exam_bank').add({ data: doc });
+      await logEvent('P2', 'exam_subject_create', openid, { code, title: doc.title, qcount: cleanQs.length, pass_line: doc.pass_line });
+      return ok({ subject: examSubjectMeta(doc) });
+    }
+    const r = await col('exam_bank').where({ code, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const cur = (r.data && r.data[0]) || null;
+    if (!cur) return fail('exam_not_found', '科目不存在');
+    const patch = {
+      title: String(event.title).trim(), desc: String(event.desc || '').trim().slice(0, 100),
+      pass_line: Number(event.pass_line), requires: (event.requires || []).filter((r) => existingCodes.includes(r)),
+      enabled: event.enabled !== false, questions: cleanQs,
+      updated_at: now, updated_by: openid
+    };
+    await col('exam_bank').doc(cur._id).update({ data: patch });
+    await logEvent('P2', 'exam_subject_update', openid, { code, title: patch.title, qcount: cleanQs.length, pass_line: patch.pass_line });
+    return ok({ subject: examSubjectMeta(Object.assign({}, cur, patch)) });
+  }
+
+  if (action === 'exam_subject_delete') {
+    await ensureAdminColls();
+    const code = String(event.code || '').trim();
+    if (!code) return fail('exam_bad_code', '科目 code 必填');
+    const allR = await col('exam_bank').where({ is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
+    const refs = (allR.data || []).filter((s) => (s.requires || []).includes(code)).map((s) => s.code);
+    if (refs.length > 0) return fail('exam_in_use', `科目被 ${refs.join('/')} 前置引用, 不可删除`);
+    const r = await col('exam_bank').where({ code, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+    const cur = (r.data && r.data[0]) || null;
+    if (!cur) return fail('exam_not_found', '科目不存在');
+    await col('exam_bank').doc(cur._id).update({ data: { is_deleted: true, updated_at: now, updated_by: openid } });
+    await logEvent('P2', 'exam_subject_delete', openid, { code });
+    return ok({ deleted: code });
+  }
+
+  if (action === 'exam_bank_seed') {
+    await ensureAdminColls();
+    const r = await col('exam_bank').where({ is_deleted: _.neq(true) }).limit(100).get().catch(() => ({ data: [] }));
+    const existingCodes = (r.data || []).map((s) => s.code);
+    const created = [];
+    const skipped = [];
+    for (const [code, def] of Object.entries(EXAM_BANK_FALLBACK)) {
+      if (existingCodes.includes(code)) { skipped.push(code); continue; }
+      const doc = {
+        code, title: def.title, desc: def.desc, pass_line: def.pass_line, requires: def.requires,
+        enabled: true, questions: def.questions, is_deleted: false,
+        created_at: now, updated_at: now, created_by: openid, updated_by: openid
+      };
+      await col('exam_bank').add({ data: doc });
+      created.push(code);
+    }
+    await logEvent('P2', 'exam_bank_seed', openid, { created, skipped });
+    return ok({ created, skipped });
+  }
+
+  // ───────── 8.8 爽约申诉: 列表/详情 + 裁定(第三批 3B) ─────────
+  // 设计稿 §2.2-2.7: 平台不自动处罚, 管理员裁定; 成立 → 扣分(credit_score_log type='no_show')
+  // + 滚动窗口计次 + 达阈值停用(数值全部读 no_show_* 实配); 幂等键 order_id+target_openid。
+  // 2026-10-10: 新增 withdrawn(申诉人自行撤回, 由 order-action no_show_report_withdraw 写入)→ 列表筛选/徽标纳入;
+  //   已撤回记录不可裁定(decide 的 CAS 三值不含 withdrawn, 天然排除)。
+  if (action === 'no_show_decide') {
+    const { report_id, verdict, note } = event;
+    if (!isDocId(report_id)) return fail('ns_bad_id', 'ID 格式不正确');
+    if (VERDICTS.indexOf(verdict) < 0) return fail('ns_bad_verdict', 'verdict 须为 upheld/rejected');
+    const noteText = String(note || '').trim();
+    if (!noteText) return fail('ns_no_note', '请填写裁定说明');
+    let rpt = null;
+    try { rpt = (await col('no_show_report').doc(report_id).get()).data; } catch (e) { rpt = null; }
+    if (!rpt) return fail('ns_not_found', '申诉记录不存在');
+    // 幂等: 已裁定 → 返回首次结果(不重复处罚)
+    if (rpt.status === REPORT_STATUS.DECIDED) {
+      return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict: rpt.verdict, idempotent: true, penalty_applied: rpt.penalty_applied || null });
+    }
+    const now = Date.now();
+    const cfg = noShowCfg(config);
+    // CAS: received/defense → decided(防并发双裁)
+    const dcr = await col('no_show_report').where({
+      _id: report_id, status: _.in([REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE])
+    }).update({ data: {
+      status: REPORT_STATUS.DECIDED, verdict,
+      decided_by: openid, decided_at: now, decided_reason: noteText, updated_at: now
+    }});
+    if (!dcr.stats || dcr.stats.updated !== 1) {
+      const again = await col('no_show_report').doc(report_id).get().catch(() => ({ data: null }));
+      if (again && again.data && again.data.status === REPORT_STATUS.DECIDED) {
+        return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict: again.data.verdict, idempotent: true, penalty_applied: again.data.penalty_applied || null });
+      }
+      return fail('ns_conflict', '状态已变化,请刷新后重试');
+    }
+    let penaltyApplied = { score_delta: 0, suspend_until: null, applied_at: now, times: 0 };
+    if (verdict === 'upheld') {
+      // 幂等键(order_id+target_openid): 同订单同被诉方已有成立裁定 → 仅落裁定, 不重复处罚
+      const dupR = await col('no_show_report').where({
+        order_id: rpt.order_id, target_openid: rpt.target_openid,
+        status: REPORT_STATUS.DECIDED, verdict: 'upheld',
+        _id: _.neq(report_id), is_deleted: _.neq(true)
+      }).count().catch(() => ({ total: 0 }));
+      if ((dupR.total || 0) > 0) {
+        penaltyApplied = { score_delta: 0, suspend_until: null, applied_at: now, times: 0, skipped: 'dup_order_target' };
+        await logEvent('P2', 'no_show_decide_dup_skip', openid, { report_id, order_id: rpt.order_id, target_openid: rpt.target_openid });
+      } else {
+        const scoreType = rpt.target_role === 'partner' ? 'partner' : 'user';
+        const field = scoreType === 'partner' ? 'partner_credit_score' : 'user_credit_score';
+        let targetU = null;
+        try { targetU = (await col('user_account').where({ openid: rpt.target_openid }).limit(1).get()).data[0] || null; } catch (e) { targetU = null; }
+        if (!targetU) {
+          await logEvent('P1', 'no_show_target_missing', openid, { report_id, target_openid: rpt.target_openid });
+          return fail('ns_target_missing', '被诉方账号不存在:裁定已记录,处罚未执行');
+        }
+        // 滚动窗口聚合既有 no_show 次数(不含本次) → 第 N 次判定(索引: credit_score_log openid+type+created_at)
+        const windowStart = now - cfg.countWindowDays * DAY_MS;
+        const cntR = await col('credit_score_log').where({
+          openid: rpt.target_openid, type: 'no_show', is_deleted: _.neq(true), created_at: _.gte(windowStart)
+        }).count().catch(() => ({ total: 0 }));
+        const outcome = verdictOutcome(cfg, cntR.total || 0, now);
+        const before = targetU[field] || 800;
+        const after = Math.max(0, Math.min(1000, before + outcome.scoreDelta));
+        await col('user_account').doc(targetU._id).update({ data: {
+          [field]: after, no_show_count: outcome.times, updated_at: now
+        }});
+        try {
+          await col('credit_score_log').add({ data: {
+            openid: rpt.target_openid, type: 'no_show', score_type: scoreType,
+            delta: outcome.scoreDelta, score: after,
+            reason: `爽约申诉裁定成立 订单#${rpt.order_no || ''}`.trim(),
+            order_id: rpt.order_id, report_id,
+            is_system: false, admin_openid: openid,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+        } catch (e) { log.d('no_show credit log fail:', e && e.message); }
+        penaltyApplied = { score_delta: outcome.scoreDelta, suspend_until: null, applied_at: now, times: outcome.times };
+        // 达阈值 → 停用(与 penalty(suspend_7d) 同口径, 但数值全部可配)
+        if (outcome.suspend) {
+          await col('user_account').doc(targetU._id).update({ data: {
+            status: 'suspended', suspend_until: outcome.suspendUntil,
+            suspend_reason: `累计 ${outcome.times} 次爽约裁定成立`, suspend_at: now, suspend_by: openid, updated_at: now
+          }});
+          await col('partner_profile').where({ openid: rpt.target_openid })
+            .update({ data: { accept_switch: false, updated_at: now } }).catch(() => {});
+          penaltyApplied.suspend_until = outcome.suspendUntil;
+          await logEvent('P1', 'penalty_no_show_suspend', openid, {
+            report_id, target_openid: rpt.target_openid, times: outcome.times,
+            suspend_days: cfg.suspendDays, suspend_until: outcome.suspendUntil
+          });
+          // 停用执行通知(N/M/X 动态取配置; 东八区日期)
+          const d = new Date(outcome.suspendUntil + 8 * 3600000);
+          try {
+            await col('system_notice').add({ data: {
+              to_openid: rpt.target_openid, order_id: rpt.order_id || '', type: 'account_suspended',
+              title: '账号已停用',
+              body: `信用分累计 ${outcome.times} 次爽约，账号停用 ${cfg.suspendDays} 天，将于 ${d.getUTCMonth() + 1}月${d.getUTCDate()}日自动恢复`,
+              read: false, created_at: now, updated_at: now, is_deleted: false
+            }});
+          } catch (e) {}
+        }
+        await col('no_show_report').doc(report_id).update({ data: { penalty_applied: penaltyApplied, updated_at: now } });
+      }
+    }
+    // Wave2 止血⑤: 裁定完成 → 解冻订单(否则冻结位永久残留, 后续 start/modify/complete/evaluate 全被拒)
+    if (rpt.order_id) {
+      try {
+        await col('order_main').where({ _id: rpt.order_id }).update({ data: { frozen: false, updated_at: now } });
+      } catch (e) { /* 解冻失败不阻断裁定结果落库与通知 */ }
+    }
+    // 裁定通知双方(成立: 申诉方不暴露分值细节, 被诉方收明细; 不成立: 双方同文案)
+    const noticeTo = async (to, title, body) => {
+      if (!to) return;
+      try {
+        await col('system_notice').add({ data: {
+          to_openid: to, order_id: rpt.order_id || '', type: 'no_show_decided',
+          title, body, action_key: 'jump_order', action_payload: { order_id: rpt.order_id, report_id },
+          read: false, created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) {}
+    };
+    if (verdict === 'upheld') {
+      await noticeTo(rpt.reporter_openid, '爽约申诉已裁定：成立', '已按规则处理');
+      await noticeTo(rpt.target_openid, '爽约申诉已裁定：成立',
+        `已扣 ${Math.abs(penaltyApplied.score_delta)} 分` + (penaltyApplied.suspend_until ? `；账号停用 ${cfg.suspendDays} 天` : ''));
+    } else {
+      await noticeTo(rpt.reporter_openid, '爽约申诉已裁定：不成立', '本次申诉未获支持');
+      await noticeTo(rpt.target_openid, '爽约申诉已裁定：不成立', '本次申诉未获支持');
+    }
+    await logEvent('P2', 'no_show_decide', openid, {
+      report_id, order_id: rpt.order_id, verdict,
+      times: penaltyApplied.times || 0, suspend: !!penaltyApplied.suspend_until
+    });
+    return ok({ report_id, status: REPORT_STATUS.DECIDED, verdict, penalty_applied: penaltyApplied });
+  }
+
+  // （admin_list/admin_add/admin_remove 已抽离到 ./action_adminlist.js，由上方 HANDLERS 分发表处理）
+
+  // （blog_* 已抽离到 ./action_blog.js，由上方 HANDLERS 分发表处理）
+
+  return fail('admin_unknown_action', '未知动作');
+};

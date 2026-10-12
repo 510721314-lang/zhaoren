@@ -106,14 +106,20 @@ const commandProxy = new Proxy({}, {
           }
           return dv === qv;
         };
+        // 点路径取值: 'a.b.c' → 嵌套遍历; 无点则等价 doc[p](向后兼容)
+        const getPath = (obj, p) => {
+          if (obj == null) return undefined;
+          if (p.indexOf('.') === -1) return obj[p];
+          return p.split('.').reduce((o, seg) => (o == null ? undefined : o[seg]), obj);
+        };
         const matchDoc = (doc) => {
           // 顶层 _.or / _.and
           if (q && typeof q === 'object' && q.__op) {
             const subs = q.args || [];
-            if (q.__op === 'or') return subs.some((s) => Object.keys(s).every((k) => matchVal(doc[k], s[k])));
-            if (q.__op === 'and') return subs.every((s) => Object.keys(s).every((k) => matchVal(doc[k], s[k])));
+            if (q.__op === 'or') return subs.some((s) => Object.keys(s).every((k) => matchVal(getPath(doc, k), s[k])));
+            if (q.__op === 'and') return subs.every((s) => Object.keys(s).every((k) => matchVal(getPath(doc, k), s[k])));
           }
-          return Object.keys(q).every((k) => matchVal(doc[k], q[k]));
+          return Object.keys(q).every((k) => matchVal(getPath(doc, k), q[k]));
         };
         return {
           limit() { return this; },

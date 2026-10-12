@@ -263,20 +263,30 @@ function loadWith(dir, file, sdk) {
 }
 
 (async () => {
-  // P1 整改: 纳入门禁后须对「基线缺失」优雅跳过(基线由 git show <old>:.../index.js 临时生成, 跑完即删)。
-  // 缺基线 → 打印醒目 SKIP 并 0 退出(不阻塞门禁); 存在则正常比对, 有差异即非 0 退出。
+  // 批5.1: 基线缺失即 FAIL(不再静默 SKIP), 强制维护 _orig_baseline.js。
+  // 基线 = 拆分前单体版本: git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions/<fn>/_orig_baseline.js
   const dirs = Array.from(new Set(ALL_CASES.map((c) => c.fn || 'order-action')));
   const missing = dirs.filter((d) => {
     try { require('fs').accessSync(path.join(__dirname, '..', d, '_orig_baseline.js')); return false; }
     catch (e) { return true; }
   });
   if (missing.length) {
-    console.log('[SKIP] A/B equgivalence: 缺少基线文件 _orig_baseline.js, 跳过比对');
-    console.log('       缺基线的函数: ' + missing.join(', '));
-    console.log('       生成方式: git show <old-commit>:cloudfunctions/<fn>/index.js > cloudfunctions/<fn>/_orig_baseline.js');
-    process.exit(0);
+    console.error('[FAIL] A/B equivalence: 缺少基线文件 _orig_baseline.js');
+    console.error('       缺基线的函数: ' + missing.join(', '));
+    console.error('       生成方式: git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions/<fn>/_orig_baseline.js');
+    process.exit(2);
   }
-  let fails = 0;
+  // 已知「有意行为演进」白名单: 拆分后各批次对这些路径做了有意改动,
+  // 与拆分前基线的差异属预期, 不计为回归; 未登记的新差异一律 FAIL。
+  // 来源: 3509ef1(投诉放开 S2 起 / 动态时间线 / detail 字段扩充) · 安全整改(错误消息脱敏去 openid) · 批3(config_schema 新增 extend_confirm_h/scene_option_display_max)。
+  const KNOWN_EVOLUTION = new Set([
+    'detail_ok', 'auto_order_detail',          // detail 字段扩充(modify_*_at / complaint / fund / refund / dispute / fees / frozen)
+    'confirm_all_not_participant',              // 错误消息脱敏(不再回显参与方 openid)
+    'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
+    'auto_order_timeline',                      // 新增 timeline action(原 oa_unknown_action)
+    'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max
+  ]);
+  let fails = 0, known = 0;
   for (const c of ALL_CASES) {
     const dir = c.fn || 'order-action';
     const st = c.store || baseStore();
@@ -291,13 +301,16 @@ function loadWith(dir, file, sdk) {
       assert.deepStrictEqual(normalize(rb), normalize(ra));
       console.log('OK  ', c.name);
     } catch (e) {
+      if (KNOWN_EVOLUTION.has(c.name)) { known++; console.log('KNOWN', c.name, '(intentional evolution)'); continue; }
       fails++;
       console.log('FAIL', c.name);
       console.log('  expected:', JSON.stringify(ra));
       console.log('  actual  :', JSON.stringify(rb));
     }
   }
-  console.log(fails === 0 ? `\nA/B EQUIVALENT: ${ALL_CASES.length} cases (${CASES.length} explicit + ${AUTO_SEEDS.length} auto)` : `\n${fails} diff(s)`);
+  console.log(fails === 0
+    ? `\nA/B EQUIVALENT: ${ALL_CASES.length} cases (${CASES.length} explicit + ${AUTO_SEEDS.length} auto; ${known} known-evolution)`
+    : `\n${fails} unexpected diff(s)`);
   process.exit(fails);
 })();
 

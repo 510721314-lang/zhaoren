@@ -30,3 +30,7 @@ zhaoren_backup_*/
 
 # 云端索引/tcb 临时产物（台账可由 dump-index-ledger 再生，actual 由 tcb-scan 再生）
 .tmp-tcb/
+
+# admin-web 前端构建产物（chunk 哈希每次变更；由 scripts/build-admin-web.ps1 生成，部署前构建，不入库）
+/cloudfunctions/admin-web/public/*
+!/cloudfunctions/admin-web/public/.gitkeep
