@@ -398,6 +398,26 @@ async function processUrgeReminder(now, cfg) {
   return { t0: done.t0.length, t1: done.t1.length, t2: done.t2.length, nos: done.t0.concat(done.t1, done.t2) };
 }
 
+// 批4.1: dev 环境到期自动回写 prod(防 mock 身份门控被遗忘长期开放)
+// 仅当 env=dev 且未开 dev_bypass 且 dev_until 已过期时触发; 回写后写一条 P1 告警事件供巡检捕获。
+async function revertExpiredDev(now, cfg) {
+  if (!cfg || cfg.env !== 'dev') return { reverted: false, reason: 'not_dev' };
+  if (cfg.dev_bypass === true) return { reverted: false, reason: 'bypass' };
+  const du = Number(cfg.dev_until) || 0;
+  if (du > 0 && now < du) return { reverted: false, reason: 'still_valid', dev_until: du };
+  try {
+    await col('admin_config').doc('global').update({ data: { env: 'prod', dev_until: 0, updated_at: now } });
+  } catch (e) { return { reverted: false, reason: 'update_fail', err: e.message }; }
+  try {
+    await col('platform_event').add({ data: {
+      level: 'P1', type: 'dev_env_expired', openid: 'system',
+      payload: { dev_until: du, reverted_at: now },
+      created_at: now, updated_at: now, is_deleted: false
+    }});
+  } catch (e) { log.d(`dev_env_expired event write fail: ${e.message}`); }
+  return { reverted: true, reason: 'expired', dev_until: du };
+}
+
 exports.main = async (event, context) => {
   const { resolveOpenid, warmEnv } = require('./openid');
   await warmEnv(cloud); // 环境门控日志预热
@@ -420,6 +440,12 @@ exports.main = async (event, context) => {
   if (!isTimer && !isAdmin) {
     return { ok: false, code: 'ot_forbidden', msg: '无权限, 仅定时器或管理员可调用' };
   }
+
+  // ── 0. dev 环境到期自动回写 prod(批4.1, 每轮先做, 避免后续步骤在过期 dev 下运行) ──
+  let devRevert = null;
+  try { devRevert = await revertExpiredDev(Date.now(), cfg); }
+  catch (e) { log.d(`revertExpiredDev fail: ${e.message}`); }
+  if (devRevert && devRevert.reverted) cfg.env = 'prod'; // 本轮后续步骤按 prod 口径
 
   // 管理员手动触发时可传 action=run 表明意图(默认也放行, 但拒绝其他 action)
   if (event.action && event.action !== 'run') {
@@ -838,6 +864,7 @@ exports.main = async (event, context) => {
     data: {
       ran_at: now,
       backlog: _backlog,
+      dev_revert: devRevert,
       error_scan: errorScanResult,
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,

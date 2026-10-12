@@ -24,7 +24,7 @@ const OID = 'a'.repeat(32);
 
 function baseStore(orderExtra = {}, extra = {}) {
   return Object.assign({
-    admin_config: { global: { env: 'dev' } },
+    admin_config: { global: { env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000 } },
     order_main: { [OID]: Object.assign({ _id: OID, order_no: 'ORD-1', status: 'S5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 }, orderExtra) },
     user_account: { u1: { _id: 'u1', openid: PARTNER, partner_credit_score: 800 } },
     evaluation: {}, credit_score_log: {}, order_status_log: {}, system_notice: {}

@@ -24,7 +24,9 @@ const ADMIN = 'o_admin_1';
 const STRANGER = 'o_stranger_1';
 
 function store(env, adminOpenids) {
-  return { admin_config: { global: { env, admin_openids: adminOpenids } } };
+  const global = { env, admin_openids: adminOpenids };
+  if (env === 'dev') global.dev_until = Date.now() + 2 * 3600 * 1000;
+  return { admin_config: { global } };
 }
 
 // 1. 非白名单 → admin_forbidden（白名单非空）
@@ -72,6 +74,32 @@ test('admin: dev + mock_openid → 放行(不返回 forbidden)', async () => {
   assert.notStrictEqual(r.code, 'admin_forbidden');
   assert.notStrictEqual(r.code, 'admin_empty');
   assert.notStrictEqual(r.code, 'admin_no_openid');
+});
+
+// 批4.1: 切 dev 必须带 dev_hours(1-24), 否则 fail-closed 拒绝放开 mock 身份门控
+test('config_set: 切 dev 缺 dev_hours → config_bad_dev_hours', async () => {
+  const sdk = makeSdk({ openid: '', store: store('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', env: 'dev', confirm: 'SWITCH_DEV', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'config_bad_dev_hours');
+});
+
+test('config_set: 切 dev dev_hours=25(超上限) → config_bad_dev_hours', async () => {
+  const sdk = makeSdk({ openid: '', store: store('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', env: 'dev', confirm: 'SWITCH_DEV', dev_hours: 25, mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'config_bad_dev_hours');
+});
+
+test('config_set: 切 dev 带 dev_hours=2 → ok(updated 含 env/dev_until)', async () => {
+  const sdk = makeSdk({ openid: '', store: store('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', env: 'dev', confirm: 'SWITCH_DEV', dev_hours: 2, mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, true);
+  assert.ok((r.data.updated || []).indexOf('env') >= 0, '应写入 env');
+  assert.ok((r.data.updated || []).indexOf('dev_until') >= 0, '应写入 dev_until');
 });
 
 test.after(() => { Module._load = origLoad; });

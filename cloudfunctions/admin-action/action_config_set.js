@@ -24,10 +24,29 @@ async function config_set(ctx) {
   if (event.env !== undefined) {
     const envVal = String(event.env);
     if (envVal !== 'dev' && envVal !== 'prod') return fail('config_bad_env', 'env 仅支持 dev 或 prod');
-    if (envVal === 'dev' && (config.env || 'prod') !== 'dev' && event.confirm !== 'SWITCH_DEV') {
-      return fail('config_need_confirm', '切到 dev 将开放 mock 身份门控, 须传 confirm=SWITCH_DEV');
+    if (envVal === 'dev') {
+      if ((config.env || 'prod') !== 'dev' && event.confirm !== 'SWITCH_DEV') {
+        return fail('config_need_confirm', '切到 dev 将开放 mock 身份门控, 须传 confirm=SWITCH_DEV');
+      }
+      // 批4.1: dev 必须带有效期(dev_hours 1-24) 或显式回滚开关 dev_bypass=true(旧无过期逻辑)
+      const bypass = event.dev_bypass === true;
+      let devUntil = 0;
+      if (!bypass) {
+        const h = parseInt(event.dev_hours, 10);
+        if (!Number.isInteger(h) || h < 1 || h > 24) {
+          return fail('config_bad_dev_hours', '切 dev 须带 dev_hours(1-24 小时), 或传 dev_bypass=true 启用回滚开关');
+        }
+        devUntil = now + h * 3600 * 1000;
+      }
+      touch('env', 'dev');
+      touch('dev_until', devUntil);
+      touch('dev_bypass', bypass);
+    } else {
+      // 回 prod: 清掉有效期与回滚开关, 避免残留
+      touch('env', 'prod');
+      touch('dev_until', 0);
+      touch('dev_bypass', false);
     }
-    touch('env', envVal);
   }
 
   if (event.admin_web_key !== undefined) {

@@ -40,12 +40,46 @@ test('prod + 无真实OPENID + mock_openid → fail-closed 返回 null(不放开
   assert.strictEqual(oid, null);
 });
 
-test('dev 环境(读配置成功 env=dev) + 无真实OPENID + mock_openid → 云端测试面板放行返回 mock', async () => {
+const FUTURE = Date.now() + 2 * 3600 * 1000; // 2h 后
+const PAST = Date.now() - 1000;              // 1s 前(已过期)
+
+test('dev + dev_until 未过期 + 无真实OPENID + mock_openid → 放行返回 mock', async () => {
   const { resolveOpenid } = freshOpenid();
-  const cloud = makeCloud({ env: 'dev' });
+  const cloud = makeCloud({ env: 'dev', dev_until: FUTURE });
   cloud.getWXContext = () => ({ OPENID: null });
   const oid = await resolveOpenid(cloud, { mock_openid: 'MOCK_DEV_1' });
   assert.strictEqual(oid, 'MOCK_DEV_1');
+});
+
+test('dev + dev_until 已过期 → fail-closed 回 prod, mock 被拒(返回 null)', async () => {
+  const { resolveOpenid } = freshOpenid();
+  const cloud = makeCloud({ env: 'dev', dev_until: PAST });
+  cloud.getWXContext = () => ({ OPENID: null });
+  const oid = await resolveOpenid(cloud, { mock_openid: 'MOCK_DEV_2' });
+  assert.strictEqual(oid, null);
+});
+
+test('dev + 缺 dev_until(0/缺失) → 视同过期, fail-closed 回 prod', async () => {
+  const { resolveOpenid } = freshOpenid();
+  const cloud = makeCloud({ env: 'dev' }); // 无 dev_until
+  cloud.getWXContext = () => ({ OPENID: null });
+  const oid = await resolveOpenid(cloud, { mock_openid: 'MOCK_DEV_3' });
+  assert.strictEqual(oid, null);
+});
+
+test('dev + dev_bypass=true(回滚开关) → 跳过过期校验, 即使无 dev_until 也放行', async () => {
+  const { resolveOpenid } = freshOpenid();
+  const cloud = makeCloud({ env: 'dev', dev_bypass: true });
+  cloud.getWXContext = () => ({ OPENID: null });
+  const oid = await resolveOpenid(cloud, { mock_openid: 'MOCK_DEV_4' });
+  assert.strictEqual(oid, 'MOCK_DEV_4');
+});
+
+test('dev + 有真实OPENID + dev_until 未过期 → mock 优先(dev 语义)', async () => {
+  const { resolveOpenid } = freshOpenid();
+  const cloud = makeCloud({ env: 'dev', dev_until: FUTURE });
+  const oid = await resolveOpenid(cloud, { mock_openid: 'MOCK_OVER' });
+  assert.strictEqual(oid, 'MOCK_OVER');
 });
 
 test('配置读取失败 → 环境缓存兜底 prod(fail-closed), 不隐式放开 mock', async () => {

@@ -26,7 +26,7 @@ const MIN = 60 * 1000, H = 3600 * 1000, D = 24 * H;
 
 function baseStore(orders = {}, extra = {}) {
   return Object.assign({
-    admin_config: { global: { env: 'dev', admin_openids: [ADMIN] } },
+    admin_config: { global: { env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000, admin_openids: [ADMIN] } },
     order_main: orders,
     demand: {}, order_status_log: {}, system_notice: {}, evaluation: {},
     credit_score_log: {}, user_account: {}, platform_event: {}, audit_log: {}, withdraw_record: {}

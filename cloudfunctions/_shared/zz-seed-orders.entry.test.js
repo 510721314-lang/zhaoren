@@ -23,7 +23,7 @@ const ADMIN = 'o_admin_1';
 // scene_list 为空 → 通过鉴权后必然返回 no_scenes，便于区分「鉴权通过」与「鉴权被拒」
 function seedStore(extra) {
   return {
-    admin_config: { global: Object.assign({ env: 'dev', admin_openids: [ADMIN], admin_web_key: 'AWK-test-key', scene_list: [] }, extra || {}) },
+    admin_config: { global: Object.assign({ env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000, admin_openids: [ADMIN], admin_web_key: 'AWK-test-key', scene_list: [] }, extra || {}) },
     demand: {}
   };
 }

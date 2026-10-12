@@ -19,7 +19,7 @@ function loadIndex(sdk) {
 
 const OPENID = 'o_partner_1';
 function baseStore(extra = {}) {
-  return { admin_config: { global: Object.assign({ env: 'dev' }, extra) } };
+  return { admin_config: { global: Object.assign({ env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000 }, extra) } };
 }
 // 模拟已结算收入 50000 分(500元), 无提现占用
 function baseAgg(extra = {}) {

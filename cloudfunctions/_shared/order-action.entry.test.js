@@ -23,10 +23,11 @@ function loadIndex(sdk) {
 const USER = 'o_user_1';
 const PARTNER = 'o_partner_1';
 const OID = 'a'.repeat(32);
+const DEV_UNTIL = Date.now() + 2 * 3600 * 1000;
 
 function baseStore(extra = {}) {
   return {
-    admin_config: { global: { env: 'dev' } },
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
     order_main: {
       [OID]: Object.assign({
         _id: OID, status: 'S2', user_openid: USER, partner_openid: PARTNER,
@@ -56,7 +57,7 @@ test('nudge_partner: 未到 start_time → oa_urge_not_started', async () => {
 
 // 3. 订单不存在 → oa_not_found
 test('nudge_partner: 订单不存在 → oa_not_found', async () => {
-  const sdk = makeSdk({ openid: USER, store: { admin_config: { global: { env: 'dev' } }, order_main: {} } });
+  const sdk = makeSdk({ openid: USER, store: { admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } }, order_main: {} } });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'nudge_partner', order_id: OID, mock_openid: USER }, {});
   assert.strictEqual(r.ok, false);
@@ -124,7 +125,7 @@ test('complete_service: CAS 未抢到 → oa_status_conflict', async () => {
 // 时间线测试夹具: 覆盖 5 个数据源(状态轴/投诉/爽约/支付/订单内嵌里程碑+催办)
 function tlStore() {
   return {
-    admin_config: { global: { env: 'dev' } },
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
     order_main: {
       [OID]: {
         _id: OID, status: 'S5', user_openid: USER, partner_openid: PARTNER,
