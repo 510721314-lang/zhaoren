@@ -103,6 +103,8 @@
 
 > 备注（2026-10-09 订阅消息「收不到」排查与修复，待复推验证）：用户实测发布需求后耍伴端无订阅消息、且「消息」页无提示。两点结论：①站内通知并未失败——22:10:04 已写 6 条 system_notice（收件含两名已授权耍伴），但展示在「我的→系统通知」页而非「消息」会话列表（后者仅 IM 会话）②订阅侧根因=order-timer/config.json 缺 permissions.openapi 声明 → cloud.openapi.subscribeMessage.send 被拒（官方：未声明无法调用 errCode -604101），且被 log.d 在 prod 静默 ⇒ 零送达无痕。修复=补声明 + 失败日志升 log.w + miniprogram_state 改 trial（提审前无正式版，formal 有 41030 风险；发布后改回）。部署后计划：约 23:04 复推 f1bd72 测试单（grab_notify_pending 置 true→定时器 ≤5min 处理）实证订阅送达；配额说明：一次性订阅每授权一次可下发一条，复测需重新授权。
 
+> 备注（2026-10-12 走查通过 · 用户模拟器实测）：**①订单详情投诉/爽约入口 + 订单事件时间线**（对应 2026-10-12 两行 order-action 部署）——S2/S3/S3.5/S4 双方可见「发起投诉」、发起后转「争议处理中」、冻结态（爽约申诉在途）入口消失、底部「订单动态」倒序展示状态流转/投诉/爽约/改期/加时/里程碑/支付/催办且无 openid 外显、撤回后留痕回退、关单态只读回看，**全部通过**。**②首页「更多场景」折叠**（纯前端，commit `4f9fb4c`，无云函数部署）——主宫格 5 个 + 「更多场景」入口格、就地展开 4 个（学习/出行/健身/线上）并变「收起」、搜索「健身」直接命中、清空搜索回折叠态，**全部通过**。
+
 ## 使用说明
 
 - 新增部署前：`git -C c:\zhaoren bundle create "C:\zhaoren-bak\zhaoren-deploy-<YYYYMMDD>-<HHMMSS>.bundle" master --tags`，核 SHA 记 `C:\zhaoren-bak\CHECKSUMS.txt`
