@@ -46,3 +46,31 @@ test('errcode!=0 抛错并带 errCode', async () => {
   });
   await assert.rejects(() => p.send({ touser: 'o', templateId: 't', data: {} }), (e) => e.errCode === 43101);
 });
+
+// 评审修复: in-flight 去重 —— 并发 getAccessToken 共享同一次 stable_token 请求
+test('并发 getAccessToken 只发一次 stable_token(in-flight 共享)', async () => {
+  const calls = [];
+  const p = createHttpsPusher({
+    appid: 'a', secret: 's',
+    postJson: (url, body) => new Promise((resolve) => {
+      calls.push({ url: url.includes('stable_token') ? 'stable_token' : 'send', body });
+      setTimeout(() => resolve({ access_token: 'TOK_C', expires_in: 7200 }), 20); // 延迟响应, 让并发全部落在 in-flight 窗口内
+    })
+  });
+  const [t1, t2, t3] = await Promise.all([p.getAccessToken(), p.getAccessToken(), p.getAccessToken()]);
+  assert.strictEqual(t1, 'TOK_C');
+  assert.strictEqual(t2, 'TOK_C');
+  assert.strictEqual(t3, 'TOK_C');
+  assert.strictEqual(calls.filter((c) => c.url === 'stable_token').length, 1); // 仅一次换 token
+});
+// 评审修复: in-flight 失败后可重试(不残留坏 promise)
+test('in-flight 失败后再次 getAccessToken 可重新请求', async () => {
+  let n = 0;
+  const p = createHttpsPusher({
+    appid: 'a', secret: 's',
+    postJson: async () => { n += 1; if (n === 1) return { errcode: 40013 }; return { access_token: 'TOK_R', expires_in: 7200 }; }
+  });
+  await assert.rejects(() => p.getAccessToken());
+  const t = await p.getAccessToken();
+  assert.strictEqual(t, 'TOK_R');
+});

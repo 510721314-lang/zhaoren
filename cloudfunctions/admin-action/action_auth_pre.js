@@ -39,8 +39,15 @@ async function admin_login(ctx) {
   if (!acc || !password) return { ok: false, code: 'login_invalid', msg: '账号和密码必填' };
   const accR = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
   const u = (accR.data && accR.data[0]) || null;
-  if (!u || u.status !== 'active') return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
+  // 评审修复(2026-10-12): 网关层 admin_login 免 key 放行后, 公网可匿名试密码。
+  // 失败必须落 P1 事件(admin_login_fail) → order-timer errorScan 巡检项①捕获推送管理员, 爆破可见;
+  // 复用批2.2 收敛(同签名连续两轮静默), 管理员自己输错不会逐次轰炸。payload 不含密码。
+  if (!u || u.status !== 'active') {
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: !u ? 'not_found' : 'inactive' }).catch(() => {});
+    return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
+  }
   if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password' }).catch(() => {});
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
   }
   const token = 'ADMT-' + crypto.randomBytes(24).toString('hex');

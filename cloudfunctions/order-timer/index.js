@@ -319,6 +319,10 @@ async function processDemandNotify(now, cfg) {
   const pending = (await col('demand')
     .where({ grab_notify_pending: true, status: 'matching', is_deleted: false })
     .orderBy('created_at', 'asc').limit(BATCH).get()).data || [];
+  // 批 6.1(评审修复): admin_config.sub_msg_https = { appid, secret } 配置后走 HTTPS 通道, 否则回退云调用。
+  // pusher 在函数级创建一次, token 缓存跨 demand 共享(此前在每-demand 闭包内创建, 每条需求冗余换一次 token)
+  const httpsCfg = (cfg.sub_msg_https && cfg.sub_msg_https.appid && cfg.sub_msg_https.secret) ? cfg.sub_msg_https : null;
+  const httpsPusher = httpsCfg ? require('./push_https').createHttpsPusher(httpsCfg) : null;
   await Promise.allSettled(pending.map(async (d) => {
     const scene = d.scene || '';
     if (!scene) { await markDone(d, now); done.push(`${d.demand_no}:no_scene`); return; }
@@ -355,9 +359,6 @@ async function processDemandNotify(now, cfg) {
       // 订阅消息增强(不阻断): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)仅告警(log.w)不阻断流程
       const subTmpl = (cfg.sub_msg_templates && cfg.sub_msg_templates.demand_grab) || null;
       const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub).map((t) => t.openid) : [];
-      // 批 6.1: admin_config.sub_msg_https = { appid, secret } 配置后走 HTTPS 通道, 否则回退云调用
-      const httpsCfg = (cfg.sub_msg_https && cfg.sub_msg_https.appid && cfg.sub_msg_https.secret) ? cfg.sub_msg_https : null;
-      const httpsPusher = httpsCfg ? require('./push_https').createHttpsPusher(httpsCfg) : null;
       if (subTargets.length) {
         await Promise.allSettled(subTargets.map((openid) => sendDemandSub(d, subTmpl, openid, httpsPusher).catch((e) => {
           log.w(`sub_msg send fail ${openid}: errCode=${(e && e.errCode) || ''} ${(e && (e.errMsg || e.message)) || ''}`);
