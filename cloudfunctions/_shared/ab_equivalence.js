@@ -144,6 +144,25 @@ const CASES = [
   { fn: 'admin-action', name: 'user_unfreeze_ok', openid: ADMIN,
     store: Object.assign(adminStore(), { user_account: { u1: { _id: 'u1', openid: PARTNER, status: 'frozen' } } }),
     event: { action: 'user_unfreeze', mock_openid: ADMIN, target_openid: PARTNER } },
+  // ── E2E: 订单端到端异常分支(CAS+多表副作用: demand释放/通知/审计/流水/资金正交位) ──
+  { fn: 'order-action', name: 'cancel_S1_release_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S1', user_openid: USER, partner_openid: PARTNER, demand_id: 'e'.repeat(32), total_fen: 1000 } }, demand: { ['e'.repeat(32)]: { _id: 'e'.repeat(32), status: 'matched' } } }),
+    event: { action: 'cancel', mock_openid: PARTNER, order_id: OID, reason: '不需要了' } },
+  { fn: 'order-action', name: 'start_S2_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
+    event: { action: 'start_service', mock_openid: PARTNER, order_id: OID } },
+  { fn: 'order-action', name: 'complete_S3_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, milestone: { current: 3, confirmed: [true, true, true] } } } }),
+    event: { action: 'complete_service', mock_openid: PARTNER, order_id: OID } },
+  { fn: 'admin-action', name: 'dispute_complete_evaluated_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-2', status: 'S10.5', total_fen: 1000, user_openid: USER, partner_openid: PARTNER, complaint_from_status: 'S8' } }, system_notice: {} }),
+    event: { action: 'dispute_handle', mock_openid: ADMIN, order_id: OID, decision: 'complete', note: '完成' } },
+  { fn: 'admin-action', name: 'dispute_refund_amount_exceed', openid: ADMIN,
+    store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-2', status: 'S10.5', total_fen: 1000, user_openid: USER, partner_openid: PARTNER, complaint_from_status: 'S3' } }, pay_transaction: { t1: { _id: 't1', order_id: OID, type: 'refund', status: 'success', amount_fen: 800, is_deleted: false } } }),
+    event: { action: 'dispute_handle', mock_openid: ADMIN, order_id: OID, decision: 'refund', refund_fen: 300, note: '超上限' } },
+  { fn: 'admin-action', name: 'dispute_refund_partial_ok', openid: ADMIN,
+    store: Object.assign(adminStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-2', status: 'S10.5', total_fen: 1000, user_openid: USER, partner_openid: PARTNER, complaint_from_status: 'S3' } }, pay_transaction: { t1: { _id: 't1', order_id: OID, type: 'refund', status: 'success', amount_fen: 800, is_deleted: false } }, system_notice: {} }),
+    event: { action: 'dispute_handle', mock_openid: ADMIN, order_id: OID, decision: 'refund', refund_fen: 200, note: '部分退200' } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
