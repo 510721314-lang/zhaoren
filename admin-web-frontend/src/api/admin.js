@@ -1,6 +1,12 @@
 // api/admin.js · admin-web HTTP 代理层
 // 所有请求走 admin-web HTTP 云函数 → proxy admin-action
 import axios from 'axios';
+import { ElMessage } from 'element-plus';
+
+// 批 6.2: 这些写操作改的是带缓存的后台配置/活动, 生效有约 5 分钟传播延迟, 成功后统一提示
+const DELAY_EFFECT_ACTIONS = new Set([
+  'config_set', 'home_activity_create', 'home_activity_update', 'home_activity_delete'
+]);
 
 // 规则: 始终直打 CloudBase HTTP 网关（HTTPS + CORS 已配置, 跨域无问题）
 //       call() 固定 .post('/api', data) → 最终拼成 PROD_ROOT/api + body.action
@@ -45,6 +51,16 @@ http.interceptors.response.use(
       if (window.location.hash !== '#/login') {
         window.location.hash = '#/login';
       }
+    }
+    // 批 6.2: 配置/活动写操作成功 → 统一提示生效延迟(不阻断, 仅提示)
+    if (d && d.ok === true) {
+      try {
+        const body = r.config && r.config.data;
+        const action = (typeof body === 'string' ? JSON.parse(body).action : body && body.action);
+        if (action && DELAY_EFFECT_ACTIONS.has(action)) {
+          ElMessage.info('配置已保存, 约 5 分钟内生效');
+        }
+      } catch (_) { /* 解析失败不影响主流程 */ }
     }
     return d;
   },

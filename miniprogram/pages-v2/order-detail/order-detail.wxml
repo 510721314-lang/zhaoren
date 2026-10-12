@@ -249,6 +249,13 @@
             提交{{order.nextPercent}}%履约进度
           </button>
         </view>
+        <!-- 履约里程碑证据(2026-10-12 批6.4): fileID 直接渲染, 点击预览, 复用 onPreviewEvidence -->
+        <view class="od__evi" wx:if="{{order.milestone && order.milestone.evidence && order.milestone.evidence.length > 0}}">
+          <text class="od__evi-label">履约证据</text>
+          <view class="od__evi-list">
+            <image class="od__evi-img" wx:for="{{order.milestone.evidence}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-src="{{item}}" data-list="{{order.milestone.evidence}}" bindtap="onPreviewEvidence" />
+          </view>
+        </view>
         <view class="od__action-grid">
           <button class="od__action-btn {{order.pending_extend ? 'od__action-btn--disabled' : ''}}" wx:if="{{!order.pending_extend && !finishingService}}" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
           <button class="od__action-btn {{(order.canFinishService && !finishingService) ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" hover-class="btn-press" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService" disabled="{{finishingService}}">✓ {{finishingService ? '提交中…' : '履约完成'}}</button>
