@@ -141,6 +141,11 @@ const commandProxy = new Proxy({}, {
   const db = {
     collection,
     async createCollection() { return {}; },
+    // 事务: 复用同一 collection 工厂, 事务对象持 collection(name) 满足 t.collection(...).add/doc().get/update
+    async runTransaction(fn) {
+      calls.push({ method: 'runTransaction' });
+      return fn({ collection });
+    },
     get command() { return commandProxy; }
   };
 
@@ -150,7 +155,8 @@ const commandProxy = new Proxy({}, {
     database() { calls.push({ method: 'database' }); return db; },
     getWXContext() { return { OPENID: openid }; },
     openapi: {
-      subscribeMessage: { send: async () => ({ errMsg: 'send:ok' }) }
+      subscribeMessage: { send: async () => ({ errMsg: 'send:ok' }) },
+      security: { msgSecCheck: async () => ({ errCode: 0 }) }
     },
     // 测试断言面
     _store: store,

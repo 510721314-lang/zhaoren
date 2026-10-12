@@ -24,6 +24,8 @@ const adminStore = () => ({
 const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
 const NEW_TS = _tsD.getTime();
 const START_TS = NEW_TS - 24 * 3600 * 1000;
+// 爽约申诉窗口: 约定开始时间须在「now - reportWindowH(48h)」之后, 取 1h 前
+const RECENT_TS = Date.now() - 3600 * 1000;
 
 const CASES = [
   { name: 'detail_ok', openid: USER, event: { action: 'detail', order_id: OID, mock_openid: USER } },
@@ -203,6 +205,16 @@ const CASES = [
   { fn: 'order-action', name: 'extend_confirm_ok', openid: USER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, pricing_type: 'fixed', duration_h: 2, fee_fen: 100, partner_income_fen: 900, pending_extend: { add_hours: 2, add_amount_fen: 0, by_openid: PARTNER, created_at: 1, expire_at: Date.now() + 86400000 } } } }),
     event: { action: 'extend_confirm', mock_openid: USER, order_id: OID } },
+  // ── #21 E2E: 爽约申诉链(action 级) submit/defense/withdraw, 覆盖冻结/解冻 + report 文档写 ──
+  { fn: 'order-action', name: 'no_show_submit_ok', openid: USER,
+    store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, start_time: RECENT_TS } }, no_show_report: {} }),
+    event: { action: 'no_show_report_submit', mock_openid: USER, order_id: OID, reason: '对方未按约定时间到达现场', reason_type: 'late' } },
+  { fn: 'order-action', name: 'no_show_defense_ok', openid: PARTNER,
+    store: Object.assign(baseStore(), { no_show_report: { ['f'.repeat(32)]: { _id: 'f'.repeat(32), order_id: OID, order_no: 'ORD-1', reporter_openid: USER, reporter_role: 'user', target_openid: PARTNER, target_role: 'partner', status: 'received', evidence_deadline: Date.now() + 3600000, is_deleted: false } } }),
+    event: { action: 'no_show_report_defense', mock_openid: PARTNER, report_id: 'f'.repeat(32), defense_reason: '我已按时到达并完成服务' } },
+  { fn: 'order-action', name: 'no_show_withdraw_ok', openid: USER,
+    store: Object.assign(baseStore(), { no_show_report: { ['f'.repeat(32)]: { _id: 'f'.repeat(32), order_id: OID, order_no: 'ORD-1', reporter_openid: USER, reporter_role: 'user', target_openid: PARTNER, status: 'received', is_deleted: false } } }),
+    event: { action: 'no_show_report_withdraw', mock_openid: USER, report_id: 'f'.repeat(32) } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
@@ -281,6 +293,7 @@ function normalize(v) {
   return JSON.parse(JSON.stringify(v, (k, val) => {
     if (typeof val === 'number' && val > 1e12) return '<ts>';
     if (typeof val === 'string' && /^(REF|ORD|WD|TX|DR)[0-9a-f]+$/i.test(val)) return '<id>';
+    if (typeof val === 'string' && /^mock_id_/.test(val)) return '<id>';
     return val;
   }));
 }
