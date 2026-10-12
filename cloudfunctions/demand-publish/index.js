@@ -13,6 +13,8 @@ const log = require('./logger');
 const { writeAudit } = require('./audit');
 // 手机号加密(P0-3 整改): 账户已绑号现为密文, 取真号须解密(兼容存量明文)
 const phoneCrypt = require('./phone_crypt');
+// 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
+const { SCENE_NAMES: SCENE_NAME } = require('./scene_meta');
 
 // 场景白名单: 动态从 admin_config.scene_list 读取(SSOT), 兜底与 init-db 种子对齐
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
@@ -1101,7 +1103,6 @@ exports.main = async (event, context) => {
 
     // 3. 我的需求列表(含候选耍伴摘要)
     case 'my_demands': {
-      const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
       // 先懒过期
       await lazyExpire();
       try {

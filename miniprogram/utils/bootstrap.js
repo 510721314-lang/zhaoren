@@ -49,6 +49,7 @@ const CLOUD_MAP = {
   'modify_config.confirmHours': 'MODIFY.confirmHours',
   // ── P0-P2 发布与展示/分页/字数后台化 ──
   'publish.content_options_max': 'PUBLISH.contentOptionsMax',
+  'publish.scene_option_display_max': 'PUBLISH.sceneOptionDisplayMax',
   'publish.welfare_hourly_rate_fen': 'WELFARE.hourlyRateFen',
   'publish.good_review_min_stars': 'ORDER.goodReviewMin',
   'publish.reason_max_len': 'ORDER.reasonMaxLen',

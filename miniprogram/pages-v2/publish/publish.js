@@ -183,6 +183,8 @@ Page({
         const scenes = r.data.scene_groups.map((g) => {
           const hc = getScene(g.scene_code);
           const hard = hc && hc.disclaimer;
+          // 展示上限(批3.2): 与云端 scene_option_display_max 同源(bootstrap 覆盖 CONFIG.PUBLISH), 收敛 1..8
+          const optMax = Math.min(8, Math.max(1, Number(CONFIG.PUBLISH.sceneOptionDisplayMax) || 3));
           // 场景专属免责声明: 云端 legal_scene_disclaimers(SSOT, 后台可改) 优先 → 硬编码 enums 兜底
           // ⚠️ 必须挂到场景对象上, 否则 setScene 会落到 _defaultDisclaimer 通用文案(所有场景同一段)
           const cloudText = g.scene_disclaimer_text || '';
@@ -196,8 +198,8 @@ Page({
             color: hc ? hc.color : (COLOR_FB[g.scene_code] || '#F5F5F5'),
             // 云端 scene_options 存在(含空数组)即以云端为准: 服务项被后台全部隐藏时不得回落硬编码选项
             options: Array.isArray(g.scene_options)
-              ? g.scene_options.slice(0, 3)
-              : (hc ? (hc.options || []).slice(0, 3) : []),
+              ? g.scene_options.slice(0, optMax)
+              : (hc ? (hc.options || []).slice(0, optMax) : []),
             gb: hc ? hc.gb : false,
             disclaimer_type: g.scene_disclaimer_type || (hc && hc.disclaimer_type) || 'general_disclaimer',
             disclaimer

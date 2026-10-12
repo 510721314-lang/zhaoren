@@ -15,6 +15,8 @@ const SYNC_MAP = {
   'order_state.js': ['order-action', 'order-timer'],
   'urge_rules.js': ['order-timer', 'order-action'],
   'credit_rules.js': ['evaluation-submit', 'order-timer'],
+  // 场景中文名兜底映射(批3.1 单一源): 此前 8 处手抄副本, 收敛为一份常量 + 各函数副本
+  'scene_meta.js': ['payment-mock', 'im-send', 'im-conv', 'demand-publish', 'order-action', 'admin-action', 'home-action'],
   // 手机号加密存储 + 确定性查询键(P0-3 整改): user-login 写入/查询, demand-publish/admin-action 读取真号
   'phone_crypt.js': ['user-login', 'demand-publish', 'admin-action'],
   // 日志/审计留痕(P1 整改): 此前为「各函数自包含副本」零漂移校验, 现纳入规范源统一守护

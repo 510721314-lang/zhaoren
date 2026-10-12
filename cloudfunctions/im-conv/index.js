@@ -14,7 +14,8 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 
-const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
+const { SCENE_NAMES: SCENE_NAME } = require('./scene_meta');
 // 消息会话列表默认分页大小(后台可配 msg_page_size; limit 防御上限 50)
 const PAGE_SIZE_FALLBACK = 15;
 

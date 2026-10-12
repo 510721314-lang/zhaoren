@@ -106,12 +106,12 @@ const TRANSITIONS = [
   { no: 3, event: 'cancel', role: 'both', from: ['S1', 'S0'], to: 'S6', guard: '', money: '已付则原路退', timeout: '' },
   { no: 4, event: 'cancel_request', role: 'both', from: ['S2'], to: null, guard: '挂起(不改主轴)', money: '按 PRD 取消梯度退款', timeout: '对方 2h 确认; 超时转裁决' },
   { no: 5, event: 'start_service', role: 'partner', from: ['S2'], to: 'S3', guard: '未冻结', money: '', timeout: 'start_time+Xh 未开始→提醒走申诉/取消' },
-  { no: 6, event: 'modify', role: 'both', from: ['S2', 'S2_5'], to: null, guard: '未冻结', money: '', timeout: 'confirmHours→自动拒绝' },
+  { no: 6, event: 'modify', role: 'both', from: ['S2', 'S2_5'], to: null, guard: '未冻结', money: '', timeout: 'confirmHours(后台可配)→自动拒绝' },
   { no: 7, event: 'interrupt_report', role: 'both', from: ['S3'], to: 'S3.5', guard: '原因必填, 未冻结', money: '', timeout: '24h→S4' },
   { no: 8, event: 'resume', role: 'both', from: ['S3.5'], to: 'S3', guard: '', money: '', timeout: '' },
   { no: 9, event: 'partial_agree', role: 'both', from: ['S3.5'], to: 'S4', guard: '', money: '', timeout: '裁限期→按证据转裁决' },
   { no: 10, event: 'milestone', role: 'both', from: ['S3'], to: 'S3', guard: '', money: '', timeout: '确认窗(可配)自动确认' },
-  { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: '对方 2h 未回应→自动拒绝' },
+  { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_h(后台可配, 0=跟随 confirmHours) 未回应→自动拒绝' },
   { no: 12, event: 'extend_paid', role: 'user', from: ['S3'], to: 'S3', guard: '加时补付流水成功', money: 'type=pay(sub=extend)', timeout: '未付不加结算基数' },
   { no: 13, event: 'complete', role: 'partner', from: ['S3'], to: 'S5', guard: '里程碑 100% 或双方豁免', money: '', timeout: '' },
   { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '双方各确认一次', money: '按 PRD 分段结算', timeout: '裁限期→平台介入' },
@@ -121,7 +121,7 @@ const TRANSITIONS = [
   { no: 18, event: 'dispute_resolve_refund', role: 'platform', from: ['*'], to: null, guard: '金额≤可退上限; 全退→S7 / 部分退→回主轴', money: 'type=refund 流水+字段+通知', timeout: '' },
   { no: 19, event: 'dispute_resolve_complete', role: 'platform', from: ['*'], to: null, guard: '已有评价→S8(保留评价); 无评价→S5', money: '', timeout: '' },
   { no: 20, event: 'after_sale_expire', role: 'system', from: ['S8'], to: 'S10', guard: '售后窗口届满', money: 'settle ready 确认', timeout: '' },
-  { no: 21, event: 'no_show_decide', role: 'platform', from: ['*'], to: null, guard: '受害方获退款通道', money: '赔付=订单额 10%(可配)', timeout: '' },
+  { no: 21, event: 'no_show_decide', role: 'platform', from: ['*'], to: null, guard: '受害方获退款通道', money: '一期零赔付(10% 赔付本期不做, 仅扣信用分/停用; 已拍板)', timeout: '' },
   { no: 22, event: 'settle', role: 'system', from: ['S8', 'S9', 'S10'], to: null, guard: 'settle ready', money: '余额=Σ基数−已提现', timeout: '' }
 ];
 

@@ -16,12 +16,17 @@ const SCENE_FALLBACK = [
   { code: 'W11', name: '线上陪伴' }
 ];
 
-// 旧版 8 场景映射(兜底显示名, 不再作为首页分组依据)
-const SCENE_NAMES_LEGACY = {
-  W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴',
-  W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴'
-};
+// 旧版 8 场景映射(兜底显示名, 不再作为首页分组依据; 规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
+const { SCENE_NAMES: SCENE_NAMES_LEGACY } = require('./scene_meta');
 const CONTENT_TRUNC = 60;
+
+// 场景卡「服务项」展示上限(批3.2): admin_config.scene_option_display_max, 缺省 3, 收敛到 1..8。
+// 展示层截断(与勾选上限 publish_content_options_max 不同语义)。
+function sceneOptionDisplayMax(cfg) {
+  const n = Number(cfg && cfg.scene_option_display_max);
+  if (!Number.isFinite(n)) return 3;
+  return Math.min(8, Math.max(1, Math.floor(n)));
+}
 
 // 集合自愈: 新环境首次调用自动建 blog 相关集合(demand/user_account/partner_profile 属已有核心集合, 不自动建)
 let collectionsReady = null;
@@ -126,6 +131,7 @@ async function loadSceneList() {
       const r = await col('admin_config').doc('global').get();
       const cfg = r.data;
       const legal = (cfg && cfg.legal_scene_disclaimers) || {};
+      const optMax = sceneOptionDisplayMax(cfg);
       const raw = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
         ? cfg.scene_list
         : SCENE_FALLBACK;
@@ -134,8 +140,8 @@ async function loadSceneList() {
       // 展示层过滤在 scene_groups / buildSceneGroups 出口做。
       const scenes = raw.filter((s) => s && s.code).map((s) => {
         const hidden = Array.isArray(s.hidden_options) ? s.hidden_options.slice() : [];
-        // 前端只暴露前 3 个服务项(既有口径) → 「先取前 3 再剔除隐藏项」; options 即「前端可见服务项」
-        const options = (Array.isArray(s.options) ? s.options.slice(0, 3) : []).filter((o) => hidden.indexOf(o) < 0);
+        // 前端只暴露前 N 个服务项(N = scene_option_display_max, 缺省 3) → 「先取前 N 再剔除隐藏项」; options 即「前端可见服务项」
+        const options = (Array.isArray(s.options) ? s.options.slice(0, optMax) : []).filter((o) => hidden.indexOf(o) < 0);
         return {
           code: s.code,
           name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code,

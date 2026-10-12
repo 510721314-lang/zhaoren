@@ -28,7 +28,9 @@ function config_public(ctx) {
       s1_timeout_min: cfgRaw.s1_timeout_min,
       interrupt_timeout_h: cfgRaw.interrupt_timeout_h,
       eval_window_h: cfgRaw.eval_window_h,
-      default_star: cfgRaw.default_star
+      default_star: cfgRaw.default_star,
+      // 加时确认窗口(批3.4 补齐): 0/缺省 = 跟随 modify_config.confirmHours(与 order-timer/order-action 同一口径)
+      extend_confirm_h: cfgRaw.extend_confirm_h !== undefined ? cfgRaw.extend_confirm_h : 0
     },
     credits: { credit_freeze_line: cfgRaw.credit_freeze_line },
     rate_range: { rate_min_fen: cfgRaw.rate_min_fen, rate_max_fen: cfgRaw.rate_max_fen },
@@ -83,6 +85,8 @@ function config_public(ctx) {
     },
     publish: {
       content_options_max: cfgRaw.publish_content_options_max !== undefined ? cfgRaw.publish_content_options_max : 3,
+      // 场景卡服务项展示上限(批3.2): 发布页/场景卡最多展示几项(展示层), 与勾选上限 content_options_max 不同
+      scene_option_display_max: cfgRaw.scene_option_display_max !== undefined ? cfgRaw.scene_option_display_max : 3,
       welfare_hourly_rate_fen: cfgRaw.welfare_hourly_rate_fen !== undefined ? cfgRaw.welfare_hourly_rate_fen : 3000,
       fixed_price_min_fen: cfgRaw.fixed_price_min_fen,
       fixed_price_max_fen: cfgRaw.fixed_price_max_fen,

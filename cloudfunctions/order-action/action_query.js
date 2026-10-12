@@ -1,6 +1,9 @@
 // order-action · 查询分组（从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
+// 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
+const { SCENE_NAMES: SCENE_NAME } = require('./scene_meta');
+
 async function detail(ctx) {
   const { getOrder, roleOf, getConfirmation, col, _, log, allConfirmed, CONFIRM_FIELDS, maskContact, getConfig, canManualUrge, buildOrderSummary, openid, order_id } = ctx;
   // ───────── 订单详情(全字段 + 四确认状态 + 评价, 仅参与方可读) ─────────
@@ -8,8 +11,6 @@ async function detail(ctx) {
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
-
-  const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
 
   // 并行:6 个独立查询(确认单 + 评价 + 双昵称 + sos + checkin)合并为 1 批, 冷启动压到 2s 内
   const [conf, evR, uR, pR, sosR, ckR] = await Promise.all([
@@ -187,8 +188,6 @@ async function my_orders(ctx) {
   const { event, openid, col, _, log, buildOrderSummary, haversineKm, estimateCommute } = ctx;
   const role = event.role === 'user' ? 'user' : 'partner';
   const queryField = role === 'partner' ? 'partner_openid' : 'user_openid';
-  const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
-
   // tab 过滤(与前端 TAB_STATUS 同口径; 云端字面量一律点号 S3.5/S10.5/S2.5)
   const FILTER_STATUS = {
     pay: ['S0'],

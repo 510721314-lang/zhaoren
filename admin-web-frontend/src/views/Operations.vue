@@ -597,9 +597,11 @@ const visBusy = ref('');
 function isOptHidden(row, opt) {
   return (row.hidden_options || []).indexOf(opt) >= 0;
 }
-// 前端可见服务项(与 home-action 同口径: 先取前 3 项再剔除隐藏项); 为空则前端不会显示该场景
+// 前端可见服务项(与 home-action 同口径: 先取前 N 项再剔除隐藏项); N = 后台 scene_option_display_max(缺省 3)
 function frontVisibleOptions(row) {
-  return (row.options || []).slice(0, 3).filter((o) => !isOptHidden(row, o));
+  const n = Number(data.value?.operations?.scene_option_display_max) || 3;
+  const max = Math.min(8, Math.max(1, n));
+  return (row.options || []).slice(0, max).filter((o) => !isOptHidden(row, o));
 }
 async function confirmHide(what) {
   try {

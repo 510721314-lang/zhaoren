@@ -85,8 +85,8 @@ async function resolveTempUrls(fileIDs) {
 // 进行中订单(数据看板口径)
 const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 const PAGE_SIZE = 15;
-// 场景中文名(与 order-action 等 SCENE_NAME 同源, 全仓同步维护; 后台新增动态场景未列出的回退显示 code)
-const SCENE_NAME = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1; 后台新增动态场景未列出的回退显示 code)
+const { SCENE_NAMES: SCENE_NAME } = require('./scene_meta');
 // 本地违禁词兜底(与 im-send/order-action/demand-publish 同款; msgSecCheck 不可用时降级)
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
@@ -181,6 +181,8 @@ const CONFIG_SCHEMA = [
   { f: 'page_notice_limit', t: 'int', g: '发布与展示', label: '通知单页条数', unit: '条', min: 1, max: 100, def: 50 },
   { f: 'share_title_max', t: 'int', g: '发布与展示', label: '分享标题字数上限', unit: '字', min: 5, max: 60, def: 30 },
   { f: 'order_reason_max_len', t: 'int', g: '发布与展示', label: '改期/加时原因字数上限', unit: '字', min: 20, max: 500, def: 200 },
+  // 场景卡「服务项」展示上限(批3.2): 前端场景卡/发布页/后台预览最多展示几项; 展示层截断, 与勾选上限 content_options_max 不同
+  { f: 'scene_option_display_max', t: 'int', g: '发布与展示', label: '场景卡服务项展示数', unit: '项', min: 1, max: 8, def: 3 },
   // ── 费率(公益单时薪后台可调) ──
   { f: 'welfare_hourly_rate_fen', t: 'int', g: '费率', label: '公益单时薪', unit: '分', min: 0, max: 100000, def: 3000 },
   // 公益一口价(无 def=留空; 未配置时公益单不可发布, fail-closed)

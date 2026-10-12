@@ -16,7 +16,8 @@ const { writeAudit } = require('./audit');
 // D4-5 防漂移抽取: 资金规则规范源 _shared/money_rules.js(修改后跑 sync-money-rules.ps1 同步)
 const { isValidTipAmount, validateWithdrawBasic, validateWithdrawBalance, computeBalance, aggRowSum } = require('./money_rules');
 
-const SCENE_NAMES = { W1: '就医陪诊', W2: '学习陪伴', W3: '健身陪伴', W4: '游玩陪伴', W7: '情绪陪伴', W8: '生活协助', W9: '宠物陪伴', W10: '出行陪伴', W11: '线上陪伴' };
+// 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
+const { SCENE_NAMES } = require('./scene_meta');
 
 // 全局配置缓存(5 分钟 TTL, 与 im-conv/partner-action 同惯例; 后台改值 ≤5min 生效)
 let _cfgCache = null;

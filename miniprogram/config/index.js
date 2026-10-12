@@ -22,7 +22,7 @@ module.exports = {
   DURATION_OPTIONS: [1, 2, 3, 4, 6, 8],
 
   // 距离校验（公里，与后台 admin_config 同名键一致；前端仅用于提示与前置拦截，服务端为准）
-  PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50, contentOptionsMax: 3 },// 服务内容(子服务项)最多项数(后台 publish_content_options_max 覆盖)
+  PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50, contentOptionsMax: 3, sceneOptionDisplayMax: 3 },// contentOptionsMax=勾选上限; sceneOptionDisplayMax=场景卡展示上限(均后台覆盖)
 
   AA_OPTIONS: ['0-50', '50-200', '200+', 'custom'],
 
