@@ -1,12 +1,7 @@
 // pkg-low/exam · 耍伴接单考试页(云端判分, 防作弊)
 // subject: 任意科目 code(base=基础科目, W1=陪诊提升科目, 后台可增)
 // 流程: get_exam_questions 拉题(无答案) → 本地作答 → submit_exam 云端判分 → 结果展示(通过/失败可重考)
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => {
-    console.error('[cloud]', name, e && e.message);
-    return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' };
-  });
-}
+const { callCloud } = require('../../../utils/cloud.js');
 
 Page({
   data: {

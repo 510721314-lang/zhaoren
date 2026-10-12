@@ -5,9 +5,7 @@ const redline = require('../../utils/redline.js');
 const { getScene } = redline;
 const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 

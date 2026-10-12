@@ -11,9 +11,7 @@ function sceneName(code) {
   return (s && s.name) || code || '其他';
 }
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../../utils/cloud.js');
 
 // 时间戳 → 可读文本(YYYY-MM-DD HH:mm)
 function fmtTime(ts) {

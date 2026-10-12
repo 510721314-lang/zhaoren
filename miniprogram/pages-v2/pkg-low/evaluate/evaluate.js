@@ -4,9 +4,7 @@ const CONFIG = require('../../../config/index.js');
 const redline = require('../../../utils/redline.js');
 const { getScene } = redline;
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../../utils/cloud.js');
 
 function buildTagList(arr, selected) {
   return arr.map(function(t) {

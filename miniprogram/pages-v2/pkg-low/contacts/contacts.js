@@ -1,9 +1,7 @@
 // pages-v2/pkg-low/contacts/contacts.js · 紧急联系人管理(1~2 名)
 // 数据源: user-login get_emergency_contact(回显) / set_emergency_contact(保存)
 // 用途: 发布需求前置校验 + 安全求助时展示
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../../utils/cloud.js');
 
 Page({
   data: {

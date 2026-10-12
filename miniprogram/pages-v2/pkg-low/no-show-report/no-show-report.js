@@ -4,9 +4,7 @@
 // 数值: CONFIG.NO_SHOW(启动被 config_public.no_show 覆盖, 本地仅兜底)
 const CONFIG = require('../../../config/index.js');
 
-const callCloud = (name, data) => wx.cloud.callFunction({ name, data })
-  .then((r) => r.result || {})
-  .catch(() => ({ ok: false, code: 'cloud_error', msg: '网络异常,请重试' }));
+const { callCloud } = require('../../../utils/cloud.js');
 
 // 申诉原因选项(设计稿 §2.6)
 const REASON_OPTIONS = ['未出现', '迟到超30分钟', '中途离开', '其他'];

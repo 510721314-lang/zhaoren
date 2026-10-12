@@ -14,9 +14,7 @@ const TABS = [
 
 // 状态过滤已下推服务端(my_orders 的 filter 参数, 点号字面量 S3.5/S10.5/S2.5) —— 本地不再二次过滤
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 

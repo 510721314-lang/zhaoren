@@ -5,9 +5,7 @@ const { maskPhone } = require('../../utils/util.js');
 const CONFIG = require('../../config/index.js');
 const { CREDIT_LEVEL, ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 // showModal fail 兜底(部分真机弹窗静默失败时给反馈)
 function modalFail() {

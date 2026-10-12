@@ -1,7 +1,5 @@
 // 系统配置
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => ({ ok: false, code: 'cloud_error', msg: '网络异常' }));
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 Page({
   data: {

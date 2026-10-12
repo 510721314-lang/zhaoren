@@ -7,13 +7,7 @@ const { SCENES, MATCH_MODE, PUBLISH_TYPE, CREDIT_LEVEL, AA_ESTIMATE_LABEL } = re
 // 智能派单门槛 = L3 优质等级下限（PRD 3.1.2）
 const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
 
-function callCloud(name, data) {
-  // 审计留痕: 发布链路关键动作携带设备摘要
-  let device = '';
-  try { const s = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
-  const sendData = Object.assign({}, data, { device });
-  return wx.cloud.callFunction({ name, data: sendData }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 // 敏感词检测：手机号/微信号
 function detectSensitive(text) {

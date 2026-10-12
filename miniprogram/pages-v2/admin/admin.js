@@ -2,9 +2,7 @@
 // 鉴权: onLoad 调 admin-action.admin_list, 非管理员直接 redirectTo 首页
 const app = getApp();
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 Page({
   data: {

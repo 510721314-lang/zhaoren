@@ -1,11 +1,6 @@
 // pkg-low/kefu · 自建客服会话(无订单): 消息复用 IM 体系, 后台客服工作台可见可回
 // 流程: kefu_open 拿会话(懒建) → kefu_messages 拉消息(清未读) → send_kefu 发送 → 5s 轮询新消息
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => {
-    console.error('[cloud]', name, e && e.message);
-    return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' };
-  });
-}
+const { callCloud } = require('../../../utils/cloud.js');
 
 Page({
   data: {

@@ -5,9 +5,7 @@ const { getScene } = require('../../utils/redline.js');
 const { BLOG_TOPICS } = require('../../utils/constants.js');
 const { SCENES } = require('../../config/enums.js');
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 const SCENE_OPTS = [{ code: '', name: '全部' }].concat(
   SCENES.map((s) => ({ code: s.code, name: s.icon + ' ' + s.name }))

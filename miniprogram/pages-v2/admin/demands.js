@@ -1,7 +1,5 @@
 // 需求管理列表
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => ({ ok: false, code: 'cloud_error', msg: '网络异常' }));
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 Page({
   data: { isAdmin: false, list: [], page: 1, hasMore: true, loading: false, sceneFilter: '' },

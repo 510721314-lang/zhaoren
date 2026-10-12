@@ -1,7 +1,5 @@
 // 订单管理列表
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => ({ ok: false, code: 'cloud_error', msg: '网络异常' }));
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 const STATUS_MAP = {
   S0: '待支付', S1: '待确认', S2: '履约中', S3: '待确认完成',

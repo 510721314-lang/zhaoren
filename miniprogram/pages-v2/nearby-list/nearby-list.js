@@ -1,5 +1,5 @@
 // 附近可接需求列表: 复用 home-action nearby(按发布时间倒序), 每页20条, 下拉刷新 + 触底加载更多
-const callCloud = (name, data) => wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
+const { callCloud } = require('../../utils/cloud.js');
 const CONFIG = require('../../config/index.js');
 
 Page({

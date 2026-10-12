@@ -1,8 +1,6 @@
 // 附近地图: 实时定位共享(双向对称) — 打开上报本人位置, 展示已开启共享且在线(15min)的 TA
 // 点 marker 卡片 → 耍伴看用户(去承接) / 用户看耍伴(定向邀请帮忙)
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, msg: '网络异常' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 function fmtDist(m) {
   if (!Number.isFinite(m) || m < 0) return '';
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;

@@ -1,8 +1,6 @@
 // PRD章节: 3.10 耍伴专区 · 接单考试认证查询
 // 接 partner-action my_profile(分数) + exam_subjects(科目配置, 后台可增可改): 展示各科通过状态
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../../utils/cloud.js');
 
 Page({
   data: {

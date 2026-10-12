@@ -1,7 +1,5 @@
 // 财务流水
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => ({ ok: false, code: 'cloud_error', msg: '网络异常' }));
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 const TYPE_MAP = { pay: '支付', refund: '退款', tip: '打赏', withdraw: '提现' };
 

@@ -1,4 +1,4 @@
-const callCloud = (name, data) => wx.cloud.callFunction({ name, data }).then((r) => r.result || {});
+const { callCloud } = require('../../../utils/cloud.js');
 
 // 时间戳: 输出 ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
 function fmtAgo(ts) {

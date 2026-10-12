@@ -52,9 +52,7 @@ const SQUARE_TTL_MS = 10 * 60 * 1000;
 // 故独立 scene_groups action 每次进首页都会被调一次; 加缓存后第 2 次起免掉这次往返(与 square 同 TTL)
 const SCENE_GROUPS_CACHE_KEY = 'home_scene_groups_v1';
 
-function callCloud(name, data) {
-  return wx.cloud.callFunction({ name, data }).then((r) => r.result || {}).catch((e) => { console.error('[cloud]', name, e && e.message); return { ok: false, code: 'cloud_error', msg: '网络异常,请重试' }; });
-}
+const { callCloud } = require('../../utils/cloud.js');
 
 Page({
   data: {
