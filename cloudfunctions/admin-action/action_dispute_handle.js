@@ -68,6 +68,23 @@ async function dispute_handle(ctx) {
   if (!dcr.stats || dcr.stats.updated !== 1) {
     return fail('dispute_conflict', '订单状态已变化,请刷新后重试');
   }
+  // 投诉记录回写(2026-10-12): 此前只写 order_main, complaint 集合的 status 永远停在 pending
+  // → 任何读该字段的功能/对账都会拿到错值。现平台裁决(refund/complete)后同步落库。
+  // decision=open 是「从已关闭 S10 登记争议」, 不代表裁决, 不回写。
+  // verdict 映射: refund=upheld(投诉获支持并退款) / complete=rejected(未退款结案); 同时保留原始 decision 供后台直读。
+  if (decision !== 'open') {
+    try {
+      await col('complaint').where({ order_id, status: 'pending', is_deleted: _.neq(true) }).update({ data: {
+        status: 'resolved',
+        decision,
+        verdict: decision === 'refund' ? 'upheld' : 'rejected',
+        decided_reason: noteText,
+        decided_by: openid,
+        decided_at: now,
+        updated_at: now
+      }});
+    } catch (e) { log.d(`complaint write-back fail: ${e.message}`); }
+  }
   if (decision === 'refund') {
     try {
       await col('pay_transaction').add({ data: {

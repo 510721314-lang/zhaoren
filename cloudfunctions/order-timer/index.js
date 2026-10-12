@@ -28,6 +28,27 @@ function trackBacklog(tag, arr) {
   if (arr && arr.length >= BATCH) { _backlog.push(tag + ':' + arr.length); log.w(`[backlog] ${tag} 取满 ${arr.length}/${BATCH}, 可能有积压`); }
 }
 
+// 分页扫描(2026-10-12 批1.3): 各段原为 where({...}).limit(BATCH), 该类状态积压 >BATCH 时漏扫(只推进前 BATCH 笔)。
+// 分页策略选 skip 而非 orderBy+游标: order_main/user_account 都没有 {status, updated_at} 索引,
+//   未建索引的排序可能直接报错, 而本函数外层 catch 会把它吞成"静默不做事"(历史上踩过同类坑);
+//   skip 分页不依赖索引, 代价是翻页 O(n), 但单轮硬上限 500 笔, 可接受。
+// 本批先落在「加时超时」与「停用到期恢复」两段验证模式, 通过后再逐段推广到其余扫描段。
+const SCAN_PAGE = BATCH;
+const SCAN_MAX = 500;
+async function scanAll(coll, buildWhere, cap) {
+  const limit = cap || SCAN_MAX;
+  const out = [];
+  while (out.length < limit) {
+    const r = await col(coll).where(buildWhere()).skip(out.length).limit(SCAN_PAGE).get()
+      .catch((e) => { log.w(`[scanAll] ${coll} 分页查询失败: ${e && e.message}`); return { data: [] }; });
+    const rows = r.data || [];
+    if (!rows.length) break;
+    rows.forEach((x) => out.push(x));
+    if (rows.length < SCAN_PAGE) break;
+  }
+  return out;
+}
+
 async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
@@ -391,7 +412,7 @@ exports.main = async (event, context) => {
   // 加时确认窗口(2026-10-12 后台可配): 独立键 extend_confirm_h, 0/缺省 → 回退改期 confirmHours (与申请时算 expire_at 同一口径)
   const extendConfirmH = num(cfg.extend_confirm_h, 0) > 0 ? num(cfg.extend_confirm_h, 0) : modifyConfirmH;
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -540,8 +561,8 @@ exports.main = async (event, context) => {
   // ───────── 3.7 S3 加时申请 expire_at 到期 → 自动拒绝(不加时, 服务时长不变) ─────────
   // 承诺来源: 详情页「…超时自动拒绝」+ 状态机 no.11 timeout 列; 期限以申请时写入的 expire_at 为准
   try {
-    const s3s = (await col('order_main').where({ status: 'S3' }).limit(BATCH).get()).data || [];
-    trackBacklog('S3_extend', s3s);
+    const s3s = await scanAll('order_main', () => ({ status: 'S3' }));
+    trackBacklog('S3_extend', s3s.length >= SCAN_MAX ? s3s : []);   // 仅取满单轮上限才算积压
     const eOK = [];
     await Promise.allSettled(s3s.map(async (o) => {
       const pe = o.pending_extend;
@@ -549,11 +570,15 @@ exports.main = async (event, context) => {
       if (o.frozen) return;   // 争议/申诉冻结中不推进
       const deadline = pe.expire_at || ((pe.created_at || o.updated_at || 0) + extendConfirmH * 3600000);
       if (!deadline || deadline >= now) return;
-      // 加时的确认/拒绝都「不改 status」(仍 S3), 仅靠 status 无法区分「刚被对方处理」与「超时」;
-      // 故用 updated_at 做乐观锁: 对方一旦确认/拒绝会刷新 updated_at → 本条件更新落空 → 留待对方结果生效
+      // 加时的确认/拒绝都「不改 status」(仍 S3), 仅靠 status 无法区分「刚被对方处理」与「超时」→ 需乐观锁。
+      // 批1.4: 首选申请时写入的顶层 pending_extend_token 精确锁定本次申请(不受其他写操作刷新 updated_at 干扰);
+      // 历史无 token 的在途申请回退 updated_at 等价条件(对方一旦处理就刷新它 → 本条件更新落空 → 留待对方结果生效)。
+      const tok = Number(o.pending_extend_token) || 0;
       const r = await col('order_main')
-        .where({ _id: o._id, status: 'S3', updated_at: o.updated_at })
-        .update({ data: { pending_extend: _.remove(), extend_auto_rejected_at: now, updated_at: now } });
+        .where(tok
+          ? { _id: o._id, status: 'S3', pending_extend_token: tok }
+          : { _id: o._id, status: 'S3', updated_at: o.updated_at })
+        .update({ data: { pending_extend: _.remove(), pending_extend_token: 0, extend_auto_rejected_at: now, updated_at: now } });
       if (!r.stats || r.stats.updated !== 1) { out.skipped.push(o.order_no + ':S3加时竞态'); return; }
       eOK.push({ o, pe });
     }));
@@ -571,6 +596,33 @@ exports.main = async (event, context) => {
     }})));
     eOK.forEach(x => { out.extend_auto_reject.push(x.o.order_no); log.d(`timeout S3 extend auto-reject: ${x.o.order_no}`); });
   } catch (e) { log.d(`s3 extend scan fail: ${e.message}`); }
+
+  // ───────── 3.8 账号停用到期恢复(2026-10-12 批1.2) ─────────
+  // 此前只有 user-login 的「登录惰性恢复」: 被停用用户不登录则永远停在 suspended。
+  // 字段口径与 user-login/index.js:209-229 maybeRestoreSuspend 完全一致(含 suspend_until 缺失视为已到期的历史异常数据)。
+  try {
+    const susp = await scanAll('user_account', () => ({ status: 'suspended' }));
+    trackBacklog('user_suspended', susp.length >= SCAN_MAX ? susp : []);
+    const due = susp.filter((u) => (Number(u.suspend_until) || 0) <= now);
+    await Promise.allSettled(due.map(async (u) => {
+      let r = null;
+      try {
+        r = await col('user_account').where({ _id: u._id, status: 'suspended' }).update({ data: {
+          status: 'normal', suspend_restored_at: now, updated_at: now
+        }});
+      } catch (e) { log.d(`suspend restore fail: ${e && e.message}`); return; }
+      if (!r || !r.stats || r.stats.updated !== 1) return;   // 并发(登录惰性恢复/管理员操作)已处理 → 不重复通知
+      try {
+        await col('system_notice').add({ data: {
+          to_openid: u.openid, type: 'account_restored',
+          title: '账号已恢复', body: '账号停用期已结束,已恢复',
+          read: false, created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) {}
+      out.account_restored.push(u.openid || String(u._id));
+      log.d(`suspend auto-restored: openid_len=${String(u.openid || '').length}`);
+    }));
+  } catch (e) { log.d(`suspend restore scan fail: ${e.message}`); }
 
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
@@ -753,6 +805,7 @@ exports.main = async (event, context) => {
       interrupt_partial: out.interrupt_partial,
       modify_auto_reject: out.modify_auto_reject,
       extend_auto_reject: out.extend_auto_reject,
+      account_restored: out.account_restored,
       milestone_auto_confirm: out.milestone_auto_confirm,
       auto_eval: out.auto_eval,
       s8_archive: out.s8_archive,
@@ -764,6 +817,7 @@ exports.main = async (event, context) => {
         interrupt_partial: out.interrupt_partial.length,
         modify_auto_reject: out.modify_auto_reject.length,
         extend_auto_reject: out.extend_auto_reject.length,
+        account_restored: out.account_restored.length,
         milestone_auto_confirm: out.milestone_auto_confirm.length,
         auto_eval: out.auto_eval.length,
         s8_archive: out.s8_archive.length,

@@ -235,6 +235,7 @@ async function extend(ctx) {
       expire_at: now + confirmHours * 3600000
     },
     extend_count: (Number(order.extend_count) || 0) + 1,
+    pending_extend_token: now,   // 批1.4: 本次申请的唯一 token, 供定时器超时判定做精确乐观锁
     updated_at: now
   });
   if (!won) {
@@ -281,6 +282,7 @@ async function extend_confirm_or_reject(ctx) {
   if (action === 'extend_reject') {
     const won = await casStatus(order_id, 'S3', {
       pending_extend: _.remove(),
+      pending_extend_token: 0,   // 批1.4: 清 token, 定时器据此跳过已被处理的申请
       extend_rejected_at: Date.now(),
       extend_rejected_by: openid,
       updated_at: Date.now()
@@ -312,6 +314,7 @@ async function extend_confirm_or_reject(ctx) {
     fee_fen: newFeeFen,
     partner_income_fen: newPartnerIncomeFen,
     pending_extend: _.remove(),
+    pending_extend_token: 0,   // 批1.4: 清 token, 定时器据此跳过已被处理的申请
     extend_confirmed_at: Date.now(),
     extend_confirmed_by: openid,
     updated_at: Date.now()
