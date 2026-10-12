@@ -12,7 +12,7 @@ const PROJECT_PATH = require('path').join(__dirname, '..');
 const ENV_ID = 'cloud1-d9gkefwcp5c777088';
 const FN_NAME = 'zz-warmup';
 const TRIGGER_NAME = 'warmupTimer';
-const CRON = '0 */5 7-22 * * * *';
+const CRON = '0 */5 * * * * *';
 
 async function main() {
   const project = new ci.Project({

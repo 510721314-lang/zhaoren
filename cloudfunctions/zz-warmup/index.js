@@ -1,13 +1,13 @@
 // zz-warmup 首屏云函数保温探针(S9 性能优化)
 // 目的: 定时唤醒首屏关键云函数(home-action / user-login), 规避实例休眠冷启动
 //       实测冷启动 ~1.6-1.9s → 保温后热态 ~0.3s, 首页冷启可交互 1.9s → 0.6-0.9s
-// 触发: ① 定时触发器每 5 分钟(仅白天时段, cron 见 config.json)
+// 触发: ① 定时触发器每 5 分钟(全天候, cron 见 config.json)
 //       ② 云端测试面板手动 {"action":"run"} 验证(手动调用不受时段限制)
 // 安全原则:
 //   - 只调用「只读 / 无 openid 也安全 / 零写入副作用」的轻量 action
 //   - 各目标独立 try/catch + 超时竞速, 单目标失败不影响其他
 //   - 幂等: 重复执行无副作用, 可安全高频触发
-// 调用量预算: 白天 16h × 12 次/h = 192 次/天; 每次唤醒 2 个目标 = 576 次/天
+// 调用量预算: 全天 24h × 12 次/h = 288 次/天; 每次唤醒 2 个目标 = 576 次/天
 //   ≈ 1.7 万次/月, 在云开发基础版调用次数额度(40 万次/月)内, 占比 ~4%
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -21,8 +21,8 @@ const TARGETS = [
   { name: 'user-login', data: { action: 'peek_login' } }
 ];
 
-const ACTIVE_START = 7;    // 北京时间 07:00 起(含)
-const ACTIVE_END = 23;     // 23:00 后不再唤醒(省调用次数)
+const ACTIVE_START = 0;    // 全天候保温: 北京时间 00:00 起(含)
+const ACTIVE_END = 24;     // 上界 24:00, 覆盖 23:xx 全时段
 const CALL_TIMEOUT_MS = 8000;
 
 // 显式按 UTC+8 取小时, 不依赖运行实例本地时区配置
