@@ -1,6 +1,10 @@
 // order-action · 争议/爽约申诉分组（从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
+// 可发起投诉的订单状态(D1 拍板 2026-10-12): 与状态机 no.16(complaint_open from)对齐,
+// 覆盖 S2 付款后 → 关单前全周期; 撤回后按 complaint_from_status 原路回退, 故同一白名单。
+const COMPLAINT_FROM_STATUS = ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'];
+
 async function complaint(ctx) {
   const { event, order_id, openid, getOrder, roleOf, checkText, wxCtx, db, log, casStatus, logStatus, col, writeNotice, writeAudit } = ctx;
   const { reason } = event;
@@ -9,7 +13,7 @@ async function complaint(ctx) {
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
-  if (!['S5', 'S8', 'S9'].includes(order.status)) {
+  if (!COMPLAINT_FROM_STATUS.includes(order.status)) {
     return { ok: false, code: 'oa_complaint_status', msg: `订单当前状态(${order.status})不可发起争议` };
   }
   const now = Date.now();
@@ -20,7 +24,7 @@ async function complaint(ctx) {
     const chk = await checkText(openid, reason);
     if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
   }
-  const won = await casStatus(order_id, ['S5', 'S8', 'S9'], {
+  const won = await casStatus(order_id, COMPLAINT_FROM_STATUS, {
     status: 'S10.5',
     help_flag: true,
     complaint_at: now,
@@ -88,7 +92,7 @@ async function complaint_withdraw(ctx) {
       restore = (lg.data && lg.data[0] && lg.data[0].from_status) || '';
     } catch (e) { restore = ''; }
   }
-  if (!['S5', 'S8', 'S9'].includes(restore)) {
+  if (!COMPLAINT_FROM_STATUS.includes(restore)) {
     return { ok: false, code: 'oa_complaint_no_restore', msg: '该投诉不支持自助撤回, 请联系客服' };
   }
   const now = Date.now();

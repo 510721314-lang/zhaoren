@@ -162,7 +162,9 @@ Page({
     noShowReports: [],
     canNoShowReport: false,
     // 联系信息(过渡版, 2026-10-09): {who, masked, note} | null, 接单方且已支付后展示
-    contactDisplay: null
+    contactDisplay: null,
+    // 订单动态时间线(2026-10-12): 全事件族(状态/投诉/爽约/改期/加时/里程碑/支付退款/催办), 双方可见
+    timeline: []
   },
   onShareAppMessage() {
     return {
@@ -202,6 +204,8 @@ Page({
       }
       // 爽约申诉状态(在途/已完成阶段均可能已有记录)
       this.fetchNoShow(r.data);
+      // 订单动态时间线(2026-10-12): 首屏后异步懒加载, 失败不阻断主流程
+      if (!silent) this.fetchTimeline();
     }).catch(() => {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
@@ -260,6 +264,29 @@ Page({
       const inWindow = start > 0 && now <= start + (Number(ns.reportWindowH) || 48) * 3600000;
       const underLimit = myReports < (Number(ns.maxPerOrder) || 1);
       this.setData({ noShowReports: list, canNoShowReport: statusOk && inWindow && underLimit });
+    }).catch(() => {});
+  },
+
+  // 订单动态时间线(2026-10-12): 懒加载 order-action.timeline(全事件族), 失败不阻断主流程
+  fetchTimeline() {
+    const oid = this.__orderId;
+    if (!oid) return;
+    callCloud('order-action', { action: 'timeline', order_id: oid }).then((r) => {
+      if (!r.ok || !r.data || !Array.isArray(r.data.events)) return;
+      const myRole = (this.data.order && this.data.order.my_role) || '';
+      const ROLE_CN = { user: '发单人', partner: '耍伴', admin: '平台', system: '系统' };
+      const ICON = { status: '🔄', complaint: '⚠️', no_show: '🚫', money: '💰', milestone: '📍', urge: '📢' };
+      const list = r.data.events.map((e, i) => ({
+        key: `${i}-${e.at || 0}-${e.type || ''}`,
+        type: e.type || 'status',
+        icon: ICON[e.type] || '•',
+        label: e.label || '',
+        detail: e.detail || '',
+        // actor_role=本人 → "你"(双方口径一致); 其余按角色中文, 系统/平台不显示昵称(隐私)
+        who: e.actor_role === myRole ? '你' : (ROLE_CN[e.actor_role] || ''),
+        time: e.at ? this.__fmtNoticeTime(e.at) : ''
+      }));
+      this.setData({ timeline: list });
     }).catch(() => {});
   },
 

@@ -121,5 +121,109 @@ test('complete_service: CAS 未抢到 → oa_status_conflict', async () => {
   assert.strictEqual(r.code, 'oa_status_conflict');
 });
 
+// 时间线测试夹具: 覆盖 5 个数据源(状态轴/投诉/爽约/支付/订单内嵌里程碑+催办)
+function tlStore() {
+  return {
+    admin_config: { global: { env: 'dev' } },
+    order_main: {
+      [OID]: {
+        _id: OID, status: 'S5', user_openid: USER, partner_openid: PARTNER,
+        milestone: { current: 2, evidence: [{ milestone: 1, label: '30%', note: '第一阶段完成', submitted_by: PARTNER, submitted_at: 800 }] },
+        urge_logs: [{ at: 700, by: USER }]
+      }
+    },
+    order_status_log: {
+      l1: { order_id: OID, from_status: 'S2', to_status: 'S3', action: 'start_service', operator: PARTNER, created_at: 1000, is_deleted: false },
+      l2: { order_id: OID, from_status: 'S5', to_status: 'S10.5', action: 'user_complaint', operator: USER, created_at: 2000, is_deleted: false },
+      l3: { order_id: OID, from_status: 'S3', to_status: 'S5', action: 'complete_service', operator: PARTNER, created_at: 3000, is_deleted: false }
+    },
+    complaint: {
+      c1: { order_id: OID, initiator_openid: USER, initiator_role: 'user', reason: '服务与描述不符', status: 'pending', created_at: 2000, is_deleted: false }
+    },
+    no_show_report: {},
+    pay_transaction: {
+      t1: { order_id: OID, type: 'pay', amount_fen: 10000, status: 'success', created_at: 500, is_deleted: false }
+    }
+  };
+}
+
+// 10. complaint(D1 放开 2026-10-12): S2 付款后即可发起 → ok
+test('complaint: S2 付款后发起投诉 → ok(白名单放开)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S2' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint', order_id: OID, reason: '服务与描述不符', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.status, 'S10.5');
+  assert.ok((sdk.writes.complaint || []).length, '应写入 complaint 记录');
+});
+
+// 11. complaint: 已取消(S6) 不可发起 → oa_complaint_status
+test('complaint: S6 不可发起 → oa_complaint_status', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S6' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_complaint_status');
+});
+
+// 12. complaint: 非参与方 → oa_not_participant
+test('complaint: 非参与方 → oa_not_participant', async () => {
+  const sdk = makeSdk({ openid: 'o_stranger', store: baseStore({ status: 'S2' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint', order_id: OID, mock_openid: 'o_stranger' }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_not_participant');
+});
+
+// 13. timeline: 缺 order_id → oa_bad_order_id(分发层预检)
+test('timeline: 缺 order_id → oa_bad_order_id', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'timeline', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_bad_order_id');
+});
+
+// 14. timeline: 非参与方 → oa_not_participant
+test('timeline: 非参与方 → oa_not_participant', async () => {
+  const sdk = makeSdk({ openid: 'o_stranger', store: tlStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'timeline', order_id: OID, mock_openid: 'o_stranger' }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_not_participant');
+});
+
+// 15. timeline: 多源合并 + 倒序 + 跳过投诉类 status_log + 不外显 openid
+test('timeline: 多源合并/倒序/去重/隐私 → 契约', async () => {
+  const sdk = makeSdk({ openid: USER, store: tlStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'timeline', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const ev = r.data.events;
+  // status: start_service(1000)/complete_service(3000); user_complaint(2000) 去重跳过
+  assert.strictEqual(ev.filter((e) => e.type === 'status').length, 2);
+  assert.strictEqual(ev.filter((e) => e.type === 'complaint').length, 1);
+  assert.strictEqual(ev.filter((e) => e.type === 'money').length, 1);
+  assert.strictEqual(ev.filter((e) => e.type === 'milestone').length, 1);
+  assert.strictEqual(ev.filter((e) => e.type === 'urge').length, 1);
+  for (let i = 1; i < ev.length; i++) assert.ok(ev[i - 1].at >= ev[i].at, '应按时间倒序');
+  const raw = JSON.stringify(r);
+  assert.ok(raw.indexOf(USER) < 0 && raw.indexOf(PARTNER) < 0, '不应外显 openid');
+});
+
+// 16. timeline: 超过 50 条 → 仅返回最近 50
+test('timeline: 超过 50 条 → 仅返回最近 50', async () => {
+  const logs = {};
+  for (let i = 0; i < 80; i++) {
+    logs['l' + i] = { order_id: OID, from_status: 'S3', to_status: 'S3', action: 'start_service', operator: PARTNER, created_at: i, is_deleted: false };
+  }
+  const sdk = makeSdk({ openid: USER, store: Object.assign(tlStore(), { order_status_log: logs }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'timeline', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.events.length, 50);
+  assert.ok(r.data.total > 50);
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });
