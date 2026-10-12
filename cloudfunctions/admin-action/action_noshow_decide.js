@@ -95,8 +95,17 @@ async function no_show_decide(ctx) {
     }
   }
   if (rpt.order_id) {
+    // 解冻前确认该单没有其他在途申诉(双方各可报 1 条) + 记录争议正交位(dispute_state/resolved)
+    const othersR = await col('no_show_report').where({
+      order_id: rpt.order_id, status: _.in([REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE]), is_deleted: _.neq(true)
+    }).limit(5).get().catch(() => ({ data: [] }));
+    const others = (othersR.data || []).filter((x) => x._id !== report_id);
     try {
-      await col('order_main').where({ _id: rpt.order_id }).update({ data: { frozen: false, updated_at: now } });
+      await col('order_main').where({ _id: rpt.order_id }).update({
+        data: others.length
+          ? { updated_at: now }
+          : { frozen: false, dispute_state: 'resolved', dispute_handled_at: now, updated_at: now }
+      });
     } catch (e) {}
   }
   const noticeTo = async (to, title, body) => {

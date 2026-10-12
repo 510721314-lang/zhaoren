@@ -132,13 +132,15 @@ async function complaint_withdraw(ctx) {
 }
 
 async function no_show_report_submit(ctx) {
-  const { event, order_id, openid, getOrder, getConfig, noShowCfg, roleOf, canSubmitReport, checkText, col, _, wxCtx, db, log, REPORT_STATUS, defenseDeadlineOf, writeNotice, writeAudit } = ctx;
+  const { event, order_id, openid, getOrder, getConfig, noShowCfg, roleOf, isFrozen, canSubmitReport, checkText, col, _, wxCtx, db, log, REPORT_STATUS, defenseDeadlineOf, writeNotice, writeAudit } = ctx;
   const { reason, reason_type, evidence_file_ids } = event;
   const order = await getOrder(order_id);
   const config = await getConfig();
   const cfg = noShowCfg(config);
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+  // 冻结位唯一: 已有在途争议/申诉(投诉或对方爽约申诉)时不可再发起 —— 对齐投诉的 isFrozen 门(:20)
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可提交爽约申诉' };
   const gate = canSubmitReport(order, Date.now(), cfg);
   if (!gate.ok) return { ok: false, code: gate.code, msg: gate.msg };
   const reasonText = String(reason || '').trim();
@@ -162,6 +164,14 @@ async function no_show_report_submit(ctx) {
   const now = Date.now();
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
+  // 原子抢占冻结位(条件写): 并发双报/与对方同时发起时只有一个能拿到, 且顺带落实争议正交位
+  // (先例: admin-action/action_dispute_handle.js:67-70 的条件更新 + stats.updated 断言)
+  const freeze = await col('order_main')
+    .where({ _id: order_id, frozen: _.neq(true) })
+    .update({ data: { frozen: true, dispute_state: 'open', dispute_type: 'no_show', dispute_opened_at: now, updated_at: now } });
+  if (!freeze.stats || freeze.stats.updated !== 1) {
+    return { ok: false, code: 'oa_order_frozen', msg: '订单已有在途争议/申诉,暂不可提交' };
+  }
   const doc = {
     order_id, order_no: order.order_no || '',
     reporter_openid: openid, reporter_role: role,
@@ -178,11 +188,14 @@ async function no_show_report_submit(ctx) {
     reportId = (addRes && addRes._id) || '';
   } catch (e) {
     log.d(`no_show_report add fail: ${e.message}`);
+    // 补偿: 已抢占的冻结位必须回滚, 否则订单被永久卡住(先例 admin-action/action_dispute_handle.js:82-84)
+    try {
+      await col('order_main').where({ _id: order_id }).update({
+        data: { frozen: false, dispute_state: 'none', dispute_type: '', dispute_opened_at: 0, updated_at: Date.now() }
+      });
+    } catch (e2) { log.d(`no_show freeze compensate fail: ${e2.message}`); }
     return { ok: false, code: 'no_show_submit_fail', msg: '提交失败,请稍后重试' };
   }
-  try {
-    await col('order_main').where({ _id: order_id }).update({ data: { frozen: true, updated_at: now } });
-  } catch (e) { log.d(`no_show freeze fail: ${e.message}`); }
   await writeNotice({
     to_openid: target, order_id, type: 'no_show_report',
     title: '对方提交了爽约申诉',
@@ -285,8 +298,17 @@ async function no_show_report_withdraw(ctx) {
   }
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
+  // 解冻前确认该单没有其他在途申诉(双方各可报 1 条; 撤回占配额但不应替对方解冻) + 记录争议正交位
+  const othersR = await col('no_show_report').where({
+    order_id: report.order_id, status: _.in([REPORT_STATUS.RECEIVED, REPORT_STATUS.DEFENSE]), is_deleted: _.neq(true)
+  }).limit(5).get().catch(() => ({ data: [] }));
+  const others = (othersR.data || []).filter((x) => x._id !== report_id);
   try {
-    await col('order_main').where({ _id: report.order_id }).update({ data: { frozen: false, updated_at: now } });
+    await col('order_main').where({ _id: report.order_id }).update({
+      data: others.length
+        ? { updated_at: now }
+        : { frozen: false, dispute_state: 'resolved', dispute_handled_at: now, updated_at: now }
+    });
   } catch (e) { log.d(`no_show unfreeze fail: ${e.message}`); }
   await writeNotice({
     to_openid: report.target_openid, order_id: report.order_id, type: 'no_show_report',

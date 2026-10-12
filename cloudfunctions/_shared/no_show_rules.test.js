@@ -51,8 +51,13 @@ test('申诉: 非 S2/S3.5(如 S3 履约中/S5 已完成)拒绝', () => {
     assert.strictEqual(r.code, 'no_show_bad_status');
   }
 });
-test('申诉: 开始时间未到 → 放行(2026-10-10 口径变更: S2 付款后即可申诉)', () => {
+test('申诉: 开始时间未到 → 拒绝(2026-10-12 恢复下界)', () => {
   const r = canSubmitReport({ status: 'S2', start_time: NOW + HOUR_MS }, NOW, noShowCfg({}));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'no_show_not_started');
+});
+test('申诉: 恰好到达开始时间 → 放行(下界边界)', () => {
+  const r = canSubmitReport({ status: 'S2', start_time: NOW }, NOW, noShowCfg({}));
   assert.strictEqual(r.ok, true);
 });
 test('申诉: 缺 start_time → 拒绝', () => {

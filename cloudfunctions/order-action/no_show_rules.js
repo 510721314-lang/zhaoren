@@ -5,7 +5,7 @@
 //   cloudfunctions/admin-action/no_show_rules.js
 // 单测: 同目录 no_show_rules.test.js (node --test)
 // 口径来源: docs/design-20261007-pricing-noshow-flows.md §2.2-2.5 / §2.11
-//   (N1 可申诉=S2/S3.5(2026-10-10 起不再要求开始时间已过); N2 逾期不自动关闭; N3 滚动窗口分角色计数;
+//   (N1 可申诉=S2/S3.5 且「约定开始时间已过」(2026-10-12 恢复下界, 见 canSubmitReport); N2 逾期不自动关闭; N3 滚动窗口分角色计数;
 //    N6 同订单单方上限; N10 全部数值后台可配, 服务端读实配值)
 //   N8 变更(2026-10-10): 撤回通道由「一期不做」变更为「做」→ 新增 WITHDRAWN 状态与 canWithdrawReport
 //   实现方案: .trae/documents/3B爽约申诉-撤销能力-实现方案.md
@@ -36,9 +36,10 @@ function noShowCfg(config) {
   };
 }
 
-// 可申诉资格(N1, 2026-10-10 口径变更): 订单须为 S2(已支付未开始)/S3.5(履约中断), 且在「约定开始时间
-//   + reportWindowH 小时」时限内。**已取消「约定开始时间未到不可申诉」限制 → S2 付款后即可发起申诉**
-//   (原 N1 的防预告式申诉限制经用户确认放宽; 变更后无需再等开始时间)
+// 可申诉资格(N1, 2026-10-12 口径定稿): 订单须为 S2(已支付未开始)/S3.5(履约中断), 且落在
+//   「约定开始时间 ≤ now ≤ 约定开始时间 + reportWindowH 小时」窗口内。
+//   2026-10-10 曾放宽为「S2 付款后即可申诉」(去掉下界), 但那时「开始时间未到」谈不上爽约,
+//   且与上报页文案「约定开始时间已过…」矛盾 → 2026-10-12 恢复下界(用户拍板), 前后端口径一致。
 function canSubmitReport(order, now, cfg) {
   const c = cfg || noShowCfg(null);
   if (!order) return { ok: false, code: 'no_show_order_missing', msg: '订单不存在' };
@@ -47,6 +48,9 @@ function canSubmitReport(order, now, cfg) {
   }
   const start = Number(order.start_time) || 0;
   if (!start) return { ok: false, code: 'no_show_no_start', msg: '订单缺少约定开始时间' };
+  if (now < start) {
+    return { ok: false, code: 'no_show_not_started', msg: '约定开始时间未到,暂不可提交爽约申诉' };
+  }
   if (now > start + c.reportWindowH * HOUR_MS) {
     return { ok: false, code: 'no_show_window_closed', msg: `已超过申诉时限(约定开始时间后 ${c.reportWindowH} 小时内可提交)` };
   }
