@@ -159,6 +159,7 @@ Page({
     // 爽约申诉(第三批 3B): 本订单申诉列表 + 是否可发起申诉(服务端二次校验为准)
     noShowReports: [],
     canNoShowReport: false,
+    noShowNotStarted: false,   // 约定开始时间未到: 不显示上报按钮, 改显示占位提示
     // 联系信息(过渡版, 2026-10-09): {who, masked, note} | null, 接单方且已支付后展示
     contactDisplay: null,
     // 订单动态时间线(2026-10-12): 全事件族(状态/投诉/爽约/改期/加时/里程碑/支付退款/催办), 双方可见
@@ -236,7 +237,7 @@ Page({
   fetchNoShow(d) {
     const st = normalizeStatus(d.status);
     if (['S2', 'S3', 'S3_5', 'S4', 'S5', 'S8', 'S9'].indexOf(st) < 0) {
-      this.setData({ noShowReports: [], canNoShowReport: false });
+      this.setData({ noShowReports: [], canNoShowReport: false, noShowNotStarted: false });
       return;
     }
     callCloud('order-action', { action: 'no_show_report_detail', order_id: this.__orderId }).then((r) => {
@@ -253,15 +254,28 @@ Page({
         return Object.assign({}, x, {
           status_text: statusText,
           deadline_text: dl ? `${pad(dl.getMonth() + 1)}-${pad(dl.getDate())} ${pad(dl.getHours())}:${pad(dl.getMinutes())}` : '',
-          reason_display: (x.reason_type ? `【${x.reason_type}】` : '') + (x.reason || '')
+          reason_display: (x.reason_type ? `【${x.reason_type}】` : '') + (x.reason || ''),
+          // 证据图片(fileID 可直接用于 <image src>) 与各环节时间(付款后信息全量展示)
+          evidence: Array.isArray(x.evidence_file_ids) ? x.evidence_file_ids : [],
+          defense_evidence: Array.isArray(x.defense_file_ids) ? x.defense_file_ids : [],
+          defense_at_text: x.defense_at ? this.__fmtNoticeTime(x.defense_at) : '',
+          decided_at_text: x.decided_at ? this.__fmtNoticeTime(x.decided_at) : '',
+          withdrawn_at_text: x.withdrawn_at ? this.__fmtNoticeTime(x.withdrawn_at) : ''
         });
       });
       const myReports = (r.data.list || []).filter((x) => x.my_role === 'reporter').length;
       const statusOk = st === 'S2' || st === 'S3_5';
-      // 2026-10-10 口径变更: 去掉「必须已到约定开始时间」→ S2 付款后即可申诉(至 开始时间+48h 截止)
-      const inWindow = start > 0 && now <= start + (Number(ns.reportWindowH) || 48) * 3600000;
+      // 2026-10-12 口径定稿(与后端 canSubmitReport 一致): 约定开始时间已过 且 未超 开始时间+reportWindowH;
+      // 开始时间未到谈不上爽约 → 按钮不出现(改用占位提示), 后端 no_show_not_started 兜底
+      const notStarted = start > 0 && now < start;
+      const inWindow = start > 0 && now >= start && now <= start + (Number(ns.reportWindowH) || 48) * 3600000;
       const underLimit = myReports < (Number(ns.maxPerOrder) || 1);
-      this.setData({ noShowReports: list, canNoShowReport: statusOk && inWindow && underLimit });
+      const notFrozen = !d.frozen;   // 冻结位唯一: 在途争议/申诉期间不再提供上报入口(后端 oa_order_frozen 兜底)
+      this.setData({
+        noShowReports: list,
+        noShowNotStarted: statusOk && notStarted && underLimit && notFrozen,
+        canNoShowReport: statusOk && inWindow && underLimit && notFrozen
+      });
     }).catch(() => {});
   },
 
@@ -294,6 +308,14 @@ Page({
       url: `/pages-v2/pkg-low/no-show-report/no-show-report?mode=submit&orderId=${this.__orderId}`,
       fail: () => wx.showToast({ title: '页面跳转失败', icon: 'none' })
     });
+  },
+
+  // 爽约证据图片预览(2026-10-12): 证据用云存储 fileID, 直接 wx.previewImage
+  onPreviewEvidence(e) {
+    const cur = (e.currentTarget.dataset.src) || '';
+    const list = e.currentTarget.dataset.list || [];
+    if (!cur) return;
+    wx.previewImage({ current: cur, urls: (Array.isArray(list) && list.length) ? list : [cur] });
   },
 
   // 被诉方举证(跳举证页)
@@ -414,12 +436,68 @@ Page({
       : (mcAt >= mrAt
         ? { type: 'confirmed', text: '改期已确认，服务时间已更新' }
         : { type: 'rejected', text: '改期申请已被拒绝，服务时间不变' });
+    // 投诉详情卡(2026-10-12): 云端 detail 回传 complaint(未发起过为 null), 时间统一格式化为 MM-DD HH:mm
+    const cRaw = d.complaint || null;
+    const fmtTs = (ts) => {
+      const t = Number(ts);
+      if (!t) return '';
+      const dd = new Date(t);
+      if (isNaN(dd.getTime())) return '';
+      return `${pad(dd.getMonth() + 1)}-${pad(dd.getDate())} ${pad(dd.getHours())}:${pad(dd.getMinutes())}`;
+    };
+    const complaint = cRaw ? {
+      status: cRaw.status || 'open',
+      status_text: cRaw.status === 'withdrawn' ? '已撤回' : (cRaw.status === 'resolved' ? '平台已处理' : '处理中'),
+      by_text: `${cRaw.mine ? '我' : '对方'}（${cRaw.by_role === 'user' ? '发单人' : '耍伴'}）`,
+      reason: cRaw.reason || '',
+      at_text: fmtTs(cRaw.at),
+      withdrawn_at_text: fmtTs(cRaw.withdrawn_at),
+      handled_at_text: fmtTs(cRaw.handled_at),
+      result_note: cRaw.result_note || '',
+      refund_text: Number(cRaw.refund_fen) > 0 ? (Number(cRaw.refund_fen) / 100).toFixed(2) : ''
+    } : null;
+
+    // 付款后信息全量展示(2026-10-12): 资金明细 / 退款 / 争议正交位 / 费用明细(老订单无这些字段 → 全 null 安全)
+    const yuan = (fen) => (Number(fen || 0) / 100).toFixed(2);
+    const SETTLE_TEXT = { pending: '待结算', ready: '可结算', done: '已结算' };
+    const REFUND_SRC = { dispute: '争议裁决退款', cancel: '订单取消退款', no_show: '爽约赔付', partner: '耍伴赔付', system: '平台退款' };
+    const DISPUTE_TYPE = { complaint: '投诉', no_show: '爽约申诉', refund: '退款争议' };
+    const fRaw = d.fund || null;
+    const rRaw = d.refund || null;
+    const dvRaw = d.dispute || null;
+    const feeRaw = d.fees || null;
+    const money = (fRaw && Number(fRaw.paid_fen) > 0) ? {
+      paid_text: yuan(fRaw.paid_fen),
+      refunded_text: yuan(fRaw.refunded_fen),
+      settle_text: SETTLE_TEXT[fRaw.settle_state] || '',
+      settled_at_text: fmtTs(fRaw.settled_at)
+    } : null;
+    const refundView = rRaw ? {
+      amount_text: yuan(rRaw.fen),
+      source_text: REFUND_SRC[rRaw.source] || rRaw.source || '',
+      at_text: fmtTs(rRaw.at),
+      no: rRaw.no || ''
+    } : null;
+    const disputeView = (dvRaw && dvRaw.state === 'open') ? {
+      type_text: DISPUTE_TYPE[dvRaw.type] || dvRaw.type || '争议',
+      opened_at_text: fmtTs(dvRaw.opened_at)
+    } : null;
+    const feesView = (feeRaw && (Number(feeRaw.fee_fen) > 0 || Number(feeRaw.partner_income_fen) > 0 || feeRaw.aa_tier)) ? {
+      fee_text: yuan(feeRaw.fee_fen),
+      income_text: yuan(feeRaw.partner_income_fen),
+      aa_tier: feeRaw.aa_tier || ''
+    } : null;
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
       order_no: d.order_no,
       status: normalizeStatus(d.status),
       my_role: d.role || '',
+      complaint,                                            // 投诉详情(原因全文/发起方/状态/处理结论/退款)
+      money,                                                // 资金明细(实付/已退/结算状态)
+      refund_view: refundView,                              // 退款(含非投诉路径的 S7 自助退)
+      dispute_view: disputeView,                            // 争议处理中(投诉/爽约申诉) + 开启时间
+      fees_view: feesView,                                  // 费用明细(平台服务费/耍伴收入/AA 档)
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
       frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
       urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)

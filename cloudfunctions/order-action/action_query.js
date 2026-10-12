@@ -92,6 +92,48 @@ async function detail(ctx) {
     logs: Array.isArray(order.urge_logs) ? order.urge_logs.slice(-3) : []
   };
 
+  // 投诉详情(2026-10-12): 仅回传展示所需字段, 不泄露 dispute_handled_by(管理员 openid, 与 timeline 口径一致)
+  // status 派生顺序: 已撤回(撤回也会置 dispute_state=resolved, 必须先判) → 平台已处理 → 处理中
+  const complaintInfo = (order.complaint_at || order.complaint_reason) ? {
+    mine: order.complaint_by === openid,
+    by_role: order.complaint_by === order.user_openid ? 'user' : 'partner',
+    reason: order.complaint_reason || '',
+    at: Number(order.complaint_at) || 0,
+    withdrawn_at: Number(order.complaint_withdrawn_at) || 0,
+    status: (Number(order.complaint_withdrawn_at) || 0) > 0
+      ? 'withdrawn'
+      : (order.dispute_state === 'resolved' ? 'resolved' : 'open'),
+    handled_at: Number(order.dispute_handled_at) || 0,
+    result_note: order.dispute_state === 'resolved' ? String(order.admin_note || '').slice(0, 200) : '',
+    refund_fen: Number(order.refund_fen) || 0
+  } : null;
+
+  // 付款后信息全量展示(2026-10-12): 资金/退款/争议/费用明细 —— 一律不外传 openid(refund_by/dispute_handled_by 不返回)
+  const fund = order.fund ? {
+    paid_fen: Number(order.fund.paid_fen) || 0,
+    refunded_fen: Number(order.fund.refunded_fen) || 0,
+    settle_state: String(order.fund.settle_state || ''),
+    settled_at: Number(order.fund.settled_at) || 0
+  } : null;
+  const refundFen = Number(order.refund_fen) || 0;
+  const refund = refundFen > 0 ? {
+    fen: refundFen,
+    no: String(order.refund_no || ''),
+    source: String(order.refund_source || ''),
+    at: Number(order.refunded_at) || 0
+  } : null;
+  const dispute = {
+    state: String(order.dispute_state || 'none'),
+    type: String(order.dispute_type || ''),
+    opened_at: Number(order.dispute_opened_at) || 0
+  };
+  const fees = {
+    total_fen: Number(order.total_fen) || 0,
+    fee_fen: Number(order.fee_fen) || 0,
+    partner_income_fen: Number(order.partner_income_fen) || 0,
+    aa_tier: String(order.aa_tier || '')
+  };
+
   return {
     ok: true,
     data: {
@@ -131,6 +173,8 @@ async function detail(ctx) {
       pending_extend: order.pending_extend || null,
       // 撤回投诉入口(仅发起人、且平台未受理=订单仍 S10.5 时可见); SOS 的 help_flag 与本流程无关, 不复用
       can_withdraw_complaint: order.status === 'S10.5' && order.complaint_by === openid,
+      complaint: complaintInfo,
+      fund, refund, dispute, fees,
       // 争议/申诉冻结位(2026-10-12): 前端据此隐藏「发起投诉」等推进类入口(D2: 谁先发起谁冻结)
       frozen: !!order.frozen,
       urge,

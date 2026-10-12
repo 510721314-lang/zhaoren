@@ -93,12 +93,55 @@
       </view>
     </view>
 
+    <!-- 投诉详情(2026-10-12): 原因全文/发起方/状态/平台结论/退款, 双方可见; 复用爽约申诉卡的状态色 -->
+    <view class="od__card" wx:if="{{order.complaint}}">
+      <view class="od__card-title">投诉详情</view>
+      <view class="od__nsitem-head">
+        <text class="od__nsitem-role">{{order.complaint.by_text}}发起</text>
+        <text class="od__nsitem-status {{order.complaint.status === 'withdrawn' ? 'is-withdrawn' : (order.complaint.status === 'resolved' ? 'is-rejected' : 'is-pending')}}">{{order.complaint.status_text}}</text>
+      </view>
+      <view class="od__nsitem-reason" wx:if="{{order.complaint.reason}}">{{order.complaint.reason}}</view>
+      <view class="od__row" wx:if="{{order.complaint.at_text}}"><text class="od__label">发起时间</text><text class="od__val">{{order.complaint.at_text}}</text></view>
+      <view class="od__row" wx:if="{{order.complaint.withdrawn_at_text}}"><text class="od__label">撤回时间</text><text class="od__val">{{order.complaint.withdrawn_at_text}}</text></view>
+      <view class="od__row" wx:if="{{order.complaint.result_note}}"><text class="od__label">平台处理</text><text class="od__val">{{order.complaint.result_note}}</text></view>
+      <view class="od__row" wx:if="{{order.complaint.handled_at_text}}"><text class="od__label">处理时间</text><text class="od__val">{{order.complaint.handled_at_text}}</text></view>
+      <view class="od__row" wx:if="{{order.complaint.refund_text}}"><text class="od__label">退款金额</text><text class="od__val">¥{{order.complaint.refund_text}}</text></view>
+    </view>
+
+    <!-- 争议处理中(2026-10-12): 投诉/爽约申诉在途时的正交位(dispute_state=open), 双方可见 -->
+    <view class="od__card" wx:if="{{order.dispute_view}}">
+      <view class="od__card-title">争议处理中</view>
+      <view class="od__row"><text class="od__label">类型</text><text class="od__val">{{order.dispute_view.type_text}}</text></view>
+      <view class="od__row" wx:if="{{order.dispute_view.opened_at_text}}"><text class="od__label">发起时间</text><text class="od__val">{{order.dispute_view.opened_at_text}}</text></view>
+      <view class="od__row"><text class="od__label">说明</text><text class="od__val">争议期间订单暂停推进,平台介入处理</text></view>
+    </view>
+
     <!-- O7 保险卡 -->
     <view class="od__card" wx:if="{{order.insurance && order.insurance.policy_no}}">
       <view class="od__card-title">保险保障</view>
       <view class="od__row"><text class="od__label">保单号</text><text class="od__val">{{order.insurance.policy_no}}</text></view>
       <view class="od__row"><text class="od__label">保额</text><text class="od__val">{{insuranceWan}}万元</text></view>
       <view class="od__row"><text class="od__label">状态</text><text class="od__val od__val--success">{{order.insurance.status === 'insured' ? '生效中' : '待生效'}}</text></view>
+    </view>
+
+    <!-- 资金明细(2026-10-12 付款后信息全量展示): 实付/已退/结算状态 + 退款(含非投诉路径的 S7 自助退) -->
+    <view class="od__card" wx:if="{{order.money || order.refund_view}}">
+      <view class="od__card-title">资金明细</view>
+      <view class="od__row" wx:if="{{order.money}}"><text class="od__label">实付金额</text><text class="od__val">¥{{order.money.paid_text}}</text></view>
+      <view class="od__row" wx:if="{{order.money && order.money.refunded_text !== '0.00'}}"><text class="od__label">已退金额</text><text class="od__val">¥{{order.money.refunded_text}}</text></view>
+      <view class="od__row" wx:if="{{order.money && order.money.settle_text}}"><text class="od__label">结算状态</text><text class="od__val">{{order.money.settle_text}}</text></view>
+      <view class="od__row" wx:if="{{order.money && order.money.settled_at_text}}"><text class="od__label">结算时间</text><text class="od__val">{{order.money.settled_at_text}}</text></view>
+      <view class="od__row" wx:if="{{order.refund_view}}"><text class="od__label">退款金额</text><text class="od__val">¥{{order.refund_view.amount_text}}</text></view>
+      <view class="od__row" wx:if="{{order.refund_view && order.refund_view.source_text}}"><text class="od__label">退款来源</text><text class="od__val">{{order.refund_view.source_text}}</text></view>
+      <view class="od__row" wx:if="{{order.refund_view && order.refund_view.at_text}}"><text class="od__label">退款时间</text><text class="od__val">{{order.refund_view.at_text}}</text></view>
+    </view>
+
+    <!-- 费用明细(付款后信息全量展示): 平台服务费 / 耍伴收入 / AA 档位 -->
+    <view class="od__card" wx:if="{{order.fees_view}}">
+      <view class="od__card-title">费用明细</view>
+      <view class="od__row"><text class="od__label">平台服务费</text><text class="od__val">¥{{order.fees_view.fee_text}}</text></view>
+      <view class="od__row"><text class="od__label">耍伴收入</text><text class="od__val">¥{{order.fees_view.income_text}}</text></view>
+      <view class="od__row" wx:if="{{order.fees_view.aa_tier}}"><text class="od__label">AA 档位</text><text class="od__val">{{order.fees_view.aa_tier}}</text></view>
     </view>
 
     <!-- O3.5 爽约申诉(第三批 3B): 处理中/已裁定 + 被诉方举证入口 -->
@@ -110,7 +153,25 @@
           <text class="od__nsitem-status {{item.status === 'withdrawn' ? 'is-withdrawn' : (item.status === 'decided' ? (item.verdict === 'upheld' ? 'is-upheld' : 'is-rejected') : 'is-pending')}}">{{item.status_text}}</text>
         </view>
         <view class="od__nsitem-reason" wx:if="{{item.reason_display}}">{{item.reason_display}}</view>
+        <!-- 申诉方证据(2026-10-12): fileID 直接渲染, 点击预览 -->
+        <view class="od__evi" wx:if="{{item.evidence.length > 0}}">
+          <text class="od__evi-label">申诉证据</text>
+          <view class="od__evi-list">
+            <image class="od__evi-img" wx:for="{{item.evidence}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" data-src="{{img}}" data-list="{{item.evidence}}" bindtap="onPreviewEvidence" />
+          </view>
+        </view>
+        <!-- 被诉方举证(含时间) -->
+        <view class="od__evi" wx:if="{{item.defense_evidence.length > 0}}">
+          <text class="od__evi-label">对方举证{{item.defense_at_text ? ' · ' + item.defense_at_text : ''}}</text>
+          <view class="od__evi-list">
+            <image class="od__evi-img" wx:for="{{item.defense_evidence}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" data-src="{{img}}" data-list="{{item.defense_evidence}}" bindtap="onPreviewEvidence" />
+          </view>
+        </view>
         <view class="od__nsitem-sub" wx:if="{{item.status !== 'decided' && item.status !== 'withdrawn'}}">举证截止：{{item.deadline_text}}{{item.defense_overdue ? '（已逾期，平台可直接裁定）' : ''}}</view>
+        <view class="od__nsitem-sub" wx:if="{{item.defense_reason}}">对方说明：{{item.defense_reason}}</view>
+        <view class="od__nsitem-sub" wx:if="{{item.decided_at_text}}">裁定时间：{{item.decided_at_text}}</view>
+        <view class="od__nsitem-sub" wx:if="{{item.decided_reason}}">平台裁定：{{item.decided_reason}}</view>
+        <view class="od__nsitem-sub" wx:if="{{item.withdrawn_at_text}}">撤回时间：{{item.withdrawn_at_text}}</view>
         <button class="od__btn od__btn--primary" wx:if="{{item.can_defense}}" data-id="{{item.report_id}}" bindtap="onNoShowDefense" hover-class="btn-press">提交举证</button>
         <button class="od__btn od__btn--ghost" wx:if="{{item.can_withdraw}}" data-id="{{item.report_id}}" bindtap="onNoShowWithdraw" hover-class="btn-press">撤回申诉</button>
       </view>
@@ -163,8 +224,9 @@
         </block>
         <!-- 改期入口: 仅 S2 可发起(2026-10-07 口径; S3 履约中/S3.5 中断均不可改期) -->
         <button class="od__btn od__btn--ghost" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
-        <!-- 报告爽约(第三批 3B): 约定开始时间已过且时限内可见; 服务端二次校验 S2/S3.5+时限 -->
+        <!-- 报告爽约(第三批 3B): 约定开始时间已过且时限内可见; 服务端二次校验 S2/S3.5+时限+时间下界 -->
         <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
+        <view class="od__after-sale-tip" wx:if="{{noShowNotStarted}}">约定开始时间后可报告爽约</view>
         <!-- 发起投诉(D1 放开 2026-10-12): S2 起全周期可发起, 双方一致; 服务端二次校验状态白名单 -->
         <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
@@ -224,6 +286,7 @@
         </view>
         <!-- 报告爽约(第三批 3B): S3.5 履约中断可申诉 -->
         <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
+        <view class="od__after-sale-tip" wx:if="{{noShowNotStarted}}">约定开始时间后可报告爽约</view>
         <!-- 发起投诉(D1 放开 2026-10-12): 履约中断争议入口 -->
         <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
@@ -276,7 +339,7 @@
 
       <!-- S10.5 争议处理中（PRD 3.5.2 nextActions: arbitration） -->
       <block wx:elif="{{order.status === 'S10_5'}}">
-        <view class="od__terminated-tip">{{statusInfo.name}}</view>
+        <!-- 状态名已由上方「投诉详情」卡承载, 此处只留时限提示 + 撤回入口(避免同页双份文案) -->
         <view class="od__after-sale-tip">{{statusInfo.timeoutText}}</view>
         <button class="od__btn od__btn--ghost" wx:if="{{order.can_withdraw_complaint}}" bindtap="onComplaintWithdraw" hover-class="btn-press">撤回投诉</button>
       </block>
