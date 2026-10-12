@@ -23,7 +23,7 @@
 **入口契约覆盖（未参与拆分的独立函数，A/B 不适用）**：
 | 函数 | 文件 | 例数 |
 |---|---|---|
-| evaluation-submit（#15 评价） | `_shared/evaluation-submit.entry.test.js` | 10 |
+| evaluation-submit（#15 评价） | `_shared/evaluation-submit.entry.test.js` | 11 |
 | order-timer（8 类系统态巡检） | `_shared/order-timer.entry.test.js` | 11 |
 | payment-mock（#22 结算 balance_info） | `_shared/payment-mock.entry.test.js` | +4 |
 | CAS 未抢到 action 级分支 | `order-action.entry.test.js` + `evaluation-submit.entry.test.js` | +4 |

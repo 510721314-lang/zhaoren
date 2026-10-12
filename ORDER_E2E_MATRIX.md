@@ -35,7 +35,7 @@
 | 21 | 爽约裁定 | * | 受害方退款通道、赔付 10% | ✅ | ✅upheld | ✅ | ✅submit/defense/withdraw |
 | 22 | 结算 | S8/S9/S10 | 余额=Σ基数−已提现 | ✅ | — | — | ✅entry(balance_info 可提现口径+到账回写) |
 
-> 注：#15 评价位于独立云函数 `evaluation-submit`、系统态定时任务位于 `order-timer`、#22 结算位于 `payment-mock`（均未参与 index.js 拆分，A/B 等价不适用），以入口契约测试覆盖（`evaluation-submit.entry.test.js` 10 例 + `order-timer.entry.test.js` 11 例 + `payment-mock.entry.test.js` 结算 4 例）。
+> 注：#15 评价位于独立云函数 `evaluation-submit`、系统态定时任务位于 `order-timer`、#22 结算位于 `payment-mock`（均未参与 index.js 拆分，A/B 等价不适用），以入口契约测试覆盖（`evaluation-submit.entry.test.js` 11 例 + `order-timer.entry.test.js` 11 例 + `payment-mock.entry.test.js` 结算 4 例）。
 
 ## 二、正交/并发/兼容异常
 
