@@ -83,6 +83,23 @@ async function config_set(ctx) {
   }
   if (citiesTouched) { before.city_enabled = config.city_enabled || []; patch.city_enabled = cities; }
 
+  // 巡检豁免项(批2.1): 全量替换; 元素 "type" 或 "type:reason"(reason 精确匹配 platform_event.payload.reason)。
+  // 空数组 = 恢复 order-timer 内置默认; 供运维抑制「机器噪声/业务兜底」类 P0/P1 播报。
+  if (event.error_scan_exempt_types !== undefined) {
+    if (!Array.isArray(event.error_scan_exempt_types)) {
+      return fail('config_bad_scan_exempt', 'error_scan_exempt_types 须为数组');
+    }
+    const cleaned = event.error_scan_exempt_types.map((x) => String(x).trim()).filter(Boolean);
+    if (cleaned.length > 50) return fail('config_bad_scan_exempt', '巡检豁免项过多(>50)');
+    for (const it of cleaned) {
+      if (it.length > 60 || !/^[a-z0-9_]+(:[a-z0-9_]+)?$/.test(it)) {
+        return fail('config_bad_scan_exempt', `巡检豁免项格式不符(type 或 type:reason): ${it}`);
+      }
+    }
+    before.error_scan_exempt_types = config.error_scan_exempt_types || [];
+    patch.error_scan_exempt_types = cleaned;
+  }
+
   const intFields = CONFIG_SCHEMA
     .filter((s) => s.t === 'int')
     .map((s) => [s.f, s.min, s.max]);

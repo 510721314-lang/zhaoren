@@ -81,27 +81,47 @@ async function casStatus(orderId, expectStatus, patch, event) {
 // 游标推进天然去重: 持续存在的旧异常只在进入窗口那一刻报一次, 不逐 5 分钟重复轰炸。
 // 巡检项: ①P0/P1 平台事件 ②audit_log result=fail ③卡死提现(processing 超 48h) ④网关鉴权失败突增(窗口≥3 次, 防单次误输噪声)
 //
-// 巡检豁免(2026-10-12): 以下 P0/P1 属「机器噪声 / 业务流程自身兜底」而非系统故障, 不再计入巡检异常播报
-//   · admin_probe + reason=no_openid —— 无身份的机器调用(云端测试面板、运维探针、云函数互调),
+// 巡检豁免(批2.1 配置化): 豁免项提到 admin_config.error_scan_exempt_types(字符串数组), 缺省用内置默认(等价改造前行为)。
+//   元素格式: "type"(豁免该类型全部) 或 "type:reason"(仅豁免 payload.reason 匹配者)。
+//   内置默认: ①admin_probe:no_openid —— 无身份的机器调用(云端测试面板/运维探针/云函数互调),
 //     不是可疑用户行为(真实越权探测是 reason=not_in_whitelist, 仍照常告警);
-//   · s4_stale_escalate —— order-timer 自身「S4 裁期届满 → 平台介入」的兜底推进, 属正常业务流转。
-// 保留告警: safety_sos(P0 真实安全求助, 运营唯一主动触达) 等
-function isScanExemptEvent(e) {
-  if (!e) return false;
-  if (e.type === 'admin_probe' && String((e.payload || {}).reason || '') === 'no_openid') return true;
-  if (e.type === 's4_stale_escalate') return true;
-  return false;
+//     ②s4_stale_escalate —— order-timer 自身「S4 裁期届满 → 平台介入」的兜底推进, 属正常业务流转。
+//   保留告警: safety_sos(P0 真实安全求助, 运营唯一主动触达) 等。
+//   运维改配置: config_set 传 error_scan_exempt_types(数组, 全量替换); 空数组=全部恢复告警。
+const DEFAULT_SCAN_EXEMPT = ['admin_probe:no_openid', 's4_stale_escalate'];
+function scanExemptList(cfg) {
+  const raw = cfg && cfg.error_scan_exempt_types;
+  const list = (Array.isArray(raw) && raw.length) ? raw : DEFAULT_SCAN_EXEMPT;
+  return list.map((x) => String(x)).filter(Boolean);
 }
+function isScanExemptEvent(e, exempt) {
+  if (!e) return false;
+  const type = String(e.type || '');
+  const reason = String((e.payload || {}).reason || '');
+  return exempt.some((rule) => {
+    const i = rule.indexOf(':');
+    const t = i < 0 ? rule : rule.slice(0, i);
+    const r = i < 0 ? '' : rule.slice(i + 1);
+    if (t !== type) return false;
+    return r === '' ? true : r === reason;
+  });
+}
+
+// 分级与收敛(批2.2):
+//   severity —— 含 P0 平台事件 → P0(立即推, 不受收敛抑制); 其余 → P1(合并计数)。
+//   收敛 —— 同一批异常签名连续两轮相同 → 静默(不再逐轮轰炸); 但距上次推送 ≥ SCAN_REPUSH_MS 仍重推一次(防运营漏看后彻底静默)。
+const SCAN_REPUSH_MS = 3600 * 1000;
 
 async function errorScan(now, cfg, adminOpenids) {
   const lastAt = Number(cfg.error_scan_last_at) || now - 3600 * 1000;
   const windowStart = Math.max(lastAt, now - 24 * 3600 * 1000);
+  const exempt = scanExemptList(cfg);
   const issues = {};
   // 1. P0/P1 平台事件
   try {
     const r = await col('platform_event').where({ level: _.in(['P0', 'P1']), created_at: _.gt(windowStart) })
       .orderBy('created_at', 'asc').limit(50).get();
-    const list = (r.data || []).filter((e) => !isScanExemptEvent(e));   // 剔除机器噪声/业务兜底事件
+    const list = (r.data || []).filter((e) => !isScanExemptEvent(e, exempt));   // 剔除机器噪声/业务兜底事件
     if (list.length) issues.platform_events = list.map((e) => `${e.level}/${e.type}`);
   } catch (e) { log.d(`error_scan platform_event fail: ${e.message}`); }
   // 2. 审计失败(写操作失败留证; 集中突增通常意味着资金/鉴权链路异常)
@@ -125,24 +145,47 @@ async function errorScan(now, cfg, adminOpenids) {
 
   const issueCount = (issues.platform_events ? issues.platform_events.length : 0)
     + (issues.audit_fails || 0) + (issues.stuck_withdrawals || 0) + (issues.gateway_bad_keys || 0);
+  const hasP0 = (issues.platform_events || []).some((s) => s.indexOf('P0/') === 0);
+  const severity = issueCount > 0 ? (hasP0 ? 'P0' : 'P1') : '';
+  // 异常签名(仅结构化要点, 排序后 join → 与事件先后无关): 用于「同一批连续两轮无变化则静默」
+  const sig = issueCount ? JSON.stringify({
+    pe: (issues.platform_events || []).slice().sort(),
+    af: issues.audit_fails || 0,
+    sw: issues.stuck_withdrawals || 0,
+    gw: issues.gateway_bad_keys || 0
+  }) : '';
+  const lastSig = String(cfg.error_scan_last_sig || '');
+  const lastPushAt = Number(cfg.error_scan_last_push_at) || 0;
+
+  let pushed = false;
   if (issueCount > 0 && adminOpenids.length) {
-    const body = [
-      issues.platform_events ? `P0/P1事件 ${issues.platform_events.length} 条: ${issues.platform_events.slice(0, 5).join(', ')}` : '',
-      issues.audit_fails ? `审计失败 ${issues.audit_fails} 条` : '',
-      issues.stuck_withdrawals ? `卡死提现(>48h在途) ${issues.stuck_withdrawals} 笔` : '',
-      issues.gateway_bad_keys ? `网关鉴权失败突增 ${issues.gateway_bad_keys} 次` : ''
-    ].filter(Boolean).join('; ');
-    await Promise.allSettled(adminOpenids.map((openid) => col('system_notice').add({ data: {
-      to_openid: openid, order_id: '', type: 'error_scan',
-      title: `巡检报告: 发现 ${issueCount} 条异常`,
-      body,
-      action_key: '', action_payload: {},
-      created_at: now, read: false
-    }})));
+    // 推送时机: 签名变化(首次出现/内容变化 → 立即推) 或 距上次推送 ≥1h(防漏看后彻底静默); 其余静默收敛。
+    // 注: P0 与 P1 走同一收敛规则 —— 新出现的 P0 因签名变化即被立即推送, 不会延迟; 持续存在的 P0 也不会每 5 分钟轰炸。
+    const changed = sig !== lastSig;
+    const dueRepush = !changed && (now - lastPushAt >= SCAN_REPUSH_MS);
+    if (changed || dueRepush) {
+      const body = [
+        issues.platform_events ? `P0/P1事件 ${issues.platform_events.length} 条: ${issues.platform_events.slice(0, 5).join(', ')}` : '',
+        issues.audit_fails ? `审计失败 ${issues.audit_fails} 条` : '',
+        issues.stuck_withdrawals ? `卡死提现(>48h在途) ${issues.stuck_withdrawals} 笔` : '',
+        issues.gateway_bad_keys ? `网关鉴权失败突增 ${issues.gateway_bad_keys} 次` : ''
+      ].filter(Boolean).join('; ');
+      await Promise.allSettled(adminOpenids.map((openid) => col('system_notice').add({ data: {
+        to_openid: openid, order_id: '', type: 'error_scan', severity,
+        title: `巡检报告[${severity}]: 发现 ${issueCount} 条异常`,
+        body,
+        action_key: '', action_payload: {},
+        created_at: now, read: false
+      }})));
+      pushed = true;
+    }
   }
   // 游标推进(无论有无异常) + 心跳: 供门禁自观测「巡检是否在跑」(观测断层补丁, 见 docs/verification/tech-review-20261006.md P1)
-  await col('admin_config').doc('global').update({ data: { error_scan_last_at: now, error_scan_heartbeat_at: now, updated_at: now } }).catch(() => {});
-  return { issue_count: issueCount, issues };
+  // 同时落异常签名与上次推送时间, 供下轮收敛判定。
+  const curPatch = { error_scan_last_at: now, error_scan_heartbeat_at: now, updated_at: now, error_scan_last_sig: sig };
+  if (pushed) curPatch.error_scan_last_push_at = now;
+  await col('admin_config').doc('global').update({ data: curPatch }).catch(() => {});
+  return { issue_count: issueCount, severity, issues, pushed, suppressed: issueCount > 0 && !pushed };
 }
 
 // ───────── audit_log 留存清理(P2): 每日 UTC 19 点(≈北京 03:00)删除 90 天前 audit_log ─────────

@@ -29,15 +29,33 @@ if (!fs.existsSync(LEDGER)) {
   process.exit(0);
 }
 
+const ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8'));
+const designIndexes = Array.isArray(ledger.indexes) ? ledger.indexes : [];
+
+// ── 台账新鲜度(批2.5): index_ledger.json 应由 init-db/index.js 的 INDEXES 导出 ──
+// 二者不一致 = 改了 init-db 索引声明却忘跑 dump-index-ledger.js(或反之), 属离线可判定的漂移, 直接 FAIL。
+const SRC = path.join(ROOT, 'cloudfunctions', 'init-db', 'index.js');
+const idxSig = (arr) => JSON.stringify((arr || []).map((x) => ({ coll: x.coll, name: x.name, keys: x.keys, unique: !!x.unique })));
+if (fs.existsSync(SRC)) {
+  const m = fs.readFileSync(SRC, 'utf8').match(/const INDEXES\s*=\s*(\[[\s\S]*?\n\]);/);
+  if (!m) { console.error('INDEX LEDGER CHECK FAILED: init-db/index.js 中未找到 INDEXES 数组'); process.exit(1); }
+  let design;
+  try { design = eval('(' + m[1] + ')'); } catch (e) { console.error('INDEX LEDGER CHECK FAILED: INDEXES eval 失败: ' + e.message); process.exit(1); }
+  if (idxSig(design) !== idxSig(designIndexes)) {
+    console.error('INDEX LEDGER CHECK FAILED: 台账 index_ledger.json 与 init-db/index.js INDEXES 不一致(台账过期)');
+    console.error(`  init-db 源 ${design.length} 条 vs 台账 ${designIndexes.length} 条`);
+    console.error('  修复: node scripts/dump-index-ledger.js .tmp-tcb/index_ledger.json');
+    process.exit(1);
+  }
+}
+
 const actualFile = ACTUAL_CANDIDATES.find((f) => fs.existsSync(f));
 if (!actualFile) {
   console.log('[WARN] 无 indexes-actual.json 缓存, 跳过索引对照(改索引/提审前请跑 node scripts/tcb-scan-indexes.js 刷新)');
   process.exit(0);
 }
 
-const ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8'));
 const actual = JSON.parse(fs.readFileSync(actualFile, 'utf8'));
-const designIndexes = Array.isArray(ledger.indexes) ? ledger.indexes : [];
 
 const actualMap = {};
 for (const [col, arr] of Object.entries(actual)) {

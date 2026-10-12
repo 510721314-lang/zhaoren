@@ -13,6 +13,8 @@ function config_get(ctx) {
     test_openids: config.test_openids || [],
     error_scan_last_at: config.error_scan_last_at || 0,
     error_scan_heartbeat_at: config.error_scan_heartbeat_at || 0,
+    // 巡检豁免项(批2.1): 空数组 = 用 order-timer 内置默认(admin_probe:no_openid / s4_stale_escalate)
+    error_scan_exempt_types: config.error_scan_exempt_types || [],
     audit_prune_last: config.audit_prune_last || null,
     timeouts: {
       s0_timeout_min: config.s0_timeout_min !== undefined ? config.s0_timeout_min : 30,
