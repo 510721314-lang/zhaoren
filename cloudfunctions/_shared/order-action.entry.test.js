@@ -225,5 +225,14 @@ test('timeline: 超过 50 条 → 仅返回最近 50', async () => {
   assert.ok(r.data.total > 50);
 });
 
+// 17. complaint: 冻结位(爽约申诉在途) → oa_order_frozen(D2: 谁先发起谁冻结)
+test('complaint: 订单已冻结 → oa_order_frozen', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S2', frozen: true }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_order_frozen');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

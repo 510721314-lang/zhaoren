@@ -6,7 +6,7 @@
 const COMPLAINT_FROM_STATUS = ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'];
 
 async function complaint(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, checkText, wxCtx, db, log, casStatus, logStatus, col, writeNotice, writeAudit } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, isFrozen, checkText, wxCtx, db, log, casStatus, logStatus, col, writeNotice, writeAudit } = ctx;
   const { reason } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
@@ -15,6 +15,10 @@ async function complaint(ctx) {
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (!COMPLAINT_FROM_STATUS.includes(order.status)) {
     return { ok: false, code: 'oa_complaint_status', msg: `订单当前状态(${order.status})不可发起争议` };
+  }
+  // D2(不互斥但受冻结位约束): 爽约申诉等已置 frozen 时不可再发起投诉, 避免覆盖在途争议(谁先发起谁冻结)
+  if (isFrozen(order)) {
+    return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可发起投诉' };
   }
   const now = Date.now();
   const fromStatus = order.status;

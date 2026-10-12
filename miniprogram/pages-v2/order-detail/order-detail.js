@@ -423,6 +423,7 @@ Page({
       status: normalizeStatus(d.status),
       my_role: d.role || '',
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
+      frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
       urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
       modify_count: d.modify_count || 0,
       modify_result: modifyResult,

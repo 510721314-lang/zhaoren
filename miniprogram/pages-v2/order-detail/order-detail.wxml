@@ -166,7 +166,7 @@
         <!-- 报告爽约(第三批 3B): 约定开始时间已过且时限内可见; 服务端二次校验 S2/S3.5+时限 -->
         <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
         <!-- 发起投诉(D1 放开 2026-10-12): S2 起全周期可发起, 双方一致; 服务端二次校验状态白名单 -->
-        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S3 履约中 -->
@@ -209,7 +209,7 @@
         <view class="od__after-sale-tip" wx:elif="{{order.pending_extend}}">等待对方确认…</view>
         <view class="od__ms-hint" wx:if="{{order.my_role === 'partner' && !order.canFinishService}}">须先提交到100%才能完成履约</view>
         <!-- 发起投诉(D1 放开 2026-10-12): 履约中争议入口 -->
-        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S3.5 履约中断（PRD 3.5.2 nextActions: resume/confirm） -->
@@ -225,7 +225,7 @@
         <!-- 报告爽约(第三批 3B): S3.5 履约中断可申诉 -->
         <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
         <!-- 发起投诉(D1 放开 2026-10-12): 履约中断争议入口 -->
-        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S4 部分完成 -->
@@ -235,7 +235,7 @@
           <button class="od__btn od__btn--primary" bindtap="onRatioConfirm" hover-class="btn-press">确认比例</button>
         </view>
         <!-- 发起投诉(D1 放开 2026-10-12): 部分完成待确认争议入口 -->
-        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S5 已完成 -->
@@ -244,14 +244,14 @@
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
         <button class="od__btn od__btn--ghost" wx:elif="{{order.my_role !== 'user'}}" disabled>⏳ 等待用户评价</button>
         <!-- 履约完成(S5)即可投诉，无需等到评价完成(S8): 双方均可(与 S8 口径一致, 2026-10-10) -->
-        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
       <block wx:elif="{{order.status === 'S8'}}">
         <view class="od__after-sale-tip">售后窗口{{afterSaleDays}}天</view>
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
-        <button class="od__btn od__btn--danger" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方2小时内确认，超时自动拒绝） -->

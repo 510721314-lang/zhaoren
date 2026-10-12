@@ -131,6 +131,8 @@ async function detail(ctx) {
       pending_extend: order.pending_extend || null,
       // 撤回投诉入口(仅发起人、且平台未受理=订单仍 S10.5 时可见); SOS 的 help_flag 与本流程无关, 不复用
       can_withdraw_complaint: order.status === 'S10.5' && order.complaint_by === openid,
+      // 争议/申诉冻结位(2026-10-12): 前端据此隐藏「发起投诉」等推进类入口(D2: 谁先发起谁冻结)
+      frozen: !!order.frozen,
       urge,
       order_summary: buildOrderSummary(order)
     }
