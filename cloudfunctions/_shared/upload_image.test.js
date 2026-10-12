@@ -41,3 +41,19 @@ test('无法解析的 buffer 返回 null', () => {
   assert.strictEqual(readImageDims(Buffer.from([0x00, 0x01, 0x02])), null);
   assert.strictEqual(readImageDims(null), null);
 });
+// 构造带 0xFF 填充的 JPEG: SOI + 填充字节 + SOF0(评审修复 R3: 填充不应对齐错位)
+function jpgBufPadded(w, h) {
+  const b = Buffer.alloc(19);
+  b[0] = 0xff; b[1] = 0xd8;                 // SOI
+  b[2] = 0xff; b[3] = 0xff; b[4] = 0xff;    // 填充字节(JPEG 规范允许 marker 前多个 0xFF)
+  b[5] = 0xff; b[6] = 0xc0;                 // SOF0 marker
+  b.writeUInt16BE(11, 7);                   // segment length
+  b[9] = 0x08;                              // precision
+  b.writeUInt16BE(h, 10);
+  b.writeUInt16BE(w, 12);
+  return b;
+}
+test('JPEG marker 前 0xFF 填充可正确解析(R3)', () => {
+  const r = readImageDims(jpgBufPadded(750, 750));
+  assert.deepStrictEqual(r, { format: 'jpg', width: 750, height: 750 });
+});

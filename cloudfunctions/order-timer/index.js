@@ -32,7 +32,7 @@ function trackBacklog(tag, arr) {
 // 分页策略选 skip 而非 orderBy+游标: order_main/user_account 都没有 {status, updated_at} 索引,
 //   未建索引的排序可能直接报错, 而本函数外层 catch 会把它吞成"静默不做事"(历史上踩过同类坑);
 //   skip 分页不依赖索引, 代价是翻页 O(n), 但单轮硬上限 500 笔, 可接受。
-// 本批先落在「加时超时」与「停用到期恢复」两段验证模式, 通过后再逐段推广到其余扫描段。
+// 已于 2026-10-12 全量推广到所有状态扫描段(S1/S0/S2/S2_5/S3 里程碑/S3 加时/S3.5/S4/S5/S8/停用恢复)。
 const SCAN_PAGE = BATCH;
 const SCAN_MAX = 500;
 async function scanAll(coll, buildWhere, cap) {
@@ -385,7 +385,7 @@ async function processDemandNotify(now, cfg) {
 // 幂等：每段先 CAS 写订单标记位(urge_t0_at/urge_t1_at/urge_t2_at，仅当字段不存在时写入)，抢到才发通知；
 // 互斥：取消挂起(cancel_request.pending)/冻结(frozen)在 dueStages 纯规则内已跳过。
 async function processUrgeReminder(now, cfg) {
-  const s2s = (await col('order_main').where({ status: 'S2' }).limit(BATCH).get()).data || [];
+  const s2s = await scanAll('order_main', () => ({ status: 'S2' }));
   const done = { t0: [], t1: [], t2: [] };
   await Promise.allSettled(s2s.map(async (o) => {
     const stages = dueStages(o, now, cfg);
@@ -520,8 +520,8 @@ exports.main = async (event, context) => {
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
   try {
     const s1Cut = now - s1Min * 60 * 1000;
-    const s1s = (await col('order_main').where({ status: 'S1', created_at: _.lt(s1Cut) }).limit(BATCH).get()).data || [];
-    trackBacklog('S1', s1s);
+    const s1s = await scanAll('order_main', () => ({ status: 'S1', created_at: _.lt(s1Cut) }));
+    trackBacklog('S1', s1s.length >= SCAN_MAX ? s1s : []);
     const s1OK = [];
     await Promise.allSettled(s1s.map(async (o) => {
       const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now }, 'cancel');
@@ -551,8 +551,8 @@ exports.main = async (event, context) => {
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 + 释放需求(与 S1 对称, 修 D12) ─────────
   try {
     const q = { status: 'S0', pay_expire_at: _.lt(now) };
-    const s0s = (await col('order_main').where(q).limit(BATCH).get()).data || [];
-    trackBacklog('S0', s0s);
+    const s0s = await scanAll('order_main', () => q);
+    trackBacklog('S0', s0s.length >= SCAN_MAX ? s0s : []);
     const s0OK = [];
     await Promise.allSettled(s0s.map(async (o) => {
       if (!(o.pay_expire_at && o.pay_expire_at < now)) return;
@@ -584,8 +584,8 @@ exports.main = async (event, context) => {
   // ───────── 3. S3.5 中断超 24 小时 → S4(部分完成) ─────────
   try {
     const iCut = now - interruptH * 3600 * 1000;
-    const s35s = (await col('order_main').where({ status: 'S3.5' }).limit(BATCH).get()).data || [];
-    trackBacklog('S3.5', s35s);
+    const s35s = await scanAll('order_main', () => ({ status: 'S3.5' }));
+    trackBacklog('S3.5', s35s.length >= SCAN_MAX ? s35s : []);
     const s35OK = [];
     await Promise.allSettled(s35s.map(async (o) => {
       const anchor = o.interrupted_at || o.updated_at || 0;
@@ -611,8 +611,8 @@ exports.main = async (event, context) => {
 
   // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
   try {
-    const m25s = (await col('order_main').where({ status: 'S2_5' }).limit(BATCH).get()).data || [];
-    trackBacklog('S2_5', m25s);
+    const m25s = await scanAll('order_main', () => ({ status: 'S2_5' }));
+    trackBacklog('S2_5', m25s.length >= SCAN_MAX ? m25s : []);
     const mOK = [];
     await Promise.allSettled(m25s.map(async (o) => {
       const pm = o.pending_modify || {};
@@ -729,8 +729,8 @@ exports.main = async (event, context) => {
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
     const msCut = now - msConfirmMin * 60 * 1000;
-    const s3s = (await col('order_main').where({ status: 'S3' }).limit(BATCH).get()).data || [];
-    trackBacklog('S3', s3s);
+    const s3s = await scanAll('order_main', () => ({ status: 'S3' }));
+    trackBacklog('S3', s3s.length >= SCAN_MAX ? s3s : []);
     const msOK = [];
     await Promise.allSettled(s3s.map(async (o) => {
       const ms = o.milestone || {};
@@ -749,8 +749,8 @@ exports.main = async (event, context) => {
   // ───────── 4. S5 完成超 48 小时未评价 → 系统默认 4 星 → S9 ─────────
   try {
     const eCut = now - evalH * 3600 * 1000;
-    const s5s = (await col('order_main').where({ status: 'S5' }).limit(BATCH).get()).data || [];
-    trackBacklog('S5', s5s);
+    const s5s = await scanAll('order_main', () => ({ status: 'S5' }));
+    trackBacklog('S5', s5s.length >= SCAN_MAX ? s5s : []);
     const evalResults = [];  // 收集需要写 status_log 的结果
     // creditDeltas: { partner_openid: [{ delta, order_id, order_no }] } 收集后聚合原子 inc
     const creditDeltas = {};
@@ -826,8 +826,8 @@ exports.main = async (event, context) => {
   // ───────── 4.5 S8 售后窗口届满 → S10 归档(Wave2 止血④): 给 S10 唯一合法生产方 ─────────
   try {
     const aCut = now - afterSaleDays * 24 * 3600 * 1000;
-    const s8s = (await col('order_main').where({ status: 'S8' }).limit(BATCH).get()).data || [];
-    trackBacklog('S8', s8s);
+    const s8s = await scanAll('order_main', () => ({ status: 'S8' }));
+    trackBacklog('S8', s8s.length >= SCAN_MAX ? s8s : []);
     const s8OK = [];
     await Promise.allSettled(s8s.map(async (o) => {
       const anchor = o.evaluated_at || o.updated_at || 0;
@@ -850,8 +850,8 @@ exports.main = async (event, context) => {
   // ───────── 4.6 S4 部分完成裁定期届满 → 平台介入工单(Wave2 止血③): 防双方僵持永久滞留 ─────────
   try {
     const pCut = now - partialJudgeDays * 24 * 3600 * 1000;
-    const s4s = (await col('order_main').where({ status: 'S4' }).limit(BATCH).get()).data || [];
-    trackBacklog('S4', s4s);
+    const s4s = await scanAll('order_main', () => ({ status: 'S4' }));
+    trackBacklog('S4', s4s.length >= SCAN_MAX ? s4s : []);
     await Promise.allSettled(s4s.map(async (o) => {
       const anchor = o.updated_at || 0;
       if (!anchor || anchor >= pCut) return;

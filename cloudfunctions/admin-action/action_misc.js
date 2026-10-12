@@ -15,6 +15,7 @@ function readImageDims(buf) {
     while (i < buf.length - 1) {
       if (buf[i] !== 0xff) { i++; continue; }
       const m = buf[i + 1];
+      if (m === 0xff) { i++; continue; }   // 评审修复(R3): marker 前的连续 0xFF 是填充字节, 逐字节跳过, 不当 marker 解析
       if (m === 0xd8 || m === 0xd9 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
       if (i + 4 > buf.length) break;
       const segLen = buf.readUInt16BE(i + 2);
