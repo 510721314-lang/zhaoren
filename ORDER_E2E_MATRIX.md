@@ -41,7 +41,7 @@
 
 | 场景 | 关键异常点 | R | A_ok | A_fail | E2E |
 |---|---|---|---|---|---|
-| CAS 并发抢更新 | 双写竞争、updated!==1 未抢到、异常回 false | ✅(4用例) | — | — | — |
+| CAS 并发抢更新 | 双写竞争、updated!==1 未抢到、异常回 false | ✅(4用例) | — | — | ✅action级落败分支(cancel/start/complete/eval) |
 | 影子校验 | 白名单外迁移告警不阻断 | ✅ | — | — | — |
 | 读兼容 mapStatus | 旧 S9→S8+auto_done、S10.5→原态+open+frozen | ✅(4用例) | — | — | — |
 | 退款金额上限/重复退款 | 已退+本次≤已付 | ✅ | — | ✅超上限 | ✅部分退 |
@@ -49,13 +49,13 @@
 | 资金结算资格 | S8/S9/S10 才算已结算 | ✅ | — | — | — |
 
 ## 三、当前结论
-- **规则层（R）**：状态机 22 迁移 + CAS + 兼容 + 资金/爽约/催单/接单规则 → **已充分单测**（计入 **208/0**：183 规则 + 10 evaluation-submit + 11 order-timer + 4 payment-mock 结算）。
+- **规则层（R）**：状态机 22 迁移 + CAS + 兼容 + 资金/爽约/催单/接单规则 → **已充分单测**（计入 **212/0**：183 规则 + 10 evaluation-submit + 11 order-timer + 4 payment-mock 结算 + 4 action 级 CAS 落败）。
 - **action 拒绝分支（A_fail）**：全部 114 action 经自动种子覆盖到合法 fail code（另有 evaluation-submit 8 条 + order-timer 鉴权门）。
 - **action 成功路径（A_ok）**：admin 侧（取消/争议退款/投诉/爽约）+ order 侧（取消/开始/完成/改期/里程碑/加时/等）+ 争议完成裁决 均有显式 ok 用例；#15 评价走入口契约。
 - **端到端（E2E）**：已补 20 条 action 级（A/B 201 cases 0 diff）+ **入口契约 25 例**（evaluation-submit 10 + order-timer 11 + payment-mock 结算 4）。order-timer 覆盖 8 类系统态扫描（S1/S0 超时取消、S3.5 中断→S4、S2_5 改期自动拒绝、S3 里程碑自动确认、S5 超时默认评价→S9、S8 售后归档→S10、S4 裁定期升级，含冻结/未到期守卫）；#22 结算覆盖可提现口径（Σ基数−提现占用）+ T+1 到账回写。**剩余仅：#2取消申请/#7中断（无独立 action）。**
 
 ## 四、待补缺口（建议优先级）
-P0：#1✅ #18✅ #19✅ ；剩 CAS 并发 action 级
+P0：#1✅ #18✅ #19✅ ；CAS 并发 action 级✅（落败分支）
 P1：#6✅ #8✅ #9✅ #10✅ #11✅ #12✅ #14✅ #15✅ #16✅ #17✅ #21✅ ；剩 #2 取消申请、#7 中断(无独立 action，经状态机事件表达)
 P2（系统态）：#3✅ #20✅ #22✅
-> **全部可做项已清干净**：order-action/admin-action（A/B harness）+ evaluation-submit/order-timer/payment-mock（入口契约）内功能均已覆盖；#2/#7 无独立 action。仅余 CAS 并发 action 级为下一可选波次。
+> **全部可做项已清干净**：order-action/admin-action（A/B harness）+ evaluation-submit/order-timer/payment-mock（入口契约）内功能 + action 级 CAS 落败分支均已覆盖；#2/#7 无独立 action。

@@ -131,4 +131,13 @@ test('submit: 已有评价 → 幂等返回 idempotent', async () => {
   assert.strictEqual(r.data.star, 4);
 });
 
+// 11. CAS 未抢到(并发竞争落败, 且无重复评价记录) → ev_status_conflict
+test('submit: CAS 未抢到且无重复评价 → ev_status_conflict', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore(), updateCount: 0 });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'submit', order_id: OID, star: 5, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'ev_status_conflict');
+});
+
 test.after(() => { Module._load = origLoad; });

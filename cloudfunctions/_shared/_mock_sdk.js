@@ -131,7 +131,10 @@ const commandProxy = new Proxy({}, {
           async update(data) {
             calls.push({ method: 'where.update', name, query: q, data });
             (writes[name] = writes[name] || []).push({ where: q, data: data && data.data });
-            return { stats: { updated: 1 } };
+            // updateCount 用于模拟 CAS 未抢到(updated=0): 默认 1(命中), 可传数字或 (name,query)=>n
+            const n = typeof opts.updateCount === 'function' ? opts.updateCount(name, q)
+              : (opts.updateCount == null ? 1 : opts.updateCount);
+            return { stats: { updated: n } };
           }
         };
       }

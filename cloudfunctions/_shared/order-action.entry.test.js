@@ -94,5 +94,32 @@ test('cancel: 非参与方 → oa_not_participant', async () => {
   assert.strictEqual(r.code, 'oa_not_participant');
 });
 
+// 7. CAS 未抢到(并发竞争落败): 状态已被他人改走 → oa_status_conflict
+test('cancel: CAS 未抢到且订单未变 S6 → oa_status_conflict', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S1' }), updateCount: 0 });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'cancel', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_status_conflict');
+});
+
+// 8. CAS 未抢到: 开始履约竞争落败 → oa_status_conflict
+test('start_service: CAS 未抢到 → oa_status_conflict', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S2' }), updateCount: 0 });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'start_service', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_status_conflict');
+});
+
+// 9. CAS 未抢到: 完成履约竞争落败 → oa_status_conflict
+test('complete_service: CAS 未抢到 → oa_status_conflict', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S3', milestone: { current: 3, confirmed: [true, true, true] } }), updateCount: 0 });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complete_service', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_status_conflict');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });
