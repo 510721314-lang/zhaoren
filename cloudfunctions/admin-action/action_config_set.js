@@ -196,6 +196,25 @@ async function config_set(ctx) {
     patch.sub_msg_templates = merged;
   }
 
+  // 批 6.1: 订阅消息 HTTPS 通道凭据 sub_msg_https = { appid, secret }(opt-in)
+  // 仅当 appid + secret 齐全时 order-timer 才走 HTTPS, 否则回退云调用; null 可清空
+  if (event.sub_msg_https !== undefined) {
+    if (event.sub_msg_https === null) { patch.sub_msg_https = null; }
+    else {
+      if (typeof event.sub_msg_https !== 'object' || Array.isArray(event.sub_msg_https)) {
+        return fail('config_bad_sub_https', 'sub_msg_https 须为对象');
+      }
+      const v = event.sub_msg_https;
+      if (v.appid !== undefined && !/^wx[0-9a-f]{16}$/.test(String(v.appid))) {
+        return fail('config_bad_sub_https', 'appid 格式不符(须 wx + 16 位)');
+      }
+      if (v.secret !== undefined && (typeof v.secret !== 'string' || v.secret.length > 64)) {
+        return fail('config_bad_sub_https', 'secret 须为字符串且 ≤64 字');
+      }
+      patch.sub_msg_https = Object.assign({}, config.sub_msg_https || {}, v);
+    }
+  }
+
   // 深拷贝 options 与 hidden_options: 后续原地改动不能污染 before 审计快照
   let scenes = (config.scene_list || []).map((s) => Object.assign({}, s, {
     options: (s.options || []).slice(),
