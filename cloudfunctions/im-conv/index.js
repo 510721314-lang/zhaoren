@@ -166,7 +166,10 @@ exports.main = async (event, context) => {
   log.d(`im-conv action=${action} openid=${openid}`);
 
   // ───────── 1.5 自建客服会话(无订单): 用户维度唯一会话, 后台 kefu_conv_list 可见 ─────────
-  // conv 用 kefu_openid 标识(区别于订单会话), order_id=''; 消息 from_role='user_kefu'(用户发)/'kefu'(客服回)
+  // conv 用 kefu_openid 标识(区别于订单会话); 消息 from_role='user_kefu'(用户发)/'kefu'(客服回)
+  // ⚠️ 2026-10-12 修复: order_id 不能再用空串 —— im_conversation.order_id 上有唯一索引 uk_order_id,
+  //   空串全局只允许存在一条, 第二个用户开客服必然撞唯一键 → 云函数抛错 → 前端「会话加载失败」。
+  //   改用「按用户唯一的占位单号」(非 32 位 docId, 与真实订单号不可能冲突); 订单会话仍用真实 order_id。
   if (action === 'kefu_open') {
     const existing = await col('im_conversation')
       .where({ kefu_openid: openid, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
@@ -176,7 +179,7 @@ exports.main = async (event, context) => {
     const now = Date.now();
     const doc = {
       kefu_openid: openid,
-      order_id: '', order_no: '',
+      order_id: 'kefu_' + openid, order_no: '',
       scene: 'kefu', scene_name: '客服会话',
       user_openid: openid, partner_openid: '',
       user_unread: 0, partner_unread: 0,
