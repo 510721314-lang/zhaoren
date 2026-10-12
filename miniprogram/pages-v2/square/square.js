@@ -132,7 +132,11 @@ Page({
   fetchActivities() {
     callCloud('home-action', { action: 'home_activity_list' }).then((r) => {
       if (r.ok && r.data) {
-        this.setData({ cards: r.data.cards || [] });
+        // has_text: 运营只传图、标题/副标题为空时, 卡片不渲染正文区(否则出现一块空白, 2026-10-12 修)
+        const cards = (r.data.cards || []).map((c) => Object.assign({}, c, {
+          has_text: !!(String(c.title || '').trim() || String(c.subtitle || '').trim())
+        }));
+        this.setData({ cards });
       }
     }).catch(() => { /* 活动拉取失败静默降级, 广场仍可用 */ });
   },

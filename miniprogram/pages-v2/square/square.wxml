@@ -5,8 +5,8 @@
   <scroll-view wx:if="{{cards.length}}" class="sq-cards" scroll-x enhanced show-scrollbar="{{false}}">
     <view class="sq-card" wx:for="{{cards}}" wx:key="id" data-idx="{{index}}" bindtap="onActivityTap">
       <image wx:if="{{item.cover_image}}" class="sq-card__cover" src="{{item.cover_image}}" mode="aspectFill" lazy-load="{{true}}"></image>
-      <view class="sq-card__body">
-        <view class="sq-card__title">{{item.title}}</view>
+      <view class="sq-card__body" wx:if="{{item.has_text}}">
+        <view class="sq-card__title" wx:if="{{item.title}}">{{item.title}}</view>
         <view wx:if="{{item.subtitle}}" class="sq-card__sub">{{item.subtitle}}</view>
       </view>
     </view>

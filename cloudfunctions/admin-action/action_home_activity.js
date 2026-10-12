@@ -10,7 +10,9 @@ function home_activity_list(ctx) {
 async function home_activity_create(ctx) {
   const { event, config, now, openid, col, logEvent, ok, fail } = ctx;
   const a = event.activity || {};
-  if (!a.title || String(a.title).length > 30) return fail('act_bad_title', '活动标题须为 1-30 字');
+  // 标题统一 trim 后判空: 只填空格不算填(否则前端卡片会出现空白正文区, 2026-10-12 修)
+  const newTitle = String(a.title || '').trim();
+  if (!newTitle || newTitle.length > 30) return fail('act_bad_title', '活动标题须为 1-30 字');
   if (!a.type || !['banner', 'card', 'both'].includes(a.type)) return fail('act_bad_type', 'type 须为 banner/card/both');
   if (!a.jump_to || !['demand_publish', 'scene_list', 'webview', 'activity_detail'].includes(a.jump_to)) {
     return fail('act_bad_jump', 'jump_to 不合法');
@@ -24,7 +26,7 @@ async function home_activity_create(ctx) {
   const id = 'A' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const newAct = {
     id,
-    title: String(a.title).trim(),
+    title: newTitle,
     subtitle: String(a.subtitle || '').trim().slice(0, 60),
     banner_image: String(a.banner_image || '').trim(),
     cover_image: String(a.cover_image || '').trim(),
@@ -63,6 +65,13 @@ async function home_activity_update(ctx) {
   const updated = Object.assign({}, list[idx]);
   for (const k of allowed) {
     if (patch[k] !== undefined) updated[k] = patch[k];
+  }
+  // 标题/副标题统一 trim(与 create 同口径): 仅当本次提交了标题时才校验非空,
+  // 避免历史「空格标题」的老记录改别的字段被卡住; 前端另有一层空白容错(2026-10-12)
+  if (patch.subtitle !== undefined) updated.subtitle = String(updated.subtitle || '').trim().slice(0, 60);
+  if (patch.title !== undefined) {
+    updated.title = String(updated.title || '').trim();
+    if (!updated.title || updated.title.length > 30) return fail('act_bad_title', '活动标题须为 1-30 字');
   }
   if (updated.content && (!Array.isArray(updated.content.rules) || updated.content.rules.some((x) => typeof x !== 'string'))) {
     return fail('act_bad_content', 'content.rules 须为字符串数组');
