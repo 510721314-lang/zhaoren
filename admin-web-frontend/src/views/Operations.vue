@@ -3,6 +3,7 @@
 // 阈值表单由 config_schema 元数据驱动(新增参数零前端改动);
 // 保存走 diff 确认弹窗(仅提交变化字段 + 必填变更原因)。
 // 场景写操作: scene_add / scene_delete / scene_option_add / scene_option_remove
+//            / scene_visibility_set / scene_option_visibility_set(前端显示开关)
 <template>
   <div>
     <h3 style="margin:0 0 16px">运营配置</h3>
@@ -74,13 +75,37 @@
           <el-table-column prop="name" label="名称" width="140" />
           <el-table-column label="服务项">
             <template #default="{row}">
-              <el-tag v-for="opt in row.options" :key="opt" size="small" style="margin-right:4px;margin-bottom:2px">{{ opt }}</el-tag>
+              <span v-for="opt in row.options" :key="opt" class="opt-chip">
+                <el-tag :type="isOptHidden(row, opt) ? 'info' : 'success'" size="small" :class="{ 'opt-off': isOptHidden(row, opt) }">{{ opt }}</el-tag>
+                <el-switch
+                  size="small"
+                  :model-value="!isOptHidden(row, opt)"
+                  :loading="visBusy === row.code + '::' + opt"
+                  @change="(v) => toggleOptionVisible(row, opt, v)"
+                />
+              </span>
               <el-button size="small" text type="primary" @click="openOptAdd(row)">+ 加</el-button>
               <el-button size="small" text type="danger" :disabled="!row.options || row.options.length===0" @click="openOptRemove(row)">- 删</el-button>
             </template>
           </el-table-column>
           <el-table-column label="免责声明类型" width="160">
             <template #default="{row}">{{ disclaimerLabel(row.disclaimer_type) }}</template>
+          </el-table-column>
+          <el-table-column label="前端显示" width="150" align="center">
+            <template #default="{row}">
+              <el-switch
+                :model-value="row.visible !== false"
+                :loading="visBusy === row.code"
+                inline-prompt
+                active-text="显示"
+                inactive-text="隐藏"
+                @change="(v) => toggleSceneVisible(row, v)"
+              />
+              <!-- 场景本身为「显示」但子服务项全被隐藏 → 前端会自动隐藏该场景(home-action 同口径), 明确提示避免误解 -->
+              <div v-if="row.visible !== false && frontVisibleOptions(row).length === 0" class="vis-hint">
+                <el-tag type="warning" size="small">无可用服务项,前端自动隐藏</el-tag>
+              </div>
+            </template>
           </el-table-column>
           <el-table-column label="操作" width="100" fixed="right">
             <template #default="{row}">
@@ -425,6 +450,9 @@ function openEditActivity(row) {
 }
 
 async function doSubmitActivity() {
+  // trim 后判空: 只填空格不算填(否则前端活动卡片会渲染出一块空白正文区)
+  actForm.title = String(actForm.title || '').trim();
+  actForm.subtitle = String(actForm.subtitle || '').trim();
   if (!actForm.title) { ElMessage.warning('标题必填'); return; }
   if (!actForm.type) { ElMessage.warning('类型必填'); return; }
   actSaving.value = true;
@@ -562,6 +590,44 @@ function disclaimerLabel(type) {
   return m[type] || type || '通用声明';
 }
 
+// ── 前端显示开关(场景 / 服务项) ──
+// 语义: 仅隐藏前端入口(首页宫格/广场 chips/发布页场景卡/接单配置), 不做后端拦截;
+//       隐藏场景的存量需求仍在广场 all 流水、附近列表与详情页可见。
+const visBusy = ref('');
+function isOptHidden(row, opt) {
+  return (row.hidden_options || []).indexOf(opt) >= 0;
+}
+// 前端可见服务项(与 home-action 同口径: 先取前 3 项再剔除隐藏项); 为空则前端不会显示该场景
+function frontVisibleOptions(row) {
+  return (row.options || []).slice(0, 3).filter((o) => !isOptHidden(row, o));
+}
+async function confirmHide(what) {
+  try {
+    await ElMessageBox.confirm(
+      `${what} 将不再出现在前端入口(首页宫格 / 广场 / 发布页 / 接单配置); 该场景的存量需求仍可在广场、附近与详情页看到。确认隐藏?`,
+      '隐藏确认',
+      { type: 'warning', confirmButtonText: '确认隐藏', cancelButtonText: '取消' }
+    );
+    return true;
+  } catch (_) { return false; }
+}
+async function toggleSceneVisible(row, visible) {
+  if (visible === false && !(await confirmHide(`场景「${row.name} (${row.code})」`))) return;
+  visBusy.value = row.code;
+  const r = await call('config_set', { scene_visibility_set: { scene: row.code, visible: !!visible } });
+  visBusy.value = '';
+  if (r.ok) { ElMessage.success(visible ? '已设为前端显示' : '已隐藏'); await load(); }
+  else { ElMessage.error(r.msg || r.code || '操作失败'); }
+}
+async function toggleOptionVisible(row, opt, visible) {
+  if (visible === false && !(await confirmHide(`服务项「${opt}」`))) return;
+  visBusy.value = row.code + '::' + opt;
+  const r = await call('config_set', { scene_option_visibility_set: { scene: row.code, option: opt, visible: !!visible } });
+  visBusy.value = '';
+  if (r.ok) { ElMessage.success(visible ? '已设为前端显示' : '已隐藏'); await load(); }
+  else { ElMessage.error(r.msg || r.code || '操作失败'); }
+}
+
 // ── 场景新增 ──
 function openAddScene() {
   newScene.code = ''; newScene.name = ''; newScene.disclaimer_type = 'general_disclaimer'; newScene.optionsStr = '';
@@ -630,6 +696,9 @@ onMounted(async () => {
 
 <style scoped>
 .ops-unit { margin-left:8px; color:#909399; font-size:12px; }
+.opt-chip { display:inline-flex; align-items:center; gap:2px; margin:0 10px 4px 0; }
+.vis-hint { margin-top:4px; line-height:1.3; }
+.opt-off { text-decoration: line-through; }
 .v-old { color:#909399; }
 .v-new { color:#67c23a; font-weight:600; }
 .act-img-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }

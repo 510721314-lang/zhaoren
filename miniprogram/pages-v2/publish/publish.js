@@ -194,7 +194,8 @@ Page({
             name: g.scene_name,
             icon: hc ? hc.icon : (ICON_FB[g.scene_code] || '📌'),
             color: hc ? hc.color : (COLOR_FB[g.scene_code] || '#F5F5F5'),
-            options: Array.isArray(g.scene_options) && g.scene_options.length
+            // 云端 scene_options 存在(含空数组)即以云端为准: 服务项被后台全部隐藏时不得回落硬编码选项
+            options: Array.isArray(g.scene_options)
               ? g.scene_options.slice(0, 3)
               : (hc ? (hc.options || []).slice(0, 3) : []),
             gb: hc ? hc.gb : false,

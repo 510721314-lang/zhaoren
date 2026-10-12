@@ -160,7 +160,11 @@ async function config_set(ctx) {
     patch.sub_msg_templates = merged;
   }
 
-  let scenes = (config.scene_list || []).map((s) => Object.assign({}, s, { options: (s.options || []).slice() }));
+  // 深拷贝 options 与 hidden_options: 后续原地改动不能污染 before 审计快照
+  let scenes = (config.scene_list || []).map((s) => Object.assign({}, s, {
+    options: (s.options || []).slice(),
+    hidden_options: (s.hidden_options || []).slice()
+  }));
   let scenesTouched = false;
   const sceneOpt = event.scene_option_add || event.scene_option_remove;
   if (sceneOpt) {
@@ -176,8 +180,35 @@ async function config_set(ctx) {
     } else {
       const next = sc.options.filter((x) => x !== opt);
       if (next.length !== sc.options.length) { sc.options = next; scenesTouched = true; }
+      // 服务项被删除 → 同步清掉它的隐藏标记, 避免 hidden_options 残留
+      sc.hidden_options = (sc.hidden_options || []).filter((x) => x !== opt);
     }
   }
+
+  // 场景「前端显示 / 不显示」: deny 语义 —— 仅隐藏时写 visible:false, 恢复时删除字段(缺省即可见)
+  if (event.scene_visibility_set) {
+    const req = event.scene_visibility_set;
+    const sc = scenes.find((s) => s.code === String(req.scene || '').trim().toUpperCase());
+    if (!sc) return fail('config_scene_not_found', '场景不存在: ' + req.scene);
+    if (typeof req.visible !== 'boolean') return fail('config_bad_scene_visible', 'visible 须为布尔值');
+    if (req.visible === false) sc.visible = false; else delete sc.visible;
+    scenesTouched = true;
+  }
+
+  // 服务项「前端显示 / 不显示」: 隐藏项文本记入 hidden_options
+  if (event.scene_option_visibility_set) {
+    const req = event.scene_option_visibility_set;
+    const sc = scenes.find((s) => s.code === String(req.scene || '').trim().toUpperCase());
+    if (!sc) return fail('config_scene_not_found', '场景不存在: ' + req.scene);
+    const opt = String(req.option || '').trim();
+    if ((sc.options || []).indexOf(opt) < 0) return fail('config_option_not_found', '服务项不存在: ' + opt);
+    if (typeof req.visible !== 'boolean') return fail('config_bad_option_visible', 'visible 须为布尔值');
+    const hidden = (sc.hidden_options || []).filter((x) => x !== opt);
+    if (req.visible === false) hidden.push(opt);
+    sc.hidden_options = hidden;
+    scenesTouched = true;
+  }
+
   if (scenesTouched) { before.scene_list = config.scene_list || []; patch.scene_list = scenes; }
 
   if (event.scene_add) {
@@ -192,6 +223,8 @@ async function config_set(ctx) {
       options: (req.options || []).map((o) => String(o).trim()).filter(Boolean).slice(0, 8),
       disclaimer_type: String(req.disclaimer_type || 'general_disclaimer').trim(),
       builtin: false,
+      visible: true,
+      hidden_options: [],
       created_at: now
     };
     scenes.push(newScene);

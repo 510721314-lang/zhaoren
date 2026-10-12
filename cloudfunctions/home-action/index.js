@@ -94,8 +94,9 @@ function pickActivities(raw, sceneCode) {
     return true;
   }).sort((a, b) => (b.priority || 0) - (a.priority || 0)).map((a) => ({
     id: a.id,
-    title: a.title,
-    subtitle: a.subtitle || '',
+    // 统一 trim: 历史配置里出现「只填空格」的标题会让前端卡片渲染出空白正文区(2026-10-12 修)
+    title: String(a.title || '').trim(),
+    subtitle: String(a.subtitle || '').trim(),
     banner_image: a.banner_image || '',
     cover_image: a.cover_image || '',
     type: a.type,
@@ -128,14 +129,24 @@ async function loadSceneList() {
       const raw = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
         ? cfg.scene_list
         : SCENE_FALLBACK;
-      const scenes = raw.filter((s) => s && s.code).map((s) => ({
-        code: s.code,
-        name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code,
-        options: Array.isArray(s.options) ? s.options.slice(0, 3) : [],
-        disclaimer_type: s.disclaimer_type || 'general_disclaimer',
-        builtin: !!s.builtin,
-        disclaimer_text: legal[s.code] || ''
-      }));
+      // 注意: 这里只「透传」显隐字段, 不做过滤 —— scene_list 单场景分页与 nearby 白名单
+      // 复用本函数返回值, 过滤会让隐藏场景的存量需求从附近/翻页里消失(与「仅前端隐藏入口」不符)。
+      // 展示层过滤在 scene_groups / buildSceneGroups 出口做。
+      const scenes = raw.filter((s) => s && s.code).map((s) => {
+        const hidden = Array.isArray(s.hidden_options) ? s.hidden_options.slice() : [];
+        // 前端只暴露前 3 个服务项(既有口径) → 「先取前 3 再剔除隐藏项」; options 即「前端可见服务项」
+        const options = (Array.isArray(s.options) ? s.options.slice(0, 3) : []).filter((o) => hidden.indexOf(o) < 0);
+        return {
+          code: s.code,
+          name: s.name || SCENE_NAMES_LEGACY[s.code] || s.code,
+          options,
+          disclaimer_type: s.disclaimer_type || 'general_disclaimer',
+          builtin: !!s.builtin,
+          visible: s.visible !== false,   // 缺省即可见
+          hidden_options: hidden,
+          disclaimer_text: legal[s.code] || ''
+        };
+      });
       return { scenes, legal_scene_disclaimers: legal };
     });
   } catch (e) {
@@ -169,7 +180,8 @@ async function buildSceneGroups(scenes, vRange) {
     sceneGroups.push({
       scene_code: sceneDef.code,
       scene_name: sceneDef.name || SCENE_NAMES_LEGACY[sceneDef.code] || '',
-      scene_options: Array.isArray(sceneDef.options) ? sceneDef.options.slice(0, 3) : [],
+      // 上游 loadSceneList 已完成「slice(0,3) → 剔除隐藏项」, 这里直接用(即前端可见服务项)
+      scene_options: Array.isArray(sceneDef.options) ? sceneDef.options : [],
       scene_disclaimer_type: sceneDef.disclaimer_type || 'general_disclaimer',
       scene_disclaimer_text: sceneDef.disclaimer_text || '',
       scene_builtin: sceneDef.builtin === true,
@@ -568,7 +580,11 @@ exports.main = async (event, context) => {
 
       // ───────── 首页按场景分组(懒加载, 结果按访客维度缓存 60s 供 square 内联) ─────────
       case 'scene_groups': {
-        const { scenes } = await loadSceneList();
+        const { scenes: allScenes } = await loadSceneList();
+        // 前端显示开关(仅展示层过滤, 不动 scene_list 分页/nearby 白名单):
+        //   ① 场景被运营显式隐藏(visible:false) ② 该场景的可见服务项为 0(子项被全部隐藏 / 本就没有)
+        //      —— 没有可选服务项的场景在前端无法发布, 一并隐藏, 避免露出无法使用的空场景
+        const scenes = allScenes.filter((s) => s.visible !== false && (s.options || []).length > 0);
         // 耍伴视角一致性: 与广场同口径应用接单价格区间过滤(非耍伴/游客/未设置 → 不过滤)
         const vOpenid = await require('./openid').resolveOpenid(cloud, event).catch(() => '');
         const vp = await loadVisitorPartner(vOpenid);

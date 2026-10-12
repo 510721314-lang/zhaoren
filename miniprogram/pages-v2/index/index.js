@@ -50,7 +50,8 @@ const SQUARE_CACHE_KEY = 'home_square_v1';
 const SQUARE_TTL_MS = 10 * 60 * 1000;
 // 2026-10-10 性能: 场景宫格同样本地缓存 —— 云端 square 刻意不内联 scene_groups(5 个额外查询会致冷启动超时),
 // 故独立 scene_groups action 每次进首页都会被调一次; 加缓存后第 2 次起免掉这次往返(与 square 同 TTL)
-const SCENE_GROUPS_CACHE_KEY = 'home_scene_groups_v1';
+// v2: 场景新增「前端不显示」开关(home-action scene_groups 已过滤), 升版清掉含隐藏场景的旧缓存
+const SCENE_GROUPS_CACHE_KEY = 'home_scene_groups_v2';
 
 const { callCloud } = require('../../utils/cloud.js');
 

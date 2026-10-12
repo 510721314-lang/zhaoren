@@ -194,7 +194,9 @@ Page({
         });
       };
       dynCodes.forEach((code, i) => pushScene(code, sgRes.data.scene_groups[i].scene_name));
-      SCENES.forEach((s) => pushScene(s.code, s.name));
+      // 云端列表非空即为 SSOT(已含后台"前端不显示"的过滤结果); 仅在拿不到云端数据时才用 enums 兜底,
+      // 否则 SCENES 会把被隐藏的场景重新塞回接单配置
+      if (!dynCodes.length) SCENES.forEach((s) => pushScene(s.code, s.name));
 
       // 前置通过判断(通用): 科目 requires 逐科校验
       const passedOf = (code) => {
