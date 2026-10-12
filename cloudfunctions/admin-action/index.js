@@ -502,6 +502,71 @@ exports.main = async (event, context) => {
 
   // 已抽离到 action_*.js 的鉴权后动作优先走分发表（ctx 注入共享符号，行为与原内联逐字一致）
   if (HANDLERS[action]) {
+    // ── handler 依赖注入上下文(ctx)类型契约 ──
+    // handler 仅通过 ctx 获取共享符号, 禁止反向 require('./index')。本 typedef 供 IDE/静态检查
+    // 校验「handler 解构的符号是否都注入了」; 新增符号时须同步本 typedef 与下方 ctx 字面量。
+    /**
+     * @typedef {Object} AdminHandlerCtx
+     * @property {Object} event
+     * @property {string} openid
+     * @property {string} action
+     * @property {Object} wxCtx
+     * @property {Object} config
+     * @property {Array} adminOpenids
+     * @property {Function} col
+     * @property {Object} db
+     * @property {Object} _
+     * @property {Object} $
+     * @property {Object} log
+     * @property {Object} cloud
+     * @property {Object} crypto
+     * @property {number} now
+     * @property {Function} ok
+     * @property {Function} fail
+     * @property {Function} getConfig
+     * @property {Function} logEvent
+     * @property {Function} ensureAdminColls
+     * @property {Function} resolveTempUrls
+     * @property {Function} maskDocDeep
+     * @property {Function} pager
+     * @property {Function} isOpenid
+     * @property {Function} isDocId
+     * @property {Function} genPayNo
+     * @property {Function} sumTx
+     * @property {Object} ADMIN_ROLE_LABEL
+     * @property {Object} ADMIN_ROLES
+     * @property {Object} ROLE_GRANTS
+     * @property {string} operatorRole
+     * @property {string} operatorAccount
+     * @property {Function} noShowCfg
+     * @property {Function} verdictOutcome
+     * @property {Array} VERDICTS
+     * @property {Object} REPORT_STATUS
+     * @property {number} DAY_MS
+     * @property {Function} buildAuditPatch
+     * @property {Object} FIELD_PENDING
+     * @property {Function} isFieldEmpty
+     * @property {Array} ACTIVE_STATUS
+     * @property {number} PAGE_SIZE
+     * @property {Object} SCENE_NAME
+     * @property {Array} BLOCK_WORDS_FALLBACK
+     * @property {Object} STATUS_LABEL
+     * @property {Object} TX_LABEL
+     * @property {Array} CONFIG_SCHEMA
+     * @property {Function} hashAdminPassword
+     * @property {Function} maskPhone
+     * @property {Function} maskIp
+     * @property {Function} maskIdCard
+     * @property {Function} maskDoc
+     * @property {Object} SENSITIVE_MASK
+     * @property {Function} resolveOperations
+     * @property {Function} todayStart
+     * @property {Function} dayKey
+     * @property {Function} last7Days
+     * @property {Function} bucketCount
+     * @property {Function} bucketFen
+     */
+    /** @type {AdminHandlerCtx} */
     const ctx = {
       event, openid, action, wxCtx, config, adminOpenids,
       col, db, _, $, log, cloud, crypto,

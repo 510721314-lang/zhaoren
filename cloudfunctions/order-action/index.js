@@ -193,8 +193,8 @@ async function logStatus(orderId, from, to, action, operator) {
 
 // CAS 条件更新: 仅当订单仍处于期望状态(字符串或数组)时更新, 防止并发/重复流转
 // 语义收敛至 _shared/order_state.js 的 casTransition(规范源); 本处仅注入本地 col/_/log。
-async function casStatus(orderId, expect, patch) {
-  return casTransition(col, _, orderId, expect, patch, { onError: (e) => log.d(`casStatus fail: ${e.message}`) });
+async function casStatus(orderId, expect, patch, event) {
+  return casTransition(col, _, orderId, expect, patch, { event, onError: (e) => log.d(`casStatus fail: ${e.message}`) });
 }
 
 // 判定调用者在订单中的角色
@@ -276,6 +276,55 @@ const HANDLERS = Object.assign(
   require('./action_dispute')
 );
 
+// ── handler 依赖注入上下文(ctx)类型契约 ──
+// handler 仅通过 ctx 获取共享符号, 禁止反向 require('./index')。本 typedef 供 IDE/静态检查
+// 校验「handler 解构的符号是否都注入了」; 新增符号时须同步本 typedef 与 main 内 ctx 字面量。
+/**
+ * @typedef {Object} HandlerCtx
+ * @property {Object} event 原始事件
+ * @property {string} openid 调用者身份(resolveOpenid 后)
+ * @property {string} order_id 订单 _id(分发层已预检/反查)
+ * @property {string} action action 名
+ * @property {Object} wxCtx 微信调用上下文
+ * @property {Function} col (name)=>db.collection(name)
+ * @property {Object} db 数据库实例
+ * @property {Object} _ db.command
+ * @property {Object} log logger
+ * @property {Object} cloud wx-server-sdk cloud
+ * @property {Function} getConfig
+ * @property {Function} getOrder
+ * @property {Function} writeNotice
+ * @property {Function} getConfirmation
+ * @property {Function} logStatus
+ * @property {Function} casStatus
+ * @property {Function} roleOf
+ * @property {Function} isFrozen
+ * @property {Function} allConfirmed
+ * @property {Function} sendUrgeSub
+ * @property {Function} buildOrderSummary
+ * @property {Function} fmtDT
+ * @property {Function} fmtDTShort
+ * @property {Function} isValidDocId
+ * @property {Function} maskContact
+ * @property {Function} reasonMaxLen
+ * @property {Function} estimateCommute
+ * @property {Function} checkText
+ * @property {Function} canManualUrge
+ * @property {Function} casTransition
+ * @property {Function} noShowCfg
+ * @property {Function} canSubmitReport
+ * @property {Function} defenseDeadlineOf
+ * @property {Function} canWithdrawReport
+ * @property {Object} REPORT_STATUS
+ * @property {Function} haversineKm
+ * @property {Function} splitOrderAmount
+ * @property {Function} writeAudit
+ * @property {Object} CONFIRM_FIELDS
+ * @property {Object} FIELD_CN
+ * @property {Object} SCENE_CN
+ * @property {Array} BLOCK_WORDS_FALLBACK
+ */
+
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
     const { resolveOpenid } = require('./openid');
@@ -313,6 +362,7 @@ exports.main = async (event, context) => {
 
   // 已抽离到 action_*.js 的动作优先走分发表（ctx 注入共享符号，行为与原内联逐字一致）
   if (HANDLERS[action]) {
+    /** @type {HandlerCtx} */
     const ctx = {
       event, openid, order_id, action, wxCtx,
       col, db, _, log, cloud,

@@ -23,7 +23,7 @@ async function cancel(ctx) {
   const device = String(event.device || '').slice(0, 200);
   const won = await casStatus(order_id, ['S1', 'S0'], {
     status: 'S6', cancel_at: now, updated_at: now
-  });
+  }, 'cancel');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S6') {
@@ -75,7 +75,7 @@ async function start_service(ctx) {
   const won = await casStatus(order_id, 'S2', {
     status: 'S3', service_started_at: now, updated_at: now,
     milestone: { current: 0, confirmed: [false, false, false], evidence: [], submitted_at: null }
-  });
+  }, 'start_service');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S3') {
@@ -116,7 +116,7 @@ async function complete_service(ctx) {
   const device = String(event.device || '').slice(0, 200);
   const won = await casStatus(order_id, 'S3', {
     status: 'S5', service_completed_at: now, updated_at: now
-  });
+  }, 'complete');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S5') {
@@ -236,7 +236,7 @@ async function resume_service(ctx) {
   const device = String(event.device || '').slice(0, 200);
   const won = await casStatus(order_id, 'S3.5', {
     status: 'S3', resumed_at: now, resumed_by: openid, updated_at: now
-  });
+  }, 'resume');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S3') {

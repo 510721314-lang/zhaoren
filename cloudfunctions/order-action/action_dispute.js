@@ -33,7 +33,7 @@ async function complaint(ctx) {
     dispute_state: 'open',
     dispute_type: 'complaint',
     frozen: true
-  });
+  }, 'complaint_open');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S10.5') {
@@ -97,7 +97,7 @@ async function complaint_withdraw(ctx) {
   const won = await casStatus(order_id, 'S10.5', {
     status: restore, complaint_withdrawn_at: now, complaint_withdrawn_by: openid, updated_at: now,
     dispute_state: 'resolved', dispute_type: '', frozen: false
-  });
+  }, 'complaint_withdraw');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.complaint_withdrawn_by === openid) return { ok: true, data: { status: latest.status || '', idempotent: true } };

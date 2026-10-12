@@ -42,8 +42,8 @@ async function logStatus(orderId, from, to, action, operator) {
 
 // 条件更新(防并发/防重复跑): 仅当订单仍处于 expectStatus 时更新, 返回是否"抢到"
 // 语义收敛至 _shared/order_state.js 的 casTransition(规范源); 本处仅注入本地 col/_。
-async function casStatus(orderId, expectStatus, patch) {
-  return casTransition(col, _, orderId, expectStatus, patch);
+async function casStatus(orderId, expectStatus, patch, event) {
+  return casTransition(col, _, orderId, expectStatus, patch, event ? { event } : undefined);
 }
 
 // ───────── error_scan 巡检(D7): 聚合窗口内异常 → 推管理员 system_notice ─────────
@@ -375,7 +375,7 @@ exports.main = async (event, context) => {
     const s1s = (await col('order_main').where({ status: 'S1', created_at: _.lt(s1Cut) }).limit(BATCH).get()).data || [];
     const s1OK = [];
     await Promise.allSettled(s1s.map(async (o) => {
-      const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now });
+      const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now }, 'cancel');
       if (!won) { out.skipped.push(o.order_no + ':S1竞态'); return; }
       if (o.demand_id) {
         await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
@@ -406,7 +406,7 @@ exports.main = async (event, context) => {
     const s0OK = [];
     await Promise.allSettled(s0s.map(async (o) => {
       if (!(o.pay_expire_at && o.pay_expire_at < now)) return;
-      const won = await casStatus(o._id, 'S0', { status: 'S6', updated_at: now });
+      const won = await casStatus(o._id, 'S0', { status: 'S6', updated_at: now }, 'cancel');
       if (!won) { out.skipped.push(o.order_no + ':S0竞态'); return; }
       // Wave2 止血①(D12): S0 超时同样释放需求回 matching, 否则需求被已取消订单永久占用
       if (o.demand_id) {
@@ -439,7 +439,7 @@ exports.main = async (event, context) => {
     await Promise.allSettled(s35s.map(async (o) => {
       const anchor = o.interrupted_at || o.updated_at || 0;
       if (anchor >= iCut) return;
-      const won = await casStatus(o._id, 'S3.5', { status: 'S4', updated_at: now });
+      const won = await casStatus(o._id, 'S3.5', { status: 'S4', updated_at: now }, 'partial_agree');
       if (!won) { out.skipped.push(o.order_no + ':S3.5竞态'); return; }
       s35OK.push(o);
     }));
@@ -474,7 +474,7 @@ exports.main = async (event, context) => {
         pending_modify: _.remove(),
         modify_auto_rejected_at: now,
         updated_at: now
-      });
+      }, 'modify');
       if (!won) { out.skipped.push(o.order_no + ':S2_5竞态'); return; }
       mOK.push({ o, toStatus });
     }));
@@ -545,7 +545,7 @@ exports.main = async (event, context) => {
       if (evR.data && evR.data[0]) {
         const won = await casStatus(o._id, 'S5', { status: 'S8', evaluated_at: evR.data[0].created_at || now, updated_at: now, eval_state: 'user_done',
           // Wave1 正交位 dual-write(§3.2): 评价达成 → 资金位 settle_state=ready(S5 单无历史退款)
-          fund: { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } });
+          fund: { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } }, 'evaluate');
         if (won) {
           evalResults.push({ o, from: 'S5', to: 'S8', action: 'timeout_eval_backfill' });
           log.d(`backfill S5→S8: ${o.order_no}`);
@@ -555,7 +555,7 @@ exports.main = async (event, context) => {
 
       const won = await casStatus(o._id, 'S5', { status: 'S9', evaluated_at: now, updated_at: now, eval_state: 'auto_done',
         // Wave1 正交位 dual-write(§3.2): 默认评价亦达成结算资格
-        fund: { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } });
+        fund: { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } }, 'evaluate');
       if (!won) { out.skipped.push(o.order_no + ':S5竞态'); return; }
 
       // 写系统默认评价(文案固定「系统默认评价」)
@@ -618,7 +618,7 @@ exports.main = async (event, context) => {
         { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'done', settled_at: now },
         o.fund || {}, { settle_state: 'done', settled_at: now }
       );
-      const won = await casStatus(o._id, 'S8', { status: 'S10', archived_at: now, fund, updated_at: now });
+      const won = await casStatus(o._id, 'S8', { status: 'S10', archived_at: now, fund, updated_at: now }, 'after_sale_expire');
       if (!won) { out.skipped.push(o.order_no + ':S8竞态'); return; }
       s8OK.push(o);
     }));

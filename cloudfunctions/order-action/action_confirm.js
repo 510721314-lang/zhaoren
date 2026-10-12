@@ -224,7 +224,7 @@ async function confirm_item(ctx) {
     const payExpire = now + (config.s0_timeout_min || 30) * 60 * 1000;
     const won = await casStatus(order_id, 'S1', {
       status: 'S0', pay_expire_at: payExpire, updated_at: now
-    });
+    }, 'confirm_done');
     if (won) {
       await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
       newStatus = 'S0';
@@ -306,7 +306,7 @@ async function confirm_all(ctx) {
   if (done) {
     const config = await getConfig();
     const payExpire = now + (config.s0_timeout_min || 30) * 60 * 1000;
-    const won = await casStatus(order_id, 'S1', { status: 'S0', pay_expire_at: payExpire, updated_at: now });
+    const won = await casStatus(order_id, 'S1', { status: 'S0', pay_expire_at: payExpire, updated_at: now }, 'confirm_done');
     if (won) {
       await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
       newStatus = 'S0';

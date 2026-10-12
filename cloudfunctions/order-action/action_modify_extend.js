@@ -74,7 +74,7 @@ async function modify(ctx) {
     },
     modify_at: now,
     updated_at: now
-  });
+  }, 'modify');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S2_5' && latest.pending_modify && latest.pending_modify.by_openid === openid) {
@@ -128,7 +128,7 @@ async function modify_confirm_or_reject(ctx) {
       modify_rejected_at: now,
       modify_rejected_by: openid,
       updated_at: now
-    });
+    }, 'modify');
     if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
     await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_reject' : 'partner_modify_reject', openid);
     log.d(`modify rejected: ${order.order_no} S2_5→${toStatus} by=${role}`);
@@ -158,7 +158,7 @@ async function modify_confirm_or_reject(ctx) {
     modify_confirmed_at: now,
     modify_confirmed_by: openid,
     updated_at: now
-  });
+  }, 'modify');
   if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
   try {
     const conf = await getConfirmation(order_id);
@@ -343,7 +343,7 @@ async function partial_confirm(ctx) {
   const device = String(event.device || '').slice(0, 200);
   const won = await casStatus(order_id, 'S3.5', {
     status: 'S4', partial_confirmed_at: now, partial_confirmed_by: openid, updated_at: now
-  });
+  }, 'partial_agree');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S4') {
@@ -396,7 +396,7 @@ async function ratio_confirm(ctx) {
     ratio_confirmed_by: openid,
     ratio_fen: ratioFen,
     updated_at: now
-  });
+  }, 'ratio_agree');
   if (!won) {
     const latest = await getOrder(order_id);
     if (latest && latest.status === 'S5') {

@@ -148,6 +148,17 @@ function canTransition(event, from, to) {
   return !!transitionFor(event, from, to);
 }
 
+// ── 强制迁移拦截(§3.3 收口) ──
+// 注意: 仅凭 (from→to) 无法拦截——因 no.17/18/19/21 等规则 from=['*'](撤回/平台裁决),
+//   任意 from→任意 to 均可命中, 白名单留有 '*' 时不具结构约束力。故强制校验须**事件驱动**。
+// 放行规则: 无目标状态(非迁移) / 退役态 S9(存量写兼容) / 未提供 event(未迁移的兼容调用点)。
+function transitionAllowed(event, expect, to) {
+  if (!to) return true;
+  if (LEGACY_STATES.indexOf(to) >= 0) return true;
+  if (!event) return true;
+  return canTransition(event, expect, to);
+}
+
 // ── 读兼容(§5.1): 旧 S 码 → 目标表达; 未迁移的存量数据也能被新读方正确理解 ──
 // 已有正交位字段时以其为准, 否则由旧状态推导。
 /**
@@ -186,18 +197,24 @@ function mapStatus(order) {
  * @param {string} orderId     order_main._id
  * @param {OrderStatus|OrderStatus[]} expect  允许的当前状态(命中才更新)
  * @param {Object} patch       要写入的字段(含 status 与正交位)
- * @param {Object} [opts]      { event, onShadow, onError }
- * @returns {Promise<boolean>} 是否抢到更新(异常返回 false, 不抛)
+ * @param {Object} [opts]      { event, onShadow, onError, onReject, skipGuard }
+ * @returns {Promise<boolean>} 是否抢到更新(白名单外迁移或异常返回 false, 不抛)
  */
 async function casTransition(col, _, orderId, expect, patch, opts) {
   const o = opts || {};
+  const to = patch && patch.status;
+  // 强制拦截(§3.3 收口): patch.status 存在且不在迁移白名单内 → 直接拒绝(不写库)。
+  // 退役态(S9)由 transitionAllowed 放行(存量写兼容); opts.skipGuard 可显式绕过(仅限明确场景)。
+  if (to && !o.skipGuard && !transitionAllowed(o.event, expect, to)) {
+    if (o.onReject) o.onReject(expect, to);
+    return false;
+  }
   try {
     const cond = Array.isArray(expect) ? _.in(expect) : expect;
     const r = await col('order_main').where({ _id: orderId, status: cond }).update({ data: patch });
     const won = !!(r.stats && r.stats.updated === 1);
-    // 影子模式(Wave1 不阻断): 迁移不在 §3.3 白名单内时回调告警, 供观测后再决定是否开强制
+    // 影子校验(保留): 白名单外迁移回调告警(供观测; 正常流程已由上方强制拦截)
     if (won && o.event && o.onShadow) {
-      const to = patch && patch.status;
       if (to && !canTransition(o.event, expect, to)) o.onShadow(o.event, expect, to);
     }
     return won;
@@ -210,7 +227,7 @@ async function casTransition(col, _, orderId, expect, patch, opts) {
 module.exports = {
   MAIN_AXIS, SIDE_STATES, TERMINAL_STATES, LEGACY_STATES, ALL_STATES, SETTLE_ELIGIBLE,
   orthoDefaults,
-  TRANSITIONS, transitionsOf, transitionFor, canTransition,
+  TRANSITIONS, transitionsOf, transitionFor, canTransition, transitionAllowed,
   mapStatus,
   casTransition
 };

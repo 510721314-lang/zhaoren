@@ -157,3 +157,33 @@ test('casTransition: 影子校验仅对白名单外迁移回调(onShadow), 不�
   assert.strictEqual(won, true);
   assert.strictEqual(seen.length, 1);
 });
+
+test('transitionAllowed: 事件驱动白名单判定', () => {
+  assert.strictEqual(S.transitionAllowed('start_service', 'S2', 'S3'), true);   // 命中
+  assert.strictEqual(S.transitionAllowed('cancel', ['S1', 'S0'], 'S6'), true);  // 命中(数组 from)
+  assert.strictEqual(S.transitionAllowed('cancel', 'S2', 'S3'), false);         // 未命中
+  assert.strictEqual(S.transitionAllowed(undefined, 'S2', 'S3'), true);         // 未提供 event → 放行(兼容)
+  assert.strictEqual(S.transitionAllowed('evaluate', 'S5', 'S9'), true);        // 退役态 S9 → 放行
+  assert.strictEqual(S.transitionAllowed('cancel', 'S2', undefined), true);     // 非状态迁移 → 放行
+});
+
+test('casTransition: 白名单外迁移(event 提供) → 强制拦截(不写库)', async () => {
+  const f = makeFakeCas(1);
+  const seen = [];
+  const won = await S.casTransition(f.col, f._, 'o1', 'S2', { status: 'S3' }, { event: 'cancel', onReject: (...a) => seen.push(a) });
+  assert.strictEqual(won, false);
+  assert.strictEqual(f.calls.length, 0, '拦截时不应触达 DB');
+  assert.deepStrictEqual(seen[0], ['S2', 'S3']);
+});
+
+test('casTransition: 退役态 S9 目标放行(存量写兼容)', async () => {
+  const f = makeFakeCas(1);
+  const won = await S.casTransition(f.col, f._, 'o1', 'S5', { status: 'S9' }, { event: 'evaluate' });
+  assert.strictEqual(won, true);
+});
+
+test('casTransition: skipGuard 显式绕过强制拦截', async () => {
+  const f = makeFakeCas(1);
+  const won = await S.casTransition(f.col, f._, 'o1', 'S2', { status: 'S3' }, { event: 'cancel', skipGuard: true });
+  assert.strictEqual(won, true);
+});
