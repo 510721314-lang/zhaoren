@@ -59,6 +59,19 @@ async function casStatus(orderId, expectStatus, patch, event) {
 // 窗口 = 上次扫描以来(admin_config.error_scan_last_at; 缺省回看 1h, 单次最多 24h 防首次轰炸)。
 // 游标推进天然去重: 持续存在的旧异常只在进入窗口那一刻报一次, 不逐 5 分钟重复轰炸。
 // 巡检项: ①P0/P1 平台事件 ②audit_log result=fail ③卡死提现(processing 超 48h) ④网关鉴权失败突增(窗口≥3 次, 防单次误输噪声)
+//
+// 巡检豁免(2026-10-12): 以下 P0/P1 属「机器噪声 / 业务流程自身兜底」而非系统故障, 不再计入巡检异常播报
+//   · admin_probe + reason=no_openid —— 无身份的机器调用(云端测试面板、运维探针、云函数互调),
+//     不是可疑用户行为(真实越权探测是 reason=not_in_whitelist, 仍照常告警);
+//   · s4_stale_escalate —— order-timer 自身「S4 裁期届满 → 平台介入」的兜底推进, 属正常业务流转。
+// 保留告警: safety_sos(P0 真实安全求助, 运营唯一主动触达) 等
+function isScanExemptEvent(e) {
+  if (!e) return false;
+  if (e.type === 'admin_probe' && String((e.payload || {}).reason || '') === 'no_openid') return true;
+  if (e.type === 's4_stale_escalate') return true;
+  return false;
+}
+
 async function errorScan(now, cfg, adminOpenids) {
   const lastAt = Number(cfg.error_scan_last_at) || now - 3600 * 1000;
   const windowStart = Math.max(lastAt, now - 24 * 3600 * 1000);
@@ -67,7 +80,7 @@ async function errorScan(now, cfg, adminOpenids) {
   try {
     const r = await col('platform_event').where({ level: _.in(['P0', 'P1']), created_at: _.gt(windowStart) })
       .orderBy('created_at', 'asc').limit(50).get();
-    const list = r.data || [];
+    const list = (r.data || []).filter((e) => !isScanExemptEvent(e));   // 剔除机器噪声/业务兜底事件
     if (list.length) issues.platform_events = list.map((e) => `${e.level}/${e.type}`);
   } catch (e) { log.d(`error_scan platform_event fail: ${e.message}`); }
   // 2. 审计失败(写操作失败留证; 集中突增通常意味着资金/鉴权链路异常)
@@ -375,8 +388,10 @@ exports.main = async (event, context) => {
   // 不再读独立键 modify_confirm_h(admin-action 白名单已移除, 存量历史无 expire_at 的订单仍走此兜底)
   const mcDefaults = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
   const modifyConfirmH = num(Object.assign({}, mcDefaults, cfg.modify_config || {}).confirmHours, 24);
+  // 加时确认窗口(2026-10-12 后台可配): 独立键 extend_confirm_h, 0/缺省 → 回退改期 confirmHours (与申请时算 expire_at 同一口径)
+  const extendConfirmH = num(cfg.extend_confirm_h, 0) > 0 ? num(cfg.extend_confirm_h, 0) : modifyConfirmH;
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -521,6 +536,41 @@ exports.main = async (event, context) => {
     }));
     mOK.forEach(x => { out.modify_auto_reject.push(x.o.order_no); log.d(`timeout S2_5→${x.toStatus} modify auto-reject: ${x.o.order_no}`); });
   } catch (e) { log.d(`s2.5 scan fail: ${e.message}`); }
+
+  // ───────── 3.7 S3 加时申请 expire_at 到期 → 自动拒绝(不加时, 服务时长不变) ─────────
+  // 承诺来源: 详情页「…超时自动拒绝」+ 状态机 no.11 timeout 列; 期限以申请时写入的 expire_at 为准
+  try {
+    const s3s = (await col('order_main').where({ status: 'S3' }).limit(BATCH).get()).data || [];
+    trackBacklog('S3_extend', s3s);
+    const eOK = [];
+    await Promise.allSettled(s3s.map(async (o) => {
+      const pe = o.pending_extend;
+      if (!pe) return;
+      if (o.frozen) return;   // 争议/申诉冻结中不推进
+      const deadline = pe.expire_at || ((pe.created_at || o.updated_at || 0) + extendConfirmH * 3600000);
+      if (!deadline || deadline >= now) return;
+      // 加时的确认/拒绝都「不改 status」(仍 S3), 仅靠 status 无法区分「刚被对方处理」与「超时」;
+      // 故用 updated_at 做乐观锁: 对方一旦确认/拒绝会刷新 updated_at → 本条件更新落空 → 留待对方结果生效
+      const r = await col('order_main')
+        .where({ _id: o._id, status: 'S3', updated_at: o.updated_at })
+        .update({ data: { pending_extend: _.remove(), extend_auto_rejected_at: now, updated_at: now } });
+      if (!r.stats || r.stats.updated !== 1) { out.skipped.push(o.order_no + ':S3加时竞态'); return; }
+      eOK.push({ o, pe });
+    }));
+    await Promise.allSettled(eOK.map(x => logStatus(x.o._id, 'S3', 'S3', 'timeout_extend_auto_reject', 'system')));
+    // 只通知发起人(与手动拒绝口径一致); type 必须是 extend_reject —— 详情页 8s notice_poll 命中即震动+弹窗
+    await Promise.allSettled(eOK.filter(x => x.pe.by_openid).map(x => col('system_notice').add({ data: {
+      to_openid: x.pe.by_openid,
+      order_id: x.o._id,
+      type: 'extend_reject',
+      title: '加时申请已超时自动拒绝',
+      body: '你的加时申请因对方超时未确认,已自动拒绝,服务时长不变',
+      action_key: 'jump_order',
+      action_payload: { order_id: x.o._id },
+      created_at: now, read: false
+    }})));
+    eOK.forEach(x => { out.extend_auto_reject.push(x.o.order_no); log.d(`timeout S3 extend auto-reject: ${x.o.order_no}`); });
+  } catch (e) { log.d(`s3 extend scan fail: ${e.message}`); }
 
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
@@ -697,11 +747,12 @@ exports.main = async (event, context) => {
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
       urge_remind: urgeRemind,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_h: extendConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
       modify_auto_reject: out.modify_auto_reject,
+      extend_auto_reject: out.extend_auto_reject,
       milestone_auto_confirm: out.milestone_auto_confirm,
       auto_eval: out.auto_eval,
       s8_archive: out.s8_archive,
@@ -712,6 +763,7 @@ exports.main = async (event, context) => {
         s0_close: out.s0_close.length,
         interrupt_partial: out.interrupt_partial.length,
         modify_auto_reject: out.modify_auto_reject.length,
+        extend_auto_reject: out.extend_auto_reject.length,
         milestone_auto_confirm: out.milestone_auto_confirm.length,
         auto_eval: out.auto_eval.length,
         s8_archive: out.s8_archive.length,

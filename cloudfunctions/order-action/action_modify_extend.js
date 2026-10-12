@@ -213,7 +213,10 @@ async function extend(ctx) {
 
   const config = await getConfig();
   const now = Date.now();
-  const confirmHours = (config.modify_config && config.modify_config.confirmHours) || 24;
+  // 加时确认窗口(2026-10-12 后台可配): 独立键 admin_config.extend_confirm_h;
+  // 未配置(0/缺省)回退「改期确认窗口」, 与旧版行为一致。expire_at 在申请时算死, 后续改配置不影响在途申请。
+  const modifyConfirmH = (config.modify_config && config.modify_config.confirmHours) || 24;
+  const confirmHours = Number(config.extend_confirm_h) > 0 ? Number(config.extend_confirm_h) : modifyConfirmH;
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
   if (reason) {

@@ -114,6 +114,8 @@ const CONFIG_SCHEMA = [
   { f: 'urge_max_count', t: 'int', g: '订单超时', label: '催办-手动上限', unit: '次', min: 1, max: 10, def: 2 },
   { f: 'eval_window_h', t: 'int', g: '订单超时', label: '评价窗口', unit: '小时', min: 1, max: 720, def: 48 },
   { f: 'milestone_confirm_min', t: 'int', g: '订单超时', label: '里程碑确认', unit: '分钟', min: 1, max: 1440, def: 15 },
+  // 加时确认窗口(2026-10-12): 加时申请对方未及时回复 → 超时自动拒绝的时长; 0/缺省=跟随「改期确认窗口」
+  { f: 'extend_confirm_h', t: 'int', g: '订单超时', label: '加时确认窗口(0=跟随改期)', unit: '小时', min: 0, max: 168, def: 0 },
   { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4 },
   // ── 时间红线 ──
   { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 1440 },
