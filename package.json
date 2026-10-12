@@ -7,7 +7,7 @@
     "test": "node --test \"cloudfunctions/_shared/*.test.js\" && node cloudfunctions/_shared/ab_equivalence.js",
     "test:unit": "node --test \"cloudfunctions/_shared/*.test.js\"",
     "test:ab": "node cloudfunctions/_shared/ab_equivalence.js",
-    "verify": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js && npm test",
-    "verify:offline": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js --offline && npm test"
+    "verify": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js && node scripts/check-manual-links.js && npm test",
+    "verify:offline": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js --offline && node scripts/check-manual-links.js && npm test"
   }
 }
