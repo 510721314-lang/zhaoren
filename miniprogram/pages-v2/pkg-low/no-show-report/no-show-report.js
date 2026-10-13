@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：爽约申诉链路(提交→举证→裁定→撤回) + 时间窗口径(S2/S3.5 + 约定开始时间≤now≤开始+48h) + 时间线倒序展示（依据：project_memory L35-36, L181）
 // 爽约申诉/举证页(第三批 3B) · submit=提交申诉 / defense=被诉方举证
 // 入参: orderId(submit), mode('submit'|'defense'), reportId(defense 必传)
 // 提交走 order-action: no_show_report_submit / no_show_report_defense; 服务端为准(时限/上限/内容安全)

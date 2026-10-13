@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：17 业务函数 openid.js 同源收敛(无有意变体) + dev_until fail-closed(过期/缺失回 prod) + invalidateEnvCache 导出 + 17 载体已全部部署并 download 核验(admin-action=login_locked / init-db=dev_until 标记命中)（依据：project_memory L109-110）
 // 统一的 openid 解析器 + 环境开关缓存(安全优先 fail-closed)
 // - prod 环境: 强制用 wxCtx.OPENID, 忽略 event.mock_openid(防冒充)
 // - dev 环境: event.mock_openid 优先(云端测试面板需要模拟身份)

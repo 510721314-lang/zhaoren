@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：订单详情时间线倒序 + 加时超时拒绝 + 投诉冻结位 + S2协商取消链双出口 + 角色可读化不暴露 openid（依据：project_memory L48-52, L71, L83-85, L182, L191）
 // PRD章节: 3.5 订单生命周期 / 3.5.2 13态状态机 / 3.5.3 改期 / 3.5.4 取消梯度退款 / 3.7 保险 / R1时间红线
 // P0-4: 接云端 order-action detail, 删除 mock findOrder 依赖
 const CONFIG = require('../../config/index.js');

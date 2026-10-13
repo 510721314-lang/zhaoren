@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：order-action 投诉冻结位+S2协商取消链双出口+争议裁决超期升级(人工裁决,禁自动)+退款上限/回滚+CAS 乐观锁（依据：project_memory L41-52, L89, L182, L191）
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
 // 29 个 action: get_confirmation / update_item / confirm_item / confirm_all /

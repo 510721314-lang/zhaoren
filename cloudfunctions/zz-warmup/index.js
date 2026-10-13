@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：zz-warmup cron 全天候每5分钟预热(约1.7万次/月,占基础版4%)+触发器更新走 tcb fn trigger 绕白名单（依据：project_memory L108, L266）
 // zz-warmup 首屏云函数保温探针(S9 性能优化)
 // 目的: 定时唤醒首屏关键云函数(home-action / user-login), 规避实例休眠冷启动
 //       实测冷启动 ~1.6-1.9s → 保温后热态 ~0.3s, 首页冷启可交互 1.9s → 0.6-0.9s

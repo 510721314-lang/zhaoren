@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：微信一键登录 + openid.js 17 函数同源 + 失败计数原子化（依据：project_memory L109-111）
 // PRD章节: 3.1.1 登录授权 / 1.6.1 用户类型分流 / R5 年龄红线
 // 首期仅开放微信一键登录, 手机号/密码方式待上线前再接入
 const redline = require('../../utils/redline.js');

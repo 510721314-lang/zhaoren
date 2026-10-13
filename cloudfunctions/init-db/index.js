@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：init-db force_set_env 切 dev 同刻写 dev_until(4h 与 force_expire_at 同刻自毁)+openid 规范源 prod 兜底（依据：project_memory L109-110, L126）
 // 对应 PRD 章节：16 数据库设计与数据模型 / 附录M 参数总表
 // init-db 是部署工具函数,用于一次性初始化数据库集合、索引与运营参数种子配置
 // 幂等:重复运行不报错、不覆盖已有数据

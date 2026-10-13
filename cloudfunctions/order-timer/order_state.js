@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：order_state 表驱动+正交位 dual-write+三副本同步(SYNC_MAP)+action_timeline 时间线合并（依据：project_memory L182, L190, L206）
 // 共享：订单履约状态机(规范源/单一实现)
 // ⚠️ 微信云开发按单函数目录打包, 不支持跨目录 require('../_shared/')。
 // 本文件为「规范源」, 修改后需运行 sync-order-state.ps1 同步复制到:

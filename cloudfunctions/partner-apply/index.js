@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：耍伴入驻申请+审核中(pending_review)可维护资料+驳回后 profile_submit_at=0 立即重提（依据：project_memory L23-25, L128）
 // 对应 PRD 章节：3.10 耍伴工作台 / 5.1 B端后台RBAC / 9.1 信用分扣除与冻结规则
 // partner-apply 耍伴入驻 · 身份取自 getWXContext().OPENID
 // 1 个 action: apply

@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：附近地图双向对称定位共享+绿/蓝针角色区分(is_partner)+关闭开关清坐标（依据：project_memory L26-29, L141, L226）
 // 附近地图: 实时定位共享(双向对称) — 打开上报本人位置, 展示已开启共享且在线(15min)的 TA
 // 点 marker 卡片 → 耍伴看用户(去承接) / 用户看耍伴(定向邀请帮忙)
 const { callCloud } = require('../../utils/cloud.js');

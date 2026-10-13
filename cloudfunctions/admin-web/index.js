@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：admin-web 登录(X-Admin-Token 12h)+SPA 静态服务+proxy admin-action+分组级保存（依据：project_memory L93, L273-276）
 // admin-web HTTP 云函数 · Web 管理后台后端代理层
 // 鉴权: admin_config.admin_web_key (后续商用升级 token+HMAC)
 // 职责: 静态文件服务 (Vue SPA) + 鉴权 → proxy admin-action → 返回 JSON

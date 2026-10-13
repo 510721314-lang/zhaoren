@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：订阅消息 HTTPS 通道(opt-in,stable_token)+8s超时显式销毁+getAccessToken in-flight 去重+demand.sub_msg_send_logs 落库（依据：project_memory L96-102, L252-253）
 // order-timer/push_https.js · 批 6.1 订阅消息 HTTPS 通道(opt-in)
 // 当 admin_config.sub_msg_https = { appid, secret } 已配置时, 用本模块走
 //   cgi-bin/stable_token → access_token → subscribe/send 直连微信;

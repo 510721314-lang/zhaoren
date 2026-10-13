@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：客服会话 kefu_+openid 唯一占位(复用 uk_order_id)+多用户并发不撞唯一键(禁用空串占位)（依据：project_memory L77, L260）
 // 对应 PRD 章节：PRD 3.4 IM即时聊天系统 / 3.3.2 四确认前仅系统模板消息
 // im-conv 会话读取 · 身份取自 getWXContext().OPENID
 // 3 个 action:

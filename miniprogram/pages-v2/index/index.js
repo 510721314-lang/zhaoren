@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：首页5场景宫格+更多场景折叠+搜索+云端排序生效（依据：project_memory L73-74, L82, L136）
 // PRD章节: 3.2.1 首页 / 3.2.3 耍伴推荐 / 1.8.1 新人福利 / 1.7 紧急联系人 / R1 夜间红线
 // P1: 接云端 user-login peek_login, 删除 mock CURRENT_USER 依赖
 const redline = require('../../utils/redline.js');

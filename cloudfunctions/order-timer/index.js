@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：order-timer 游标分页(禁用 skip)+单轮500硬上限+9段 scanAll+trackBacklog+R2争议升级/停用恢复（依据：project_memory L103-106, L113, L210）
 // 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
 // order-timer 超时自动流转 · 定时触发器(每5分钟) + 云端测试(action=run)
 // 规则(rules.md §14):

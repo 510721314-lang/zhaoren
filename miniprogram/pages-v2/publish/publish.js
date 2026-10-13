@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：需求发布 + 代发校验(关系/手机/座机) + 联系手机号脱敏 138****5678（依据：project_memory L31-34, L155-156）
 // PRD章节: 3.3 需求发布 / 3.3.1 场景与撮合 / 3.5.1-V15 AA费用 / 1.5 公益 / R1时间红线 / R9场景白名单
 const redline = require('../../utils/redline.js');
 const { getScene } = redline;

@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：需求广场列表/筛选/分页+抢单通知(≤20即时, >20走 order-timer 批量兜底)（依据：project_memory L177）
 // PRD章节: 2.2 广场广播 / 1.8.4 供需匹配 / 1.5 公益 / R1 夜间红线 / R9 场景认证
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');

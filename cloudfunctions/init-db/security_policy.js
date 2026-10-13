@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：admin_login 防爆破锁定(连续失败5次锁10分钟, login_locked 错误码, 锁定中不验密直接拒, 验密成功清零) + 失败计数 _.inc 原子自增(三处: admin_login/password_login/SMS) + P1 admin_login_fail 事件(触发锁定 payload.locked=true)（依据：project_memory L104, L111）
 // 安全策略纯函数(零依赖, 可单测) · 单一实现: user-login / init-db 引用本模块, 勿在业务函数内复制实现
 // 设计目标: 将"锁定阈值/冷却窗口/bootstrap CAS 决策"等安全判定集中于此, 用 node:test 全覆盖
 

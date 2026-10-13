@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：urge_rules 三段式催办(T0提醒耍伴/T+1h用户通知+入口/T+4h引导申诉)+幂等标记位防重复轰炸（依据：project_memory L53-54, L197-199）
 // urge_rules.js - S2 履约催办三段式纯规则（Wave2 止血⑥）
 // 纯函数，无 wx-server-sdk 依赖，可独立单测。消费者：order-timer（自动链路）。
 // 设计依据：docs/履约域业务逻辑与流程设计方案.md §3.7.6

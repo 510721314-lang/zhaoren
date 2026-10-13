@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：场景/子场景显隐(visible/hidden_options)过滤统一在 scene_groups 出口+活动方形1:1卡片(标题trim非空才渲染)（依据：project_memory L78-82, L87-88, L207-208）
 // home-action 首页概览 · 最新 BLOG / 最新需求 / 活跃注册用户 / 活跃耍伴
 // 公开接口(不要求登录, 不返回隐私字段), 首页单次调用取全部四块数据
 const cloud = require('wx-server-sdk');

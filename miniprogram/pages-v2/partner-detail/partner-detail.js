@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：耍伴详情只读 profile_audited_snapshot(未过审内容不上线, fail-closed 双缓冲)（依据：project_memory L17）
 // PRD章节: 3.2.3 耍伴详情 / 3.1.4 认证标识
 // 接 partner-action 云函数: detail
 const redline = require('../../utils/redline.js');

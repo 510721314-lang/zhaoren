@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：消息页系统通知复用 notice_list 渲染+未读徽标+点击跳订单详情（依据：project_memory L172, L178）
 // PRD章节: 3.4 消息体系 / 3.5.2 订单状态 / 3.4.4 留存规则
 // P0-5: 接云端 im-conv my_convs, 删除 mock conversations 依赖
 const redline = require('../../utils/redline.js');

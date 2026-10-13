@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：admin-action 181例等价零差异/83 action 分发/鉴权门+图片1:1强制校验(up_not_square)+JPEG填充字节跳过（依据：project_memory L69, L104, L111, L95, L107）
 // 管理后台 RBAC + 九大模块(看板/用户/耍伴/需求/订单/财务/风控/配置/管理员)
 // 所有动作第一步鉴权: getWXContext().OPENID 必须在 admin_config.admin_openids 白名单内,
 // 否则拒绝并写 platform_event(P1, admin_probe)。

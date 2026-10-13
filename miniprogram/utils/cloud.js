@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：统一云调用入口(cloudReady 等待+读重试2次/写不重试+6s超时+device 注入)（依据：project_memory L75）
 // utils/cloud.js · 统一云函数调用入口(2026-10-12 评审整改 P2)
 //
 // 背景: 此前 39 个页面/组件各自定义 `callCloud` 直接 `wx.cloud.callFunction`, 存在两类问题:

@@ -1,3 +1,4 @@
+// @VERIFIED 2026-10-13 已真机验证：安全报备 SOS+P0 platform_event+errorScan 巡检豁免 admin_probe 与 s4_stale_escalate（依据：project_memory L86）
 // 对应 PRD 章节：PRD 3.6 标准化安全报备系统
 // safety-report 安全报备与紧急求助 · 身份取自 getWXContext().OPENID
 // 8 个 action(含 UGC 举报 report_user):
