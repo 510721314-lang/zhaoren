@@ -1,5 +1,7 @@
 # 找人帮忙小程序 · 收工交接与商用化指引
 
+> ⚠️ **历史快照（2026-09-12 至 09-13）· 勿作当前基线（评审修复 2026-10-13 加注）**：本文为当时的收工交接与商用化指引；其中项目根 `c:\Users\DC\Desktop\zhaoren`（现唯一工作目录为 **`C:\zhaoren`**，旧桌面副本已废弃）、服务端口、提交号、「上线前阻断项」状态等均已被后续工作取代。**最新基线与部署状态以 `docs/deploy-log.md`、`docs/dev-manual/` 及项目记忆为准。**
+
 > 更新：2026-09-12　环境：`cloud1-d9gkefwcp5c777088`　AppID：`wxbc4a4afacdf234f5`
 > 项目根：`c:\Users\DC\Desktop\zhaoren`（2026-09-11 从 H 盘迁出，H 盘已不存在）
 > 备份：git tag `backup-2026-09-12`（=提交 e208e01）；全量归档 `C:\Users\DC\Desktop\临时备份文件\zhaoren-backup-2026-09-12.zip`

@@ -1,5 +1,7 @@
 # 微信小程序 detail页与广场接云端
 
+> ⚠️ **历史工作记录（2026-09 中期；评审修复 2026-10-13 加注）**：本文件为当时的工作日志（对话/部署/备份实录），**仅作历史参考，勿作当前基线**。已知过时口径示例：项目根 `c:\Users\DC\Desktop\zhaoren`（现唯一工作目录为 **`C:\zhaoren`**，旧桌面副本已废弃）；「15 个云函数清单」（现为 21 个 = 17 个 openid.js 载体 + admin-web + zz-warmup + zz-seed-orders）。当前环境与函数清单以 `docs/deploy-log.md`、`.trae/skills/wx-cloud-deploy/SKILL.md` 为准。
+
 > **Workspace:** c:\Users\DC\Desktop\zhaoren
 
 ---

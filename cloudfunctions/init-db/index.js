@@ -146,7 +146,9 @@ const SEED_CONFIG = {
 };
 
 // 管理身份解析(安全收口):
-//  1) admin-web 网关代理链路: 校验共享密钥 _admin_web_proxy_key(与 admin-action/openid.js 同模式), 不匹配 fail-closed
+//  1) admin-web 网关代理链路: 校验共享密钥 _admin_web_proxy_key
+//     (评审修复 2026-10-13: openid.js 收敛后, 网关校验在 admin-action 已上移其 index.js 包装层,
+//      对应实现为 admin-action/index.js 的 resolveOpenidWithProxy), 不匹配 fail-closed
 //  2) 否则用 resolveOpenid 结果(prod 强制真实 wxCtx.OPENID, mock_openid 旁路全关)
 //  绝不直接读 event.mock_openid —— 历史漏洞: prod 下任意客户端可伪造管理员身份
 async function resolveAdminIdentity(db, event, openid) {

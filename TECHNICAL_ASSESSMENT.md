@@ -103,15 +103,22 @@
 ### 4.1 整改执行记录（2026-10-12）
 | 级别 | 事项 | 状态 |
 |---|---|---|
-| **P0** | openid.js 纳入共享同步守护 | ✅ 已执行（规范源 `_shared/openid.js` + `sync-openid.ps1` + SYNC_MAP 15 目录；admin-action/init-db 显式排除为有意变体） |
+| **P0** | openid.js 纳入共享同步守护 | ✅ 已执行（规范源 `_shared/openid.js` + `sync-openid.ps1` + SYNC_MAP；**2026-10-13 二次收敛：两处「有意变体」归零** — admin-action 网关校验上移其 index.js `resolveOpenidWithProxy`，init-db 变体废弃并入规范源，全量 17 函数逐字节同源） |
 | **P1** | 信用分规则抽 `_shared/credit_rules.js` | ✅ 已执行（规范源 + `sync-credit-rules.ps1` + SYNC_MAP；evaluation-submit L142 / order-timer L539 改用 `starCreditDelta`；+单测） |
 | **P1** | `ctx` 补 `@typedef` JSDoc | ✅ 已执行（order-action `HandlerCtx` / admin-action `AdminHandlerCtx`，注释级、零运行时） |
 | **P2** | 状态机迁移表开强制拦截 | ✅ 已执行（`casTransition` 事件驱动拦截；20 个调用点补 event；退役态 S9 兼容放行；A/B 201 cases 0 diff 证明未误伤真实迁移） |
 | **P2** | order-timer 积压监控 | ✅ 已执行（各状态扫描取满 BATCH 时 `trackBacklog` 记录 + `log.w` 告警，结果经 `data.backlog` 暴露；每次运行重置防热实例累积） |
-| **P2** | 提审前真实环境只读烟雾 | ⏸ 待办（需环境） |
+| **P2** | 提审前真实环境只读烟雾 | ✅ 已执行（2026-10-12 云端只读探针三函数，模块加载图验证通过；业务分支未验，需真实 OPENID，见 deploy-log 备注） |
 
 > 整改后回归：单测 218/0、A/B 201 cases 0 diff、守门 114/0、shared-sync ALL OK（含 openid/credit_rules）。
-> **注意**：P2 强制拦截 / 信用分抽离 / 积压监控均为行为或代码变更，`order-action`/`order-timer`/`evaluation-submit` 变更后**需重新部署**方在线上生效（本地已改，云端未部署）。
+> **注意**：P2 强制拦截 / 信用分抽离 / 积压监控均已随 2026-10-12 部署线上生效（`order-action`/`order-timer`/`evaluation-submit`，success=true 且 Active）。
+
+### 4.2 后续闭环（2026-10-13）
+
+| 级别 | 事项 | 状态 |
+|---|---|---|
+| **P1** | `admin_login` 防爆破锁定（连续 5 次失败锁 10 分钟，新错误码 `login_locked`；复用 `_shared/security_policy.js`，P1 事件 `admin_login_fail` 保留） | ✅ 已执行（2026-10-13 部署 + download 核验，见 deploy-log） |
+| **P4** | 双代理交叉评审（两批闭环：运维负债 #4-#7 + 代码/架构负债 #1+#2） | ✅ 完成：0 项 P2/P3；5 项 P4 经用户拍板处置（修 #1/#3/#4/#5，#2 登记不修），详见 `docs/verification/tech-review-20261013.md` |
 
 ---
 
