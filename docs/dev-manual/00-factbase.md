@@ -8,7 +8,7 @@
 
 | 函数 | 职责（待正文细化） | 拆分(action_*.js) | timeout | 定时触发器 |
 |---|---|---|---|---|
-| admin-action | 后台管理全部写操作 + 配置单一源(CONFIG_SCHEMA) + 上传/导出 | 29 | 20 | — |
+| admin-action | 后台管理全部写操作 + 配置单一源(CONFIG_SCHEMA) + 上传/导出/恢复导入 | 30 | 20 | — |
 | admin-web | HTTP 网关：代理 admin-action、静态资源托管、admin_login 免 key 入口 | 0 | 20 | — |
 | blog-action | 博客/资讯读写（switch 分发） | 0 | 20 | — |
 | demand-match | 供需匹配 | 0 | 20 | — |
@@ -35,7 +35,7 @@
 
 | 函数 | actions |
 |---|---|
-| admin-action (84) | admin_list, admin_add, admin_remove, admin_account_list, admin_account_create, admin_account_set_status, audit_init, audit_query, audit_verify, claim_admin, admin_login, admin_logout, blog_list, blog_offline, blog_restore, blog_delete, blog_comment_list, blog_comment_delete, config_public, config_get, config_history_list, config_log_list, config_set, dashboard, demand_list, order_list, order_query, order_detail, dispute_detail, dispute_handle, exam_subject_list, exam_subject_detail, exam_subject_create, exam_subject_update, exam_subject_delete, exam_bank_seed, export_admin_config, export_collection, finance_stats, dispute_list, finance_list, home_activity_list, home_activity_create, home_activity_update, home_activity_delete, im_degraded_list, im_message_admin_list, kefu_conv_list, kefu_conv_reply, kefu_mislabel_clear, withdraw_review, report_list, report_handle, safety_log_list, event_list, credit_log_list, withdraw_list, settlement_list, insurance_list, upload_image, realname_reset_simulated, evidence_query, readImageDims, no_show_decide, no_show_report_list, notice_send, demand_offline, order_force_cancel, partner_offline, partner_online, partner_profile_pending_list, partner_profile_review, review, user_ban, user_unban, penalty, user_freeze, user_unfreeze, user_credit_adjust, user_list, user_detail, user_ec_update, partner_list, partner_detail |
+| admin-action (86) | admin_list, admin_add, admin_remove, admin_account_list, admin_account_create, admin_account_set_status, audit_init, audit_query, audit_verify, claim_admin, admin_login, admin_logout, blog_list, blog_offline, blog_restore, blog_delete, blog_comment_list, blog_comment_delete, config_public, config_get, config_history_list, config_log_list, config_set, dashboard, demand_list, order_list, order_query, order_detail, dispute_detail, dispute_handle, exam_subject_list, exam_subject_detail, exam_subject_create, exam_subject_update, exam_subject_delete, exam_bank_seed, export_admin_config, export_collection, config_restore, import_collection, finance_stats, dispute_list, finance_list, home_activity_list, home_activity_create, home_activity_update, home_activity_delete, im_degraded_list, im_message_admin_list, kefu_conv_list, kefu_conv_reply, kefu_mislabel_clear, withdraw_review, report_list, report_handle, safety_log_list, event_list, credit_log_list, withdraw_list, settlement_list, insurance_list, upload_image, realname_reset_simulated, evidence_query, readImageDims, no_show_decide, no_show_report_list, notice_send, demand_offline, order_force_cancel, partner_offline, partner_online, partner_profile_pending_list, partner_profile_review, review, user_ban, user_unban, penalty, user_freeze, user_unfreeze, user_credit_adjust, user_list, user_detail, user_ec_update, partner_list, partner_detail |
 | admin-web | HTTP 网关：`require('wx-server-sdk')` 不参与；入口为 HTTP path 路由，代理 admin-action 与静态托管；含 admin_login 免 key 入口、generate_admin_web_key。 |
 | blog-action (11) | feed_list, detail, publish, delete_my, like, unlike, comment_list, comment_add, comment_delete, my_list, author_home |
 | demand-match (7) | top5, status, invite, broadcast, apply, confirm_apply, hall_list |
@@ -56,7 +56,7 @@
 | zz-seed-orders (11) | count, cleanup, count_sim, cleanup_sim, simulate, service_orders, night_orders, scene_demands, fix_sdm_city, cleanup_seed_orders, backfill_matched |
 | zz-warmup (1) | run |
 
-> `check-handlers.js` 用真实 mock SDK 逐 action 过 index.js，断言「0 抛错」（覆盖 order-action + admin-action，共 115 条运行路径）。
+> `check-handlers.js` 用真实 mock SDK 逐 action 过 index.js，断言「0 抛错」（覆盖 order-action + admin-action，共 117 条运行路径）。
 
 ## 2. `_shared` 共享模块（多副本机制）
 

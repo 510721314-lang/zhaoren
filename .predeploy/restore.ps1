@@ -80,15 +80,33 @@ if ($cfgFiles.Count -gt 0) {
   }
 } else { Write-Host "  [SKIP] 无 admin_config 备份" -ForegroundColor Magenta }
 
-# ── 5. 恢复 DB (逐 collection 插入, 不删旧数据——增量追加) ──
+# ── 5. 恢复 DB (逐 collection: replace 清空回灌; 单表失败跳过不中断) ──
 Write-Host "`n===== 恢复 DB 数据 =====" -ForegroundColor Yellow
+$okTables = 0; $failTables = 0
 foreach ($colFile in Get-ChildItem "$BackupDir\db" -Filter '*.json') {
   $data = Get-Content $colFile.FullName -Raw | ConvertFrom-Json
-  $docs = $data.list
-  Write-Host "  $($data.collection): $($docs.Count) 条 (truncated=$($data.truncated))" -ForegroundColor Cyan
-  # 注: 恢复 DB 需要 admin-action 有 import_collection action, 暂未实现
-  # 这里只列出待恢复, 不自动执行
+  $col = $data.collection
+  $docs = @($data.list)
+  Write-Host "  $col`: $($docs.Count) 条 (truncated=$($data.truncated))" -ForegroundColor Cyan
+  if ($docs.Count -eq 0) { Write-Host "    [SKIP] 空表(幽灵集合/无数据)" -ForegroundColor Magenta; continue }
+  $body = @{ action = 'import_collection'; collection = $col; mode = 'replace'; docs = $docs; confirm = $true } | ConvertTo-Json -Depth 40 -Compress
+  try {
+    $resp = Invoke-RestMethod -Uri $GATEWAY_URL -Method Post `
+      -Headers @{ 'X-Admin-Key' = $AdminKey; 'Content-Type' = 'application/json' } `
+      -Body $body -TimeoutSec 300
+    if ($resp.ok) {
+      Write-Host "    [OK] removed=$($resp.data.removed) inserted=$($resp.data.inserted)" -ForegroundColor Green
+      $okTables++
+    } else {
+      Write-Host "    [FAIL] $($resp.code)" -ForegroundColor Red
+      $failTables++
+    }
+  } catch {
+    Write-Host "    [FAIL] $($_.Exception.Message)" -ForegroundColor Red
+    $failTables++
+  }
 }
 
 Write-Host "`n===== 恢复完成 =====" -ForegroundColor Green
-Write-Host "注意: DB 数据恢复需 admin-action 新增 import_collection action, 当前仅恢复了 admin_config" -ForegroundColor Magenta
+Write-Host "DB 集合: $okTables 成功 / $failTables 失败; admin_config 走上方 config_restore" -ForegroundColor $(if($failTables -eq 0){'Green'}else{'Yellow'})
+Write-Host "注意: 备份为展示级脱敏产物, 回灌的是脱敏值; 密钥类字段须用未脱敏快照走 config_restore" -ForegroundColor Magenta

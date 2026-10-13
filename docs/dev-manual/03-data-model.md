@@ -6,7 +6,7 @@
 ## 3.1 数据层总览
 
 - **存储**：微信云开发云数据库（文档型），单一环境（envId 见 [cloudbaserc.json](file:///c:/zhaoren/cloudbaserc.json)，**手册不写值**）。
-- **SDK**：所有云函数经 `wx-server-sdk` 访问；`db = cloud.database()`，`_ = db.command`。SDK 无 `createIndex` API，索引须控制台手工建（见 §3.4）。
+- **SDK**：所有云函数经 `wx-server-sdk` 访问；`db = cloud.database()`，`_ = db.command`。SDK 无 `createIndex` API，但索引可经 tcb 直连通道读取与创建（见 §3.4）。
 - **命名约定**：
   - 集合名：小写 + 下划线（`order_main`、`no_show_report`）。
   - 金额字段：一律以「分」为单位的整数，后缀 `_fen`。
@@ -71,7 +71,7 @@
 
 ## 3.4 索引台账（`INDEXES`）
 
-> ⚠️ SDK 无 `createIndex`，本台账**仅作设计 SSOT**，实际须在云开发控制台「数据库→索引管理」手工创建。台账实测于 [init-db/index.js](file:///c:/zhaoren/cloudfunctions/init-db/index.js#L27-L72)。
+> ⚠️ SDK 无 `createIndex`，本台账为**设计 SSOT**；云端实际索引经 tcb 直连通道读取与创建——`node scripts/tcb-scan-indexes.js` 读（落盘 `.tmp-tcb/indexes-actual.json`）、`node scripts/tcb-diff-indexes.js` 对比、`node scripts/tcb-exec.js <cmd.json>` 建缺失（`createIndexes` 须 `background:true`），无需控制台手工操作。台账实测于 [init-db/index.js](file:///c:/zhaoren/cloudfunctions/init-db/index.js#L27-L72)。
 
 | 集合 | 索引名 | 键 | 唯一 |
 |---|---|---|---|

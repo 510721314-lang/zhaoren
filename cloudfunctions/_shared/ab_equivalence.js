@@ -285,6 +285,7 @@ function loadWith(dir, file, sdk) {
     'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
     'auto_order_timeline',                      // 新增 timeline action(原 oa_unknown_action)
     'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max
+    'auto_admin_config_restore', 'auto_admin_import_collection', // 新增备份恢复 action(原 admin_unknown_action; 配合 .predeploy/restore.ps1 闭环 DB 恢复)
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

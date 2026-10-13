@@ -32,10 +32,12 @@
 |---|---|---|
 | `order-timer` 分页 `skip` 漂移 | 仅在并发写者活跃且单段积压 >50 时触发，影响为延迟一轮 | 提审前不修；待单段 backlog 告警或日单量 >500 再评估游标分页 |
 | 争议单超期升级（`dispute_escalate_d=30`） | 当前为**预留人工处理**，不验证自动升级 | 维持人工 |
-| DB 数据恢复未实现 | `restore.ps1` 仅恢复 `admin_config` | 需新增 admin-action `import_collection` |
-| 云端索引需手工创建 | SDK 无 `createIndex`，台账仅设计级 | 上线/恢复时按 `INDEXES` 台账逐条在控制台重建 |
-| `zz-warmup` 触发器更新受阻 | 受微信「代码上传」IP 白名单阻塞（报 `-10008`） | 用户侧放行或控制台手工建触发器 |
-| `platform_event` 单集合待核对 | manual-backup manifest 口径差 1，需复跑核对 | 备份时核对 `manifest.total_tables` |
+
+> **2026-10-13 已闭环（移出负债）**：
+> - **云端索引创建**：tcb 直连通道（`tcb-scan-indexes.js` / `tcb-diff-indexes.js` / `tcb-exec.js`），实测设计 33 / 已建 33 / 缺失 0，**无需控制台手工**（见 [03-data-model.md](file:///c:/zhaoren/docs/dev-manual/03-data-model.md) §3.4 与 [Ch4 §4.7](file:///c:/zhaoren/docs/dev-manual/04-conventions.md)）。
+> - **`zz-warmup` 触发器更新**：改走 `tcb fn trigger create`（绕开「代码上传」IP 白名单 `-10008`），已把云端触发器更新为全天候 `0 */5 * * * * *`（见 [07-deploy-release.md](file:///c:/zhaoren/docs/dev-manual/07-deploy-release.md) §7.3）。
+> - **DB 数据恢复**：admin-action 新增 `config_restore` + `import_collection`（[action_import.js](file:///c:/zhaoren/cloudfunctions/admin-action/action_import.js)），[restore.ps1](file:///c:/zhaoren/.predeploy/restore.ps1) 已接线，DB 集合可 replace 回灌。
+> - **备份清单漏集合**：manual-backup `$COLLECTIONS` 漏 `complaint`，已补齐 → 37 集合，与服务端 `EXPORT_COLLECTIONS` 白名单对齐。
 
 ## A.3 实现决策台账（记录「实现为何这么做及其理由」）
 
@@ -76,5 +78,6 @@
 | 2026-10-10 | 履约域 Wave1 | 抽 `order_state.js`，状态机收口（`casStatus` 去重） |
 | 2026-10-12 | 批 1.x / Wave2 止血 | 全段分页扫描、加时超时自动拒绝、停用到期恢复、`after_sale_days`/`partial_judge_days` 服务端键补齐 |
 | 2026-10-13 | 本手册 | 《技术开发手册》落盘（以代码为唯一事实源，脱离 PRD 独立自含） |
+| 2026-10-13 | 运维负债闭环 | 索引走 tcb 直连通道核对（设计 33 / 已建 33 / 缺失 0）；`zz-warmup` 触发器经 tcb 更新为全天候并同步 `cloudbaserc.json`；新增 `config_restore` + `import_collection` 支撑 DB 恢复；备份清单补 `complaint` → 37 集合 |
 
 > 手册修订流程：以代码为唯一事实源 → 改动后跑 `node scripts/check-manual-links.js` 与 `npm run verify` → 更新本附录变更记录。

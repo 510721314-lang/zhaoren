@@ -418,6 +418,7 @@ const HANDLERS = Object.assign(
   require('./action_notice'),
   require('./action_noshow_list'),
   require('./action_export'),
+  require('./action_import'),
   require('./action_dashboard'),
   require('./action_finance'),
   require('./action_dispute_detail'),

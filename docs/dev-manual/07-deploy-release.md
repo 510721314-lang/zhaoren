@@ -27,10 +27,11 @@ C:\Users\DC\Desktop\微信WEB开发者工具\cli.bat cloud functions deploy ^
 
 云函数触发器**不能**靠 `deploy` 生效，需通过其一：
 
-1. **miniprogram-ci 程序化更新**（如 [scripts/create-warmup-trigger.js](file:///c:/zhaoren/scripts/create-warmup-trigger.js)）——受微信公众平台 **「小程序代码上传」IP 白名单**限制，未加白名单会报 `-10008 invalid ip`。
-2. **云开发控制台手动修改**触发器配置。
+1. **tcb CLI（首选，已登录态即可用）**：`tcb fn trigger create <fn> --trigger-name <name> --cron "<cron>" --env-id <envId>`——同名即覆盖，可**绕开 IP 白名单**限制。
+2. **miniprogram-ci 程序化更新**（如 [scripts/create-warmup-trigger.js](file:///c:/zhaoren/scripts/create-warmup-trigger.js)）——受微信公众平台 **「小程序代码上传」IP 白名单**限制，未加白名单会报 `-10008 invalid ip`。
+3. **云开发控制台手动修改**触发器配置。
 
-> 当前 `order-timer` / `zz-warmup` 均为 `0 */5 * * * * *`。改触发器须**三处同步**：`config.json`、创建脚本中的 CRON 常量、控制台实际值。
+> 当前 `order-timer` / `zz-warmup` 均为 `0 */5 * * * * *`。改触发器须**四处同步**：`cloudfunctions/<fn>/config.json`、[cloudbaserc.json](file:///c:/zhaoren/cloudbaserc.json)（`tcb fn deploy` 读取）、创建脚本的 CRON 常量、云端实际触发器。核对：`tcb fn detail <fn> --env-id <envId>`。
 
 ## 7.4 后台管理端（admin-web）发布流程
 

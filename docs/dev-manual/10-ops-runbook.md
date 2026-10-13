@@ -65,12 +65,13 @@ robocopy c:\zhaoren "C:\zhaoren-bak\zhaoren_files_<ts>" /MIR /XD .git node_modul
 ```powershell
 # dry-run：仅校验 SHA256
 powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -BackupDir 'C:\zhaoren-bak\zhaoren_backup_<ts>'
-# 真恢复：仅恢复 admin_config（输入 YES 确认）
+# 真恢复：恢复 admin_config + DB 全量集合（输入 YES 确认）
 powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -BackupDir '...' -Force
 ```
 
-- **DB 数据恢复未实现**（`restore.ps1` 仅恢复 admin_config）；如需全量恢复需新增 admin-action `import_collection`。
-- `export_collection` 单表硬限 10000 条（超限 `truncated=true`）；导出成功须 `confirm:true`。
+- **恢复能力（2026-10-13 已闭环）**：`restore.ps1` 支持 `admin_config` 快照恢复（走 admin-action `config_restore`）+ **DB 集合逐表回灌**（走 admin-action `import_collection`，`mode='replace'`：分页清空旧数据 + 分块批量写入，`INSERT_CHUNK=500`）。两个 action 均由 `confirm:true` 门控并写 `platform_event(P1)` 留痕。
+- **集合白名单**：`import_collection` 的 `IMPORT_COLLECTIONS`（37 集合）与 `export_collection` 的 `EXPORT_COLLECTIONS` 一一对齐，非白名单集合直接拒绝。
+- `export_collection` 单表硬限 10000 条（超限 `truncated=true`）；导出成功须 `confirm:true`。备份产物为**脱敏**数据，故真恢复用于「结构/条数回灌」，敏感值需以未脱敏源另行覆盖。
 
 ## 10.4 环境切换 dev/prod
 

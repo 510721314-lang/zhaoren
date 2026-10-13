@@ -67,7 +67,7 @@
 
 1. Vue SPA 通过 [src/api/admin.js](file:///c:/zhaoren/admin-web-frontend/src/api/admin.js) 的 axios 封装发请求，统一注入 `X-Admin-Token`。
 2. 请求打到云函数 `admin-web`（HTTP 网关）：网关做路由/鉴权（优先级：`X-Admin-Token` → `admin_login` 免 key → `X-Admin-Key` 兜底），把写操作代理到 `admin-action`，并托管 `public/` 静态资源。
-3. `admin-action` 承载**全部后台写操作与配置单一源**（84 个 action，见 [Ch2](file:///c:/zhaoren/docs/dev-manual/02-module-map.md)）。
+3. `admin-action` 承载**全部后台写操作与配置单一源**（86 个 action，见 [Ch2](file:///c:/zhaoren/docs/dev-manual/02-module-map.md)）。
 
 ## 1.5 定时任务链
 

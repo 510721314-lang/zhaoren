@@ -21,12 +21,12 @@
 
 - **HANDLERS 注册表 / `switch` / `if(action===)`**：单文件 `index.js` 内分发。
 - **`action_*.js` 拆分**：巨型入口按 action 组抽离为同级文件，`index.js` 汇总。当前有两处：
-  - `admin-action`：29 个 `action_*.js`（84 个 action）
+  - `admin-action`：30 个 `action_*.js`（86 个 action）
   - `order-action`：7 个 `action_*.js`（32 个 action）
 
 | 函数 | 职责 | action 数 |
 |---|---|---|
-| admin-action | 后台全部写操作 + 配置单一源（CONFIG_SCHEMA）+ 上传/导出 | 84 |
+| admin-action | 后台全部写操作 + 配置单一源（CONFIG_SCHEMA）+ 上传/导出/恢复导入 | 86 |
 | admin-web | HTTP 网关：代理 admin-action、静态托管、admin_login 免 key 入口 | — |
 | blog-action | 博客/资讯读写 | 11 |
 | demand-match | 供需匹配（大厅/邀请/广播） | 7 |

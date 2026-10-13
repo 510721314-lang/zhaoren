@@ -32,7 +32,7 @@ GitHub push → git bundle → robocopy hot backup（`.predeploy.ps1` + `.predep
 
 ### L3 DB 全量导出（20+ collection）
 - 调 admin-action `export_collection`：`POST 网关 {"action":"export_collection","collection":"xxx","page":1,"page_size":100}`
-- 白名单 25 表：admin_config, admin_web_sessions, user_profile, partner_profile, partner_exam, order, order_status_log, order_deposit, order_payment, order_settlement, demand_publish, demand_match, blog, blog_comment, blog_like, safety_report, safety_checkin, system_notice, credit_log, withdraw_request, insurance_record, report, dispute, sms_log, device_bind
+- 白名单 **37 表**（服务端 `EXPORT_COLLECTIONS` 权威口径）：admin_config, admin_web_sessions, user_account, partner_profile, demand, demand_draft, order_main, order_status_log, order_confirmations, emergency_contact, credit_score_log, platform_event, audit_log, system_notice, disclaimer_signature, evaluation, blog_post, blog_like, blog_comment, safety_report, im_conversation, im_message, withdraw_record, exam_bank, config_history, no_show_report, complaint, user_profile, partner_exam, partner_apply, dispute, withdraw_request, credit_log, insurance_record, report, sms_log, device_bind
 - 分页：返回 `{has_more:boolean, page, page_size, total, truncated}`，page 递增直到 has_more=false
 - 敏感脱敏：phone(138****1234), idcard_no(1101********1234), real_name(张*三), address(前6字***), openid(前4****后6), password/secret/token(***REDACTED***)
 - 单表上限 10000 条（超限 truncated=true）
@@ -70,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 | 层 | 校验 | 通过 |
 |----|------|------|
 | L2 | admin_config JSON 可解析 + 密钥字段只返回布尔 | ✅ |
-| L3 | 每表 SHA256 文件匹配 + total > 0 时 list 非空 | ✅ 25 表全导出 |
+| L3 | 每表 SHA256 文件匹配 + total > 0 时 list 非空 | ✅ 37 表全导出 |
 | L5 | functions_info.txt 存在且含函数名 | ⚠️ CLI 可能找不到 → skip |
 | 全局 | manifest.json git_head 与 `git rev-parse HEAD` 一致 | ✅ |
 
@@ -106,9 +106,13 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 - **MgoCommands 结构**：`[{TableName, CommandType(QUERY/INSERT/UPDATE/DELETE/COMMAND), Command(mongo 命令 JSON 字符串)}]`，官方文档：https://cloud.tencent.com/document/api/876/129012
 - **2026-10-09 全量实战**：39 集合扫描 → 设计 32 条仅 4 条已建 → **补建 28 条全部到位**（工具链 tcb-exec/scan/diff；批次特性：逐条执行、某条失败即中止，续跑剔除后重发即可）。案例：admin_accounts 存量 2 条重复 admin 记录（admin_account_create 无查重、疑重复提交）→ 备份完整记录并物理删除较早 1 条后，unique 索引建成（复核 count=1）。幽灵集合 9 个（user_profile/partner_exam/partner_apply/dispute/withdraw_request/credit_log/report/sms_log/device_bind——扫描报 NamespaceNotFound 属正常，无对应设计索引）。
 
+## 实测记录（2026-10-13 补）
+
+- **DB 恢复已实现**：admin-action 新增 `config_restore`（admin_config 快照恢复）+ `import_collection`（DB 集合逐表回灌，`mode='replace'` 分页清空 + 分块批量插入，`INSERT_CHUNK=500`），二者均 `confirm:true` 门控 + 写 `platform_event(P1)`。`restore.ps1` 第 5 节已接线，逐集合调 `import_collection`（带 `$okTables/$failTables` 统计）。
+- **备份清单补 `complaint`**：`manual-backup.ps1` 的 `$COLLECTIONS` 由 36 → **37**，与服务端 `EXPORT_COLLECTIONS` 白名单对齐（此前 `20261010-1827` 那次 manifest=35 的口径差即因清单不一致）。
+
 ## 已知限制
 
-1. **DB 恢复需 import_collection**：restore.ps1 当前只恢复 admin_config，DB 数据恢复需要 admin-action 新增 `import_collection`（逐 collection 清旧数据 + 批量插入）
+1. **备份产物为脱敏数据**：`import_collection` 用于「结构 + 条数回灌」；手机号/证件/姓名等敏感值为展示级脱敏（原值仍在云端 DB），真恢复敏感数据需以未脱敏源另行覆盖。
 2. **云存储清单 L4 未实现**：CloudBase HTTP API 列 storage 需要额外鉴权 token，暂未接入
 3. **单表 10000 条上限**：export_collection 硬限制，超限 truncated=true，恢复时需手工分页
-4. **敏感字段脱敏是展示级**：原数据仍在 CloudBase DB，备份是脱敏后的；真恢复时用未脱敏 admin_config 覆盖
