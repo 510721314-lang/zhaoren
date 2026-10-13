@@ -63,6 +63,7 @@
           <el-button type="primary" @click="openAddScene">+ 新增场景</el-button>
           <el-tag type="info" size="small">共 {{ sceneList.length }} 个场景 ({{ builtinCount }} 内置 / {{ sceneList.length - builtinCount }} 自定义)</el-tag>
           <el-tag type="warning" size="small">内置场景不可删除, 仅可增删服务项</el-tag>
+          <el-tag type="success" size="small">列表顺序 = 前端展示顺序: 前 5 名进首页主宫格, 其余进「更多场景」折叠区</el-tag>
         </div>
 
         <el-table :data="sceneList" border stripe size="small">
@@ -86,6 +87,7 @@
               </span>
               <el-button size="small" text type="primary" @click="openOptAdd(row)">+ 加</el-button>
               <el-button size="small" text type="danger" :disabled="!row.options || row.options.length===0" @click="openOptRemove(row)">- 删</el-button>
+              <el-button size="small" text type="primary" :disabled="!row.options || row.options.length < 2" @click="openOptSort(row)">排序</el-button>
             </template>
           </el-table-column>
           <el-table-column label="免责声明类型" width="160">
@@ -107,8 +109,10 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
+          <el-table-column label="操作" width="205" fixed="right">
             <template #default="{row}">
+              <el-button size="small" text type="primary" :disabled="isFirstScene(row)" @click="moveScene(row, -1)">↑ 上移</el-button>
+              <el-button size="small" text type="primary" :disabled="isLastScene(row)" @click="moveScene(row, 1)">↓ 下移</el-button>
               <el-button size="small" type="danger" plain :disabled="row.builtin" @click="doDeleteScene(row)">删除</el-button>
             </template>
           </el-table-column>
@@ -224,6 +228,21 @@
       <template #footer>
         <el-button @click="optDialog = false">取消</el-button>
         <el-button type="primary" :loading="sceneSaving" @click="doOptSubmit">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 服务项排序弹窗(前端显示顺序 = 此列表顺序; 2026-10-13) -->
+    <el-dialog v-model="optSortDialog" :title="`服务项排序 - ${optSortScene?.name || ''}`" width="420px" @closed="load">
+      <div v-for="(o, i) in optSortList" :key="o" class="opt-sort-row">
+        <span class="opt-sort-name">{{ o }}</span>
+        <span>
+          <el-button size="small" text type="primary" :disabled="i === 0" @click="moveOpt(i, -1)">↑ 上移</el-button>
+          <el-button size="small" text type="primary" :disabled="i === optSortList.length - 1" @click="moveOpt(i, 1)">↓ 下移</el-button>
+        </span>
+      </div>
+      <el-alert type="info" :closable="false" style="margin-top:8px">前端按此顺序展示(被隐藏的服务项自动跳过; 发布页展示前 N 个可见项, N=后台 scene_option_display_max)</el-alert>
+      <template #footer>
+        <el-button @click="optSortDialog = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -630,6 +649,36 @@ async function toggleOptionVisible(row, opt, visible) {
   else { ElMessage.error(r.msg || r.code || '操作失败'); }
 }
 
+// ── 场景/服务项排序(2026-10-13 需求: 前端显示顺序 = scene_list/options 数组序) ──
+function scenePos(row) { return sceneList.value.indexOf(row); }
+function isFirstScene(row) { return scenePos(row) <= 0; }
+function isLastScene(row) { return scenePos(row) >= sceneList.value.length - 1; }
+async function moveScene(row, dir) {
+  if (sceneSaving.value) return;
+  sceneSaving.value = true;
+  const r = await call('config_set', { scene_reorder: { scene: row.code, direction: dir < 0 ? 'up' : 'down' } });
+  sceneSaving.value = false;
+  if (r.ok) { await load(); } else { ElMessage.error(r.msg || r.code || '排序失败'); }
+}
+
+// 服务项排序弹窗: 每次点击即时落库; 关闭弹窗时整体重载对齐云端
+const optSortDialog = ref(false);
+const optSortScene = ref(null);
+const optSortList = ref([]);
+function openOptSort(row) { optSortScene.value = row; optSortList.value = (row.options || []).slice(); optSortDialog.value = true; }
+async function moveOpt(i, dir) {
+  const list = optSortList.value;
+  const to = dir < 0 ? i - 1 : i + 1;
+  if (to < 0 || to >= list.length || sceneSaving.value) return;
+  sceneSaving.value = true;
+  const r = await call('config_set', { scene_option_reorder: { scene: optSortScene.value.code, option: list[i], direction: dir < 0 ? 'up' : 'down' } });
+  sceneSaving.value = false;
+  if (r.ok) {
+    const tmp = list[i]; list[i] = list[to]; list[to] = tmp;
+    optSortList.value = list.slice();
+  } else { ElMessage.error(r.msg || r.code || '排序失败'); }
+}
+
 // ── 场景新增 ──
 function openAddScene() {
   newScene.code = ''; newScene.name = ''; newScene.disclaimer_type = 'general_disclaimer'; newScene.optionsStr = '';
@@ -699,6 +748,9 @@ onMounted(async () => {
 <style scoped>
 .ops-unit { margin-left:8px; color:#909399; font-size:12px; }
 .opt-chip { display:inline-flex; align-items:center; gap:2px; margin:0 10px 4px 0; }
+.opt-sort-row { display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px dashed #ebeef5; }
+.opt-sort-row:last-of-type { border-bottom:none; }
+.opt-sort-name { font-size:13px; }
 .vis-hint { margin-top:4px; line-height:1.3; }
 .opt-off { text-decoration: line-through; }
 .v-old { color:#909399; }

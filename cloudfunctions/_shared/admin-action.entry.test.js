@@ -189,6 +189,46 @@ test('admin_account_set_status: 重新启用 → 清零 pwd_fail_count/pwd_lock_
   assert.strictEqual(w.data.pwd_lock_until, 0, '启用应清零锁定截止');
 });
 
+// ── 2026-10-13: 场景/服务项排序(config_set 新增键, 管理后台配置前端显示顺序) ──
+function sceneStore() {
+  return {
+    admin_config: { global: {
+      env: 'dev', admin_openids: [ADMIN], dev_until: Date.now() + 2 * 3600 * 1000,
+      scene_list: [
+        { code: 'W1', name: '就医陪诊', options: ['挂号排队', '取药送药', '陪诊解压'], hidden_options: [], builtin: true },
+        { code: 'W2', name: '学习陪伴', options: ['自习陪伴'], hidden_options: [], builtin: true }
+      ]
+    } }
+  };
+}
+
+test('config_set scene_reorder: 场景下移 → scene_list 相邻交换', async () => {
+  const sdk = makeSdk({ openid: '', store: sceneStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', scene_reorder: { scene: 'W1', direction: 'down' }, mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.admin_config || [])[0];
+  assert.deepStrictEqual(w.data.scene_list.map((s) => s.code), ['W2', 'W1']);
+});
+
+test('config_set scene_reorder: 已在首位再上移 → config_reorder_noop 且不落库', async () => {
+  const sdk = makeSdk({ openid: '', store: sceneStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', scene_reorder: { scene: 'W1', direction: 'up' }, mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'config_reorder_noop');
+  assert.ok(!sdk.writes.admin_config, '边界失败不应写库');
+});
+
+test('config_set scene_option_reorder: 服务项上移 → options 相邻交换', async () => {
+  const sdk = makeSdk({ openid: '', store: sceneStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', scene_option_reorder: { scene: 'W1', option: '陪诊解压', direction: 'up' }, mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.admin_config || [])[0];
+  assert.deepStrictEqual(w.data.scene_list[0].options, ['挂号排队', '陪诊解压', '取药送药']);
+});
+
 // ── 2026-10-13: 网关代理身份校验从 openid.js 上移到 index.js 包装层后的行为锁定 ──
 const WK = 'WK-proxy-1';
 function proxyStore() {

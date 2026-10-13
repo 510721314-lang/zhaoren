@@ -7,19 +7,17 @@ const CONFIG = require('../../config/index.js');
 const { SCENES } = require('../../config/enums.js');
 const swr = require('../../utils/swr.js');
 
-// ── 首页场景宫格: 常用场景常驻 + 「更多场景」折叠(2026-10-12 需求) ──
-// 归入「更多场景」的场景(按需求给定顺序展示); 其余留主宫格
-const MORE_SCENE_CODES = ['W2', 'W10', 'W3', 'W11'];
+// ── 首页场景宫格: 主宫格常驻 + 「更多场景」折叠 ──
+// 2026-10-13 需求: 显示顺序由管理后台「场景管理」排序决定(admin_config.scene_list 数组序);
+// 可见场景按序取前 GRID_PRIMARY_MAX 个进主宫格, 其余进「更多场景」折叠区(同源: 广场 chips/发布页/接单配置)
+const GRID_PRIMARY_MAX = 5;
 const MORE_CELL = { code: '__MORE__', name: '更多场景', icon: '➕', color: 'var(--bg-segment)', isMore: true };
 const COLLAPSE_CELL = { code: '__MORE__', name: '收起', icon: '➖', color: 'var(--bg-segment)', isMore: true };
 
-// 按 MORE_SCENE_CODES 拆分为 常用/更多 两组
+// 按后台排序拆分为 主宫格/更多 两组(前 5 常驻, 其余折叠)
 function splitScenes(list) {
-  const primary = [];
-  const more = [];
-  (list || []).forEach((s) => { (MORE_SCENE_CODES.indexOf(s.code) >= 0 ? more : primary).push(s); });
-  more.sort((a, b) => MORE_SCENE_CODES.indexOf(a.code) - MORE_SCENE_CODES.indexOf(b.code));
-  return { primary, more };
+  const l = list || [];
+  return { primary: l.slice(0, GRID_PRIMARY_MAX), more: l.slice(GRID_PRIMARY_MAX) };
 }
 
 // 宫格实际渲染列表: 搜索态平铺命中; 常态 = 常用(+展开的更多) + 「更多场景/收起」入口格

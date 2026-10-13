@@ -1,6 +1,14 @@
 // admin-action · 配置写入 config_set（从 index.js 物理抽出，行为逐字不变）
 // CONFIG_SCHEMA 校验 + 事务更新 + config_history 快照；共享符号通过 ctx 注入，禁止反向 require('./index')。
 
+// 数组内相邻移动(排序类操作共用, 2026-10-13 场景/服务项排序需求)
+function moveInArray(arr, idx, direction) {
+  const to = direction === 'up' ? idx - 1 : idx + 1;
+  if (to < 0 || to >= arr.length) return false;
+  const tmp = arr[idx]; arr[idx] = arr[to]; arr[to] = tmp;
+  return true;
+}
+
 async function config_set(ctx) {
   const { event, now, config, fail, openid, logEvent, CONFIG_SCHEMA, col, db, _, operatorAccount, log, ok } = ctx;
   const patch = { updated_at: now };
@@ -261,6 +269,30 @@ async function config_set(ctx) {
     const hidden = (sc.hidden_options || []).filter((x) => x !== opt);
     if (req.visible === false) hidden.push(opt);
     sc.hidden_options = hidden;
+    scenesTouched = true;
+  }
+
+  // 场景排序(2026-10-13 需求): 前端显示顺序 = scene_list 数组顺序 — 上移/下移相邻交换。
+  // 首页「前 5 进主宫格 / 其余进更多场景折叠区」, 广场 chips / 发布页 / 接单配置同源跟随(均读数组序)。
+  if (event.scene_reorder) {
+    const req = event.scene_reorder;
+    const sc = scenes.find((s) => s.code === String(req.scene || '').trim().toUpperCase());
+    if (!sc) return fail('config_scene_not_found', '场景不存在: ' + req.scene);
+    if (req.direction !== 'up' && req.direction !== 'down') return fail('config_bad_direction', 'direction 仅支持 up/down');
+    if (!moveInArray(scenes, scenes.indexOf(sc), req.direction)) return fail('config_reorder_noop', '已在该方向边界, 无法移动');
+    scenesTouched = true;
+  }
+
+  // 服务项(子场景)排序(同上): 顺序 = options 数组顺序(发布页服务内容选择窗/前端展示同源)
+  if (event.scene_option_reorder) {
+    const req = event.scene_option_reorder;
+    const sc = scenes.find((s) => s.code === String(req.scene || '').trim().toUpperCase());
+    if (!sc) return fail('config_scene_not_found', '场景不存在: ' + req.scene);
+    const opt = String(req.option || '').trim();
+    const oi = (sc.options || []).indexOf(opt);
+    if (oi < 0) return fail('config_option_not_found', '服务项不存在: ' + opt);
+    if (req.direction !== 'up' && req.direction !== 'down') return fail('config_bad_direction', 'direction 仅支持 up/down');
+    if (!moveInArray(sc.options, oi, req.direction)) return fail('config_reorder_noop', '已在该方向边界, 无法移动');
     scenesTouched = true;
   }
 
