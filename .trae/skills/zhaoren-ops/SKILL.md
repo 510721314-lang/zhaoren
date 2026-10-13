@@ -46,6 +46,8 @@ for ($i=0; $i -lt 5; $i++) {
 | 5 | ORDER_ID_ACTIONS 需同步加 | 新 action 没进列表会被正则拦截 | 加 action 时同步更新列表 |
 | 6 | order_id 格式校验 | 云函数只认 32 位 hex，用户易贴 ORD 单号 | 统一 resolveOrderId：先验 hex，否则查 order_no 反查 |
 | 7 | init-db seed 幂等 | 重复跑会覆盖 | seed 加 `env:"dev"` 过滤只补不覆盖 |
+| 8 | config_set 扩展事件键无 A/B 风险 | 自动种子按 action 粒度生成 | 新增事件键（如 scene_reorder/scene_option_reorder）不产生新 diff，可放心扩展（2026-10-13 实证） |
+| 9 | 一次性云端数据操作无 CLI 通道 | CLI 不能远程调云函数 | 经 admin-web 网关（X-Admin-Key，check-heartbeat 同款）逐次调用管理动作；脚本每步后重读实际状态重算（自愈），兼容 gateway_timeout（写可能已生效）；示例 `.tmp-tcb/scene-order-migrate.ps1`（2026-10-13 场景顺序迁移 15 次实证） |
 
 ## 前端坑位（必记）
 
