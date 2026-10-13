@@ -309,14 +309,16 @@ Page({
     let pendingExtend = null;
     if (pe && pe.add_hours) {
       const expireMs = (pe.expire_at || 0) - Date.now();
-      const expireHours = Math.max(0, Math.round(expireMs / 3600000));
+      // 剩余时限文案: 不足 1 小时按分钟显示(后台加时确认窗口默认 20 分钟, 分钟制), 否则按小时取整
+      const expireMins = Math.max(0, Math.round(expireMs / 60000));
+      const expireText = expireMins >= 60 ? `${Math.round(expireMins / 60)}小时内确认` : `${expireMins}分钟内确认`;
       pendingExtend = {
         add_hours: pe.add_hours,
         add_amount_fen: pe.add_amount_fen || 0,
         by_role: pe.by_role || '',
         reason: pe.reason || '',
         expire_at: pe.expire_at || 0,
-        expire_text: expireMs > 0 ? `${expireHours}小时内确认` : '已超时',
+        expire_text: expireMs > 0 ? expireText : '已超时',
         can_respond: !!d.role && !!pe.by_role && d.role !== pe.by_role
       };
     }

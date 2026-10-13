@@ -136,7 +136,7 @@
 | 分组 | 键（`f`） | 说明 |
 |---|---|---|
 | 距离与限额 | publish_distance_max_km, take_distance_max_km, youth_limit_fen, partner_daily_take_limit | 发布/接单距离上限、青年单笔预算、耍伴每日接单上限 |
-| 订单超时 | s0_timeout_min, s1_timeout_min, interrupt_timeout_h, after_sale_days, partial_judge_days, remind_after_h, escalate_after_h, urge_max_count, eval_window_h, milestone_confirm_min, extend_confirm_h, default_star | 各状态超时窗口、催办三段式阈值、评价窗口、里程碑确认、加时确认、默认星级 |
+| 订单超时 | s0_timeout_min, s1_timeout_min, interrupt_timeout_h, after_sale_days, partial_judge_days, remind_after_h, escalate_after_h, urge_max_count, eval_window_h, milestone_confirm_min, extend_confirm_min, default_star | 各状态超时窗口、催办三段式阈值、评价窗口、里程碑确认、加时确认（分钟制，默认 20）、默认星级 |
 | 时间红线 | time_redline_close_min, time_redline_open_min | 接单开放/截止（0=00:00；close=0 表示全天开放） |
 | 信用阈值 | min_credit_take_order, min_credit_place_order, credit_freeze_line, order_good_review_min_stars | 接单/发单最低分、冻结线、好评星级阈值 |
 | 费率 | rate_min_fen, rate_max_fen, fixed_price_min_fen, fixed_price_max_fen, scene_default_rate_fen, welfare_hourly_rate_fen, welfare_fixed_price_fen | 时薪区间、一口价区间、场景默认时薪、公益单时薪/一口价 |

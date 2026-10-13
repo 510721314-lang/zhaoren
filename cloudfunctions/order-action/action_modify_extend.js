@@ -213,10 +213,11 @@ async function extend(ctx) {
 
   const config = await getConfig();
   const now = Date.now();
-  // 加时确认窗口(2026-10-12 后台可配): 独立键 admin_config.extend_confirm_h;
-  // 未配置(0/缺省)回退「改期确认窗口」, 与旧版行为一致。expire_at 在申请时算死, 后续改配置不影响在途申请。
-  const modifyConfirmH = (config.modify_config && config.modify_config.confirmHours) || 24;
-  const confirmHours = Number(config.extend_confirm_h) > 0 ? Number(config.extend_confirm_h) : modifyConfirmH;
+  // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制): 独立键 admin_config.extend_confirm_min(分钟, 默认 20);
+  // 配置为 0 时回退「改期确认窗口」(小时→分钟换算), 保留旧版逃生口。expire_at 在申请时算死, 后续改配置不影响在途申请。
+  const modifyConfirmMin = ((config.modify_config && config.modify_config.confirmHours) || 24) * 60;
+  const confirmMin = Number(config.extend_confirm_min) > 0 ? Number(config.extend_confirm_min) : modifyConfirmMin;
+  const confirmText = confirmMin % 60 === 0 && confirmMin >= 60 ? `${confirmMin / 60} 小时` : `${confirmMin} 分钟`;
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
   if (reason) {
@@ -232,7 +233,7 @@ async function extend(ctx) {
       by_openid: openid,
       by_role: role,
       created_at: now,
-      expire_at: now + confirmHours * 3600000
+      expire_at: now + confirmMin * 60000
     },
     extend_count: (Number(order.extend_count) || 0) + 1,
     pending_extend_token: now,   // 批1.4: 本次申请的唯一 token, 供定时器超时判定做精确乐观锁
@@ -253,8 +254,8 @@ async function extend(ctx) {
     order_id, type: 'custom',
     title: `${role === 'user' ? '发单人' : '耍伴'}申请加时 ${addHours} 小时`,
     body: isFixedExtend
-      ? `一口价订单不加价, 延长 ${addHours} 小时, 请在 ${confirmHours} 小时内确认或拒绝`
-      : `加时金额 ¥${(addAmountFen / 100).toFixed(2)}, 请在 ${confirmHours} 小时内确认或拒绝`,
+      ? `一口价订单不加价, 延长 ${addHours} 小时, 请在 ${confirmText}内确认或拒绝`
+      : `加时金额 ¥${(addAmountFen / 100).toFixed(2)}, 请在 ${confirmText}内确认或拒绝`,
     action_key: 'jump_order', action_payload: { order_id }
   });
   await writeAudit(db, log, { openid, role, category: 'business', action: 'order_extend_apply', target_type: 'order', target_id: order_id, detail: { add_hours: addHours, add_amount_fen: addAmountFen }, result: 'ok', client_ip: clientIp, device });

@@ -57,7 +57,7 @@
 | 8 | resume | both | S3.5 | S3 | — |
 | 9 | partial_agree | both | S3.5 | S4 | 裁限期→按证据转裁决 |
 | 10 | milestone | both | S3 | S3 | 确认窗自动确认 |
-| 11 | extend_req | both | S3 | S3 | extend_confirm_h→自动拒绝 |
+| 11 | extend_req | both | S3 | S3 | extend_confirm_min→自动拒绝 |
 | 12 | extend_paid | user | S3 | S3 | 未付不加结算基数 |
 | 13 | complete | partner | S3 | S5 | 里程碑 100% 或双方豁免 |
 | 14 | ratio_agree | both | S4 | S5 | 双方各确认一次；裁限期→平台介入 |
@@ -106,7 +106,7 @@
 ### 9.2.3 改期 / 加时 / 中断恢复
 
 - **改期** `modify`：S2/S2_5 发起，`modify_config{minLeadHours,maxTimes,maxSpanH,confirmHours}` 约束；对方确认 `modify_confirm` → 回 S2；驳回或超 `confirmHours` → 自动拒绝（`S2.5` 超时回原状态）。
-- **加时** `extend`：S3 发起，对方 `extend_confirm`/`extend_reject`；超 `extend_confirm_h`（0=跟随改期窗口）→ 自动拒绝；用 `pending_extend_token` 乐观锁防竞态。加时补付（`extend_paid`）未付不加结算基数。
+- **加时** `extend`：S3 发起，对方 `extend_confirm`/`extend_reject`；超 `extend_confirm_min`（**分钟制，默认 20 分钟**；0=跟随改期窗口）→ 自动拒绝；用 `pending_extend_token` 乐观锁防竞态。加时补付（`extend_paid`）未付不加结算基数。
 - **中断恢复** `interrupt_report`（S3→S3.5，原因必填）→ `resume_service` 回 S3；24h 未恢复 → S4。
 
 ### 9.2.4 履约催办三段式（`urge_rules.js`）

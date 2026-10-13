@@ -74,7 +74,9 @@ const EXTRA_LABELS = {
   system_templates: 'IM 模板', admin_web_key: '后台密钥',
   legal_disclaimer_text: '通用免责声明', legal_service_agreement: '服务协议',
   legal_privacy_policy: '隐私政策', legal_scene_disclaimers: '场景免责声明',
-  modify_config: '改期规则'
+  modify_config: '改期规则',
+  // 2026-10-13 键名迁移: 历史变更日志仍可能含旧键, 给出可读名(新键 extend_confirm_min 走 schema.label)
+  extend_confirm_h: '加时确认窗口(旧·小时)'
 };
 const SKIP_KEYS = ['updated_at'];
 

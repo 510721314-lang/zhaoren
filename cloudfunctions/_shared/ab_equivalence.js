@@ -284,7 +284,7 @@ function loadWith(dir, file, sdk) {
     'confirm_all_not_participant',              // 错误消息脱敏(不再回显参与方 openid)
     'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
     'auto_order_timeline',                      // 新增 timeline action(原 oa_unknown_action)
-    'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max · 2026-10-13 每项新增 d 说明文案(运营配置页内嵌)
+    'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max · 2026-10-13 每项新增 d 说明文案(运营配置页内嵌) · extend_confirm_h→extend_confirm_min(分钟制默认20, 时间红线加 clock)
     'auto_admin_config_restore', 'auto_admin_import_collection', // 新增备份恢复 action(原 admin_unknown_action; 配合 .predeploy/restore.ps1 闭环 DB 恢复)
   ]);
   let fails = 0, known = 0;

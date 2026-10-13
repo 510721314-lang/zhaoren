@@ -111,7 +111,7 @@ const TRANSITIONS = [
   { no: 8, event: 'resume', role: 'both', from: ['S3.5'], to: 'S3', guard: '', money: '', timeout: '' },
   { no: 9, event: 'partial_agree', role: 'both', from: ['S3.5'], to: 'S4', guard: '', money: '', timeout: '裁限期→按证据转裁决' },
   { no: 10, event: 'milestone', role: 'both', from: ['S3'], to: 'S3', guard: '', money: '', timeout: '确认窗(可配)自动确认' },
-  { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_h(后台可配, 0=跟随 confirmHours) 未回应→自动拒绝' },
+  { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_min(后台可配, 分钟, 默认 20; 0=跟随 confirmHours) 未回应→自动拒绝' },
   { no: 12, event: 'extend_paid', role: 'user', from: ['S3'], to: 'S3', guard: '加时补付流水成功', money: 'type=pay(sub=extend)', timeout: '未付不加结算基数' },
   { no: 13, event: 'complete', role: 'partner', from: ['S3'], to: 'S5', guard: '里程碑 100% 或双方豁免', money: '', timeout: '' },
   { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '双方各确认一次', money: '按 PRD 分段结算', timeout: '裁限期→平台介入' },

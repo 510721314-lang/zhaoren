@@ -517,8 +517,9 @@ exports.main = async (event, context) => {
   // 不再读独立键 modify_confirm_h(admin-action 白名单已移除, 存量历史无 expire_at 的订单仍走此兜底)
   const mcDefaults = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
   const modifyConfirmH = num(Object.assign({}, mcDefaults, cfg.modify_config || {}).confirmHours, 24);
-  // 加时确认窗口(2026-10-12 后台可配): 独立键 extend_confirm_h, 0/缺省 → 回退改期 confirmHours (与申请时算 expire_at 同一口径)
-  const extendConfirmH = num(cfg.extend_confirm_h, 0) > 0 ? num(cfg.extend_confirm_h, 0) : modifyConfirmH;
+  // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制, 默认 20 分钟): 独立键 extend_confirm_min, 0 → 回退改期 confirmHours(换算分钟)
+  // (与申请时算 expire_at 同一口径)
+  const extendConfirmMin = num(cfg.extend_confirm_min, 20) > 0 ? num(cfg.extend_confirm_min, 20) : modifyConfirmH * 60;
 
   const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
@@ -676,7 +677,7 @@ exports.main = async (event, context) => {
       const pe = o.pending_extend;
       if (!pe) return;
       if (o.frozen) return;   // 争议/申诉冻结中不推进
-      const deadline = pe.expire_at || ((pe.created_at || o.updated_at || 0) + extendConfirmH * 3600000);
+      const deadline = pe.expire_at || ((pe.created_at || o.updated_at || 0) + extendConfirmMin * 60000);
       if (!deadline || deadline >= now) return;
       // 加时的确认/拒绝都「不改 status」(仍 S3), 仅靠 status 无法区分「刚被对方处理」与「超时」→ 需乐观锁。
       // 批1.4: 首选申请时写入的顶层 pending_extend_token 精确锁定本次申请(不受其他写操作刷新 updated_at 干扰);
@@ -936,7 +937,7 @@ exports.main = async (event, context) => {
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
       urge_remind: urgeRemind,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_h: extendConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
