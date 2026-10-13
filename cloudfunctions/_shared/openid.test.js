@@ -87,3 +87,18 @@ test('配置读取失败 → 环境缓存兜底 prod(fail-closed), 不隐式放�
   await m.resolveOpenid(makeCloud(new Error('db down')), {}); // 触发 _readEnv 失败, 写入兜底缓存
   assert.strictEqual(m.getCachedEnv(), 'prod');
 });
+
+// ── 2026-10-13: invalidateEnvCache(init-db force_set_env 收敛到规范源所需) ──
+test('invalidateEnvCache → 清缓存后立即感知新 env: dev(有效) → prod 生效, mock 被拒', async () => {
+  const m = freshOpenid();
+  const devCloud = makeCloud({ env: 'dev', dev_until: FUTURE });
+  devCloud.getWXContext = () => ({ OPENID: null });
+  assert.strictEqual(await m.resolveOpenid(devCloud, { mock_openid: 'M1' }), 'M1');
+  // 未清缓存时换 prod 配置不生效(5 分钟短缓存内仍按 dev)
+  const prodCloud = makeCloud({ env: 'prod' });
+  prodCloud.getWXContext = () => ({ OPENID: null });
+  assert.strictEqual(await m.resolveOpenid(prodCloud, { mock_openid: 'M2' }), 'M2');
+  // 清缓存(force_set_env 场景)后立即按 prod fail-closed
+  m.invalidateEnvCache();
+  assert.strictEqual(await m.resolveOpenid(prodCloud, { mock_openid: 'M3' }), null);
+});

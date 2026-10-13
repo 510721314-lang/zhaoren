@@ -1,9 +1,13 @@
 // 统一的 openid 解析器 + 环境开关缓存(安全优先 fail-closed)
 // - prod 环境: 强制用 wxCtx.OPENID, 忽略 event.mock_openid(防冒充)
 // - dev 环境: event.mock_openid 优先(云端测试面板需要模拟身份)
+//   · 批4.1 加固: dev 必须带 admin_config.dev_until(未来时间戳) 才生效;
+//     过期/缺失 → fail-closed 回 prod。dev_bypass=true 为回滚开关(显式跳过过期校验, 旧逻辑)。
 // - 两者都空: 返回 null(调用方必须处理)
 // - admin_config 读失败: 按 prod 处理(只短缓存 10s, 兼顾 DB 恢复), 绝不默认 dev 放开 mock
-// admin_config.env 模块级缓存 5 分钟, logger 等模块通过 getCachedEnv 共享同一缓存
+// admin_config 模块级缓存 5 分钟, logger 等模块通过 getCachedEnv 共享同一缓存
+// 2026-10-13 收敛: 全量 17 个业务函数统一用本规范源(原 admin-action 超集 / init-db 变体已合并归零),
+//   admin-action 的 admin-web 网关代理密钥校验上移到其 index.js 包装层; init-db 需要的 invalidateEnvCache 在此导出。
 
 let _cachedRaw = null;     // { env, devUntil, devBypass }
 let _cacheUntil = 0;
@@ -49,24 +53,10 @@ function getCachedEnv() {
   return _cachedRaw ? _effective(_cachedRaw, Date.now()) : null;
 }
 
-// 代理密钥缓存(admin_web 网关共享密钥, 防客户端直调 admin-action 冒充管理员)
-let _cachedProxyKey = null;
-let _proxyKeyCacheUntil = 0;
-
-async function _readProxyKey(cloud) {
-  const now = Date.now();
-  if (_cachedProxyKey !== null && now < _proxyKeyCacheUntil) return _cachedProxyKey;
-  try {
-    const db = cloud.database();
-    const r = await db.collection('admin_config').doc('global').get();
-    _cachedProxyKey = (r.data && r.data.admin_web_key) || '';
-    _proxyKeyCacheUntil = now + CACHE_TTL_MS;
-  } catch (e) {
-    // fail-closed: 读不到配置时空字符串, 代理旁路不生效
-    _cachedProxyKey = '';
-    _proxyKeyCacheUntil = now + FAIL_CACHE_TTL_MS;
-  }
-  return _cachedProxyKey;
+// 强制清 env 缓存(init-db force_set_env 更新 DB 后立即生效; 只清本进程, 跨函数靠 5 分钟短缓存自然过期)
+function invalidateEnvCache() {
+  _cachedRaw = null;
+  _cacheUntil = 0;
 }
 
 // 主入口: 云函数统一用这个
@@ -74,16 +64,6 @@ async function resolveOpenid(cloud, event) {
   const wxCtx = cloud.getWXContext();
   const realOpenid = wxCtx.OPENID;
   const mockOpenid = event && event.mock_openid;
-
-  // admin-web HTTP 代理链路: 必须校验网关共享密钥 admin_web_key, 防客户端直接 callFunction 冒充
-  if (event && event.__admin_web_proxy && event._admin_web_proxy_openid) {
-    const proxyKey = event._admin_web_proxy_key || '';
-    const storedKey = await _readProxyKey(cloud);
-    if (storedKey && proxyKey && proxyKey === storedKey) {
-      return event._admin_web_proxy_openid;
-    }
-    // 密钥不匹配/为空: fall-through 到正常身份解析 (fail-closed)
-  }
 
   // 无条件预热环境缓存(顺带供 logger 门控), 有缓存时仅一次内存读取
   const env = await _readEnv(cloud);
@@ -101,4 +81,4 @@ async function resolveOpenid(cloud, event) {
   return env === 'dev' ? mockOpenid : null;
 }
 
-module.exports = { resolveOpenid, warmEnv, getCachedEnv };
+module.exports = { resolveOpenid, warmEnv, getCachedEnv, invalidateEnvCache };

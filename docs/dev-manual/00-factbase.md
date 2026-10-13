@@ -61,7 +61,7 @@
 ## 2. `_shared` 共享模块（多副本机制）
 
 - **规范源 + 复制 + SHA 门禁**：`sync-*.ps1` 把规范源复制到各云函数目录，`scripts/check-shared-sync.js` 校验 SHA 一致。
-- 共享规则模块：`order_state.js` / `take_rules.js` / `money_rules.js` / `no_show_rules.js` / `urge_rules.js` / `credit_rules.js` / `partner_audit.js` / `scene_meta.js` / `phone_crypt.js` / `logger.js` / `audit.js` / `heal.js` / `openid.js` / `test_data.js`
+- 共享规则模块：`order_state.js` / `take_rules.js` / `money_rules.js` / `no_show_rules.js` / `urge_rules.js` / `credit_rules.js` / `partner_audit.js` / `scene_meta.js` / `phone_crypt.js` / `security_policy.js` / `logger.js` / `audit.js` / `heal.js` / `openid.js` / `test_data.js`
 - 测试：`*.test.js`（14 个入口/规则测试）+ `ab_equivalence.js`（A/B 等价，203 例，7 known-evolution）+ `_mock_sdk.js`（拦截 wx-server-sdk）+ `_replay.js`
 - 13 个同步脚本：`sync-audit / sync-credit-rules / sync-logger / sync-money-rules / sync-no-show-rules / sync-openid / sync-order-state / sync-partner-audit / sync-phone-crypt / sync-scene-meta / sync-take-rules / sync-test-data / sync-urge-rules`（`.ps1`）。
 
@@ -81,9 +81,10 @@
 | phone_crypt.js | user-login, demand-publish, admin-action |
 | logger.js | admin-action, blog-action, demand-match, demand-publish, evaluation-submit, home-action, im-conv, im-send, order-action, order-create, order-timer, partner-action, partner-apply, payment-mock, safety-report, user-login（16） |
 | audit.js | admin-action, blog-action, demand-publish, evaluation-submit, im-send, order-action, order-create, partner-action, payment-mock, safety-report, user-login（11） |
-| openid.js | blog-action, demand-match, demand-publish, evaluation-submit, home-action, im-conv, im-send, order-action, order-create, order-timer, partner-action, partner-apply, payment-mock, safety-report, user-login（15）|
+| openid.js | blog-action, demand-match, demand-publish, evaluation-submit, home-action, im-conv, im-send, order-action, order-create, order-timer, partner-action, partner-apply, payment-mock, safety-report, user-login, admin-action, init-db（**17**）|
+| security_policy.js | user-login, init-db, admin-action（3）|
 
-> **有意变体（显式排除，不参与同步）**：`admin-action/openid.js`（超集，含 admin-web 网关密钥校验）；`init-db/openid.js`（独立变体）。改动这两个需手工同步。
+> **2026-10-13 收敛**：原先两处「有意变体」已归零——`admin-action` 的 admin-web 网关密钥校验上移至其 `index.js` 包装层（`resolveOpenidWithProxy`）；`init-db` 独立变体废弃（补齐 `dev_until` fail-closed 加固与 `invalidateEnvCache` 导出）。全量 17 个业务函数 `openid.js` 逐一同源。
 
 ## 3. 小程序端（c:\zhaoren\miniprogram）
 

@@ -62,6 +62,38 @@ async function ensureAdminColls() {
   try { await db.createCollection('config_history'); } catch (e) { /* 已存在则忽略 */ }
 }
 
+// ───────── admin-web HTTP 代理身份(2026-10-13 收敛) ─────────
+// 原实现内联在 admin-action/openid.js(规范源超集副本); 现 openid.js 与 _shared 规范源逐字节一致(SHA 门禁),
+// 差异逻辑上移到本包装层: 校验网关共享密钥 admin_web_key, 防客户端直连 callFunction 冒充管理员。
+let _cachedProxyKey = null;
+let _proxyKeyCacheUntil = 0;
+const PROXY_KEY_TTL_MS = 5 * 60 * 1000;      // 命中缓存 5 分钟
+const PROXY_KEY_FAIL_TTL_MS = 10 * 1000;     // 读配置失败只短缓存, 便于恢复
+async function _readProxyKey() {
+  const now = Date.now();
+  if (_cachedProxyKey !== null && now < _proxyKeyCacheUntil) return _cachedProxyKey;
+  try {
+    const r = await db.collection('admin_config').doc('global').get();
+    _cachedProxyKey = (r.data && r.data.admin_web_key) || '';
+    _proxyKeyCacheUntil = now + PROXY_KEY_TTL_MS;
+  } catch (e) {
+    // fail-closed: 读不到配置时空字符串, 代理旁路不生效
+    _cachedProxyKey = '';
+    _proxyKeyCacheUntil = now + PROXY_KEY_FAIL_TTL_MS;
+  }
+  return _cachedProxyKey;
+}
+// 身份解析(含网关代理链路): 代理密钥匹配 → 采用网关声明的 openid; 不匹配/为空 → 回落规范源 resolveOpenid(fail-closed)
+async function resolveOpenidWithProxy(event) {
+  if (event && event.__admin_web_proxy && event._admin_web_proxy_openid) {
+    const proxyKey = event._admin_web_proxy_key || '';
+    const storedKey = await _readProxyKey();
+    if (storedKey && proxyKey && proxyKey === storedKey) return event._admin_web_proxy_openid;
+  }
+  const { resolveOpenid } = require('./openid');
+  return resolveOpenid(cloud, event);
+}
+
 // 云存储 fileID → 临时访问 URL(批量, 每次最多 50; 失败降级为原 fileID 前端兜底不显示)
 async function resolveTempUrls(fileIDs) {
   const ids = Array.isArray(fileIDs) ? fileIDs.filter((f) => f && typeof f === 'string') : [];
@@ -438,8 +470,7 @@ const HANDLERS_PRE = Object.assign(
 
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
-  const { resolveOpenid } = require('./openid');
-  const openid = await resolveOpenid(cloud, event);
+  const openid = await resolveOpenidWithProxy(event);
   const action = event.action;
   log.d(`admin-action action=${action} openid=${openid || 'none'}`);
 

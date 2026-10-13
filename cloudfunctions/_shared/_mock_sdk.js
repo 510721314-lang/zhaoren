@@ -82,6 +82,11 @@ const commandProxy = new Proxy({}, {
             calls.push({ method: 'doc.update', name, id, payload });
             (writes[name] = writes[name] || []).push({ doc: id, data: payload && payload.data });
             return { stats: { updated: 1 } };
+          },
+          async set(payload) {
+            calls.push({ method: 'doc.set', name, id, payload });
+            (writes[name] = writes[name] || []).push({ doc: id, set: true, data: payload && payload.data });
+            return { stats: { updated: 1 } };
           }
         };
       },

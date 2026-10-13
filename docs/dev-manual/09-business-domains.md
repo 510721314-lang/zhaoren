@@ -264,7 +264,7 @@
 
 - **身份解析** `openid.js`：prod 强制真实 `wxCtx.OPENID`；`mock_openid` 全失效，dev 旁路需 `dev_until` 未来时间戳。
 - **登录** `user-login`：`login` / `peek_login` / 手机号密码登录注册 / 实名（`submit_realname` / `simulate_realname`）/ 地图共享。
-- **后台鉴权**：网关优先级 `X-Admin-Token`（`admin_web_sessions` 12h）> `admin_login` 免 key > `X-Admin-Key` 兜底；`admin_login_fail` 写 P1 事件供巡检。
+- **后台鉴权**：网关优先级 `X-Admin-Token`（`admin_web_sessions` 12h）> `admin_login` 免 key > `X-Admin-Key` 兜底；`admin_login_fail` 写 P1 事件供巡检；`admin_login` 连续失败 5 次锁定 10 分钟。
 - **审计哈希链**：`audit.js` 写 `audit_log`（`prev_hash`→`chain_hash`），`audit_verify` 全量校验。
 
 > 跨域约束与红线细节见 [05-redlines.md](file:///c:/zhaoren/docs/dev-manual/05-redlines.md)；资金/状态的并发保护统一为 CAS 乐观锁 + 挂起字段 + 幂等标记位。

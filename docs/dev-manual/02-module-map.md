@@ -73,9 +73,10 @@
 | phone_crypt.js | user-login, demand-publish, admin-action |
 | logger.js | 16 个（含 order-action / order-timer / admin-action …） |
 | audit.js | 11 个 |
-| openid.js | 15 个 |
+| openid.js | 17 个（全量业务函数） |
+| security_policy.js | user-login, init-db, admin-action |
 
-> **有意变体（不参与同步，改动需手工）**：`admin-action/openid.js`（超集）、`init-db/openid.js`（独立变体）。
+> **2026-10-13 收敛**：原「有意变体」已归零（`admin-action` 网关密钥校验上移其 `index.js` 包装层；`init-db` 变体废弃并入规范源），全量 17 个业务函数 `openid.js` 同源。
 > **修改共享逻辑的正确姿势**：只改 `_shared/` 规范源 → 跑对应 `sync-*.ps1` → `npm run verify` 校验 SHA。
 
 其余 `_shared` 资产：`*.test.js`（入口/规则单测）、`ab_equivalence.js`（A/B 等价重放）、`_mock_sdk.js`（内存 mock 拦截 `wx-server-sdk`）、`_replay.js`。

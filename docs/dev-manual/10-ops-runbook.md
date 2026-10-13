@@ -81,7 +81,7 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 | 切回 `env=prod` | 免确认 | 清 `dev_until`/`dev_bypass` |
 | 兜底 | — | dev **4 小时后自动回 prod** |
 
-- `init-db force_set_env`：需 `confirm:true` + `reason`，写 `platform_event` 留痕；有 5 分钟进程内 env 缓存，动作内须 `invalidateEnvCache()`。
+- `init-db force_set_env`：需 `confirm:true` + `reason`，写 `platform_event` 留痕；切 dev 时**同刻写 `dev_until`**（4h 与 `force_expire_at` 同刻自毁，否则规范源 fail-closed 按 prod 兜底）；有 5 分钟进程内 env 缓存，动作内须 `invalidateEnvCache()`。
 - mock 通道（`simulate_realname`/`submit_realname`）仅 dev 可用；读不到 env 按 prod 兜底。
 - 提审演示/截图期间可临时切 dev，**完成后立即切回 prod**。
 

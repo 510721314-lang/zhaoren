@@ -9,6 +9,7 @@
 - 环境判定依赖 `admin_config.global.env` 云端运行值，**读取失败按 prod 兜底**（不隐式放开 mock）。切 dev 后有 4 小时自动回 prod 兜底。
 - 网关鉴权优先级：`X-Admin-Token`（`admin_web_sessions` 12h）> `admin_login` 免 key > `X-Admin-Key` 兜底。
 - `admin_login` 失败必须写入 P1 事件 `admin_login_fail` 到 `platform_event`（供 errorScan 巡检），避免匿名爆破无观测。
+- `admin_login` 连续失败 **5 次锁定 10 分钟**（`pwd_fail_count` / `pwd_lock_until`，复用 `_shared/security_policy.js`，与 user-login 同口径）；锁定中一律拒绝且不再验密。
 - 密钥轮换须提供合规生成脚本 + 演练脚本；`phone_hash` 随密钥同步重算。
 - **手册不写凭据明文**：环境 ID / AppID / AppSecret / admin key / 加密密钥一律只记「存放位置与读取机制」。
 

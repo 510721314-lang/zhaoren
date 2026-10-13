@@ -387,6 +387,9 @@ exports.main = async (event, context) => {
         data: {
           env,
           updated_at: now,
+          // 2026-10-13 收敛: openid.js 规范源以 dev_until 判定 dev 生效(fail-closed, 批4.1 加固),
+          // force_set_env 是应急通道, 必须与 force_expire_at 同刻写 dev_until, 否则各函数按 prod 兜底、mock 身份被判拒
+          dev_until: env === 'dev' ? now + EXPIRE_MS : 0,
           force_expire_at: env === 'dev' ? now + EXPIRE_MS : null,
           force_operator: env === 'dev' ? curOpenid : null,
           force_reason: env === 'dev' ? reason : null,

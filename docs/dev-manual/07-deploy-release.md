@@ -69,5 +69,5 @@ admin-web 不是独立站点，而是云函数内的静态托管 + HTTP 网关�
 ## 7.8 备份与密钥
 
 - **收工备份**：三重备份——git bundle + robocopy 热备 + 云端 DB 导出；备份文件统一存 `c:\zhaoren-bak`。每次备份后须逐一核查所有备份通道可用性。
-- DB 导出通道：`backup.ps1` AdminKey 未配置时，用 `force_set_env dev` + `mock_openid=管理员` → `fn invoke admin-action export_collection` 分页导出（白名单校验在 admin-action 内）。
+- DB 导出通道：`backup.ps1` AdminKey 未配置时，用 `force_set_env dev`（2026-10-13 起同刻写 `dev_until`，各函数 mock 身份放行才有效）+ `mock_openid=管理员` → `fn invoke admin-action export_collection` 分页导出（白名单校验在 admin-action 内）。
 - 密钥轮换：`node scripts/rotate-admin-key.js` 生成合规密钥 + `node scripts/rehearse-key-rotation.js` 演练；`phone_hash` 需随密钥同步重算。

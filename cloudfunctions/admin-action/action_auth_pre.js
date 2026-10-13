@@ -1,5 +1,10 @@
 // admin-action · 免鉴权前置组（claim_admin / admin_login / admin_logout，从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
+// (2026-10-13) admin_login 防爆破锁定: 复用 _shared/security_policy.js 纯策略函数(与 user-login 同源, SHA 门禁守护)
+const { evalPasswordLock, passwordFailPatch } = require('./security_policy');
+
+const PWD_MAX_FAIL = 5;              // 连续失败达 5 次锁定（与 user-login password_login 同口径）
+const PWD_LOCK_MS = 10 * 60 * 1000;  // 锁定 10 分钟
 
 async function claim_admin(ctx) {
   const { openid, action, db, logEvent } = ctx;
@@ -46,9 +51,22 @@ async function admin_login(ctx) {
     await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: !u ? 'not_found' : 'inactive' }).catch(() => {});
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
   }
+  // 防爆破锁定(fail-closed: 锁定中一律拒绝, 不再验密; 与 user-login password_login 同口径)
+  const lock = evalPasswordLock(u.pwd_fail_count, u.pwd_lock_until, Date.now());
+  if (lock.locked) {
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'locked' }).catch(() => {});
+    return { ok: false, code: 'login_locked', msg: '密码错误次数过多,请10分钟后再试' };
+  }
   if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
-    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password' }).catch(() => {});
+    // 失败计数 +1(达上限置锁定并清零计数, 由策略函数保证), 再落 P1 事件供 errorScan 巡检
+    const patch = passwordFailPatch(u.pwd_fail_count, { maxFail: PWD_MAX_FAIL, lockMs: PWD_LOCK_MS, now: Date.now() });
+    await col('admin_accounts').doc(u._id).update({ data: patch }).catch(() => {});
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password', locked: !!patch.pwd_lock_until }).catch(() => {});
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
+  }
+  // 验密通过: 清零失败计数与锁定
+  if (u.pwd_fail_count || u.pwd_lock_until) {
+    await col('admin_accounts').doc(u._id).update({ data: { pwd_fail_count: 0, pwd_lock_until: 0 } }).catch(() => {});
   }
   const token = 'ADMT-' + crypto.randomBytes(24).toString('hex');
   const now = Date.now();

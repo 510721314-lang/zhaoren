@@ -29,12 +29,15 @@ const SYNC_MAP = {
     'admin-action', 'blog-action', 'demand-publish', 'evaluation-submit', 'im-send',
     'order-action', 'order-create', 'partner-action', 'payment-mock', 'safety-report', 'user-login'
   ],
-  // openid.js(安全关键, fail-closed 环境门控): 15 个函数共用规范源; 以下有意变体**显式排除**、不参与同步:
-  //   admin-action(超集: 含 admin-web 网关密钥校验) / init-db(独立变体)
+  // 密码/身份安全策略纯函数(2026-10-13 纳入): 密码登录防爆破锁定 + 紧急联系人冷却 + bootstrap CAS
+  'security_policy.js': ['user-login', 'init-db', 'admin-action'],
+  // openid.js(安全关键, fail-closed 环境门控): 2026-10-13 收敛为全量 17 个业务函数同源;
+  //   原 admin-action 超集的网关密钥校验已上移其 index.js 包装层, init-db 变体已废弃合并
   'openid.js': [
     'blog-action', 'demand-match', 'demand-publish', 'evaluation-submit', 'home-action',
     'im-conv', 'im-send', 'order-action', 'order-create', 'order-timer',
-    'partner-action', 'partner-apply', 'payment-mock', 'safety-report', 'user-login'
+    'partner-action', 'partner-apply', 'payment-mock', 'safety-report', 'user-login',
+    'admin-action', 'init-db'
   ]
 };
 

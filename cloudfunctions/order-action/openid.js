@@ -6,6 +6,8 @@
 // - 两者都空: 返回 null(调用方必须处理)
 // - admin_config 读失败: 按 prod 处理(只短缓存 10s, 兼顾 DB 恢复), 绝不默认 dev 放开 mock
 // admin_config 模块级缓存 5 分钟, logger 等模块通过 getCachedEnv 共享同一缓存
+// 2026-10-13 收敛: 全量 17 个业务函数统一用本规范源(原 admin-action 超集 / init-db 变体已合并归零),
+//   admin-action 的 admin-web 网关代理密钥校验上移到其 index.js 包装层; init-db 需要的 invalidateEnvCache 在此导出。
 
 let _cachedRaw = null;     // { env, devUntil, devBypass }
 let _cacheUntil = 0;
@@ -51,6 +53,12 @@ function getCachedEnv() {
   return _cachedRaw ? _effective(_cachedRaw, Date.now()) : null;
 }
 
+// 强制清 env 缓存(init-db force_set_env 更新 DB 后立即生效; 只清本进程, 跨函数靠 5 分钟短缓存自然过期)
+function invalidateEnvCache() {
+  _cachedRaw = null;
+  _cacheUntil = 0;
+}
+
 // 主入口: 云函数统一用这个
 async function resolveOpenid(cloud, event) {
   const wxCtx = cloud.getWXContext();
@@ -73,4 +81,4 @@ async function resolveOpenid(cloud, event) {
   return env === 'dev' ? mockOpenid : null;
 }
 
-module.exports = { resolveOpenid, warmEnv, getCachedEnv };
+module.exports = { resolveOpenid, warmEnv, getCachedEnv, invalidateEnvCache };

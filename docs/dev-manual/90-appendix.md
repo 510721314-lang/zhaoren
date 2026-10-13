@@ -50,7 +50,7 @@
 | D3 | 迁移采用**表驱动白名单 + CAS** | 并发安全 + 可读的结构约束；`from=['*']` 规则令纯 from→to 无约束力，故**强制校验事件驱动** | [order_state.js L151-L160](file:///c:/zhaoren/cloudfunctions/_shared/order_state.js#L151-L160) |
 | D4 | 保留 `mapStatus` **读兼容** | 让未迁移存量数据也能被新读方正确理解（S9→S8+auto_done 等） | [order_state.js L169-L188](file:///c:/zhaoren/cloudfunctions/_shared/order_state.js#L169-L188) |
 | D5 | 共享逻辑走 **`_shared/` + sync 副本 + SHA 门禁** | 微信按单目录打包、不支持跨目录 require；SHA 门禁防漂移 | [check-shared-sync.js](file:///c:/zhaoren/scripts/check-shared-sync.js) |
-| D6 | `admin-action/openid.js`（超集）与 `init-db/openid.js`（独立）**有意排除同步** | 二者含 admin-web 网关密钥校验等特性，与通用版语义不同；改动需手工同步 | [00-factbase §2b](file:///c:/zhaoren/docs/dev-manual/00-factbase.md) |
+| D6 | `openid.js` **全量 17 个业务函数单一源**（2026-10-13 收敛） | 原 `admin-action` 超集（网关密钥校验）上移其 `index.js` 包装层 `resolveOpenidWithProxy`；原 `init-db` 变体废弃（缺 `dev_until` fail-closed 加固属安全隐患），`invalidateEnvCache` 并入规范源导出 | [00-factbase §2b](file:///c:/zhaoren/docs/dev-manual/00-factbase.md) |
 | D7 | **显式 0 是合法值**（费率/价格下限），禁 `||` 兜底 | `0=免佣`/`0=合法下限`；`Number(null)===0` 语言坑须先判 null | [money_rules.js L57-L65](file:///c:/zhaoren/cloudfunctions/_shared/money_rules.js#L57-L65) |
 | D8 | 拒绝码**逐字保留** | 拒绝码是与前端/后台的契约，抽函数/重构不得改名 | [config-sync.md](file:///c:/zhaoren/docs/runbooks/config-sync.md) |
 | D9 | `order-timer` 全量**分页循环** | 单页 `limit` 会让积压 >BATCH 的滞留单据永不被扫到 | [order-timer/index.js L31-L38](file:///c:/zhaoren/cloudfunctions/order-timer/index.js) |
@@ -65,7 +65,7 @@
 | D18 | 客服会话固定 `order_id: ''` 且唯一 | 复用 `uk_order_id` 唯一索引，全局单条客服会话 | [03-data-model §3.4](file:///c:/zhaoren/docs/dev-manual/03-data-model.md) |
 | D19 | `init-db` 对 `admin_config` **补缺失不覆盖** | 防重跑种子把线上运营值降级；差异走 `force_migrate_scenes` | [config-sync.md](file:///c:/zhaoren/docs/runbooks/config-sync.md) |
 | D20 | 环境切 dev **强制带有效期 + 4h 兜底回 prod** | 防测试身份门控被长期遗忘；fail-closed 默认 prod | Ch5 §5.1 |
-| D21 | `admin_login` 失败写 **P1 `admin_login_fail`** | 避免匿名爆破无观测 | Ch5 §5.1 |
+| D21 | `admin_login` 失败写 **P1 `admin_login_fail`**，且**连续 5 次失败锁定 10 分钟** | 避免匿名爆破无观测；锁定复用 `_shared/security_policy.js`（与 user-login 同口径，`pwd_fail_count`/`pwd_lock_until`），锁定中不验密直接拒绝 | Ch5 §5.1 |
 | D22 | 场景隐藏过滤**统一在 `home-action.scene_groups` 出口** | 单一出口避免过滤散落导致泄漏 | Ch5 §5.5 |
 
 ## A.4 变更记录
@@ -79,5 +79,6 @@
 | 2026-10-12 | 批 1.x / Wave2 止血 | 全段分页扫描、加时超时自动拒绝、停用到期恢复、`after_sale_days`/`partial_judge_days` 服务端键补齐 |
 | 2026-10-13 | 本手册 | 《技术开发手册》落盘（以代码为唯一事实源，脱离 PRD 独立自含） |
 | 2026-10-13 | 运维负债闭环 | 索引走 tcb 直连通道核对（设计 33 / 已建 33 / 缺失 0）；`zz-warmup` 触发器经 tcb 更新为全天候并同步 `cloudbaserc.json`；新增 `config_restore` + `import_collection` 支撑 DB 恢复；备份清单补 `complaint` → 37 集合 |
+| 2026-10-13 | 代码/架构负债闭环 | ① `admin_login` 防爆破锁定（5 次/10 分钟，复用 `_shared/security_policy.js` 并入 SYNC_MAP）；② `openid.js` 全量 17 函数单一源收敛（admin-action 超集/init-db 变体归零，force_set_env 补写 `dev_until`） |
 
 > 手册修订流程：以代码为唯一事实源 → 改动后跑 `node scripts/check-manual-links.js` 与 `npm run verify` → 更新本附录变更记录。

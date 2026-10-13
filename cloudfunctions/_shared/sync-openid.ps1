@@ -1,18 +1,20 @@
-# Sync openid.js (canonical) -> local copies in the 15 cloud functions that share the core resolver
+# Sync openid.js (canonical) -> local copies in ALL 17 cloud functions that share the core resolver
 # Usage: powershell -File cloudfunctions/_shared/sync-openid.ps1
 # Canonical source: _shared/openid.js ; run this script after ANY edit to it.
 #
-# 变体说明(有意分叉, 不纳入同步, 由 check-shared-sync.js 的 SYNC_MAP 显式排除):
-#   - admin-action/openid.js : 规范源超集, 额外含 admin-web 网关共享密钥(admin_web_key)校验,
-#                              用于防客户端直连 callFunction 冒充管理员 —— 变更时须同步对齐规范源的安全逻辑
-#   - init-db/openid.js      : 独立变体(初始化场景), 用途见该文件头注释
+# 2026-10-13 收敛: 原先两处「有意变体」已合并归零, 全量 17 个业务函数逐字节同源(SHA 门禁守护):
+#   - admin-action : 网关代理密钥(admin_web_key)校验已上移到 admin-action/index.js 的
+#                    resolveOpenidWithProxy 包装层, 其 openid.js 与规范源一致
+#   - init-db      : 独立变体废弃(此前缺失 dev_until fail-closed 加固, 属安全隐患);
+#                    invalidateEnvCache 已并入规范源导出, 全量同源
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot   # cloudfunctions/
 $src  = Join-Path $root '_shared\openid.js'
 $dirs = @(
   'blog-action','demand-match','demand-publish','evaluation-submit','home-action',
   'im-conv','im-send','order-action','order-create','order-timer',
-  'partner-action','partner-apply','payment-mock','safety-report','user-login'
+  'partner-action','partner-apply','payment-mock','safety-report','user-login',
+  'admin-action','init-db'
 )
 $dsts = $dirs | ForEach-Object { Join-Path $root "$_\openid.js" }
 if (-not (Test-Path $src)) { throw "canonical source missing: $src" }
