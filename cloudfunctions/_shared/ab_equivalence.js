@@ -26,6 +26,14 @@ const dpStore = (demand) => ({
   demand: demand ? { [DID]: Object.assign({ _id: DID, demand_no: 'DR-TEST', scene: 'W1', is_deleted: false }, demand) } : {},
   order_main: {}, system_notice: {}, user_account: {}
 });
+// partner-action: 物理拆分用例夹具(admin_config env=dev 放行 mock_openid; 已认证耍伴 profile)
+const PAID = 'p'.repeat(32);
+const paStore = (over) => Object.assign({
+  admin_config: { global: { env: 'dev', admin_openids: [ADMIN], scene_list: [{ code: 'W1' }, { code: 'W2' }] } },
+  user_account: { ['u'.repeat(32)]: { _id: 'u'.repeat(32), openid: USER, roles: ['user', 'partner'], nick_name: '我', nickname: '我' } },
+  partner_profile: { [PAID]: { _id: PAID, openid: USER, status: 'approved', accept_scenes: ['W1'], is_deleted: false } },
+  system_notice: {}, audit_log: {}, exam_bank: {}, evaluation: {}, order_main: {}
+}, over || {});
 
 // P1 E2E: CN 12:00 安全时间戳(落在 redline 运营时段内), A/B 两侧同值故不影响等价
 const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
@@ -295,6 +303,24 @@ const CASES = [
   { fn: 'order-action', name: 'no_show_withdraw_ok', openid: USER,
     store: Object.assign(baseStore(), { no_show_report: { ['f'.repeat(32)]: { _id: 'f'.repeat(32), order_id: OID, order_no: 'ORD-1', reporter_openid: USER, reporter_role: 'user', target_openid: PARTNER, status: 'received', is_deleted: false } } }),
     event: { action: 'no_show_report_withdraw', mock_openid: USER, report_id: 'f'.repeat(32) } },
+  // ── partner-action：物理拆分组1(apply/set_switch/update_config/sub_authorize/my_profile) A/B 证据 ──
+  { fn: 'partner-action', name: 'pa_apply_no_user', openid: USER, store: paStore({ user_account: {} }), event: { action: 'apply', mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_apply_pending', openid: USER, store: paStore({ partner_profile: {} }), event: { action: 'apply', mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_apply_auto', openid: USER, store: paStore({ partner_profile: {}, admin_config: { global: { env: 'dev', auto_approve_partner: true, scene_list: [{ code: 'W1' }] } } }), event: { action: 'apply', accept_scenes: ['W1'], mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_switch_no_profile', openid: USER, store: paStore({ partner_profile: {} }), event: { action: 'set_switch', accept_switch: true, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_switch_not_approved', openid: USER, store: paStore({ partner_profile: { [PAID]: { _id: PAID, openid: USER, status: 'pending_review', is_deleted: false } } }), event: { action: 'set_switch', accept_switch: true, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_switch_busy', openid: USER, store: paStore({ order_main: { [OID]: { _id: OID, partner_openid: USER, status: 'S2', is_deleted: false } } }), event: { action: 'set_switch', accept_switch: false, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_switch_on', openid: USER, store: paStore(), event: { action: 'set_switch', accept_switch: true, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_config_no_profile', openid: USER, store: paStore({ partner_profile: {} }), event: { action: 'update_config', mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_config_bad_loc', openid: USER, store: paStore(), event: { action: 'update_config', home_location: { latitude: 999, longitude: 1 }, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_config_bad_dist', openid: USER, store: paStore(), event: { action: 'update_config', max_distance_km: 100, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_config_empty_scenes', openid: USER, store: paStore(), event: { action: 'update_config', accept_scenes: [], mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_config_ok', openid: USER, store: paStore(), event: { action: 'update_config', max_distance_km: 10, accept_scenes: ['W1'], scene_rates: { W1: 5000 }, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_sub_bad_tmpl', openid: USER, store: paStore(), event: { action: 'sub_authorize', tmpl: 'xxx', mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_sub_no_profile', openid: USER, store: paStore({ partner_profile: {} }), event: { action: 'sub_authorize', tmpl: 'demand_grab', mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_sub_ok', openid: USER, store: paStore(), event: { action: 'sub_authorize', tmpl: 'demand_grab', authorized: true, mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_my_profile_no', openid: USER, store: paStore({ partner_profile: {} }), event: { action: 'my_profile', mock_openid: USER } },
+  { fn: 'partner-action', name: 'pa_my_profile_ok', openid: USER, store: paStore(), event: { action: 'my_profile', mock_openid: USER } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
@@ -333,6 +359,17 @@ const AUTO_SEEDS = [
   ...enumerateActions('user-login').map((a) => ({
     fn: 'user-login', name: `auto_ul_${a}`, openid: USER,
     event: { action: a, mock_openid: USER, phone: '13800000000', sms_code: '123456', nickname: 'n', avatar: '', device: 'test' },
+  })),
+  // partner-action：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 鉴权门 + 无 ReferenceError
+  ...enumerateActions('partner-action').map((a) => ({
+    fn: 'partner-action', name: `auto_pa_${a}`, openid: USER, store: paStore(),
+    event: {
+      action: a, mock_openid: USER, device: 'test',
+      subject: 'base', answers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      target_openid: USER, pass: true, partner_openid: USER, latitude: 30.5, longitude: 104,
+      bio: '简介', skills: [], service_highlights: [], items: [{ field: 'bio', pass: true }],
+      tmpl: 'demand_grab', authorized: true, accept_switch: true, max_distance_km: 10,
+    },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
