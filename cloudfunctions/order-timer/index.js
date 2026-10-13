@@ -28,22 +28,27 @@ function trackBacklog(tag, arr) {
   if (arr && arr.length >= BATCH) { _backlog.push(tag + ':' + arr.length); log.w(`[backlog] ${tag} 取满 ${arr.length}/${BATCH}, 可能有积压`); }
 }
 
-// 分页扫描(2026-10-12 批1.3): 各段原为 where({...}).limit(BATCH), 该类状态积压 >BATCH 时漏扫(只推进前 BATCH 笔)。
-// 分页策略选 skip 而非 orderBy+游标: order_main/user_account 都没有 {status, updated_at} 索引,
-//   未建索引的排序可能直接报错, 而本函数外层 catch 会把它吞成"静默不做事"(历史上踩过同类坑);
-//   skip 分页不依赖索引, 代价是翻页 O(n), 但单轮硬上限 500 笔, 可接受。
+// 分页扫描(2026-10-12 批1.3 引入; 2026-10-13 留存负债闭环改游标分页):
+//   原 skip 分页在「并发写者活跃且单段积压 >BATCH」时有 skip 漂移: 前页文档被并发改写离开结果集后,
+//   后续页 skip 定位整体前移 → 越过未处理文档(影响为延迟一轮, 且已由各段 CAS 防重复处理)。
+//   改游标分页: 每页带「上页末位 _id」条件(_id 恒有索引, 无需新建组合索引; 云端实测 sort:{_id:1} 过滤查询可用,
+//   生产先例 action_audit_verify.js), 并发增删改既不会跳过也不会重扫, 对写者完全稳定。
 // 已于 2026-10-12 全量推广到所有状态扫描段(S1/S0/S2/S2_5/S3 里程碑/S3 加时/S3.5/S4/S5/S8/停用恢复)。
 const SCAN_PAGE = BATCH;
 const SCAN_MAX = 500;
 async function scanAll(coll, buildWhere, cap) {
   const limit = cap || SCAN_MAX;
   const out = [];
+  let lastId = '';
   while (out.length < limit) {
-    const r = await col(coll).where(buildWhere()).skip(out.length).limit(SCAN_PAGE).get()
+    const base = buildWhere();
+    const cond = lastId ? Object.assign({}, base, { _id: _.gt(lastId) }) : base;
+    const r = await col(coll).where(cond).orderBy('_id', 'asc').limit(SCAN_PAGE).get()
       .catch((e) => { log.w(`[scanAll] ${coll} 分页查询失败: ${e && e.message}`); return { data: [] }; });
     const rows = r.data || [];
     if (!rows.length) break;
     rows.forEach((x) => out.push(x));
+    lastId = rows[rows.length - 1]._id;
     if (rows.length < SCAN_PAGE) break;
   }
   return out;
@@ -507,6 +512,7 @@ exports.main = async (event, context) => {
   const msConfirmMin = num(cfg.milestone_confirm_min, 15); // 里程碑提交后自动确认时限(分钟)
   const afterSaleDays = num(cfg.after_sale_days, 15);       // Wave2 止血: S8 售后窗口(天) → 届满归档 S10
   const partialJudgeDays = num(cfg.partial_judge_days, 7);  // Wave2 止血: S4 裁定期(天) → 届满转平台介入
+  const disputeEscDays = num(cfg.dispute_escalate_d, 30);   // 争议单超期升级天数(留存负债闭环 2026-10-13)
   // 改期确认时限: 统一读 admin_config.modify_config.confirmHours(与 order-action 创建时算死 expire_at 同一口径)
   // 不再读独立键 modify_confirm_h(admin-action 白名单已移除, 存量历史无 expire_at 的订单仍走此兜底)
   const mcDefaults = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
@@ -514,7 +520,7 @@ exports.main = async (event, context) => {
   // 加时确认窗口(2026-10-12 后台可配): 独立键 extend_confirm_h, 0/缺省 → 回退改期 confirmHours (与申请时算 expire_at 同一口径)
   const extendConfirmH = num(cfg.extend_confirm_h, 0) > 0 ? num(cfg.extend_confirm_h, 0) : modifyConfirmH;
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -877,6 +883,33 @@ exports.main = async (event, context) => {
   try { urgeRemind = await processUrgeReminder(now, cfg); }
   catch (e) { log.d(`urge remind fail: ${e.message}`); }
 
+  // ───────── 4.8 争议单超期升级(2026-10-13 留存负债闭环): 争议发起超 dispute_escalate_d 天未裁决 → P1 平台事件 ─────────
+  // 语义: 仅「升级信号」——幂等标记 dispute_escalated_at + 写 P1 platform_event(由 §5 errorScan 立即推送全体管理员);
+  //   裁决仍是人工唯一路径(admin 端 dispute_list), 不做自动裁决。
+  // 覆盖两类在途争议: 投诉(status=S10.5, 时间锚 complaint_at)与爽约申诉(冻结中, 时间锚 dispute_opened_at)。
+  try {
+    const escCut = now - disputeEscDays * 24 * 3600 * 1000;
+    const opens = await scanAll('order_main', () => ({ dispute_state: 'open' }));
+    await Promise.allSettled(opens.map(async (o) => {
+      if (o.dispute_escalated_at) return;   // 已升级过, 防重复轰炸
+      const anchor = Number(o.dispute_opened_at) || Number(o.complaint_at) || Number(o.updated_at) || 0;
+      if (!anchor || anchor >= escCut) return;
+      const upd = await col('order_main').where({ _id: o._id, dispute_state: 'open' }).update({
+        data: { dispute_escalated_at: now, updated_at: now }
+      });
+      if (!upd.stats || upd.stats.updated !== 1) return;
+      try {
+        await col('platform_event').add({ data: {
+          level: 'P1', type: 'dispute_escalate_overdue', openid: o.user_openid || '',
+          payload: { order_id: o._id, order_no: o.order_no, dispute_type: o.dispute_type || '', opened_at: anchor, escalate_days: disputeEscDays },
+          created_at: now, updated_at: now, is_deleted: false
+        }});
+      } catch (e) { log.d(`dispute escalate event fail: ${e.message}`); }
+      out.dispute_escalate.push(o.order_no);
+      log.d(`escalate dispute overdue: ${o.order_no}`);
+    }));
+  } catch (e) { log.d(`dispute escalate scan fail: ${e.message}`); }
+
   // ───────── 5. error_scan 巡检(D7) ─────────
   let errorScanResult = null;
   try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
@@ -903,7 +936,7 @@ exports.main = async (event, context) => {
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
       urge_remind: urgeRemind,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_h: extendConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_h: extendConfirmH, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
@@ -914,6 +947,7 @@ exports.main = async (event, context) => {
       auto_eval: out.auto_eval,
       s8_archive: out.s8_archive,
       s4_escalate: out.s4_escalate,
+      dispute_escalate: out.dispute_escalate,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
@@ -925,7 +959,8 @@ exports.main = async (event, context) => {
         milestone_auto_confirm: out.milestone_auto_confirm.length,
         auto_eval: out.auto_eval.length,
         s8_archive: out.s8_archive.length,
-        s4_escalate: out.s4_escalate.length
+        s4_escalate: out.s4_escalate.length,
+        dispute_escalate: out.dispute_escalate.length
       }
     }
   };

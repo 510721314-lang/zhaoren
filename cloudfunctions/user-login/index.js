@@ -11,7 +11,8 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
-const { evalPasswordLock, passwordFailPatch, evalEmergencyCooldown } = require('./security_policy');
+// (2026-10-13) 留存负债闭环: 失败计数(密码/SMS)改原子自增+条件写后, passwordFailPatch 不再被本文件使用
+const { evalPasswordLock, evalEmergencyCooldown } = require('./security_policy');
 
 // ─────────────────── 账号密码辅助 ───────────────────
 // 生成 16 字节随机 salt (hex 32 字符)
@@ -292,14 +293,13 @@ async function resolvePhone(event, callerOpenid) {
         return { ok: false, code: 'sms_expired', msg: '验证码已过期' };
       }
       if (u.sms_code !== sms_code) {
-        // 失败计数+1, 达上限锁定并作废验证码(防继续试)
-        const fails = (u.sms_fail_count || 0) + 1;
-        const patch = { sms_fail_count: fails, updated_at: Date.now() };
-        if (fails >= SMS_MAX_FAIL) {
-          patch.sms_lock_until = Date.now() + SMS_LOCK_MS;
-          patch.sms_code = ''; patch.sms_expire_at = 0; patch.sms_target = '';
-        }
-        await col('user_account').doc(u._id).update({ data: patch });
+        // 失败计数原子 +1(2026-10-13 留存负债闭环, 与密码防爆破同口径);
+        // 达上限由「条件写」置锁并作废验证码(仅当计数≥阈值才命中, 并发下幂等)
+        await col('user_account').doc(u._id).update({ data: { sms_fail_count: _.inc(1), updated_at: Date.now() } })
+          .catch((e) => { log.w('sms fail 计数写入失败:', e && e.message); });
+        await col('user_account').where({ _id: u._id, sms_fail_count: _.gte(SMS_MAX_FAIL) })
+          .update({ data: { sms_lock_until: Date.now() + SMS_LOCK_MS, sms_code: '', sms_expire_at: 0, sms_target: '' } })
+          .catch(() => {});
         return { ok: false, code: 'sms_wrong', msg: '验证码错误' };
       }
       // 验证通过, 消耗验证码、清零失败计数并写入手机号(加密落库, 不写明文)
@@ -1194,8 +1194,13 @@ exports.main = async (event, context) => {
         }
         const expectHash = hashPassword(password, u.password_salt);
         if (expectHash !== u.password_hash) {
-          const patch = passwordFailPatch(u.pwd_fail_count, { maxFail: PWD_MAX_FAIL, lockMs: PWD_LOCK_MS, now: Date.now() });
-          await col('user_account').doc(u._id).update({ data: patch });
+          // 失败计数原子 +1(2026-10-13 留存负债闭环: 原读-改-写并发下会丢计数, 锁定阈值可被绕过);
+          // 达上限由「条件写」置锁并清零计数(仅当计数≥阈值才命中, 并发下幂等), 写入失败留痕不阻断
+          await col('user_account').doc(u._id).update({ data: { pwd_fail_count: _.inc(1), updated_at: Date.now() } })
+            .catch((e) => { log.w('password_login pwd_fail 计数写入失败:', e && e.message); });
+          await col('user_account').where({ _id: u._id, pwd_fail_count: _.gte(PWD_MAX_FAIL) })
+            .update({ data: { pwd_lock_until: Date.now() + PWD_LOCK_MS, pwd_fail_count: 0 } })
+            .catch(() => {});
           return { ok: false, code: 'password_wrong', msg: '账号或密码错误' };
         }
         // 验密通过: 清零失败计数与锁定

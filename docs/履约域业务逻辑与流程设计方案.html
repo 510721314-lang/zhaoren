@@ -332,7 +332,7 @@ footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--border);color
   </ol></li>
 <li>投诉可撤回：回 from_status，不动 help_flag（SOS 共用）。</li>
 <li>爽约申诉共用冻结机制：S2/S3.5 提交 → 对方 48h 举证 → 裁定（成立：扣 20 分/次、满 3 次停 7 天、10% 赔付工单）；申诉人裁定期内可随时撤回。</li>
-<li><span class="badge b-p1">P1</span>：一审时限届满 → 升级催办（30 天预留人工处理，不做自动升级）。</li>
+<li><span class="badge b-p1">P1</span>：一审时限届满 → 升级催办（30 天预留人工处理，不做自动升级）。【2026-10-13 已落地：超期 → 幂等标记 <code>dispute_escalated_at</code> + P1 <code>dispute_escalate_overdue</code> 平台事件推送管理员；仍不做自动裁决】</li>
 </ul>
 
 <h4>S6 · 已取消（终态）</h4>

@@ -24,20 +24,23 @@
 | **`grab_notify`** | 需求发布后向范围内耍伴批量推送的抢单通知 |
 | **`profile_audited_snapshot`** | 耍伴资料**已过审快照**（展示只读此字段，fail-closed 双缓冲） |
 
-## A.2 已知留存负债（提审前不修，需登记）
+## A.2 留存负债（当前无在册项 · 2026-10-13 全量闭环）
 
 来源：Ch5 §5.8 与 [tech-debt-delivery-report-20261012.md](file:///c:/zhaoren/docs/tech-debt-delivery-report-20261012.md)。
 
 | 负债 | 影响 | 触发/评估条件 |
 |---|---|---|
-| `order-timer` 分页 `skip` 漂移 | 仅在并发写者活跃且单段积压 >50 时触发，影响为延迟一轮 | 提审前不修；待单段 backlog 告警或日单量 >500 再评估游标分页 |
-| 争议单超期升级（`dispute_escalate_d=30`） | 当前为**预留人工处理**，不验证自动升级 | 维持人工 |
+| （无在册留存负债） | — | — |
 
 > **2026-10-13 已闭环（移出负债）**：
 > - **云端索引创建**：tcb 直连通道（`tcb-scan-indexes.js` / `tcb-diff-indexes.js` / `tcb-exec.js`），实测设计 33 / 已建 33 / 缺失 0，**无需控制台手工**（见 [03-data-model.md](file:///c:/zhaoren/docs/dev-manual/03-data-model.md) §3.4 与 [Ch4 §4.7](file:///c:/zhaoren/docs/dev-manual/04-conventions.md)）。
 > - **`zz-warmup` 触发器更新**：改走 `tcb fn trigger create`（绕开「代码上传」IP 白名单 `-10008`），已把云端触发器更新为全天候 `0 */5 * * * * *`（见 [07-deploy-release.md](file:///c:/zhaoren/docs/dev-manual/07-deploy-release.md) §7.3）。
 > - **DB 数据恢复**：admin-action 新增 `config_restore` + `import_collection`（[action_import.js](file:///c:/zhaoren/cloudfunctions/admin-action/action_import.js)），[restore.ps1](file:///c:/zhaoren/.predeploy/restore.ps1) 已接线，DB 集合可 replace 回灌。
 > - **备份清单漏集合**：manual-backup `$COLLECTIONS` 漏 `complaint`，已补齐 → 37 集合，与服务端 `EXPORT_COLLECTIONS` 白名单对齐。
+> - **`order-timer` 分页 `skip` 漂移**：`scanAll` 由 skip 分页改**游标分页**（`orderBy('_id')` + `_id > 上页末位`，复用恒存的 `_id` 索引、无需新建组合索引；云端实测 `sort:{_id:1}` 过滤查询可用），并发写者下不再跳过/重扫（D23）。
+> - **争议单超期升级（`dispute_escalate_d=30`）**：落地为**升级信号**——`order-timer` §4.8 扫 `dispute_state='open'` 且发起（`dispute_opened_at`/`complaint_at`）超期未裁决 → 幂等标记 `dispute_escalated_at` + 写 P1 `dispute_escalate_overdue` 事件（errorScan 推送全体管理员）；裁决仍走人工，不做自动裁决（D24）。
+> - **失败计数读-改-写竞态**：`admin-action.admin_login`、`user-login.password_login`、`user-login` 短信验证码三处统一改 `_.inc` 原子自增 + 达阈值条件置锁（并发下不丢计数）（D25）。
+> - **客服会话全局唯一占位**：2026-10-12 修复（`kefu_open` 改用按用户唯一占位 `order_id: 'kefu_'+openid`，不再用空串撞 `uk_order_id` 唯一索引），已随 10-13 批次部署；2026-10-13 经 `functions download` 云端核验命中 `kefu_` 标记。
 
 ## A.3 实现决策台账（记录「实现为何这么做及其理由」）
 
@@ -53,7 +56,7 @@
 | D6 | `openid.js` **全量 17 个业务函数单一源**（2026-10-13 收敛） | 原 `admin-action` 超集（网关密钥校验）上移其 `index.js` 包装层 `resolveOpenidWithProxy`；原 `init-db` 变体废弃（缺 `dev_until` fail-closed 加固属安全隐患），`invalidateEnvCache` 并入规范源导出 | [00-factbase §2b](file:///c:/zhaoren/docs/dev-manual/00-factbase.md) |
 | D7 | **显式 0 是合法值**（费率/价格下限），禁 `||` 兜底 | `0=免佣`/`0=合法下限`；`Number(null)===0` 语言坑须先判 null | [money_rules.js L57-L65](file:///c:/zhaoren/cloudfunctions/_shared/money_rules.js#L57-L65) |
 | D8 | 拒绝码**逐字保留** | 拒绝码是与前端/后台的契约，抽函数/重构不得改名 | [config-sync.md](file:///c:/zhaoren/docs/runbooks/config-sync.md) |
-| D9 | `order-timer` 全量**分页循环** | 单页 `limit` 会让积压 >BATCH 的滞留单据永不被扫到 | [order-timer/index.js L31-L38](file:///c:/zhaoren/cloudfunctions/order-timer/index.js) |
+| D9 | `order-timer` 全量**分页循环** | 单页 `limit` 会让积压 >BATCH 的滞留单据永不被扫到 | [order-timer/index.js L31-L55](file:///c:/zhaoren/cloudfunctions/order-timer/index.js#L31-L55) |
 | D10 | 催办用**订单标记位** `urge_t*_at` 幂等 + `cancel_request/frozen` 互斥 | 防重复轰炸、防与协商取消/申诉冲突 | [urge_rules.js L57-L91](file:///c:/zhaoren/cloudfunctions/_shared/urge_rules.js#L57-L91) |
 | D11 | 退款上限**不含打赏**、失败**自动补偿回滚** | 打赏是独立口径；状态一致性优先 | Ch5 §5.2 |
 | D12 | 爽约申诉**一期零赔付**（仅扣信用分/停用） | 用户已拍板，降低资金风险 | [no_show_rules.js L70-L81](file:///c:/zhaoren/cloudfunctions/_shared/no_show_rules.js#L70-L81) |
@@ -62,11 +65,14 @@
 | D15 | 订阅消息**仅在「小程序端触发」的云函数**走云调用 | 微信云调用仅在客户端触发链路自动鉴权；定时器/网关/CLI 触发必报 `-501001` | Ch5 §5.6 |
 | D16 | 审计用**哈希链** `prev_hash→chain_hash`，删最早连续段 | 删最早连续段不产生断链告警，校验仍 `ok` | [audit.js](file:///c:/zhaoren/cloudfunctions/_shared/audit.js) |
 | D17 | `error_scan` **豁免机器调用与自身兜底事件** | 避免机器噪声/自有兜底事件造成告警风暴 | [order-timer/index.js L91](file:///c:/zhaoren/cloudfunctions/order-timer/index.js) |
-| D18 | 客服会话固定 `order_id: ''` 且唯一 | 复用 `uk_order_id` 唯一索引，全局单条客服会话 | [03-data-model §3.4](file:///c:/zhaoren/docs/dev-manual/03-data-model.md) |
+| D18 | 客服会话**按用户唯一占位** `order_id: 'kefu_'+openid` | 原空串占位撞 `uk_order_id` 唯一索引（全局仅容一条）致多用户并发开客服失败；改按用户唯一占位复用同一索引、互不冲突（2026-10-13 云端核验） | [im-conv/index.js L169-L202](file:///c:/zhaoren/cloudfunctions/im-conv/index.js#L169-L202) |
 | D19 | `init-db` 对 `admin_config` **补缺失不覆盖** | 防重跑种子把线上运营值降级；差异走 `force_migrate_scenes` | [config-sync.md](file:///c:/zhaoren/docs/runbooks/config-sync.md) |
 | D20 | 环境切 dev **强制带有效期 + 4h 兜底回 prod** | 防测试身份门控被长期遗忘；fail-closed 默认 prod | Ch5 §5.1 |
 | D21 | `admin_login` 失败写 **P1 `admin_login_fail`**，且**连续 5 次失败锁定 10 分钟** | 避免匿名爆破无观测；锁定复用 `_shared/security_policy.js`（与 user-login 同口径，`pwd_fail_count`/`pwd_lock_until`），锁定中不验密直接拒绝 | Ch5 §5.1 |
 | D22 | 场景隐藏过滤**统一在 `home-action.scene_groups` 出口** | 单一出口避免过滤散落导致泄漏 | Ch5 §5.5 |
+| D23 | `order-timer` 分页改**游标分页**（`_id` 游标 + `orderBy('_id')`） | skip 分页在并发写者下会越过未处理文档（延迟一轮）；`_id` 恒有索引、零新建索引成本，且对写者完全稳定 | [order-timer/index.js L31-L55](file:///c:/zhaoren/cloudfunctions/order-timer/index.js#L31-L55) |
+| D24 | 争议超期升级只做**升级信号**（P1 平台事件），禁止自动裁决 | 自动裁决的资金/责任风险不可控；P1 事件复用 errorScan 既有巡检推送链路，幂等标记 `dispute_escalated_at` 防重复 | [order-timer §4.8](file:///c:/zhaoren/cloudfunctions/order-timer/index.js) |
+| D25 | 失败计数一律**原子自增 + 达阈值条件写** | 读-改-写在并发下丢计数可绕过锁定阈值；`_.inc` + 条件写两者皆幂等、无锁成本 | [action_auth_pre.js L61-L72](file:///c:/zhaoren/cloudfunctions/admin-action/action_auth_pre.js#L61-L72) / [user-login L1196-L1205](file:///c:/zhaoren/cloudfunctions/user-login/index.js#L1196-L1205) |
 
 ## A.4 变更记录
 
@@ -80,5 +86,6 @@
 | 2026-10-13 | 本手册 | 《技术开发手册》落盘（以代码为唯一事实源，脱离 PRD 独立自含） |
 | 2026-10-13 | 运维负债闭环 | 索引走 tcb 直连通道核对（设计 33 / 已建 33 / 缺失 0）；`zz-warmup` 触发器经 tcb 更新为全天候并同步 `cloudbaserc.json`；新增 `config_restore` + `import_collection` 支撑 DB 恢复；备份清单补 `complaint` → 37 集合 |
 | 2026-10-13 | 代码/架构负债闭环 | ① `admin_login` 防爆破锁定（5 次/10 分钟，复用 `_shared/security_policy.js` 并入 SYNC_MAP）；② `openid.js` 全量 17 函数单一源收敛（admin-action 超集/init-db 变体归零，force_set_env 补写 `dev_until`） |
+| 2026-10-13 | 留存负债全量闭环 | ① `order-timer` 游标分页（消 skip 漂移，D23）；② 争议单超期升级落地（`dispute_escalate_d` → P1 `dispute_escalate_overdue`，D24）；③ 三处失败计数原子化（admin_login / password_login / SMS，D25）；④ 客服会话全局占位复核已修（`kefu_` 云端命中）→ **A.2 在册负债清零**；门禁 pass 360/0（+9 例） |
 
 > 手册修订流程：以代码为唯一事实源 → 改动后跑 `node scripts/check-manual-links.js` 与 `npm run verify` → 更新本附录变更记录。

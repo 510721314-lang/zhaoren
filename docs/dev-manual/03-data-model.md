@@ -27,7 +27,7 @@
 | `order_confirmations` | 下单前「四确认」逐项确认记录 | order-action | order_id, item, confirmed, confirmed_by, role |
 | `order_status_log` | 订单状态流水（时间线数据源） | order-action / order-timer | order_id, from_status, to_status, action, operator |
 | `pay_transaction` | 支付/退款/加时/打赏流水 | payment-mock / order-create | pay_no, order_id, order_no, type, amount_fen, fee_fen, channel, is_mock, status, paid_at |
-| `im_conversation` | 会话（订单会话 / 客服会话） | im-conv | order_id（客服固定 ''）, order_no, members, last_msg, updated_at |
+| `im_conversation` | 会话（订单会话 / 客服会话） | im-conv | order_id（客服=按用户占位 `kefu_`+openid）, order_no, members, last_msg, updated_at |
 | `im_message` | 私信消息 | im-send | conv_id, from_openid, content, type, created_at |
 | `safety_report` | 安全上报（SOS / 报备 / 签到 / 举报） | safety-report | order_id, reporter_openid, type, status, payload |
 | `credit_score_log` | 信用分流水（裁定聚合源） | evaluation-submit / order-timer | openid, type, score, delta, order_id |
@@ -109,7 +109,7 @@
 | no_show_report | idx_target_created | target_openid↑, created_at↓ | |
 | credit_score_log | idx_openid_type_created | openid↑, type↑, created_at↓ | |
 
-**关键约束**：`im_conversation.uk_order_id` 唯一索引 —— 客服场景固定 `order_id: ''`，故全局仅一条客服会话（见 [05-redlines.md](file:///c:/zhaoren/docs/dev-manual/05-redlines.md) §5.6）。
+**关键约束**：`im_conversation.uk_order_id` 唯一索引 —— 客服会话用**按用户唯一占位** `order_id: 'kefu_' + openid` 复用同一唯一索引（每用户一条客服会话）；原空串占位（全局仅容一条）的多用户并发冲突已于 2026-10-12 修复（见 [05-redlines.md](file:///c:/zhaoren/docs/dev-manual/05-redlines.md) §5.6）。
 
 ## 3.5 admin_config 与 CONFIG_SCHEMA
 

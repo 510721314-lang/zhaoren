@@ -1,7 +1,8 @@
 // admin-action · 免鉴权前置组（claim_admin / admin_login / admin_logout，从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 // (2026-10-13) admin_login 防爆破锁定: 复用 _shared/security_policy.js 纯策略函数(与 user-login 同源, SHA 门禁守护)
-const { evalPasswordLock, passwordFailPatch } = require('./security_policy');
+// (2026-10-13) 留存负债闭环: 失败计数由「读-改-写」改为原子自增 + 达阈值条件写(并发下不丢计数), 锁定判断内联, 不再用 passwordFailPatch
+const { evalPasswordLock } = require('./security_policy');
 
 const PWD_MAX_FAIL = 5;              // 连续失败达 5 次锁定（与 user-login password_login 同口径）
 const PWD_LOCK_MS = 10 * 60 * 1000;  // 锁定 10 分钟
@@ -58,11 +59,15 @@ async function admin_login(ctx) {
     return { ok: false, code: 'login_locked', msg: '密码错误次数过多,请10分钟后再试' };
   }
   if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
-    // 失败计数 +1(达上限置锁定并清零计数, 由策略函数保证), 再落 P1 事件供 errorScan 巡检
-    const patch = passwordFailPatch(u.pwd_fail_count, { maxFail: PWD_MAX_FAIL, lockMs: PWD_LOCK_MS, now: Date.now() });
-    // 评审修复(2026-10-13, P4#3): 计数写入此前静默吞错 → 爆破计数/锁定可能未落库而无人知; 降级为告警留痕
-    await col('admin_accounts').doc(u._id).update({ data: patch }).catch((e) => { log.w('admin_login pwd_fail 计数写入失败:', e && e.message); });
-    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password', locked: !!patch.pwd_lock_until }).catch(() => {});
+    // 失败计数原子 +1(2026-10-13 留存负债闭环: 原读-改-写并发下会丢计数, 锁定阈值可被绕过);
+    // 达上限由「条件写」置锁并清零计数(仅当计数≥阈值才命中, 并发下幂等), 写入失败留痕不阻断
+    await col('admin_accounts').doc(u._id).update({ data: { pwd_fail_count: _.inc(1), updated_at: Date.now() } })
+      .catch((e) => { log.w('admin_login pwd_fail 计数写入失败:', e && e.message); });
+    const lockUpd = await col('admin_accounts').where({ _id: u._id, pwd_fail_count: _.gte(PWD_MAX_FAIL) })
+      .update({ data: { pwd_lock_until: Date.now() + PWD_LOCK_MS, pwd_fail_count: 0 } })
+      .catch(() => null);
+    const locked = !!(lockUpd && lockUpd.stats && lockUpd.stats.updated === 1);
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password', locked }).catch(() => {});
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
   }
   // 验密通过: 清零失败计数与锁定

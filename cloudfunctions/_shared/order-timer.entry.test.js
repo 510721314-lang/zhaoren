@@ -137,4 +137,38 @@ test('S5 未到时限 → auto_eval=0', async () => {
   assert.strictEqual(r.data.counts.auto_eval, 0);
 });
 
+// 11. 争议单超期(30d, 投诉 S10.5) → 升级 P1 事件 + 幂等标记(2026-10-13 留存负债闭环)
+test('争议超期(投诉) → dispute_escalate=1 + platform_event dispute_escalate_overdue', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({ K1: ord('K1', 'S10.5', { dispute_state: 'open', dispute_type: 'complaint', complaint_at: now - 31 * D, frozen: true }) }));
+  assert.strictEqual(r.data.counts.dispute_escalate, 1);
+  assert.deepStrictEqual(r.data.dispute_escalate, ['ORD-K1']);
+  const pe = (sdk.writes.platform_event || []).find((w) => w.add && w.data.type === 'dispute_escalate_overdue');
+  assert.ok(pe, '应写 P1 平台事件');
+  assert.strictEqual(pe.data.level, 'P1');
+  const mark = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'K1');
+  assert.ok(mark.data.dispute_escalated_at > 0, '应置幂等标记 dispute_escalated_at');
+});
+
+// 12. 守卫: 争议发起仅 10 天(未超 30d) → 不升级
+test('争议未超期 → dispute_escalate=0', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ L1: ord('L1', 'S10.5', { dispute_state: 'open', dispute_type: 'complaint', complaint_at: now - 10 * D, frozen: true }) }));
+  assert.strictEqual(r.data.counts.dispute_escalate, 0);
+});
+
+// 13. 守卫: 已升级过(dispute_escalated_at) → 不重复升级
+test('争议已升级过 → 不重复(dispute_escalate=0)', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ M1: ord('M1', 'S10.5', { dispute_state: 'open', dispute_type: 'complaint', complaint_at: now - 40 * D, dispute_escalated_at: now - 2 * D, frozen: true }) }));
+  assert.strictEqual(r.data.counts.dispute_escalate, 0);
+});
+
+// 14. 爽约申诉在途超期(状态仍 S2, 时间锚 dispute_opened_at) → 同样升级
+test('爽约申诉超期(S2 冻结中) → dispute_escalate=1', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ N1: ord('N1', 'S2', { dispute_state: 'open', dispute_type: 'no_show', dispute_opened_at: now - 31 * D, frozen: true, start_time: now + 2 * D }) }));
+  assert.strictEqual(r.data.counts.dispute_escalate, 1);
+});
+
 test.after(() => { Module._load = origLoad; });

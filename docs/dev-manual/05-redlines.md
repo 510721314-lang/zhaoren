@@ -73,7 +73,7 @@
 ## 5.6 通知与巡检
 
 - 需求发布成功后必须立即推送发布者站内通知，并向符合条件耍伴推抢单通知，全程 fail-closed。
-- 客服会话唯一索引约束：`im_conversation.uk_order_id` 唯一，客服场景固定 `order_id: ''`，全局仅一条客服会话。
+- 客服会话唯一索引约束：`im_conversation.uk_order_id` 唯一；客服会话用**按用户唯一占位** `order_id: 'kefu_' + openid` 复用该索引（每用户一条）；**禁止回退为空串占位**（原实现导致多用户并发开客服撞唯一键加载失败，2026-10-12 已修）。
 - 巡检（errorScan）仅对真实用户的 P0/safety_sos 事件告警，豁免 `admin_probe`（无身份机器调用）与 `order-timer` 自身 `s4_stale_escalate` 兜底事件。
 - 订阅消息：**云调用（cloud.openapi）仅在小程序端触发的云函数中经微信自动鉴权成功**；定时器/HTTP 网关/控制台/CLI 触发必报 `-501001`。HTTPS 订阅走 opt-in（配置了 `sub_msg_https` 才启用），`defaultPostJson` 设 8s 超时；pusher 在函数级创建 + `getAccessToken` in-flight 去重。
 - 订阅模板选型红线：仅选 `thing`（文本）+ `time`（时间）字段，避开 `phrase`/`amount`/`character_string`/`name`；提审前 `miniprogram_state` 设 `trial`。
@@ -87,7 +87,9 @@
 - 提审演示/截图期间可临时切 dev，**完成后立即切回 prod**。
 - 新开任务必须进行工作目录验证并经用户确认后才能动工。
 
-## 5.8 已知留存负债（提审前不修，需登记）
+## 5.8 留存负债（2026-10-13 全量闭环，当前无在册项）
 
-- `order-timer` 分页 `skip` 漂移：仅在并发写者活跃且单段积压 >50 时触发，影响为延迟一轮，提审前不修，待单段 backlog 告警或日单量 >500 再评估游标分页。
-- 争议单超期升级（`dispute_escalate_d=30`）当前为**预留人工处理**，不验证自动升级。
+- `order-timer` 分页 `skip` 漂移 → **已闭环**：`scanAll` 改**游标分页**（`orderBy('_id')` + `_id > 上页末位`，复用恒存 `_id` 索引，无需新建组合索引）；**禁止回退为 skip 分页**。
+- 争议单超期升级（`dispute_escalate_d=30`）→ **已落地**：超期未裁决 → 幂等标记 `dispute_escalated_at` + P1 `dispute_escalate_overdue` 平台事件（errorScan 推送管理员）；**红线保留：裁决只走人工，禁止实现自动裁决**。
+- 失败计数竞态（`admin_login` / `password_login` / SMS 验证码）→ **已闭环**：统一 `_.inc` 原子自增 + 达阈值条件置锁；**禁止回退为读-改-写**。
+- 客服会话全局占位 → **已修**（2026-10-12，见 §5.6），2026-10-13 云端下载核验通过。

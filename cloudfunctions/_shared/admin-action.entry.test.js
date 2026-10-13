@@ -120,27 +120,36 @@ function loginStore(acc) {
   };
 }
 
-test('admin_login: 错误密码 → login_bad + 失败计数写入(pwd_fail_count=1)', async () => {
-  const sdk = makeSdk({ openid: '', store: loginStore() });
+// (2026-10-13 留存负债闭环: 计数改原子自增 + 达阈值条件写, 断言协议形状 + 条件命中与否)
+test('admin_login: 错误密码(未达上限) → login_bad + 原子自增 + 条件置锁写(gte 5, 未命中)', async () => {
+  // updateCount 模拟真库语义: 计数<5 时 gte 条件不命中(updated=0)
+  const sdk = makeSdk({ openid: '', store: loginStore(), updateCount: (name, q) => (q && q.pwd_fail_count && q.pwd_fail_count.__sentinel === 'gte' ? 0 : 1) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'admin_login', account: 'root', password: 'wrong-pwd-1' }, {});
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'login_bad');
-  const w = (sdk.writes.admin_accounts || [])[0];
-  assert.ok(w, '应写失败计数');
-  assert.strictEqual(w.data.pwd_fail_count, 1);
-  assert.strictEqual(w.data.pwd_lock_until, undefined, '未达上限不写锁定');
+  const ws = sdk.writes.admin_accounts || [];
+  const incW = ws.find((w) => w.doc === 'acc_root' && w.data && w.data.pwd_fail_count && w.data.pwd_fail_count.__sentinel === 'inc');
+  assert.ok(incW, '应原子自增失败计数(_.inc)');
+  assert.strictEqual(incW.data.pwd_fail_count.args[0], 1, '每次失败 +1');
+  const lockW = ws.find((w) => w.where && w.where.pwd_fail_count && w.where.pwd_fail_count.__sentinel === 'gte');
+  assert.ok(lockW, '应发起达阈值条件置锁写');
+  assert.strictEqual(lockW.where.pwd_fail_count.args[0], 5, '阈值 = 5');
+  const ev = (sdk.writes.platform_event || []).find((e) => e.data.type === 'admin_login_fail');
+  assert.strictEqual(ev.data.payload.locked, false, '条件未命中 → locked=false');
 });
 
-test('admin_login: 第5次失败 → 写锁定(pwd_lock_until≈now+10min, 计数清零)', async () => {
+test('admin_login: 第5次失败 → 条件置锁命中(pwd_lock_until≈now+10min, 计数清零)', async () => {
   const sdk = makeSdk({ openid: '', store: loginStore({ pwd_fail_count: 4 }) });
   const { main } = loadIndex(sdk);
   const t0 = Date.now();
   const r = await main({ action: 'admin_login', account: 'root', password: 'wrong-pwd-2' }, {});
   assert.strictEqual(r.code, 'login_bad');
-  const w = (sdk.writes.admin_accounts || [])[0];
-  assert.strictEqual(w.data.pwd_fail_count, 0);
-  assert.ok(w.data.pwd_lock_until > t0 + 9 * 60 * 1000 && w.data.pwd_lock_until < t0 + 11 * 60 * 1000, '锁定 10 分钟');
+  const ws = sdk.writes.admin_accounts || [];
+  const lockW = ws.find((w) => w.where && w.where.pwd_fail_count && w.where.pwd_fail_count.__sentinel === 'gte');
+  assert.ok(lockW, '应发起达阈值条件置锁写');
+  assert.strictEqual(lockW.data.pwd_fail_count, 0);
+  assert.ok(lockW.data.pwd_lock_until > t0 + 9 * 60 * 1000 && lockW.data.pwd_lock_until < t0 + 11 * 60 * 1000, '锁定 10 分钟');
   const ev = (sdk.writes.platform_event || []).find((e) => e.data.type === 'admin_login_fail');
   assert.strictEqual(ev.data.payload.locked, true, 'P1 事件应标注本次触发锁定');
 });
