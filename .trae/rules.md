@@ -45,45 +45,49 @@
 
 ## 八、备份与恢复（铁律）
 
-### 三重备份策略（每次备份必须同时执行）
-1. **GitHub 远程**：master 分支 + 全部 tags 必须推送到 origin（最后一道防线，不可跳过）
-2. **Git Bundle**：`git bundle create <桌面路径>/zhaoren_v<版本>_<日期>.bundle master --tags` — 克隆后可完全还原项目历史
-3. **robocopy 热备份**：`robocopy <源> <桌面备份目录> /MIR /XD .git node_modules .trae .tmp-cloud-runner` — 文件级快照，排除无关目录
+> **节点备份 v2（2026-10-13 定稿）**：本地四通道 + 异地一通道 + 沉淀资产，全部落 `C:\zhaoren-bak`（**禁止再放桌面**）。数据层正脚本 = `.predeploy/manual-backup.ps1`（`backup.ps1` 缺 confirm 会导空表，勿用）。详细 SOP 见 `docs/runbooks/backup-restore.md`；索引工具见 skill: cloud-backup-restore。
+
+### 节点备份通道（每次必须同时执行）
+1. **GitHub 远程**：master + 全部 tags 推送 origin（最后一道防线，不可跳过）
+2. **Git Bundle**：`git bundle create "C:\zhaoren-bak\zhaoren-full-<YYYYMMDD-HHmmss>.bundle" --all`（部署前归档用 `zhaoren-deploy-<ts>.bundle`）
+3. **robocopy 热备份**：`robocopy c:\zhaoren "C:\zhaoren-bak\zhaoren_files_<ts>" /MIR /XD .git node_modules .trae .tmp-cloud-runner`
+4. **数据层（manual-backup.ps1）**：L2 admin_config 快照 + L3 DB 37 集合 + L6 云函数代码 20/20 + L7 索引设计台账（`-AdminKey` 密钥读 `C:\zhaoren-bak\admin-key-20261009.txt`）
+5. **沉淀资产**：项目记忆（`~\.trae-cn\memory`）+ `.trae/skills` + `rules.md` → `zhaoren_assets_<ts>\`（robocopy 排除 .trae 且记忆在仓库之外，必须单独归档）
+6. **异地（飞书 lark-cli，推荐）**：bundle + `zhaoren_backup_<ts>.zip`（DB zip）+ CHECKSUMS → zhaoren-backup 目录；三步闭环 `+status → +push --if-exists overwrite → +status（全 unchanged）`；**必须 `--as user`**（bot 看不到用户云盘），staging 用 `c:\zhaoren\.backup-lark`（**必须位于 cwd 内**，TEMP 绝对路径判 unsafe）
+
+### 前置检查（每条均曾真实踩坑，不可跳过）
+- **先提交再归档**：工作区须干净（bundle 只含 commit 内容；先备份后 commit 会漏最新改动）
+- **BOM 复检**：备份/恢复链中文 .ps1 前 3 字节必须是 `EF BB BF` —— 编辑过的脚本会静默丢 BOM 致整脚本 ParserError（2026-10-13 事故，详见 skill: powershell-windows-traps）
+- **L6 CLI 路径**：主用安装 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（探测失效会导致云函数代码备份静默 SKIP）
+- **密钥通道**：`-AdminKey` 或 `C:\zhaoren-bak\admin-key-20261009.txt`（网关 401=密钥失配，处置见 skill）
+- **备份前刷新索引扫描**：`node scripts/tcb-scan-indexes.js` + `tcb-diff-indexes.js`（设计=实际、缺失 0）
 
 ### 备份后**必须**做完整性检查（不可跳过，不能靠文件大小判断）
-1. **Git Bundle 验证**：
-   - `git bundle verify <bundle文件>` — exit code 0 且输出 "bundle is okay"
-   - 临时克隆：`git clone <bundle文件> <临时目录>` — 900+ 文件应全部还原
-   - commit hash 对比：bundle 克隆后的 master HEAD 与本地 `git rev-parse master` 完全一致
-   - tag 完整性：bundle 内 refs 数量 = 本地 `git tag` 数量（含 v0.x.x + backup-*）
+1. **Bundle**：`git bundle verify` 输出 "is okay" + bundle HEAD == 本地 HEAD（必要时实际 clone 验证）
+2. **热备份**：源↔备**逐文件 SHA256** → `缺失=0 且 不一致=0`（核心 miniprogram/ + cloudfunctions/；.trae 运行时 churn 不计）
+3. **数据层**：每集合 `.sha256` 回读 + JSON 可解析 + `total==list.Count`（37/37）；manifest `git_head` == 本地 HEAD；L2 快照 `env` 核对（应为 prod）
+4. **云函数/索引**：L6 数量 == 云函数目录数（20/20 且均含 index.js）；L7 条数与云端扫描一致
+5. **恢复演练**：`restore.ps1 -BackupDir <备份目录>`（dry-run，不写云端）全部 OK 才算备份可用
+6. **异地**：`+status` 复核全部 `unchanged`
+7. **GitHub 同步**：`git rev-list --left-right --count origin/master...master` = `0 0`
 
-2. **热备份验证**：
-   - 源目录 vs 热备份文件级 SHA256 哈希对比
-   - 核心指标：
-     - `仅在源目录(备份缺失) = 0` ✅ — 所有项目文件必须被备份
-     - `内容不一致(SHA256不匹配) = 0` ✅ — 备份文件内容必须与源目录完全一致
-     - 热备份可包含额外的 IDE 运行时文件（.trae/ 下），但**不能缺失任何项目文件**
-
-3. **GitHub 同步验证**：
-   - `git log origin/master..HEAD` — 空输出表示所有 commit 已推送
-   - tag 推送：`git push origin <tag>` 后输出 `[new tag]` 或已是最新
-
-### 备份命名规范
-- Bundle：`zhaoren_v<版本>_<YYYYMMDD>.bundle`（如 `zhaoren_v0.10.0_20260918.bundle`）
-- 热备份：`zhaoren_backup_<YYYYMMDD>`
-- 存放位置：桌面（`C:\Users\DC\Desktop\`），方便快速访问
+### 命名与记录
+- 命名：bundle=`zhaoren-full-<ts>` / `zhaoren-deploy-<ts>`；热备=`zhaoren_files_<ts>\`；数据层=`zhaoren_backup_<YYYYMMDD-HHMM>\`；资产=`zhaoren_assets_<ts>\`；异地 DB zip=`zhaoren_backup_<ts>.zip`
+- `CHECKSUMS.txt`（`C:\zhaoren-bak\`）：bundle 行 `TS  name  SHA256=…  git-head=…  (说明)`；目录行 `DIR | <dir>\ | 摘要（各层校验结论）`
+- 重要节点备份后：生成报告 `docs/backup-report-<date>.md` 并入库推送
 
 ### 恢复优先级
-1. GitHub 重新 clone → `git clone https://github.com/510721314-lang/zhaoren`
-2. Git Bundle 克隆 → `git clone <bundle文件> restore-dir`
-3. 热备份直接复制 → `robocopy <热备份目录> restore-dir /MIR`
+1. GitHub clone → 2. Bundle clone（`git clone <bundle文件> restore-dir`）→ 3. 热备 robocopy 反拷 → 4. 异地飞书取回
+- 数据层：`restore.ps1 -BackupDir ... [-Force]`（**导出为展示级脱敏，回灌为脱敏值**；密钥类字段走未脱敏 admin_config 快照 config_restore）
 
-### 经验教训（从之前的备份事故中提炼）
-- **文件大小 ≠ 完整性**：大小接近不代表内容一致，必须用 SHA256 逐文件比对
-- **robocopy 不能排除 `.trae/`**：IDE 运行时文件会在 robocopy 后新增到备份目录外，导致下次备份可能丢失——核心项目文件（miniprogram/ + cloudfunctions/）才是检查重点
-- **Bundle verify 必须 clone 验证**：`git bundle verify` 通过说明 bundle 格式正确，但必须实际 clone 成功 + commit hash 匹配才能证明数据完整
-- **先备份后 commit 不行**：必须等所有改动 commit + push 到 GitHub 后再开始备份，否则 bundle 会漏最新 commit
-- **索引台账 ≠ 云端实际（2026-10-09 实证）**：L7 导出的 index_ledger.json 只是「设计级」清单；云端实际索引通过 `node scripts/tcb-scan-indexes.js`（tcb CLI 直连，机制见 skill: cloud-backup-restore「索引核对与创建」节）读取，两者差异必须补齐（2026-10-09 首扫发现大厅查询等关键索引未建）
+### 经验教训（历次备份事故提炼）
+- **文件大小 ≠ 完整性**：大小接近不代表内容一致，必须 SHA256 逐文件比对
+- **Bundle verify 通过 ≠ 数据完整**：必要时实际 clone 成功 + commit hash 匹配才能证明
+- **先备份后 commit 不行**：必须等所有改动 commit + push 后再归档，否则 bundle 漏最新 commit
+- **索引台账 ≠ 云端实际（2026-10-09 实证）**：L7 的 index_ledger.json 只是「设计级」清单；云端实际以 `node scripts/tcb-scan-indexes.js` 扫描为准，差异必须补齐
+- **BOM 静默丢失（2026-10-13 事故·二次实证）**：中文 .ps1 被编辑后可能丢 UTF-8 BOM → 整脚本 ParserError（manual-backup/restore 双双中招，备份链整体失效）→ 跑前复检前 3 字节 `EF BB BF`
+- **lark-cli 三坑（2026-10-13 实证）**：①首次需 `config init` + `auth login --domain drive`（用户身份）；②必须 `--as user`；③`--local-dir` 必须在 cwd 内（TEMP 绝对路径判 unsafe）
+- **L6 体积（2026-10-13 实测）**：functions_code 含 node_modules ≈ 465MB —— 异地只传 bundle + DB zip，云函数代码不上异地
 
 ## 九、产品战略铁律（防偏离）——不可违背，不可建议相反方向
 
@@ -107,7 +111,7 @@
 13. TRAE-security-review跑全仓安全扫描（金额/权限/注入/输入校验）
 14. mp-pre-release-audit技能跑微信审核7项对齐
 15. 真机双身份链路：user发布→partner接单→四确认→S0→履约→评价 全走通
-16. 三重备份验证：GitHub同步+git bundle verify+robocopy SHA256对比
+16. 节点备份验证：五通道 + 恢复演练全部通过（见 §八：GitHub 同步 0 0 / bundle verify / robocopy SHA256 / DB+L6+L7 校验 / restore dry-run / 异地 unchanged）
 17. 索引核对：`node scripts/tcb-scan-indexes.js` 扫描云端实际索引 → 与设计台账对照补齐缺失项（2026-10-09 实证：设计索引存在大量未建，含大厅查询关键索引）
 
 ### 防偏离机制

@@ -15,7 +15,7 @@
 - AppID: `wxbc4a4afacdf234f5`
 - admin_web_key: `<不入库, 向管理员索取或 init-db generate_admin_web_key 生成; 脚本通过 -AdminKey 参数或环境变量 ADMIN_WEB_KEY 传入>`
 - HTTP 网关: `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api`
-- CLI: 动态发现 `Get-ChildItem -Path 'C:\Users\DC','C:\' -Filter 'cli.bat' -Recurse | Where { $_.FullName -match 'wechat' } | Select-Object -First 1`
+- CLI: 主用安装 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-13 实测；原「桌面动态探测」已作废——桌面旧拷版移入 `Desktop\工具\微信WEB开发者工具`，manual-backup.ps1 的 L6 探测已同步修正）
 - HEAD: `git log --oneline -1` 先确认版本
 
 ## 备份范围（四层，缺一不可）
@@ -89,7 +89,7 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 - **L7 的坑**：①脚本顶部 `$ErrorActionPreference='Stop'` 会把 node 命令的 stderr 转成终止错误 → 调 node 前临时置 `Continue`；②dump-index-ledger.js 成功时只写 stdout 不写 stderr（成功信息走 `process.stdout.write`），否则 Stop 模式下就算文件已生成也会被 catch 误判 FAIL。
 - **admin_web_key 若遇网关 401（HTTP 401 空响应体）＝密钥失配**（期间被轮换）。处置：不能靠原 key 重试；①浏览器 admin-web F12 → `localStorage.getItem('admin_web_key')` 取当前有效 key，或 ②init-db 云端测试 `{"action":"generate_admin_web_key","reason":"..."}` 重新生成（注意：需要管理员身份 OPENID 在白名单，且回滚后旧 key 全部失效）。生成返回形如 `AWK-<64hex>`，写库后 `admin_config.admin_web_key_set=true`。
 - **36 集合全量**（2026-10-09 实导，含 exam_bank/config_history/no_show_report）：demand 780 / order_main 210 / order_status_log 843 / audit_log 3053 / platform_event 2845 等；三级校验（SHA256 回读 + JSON 可解析 + total==list.Count）异常 0。
-- **异地备份（飞书 lark-cli）**：目标 folder_token=`RCsff3kGUlKhpud1KVFckJOhnGc`。`--local-dir` 只能放 cwd/temp/home/files（cwd=c:\zhaoren 用 `C:\zhaoren\.lark-stage`）。流程：`+status` 精确比对 → `+push`（已有文件需 `--if-exists overwrite`，否则 CHECKSUMS 等被反复追加的文件被 skip）→ 再 `+status` 复核全部 unchanged。
+- **异地备份（飞书 lark-cli）**：目标 folder_token=`RCsff3kGUlKhpud1KVFckJOhnGc`。⚠️ 2026-10-13 实测修正：①**必须 `--as user`**（bot 看不到用户云盘）；②`--local-dir` 实际必须在 **cwd 内**（TEMP 绝对路径被判 `unsafe file path`）→ staging 用 `c:\zhaoren\.backup-lark`（`.backup-*/` 已 gitignore），命令传相对路径；③首次使用需 `lark-cli config init --new`（浏览器/扫码）→ `auth login --domain drive --no-wait --json`（device-flow：二维码给用户）→ 用户授权后 `auth login --device-code <code>`。流程：`+status` 精确比对 → `+push`（已有文件需 `--if-exists overwrite`，否则 CHECKSUMS 等被反复追加的文件被 skip）→ 再 `+status` 复核全部 unchanged。
 
 ## 索引核对与创建（tcb 直连，2026-10-09 起）
 
@@ -110,6 +110,15 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 
 - **DB 恢复已实现**：admin-action 新增 `config_restore`（admin_config 快照恢复）+ `import_collection`（DB 集合逐表回灌，`mode='replace'` 分页清空 + 分块批量插入，`INSERT_CHUNK=500`），二者均 `confirm:true` 门控 + 写 `platform_event(P1)`。`restore.ps1` 第 5 节已接线，逐集合调 `import_collection`（带 `$okTables/$failTables` 统计）。
 - **备份清单补 `complaint`**：`manual-backup.ps1` 的 `$COLLECTIONS` 由 36 → **37**，与服务端 `EXPORT_COLLECTIONS` 白名单对齐（此前 `20261010-1827` 那次 manifest=35 的口径差即因清单不一致）。
+
+## 实测记录（2026-10-13 节点备份 — 五通道 + 恢复演练全绿）
+
+- **BOM 事故**：`manual-backup.ps1` / `restore.ps1` 于当日早间编辑中丢 UTF-8 BOM → PS5.1 整脚本 ParserError（**备份链整体不可用**）；修复=补回 BOM（前 3 字节 `EF BB BF`）+ L6 探测补主用 x86 安装路径（原三候选全失效会致云函数代码静默 SKIP）。全仓另补 6 个无 BOM 中文脚本。**纪律：跑备份/恢复链前复检 BOM**（详见 skill: powershell-windows-traps）。
+- **L6 首度全自动 20/20**（CLI 路径修复后；对比 2026-10-09「20/20（L6 手动补齐）」）。
+- **本次产物**（全部落 `C:\zhaoren-bak`，命名见 rules.md §八）：`zhaoren-full-20261013-144705.bundle`（15.6MB，`--all`）+ `zhaoren_files_20261013-144903\`（915 文件）+ `zhaoren_backup_20261013-1441\`（L2+L3 37 集合+L6 20/20+L7 33 条）+ `zhaoren_assets_20261013-145007\`（项目记忆+skills+rules）；CHECKSUMS 新增 bundle 行 + 3 条 DIR 行。
+- **核验实测值**：bundle verify OK（complete history）；热备 915/915 逐文件 SHA（缺失 0/不一致 0）；DB 37/37 SHA+解析+计数 0 异常；**restore dry-run 39 OK / 0 BAD**；异地 3 件（bundle+DB zip+CHECKSUMS）push 后复核 unchanged。
+- **节点备份报告范本**：`docs/backup-report-20261013.md`（结构：摘要/范围明细/核验总表/恢复指引/前置修复/记录/已知边界）。
+- **已知边界**：functions_code（≈465MB 含 node_modules）不上异地；DB 导出为展示级脱敏；飞书目录保留 5 个历史包（10-07/10-09）未清理。
 
 ## 已知限制
 
