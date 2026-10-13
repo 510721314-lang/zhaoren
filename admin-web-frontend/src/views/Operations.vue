@@ -52,11 +52,18 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <!-- 分组级 重置/保存 (全滑动开关的分组不显示, 其改动走底部全局保存) -->
+            <div v-if="!isGroupAllBool(grp)" class="grp-actions">
+              <el-button size="small" :disabled="!changedInGroup(grp).length" @click="resetGroup(grp)">重置</el-button>
+              <el-button size="small" type="primary" :loading="saving && saveGroup === grp" @click="openSaveGroup(grp)">
+                保存<template v-if="changedInGroup(grp).length"> ({{ changedInGroup(grp).length }} 项变更)</template>
+              </el-button>
+            </div>
           </el-card>
 
           <div style="text-align:right">
             <el-button @click="load">重置</el-button>
-            <el-button type="primary" :loading="saving" @click="openSave">
+            <el-button type="primary" :loading="saving && saveGroup === null" @click="openSave">
               保存<template v-if="diffRows.length"> ({{ diffRows.length }} 项变更)</template>
             </el-button>
           </div>
@@ -171,7 +178,7 @@
         style="margin-bottom:12px"
         title="仅提交发生变化的参数；保存后立即生效并写入变更日志。"
       />
-      <el-table :data="diffRows" size="small" border style="margin-bottom:14px">
+      <el-table :data="confirmRows" size="small" border style="margin-bottom:14px">
         <el-table-column prop="label" label="参数" width="180" />
         <el-table-column label="原值" width="130">
           <template #default="{row}"><span class="v-old">{{ fmt(row, false) }}</span></template>
@@ -365,6 +372,14 @@ function changedInGroup(g) {
   const keys = fieldsOf(g).map((s) => s.f);
   return diffRows.value.filter((r) => keys.indexOf(r.f) >= 0);
 }
+// 分组是否全是滑动开关(bool) — 全开关分组不显示分组级 重置/保存, 其改动走底部全局保存
+function isGroupAllBool(g) {
+  return fieldsOf(g).every((s) => s.t === 'bool');
+}
+// 分组级重置: 把该分组字段恢复到加载快照
+function resetGroup(g) {
+  fieldsOf(g).forEach((s) => { patch[s.f] = orig[s.f]; });
+}
 function fmt(row, isNew) {
   const v = isNew ? row.now : row.old;
   if (row.t === 'bool') return v ? '开启' : '关闭';
@@ -399,9 +414,24 @@ async function load() {
 
 const confirmDialog = ref(false);
 const reason = ref('');
+const saveGroup = ref(null); // null=全局保存; 字符串=仅该分组
+
+// 确认弹窗显示的 diff 行: saveGroup 限定单分组, 否则全部
+const confirmRows = computed(() => {
+  if (saveGroup.value) return changedInGroup(saveGroup.value);
+  return diffRows.value;
+});
 
 function openSave() {
   if (!diffRows.value.length) { ElMessage.info('没有参数变更'); return; }
+  saveGroup.value = null;
+  reason.value = '';
+  confirmDialog.value = true;
+}
+function openSaveGroup(grp) {
+  const changes = changedInGroup(grp);
+  if (!changes.length) { ElMessage.info('没有参数变更'); return; }
+  saveGroup.value = grp;
   reason.value = '';
   confirmDialog.value = true;
 }
@@ -410,12 +440,13 @@ async function doSave() {
   if (!reason.value.trim()) { ElMessage.warning('请填写变更原因'); return; }
   saving.value = true;
   const payload = { reason: reason.value.trim() };
-  diffRows.value.forEach((r) => { payload[r.f] = r.now; });
+  confirmRows.value.forEach((r) => { payload[r.f] = r.now; });
   const r = await call('config_set', payload);
   saving.value = false;
   if (r.ok) {
     ElMessage.success(`已保存 ${(r.data && r.data.updated && r.data.updated.length) || ''} 项参数`);
     confirmDialog.value = false;
+    saveGroup.value = null;
     await load();
   } else {
     ElMessage.error(r.msg || r.code || '保存失败');
@@ -766,6 +797,7 @@ onMounted(async () => {
 .ops-unit { margin-left:8px; color:#909399; font-size:12px; }
 .ops-clock { margin-left:8px; color:#409EFF; font-size:12px; font-weight:600; }
 .ops-desc { flex-basis:100%; width:100%; font-size:12px; color:#909399; line-height:1.45; margin-top:2px; }
+.grp-actions { margin-top:12px; text-align:right; display:flex; justify-content:flex-end; gap:8px; }
 .opt-chip { display:inline-flex; align-items:center; gap:2px; margin:0 10px 4px 0; }
 .opt-sort-row { display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px dashed #ebeef5; }
 .opt-sort-row:last-of-type { border-bottom:none; }
