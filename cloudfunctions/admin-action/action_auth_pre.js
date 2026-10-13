@@ -37,7 +37,7 @@ async function claim_admin(ctx) {
 }
 
 async function admin_login(ctx) {
-  const { event, openid, ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent } = ctx;
+  const { event, openid, ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent, log } = ctx;
   await ensureAdminColls();
   const acc = String(event.account || '').trim();
   const password = event.password || '';
@@ -60,7 +60,8 @@ async function admin_login(ctx) {
   if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
     // 失败计数 +1(达上限置锁定并清零计数, 由策略函数保证), 再落 P1 事件供 errorScan 巡检
     const patch = passwordFailPatch(u.pwd_fail_count, { maxFail: PWD_MAX_FAIL, lockMs: PWD_LOCK_MS, now: Date.now() });
-    await col('admin_accounts').doc(u._id).update({ data: patch }).catch(() => {});
+    // 评审修复(2026-10-13, P4#3): 计数写入此前静默吞错 → 爆破计数/锁定可能未落库而无人知; 降级为告警留痕
+    await col('admin_accounts').doc(u._id).update({ data: patch }).catch((e) => { log.w('admin_login pwd_fail 计数写入失败:', e && e.message); });
     await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password', locked: !!patch.pwd_lock_until }).catch(() => {});
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
   }

@@ -41,6 +41,13 @@ test('失败达上限 → 置锁定并清零计数(第 5 次失败触发)', () =
   assert.strictEqual(patch.pwd_lock_until, NOW + LOCK_MS);
 });
 
+// 评审修复 2026-10-13(P4#4): 阈值下调反向用例 — 防实现把上限写死为 5(写死时该用例必失败)
+test('阈值下调生效: maxFail=4 且 count=3 → 置锁定并清零', () => {
+  const patch = passwordFailPatch(3, { maxFail: 4, lockMs: LOCK_MS, now: NOW });
+  assert.strictEqual(patch.pwd_fail_count, 0);
+  assert.strictEqual(patch.pwd_lock_until, NOW + LOCK_MS);
+});
+
 test('首错(无历史) → pwd_fail_count=1', () => {
   const patch = passwordFailPatch(undefined, { maxFail: 5, lockMs: LOCK_MS, now: NOW });
   assert.strictEqual(patch.pwd_fail_count, 1);

@@ -38,7 +38,11 @@ async function admin_account_set_status(ctx) {
   if (acc === operatorAccount && status === 'disabled') return fail('acc_self', '不能禁用自己');
   const r = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
   if (!(r.data && r.data[0])) return fail('acc_not_found', '账号不存在');
-  await col('admin_accounts').doc(r.data[0]._id).update({ data: { status, updated_at: Date.now() } });
+  // 评审修复(2026-10-13, P4#1): 重新启用须清零防爆破锁定残留 — 否则历史 pwd_lock_until/pwd_fail_count
+  // 会让启用后的账号被 login_locked 直接拒绝(禁用期间无法输错密码, 残留必为陈旧值)
+  const patch = { status, updated_at: Date.now() };
+  if (status === 'active') { patch.pwd_fail_count = 0; patch.pwd_lock_until = 0; }
+  await col('admin_accounts').doc(r.data[0]._id).update({ data: patch });
   if (status === 'disabled') {
     await col('admin_web_sessions').where({ account: acc, is_deleted: _.neq(true) }).update({
       data: { is_deleted: true, updated_at: Date.now() }

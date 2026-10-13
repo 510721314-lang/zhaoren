@@ -164,6 +164,31 @@ test('admin_login: 密码正确 → 发 token 并清零历史失败计数', asyn
   assert.deepStrictEqual(w.data, { pwd_fail_count: 0, pwd_lock_until: 0 });
 });
 
+// ── 2026-10-13 P4#1 评审修复: 禁用→启用须清零防爆破锁定残留 ──
+function setStatusStore() {
+  return {
+    admin_config: { global: { env: 'dev', admin_openids: [ADMIN], dev_until: Date.now() + 2 * 3600 * 1000 } },
+    admin_accounts: {
+      acc_root: {
+        _id: 'acc_root', account: 'root', role: 'R1', display_name: 'Root', status: 'disabled', is_deleted: false,
+        pwd_fail_count: 3, pwd_lock_until: Date.now() + 5 * 60 * 1000
+      }
+    }
+  };
+}
+
+test('admin_account_set_status: 重新启用 → 清零 pwd_fail_count/pwd_lock_until', async () => {
+  const sdk = makeSdk({ openid: '', store: setStatusStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'admin_account_set_status', account: 'root', status: 'active', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.admin_accounts || [])[0];
+  assert.ok(w, '应更新账号状态');
+  assert.strictEqual(w.data.status, 'active');
+  assert.strictEqual(w.data.pwd_fail_count, 0, '启用应清零失败计数');
+  assert.strictEqual(w.data.pwd_lock_until, 0, '启用应清零锁定截止');
+});
+
 // ── 2026-10-13: 网关代理身份校验从 openid.js 上移到 index.js 包装层后的行为锁定 ──
 const WK = 'WK-proxy-1';
 function proxyStore() {
