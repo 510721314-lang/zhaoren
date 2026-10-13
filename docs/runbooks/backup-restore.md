@@ -51,13 +51,18 @@ robocopy c:\zhaoren "C:\zhaoren-bak\zhaoren_files_$(Get-Date -Format 'yyyyMMdd-H
 
 ```powershell
 # 目标目录 folder_token=RCsff3kGUlKhpud1KVFckJOhnGc (zhaoren-backup)
-# ⚠️ --local-dir 受内置白名单限制：只能放 cwd、temp、home/files 下；cwd=c:\zhaoren 所以放 c:\zhaoren\.lark-stage
-$stage='C:\zhaoren\.lark-stage'
-# 把 bundle + CLOUDDB zip + CHECKSUMS.txt 拷进 $stage
+# 首次使用（一次性）: lark-cli config init --new（浏览器/扫码完成应用配置）→
+#   lark-cli auth login --domain drive --no-wait --json（用户身份; 取 verification_url+device_code 并生成二维码给用户）
+#   → 用户授权后 lark-cli auth login --device-code <code> 续轮询完成登录
+# ⚠️ 必须 --as user: bot 身份看不到用户云盘（实测报权限错/空成功）
+# ⚠️ 实测(2026-10-13): --local-dir 传 TEMP 绝对路径被判 unsafe file path（解析为相对 cwd 之外）→
+#   staging 必须位于 cwd 内: c:\zhaoren\.backup-lark（.backup-*/ 已 gitignore），命令传相对路径
+$stage='c:\zhaoren\.backup-lark'
+# 把 bundle + zhaoren_backup_<ts>.zip（DB 导出 zip，命名对齐历史惯例）+ CHECKSUMS.txt 拷进 $stage
 # 复核差异
-lark-cli drive +status --local-dir $stage --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --format pretty
+lark-cli drive +status --as user --local-dir ".backup-lark" --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --format pretty
 # 推送（新文件会 uploaded；更新已有文件需 --if-exists overwrite，默认 skip 不会覆盖远程同名不同内容）
-lark-cli drive +push --local-dir $stage --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --if-exists overwrite --format pretty
+lark-cli drive +push --as user --local-dir ".backup-lark" --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --if-exists overwrite --format pretty
 # 再跑 +status 复核应全部 unchanged
 ```
 
