@@ -34,3 +34,6 @@ zhaoren_backup_*/
 # admin-web 前端构建产物（chunk 哈希每次变更；由 scripts/build-admin-web.ps1 生成，部署前构建，不入库）
 /cloudfunctions/admin-web/public/*
 !/cloudfunctions/admin-web/public/.gitkeep
+
+# html 分享包（一次性会话产物，不入库）
+.trae-html-share-packages/
