@@ -316,6 +316,11 @@ async function resolvePhone(event, callerOpenid) {
   return { ok: false, code: 'phone_missing', msg: '请提供 getPhoneNumber 授权或手机号+验证码' };
 }
 
+// ── 物理拆分: action 分发表(同级 action_*.js; handler 经 ctx 注入共享符号, 禁 require('./index')) ──
+const HANDLERS = Object.assign({},
+  require('./action_map')
+);
+
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
@@ -332,6 +337,15 @@ exports.main = async (event, context) => {
 
   // 总保险: 任何未预期异常都转成 JSON 业务错误, 避免云函数崩溃让客户端收到"网络异常"
   try {
+  // 物理拆分分发: 命中 HANDLERS 的 action 走同级 handler(等价于下方同名单一 case, 行为逐字不变)
+  if (HANDLERS[action]) {
+    const ctx = {
+      event, openid, clientIp, device,
+      db, col, _, log, writeAudit,
+      pickGps, haversineMeters
+    };
+    return await HANDLERS[action](ctx);
+  }
   switch (action) {
 
     // 1. 登录(自动建号,幂等)
@@ -799,102 +813,6 @@ exports.main = async (event, context) => {
         return { ok: true, data: { found: true, user: safeUserDoc(u) } };
       } catch (e) {
         return { ok: false, code: 'peek_fail', msg: '查询失败' };
-      }
-    }
-
-    // 地图即时定位共享开关(双向对称): 允许/不允许 TA 通过地图找到我
-    case 'set_map_share': {
-      if (typeof event.allow !== 'boolean') {
-        return { ok: false, code: 'bad_allow', msg: '参数格式有误' };
-      }
-      try {
-        const r = await col('user_account').where({ openid }).limit(1).get();
-        if (!(r.data && r.data.length > 0)) {
-          return { ok: false, code: 'no_user', msg: '请先登录' };
-        }
-        const u = r.data[0];
-        await col('user_account').doc(u._id).update({ data: {
-          allow_map_share: event.allow,
-          // 关闭时清除已上报的实时定位(隐私: 不允许再被地图定位)
-          ...(event.allow ? {} : { map_gps: _.remove() }),
-          updated_at: Date.now()
-        }});
-        await writeAudit(db, log, {
-          action: 'set_map_share', target_type: 'user_account', target_id: u._id,
-          detail: { allow: event.allow, result: 'ok' }, result: 'ok', client_ip: clientIp, device
-        });
-        return { ok: true, data: { allow_map_share: event.allow } };
-      } catch (e) {
-        log.d('set_map_share fail:', e && e.message);
-        return { ok: false, code: 'business_error', msg: '操作失败' };
-      }
-    }
-
-    // 实时定位上报(进地图页时调用): 记录本人当前坐标, 供已「允许」的两侧相互发现
-    case 'report_map_gps': {
-      const lat = Number(event.latitude);
-      const lng = Number(event.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
-          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        return { ok: false, code: 'bad_location', msg: '定位数据异常' };
-      }
-      try {
-        const r = await col('user_account').where({ openid }).limit(1).get();
-        if (!(r.data && r.data.length > 0)) {
-          // 未建号也能上报(游客), 但无 openid 关联则丢弃——需要账号, 跳过
-          return { ok: false, code: 'no_user', msg: '请先登录' };
-        }
-        const u = r.data[0];
-        // 未允许共享, 不上报真实坐标(防越权写库+隐私)
-        if (u.allow_map_share !== true) {
-          return { ok: false, code: 'share_off', msg: '你未开启地图共享' };
-        }
-        await col('user_account').doc(u._id).update({ data: {
-          map_gps: { lat, lng, at: Date.now() },
-          updated_at: Date.now()
-        }});
-        return { ok: true, data: { saved: true } };
-      } catch (e) {
-        log.d('report_map_gps fail:', e && e.message);
-        return { ok: false, code: 'business_error', msg: '操作失败' };
-      }
-    }
-
-    // 查周边已开启共享且定位有效(15min 内)的 TA(剔除自己): 地图 marker 数据源
-    case 'nearby_map_list': {
-      try {
-        const r = await col('user_account').where({ openid }).limit(1).get();
-        if (!(r.data && r.data.length > 0)) {
-          return { ok: false, code: 'no_user', msg: '请先登录' };
-        }
-        const me = r.data[0];
-        const freshCut = Date.now() - 15 * 60 * 1000; // 定位 15 分钟内有效
-        const qr = await col('user_account').where({ allow_map_share: true, is_deleted: _.neq(true) })
-          .limit(100).get().catch(() => ({ data: [] }));
-        const mePt = pickGps(me);
-        const list = (qr.data || [])
-          .filter((t) => t.openid && t.openid !== me.openid)
-          .map((t) => {
-            const gps = pickGps(t);
-            return {
-              openid: t.openid,
-              nickname: t.nickname || '微信用户',
-              avatar: (t.avatar && /^https?:/.test(t.avatar)) ? t.avatar : '',
-              roles: t.roles || [],
-              is_partner: (t.roles || []).indexOf('partner') >= 0,
-              lat: gps ? gps.lat : 0,
-              lng: gps ? gps.lng : 0,
-              gps_at: gps ? gps.at : 0,
-              online: !!gps && gps.at >= freshCut,
-              distance_m: mePt ? haversineMeters(mePt.lat, mePt.lng, gps ? gps.lat : 0, gps ? gps.lng : 0) : -1
-            };
-          })
-          // 仅展示定位有效(在线)的 TA
-          .filter((t) => t.online && t.lat !== 0 && t.lng !== 0);
-        return { ok: true, data: { list }, my_allow: me.allow_map_share === true };
-      } catch (e) {
-        log.d('nearby_map_list fail:', e && e.message);
-        return { ok: false, code: 'business_error', msg: '查询失败' };
       }
     }
 

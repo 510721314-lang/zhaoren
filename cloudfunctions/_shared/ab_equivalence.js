@@ -34,6 +34,24 @@ const START_TS = NEW_TS - 24 * 3600 * 1000;
 // 爽约申诉窗口: 约定开始时间须在「now - reportWindowH(48h)」之后, 取 1h 前
 const RECENT_TS = Date.now() - 3600 * 1000;
 
+// user-login: 物理拆分(地图组 set_map_share / report_map_gps / nearby_map_list)用例夹具
+const ULID = 'u'.repeat(32);
+const ULID2 = 'v'.repeat(32);
+const ulStore = (user) => ({
+  admin_config: { global: { env: 'dev' } },
+  user_account: user ? { [ULID]: Object.assign({ _id: ULID, openid: USER, roles: ['user'], is_deleted: false }, user) } : {},
+  audit_log: {}
+});
+// 双人地图夹具: 我(USER, 已开共享 + 有效定位) + TA(PARTNER, 已开共享 + 有效定位)
+const ulMapStore = () => ({
+  admin_config: { global: { env: 'dev' } },
+  user_account: {
+    [ULID]: { _id: ULID, openid: USER, roles: ['user'], nickname: '我', allow_map_share: true, map_gps: { lat: 30.5, lng: 104.0, at: Date.now() }, is_deleted: false },
+    [ULID2]: { _id: ULID2, openid: PARTNER, roles: ['partner'], nickname: 'TA', avatar: 'https://x/y.png', allow_map_share: true, map_gps: { lat: 30.6, lng: 104.1, at: Date.now() }, is_deleted: false }
+  },
+  audit_log: {}
+});
+
 const CASES = [
   { name: 'detail_ok', openid: USER, event: { action: 'detail', order_id: OID, mock_openid: USER } },
   { name: 'detail_not_found', openid: USER, store: { admin_config: { global: { env: 'dev' } }, order_main: {} }, event: { action: 'detail', order_id: OID, mock_openid: USER } },
@@ -80,6 +98,18 @@ const CASES = [
   { fn: 'demand-publish', name: 'dp_cancel_ok', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER }), event: { action: 'cancel', demand_id: DID, mock_openid: USER } },
   { fn: 'demand-publish', name: 'dp_lazy_expire_none', openid: USER, store: dpStore(null), event: { action: 'lazy_expire', mock_openid: USER } },
   { fn: 'demand-publish', name: 'dp_lazy_expire_one', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER, expire_at: 1 }), event: { action: 'lazy_expire', mock_openid: USER } },
+  // ── user-login：物理拆分地图组(set_map_share / report_map_gps / nearby_map_list) A/B 证据 ──
+  { fn: 'user-login', name: 'ul_map_share_bad_allow', openid: USER, store: ulStore({ allow_map_share: true }), event: { action: 'set_map_share', mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_map_share_no_user', openid: USER, store: ulStore(null), event: { action: 'set_map_share', allow: true, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_map_share_on', openid: USER, store: ulStore({ allow_map_share: false }), event: { action: 'set_map_share', allow: true, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_map_share_off', openid: USER, store: ulStore({ allow_map_share: true, map_gps: { lat: 30.5, lng: 104, at: 1 } }), event: { action: 'set_map_share', allow: false, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_gps_bad_location', openid: USER, store: ulStore({ allow_map_share: true }), event: { action: 'report_map_gps', mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_gps_bad_range', openid: USER, store: ulStore({ allow_map_share: true }), event: { action: 'report_map_gps', latitude: 999, longitude: 104, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_gps_no_user', openid: USER, store: ulStore(null), event: { action: 'report_map_gps', latitude: 30.5, longitude: 104, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_gps_share_off', openid: USER, store: ulStore({ allow_map_share: false }), event: { action: 'report_map_gps', latitude: 30.5, longitude: 104, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_gps_ok', openid: USER, store: ulStore({ allow_map_share: true }), event: { action: 'report_map_gps', latitude: 30.5, longitude: 104, mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_nearby_no_user', openid: USER, store: ulStore(null), event: { action: 'nearby_map_list', mock_openid: USER } },
+  { fn: 'user-login', name: 'ul_nearby_ok', openid: USER, store: ulMapStore(), event: { action: 'nearby_map_list', mock_openid: USER } },
   // ── admin-action：核心逻辑块补 A/B 证据（拆分前 git 版本作 baseline）──
   { fn: 'admin-action', name: 'cfg_no_change', openid: ADMIN, store: adminStore(), event: { action: 'config_set', mock_openid: ADMIN } },
   { fn: 'admin-action', name: 'cfg_bad_int', openid: ADMIN, store: adminStore(), event: { action: 'config_set', s0_timeout_min: 0, mock_openid: ADMIN } },
@@ -263,6 +293,12 @@ const AUTO_SEEDS = [
       code: 'SUBJ01', title: 't', name: 'n', note: 'n', decision: 'open',
       confirm: true, data: {}, status: 'active', hours: 1, fen: 100,
     },
+  })),
+  // user-login：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 鉴权门 + 无 ReferenceError
+  // (store 用 baseStore: admin_config.env=dev 放行 mock_openid; user_account 为空 → 命中 no_user 分支)
+  ...enumerateActions('user-login').map((a) => ({
+    fn: 'user-login', name: `auto_ul_${a}`, openid: USER,
+    event: { action: a, mock_openid: USER, phone: '13800000000', sms_code: '123456', nickname: 'n', avatar: '', device: 'test' },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
