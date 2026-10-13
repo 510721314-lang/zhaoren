@@ -9,7 +9,13 @@
 //   // 写入断言: assert.deepStrictEqual(sdk.writes.order_main, [ {...} ])
 
 function makeSentinel(name) {
-  return function (...args) { return { __sentinel: name, args }; };
+  return function (...args) {
+    const sent = { __sentinel: name, args };
+    // 字段级命令链: 真实 CloudBase 支持 _.gte(x).and(_.lte(y)) 组合区间;
+    // mock 归一为 'and_field' 哨兵, 由 matchVal 逐子条件求值(与运行时同语义)
+    sent.and = function (other) { return { __sentinel: 'and_field', args: [sent, other] }; };
+    return sent;
+  };
 }
 
 // db.command.aggregate 操作符（$.sum 等）→ 透传标记
@@ -22,7 +28,8 @@ const commandProxy = new Proxy({}, {
   get(_t, prop) {
     if (prop === 'aggregate') return aggregateProxy;
     if (prop === 'or' || prop === 'and') {
-      return (...args) => ({ __op: prop, args });
+      // 真实 CloudBase 支持数组形参 _.and([c1, c2]); 兼容变参 _.and(c1, c2)。数组形参须直接取数组, 不能包一层
+      return (...args) => ({ __op: prop, args: (args.length === 1 && Array.isArray(args[0])) ? args[0] : args });
     }
     return makeSentinel(prop);
   }
@@ -95,6 +102,10 @@ const commandProxy = new Proxy({}, {
         // 解释 db.command 操作符哨兵，让带 _.neq / _.in / _.gte 等的查询能正确匹配
         const matchVal = (dv, qv) => {
           if (qv && typeof qv === 'object' && qv.__sentinel) {
+            // 字段级命令链 and_field(来自 _.gte(x).and(_.lte(y))): 子条件须全部成立
+            if (qv.__sentinel === 'and_field') {
+              return (qv.args || []).every((sub) => matchVal(dv, sub));
+            }
             const op = qv.__sentinel, a = qv.args || [];
             switch (op) {
               case 'neq': return dv !== a[0];
@@ -117,15 +128,16 @@ const commandProxy = new Proxy({}, {
           if (p.indexOf('.') === -1) return obj[p];
           return p.split('.').reduce((o, seg) => (o == null ? undefined : o[seg]), obj);
         };
-        const matchDoc = (doc) => {
-          // 顶层 _.or / _.and
-          if (q && typeof q === 'object' && q.__op) {
-            const subs = q.args || [];
-            if (q.__op === 'or') return subs.some((s) => Object.keys(s).every((k) => matchVal(getPath(doc, k), s[k])));
-            if (q.__op === 'and') return subs.every((s) => Object.keys(s).every((k) => matchVal(getPath(doc, k), s[k])));
+        const matchDoc = (doc) => matchQuery(doc, q);
+        // 递归求值: 支持嵌套逻辑算子(如 _.and([ 普通对象, _.or([...]) ]) —— priceRangeWhere 的真实用法)
+        function matchQuery(doc, ex) {
+          if (ex && typeof ex === 'object' && ex.__op) {
+            const subs = ex.args || [];
+            if (ex.__op === 'or') return subs.some((s) => matchQuery(doc, s));
+            if (ex.__op === 'and') return subs.every((s) => matchQuery(doc, s));
           }
-          return Object.keys(q).every((k) => matchVal(getPath(doc, k), q[k]));
-        };
+          return Object.keys(ex || {}).every((k) => matchVal(getPath(doc, k), ex[k]));
+        }
         return {
           limit() { return this; },
           orderBy() { return this; },

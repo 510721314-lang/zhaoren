@@ -49,6 +49,41 @@ const pmStore = (over) => Object.assign({
   user_account: {}, partner_profile: {}, system_notice: {}, order_status_log: {}, audit_log: {}, credit_score_log: {}
 }, over || {});
 
+// home-action: 物理拆分用例夹具(env=dev + dev_until 未来 → resolveOpenid 放行 mock_openid;
+// admin_config 含 scene_list(W8 隐藏)/home_activities/take_distance_max_km; USER 为 approved 耍伴带 home_location)
+const HUSER = 'h'.repeat(32);
+const haStore = (over) => Object.assign({
+  admin_config: { global: {
+    env: 'dev', dev_until: Date.now() + 3600 * 1000, take_distance_max_km: 50,
+    scene_list: [
+      { code: 'W1', name: '就医陪诊', options: ['陪同挂号', '取药', '陪检', '陪护'], visible: true, builtin: true, hidden_options: ['陪护'] },
+      { code: 'W2', name: '学习陪伴', options: ['陪读', '答疑'], visible: true, builtin: true },
+      { code: 'W8', name: '生活协助', options: ['代购'], visible: false, builtin: true }
+    ],
+    home_activities: [
+      { id: 'act_banner', type: 'both', status: 'active', title: '首页横幅', priority: 5, jump_to: 'page_x', jump_param: {} },
+      { id: 'act_card', type: 'card', status: 'active', title: '  卡片  ', priority: 3, scene_code: 'W1', subtitle: '副标题' },
+      { id: 'act_off', type: 'card', status: 'inactive', title: '停用' }
+    ]
+  } },
+  user_account: {
+    [HUSER]: { _id: HUSER, openid: HUSER, nickname: '主页用户', surname: '李', roles: ['user'], status: 'normal', city_list: ['成都'], created_at: 100 },
+    ['u'.repeat(32)]: { _id: 'u'.repeat(32), openid: USER, nickname: '我', surname: '张', roles: ['user', 'partner'], status: 'normal', created_at: 200 },
+    ['v'.repeat(32)]: { _id: 'v'.repeat(32), openid: PARTNER, nickname: '伴', surname: '王', roles: ['user'], status: 'normal', created_at: 300 }
+  },
+  partner_profile: {
+    ['p'.repeat(32)]: { _id: 'p'.repeat(32), openid: USER, status: 'approved', accept_scenes: ['W1'], home_location: { latitude: 30.5, longitude: 104.0 }, accept_rate_min_fen: 0, accept_rate_max_fen: 10000, max_distance_km: 10, city: ['成都'], is_deleted: false },
+    ['q'.repeat(32)]: { _id: 'q'.repeat(32), openid: PARTNER, status: 'approved', accept_scenes: ['W1', 'W2'], home_location: { latitude: 30.6, longitude: 104.1 }, city: ['成都'], is_deleted: false }
+  },
+  demand: {
+    ['d'.repeat(32)]: { _id: 'd'.repeat(32), demand_no: 'DR-HA1', scene: 'W1', status: 'matching', is_deleted: false, broadcast: true, match_mode: 'broadcast', creator_openid: PARTNER, created_at: Date.now() - 5 * 60000 - 30000, start_time: Date.now() + 3600000, expire_at: Date.now() + 7200000, location: { name: '成都市', city: '成都', latitude: 30.55, longitude: 104.05 }, remark: '需求标题｜需求描述', rate_fen: 5000, pricing_type: 'hourly' }
+  },
+  blog_post: {
+    ['b'.repeat(32)]: { _id: 'b'.repeat(32), author_openid: HUSER, author_nickname: '主页用户', status: 'normal', is_deleted: false, content: '这是一条测试动态内容', images: ['cloud://x/1.png', 'https://ignored'], tags: ['生活'], scene: 'W1', like_count: 3, comment_count: 1, created_at: 500 }
+  },
+  system_notice: {}, audit_log: {}
+}, over || {});
+
 // P1 E2E: CN 12:00 安全时间戳(落在 redline 运营时段内), A/B 两侧同值故不影响等价
 const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
 const NEW_TS = _tsD.getTime();
@@ -375,6 +410,23 @@ const CASES = [
   { fn: 'payment-mock', name: 'pm_withdraw_insufficient', openid: PARTNER, store: pmStore(), event: { action: 'withdraw', amount_fen: 10000, mock_openid: PARTNER } },
   { fn: 'payment-mock', name: 'pm_fast_withdraw_insufficient', openid: PARTNER, store: pmStore(), event: { action: 'fast_withdraw', amount_fen: 10000, mock_openid: PARTNER } },
   { fn: 'payment-mock', name: 'pm_withdraw_list', openid: PARTNER, store: pmStore(), event: { action: 'withdraw_list', mock_openid: PARTNER } },
+  // ── home-action：物理拆分 A/B 证据(概览/广场/场景分组/场景分页/附近/用户主页/活动) ──
+  { fn: 'home-action', name: 'ha_overview_guest', openid: '', store: haStore(), event: { action: 'overview', mock_openid: '' } },
+  { fn: 'home-action', name: 'ha_overview_partner', openid: USER, store: haStore(), event: { action: 'overview', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_square_guest', openid: '', store: haStore(), event: { action: 'square', limit: 20, mock_openid: '' } },
+  { fn: 'home-action', name: 'ha_square_partner', openid: USER, store: haStore(), event: { action: 'square', limit: 20, mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_scene_groups_hide', openid: USER, store: haStore(), event: { action: 'scene_groups', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_scene_list_ok', openid: USER, store: haStore(), event: { action: 'scene_list', scene_code: 'W1', skip: 0, mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_scene_list_bad', openid: USER, store: haStore(), event: { action: 'scene_list', scene_code: 'W9', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_nearby_ok', openid: USER, store: haStore(), event: { action: 'nearby', page: 1, page_size: 10, mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_nearby_need_home', openid: USER, store: haStore({ partner_profile: {} }), event: { action: 'nearby', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_user_home_bad', openid: USER, store: haStore(), event: { action: 'user_home', openid: 'x', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_user_home_gone', openid: USER, store: haStore({ user_account: {} }), event: { action: 'user_home', openid: HUSER, mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_user_home_ok', openid: USER, store: haStore(), event: { action: 'user_home', openid: HUSER, mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_act_list', openid: USER, store: haStore(), event: { action: 'home_activity_list', scene_code: 'W1', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_act_detail_ok', openid: USER, store: haStore(), event: { action: 'activity_detail', id: 'act_card', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_act_detail_not_found', openid: USER, store: haStore(), event: { action: 'activity_detail', id: 'nope', mock_openid: USER } },
+  { fn: 'home-action', name: 'ha_unknown', openid: USER, store: haStore(), event: { action: 'nope_xxx', mock_openid: USER } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
@@ -429,6 +481,12 @@ const AUTO_SEEDS = [
   ...enumerateActions('payment-mock').map((a) => ({
     fn: 'payment-mock', name: `auto_pm_${a}`, openid: USER, store: pmStore(),
     event: { action: a, mock_openid: USER, order_id: OID, amount_fen: 10000, device: 'test' },
+  })),
+  // home-action：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 无 ReferenceError
+  // (store 用 haStore: env=dev 放行 mock_openid; 通用入参含 limit/page/size 穿透到列表分支)
+  ...enumerateActions('home-action').map((a) => ({
+    fn: 'home-action', name: `auto_ha_${a}`, openid: USER, store: haStore(),
+    event: { action: a, mock_openid: USER, limit: 20, page: 1, page_size: 10, scene_code: 'W1' },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
@@ -500,6 +558,7 @@ function loadWith(dir, file, sdk) {
 function normalize(v) {
   // 剔除非确定性：Date.now 时间戳 / 自增计数 / 随机单号 造成的差异不影响结构等价
   return JSON.parse(JSON.stringify(v, (k, val) => {
+    if (k === 'minutes_ago' && typeof val === 'number') return '<ago>';
     if (typeof val === 'number' && val > 1e12) return '<ts>';
     if (typeof val === 'string' && /^(REF|ORD|WD|TX|DR|PAY|TIP|AA|INS|POL)[0-9a-f]{6,}$/i.test(val)) return '<id>';
     if (typeof val === 'string' && /^mock_id_/.test(val)) return '<id>';
