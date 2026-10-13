@@ -5,15 +5,17 @@ description: "Deploy WeChat CloudBase cloud functions for the zhaoren mini progr
 
 # 微信云函数 CLI 部署与验证（找人帮忙项目）
 
-本项目（c:\Users\DC\Desktop\zhaoren，微信原生小程序 + CloudBase；2026-09-12 前旧路径 h:\zhaoren 已废弃）云函数改动后**必须重新部署才生效**。本 skill 固化已验证的命令行部署链路，替代手动右键上传。
+本项目（工作目录 c:\zhaoren，微信原生小程序 + CloudBase；旧路径 h:\zhaoren 与 c:\Users\DC\Desktop\zhaoren 均已废弃）云函数改动后**必须重新部署才生效**。本 skill 固化已验证的命令行部署链路，替代手动右键上传。
 
 ## 环境事实（已确认，勿再探测）
 
-- IDE 实际安装路径（2026-09-12 起唯一可信）：`c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat`（同目录 `微信开发者工具.exe`）
-  - H 盘旧 IDE（`H:\微信WEB开发者工具`）已不存在；`C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat` 为旧装残留，**不要使用**，避免多实例端口漂移。
+- IDE 主用安装（**2026-10-13 用户更正，以此为准**）：`C:\Program Files (x86)\Tencent\微信web开发者工具`（2.02.2610122，2026-10-12 更新）。其部署 CLI 已实测可用：`C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-13 `cloud functions info` 实测通过）。
+  - 原「该路径为旧装残留，**不要使用**」的记载**已作废**（基于 2026-09-12 当时状态；用户确认此目录即其最新安装）。
+  - 桌面旧拷贝（2.02.2609102）已被用户移入 `C:\Users\DC\Desktop\工具\微信WEB开发者工具`（仅作备份，勿按旧路径调用）；`c:\Users\DC\Desktop\微信WEB开发者工具` 已不存在。
+  - 多装并存时以「用户当前打开的 IDE 所在安装」的 cli.bat 为准，避免多实例端口漂移。
   - 新装/拷贝后必须先手动启动一次 IDE（创建 User Data 目录并登录），否则 CLI 报 `ENOENT ... Default\.cli` / `Please ensure that the IDE has been properly installed`。
 - 云环境 ID：`cloud1-d9gkefwcp5c777088`（唯一来源 miniprogram/envList.js，勿改）
-- 项目根：`c:\Users\DC\Desktop\zhaoren`（cloudfunctionRoot = cloudfunctions/）
+- 项目根：`c:\zhaoren`（cloudfunctionRoot = cloudfunctions/）
 - 前置条件：IDE 已打开且「设置 → 安全设置 → 服务端口」已开启。实际端口以 IDE 启动后的 `.ide` 文件内容为准：`%LOCALAPPDATA%\微信开发者工具\User Data\<实例哈希>\Default\.ide`（旧实例残留的 58449 不可信；若 CLI 报 "please restart developer tools / auto testing" 类错误，提示用户检查该开关）。
 
 ## 部署命令（PowerShell）
@@ -21,9 +23,9 @@ description: "Deploy WeChat CloudBase cloud functions for the zhaoren mini progr
 **铁律：云函数必须一个一个串行部署**。并发部署会触发 `FailedOperation.UpdateFunctionCode 当前函数处于 Updating 状态`。用 foreach 串行循环：
 
 ```powershell
-$cli = "c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat"
+$cli = "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat"
 $env_ = "cloud1-d9gkefwcp5c777088"
-$proj = "c:\Users\DC\Desktop\zhaoren"
+$proj = "c:\zhaoren"
 foreach ($f in @("函数名1","函数名2")) {
   "===== DEPLOY $f ====="
   & $cli cloud functions deploy --env $env_ --names $f --project $proj --remote-npm-install 2>&1 |
@@ -67,12 +69,12 @@ CLI `deploy` **只上传代码，不会应用函数目录下 config.json 里的 
 
 ## 排障速查
 
-- `please open and restart developer tools` / 自动确认失败 → 服务端口未开或用错了旧装 cli.bat；统一改用桌面路径 `c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat` 并让用户检查开关。
+- `please open and restart developer tools` / 自动确认失败 → 服务端口未开，或 cli.bat 与当前打开的 IDE 不匹配；统一改用主用安装的 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat` 并让用户检查开关。
 - `Please ensure that the IDE has been properly installed` / `ENOENT ... Default\.cli` → 新装 IDE 从未启动过，User Data 目录未创建；先手动打开一次 `微信开发者工具.exe` 并登录，再用 CLI。
 - `Updating 状态` 冲突 → 并发部署导致；改为串行 foreach，等上一个 success 再下一个。
 - 改了代码"不生效" → 99% 是没重新部署；部署后看 packSize 变化与 functions list 的更新时间。
 - **`tcb fn list` 默认只显示 20 条**（第 21 个起静默不显示，易误判「函数缺失」，2026-10-13 实测踩坑）→ 全量复核用 `tcb fn list --limit 50`；点名单查用 `tcb fn detail <函数名> -e <环境ID>`（还能读到入口代码前几 KB）。
-- 批量部署报 `40001 invalid credential, access_token is invalid or not latest` → IDE 登录凭据失效（非代码问题）。处置：`cli login -f image -o <png路径> -r <json路径>` 后台跑出二维码，用户微信扫码；注意 `cli islogin` 可能假阳性显示 `login:true`，**以实际 deploy success 为准**；扫码后若端口 45353 被旧实例占用，确认用的是桌面路径 cli.bat。
+- 批量部署报 `40001 invalid credential, access_token is invalid or not latest` → IDE 登录凭据失效（非代码问题）。处置：`cli login -f image -o <png路径> -r <json路径>` 后台跑出二维码，用户微信扫码；注意 `cli islogin` 可能假阳性显示 `login:true`，**以实际 deploy success 为准**；扫码后若端口 45353 被旧实例占用，确认用的是主用安装（x86 路径）的 cli.bat。
 - 云端测试 `未知动作` → 测试面板顶部的函数名与入参 action 不匹配（如在 payment-mock 面板发 confirm_all）；切到对应函数面板。
 - 云端测试返回 `{"errorCode":-1,"errorMessage":"Invoking task timed out after 3 seconds","statusCode":433}` → 函数硬超时 3 秒被杀。根因不是代码死循环，而是 CLI 部署不应用 config.json 的 timeout（见上文「config.json 不生效」）。处置：①控制台把该函数超时调大并 `functions info` 读回确认；②若免费版锁死 3 秒，则把函数内 DB 读并行化、长流程改为每步落库+幂等续跑。典型受害：冷启动的 demand-publish/detail、跨函数编排的 zz-selftest-timer（表现为"单据可能已落库但进度没存"，复用逻辑要能捞回半成品）。
 - 定时函数"整夜没跑/状态冻结" → CLI 不应用 config.json 的 triggers；去控制台「触发器」手动添加，或验证期手动连点 run。

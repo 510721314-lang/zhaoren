@@ -19,7 +19,7 @@ const { findEnvId } = require('./tcb-exec');
 
 const ROOT = path.join(__dirname, '..');
 const CF_DIR = path.join(ROOT, 'cloudfunctions');
-const DEFAULT_CLI = 'c:\\Users\\DC\\Desktop\\微信WEB开发者工具\\cli.bat';
+const DEFAULT_CLI = 'C:\\Program Files (x86)\\Tencent\\微信web开发者工具\\cli.bat'; // 2026-10-13 更正: 用户主用安装为 x86 路径(原桌面路径已不存在); 可用 WXCLI_PATH 覆盖
 const OFFLINE = process.argv.indexOf('--offline') >= 0;
 
 function resolveCli() {
