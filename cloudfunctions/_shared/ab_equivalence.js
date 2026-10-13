@@ -41,6 +41,14 @@ const otStore = (over) => Object.assign({
   platform_event: {}, audit_log: {}, evaluation: {}, credit_score_log: {}, admin_web_session: {}
 }, over || {});
 
+// payment-mock: 物理拆分用例夹具(env=dev + dev_until 未来 → 放行 mock_openid 与 mock 资金门控 MOCK_ONLY_ACTIONS)
+const pmStore = (over) => Object.assign({
+  admin_config: { global: { env: 'dev', dev_until: Date.now() + 3600 * 1000, mock_payment_enabled: true, scene_list: [{ code: 'W1', name: '陪诊' }] } },
+  order_main: { [OID]: { _id: OID, order_no: 'ORD-PM', status: 'S0', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, fee_fen: 100, scene: 'W1', aa_tier: '0-50', pricing_type: 'hourly', pay_expire_at: Date.now() + 3600 * 1000 } },
+  pay_transaction: {}, withdraw_record: {}, withdraw_lock: {}, insurance_record: {},
+  user_account: {}, partner_profile: {}, system_notice: {}, order_status_log: {}, audit_log: {}, credit_score_log: {}
+}, over || {});
+
 // P1 E2E: CN 12:00 安全时间戳(落在 redline 运营时段内), A/B 两侧同值故不影响等价
 const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
 const NEW_TS = _tsD.getTime();
@@ -341,6 +349,32 @@ const CASES = [
   { fn: 'order-timer', name: 'ot_s8', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-8', status: 'S8', evaluated_at: 1, total_fen: 1000, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
   { fn: 'order-timer', name: 'ot_s4', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-9', status: 'S4', updated_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
   { fn: 'order-timer', name: 'ot_dispute', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-10', status: 'S10.5', dispute_state: 'open', dispute_opened_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  // ── payment-mock：物理拆分 A/B 证据(收银/支付/退款/打赏/保障/AA/账户/收入/提现各分支) ──
+  { fn: 'payment-mock', name: 'pm_cashier_no_order', openid: USER, store: pmStore(), event: { action: 'cashier_info', mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_cashier_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'cashier_info', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_cashier_not_owner', openid: STRANGER, store: pmStore(), event: { action: 'cashier_info', order_id: OID, mock_openid: STRANGER } },
+  { fn: 'payment-mock', name: 'pm_cashier_ok', openid: USER, store: pmStore(), event: { action: 'cashier_info', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_pay_bad_id', openid: USER, store: pmStore(), event: { action: 'mock_pay', order_id: 'bad', mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_pay_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'mock_pay', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_pay_not_owner', openid: STRANGER, store: pmStore(), event: { action: 'mock_pay', order_id: OID, mock_openid: STRANGER } },
+  { fn: 'payment-mock', name: 'pm_pay_ok', openid: USER, store: pmStore(), event: { action: 'mock_pay', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_refund_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'mock_refund', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_refund_not_owner', openid: STRANGER, store: pmStore(), event: { action: 'mock_refund', order_id: OID, mock_openid: STRANGER } },
+  { fn: 'payment-mock', name: 'pm_refund_ok', openid: USER, store: pmStore(), event: { action: 'mock_refund', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_tip_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'mock_tip', order_id: OID, amount_fen: 500, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_tip_bad_amount', openid: USER, store: pmStore(), event: { action: 'mock_tip', order_id: OID, amount_fen: 1, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_tip_list', openid: USER, store: pmStore(), event: { action: 'tip_list', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_ins_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'mock_ins', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_ins_ok', openid: USER, store: pmStore(), event: { action: 'mock_ins', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_aa_record', openid: USER, store: pmStore(), event: { action: 'aa_record', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_balance_info', openid: PARTNER, store: pmStore(), event: { action: 'balance_info', mock_openid: PARTNER } },
+  { fn: 'payment-mock', name: 'pm_income_list', openid: PARTNER, store: pmStore(), event: { action: 'income_list', mock_openid: PARTNER } },
+  { fn: 'payment-mock', name: 'pm_tip_income_list', openid: PARTNER, store: pmStore(), event: { action: 'tip_income_list', mock_openid: PARTNER } },
+  { fn: 'payment-mock', name: 'pm_migrate_tip', openid: USER, store: pmStore(), event: { action: 'migrate_tip_partner', mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_withdraw_bad_amount', openid: PARTNER, store: pmStore(), event: { action: 'withdraw', amount_fen: 1, mock_openid: PARTNER } },
+  { fn: 'payment-mock', name: 'pm_withdraw_insufficient', openid: PARTNER, store: pmStore(), event: { action: 'withdraw', amount_fen: 10000, mock_openid: PARTNER } },
+  { fn: 'payment-mock', name: 'pm_fast_withdraw_insufficient', openid: PARTNER, store: pmStore(), event: { action: 'fast_withdraw', amount_fen: 10000, mock_openid: PARTNER } },
+  { fn: 'payment-mock', name: 'pm_withdraw_list', openid: PARTNER, store: pmStore(), event: { action: 'withdraw_list', mock_openid: PARTNER } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
@@ -390,6 +424,11 @@ const AUTO_SEEDS = [
       bio: '简介', skills: [], service_highlights: [], items: [{ field: 'bio', pass: true }],
       tmpl: 'demand_grab', authorized: true, accept_switch: true, max_distance_km: 10,
     },
+  })),
+  // payment-mock：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 鉴权/预检门 + 无 ReferenceError
+  ...enumerateActions('payment-mock').map((a) => ({
+    fn: 'payment-mock', name: `auto_pm_${a}`, openid: USER, store: pmStore(),
+    event: { action: a, mock_openid: USER, order_id: OID, amount_fen: 10000, device: 'test' },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
@@ -462,7 +501,7 @@ function normalize(v) {
   // 剔除非确定性：Date.now 时间戳 / 自增计数 / 随机单号 造成的差异不影响结构等价
   return JSON.parse(JSON.stringify(v, (k, val) => {
     if (typeof val === 'number' && val > 1e12) return '<ts>';
-    if (typeof val === 'string' && /^(REF|ORD|WD|TX|DR)[0-9a-f]+$/i.test(val)) return '<id>';
+    if (typeof val === 'string' && /^(REF|ORD|WD|TX|DR|PAY|TIP|AA|INS|POL)[0-9a-f]{6,}$/i.test(val)) return '<id>';
     if (typeof val === 'string' && /^mock_id_/.test(val)) return '<id>';
     return val;
   }));
