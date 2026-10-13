@@ -131,7 +131,7 @@
 
 ### 3.5.3 `CONFIG_SCHEMA` 键组（运营参数，分组）
 
-`CONFIG_SCHEMA` 定义于 [admin-action/index.js](file:///c:/zhaoren/cloudfunctions/admin-action/index.js#L130-L236)，15 组共 78 项（2026-10-13）；每项含 `{f:键, t:类型(int/bool/enum), g:分组, label, unit?, min?, max?, def?, opts?, d?}`。类型 `int` 走区间校验，`enum` 走白名单校验，`bool` 直转；`d`=设置说明文案（`config_get` 下发，运营配置页表单项下方内嵌展示，供运维查阅，见 [Ch10 §10.5.1](file:///c:/zhaoren/docs/dev-manual/10-ops-runbook.md)）。
+`CONFIG_SCHEMA` 定义于 [admin-action/index.js](file:///c:/zhaoren/cloudfunctions/admin-action/index.js#L131-L237)，15 组共 78 项（2026-10-13）；每项含 `{f:键, t:类型(int/bool/enum), g:分组, label, unit?, min?, max?, def?, opts?, d?, clock?, clockZero?}`。类型 `int` 走区间校验，`enum` 走白名单校验，`bool` 直转；`d`=设置说明文案（`config_get` 下发，运营配置页表单项下方内嵌展示，供运维查阅）；`clock`=该值为「自 0:00 起算的分钟数」，页面即时换算显示 `HH:MM`（`clockZero`=值为 0 时的展示文案，如「全天开放」）——仅展示语义，不参与校验。详见 [Ch10 §10.5.1](file:///c:/zhaoren/docs/dev-manual/10-ops-runbook.md)。
 
 | 分组 | 键（`f`） | 说明 |
 |---|---|---|

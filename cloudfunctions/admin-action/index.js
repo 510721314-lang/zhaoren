@@ -127,6 +127,7 @@ const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威�
 // 新增参数只需在此加一行, 三端自动生效。字段:
 //   f=admin_config 键名  t=int|bool  g=卡片分组  label=中文标签
 //   unit=单位(渲染)  min/max=区间  def=默认值  d=设置说明(运营配置页表单内嵌展示, 供运维查阅)
+//   clock=true 表示该值是「自 0:00 起算的分钟数」, 页面额外换算显示 HH:MM(clockZero=值为 0 时的展示文案)
 const CONFIG_SCHEMA = [
   // ── 距离与限额 ──
   { f: 'publish_distance_max_km', t: 'int', g: '距离与限额', label: '发布距离上限', unit: 'km', min: 1, max: 500, def: 50, d: '发布需求时可选距离范围的上限；需求只推送给该范围内的耍伴' },
@@ -150,8 +151,8 @@ const CONFIG_SCHEMA = [
   { f: 'extend_confirm_h', t: 'int', g: '订单超时', label: '加时确认窗口(0=跟随改期)', unit: '小时', min: 0, max: 168, def: 0, d: '加时申请等待对方回复的时限，超时自动拒绝；0=跟随改期确认窗口' },
   { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4, d: '评价超时未评时系统给出的默认星级' },
   // ── 时间红线 ──
-  { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 1440, d: '每日接单截止分钟数（自 0:00 起算，1440=24:00）；0=全天开放' },
-  { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放(0=00:00)', unit: '分钟', min: 0, max: 1440, def: 360, d: '每日接单开放起点分钟数（360=06:00）；默认 00:00-06:00 不可履约' },
+  { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止', unit: '分钟', min: 0, max: 1440, def: 1440, d: '每日接单截止时刻（自 0:00 起算的分钟数）；0=全天开放不受限', clock: true, clockZero: '全天开放' },
+  { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放', unit: '分钟', min: 0, max: 1440, def: 360, d: '每日接单开放起始时刻（自 0:00 起算的分钟数）；可接单时段为「开放时刻 ~ 截止时刻」', clock: true },
   // ── 信用阈值 ──
   { f: 'min_credit_take_order', t: 'int', g: '信用阈值', label: '最低接单刷分', unit: '分', min: 0, max: 1000, def: 600, d: '信用分低于该值不可接单（耍伴申请与接单校验）' },
   { f: 'min_credit_place_order', t: 'int', g: '信用阈值', label: '最低发单刷分', unit: '分', min: 0, max: 1000, def: 600, d: '信用分低于该值不可发布需求' },

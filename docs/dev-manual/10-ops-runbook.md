@@ -99,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 
 | 页签 | 维护内容 | 关键规则 |
 |---|---|---|
-| 阈值与开关 | 15 组 78 项运营参数；**每项下方灰色文字即「设置方法与影响说明」**（2026-10-13 起内嵌，文案=`CONFIG_SCHEMA.d`，由 `config_get` 统一下发） | 保存走 diff 确认弹窗：仅提交变化项 + 必填变更原因；写 `config_history` + P2 审计 |
+| 阈值与开关 | 15 组 78 项运营参数；**每项下方灰色文字即「设置方法与影响说明」**（2026-10-13 起内嵌，文案=`CONFIG_SCHEMA.d`，由 `config_get` 统一下发）；**时间红线两项（接单截止/接单开放）额外即时换算显示 `= HH:MM`**（`clock` 标记，值 0 显示其语义文案如「全天开放」），改值即变 | 保存走 diff 确认弹窗：仅提交变化项 + 必填变更原因；写 `config_history` + P2 审计 |
 | 场景管理 | 场景新增/删除、前端显示开关、↑↓ 排序、服务项增删与排序 | 列表顺序=前端展示顺序（**前 5 名进首页主宫格**，其余进「更多场景」折叠区）；内置场景（`builtin`）不可删除；「前端显示」为**入口级隐藏**（不做后端拦截，隐藏后存量需求仍可在广场/附近/详情看到）；场景可见但可用服务项为 0 时前端自动隐藏该场景 |
 | 首页活动 | 活动 CRUD（banner 轮播 / 活动卡片 / 两者） | 仅「有效期内 + 状态 active」前端可见；priority 越大越靠前；Banner 750×360 横向、封面 750×750 方形（jpg/png/webp ≤2MB，前端自动压缩） |
 
@@ -110,7 +110,7 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 - **平台抽成** `platform_fee_rate_fen`（万分比，1000=10%）与**费率区间**（`rate_min_fen`/`rate_max_fen` 为时薪滑杆钳制边界；一口价区间留空=不钳制）、**信用阈值**（发单/接单准入）。
 - 跨字段校验（`config_set` 内）：`rate_min_fen < rate_max_fen`、`fixed_price_min_fen ≤ fixed_price_max_fen`、`time_redline_open_min < time_redline_close_min`（close>0 时）。
 
-**说明文案的唯一事实源**：每项参数的 `label`（中文标签）与 `d`（设置说明）都定义在 [admin-action/index.js `CONFIG_SCHEMA`](file:///c:/zhaoren/cloudfunctions/admin-action/index.js#L130-L236)；新增参数或改说明只改这一处，运营配置页自动展示，无需改前端。
+**说明文案的唯一事实源**：每项参数的 `label`（中文标签）与 `d`（设置说明）都定义在 [admin-action/index.js `CONFIG_SCHEMA`](file:///c:/zhaoren/cloudfunctions/admin-action/index.js#L131-L237)；新增参数或改说明只改这一处，运营配置页自动展示，无需改前端。时间红线两项另带 `clock: true`（值=自 0:00 起算的分钟数），页面即时换算为时刻；`clockZero` 指定值 0 的展示文案（接单截止 0=「全天开放」）。
 
 ## 10.6 密钥轮换（`admin_web_key`）
 

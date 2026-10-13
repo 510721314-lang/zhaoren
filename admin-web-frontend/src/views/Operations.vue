@@ -46,6 +46,8 @@
                     inactive-text="关闭"
                   />
                   <span v-if="s.unit" class="ops-unit">{{ s.unit }}</span>
+                  <!-- 时间红线类参数(自 0:00 起算的分钟数): 实时换算成时刻, 改值即变 -->
+                  <span v-if="s.clock" class="ops-clock">= {{ clockText(patch[s.f], s) }}</span>
                   <div v-if="s.d" class="ops-desc">{{ s.d }}</div>
                 </el-form-item>
               </el-col>
@@ -367,6 +369,17 @@ function fmt(row, isNew) {
   const v = isNew ? row.now : row.old;
   if (row.t === 'bool') return v ? '开启' : '关闭';
   return v + (row.unit ? ' ' + row.unit : '');
+}
+// 时间红线类参数(clock=true, 值为自 0:00 起算的分钟数)换算为 HH:MM;
+// 值 0 的语义由 schema.clockZero 指定(如「全天开放」), 未指定则按 00:00 展示
+function clockText(min, s) {
+  const n = Number(min);
+  if (!Number.isFinite(n) || n < 0) return '-';
+  if (n === 0 && s && s.clockZero) return s.clockZero;
+  if (n >= 1440) return '24:00';
+  const h = String(Math.floor(n / 60)).padStart(2, '0');
+  const m = String(Math.round(n % 60)).padStart(2, '0');
+  return `${h}:${m}`;
 }
 
 // ───────── 加载 / 保存 ─────────
@@ -751,6 +764,7 @@ onMounted(async () => {
 
 <style scoped>
 .ops-unit { margin-left:8px; color:#909399; font-size:12px; }
+.ops-clock { margin-left:8px; color:#409EFF; font-size:12px; font-weight:600; }
 .ops-desc { flex-basis:100%; width:100%; font-size:12px; color:#909399; line-height:1.45; margin-top:2px; }
 .opt-chip { display:inline-flex; align-items:center; gap:2px; margin:0 10px 4px 0; }
 .opt-sort-row { display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px dashed #ebeef5; }
