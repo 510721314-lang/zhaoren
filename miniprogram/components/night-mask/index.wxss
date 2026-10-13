@@ -40,8 +40,13 @@
   font-size: var(--font-sm);
   color: var(--text-5);
 }
-.night__btn {
+.night__btns {
   margin-top: 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.night__btn {
   height: 80rpx;
   line-height: 80rpx;
   border-radius: 40rpx;
@@ -49,6 +54,12 @@
   color: var(--text-invert);
   font-size: var(--font-md);
   font-weight: 600;
+}
+.night__btn--ghost {
+  background: transparent;
+  color: var(--text-3);
+  border: 1rpx solid var(--border, #e5e5e5);
+  font-weight: 400;
 }
 .night__btn::after {
   border: none;

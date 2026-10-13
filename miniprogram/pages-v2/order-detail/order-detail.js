@@ -676,6 +676,10 @@ Page({
 
   onStartService() {
     const that = this;
+    if (this.data.isRedline) {
+      wx.showToast({ title: `夜间${redline.DISPLAY_CLOSE}-${CONFIG.TIME_REDLINE.open}暂停履约`, icon: 'none' });
+      return;
+    }
     wx.showModal({
       title: '确认开始履约',
       content: '开始履约后进入安全保障期',

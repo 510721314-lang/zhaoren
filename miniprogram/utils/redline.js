@@ -116,6 +116,24 @@ function reserveNotice() {
   wx.showToast({ title: `已为您预约${CONFIG.TIME_REDLINE.open}开服提醒`, icon: 'none' });
 }
 
+// --- 夜间弹窗「已关闭」状态（模块级单例，跨页面共享） ---
+// 用户关闭弹窗后，同一夜间时段不再自动弹出；离开夜间段自动重置。
+let _nightMaskDismissed = false;
+
+// 标记本次夜间段已关闭弹窗（night-mask 组件点「继续浏览」/背景时调用）
+function dismissNightMask() {
+  _nightMaskDismissed = true;
+}
+
+// 是否应该显示夜间弹窗（已关闭返回 false；离开夜间段自动重置）
+function shouldShowNightMask() {
+  if (!isInRedline()) {
+    _nightMaskDismissed = false;  // 离开夜间段，重置
+    return false;
+  }
+  return !_nightMaskDismissed;
+}
+
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
@@ -132,6 +150,8 @@ module.exports = {
   validateYouthAmount,
   checkEntryLocked,
   reserveNotice,
+  dismissNightMask,
+  shouldShowNightMask,
   PICKER_CLOSE,
   DISPLAY_CLOSE,
   OPEN_STR,
