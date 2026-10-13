@@ -19,6 +19,13 @@ const adminStore = () => ({
   order_main: { [OID]: { _id: OID, order_no: 'ORD-TEST', status: 'S10', user_openid: USER, partner_openid: PARTNER } },
   platform_event: {}, config_history: {}, audit_log: {}
 });
+// demand-publish: 拆分试点(cancel / lazy_expire)用例夹具
+const DID = 'd'.repeat(32);
+const dpStore = (demand) => ({
+  admin_config: { global: { env: 'dev' } },
+  demand: demand ? { [DID]: Object.assign({ _id: DID, demand_no: 'DR-TEST', scene: 'W1', is_deleted: false }, demand) } : {},
+  order_main: {}, system_notice: {}, user_account: {}
+});
 
 // P1 E2E: CN 12:00 安全时间戳(落在 redline 运营时段内), A/B 两侧同值故不影响等价
 const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
@@ -64,6 +71,15 @@ const CASES = [
   { name: 'ns_bad_report', openid: PARTNER, event: { action: 'no_show_report_defense', report_id: 'x', mock_openid: PARTNER } },
   { name: 'nsw_bad_report', openid: USER, event: { action: 'no_show_report_withdraw', report_id: 'x', mock_openid: USER } },
   { name: 'ns_detail_not_participant', openid: STRANGER, event: { action: 'no_show_report_detail', order_id: OID, mock_openid: STRANGER } },
+  // ── demand-publish：拆分试点 cancel / lazy_expire A/B 证据（拆分前 git 版本作 baseline）──
+  { fn: 'demand-publish', name: 'dp_cancel_no_id', openid: USER, event: { action: 'cancel', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_cancel_bad_id', openid: USER, event: { action: 'cancel', demand_id: 'x', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_cancel_not_found', openid: USER, store: dpStore(null), event: { action: 'cancel', demand_id: DID, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_cancel_not_owner', openid: STRANGER, store: dpStore({ status: 'matching', creator_openid: USER }), event: { action: 'cancel', demand_id: DID, mock_openid: STRANGER } },
+  { fn: 'demand-publish', name: 'dp_cancel_status', openid: USER, store: dpStore({ status: 'matched', creator_openid: USER }), event: { action: 'cancel', demand_id: DID, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_cancel_ok', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER }), event: { action: 'cancel', demand_id: DID, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_lazy_expire_none', openid: USER, store: dpStore(null), event: { action: 'lazy_expire', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_lazy_expire_one', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER, expire_at: 1 }), event: { action: 'lazy_expire', mock_openid: USER } },
   // ── admin-action：核心逻辑块补 A/B 证据（拆分前 git 版本作 baseline）──
   { fn: 'admin-action', name: 'cfg_no_change', openid: ADMIN, store: adminStore(), event: { action: 'config_set', mock_openid: ADMIN } },
   { fn: 'admin-action', name: 'cfg_bad_int', openid: ADMIN, store: adminStore(), event: { action: 'config_set', s0_timeout_min: 0, mock_openid: ADMIN } },

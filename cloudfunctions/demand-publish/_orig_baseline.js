@@ -1,0 +1,1746 @@
+// 对应 PRD 章节：3.3 需求发布功能 / 8.4.1 需求超时与梯度退款 / 11 业务场景白名单
+// demand-publish 需求发布 · 身份取自 getWXContext().OPENID
+// 8 个 action: publish / cancel / my_demands / lazy_expire / detail
+//             / save_draft(新增或更新草稿) / list_drafts(草稿列表,过滤过期) / delete_draft(软删)
+// 草稿上限与有效期与小程序 config/index.js DRAFT 对齐: maxCount=20 / expireDays=30
+const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const db = cloud.database();
+const _ = db.command;
+const col = (n) => db.collection(n);
+const log = require('./logger');
+const { writeAudit } = require('./audit');
+// 手机号加密(P0-3 整改): 账户已绑号现为密文, 取真号须解密(兼容存量明文)
+const phoneCrypt = require('./phone_crypt');
+// 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
+const { SCENE_NAMES: SCENE_NAME } = require('./scene_meta');
+
+// 场景白名单: 动态从 admin_config.scene_list 读取(SSOT), 兜底与 init-db 种子对齐
+const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
+let _sceneCodesCache = null;
+async function getSceneCodes() {
+  if (_sceneCodesCache) return _sceneCodesCache;
+  try {
+    const r = await col('admin_config').doc('global').get();
+    const cfg = r.data;
+    const list = (cfg && Array.isArray(cfg.scene_list) && cfg.scene_list.length > 0)
+      ? cfg.scene_list.map((s) => s.code).filter(Boolean)
+      : SCENE_CODES_FALLBACK;
+    _sceneCodesCache = list;
+    return list;
+  } catch (e) {
+    _sceneCodesCache = SCENE_CODES_FALLBACK;
+    return SCENE_CODES_FALLBACK;
+  }
+}
+
+// 接单模式白名单: direct=定向邀约(指定耍伴,不入大厅) · broadcast=抢单(先到先得) · select=选单(耍伴报名→需求者确认)
+const MATCH_MODE_WHITELIST = ['direct', 'broadcast', 'select'];
+
+// 场景→免责声明类型映射(code.html 第一道防线·双签)
+const DISCLAIMER_TYPE_MAP = {
+  W1: 'medical_disclaimer',     // 就医陪诊免责声明(国标第7条)
+  W2: 'general_disclaimer',     // 学习陪伴
+  W3: 'sports_disclaimer',      // 健身陪伴(运动伤害免责)
+  W4: 'general_disclaimer',     // 游玩陪伴
+  W7: 'emotion_disclaimer',     // 情绪陪伴(非心理咨询免责)
+  W8: 'general_disclaimer',     // 生活协助
+  W9: 'pet_disclaimer',         // 宠物陪伴(宠物授权+伤害免责)
+  W10: 'general_disclaimer',    // 出行陪伴
+  W11: 'online_disclaimer'      // 线上陪伴内容协议
+};
+
+// 场景子服务选项兜底(与 init-db 种子 admin_config.scene_list / 小程序 config/enums.js 一致)
+const SCENE_OPTIONS_FALLBACK = {
+  W1: ['挂号排队', '取药送药', '陪诊解压'],
+  W2: ['自习陪伴', '口语陪练', '作业督促'],
+  W3: ['健身指导', '跑步陪跑', '器械陪同'],
+  W4: ['景区游览', '博物馆参观', '商圈逛街'],
+  W7: ['陪伴散步', '倾听陪伴', '考前鼓励'],
+  W8: ['排队代办', '搬家帮手', '采买陪同'],
+  W9: ['遛狗陪伴', '喂猫照料', '宠物就医陪同'],
+  W10: ['逛街同行', '夜跑陪跑', '活动搭子'],
+  W11: ['树洞倾听', '游戏陪玩', '打卡监督']
+};
+
+// 备注安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词)
+const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
+
+// ─────────────── P1 节点留证(勾选同意型) ───────────────
+// 发布/修改需求时用户勾选《场景免责声明》等文档; 服务端记录所同意文档全文 + SHA-256 落 disclaimer_signature 集合。
+// 与实名手写签名留证(kind=realname_agreement)同集合不同 kind; 全文入库保证事后可举证"当时同意的是什么"
+// o.doc 可显式指定文档(如 W9《宠物照料授权书》); 缺省取场景免责声明(admin_config.legal_scene_disclaimers)
+const DEFAULT_PET_AUTHORIZATION = [
+  '找人帮忙 宠物照料授权书（电子确认）',
+  '一、本人系所照料宠物的主人，或已获得宠物主人的明确授权；',
+  '二、本人知悉并确认：服务内容仅限遛狗、宠物医院陪同等陪同类事项；禁止代为饲养，禁止上门喂猫、寄养等入户照料；',
+  '三、服务过程中如发生宠物伤人、应激等情形，双方应及时沟通处理，并保留相关记录；',
+  '四、本人同意：本电子确认记录将作为平台内「明确授权」凭证留存，用于履约与纠纷举证。'
+].join('\n');
+function sceneDocText(config, scene) {
+  const m = config && config.legal_scene_disclaimers;
+  const t = (m && typeof m === 'object') ? m[scene] : '';
+  return typeof t === 'string' ? t.trim() : '';
+}
+function buildCheckboxEvidence(o) {
+  const doc = o.doc
+    ? { key: o.doc.key, title: o.doc.title, text: String(o.doc.text || '').trim() }
+    : { key: 'scene_disclaimer', title: `场景免责声明(${o.scene})`, text: sceneDocText(o.config, o.scene) };
+  const docs = doc.text ? [{
+    key: doc.key,
+    title: doc.title,
+    hash: crypto.createHash('sha256').update(doc.text, 'utf8').digest('hex'),
+    text: doc.text
+  }] : [];
+  const data = {
+    openid: o.openid,
+    role: o.role,
+    scene: o.scene,
+    kind: o.kind || 'scene_disclaimer',
+    disclaimer_type: o.disclaimerType,
+    agree_type: 'checkbox',   // 勾选同意(无手写签名; 手写签名见 kind=realname_agreement)
+    docs,
+    // 兼容旧字段: 原为占位 sig_xxx, 现为所同意文档的 SHA-256(文档缺失时保留占位以标记异常)
+    signature_hash: docs.length ? docs[0].hash : `sig_missing_${o.openid}_${o.scene}_${o.signedAt}`,
+    signed_at: o.signedAt,
+    created_at: o.signedAt,
+    updated_at: o.signedAt,
+    is_deleted: false
+  };
+  if (o.demandId) data.demand_id = o.demandId;
+  if (o.orderId) data.order_id = o.orderId;
+  // 手写签字型(覆盖 signature_hash/agree_type): 用于 W9 授权书本人手写签字留证
+  if (o.signature) {
+    data.signature_file_id = o.signature.fileId;
+    data.signature_hash = o.signature.hash;
+    data.signature_size = o.signature.size;
+    data.verify_method = 'handwritten';
+    data.agree_type = 'handwritten';
+  }
+  return data;
+}
+
+// 电话格式校验: 11 位手机号 或 带区号座机(区号 0 开头 3-4 位 + 连字符 + 7-8 位号码, 如 028-88888888)
+function isPhoneOrLandline(s) {
+  const t = String(s || '').trim();
+  return /^1[3-9]\d{9}$/.test(t) || /^0\d{2,3}-\d{7,8}$/.test(t);
+}
+// 电话脱敏(phone_mask 语义): 手机保留前 3 后 4; 座机保留区号 + 后 4; 其他长度保留首尾各 2 位
+function maskContact(s) {
+  const t = String(s || '').trim();
+  if (!t) return '';
+  const ll = t.match(/^(0\d{2,3})-(\d{7,8})$/);
+  if (ll) return ll[1] + '-****' + ll[2].slice(-4);
+  if (/^1[3-9]\d{9}$/.test(t)) return t.slice(0, 3) + '****' + t.slice(7);
+  if (t.length <= 4) return t;
+  return t.slice(0, 2) + '****' + t.slice(-2);
+}
+
+// W9 手写签字图取证: 服务端下载 → PNG 魔数 + 体积校验 → SHA-256(证明入库时刻文件内容, 与实名留证同口径)
+async function verifySignatureFile(fileId) {
+  if (!fileId || !/^cloud:\/\//.test(String(fileId))) return { ok: false, code: 'missing' };
+  try {
+    const dl = await cloud.downloadFile({ fileID: String(fileId) });
+    const buf = dl && dl.fileContent;
+    const size = buf ? buf.length : 0;
+    if (!buf || !size || size > 2 * 1024 * 1024) return { ok: false, code: 'bad_size' };
+    if (!(buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47)) return { ok: false, code: 'not_png' };
+    return { ok: true, fileId: String(fileId), hash: crypto.createHash('sha256').update(buf).digest('hex'), size };
+  } catch (e) {
+    log.d(`pet signature verify fail: ${(e && e.message) || e}`);
+    return { ok: false, code: 'download_fail' };
+  }
+}
+const REMARK_MAX_LEN = 200;
+
+// 备注内容安全:msgSecCheck v2;87014 明确违规;其他异常(未开通/网络)降级本地违禁词
+async function checkText(openid, text, blockWords) {
+  try {
+    await cloud.openapi.security.msgSecCheck({
+      content: text,
+      version: 2,
+      scene: 2,   // 2=评论/留言场景
+      openid
+    });
+    return { pass: true };
+  } catch (e) {
+    if (e && (e.errCode === 87014 || e.errCode === '87014')) {
+      return { pass: false, reason: '备注包含违规信息,请修改后重试' };
+    }
+    log.w('msgSecCheck fail(降级本地词库):', (e && (e.errCode || e.errMsg || e.message)) || '');
+    // 降级:本地违禁词库
+    const words = (blockWords && blockWords.length) ? blockWords : BLOCK_WORDS_FALLBACK;
+    const lower = String(text).toLowerCase();
+    for (const w of words) {
+      if (w && lower.indexOf(String(w).toLowerCase()) >= 0) {
+        return { pass: false, reason: '备注包含平台禁止的内容(如联系方式/转账),请修改后重试' };
+      }
+    }
+    // fail-closed(评审整改 P1): msgSecCheck 不可用时不再放行, 避免违规内容绕过(与 blog/evaluation 同口径)
+    return { pass: false, reason: '内容安全校验暂不可用,请稍后重试', degraded: true };
+  }
+}
+
+// 生成需求编号 DR + yyyymmdd + 8字节密码学随机
+function genDemandNo() {
+  const d = new Date();
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const r = require('crypto').randomBytes(8).toString('hex');
+  return `DR${ymd}${r}`;
+}
+
+// D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步四个函数)
+const { isServiceTimeAllowed, suspendLeftDays, haversineKm } = require('./take_rules');
+// D4-5 防漂移抽取: 测试数据打标规范源 _shared/test_data.js(修改后跑 sync-test-data.ps1 同步)
+const { isTestOpenid } = require('./test_data');
+
+function validLngLat(lat, lng) {
+  return typeof lat === 'number' && typeof lng === 'number'
+    && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    && !(lat === 0 && lng === 0);
+}
+
+// 取运营参数(失败用兜底)
+async function getConfig() {
+  try {
+    const r = await col('admin_config').doc('global').get();
+    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
+  } catch (e) {}
+  return {
+    rate_min_fen: 3000, rate_max_fen: 10000,
+    youth_limit_fen: 20000,
+    min_credit_place_order: 600,
+    city_enabled: ['成都'],
+    publish_distance_max_km: 50,
+    take_distance_max_km: 50
+  };
+}
+
+// 子服务内容最多项数(后台 publish_content_options_max 可配, 缺省 3)
+function contentOptionsMax(config) {
+  const v = Number(config && config.publish_content_options_max);
+  return Number.isFinite(v) && v >= 1 ? v : 3;
+}
+
+// 信用分等级(与 partner-action 同源: L1[600,699] L2[700,799] L3[800,899] L4[900,1000])
+function creditLevelOf(score) {
+  if (!Number.isFinite(score)) return 'L1';
+  if (score >= 900) return 'L4';
+  if (score >= 800) return 'L3';
+  if (score >= 700) return 'L2';
+  return 'L1';
+}
+
+// 相对时间文案(推荐卡片最新动态用)
+function timeAgoText(ts) {
+  if (!ts) return '';
+  const diff = (Date.now() - ts) / 1000;
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  if (diff < 2592000) return Math.floor(diff / 86400) + '天前';
+  return new Date(ts).toLocaleDateString();
+}
+
+// 推荐耍伴明细(Top5): 同场景可接单 + 审核通过 + 信用达标, 按信用分降序
+// 失败/无候选一律返回 [], 绝不阻断 detail 主流程
+async function buildRecommendPartners(d) {
+  try {
+    const scene = (d && d.scene) || '';
+    if (!scene) return [];
+    let cfg = {};
+    try { cfg = await getConfig(); } catch (e) { cfg = {}; }
+    const minCredit = Number(cfg.min_credit_take_order) || 600;
+    const base = { status: 'approved', is_deleted: _.neq(true), accept_switch: _.neq(false), accept_scenes: scene };
+    const pick = async (extra) => {
+      const r = await col('partner_profile').where(Object.assign({}, base, extra))
+        .orderBy('credit_score', 'desc').limit(20).get();
+      return r.data || [];
+    };
+    let rows = [];
+    try { rows = await pick({ credit_score: _.gte(minCredit) }); } catch (e) { rows = []; }
+    if (!rows.length) { try { rows = await pick({}); } catch (e) { rows = []; } }  // 去掉信用门槛重试
+    if (!rows.length) return [];
+
+    const openids = rows.map((p) => p.openid).filter(Boolean);
+    if (!openids.length) return [];
+
+    // 富化(并行): user_account + blog_post 各一次批量查询(降低冷启动时延, 避免 detail 3s 超时)
+    const [uMap, dynMap] = await Promise.all([
+      (async () => {
+        const m = {};
+        try {
+          const ur = await col('user_account').where({ openid: _.in(openids) }).get();
+          (ur.data || []).forEach((u) => { m[u.openid] = u; });
+        } catch (e) {}
+        return m;
+      })(),
+      (async () => {
+        const m = {};
+        try {
+          const br = await col('blog_post')
+            .where({ author_openid: _.in(openids), status: 'normal', is_deleted: false })
+            .orderBy('created_at', 'desc').limit(openids.length * 3).get();
+          (br.data || []).forEach((bp) => {
+            if (m[bp.author_openid]) return;   // 每人仅取最新一条
+            m[bp.author_openid] = {
+              cover: (bp.images && bp.images[0]) || '',
+              title: String(bp.content || '').slice(0, 40),
+              at: timeAgoText(bp.created_at)
+            };
+          });
+        } catch (e) {}
+        return m;
+      })()
+    ]);
+
+    const demandLoc = (d && d.location) || {};
+    const hasDemandLoc = validLngLat(Number(demandLoc.latitude), Number(demandLoc.longitude));
+
+    const list = [];
+    for (const p of rows) {
+      const u = uMap[p.openid] || {};
+      const cs = Number(u.partner_credit_score);
+      const credit = (Number.isFinite(cs) && cs > 0) ? cs : (Number(p.credit_score) || 0);
+
+      // 价格: 优先该场景报价, 否则全部场景 min/max(分→元)
+      const rates = p.scene_rates || {};
+      let priceMin = null, priceMax = null;
+      const scoped = Number(rates[scene]);
+      if (Number.isFinite(scoped) && scoped > 0) {
+        priceMin = Math.round(scoped / 100); priceMax = priceMin;
+      } else {
+        const vals = Object.keys(rates).map((k) => Number(rates[k])).filter((v) => Number.isFinite(v) && v > 0);
+        if (vals.length) { priceMin = Math.round(Math.min.apply(null, vals) / 100); priceMax = Math.round(Math.max.apply(null, vals) / 100); }
+      }
+
+      // 距离(需求履约地 ↔ 耍伴日常位置; 语义为"距履约地", 无坐标则 null)
+      let distanceKm = null;
+      const hl = p.home_location || {};
+      if (hasDemandLoc && validLngLat(Number(hl.latitude), Number(hl.longitude))) {
+        distanceKm = Math.round(haversineKm(
+          Number(demandLoc.latitude), Number(demandLoc.longitude), Number(hl.latitude), Number(hl.longitude)
+        ) * 10) / 10;
+      }
+
+      list.push({
+        _id: p._id, openid: p.openid,
+        nickname: u.nickname || p.nickname || '微信用户',
+        avatar: u.avatar || '',
+        real_name_verified: !!p.real_name_verified,
+        face_verified: !!p.face_verified,
+        partner_credit_score: credit,
+        partner_level: creditLevelOf(credit),
+        accept_scenes: p.accept_scenes || [],
+        certified_scenes: p.accept_scenes || [],
+        city: p.city || '',
+        bio: (p.profile_audited_snapshot && p.profile_audited_snapshot.bio) || '',
+        order_count: null,    // 不做逐人计数查询(省冷启动时延); 卡片因缺 on_time_rate/praise_rate 恒显示「数据积累中」
+        on_time_rate: null,   // 项目暂无该数据源(卡片据此显示「数据积累中」)
+        praise_rate: null,
+        price_min: priceMin,
+        price_max: priceMax,
+        distance_km: distanceKm,
+        latest_dynamic: dynMap[p.openid] || null
+      });
+    }
+    list.sort((a, b) => (b.partner_credit_score - a.partner_credit_score)
+      || ((a.distance_km == null ? 9999 : a.distance_km) - (b.distance_km == null ? 9999 : b.distance_km)));
+    return list.slice(0, 5);
+  } catch (e) {
+    log.d(`buildRecommendPartners fail: ${e.message}`);
+    return [];
+  }
+}
+
+// 服务端时间红线(R1)已收敛到 _shared/take_rules.js 统一实现(见上方 require)
+
+// 获取用户文档
+async function getUser(openid) {
+  const r = await col('user_account').where({ openid }).limit(1).get();
+  // 修复: get() 返回 { data: [doc] }, 必须取 [0]; 之前返回数组导致 user.is_realname_done 恒为 undefined → 误报需实名
+  return (r.data && r.data[0]) || null;
+}
+
+// 检查紧急联系人是否已填
+async function hasEmergencyContact(openid) {
+  const r = await col('emergency_contact').where({ openid, is_deleted: false }).limit(1).get();
+  return r.data && r.data.length > 0;
+}
+
+// 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截需求编号/占位符)
+function isValidDocId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
+}
+
+// 写入自愈:集合不存在(-502005)时建集合并重试一次(demand_draft 首次落库兜底)
+async function addWithColl(name, doc) {
+  try {
+    return await col(name).add({ data: doc });
+  } catch (e) {
+    const sig = `${e && e.errCode || ''} ${e && e.message || ''}`;
+    if (!/502005|not exist|不存在/i.test(sig)) throw e;
+    await db.createCollection(name);
+    return await col(name).add({ data: doc });
+  }
+}
+
+// ─────────────── 主入口 ───────────────
+exports.main = async (event, context) => {
+  const wxCtx = cloud.getWXContext();
+    const { resolveOpenid } = require('./openid');
+  const openid = await resolveOpenid(cloud, event);
+  if (!openid) return { ok: false, code: 'publish_no_openid', msg: '未获取到登录身份' };
+
+  const { action } = event;
+  log.d(`demand-publish action=${action} openid=${openid}`);
+
+  // 审计留痕公共字段
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
+  switch (action) {
+
+    // 1. 发布需求
+    case 'publish': {
+      const {
+        scene, start_time, duration_h, location, publish_location, content_option, content_options,
+        remark, rate_fen, aa_tier, aa_promise_checked,
+        match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id,
+        pricing_type, fixed_price_fen, project_attr,
+        headcount, gender_pref,
+        publish_type, service_target, proxy_signature_file_id, proxy_authorized,
+        contact_phone, contact_phone_source,
+        client_request_id
+      } = event;
+      // 计价模式归一化(缺省 hourly 兼容存量; 未传 project_attr 视为商业)
+      const pricingType = pricing_type === 'fixed' ? 'fixed' : 'hourly';
+      const projectAttr = project_attr === 'public_welfare' ? 'public_welfare' : 'commercial';
+      const isWelfare = projectAttr === 'public_welfare';
+
+      // ── 基础校验 ──
+      const sceneCodes = await getSceneCodes();
+      if (!scene || sceneCodes.indexOf(scene) < 0) {
+        return { ok: false, code: 'publish_scene_invalid', msg: '场景不在白名单' };
+      }
+      // 接单模式(默认抢单 broadcast; 选单 select 需耍伴报名→需求者确认)
+      const mode = MATCH_MODE_WHITELIST.indexOf(match_mode) >= 0 ? match_mode : 'broadcast';
+      if (!start_time || typeof start_time !== 'number' || start_time <= Date.now()) {
+        return { ok: false, code: 'publish_start_time', msg: '开始时间必须是未来时间戳' };
+      }
+      // 服务时间距发布最长 30 天(产品反馈硬规则)
+      const MAX_ADVANCE_MS = 30 * 24 * 3600 * 1000;
+      if (start_time > Date.now() + MAX_ADVANCE_MS) {
+        return { ok: false, code: 'publish_time_too_far', msg: '服务时间距发布时间不能超过 30 天' };
+      }
+      // 服务端时间红线(R1, 与前端 redline.js 同口径, 防绕过): 00:00-06:00 不可预约
+      // close_min=0 语义为全天开放; config 稍后并行拉取, 此处先读原始 event 校验, 完整 config 在下方二次强校验
+      if (!isServiceTimeAllowed(start_time)) {
+        return { ok: false, code: 'publish_redline', msg: '00:00-06:00 为休息时段,请选择 06:00 后的服务时间' };
+      }
+      if (!duration_h || duration_h < 1 || duration_h > 12) {
+        return { ok: false, code: 'publish_duration', msg: '时长需 1-12 小时' };
+      }
+      // 时薪模式才校验 rate_fen; 一口价/公益用 fixed_price_fen, 不传 rate_fen 合法
+      if (pricingType === 'hourly' && !isWelfare) {
+        if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
+          return { ok: false, code: 'publish_rate', msg: '时薪金额格式有误' };
+        }
+      }
+      // 履约地点: MVP 阶段只校验 name 非空, 经纬度可选(隐私指引审核期间用户无法选点, 允许 0)
+      if (!location || !location.name) {
+        return { ok: false, code: 'publish_location', msg: '请填写履约地点名称' };
+      }
+      // 发布地址(发布者当前精确 GPS, 只读留痕且不可手改):
+      // 这里只解析, 强校验(必须真实坐标/与履约地距离)在 config 读取后执行; 禁止再用履约地兜底
+      const pubLoc = (publish_location
+        && validLngLat(Number(publish_location.latitude), Number(publish_location.longitude)))
+        ? {
+            name: publish_location.name || '当前位置',
+            latitude: Number(publish_location.latitude),
+            longitude: Number(publish_location.longitude),
+            city: publish_location.city
+          }
+        : null;
+      // 服务端自测链路(mock_openid 且无真实 OPENID)无定位, 沿用旧兜底以免阻断自动化回归
+      const isMockCall = !wxCtx.OPENID && !!event.mock_openid;
+      if (!aa_tier) {
+        return { ok: false, code: 'publish_aa_tier', msg: '请选择 AA 档位' };
+      }
+      // AA 承诺书必勾(rules.md 三.6 · 服务端兜底,不勾不能提交)
+      if (!aa_promise_checked) {
+        return { ok: false, code: 'publish_aa_promise', msg: '请先阅读并勾选《线下费用自理承诺书》' };
+      }
+      // 场景免责声明必勾(code.html 第一道防线·需求者下单前签署)
+      if (!disclaimer_signed) {
+        return { ok: false, code: 'publish_disclaimer', msg: '请先阅读并勾选《场景免责声明》' };
+      }
+      // W9 宠物照料授权(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权不得履约)
+      // 凭证 = 授权书全文 + 本人手写签字图(服务端下载复算 SHA-256); 缺签字图视为未完成授权
+      let petSignature = null;
+      if (scene === 'W9') {
+        if (!pet_auth_checked) {
+          return { ok: false, code: 'publish_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
+        }
+        petSignature = await verifySignatureFile(pet_auth_signature_file_id);
+        if (!petSignature.ok) {
+          return { ok: false, code: 'publish_pet_auth_sign_required', msg: '请完成《宠物照料授权书》手写签字后重试' };
+        }
+      }
+
+      // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人; 代理关系必须留手写签字授权凭据 ──
+      // PRD W8 禁止代签法律文件但允许"代老人/未成年人代为下单"场景, 代理授权须签字存证(kind=proxy_authorization)。
+      const PUBLISH_TYPE_WHITELIST = ['self', 'proxy'];
+      const publishType = PUBLISH_TYPE_WHITELIST.indexOf(publish_type) >= 0 ? publish_type : 'self';
+      let proxySignature = null;
+      if (publishType === 'proxy') {
+        if (!proxy_authorized) {
+          return { ok: false, code: 'publish_proxy_authorized', msg: '代他人发布需先确认《委托授权书》' };
+        }
+        if (!service_target || !service_target.name) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请填写被代发人姓名' };
+        }
+        if (!service_target.relation) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请选择与本人的关系' };
+        }
+        if (service_target.relation === '其他' && !String(service_target.relation_note || '').trim()) {
+          return { ok: false, code: 'publish_proxy_target', msg: '请填写关系补充说明' };
+        }
+        // 电话: 兼容旧入参名 phone_mask; 存储升级为真号(phone), 输出层一律脱敏
+        if (!isPhoneOrLandline(service_target.phone || service_target.phone_mask)) {
+          return { ok: false, code: 'publish_proxy_phone', msg: '请填写正确的手机号，或带区号的座机号（如 028-88888888）' };
+        }
+        proxySignature = await verifySignatureFile(proxy_signature_file_id);
+        if (!proxySignature.ok) {
+          return { ok: false, code: 'publish_proxy_sign_required', msg: '请完成《委托授权书》手写签字后重试' };
+        }
+      }
+
+      // ── 需求规模/性别偏好归一化(publish 分支此前漏写, 本次补齐; 默认语义与 update 分支一致) ──
+      const headcountN = (Number.isInteger(Number(headcount)) && headcount >= 1 && headcount <= 10)
+        ? Number(headcount) : 1;
+      const genderPref = (typeof gender_pref === 'string' && gender_pref.trim())
+        ? gender_pref.trim().slice(0, 10) : '不限';
+
+      // 并行拉取 配置/用户/紧急联系人(减少串行往返, 冷启动也能压进超时)
+      const [config, user, hasEC] = await Promise.all([
+        getConfig(), getUser(openid), hasEmergencyContact(openid)
+      ]);
+      if (!user) return { ok: false, code: 'publish_no_user', msg: '用户不存在,请先登录' };
+
+      // ── 联系手机号(所有需求必填): source=account 取账户已绑号(服务端直取, 不信任前端); custom 走 11 位格式校验 ──
+      const PHONE_11_RE = /^1[3-9]\d{9}$/;
+      let contactPhone = '';
+      if (contact_phone_source === 'account') {
+        // 账户已绑号现为 AES 密文存储(P0-3): 解密取真号(兼容存量明文), 仍按原口径落 demand.contact_phone
+        const _cfgP = await getConfig();
+        contactPhone = String(phoneCrypt.readPhone(user, _cfgP && _cfgP.phone_aes_key) || '').trim();
+        if (!PHONE_11_RE.test(contactPhone)) {
+          return { ok: false, code: 'publish_contact_required', msg: '账户未绑定手机号, 请手动填写联系手机号' };
+        }
+      } else {
+        contactPhone = String(contact_phone || '').trim();
+        if (!PHONE_11_RE.test(contactPhone)) {
+          return { ok: false, code: 'publish_contact_required', msg: '请填写正确的 11 位联系手机号' };
+        }
+      }
+
+      // 服务端时间红线二次强校验(带完整 admin_config, 与前端 redline.js 同口径)
+      if (!isServiceTimeAllowed(start_time, config)) {
+        return { ok: false, code: 'publish_redline', msg: '00:00-06:00 为休息时段,请选择 06:00 后的服务时间' };
+      }
+
+      // 平台总开关: 核心交易维护中, 阻断发布/编辑需求(与 order-create、C 端入口守卫口径一致)
+      if (config.switch_access === false) {
+        return { ok: false, code: 'access_disabled', msg: '平台维护中,暂无法发布需求,请稍后再试' };
+      }
+
+      // ── 账号状态: 冻结/封禁统一拦截 ──
+      if (user.status === 'frozen') {
+        return { ok: false, code: 'publish_frozen', msg: '账号已冻结,不可发布需求' };
+      }
+      if (user.status === 'banned') {
+        return { ok: false, code: 'publish_banned', msg: '账号已封禁,请联系客服' };
+      }
+      if (user.status === 'closed') {
+        return { ok: false, code: 'publish_closed', msg: '账号已注销' };
+      }
+      // 断链②修复(第三批爽约): 停用中拦截「新发单」; 到期/缺 suspend_until 视为已恢复按 normal 放行
+      const suspendDays = suspendLeftDays(user);
+      if (suspendDays > 0) {
+        return { ok: false, code: 'publish_suspended', msg: `账号停用中,${suspendDays}天后自动恢复` };
+      }
+
+      // ── 实名门禁(发布前必须完成实名; 测试期可在「实名认证」页模拟通过) ──
+      // 不再对 is_realname_simulated 自动放行: 必须由用户显式完成认证后才置 is_realname_done
+      if (!user.is_realname_done) {
+        return { ok: false, code: 'publish_not_realname', msg: '请先完成实名认证后再发布需求' };
+      }
+
+      // ── 计价分支(时薪 hourly / 一口价 fixed; 公益归入 fixed 特例) ──
+      // 0 是合法值, 显式判空禁 || 兜底; 区间留空(非有限数) = 不钳制
+      // 青年限额/红线/时间冲突均收敛到 total_fen, 下方无需再分支
+      let docPricingType, docRateFen, docFixedPriceFen, docProjectAttr, total_fen;
+      docProjectAttr = projectAttr;
+      if (isWelfare) {
+        // 公益单: 一等公民, 归入一口价; 价格取后台 welfare_fixed_price_fen, 未配置则不可发布
+        const wFen = Number(config.welfare_fixed_price_fen);
+        if (!Number.isFinite(wFen)) {
+          return { ok: false, code: 'publish_welfare_not_open', msg: '公益单暂未开放,请稍后再试' };
+        }
+        docPricingType = 'fixed';
+        docFixedPriceFen = wFen;
+        docRateFen = null;
+        total_fen = wFen;
+      } else if (pricingType === 'fixed') {
+        if (!fixed_price_fen || typeof fixed_price_fen !== 'number' || fixed_price_fen <= 0) {
+          return { ok: false, code: 'publish_fixed_price', msg: '一口价金额格式有误' };
+        }
+        const _fLo = Number(config.fixed_price_min_fen);
+        const _fHi = Number(config.fixed_price_max_fen);
+        if (Number.isFinite(_fLo) && fixed_price_fen < _fLo) {
+          return { ok: false, code: 'publish_fixed_range', msg: `一口价需不低于 ${_fLo / 100} 元` };
+        }
+        if (Number.isFinite(_fHi) && fixed_price_fen > _fHi) {
+          return { ok: false, code: 'publish_fixed_range', msg: `一口价需不高于 ${_fHi / 100} 元` };
+        }
+        docPricingType = 'fixed';
+        docFixedPriceFen = fixed_price_fen;
+        docRateFen = null;
+        total_fen = fixed_price_fen;
+      } else {
+        const _pLo = Number(config.rate_min_fen);
+        const _pHi = Number(config.rate_max_fen);
+        const pLo = Number.isFinite(_pLo) ? _pLo : 3000;
+        const pHi = Number.isFinite(_pHi) ? _pHi : 10000;
+        if (rate_fen < pLo || rate_fen > pHi) {
+          return { ok: false, code: 'publish_rate_range', msg: `时薪需在 ${pLo / 100}-${pHi / 100} 元/小时之间` };
+        }
+        docPricingType = 'hourly';
+        docFixedPriceFen = null;
+        docRateFen = rate_fen;
+        total_fen = rate_fen * duration_h;
+      }
+      if (!hasEC) {
+        // MVP bootstrap: 首次发布自动创建一个占位紧急联系人
+        await col('emergency_contact').add({
+          data: {
+            openid, name: '紧急联系人', phone: '13800000000',
+            relation: '家人', is_deleted: false,
+            created_at: Date.now(), updated_at: Date.now()
+          }
+        });
+      }
+
+      // ── 信用分 ──
+      if ((user.user_credit_score || 800) < (config.min_credit_place_order || 600)) {
+        return { ok: false, code: 'publish_credit_low', msg: '信用分低于下单门槛,暂不能发布需求' };
+      }
+
+      // ── 发布地址强校验(发布者当前精确GPS, 只读不可手改, 防恶意虚拟定位) ──
+      // mock 自测链路无 GPS 跳过; 真实客户端必须携带真实坐标
+      if (!isMockCall && !pubLoc) {
+        return { ok: false, code: 'publish_location_required', msg: '发布需求需要获取你的当前位置,请授权定位后重试' };
+      }
+      // 发布位置 ↔ 履约地直线距离 ≤ 后台阈值(默认50km); 履约地无坐标时跳过(隐私审核期允许手填地点)
+      if (!isMockCall && validLngLat(Number(location.latitude), Number(location.longitude))) {
+        const pubDistKm = haversineKm(
+          pubLoc.latitude, pubLoc.longitude,
+          Number(location.latitude), Number(location.longitude)
+        );
+        const maxPubKm = Number(config.publish_distance_max_km) || 50;
+        if (pubDistKm > maxPubKm) {
+          return {
+            ok: false,
+            code: 'publish_too_far',
+            msg: `你当前位置距履约地点约 ${Math.round(pubDistKm)} 公里,超过 ${maxPubKm} 公里,请确认履约地点或到达当地后发布`
+          };
+        }
+      }
+
+      // ── 定向邀约: 必须指定一个已审核通过的耍伴, 需求不入大厅仅TA可接 ──
+      if (mode === 'direct') {
+        if (!target_openid || typeof target_openid !== 'string') {
+          return { ok: false, code: 'publish_target_required', msg: '定向邀约缺少指定耍伴' };
+        }
+        if (target_openid === openid) {
+          return { ok: false, code: 'publish_target_self', msg: '不能定向邀约自己' };
+        }
+        const tpR = await col('partner_profile')
+          .where({ openid: target_openid, status: 'approved', is_deleted: _.neq(true) })
+          .limit(1).get().catch(() => ({ data: [] }));
+        if (!(tpR.data && tpR.data[0])) {
+          return { ok: false, code: 'publish_target_invalid', msg: '指定耍伴不存在或未通过审核' };
+        }
+      }
+
+      // ── 金额校验(分单位 · rules.md 三.7; total_fen 已在计价分支算出) ──
+      if (typeof total_fen !== 'number' || total_fen <= 0) {
+        return { ok: false, code: 'publish_total_invalid', msg: '总价计算异常' };
+      }
+
+      // ── 青少年保护(rules.md 三.10) ──
+      if (user.age !== null && user.age !== undefined && user.age >= 18 && user.age <= 22) {
+        if (total_fen > (config.youth_limit_fen || 20000)) {
+          return { ok: false, code: 'publish_youth_limit', msg: '18-22 岁用户单笔订单上限 200 元' };
+        }
+      }
+
+      // ── 城市(归一化: 去掉结尾「市」, 兼容「成都市」/「成都」两种写法) ──
+      const normCity = (c) => String(c || '').replace(/市$/, '').trim();
+      const city = normCity(location.city) || '成都';
+      // 白名单: 配置缺失/为空数组时兜底「成都」(空数组是真值, 不会走 || 兜底, 需显式判空)
+      let enabledCities = (Array.isArray(config.city_enabled) ? config.city_enabled : [])
+        .map(normCity).filter(Boolean);
+      if (enabledCities.length === 0) enabledCities = ['成都'];
+      // 精确匹配优先; 容错: 城市串/地点名包含任一开通城市名也放行(防止前端解析出「川省成都」类脏值误伤)
+      const locName = String((location && location.name) || '');
+      const cityOk = enabledCities.indexOf(city) >= 0
+        || enabledCities.some((c) => city.indexOf(c) >= 0 || locName.indexOf(c) >= 0);
+      if (!cityOk) {
+        return { ok: false, code: 'publish_city_disabled', msg: `当前城市未开通服务(${city})` };
+      }
+
+      // ── 子服务内容校验(多选;兼容旧版单选 content_option) ──
+      let opts = Array.isArray(content_options)
+        ? content_options
+        : (typeof content_option === 'string' ? [content_option] : []);
+      opts = Array.from(new Set(opts.map((s) => String(s || '').trim()).filter(Boolean)));
+      if (opts.length === 0) {
+        return { ok: false, code: 'publish_content_option', msg: '请选择服务内容' };
+      }
+      if (opts.length > contentOptionsMax(config)) {
+        return { ok: false, code: 'publish_content_too_many', msg: `服务内容最多选择 ${contentOptionsMax(config)} 项` };
+      }
+      // 选项必须属于该场景(admin_config.scene_list 优先,兜底常量)
+      const sceneCfg = (config.scene_list || []).find((s) => s.code === scene);
+      const allowedOptions = (sceneCfg && sceneCfg.options) || SCENE_OPTIONS_FALLBACK[scene] || [];
+      for (const o of opts) {
+        if (allowedOptions.indexOf(o) < 0) {
+          return { ok: false, code: 'publish_content_invalid', msg: `服务内容「${o}」不在该场景可选项内` };
+        }
+      }
+
+      // ── 备注安全检测(msgSecCheck v2,降级违禁词 · rules.md 六) ──
+      const remarkStr = remark ? String(remark).trim() : '';
+      if (remarkStr) {
+        if (remarkStr.length > REMARK_MAX_LEN) {
+          return { ok: false, code: 'publish_remark_long', msg: `备注最长 ${REMARK_MAX_LEN} 字` };
+        }
+        const chk = await checkText(openid, remarkStr, config.block_words);
+        if (!chk.pass) {
+          return { ok: false, code: 'publish_remark_blocked', msg: chk.reason };
+        }
+      }
+
+      // ── 时间冲突校验:同用户 + 同场景 + 服务内容有交集,时间段不可重叠 ──
+      const newStart = start_time;
+      const newEnd = start_time + duration_h * 3600 * 1000;
+      const existDemands = await col('demand').where({
+        creator_openid: openid,
+        scene,
+        is_deleted: false,
+        status: _.neq('cancelled')
+      }).get();
+      for (const d of existDemands.data) {
+        const oldStart = d.start_time;
+        const oldEnd = d.start_time + (d.duration_h || 1) * 3600 * 1000;
+        // 区间重叠判定:新区间与旧区间有交集(端点相接不算冲突)
+        if (!(newStart < oldEnd && oldStart < newEnd)) continue;
+        // 多选口径:服务内容有交集才算冲突
+        const oldOpts = (d.content_options && d.content_options.length)
+          ? d.content_options
+          : (d.content_option ? [d.content_option] : []);
+        if (opts.some((o) => oldOpts.indexOf(o) >= 0)) {
+          return { ok: false, code: 'publish_time_conflict', msg: '该时段已有同类服务需求,请调整时间' };
+        }
+      }
+
+      // ── 幂等保护: 弱网重试复用 client_request_id 查重, 绝不新建第二条 ──
+      // 前端草稿发布固定用草稿 _id, 无草稿用页面级缓存 uuid; 成功后清除, 失败/弱网时保留供重试复用
+      if (client_request_id) {
+        try {
+          const dupRes = await col('demand').where({
+            creator_openid: openid,
+            client_request_id,
+            is_deleted: false
+          }).limit(1).get();
+          const dup = (dupRes.data && dupRes.data[0]) || null;
+          // 非删除态(排除已取消/已过期)才幂等直返; 删除态则允许重建新需求
+          if (dup && dup.status && dup.status !== 'cancelled' && dup.status !== 'expired') {
+            log.d(`demand idempotent hit: ${client_request_id} -> ${dup.demand_no}`);
+            return {
+              ok: true,
+              data: { idempotent: true, demand_id: dup._id, demand_no: dup.demand_no, status: dup.status }
+            };
+          }
+        } catch (e) {
+          log.d(`demand idempotent check fail: ${(e && e.message) || e}`);  // 查重失败不阻断主流程
+        }
+      }
+
+      // ── 写入 ──
+      const now = Date.now();
+      const demand_no = genDemandNo();
+      // 免责声明类型: 优先从 admin_config.scene_list 动态读(SSOT, 复用上方 L358 sceneCfg), 兜底 LEGACY 映射
+      const disclaimerType = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
+      const doc = {
+        demand_no,
+        client_request_id: client_request_id || '',   // 幂等键: 弱网重试据其查重, 避免重复建需求
+        creator_openid: openid,
+        scene,
+        project_attr: docProjectAttr,
+        start_time,
+        duration_h,
+        location: { name: location.name, latitude: location.latitude, longitude: location.longitude, city },
+        // 发布地址: 发布时实际GPS定位(只读留痕, 不参与接单距离/通勤计算)
+        // 真实调用 pubLoc 已强校验非空; mock 自测链路无GPS, 沿用履约地兜底以免阻断自动化回归
+        publish_location: isMockCall
+          ? { name: location.name || '当前位置', latitude: Number(location.latitude) || 0, longitude: Number(location.longitude) || 0, city }
+          : {
+              name: pubLoc.name || '当前位置',
+              latitude: pubLoc.latitude,
+              longitude: pubLoc.longitude,
+              city: normCity(pubLoc.city) || city
+            },
+        content_option: opts[0],  // 兼容旧字段:取首项
+        content_options: opts,    // 多选全量
+        remark: remarkStr,
+        pricing_type: docPricingType,   // hourly | fixed(含公益)
+        rate_fen: docRateFen,            // hourly=分; fixed=null(不写 0)
+        fixed_price_fen: docFixedPriceFen, // fixed=分; hourly=null
+        total_fen,
+        aa_tier,
+        aa_promise_signed: !!aa_promise_checked,   // rules.md 三.6 AA承诺书(服务端已兜底校验)
+        // ── 合规双签(code.html 第一道防线) ──
+        disclaimer_type: disclaimerType,
+        disclaimer_signed: true,
+        disclaimer_signed_at: now,
+        // W9 宠物照料授权电子确认凭证(PRD R9; 非 W9 恒 false)
+        pet_auth_signed: scene === 'W9' ? !!pet_auth_checked : false,
+        pet_auth_signed_at: (scene === 'W9' && pet_auth_checked) ? now : 0,
+        // ── 需求规模/性别偏好(此前 publish 分支漏写, 本次补齐与 update 对齐) ──
+        headcount: headcountN,
+        gender_pref: genderPref,
+        // ── 发布者联系手机号(履约联系用; 真号受限存储, 任何输出不回传; 二期接真实验证/虚拟号) ──
+        contact_phone: contactPhone,
+        // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人 ──
+        publish_type: publishType,
+        service_target: proxySignature
+          ? {
+              name: String(service_target.name).slice(0, 20),
+              relation: String(service_target.relation || '').slice(0, 10),
+              relation_note: String(service_target.relation_note || '').slice(0, 20),
+              // 真号受限存储(仅服务端使用, 为二期虚拟号/验证预埋); 任何输出接口一律 maskContact 脱敏, 不回传真号
+              phone: String(service_target.phone || service_target.phone_mask || '').trim().slice(0, 20)
+            }
+          : null,
+        proxy_auth_signed: !!proxySignature,
+        proxy_auth_signed_at: proxySignature ? now : 0,
+        // ── 接单模式 ──
+        match_mode: mode,                            // broadcast=抢单 / select=选单
+        applicants: [],                              // 选单模式:报名耍伴列表
+        matched_openid: null,                        // 选单模式:已确认的耍伴
+        status: 'matching',
+        match_candidates: [],
+        invited: mode === 'direct' ? [target_openid] : [],  // 定向: 仅受邀耍伴可接
+        broadcast: mode === 'broadcast',  // 仅抢单模式入厅; 定向/选单不入公共大厅
+        // 抢单通知(需求①站内闭环): 待推送标记, 由 order-timer 定时分批向「范围内可接耍伴」推 system_notice 引导抢单
+        // direct 定向模式已单发邀请(L816), 不再群发; broadcast/select 需覆盖更多耍伴故置待推送
+        grab_notify_pending: mode === 'direct' ? false : true,
+        is_test: isTestOpenid(config, openid),   // D4-5 测试白名单打标(供 purge_test_data 精准清理)
+        expire_at: now + 24 * 3600 * 1000,  // 24h 后过期
+        created_at: now,
+        updated_at: now,
+        is_deleted: false
+      };
+
+      try {
+        const addRes = await col('demand').add({ data: doc });
+        log.d(`demand created: ${demand_no}`);
+
+        // ── P1 留证: 需求者场景免责声明(勾选同意)全文+SHA-256 落库(不阻断主流程) ──
+        let evidenceId = '';
+        let evidenceHash = '';
+        try {
+          const evData = buildCheckboxEvidence({
+            openid, role: 'user', scene, disclaimerType, config,
+            demandId: addRes._id, signedAt: now
+          });
+          const evRes = await col('disclaimer_signature').add({ data: evData });
+          evidenceId = (evRes && evRes._id) || '';
+          evidenceHash = evData.signature_hash || '';
+          log.d(`scene evidence(user) written: ${demand_no}`);
+        } catch (ee) {
+          log.d(`scene evidence(user) fail: ${(ee && ee.message) || ee}`);
+          col('platform_event').add({ data: {
+            level: 'P3', type: 'evidence_write_fail', openid,
+            payload: { node: 'publish', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
+            created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+          }}).catch(() => {});
+        }
+
+        // ── W9 留证: 宠物照料授权书(电子确认, PRD R9 授权凭证; 不阻断主流程) ──
+        let petEvidenceId = '';
+        let petEvidenceHash = '';
+        if (scene === 'W9' && pet_auth_checked) {
+          try {
+            const petData = buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: 'pet_authorization',
+              config, demandId: addRes._id, signedAt: now,
+              kind: 'pet_authorization',
+              signature: petSignature,
+              doc: {
+                key: 'pet_authorization', title: '宠物照料授权书',
+                text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
+              }
+            });
+            const petRes = await col('disclaimer_signature').add({ data: petData });
+            petEvidenceId = (petRes && petRes._id) || '';
+            petEvidenceHash = petData.signature_hash || '';
+            log.d(`pet auth evidence written: ${demand_no}`);
+          } catch (ee) {
+            log.d(`pet auth evidence fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'publish_pet', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
+
+        // ── 代发留证(需求②): 委托授权书 + 本人手写签字(kind=proxy_authorization; 不阻断主流程) ──
+        // 复用 W9 同套 buildCheckboxEvidence 的 signature 覆盖 → 落 signature_file_id/SHA-256/verify_method=handwritten
+        if (publishType === 'proxy' && proxySignature) {
+          try {
+            const proxyData = buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: 'proxy_authorization',
+              config, demandId: addRes._id, signedAt: now,
+              kind: 'proxy_authorization',
+              signature: {
+                fileId: proxySignature.fileId, hash: proxySignature.hash, size: proxySignature.size
+              },
+              doc: {
+                key: 'proxy_authorization', title: '委托授权书',
+                text: `本人授权代操作人代为发布平台需求：被代发人 ${service_target.name || ''}，与本人关系 ${service_target.relation || ''}。`
+              }
+            });
+            await col('disclaimer_signature').add({ data: proxyData });
+            log.d(`proxy auth evidence written: ${demand_no}`);
+          } catch (ee) {
+            log.d(`proxy auth evidence fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'publish_proxy', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
+
+        // 定向邀约: 给受邀耍伴写系统通知(不阻断主流程), 通知点击直达需求详情
+        if (mode === 'direct') {
+          try {
+            const callerName = user.nickname || user.surname || '发单人';
+            await col('system_notice').add({
+              data: {
+                to_openid: target_openid,
+                order_id: '',
+                demand_id: addRes._id,
+                type: 'direct_invite',
+                title: '你收到一条定向需求邀约',
+                body: `${callerName}定向向你发布了一条需求,请在24小时内查看并接单`,
+                action_key: 'jump_demand',
+                action_payload: { demand_id: addRes._id },
+                created_at: now,
+                read: false
+              }
+            });
+          } catch (ne) {
+            log.d(`direct invite notice fail: ${ne.message}`);
+          }
+        }
+
+        // 发布者站内通知(2026-10-10): 发布成功即时回执, 使「消息→系统通知」出现未读提示(不阻断主流程)
+        try {
+          await col('system_notice').add({ data: {
+            to_openid: openid,
+            order_id: '',
+            demand_id: addRes._id,
+            type: 'demand_published',
+            title: '需求发布成功',
+            body: mode === 'direct'
+              ? '已向指定耍伴发出邀约, 等待对方响应'
+              : '正在为你匹配附近耍伴, 有人接单会第一时间通知你',
+            action_key: 'jump_demand',
+            action_payload: { demand_id: addRes._id },
+            created_at: now, read: false
+          }});
+        } catch (ne) { log.d(`publish notice fail: ${ne.message}`); }
+
+        // 抢单通知即时化(2026-10-10): broadcast/select 发布时立即向「范围内可接耍伴」推站内通知(选取/文案与
+        // order-timer.processDemandNotify 同口径); 候选数 > IMMEDIATE_CAP 时不即时推, 保留 grab_notify_pending
+        // 交定时器兜底(避免超时); 仅当全部推送成功才清 pending, 否则留标由定时器重试。全程不阻断主流程。
+        const IMMEDIATE_CAP = 20;
+        if (mode !== 'direct') {
+          try {
+            const minCredit = Number(config.min_credit_take_order) || 600;
+            const takeCap = Number(config.take_distance_max_km) || 50;
+            const pBase = { status: 'approved', is_deleted: _.neq(true), accept_switch: _.neq(false), accept_scenes: scene };
+            let cands = [];
+            try { cands = (await col('partner_profile').where(Object.assign({}, pBase, { credit_score: _.gte(minCredit) })).limit(50).get()).data || []; } catch (e) { cands = []; }
+            if (!cands.length) { try { cands = (await col('partner_profile').where(pBase).limit(50).get()).data || []; } catch (e) { cands = []; } }
+            const dLoc = doc.location || {};
+            const hasLoc = Number.isFinite(Number(dLoc.latitude)) && Number.isFinite(Number(dLoc.longitude));
+            const targets = [];
+            for (const p of cands) {
+              const own = Number(p.max_distance_km);
+              const eff = (Number.isFinite(own) && own > 0) ? Math.min(own, takeCap) : takeCap;
+              const hl = p.home_location || {};
+              if (!hasLoc || !Number.isFinite(Number(hl.latitude)) || !Number.isFinite(Number(hl.longitude))) continue;
+              if (haversineKm(Number(dLoc.latitude), Number(dLoc.longitude), Number(hl.latitude), Number(hl.longitude)) > eff) continue;
+              targets.push(p.openid);
+            }
+            if (targets.length && targets.length <= IMMEDIATE_CAP) {
+              const subject = (doc.content_options && doc.content_options[0]) || '新需求';
+              const results = await Promise.allSettled(targets.map((o) => col('system_notice').add({ data: {
+                to_openid: o, order_id: '', demand_id: addRes._id, type: 'demand_grab',
+                title: '有新需求可接单',
+                body: `${String(subject).slice(0, 30)} · 距你较近, 速来抢单`,
+                action_key: 'jump_demand', action_payload: { demand_id: addRes._id },
+                created_at: now, read: false
+              }})));
+              const okAll = results.every((r) => r.status === 'fulfilled');
+              log.d(`grab immediate push: ${demand_no} targets=${targets.length} okAll=${okAll}`);
+              if (okAll) {
+                await col('demand').where({ _id: addRes._id, grab_notify_pending: true })
+                  .update({ data: { grab_notify_pending: false, updated_at: Date.now() } });
+              }
+            } else if (targets.length > IMMEDIATE_CAP) {
+              log.d(`grab push deferred to timer: ${demand_no} targets=${targets.length}`);
+            }
+          } catch (ge) { log.d(`grab immediate push fail: ${ge.message}`); }
+        }
+
+        // 发布成功后清理来源草稿(若本次发布由草稿发起), 避免残留草稿导致重复发布
+        let draftCleared = false;
+        const srcDraftId = event.draft_id;
+        if (srcDraftId && isValidDocId(srcDraftId)) {
+          try {
+            const dRes = await col('demand_draft').doc(srcDraftId).get();
+            const d = dRes.data;
+            if (d && d.openid === openid && !d.is_deleted) {
+              await col('demand_draft').doc(srcDraftId).update({
+                data: { is_deleted: true, updated_at: now }
+              });
+              draftCleared = true;
+            }
+          } catch (e) { /* 草稿清理失败不阻断发布 */ }
+        }
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'demand_publish',
+          target_type: 'demand', target_id: addRes._id,
+          detail: {
+            demand_no, scene, match_mode: mode, pricing_type: docPricingType, rate_fen: docRateFen, total_fen, aa_tier,
+            duration_h, aa_promise_checked: !!aa_promise_checked,
+            pet_auth: scene === 'W9' && !!pet_auth_checked,
+            evidence_ids: [evidenceId, petEvidenceId].filter(Boolean)
+          },
+          evidence_id: evidenceId, doc_hash: evidenceHash,
+          result: 'ok', client_ip: clientIp, device
+        });
+        return {
+          ok: true,
+          data: {
+            _id: addRes._id, demand_no, total_fen, status: 'matching',
+            expire_at: doc.expire_at, draft_cleared: draftCleared
+          }
+        };
+      } catch (e) {
+        log.d(`demand publish fail: ${e.message}`);
+        return { ok: false, code: 'publish_db_fail', msg: '需求发布失败' };
+      }
+    }
+
+    // 2. 取消需求(仅创建者,仅 matching 状态)
+    case 'cancel': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'cancel_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'cancel_bad_id', msg: '需求 ID 格式不正确:请传入需求 _id(32位十六进制),不是需求编号(DR 开头)' };
+
+      // 先懒过期
+      await lazyExpire();
+
+      try {
+        const r = await col('demand').doc(demand_id).get();
+        const d = r.data;
+        if (!d) return { ok: false, code: 'cancel_not_found', msg: '需求不存在' };
+        if (d.creator_openid !== openid) {
+          return { ok: false, code: 'cancel_not_owner', msg: '只能取消自己的需求' };
+        }
+        if (d.status !== 'matching') {
+          return { ok: false, code: 'cancel_status', msg: `当前状态${d.status},不可取消` };
+        }
+        // CAS: 仅 matching→cancelled, 与接单(order-create CAS matching→matched)/懒过期互斥
+        const cr = await col('demand').where({ _id: demand_id, status: 'matching' }).update({ data: {
+          status: 'cancelled', cancelled_at: Date.now(), updated_at: Date.now()
+        }});
+        if (!cr.stats || cr.stats.updated !== 1) {
+          return { ok: false, code: 'cancel_status', msg: '需求状态已变化,请刷新后重试' };
+        }
+        log.d(`demand cancelled: ${d.demand_no}`);
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'demand_cancel',
+          target_type: 'demand', target_id: demand_id,
+          detail: { demand_no: d.demand_no, scene: d.scene || '' },
+          result: 'ok', client_ip: clientIp, device
+        });
+        return { ok: true, data: { demand_id, status: 'cancelled' } };
+      } catch (e) {
+        return { ok: false, code: 'cancel_fail', msg: '取消失败' };
+      }
+    }
+
+    // 3. 我的需求列表(含候选耍伴摘要)
+    case 'my_demands': {
+      // 先懒过期
+      await lazyExpire();
+      try {
+        const r = await col('demand').where({
+          creator_openid: openid, is_deleted: false
+        }).orderBy('created_at', 'desc').limit(50).get();
+
+        const list = (r.data || []).map(d => ({
+          _id: d._id, demand_no: d.demand_no, scene: d.scene,
+          scene_name: SCENE_NAME[d.scene] || d.scene,
+          location: (d.location && { name: d.location.name, address: d.location.address }) || null,
+          start_time: d.start_time, duration_h: d.duration_h,
+          total_fen: d.total_fen, status: d.status,
+          match_candidates: (d.match_candidates || []).slice(0, 5),
+          invited: d.invited || [],
+          broadcast: !!d.broadcast,
+          created_at: d.created_at
+        }));
+        return { ok: true, data: { list } };
+      } catch (e) {
+        return { ok: false, code: 'my_demands_fail', msg: '查询失败' };
+      }
+    }
+
+    // 4. 懒过期:把过期 matching 需求置为 expired
+    case 'lazy_expire': {
+      const n = await lazyExpire();
+      return { ok: true, data: { expired_count: n } };
+    }
+
+    // 5. 需求详情(公开, 含发布者姓氏)
+    case 'detail': {
+      const { demand_id, viewer_lat, viewer_lng } = event;
+      if (!demand_id) return { ok: false, code: 'detail_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'detail_bad_id', msg: '需求 ID 格式不正确' };
+
+      try {
+        const r = await col('demand').doc(demand_id).get();
+        const d = r.data;
+        if (!d || d.is_deleted) return { ok: false, code: 'detail_not_found', msg: '需求不存在或已删除' };
+
+        // 展现次数自增(浏览详情一次 +1; 不改动底层数据结果)
+        try {
+          await col('demand').doc(demand_id).update({ data: { view_count: _.inc(1) } });
+        } catch (e) { log.d(`view count inc fail: ${e.message}`); }
+
+        // 发布者姓氏 + 信用分(取 surname / real_name / nickname 首字; u 仅在此作用域内, 勿外泄引用)
+        let surname = '匿';
+        let creditScore = 800;
+        try {
+          const uR = await col('user_account').where({ openid: d.creator_openid }).limit(1).get();
+          const u = (uR.data && uR.data[0]) || {};
+          const name = u.surname || u.real_name || u.nickname || '';
+          surname = name ? String(name).charAt(0) : '匿';
+          creditScore = u.user_credit_score || 800;
+        } catch (e) {}
+
+        // 备注拆分: 标题｜描述(full-width ｜)
+        const remarkParts = String(d.remark || '').split('｜');
+        const title = remarkParts[0] ? remarkParts[0].trim() : (d.content_options && d.content_options[0]) || '需求';
+        const description = remarkParts[1] ? remarkParts[1].trim() : '';
+
+        // 时间格式化(固定按东八区输出: 云函数运行时区为 UTC, 直接 getHours 会少 8 小时)
+        const CN_OFF = 8 * 3600 * 1000;
+        const dt = new Date(d.start_time + CN_OFF);
+        const pad = (n) => n < 10 ? '0' + n : '' + n;
+        const service_date = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+        const service_time = `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
+
+        // 发布于 X 分钟前
+        const minutes_ago = Math.max(1, Math.floor((Date.now() - (d.created_at || Date.now())) / 60000));
+
+        // 被接单后反查进行中订单: 用于发布者端"接单后自动跳转确认页"(demand 表不落 order_id)
+        let order_id = null;
+        if (d.status && d.status !== 'matching') {
+          try {
+            const oR = await col('order_main').where({ demand_id, is_deleted: false }).orderBy('created_at', 'desc').limit(1).get();
+            const o = (oR.data && oR.data[0]) || null;
+            if (o && typeof o.status === 'string' && !/^(cancelled|failed|closed|completed|refunded)$/.test(o.status)) {
+              order_id = o._id || o.order_no || null;
+            }
+          } catch (e) { log.d(`detail order reverse lookup fail: ${e.message}`); }
+        }
+
+        // 耍伴实时定位到履约地的直线距离(仅非发布者传 viewer_lat/viewer_lng): 需求有履约经纬度时计算
+        let distanceKm = null;
+        const demandLoc = d.location || {};
+        const vLat = Number(viewer_lat);
+        const vLng = Number(viewer_lng);
+        const hasViewer = validLngLat(vLat, vLng);
+        const hasDemandLoc = validLngLat(Number(demandLoc.latitude), Number(demandLoc.longitude));
+        if (hasViewer && hasDemandLoc) {
+          distanceKm = Math.round(haversineKm(
+            vLat, vLng, Number(demandLoc.latitude), Number(demandLoc.longitude)
+          ) * 10) / 10;
+        }
+        // 履约地址文本: demand.location.name(发布/更新均写入 name 作地址串, 兼容 update 落 location.address)
+        const addressText = String(demandLoc.name || demandLoc.address || '').trim();
+
+        // 推荐耍伴(需求详情横滑区; 失败/无候选 → [])
+        const recommend_partners = await buildRecommendPartners(d);
+
+        const data = {
+          _id: d._id,
+          order_id,
+          demand_no: d.demand_no,
+          scene_code: d.scene,
+          project_attr: d.project_attr || 'commercial',
+          title,
+          description,
+          content_options: Array.isArray(d.content_options) ? d.content_options : (d.content_option ? [d.content_option] : []),
+          service_date,
+          service_time,
+          duration_hours: d.duration_h,
+          location: d.location || { name: '', address: '' },
+          district: (d.location && d.location.city) || '',
+          address_text: addressText,
+          distance_km: distanceKm,
+          headcount: d.headcount || 1,
+          // 计价分支: hourly=时薪(元); fixed=一口价(元, 取 total_fen); 存量无 pricing_type 按 hourly
+          pricing_type: d.pricing_type || 'hourly',
+          fixed_price_fen: d.fixed_price_fen || null,
+          budget: (d.pricing_type === 'fixed')
+            ? Math.round((d.total_fen || 0) / 100)
+            : Math.round((d.rate_fen || 0) / 100),
+          aa_estimate: d.aa_tier || '0-50',
+          match_mode: d.match_mode || 'broadcast',
+          gender_pref: d.gender_pref || '不限',
+          // W9 宠物照料授权电子确认状态(编辑回填 + 详情展示)
+          pet_auth_signed: !!d.pet_auth_signed,
+          // 代他人发布(需求②): 性质对所有人可见(需求详情标识用); 被代发人详情仅本人回传(隐私; 编辑回填用)
+          publish_type: d.publish_type || 'self',
+          proxy_info: (d.publish_type === 'proxy') ? {
+            is_proxy: true,
+            relation: (d.service_target && d.service_target.relation) || ''
+          } : { is_proxy: false, relation: '' },
+          service_target: (d.creator_openid === openid) ? (d.service_target ? {
+            name: d.service_target.name || '',
+            relation: d.service_target.relation || '',
+            relation_note: d.service_target.relation_note || '',
+            phone: maskContact(d.service_target.phone || d.service_target.phone_mask || '')
+          } : null) : undefined,
+          // 发布者联系手机号: 仅本人回传(编辑回填展示用, 脱敏); 真号一律不回传
+          contact_phone_masked: (d.creator_openid === openid) ? maskContact(d.contact_phone || '') : undefined,
+          // 原始发布地址(只读留痕, 编辑模式回填用; 安全: 精确坐标仅发布者本人可见, 他人不回传)
+          publish_location: (d.creator_openid === openid) ? (d.publish_location || null) : null,
+          // 是否入公共大厅(定向需求不在大厅/首页出现)
+          broadcast: !!d.broadcast,
+          status: d.status,
+          is_owner: d.creator_openid === openid,
+          // 非发布者是否可接单: 选单走报名流程放行; 抢单需 broadcast; 定向需在受邀名单
+          can_take: d.creator_openid === openid
+            ? false
+            : ((d.match_mode || 'broadcast') === 'select'
+              || !!d.broadcast
+              || ((d.invited || []).indexOf(openid) >= 0)),
+          publisher: {
+            surname,
+            real_name_verified: true,
+            credit_score: creditScore,
+            minutes_ago
+          },
+          created_at: d.created_at,
+          view_count: typeof d.view_count === 'number' ? d.view_count : 0,
+          recommend_partners
+        };
+        return { ok: true, data };
+      } catch (e) {
+        log.d(`demand detail fail: ${e.message}`);
+        return { ok: false, code: 'detail_fail', msg: '查询需求详情失败' };
+      }
+    }
+
+    // detail_light: 轻量状态查询(轮询用, 不自增 view_count, 只给状态+order_id)
+    // 用于发布者端"接单后自动跳转确认页", 避免轮询污染浏览计数
+    case 'detail_light': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'detail_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'detail_bad_id', msg: '需求 ID 格式不正确' };
+      try {
+        const r = await col('demand').doc(demand_id).get();
+        const d = r.data;
+        if (!d || d.is_deleted) return { ok: false, code: 'detail_not_found', msg: '需求不存在或已删除' };
+        let order_id = null;
+        if (d.status && d.status !== 'matching') {
+          try {
+            const oR = await col('order_main').where({ demand_id, is_deleted: false }).orderBy('created_at', 'desc').limit(1).get();
+            const o = (oR.data && oR.data[0]) || null;
+            if (o && typeof o.status === 'string' && !/^(cancelled|failed|closed|completed|refunded)$/.test(o.status)) {
+              order_id = o._id || o.order_no || null;
+            }
+          } catch (e) { log.d(`detail_light order lookup fail: ${e.message}`); }
+        }
+        return { ok: true, data: { status: d.status, order_id, is_owner: d.creator_openid === openid } };
+      } catch (e) {
+        log.d(`detail_light fail: ${e.message}`);
+        return { ok: false, code: 'detail_fail', msg: '查询需求状态失败' };
+      }
+    }
+
+    // 6. 保存需求草稿(有 draft_id 则更新,无则新增;上限 20 条/有效期 30 天)
+    case 'save_draft': {
+      const { draft_id, demand_data } = event;
+      const data = (demand_data && typeof demand_data === 'object' && !Array.isArray(demand_data)) ? demand_data : null;
+      if (!data) return { ok: false, code: 'draft_no_data', msg: '草稿内容为空' };
+      if (JSON.stringify(data).length > 10000) {
+        return { ok: false, code: 'draft_too_large', msg: '草稿内容过大' };
+      }
+      const now = Date.now();
+      const expire_at = now + 30 * 24 * 3600 * 1000;  // DRAFT.expireDays=30
+
+      // 更新已有草稿
+      if (draft_id) {
+        if (!isValidDocId(draft_id)) return { ok: false, code: 'draft_bad_id', msg: '草稿 ID 格式不正确' };
+        try {
+          const r = await col('demand_draft').doc(draft_id).get();
+          const d = r.data;
+          if (!d || d.is_deleted) return { ok: false, code: 'draft_not_found', msg: '草稿不存在' };
+          if (d.openid !== openid) return { ok: false, code: 'draft_not_owner', msg: '只能编辑自己的草稿' };
+          await col('demand_draft').doc(draft_id).update({
+            data: { demand_data: data, expire_at, updated_at: now }
+          });
+          return { ok: true, data: { draft_id, updated: true } };
+        } catch (e) {
+          return { ok: false, code: 'draft_fail', msg: '草稿保存失败' };
+        }
+      }
+
+      // 新增草稿: 数量上限 20 条(DRAFT.maxCount=20)
+      try {
+        // 新增草稿: 数量上限 20 条(DRAFT.maxCount=20); 计数只算未过期未删除,
+        // 否则过期草稿在列表不可见/不可删却占名额, 会永久无法保存新草稿
+        const c = await col('demand_draft').where({
+          openid, is_deleted: false, expire_at: _.gt(now)
+        }).count()
+          .catch(() => ({ total: 0 }));  // 集合尚未创建时按 0 处理
+        if ((c.total || 0) >= 20) {
+          return { ok: false, code: 'draft_limit', msg: '草稿最多保存 20 条,请先清理草稿箱' };
+        }
+        const addR = await addWithColl('demand_draft', {
+          openid, demand_data: data, expire_at,
+          created_at: now, updated_at: now, is_deleted: false
+        });
+        return { ok: true, data: { draft_id: addR._id, created: true } };
+      } catch (e) {
+        return { ok: false, code: 'draft_fail', msg: '草稿保存失败' };
+      }
+    }
+
+    // 7. 草稿列表(过滤已过期,最近更新在前; 集合尚未创建时返回空列表)
+    case 'list_drafts': {
+      try {
+        const r = await col('demand_draft').where({
+          openid, is_deleted: false, expire_at: _.gt(Date.now())
+        }).orderBy('updated_at', 'desc').limit(20).get().catch(() => ({ data: [] }));
+        const list = (r.data || []).map((d) => ({
+          _id: d._id,
+          demand_data: d.demand_data || {},
+          created_at: d.created_at,
+          updated_at: d.updated_at,
+          expire_at: d.expire_at
+        }));
+        return { ok: true, data: { list } };
+      } catch (e) {
+        return { ok: false, code: 'draft_list_fail', msg: '草稿查询失败' };
+      }
+    }
+
+    // 8. 删除草稿(软删,仅创建者)
+    case 'delete_draft': {
+      const { draft_id } = event;
+      if (!draft_id) return { ok: false, code: 'draft_no_id', msg: '缺少草稿 ID' };
+      if (!isValidDocId(draft_id)) return { ok: false, code: 'draft_bad_id', msg: '草稿 ID 格式不正确' };
+      try {
+        const r = await col('demand_draft').doc(draft_id).get();
+        const d = r.data;
+        if (!d || d.is_deleted) return { ok: false, code: 'draft_not_found', msg: '草稿不存在' };
+        if (d.openid !== openid) return { ok: false, code: 'draft_not_owner', msg: '只能删除自己的草稿' };
+        await col('demand_draft').doc(draft_id).update({
+          data: { is_deleted: true, updated_at: Date.now() }
+        });
+        return { ok: true, data: { draft_id, deleted: true } };
+      } catch (e) {
+        return { ok: false, code: 'draft_fail', msg: '草稿删除失败' };
+      }
+    }
+
+    // 9. 更新需求(仅创建者,仅 matching 状态; 白名单字段更新; 跳过发布地址重定位)
+    case 'update': {
+      const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
+        remark, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
+        match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id,
+        pricing_type, fixed_price_fen, project_attr } = event;
+      // 计价模式归一化(与 publish 同口径; 缺省 hourly/commercial 兼容存量)
+      const pricingTypeU = pricing_type === 'fixed' ? 'fixed' : 'hourly';
+      const projectAttrU = project_attr === 'public_welfare' ? 'public_welfare' : 'commercial';
+      const isWelfareU = projectAttrU === 'public_welfare';
+
+      if (!demand_id) return { ok: false, code: 'update_no_id', msg: '缺少需求 ID' };
+      if (!isValidDocId(demand_id)) return { ok: false, code: 'update_bad_id', msg: '需求 ID 格式不正确' };
+
+      // d 需在整个 update case 可见(后续 mode 兜底 + 成功日志均引用);
+      // 此前 const 声明在 try 块内, 块外引用抛 ReferenceError: d is not defined, 被误判为 DB 失败
+      let d;
+      try {
+        const r = await col('demand').doc(demand_id).get();
+        d = r.data;
+        if (!d || d.is_deleted) return { ok: false, code: 'update_not_found', msg: '需求不存在' };
+        if (d.creator_openid !== openid) return { ok: false, code: 'update_not_owner', msg: '无权编辑此需求' };
+        if (d.status !== 'matching') return { ok: false, code: 'update_bad_status', msg: `当前状态(${d.status})不可编辑` };
+      } catch (e) {
+        return { ok: false, code: 'update_get_fail', msg: '查询需求失败' };
+      }
+
+      // ── 并行拉配置 + 用户 ──
+      const [config, user] = await Promise.all([getConfig(), getUser(openid)]);
+      if (!user) return { ok: false, code: 'update_no_user', msg: '用户不存在,请先登录' };
+      if (user.status === 'frozen') return { ok: false, code: 'update_frozen', msg: '账号已冻结' };
+      if (user.status === 'banned') return { ok: false, code: 'update_banned', msg: '账号已封禁' };
+      if (user.status === 'closed') return { ok: false, code: 'update_closed', msg: '账号已注销' };
+      // 断链②修复(第三批爽约): 停用中拦截「发布更新」; 到期/缺 suspend_until 视为已恢复按 normal 放行
+      const suspendDaysU = suspendLeftDays(user);
+      if (suspendDaysU > 0) {
+        return { ok: false, code: 'update_suspended', msg: `账号停用中,${suspendDaysU}天后自动恢复` };
+      }
+
+      // ── 场景白名单(动态从 admin_config.scene_list 读取) ──
+      const sceneCodes2 = await getSceneCodes();
+      if (!scene || sceneCodes2.indexOf(scene) < 0) {
+        return { ok: false, code: 'update_scene_invalid', msg: '场景不在白名单' };
+      }
+      const mode = MATCH_MODE_WHITELIST.indexOf(match_mode) >= 0 ? match_mode : d.match_mode;
+
+      // ── 开始时间: 必须是未来时间戳, 距现在不超 30 天 ──
+      if (!start_time || typeof start_time !== 'number' || start_time <= Date.now()) {
+        return { ok: false, code: 'update_start_time', msg: '开始时间必须是未来时间' };
+      }
+      const MAX_ADVANCE_MS = 30 * 24 * 3600 * 1000;
+      if (start_time > Date.now() + MAX_ADVANCE_MS) {
+        return { ok: false, code: 'update_time_too_far', msg: '服务时间距现在不能超过 30 天' };
+      }
+
+      // ── 时长 1-12 ──
+      if (!duration_h || duration_h < 1 || duration_h > 12) {
+        return { ok: false, code: 'update_duration', msg: '时长需 1-12 小时' };
+      }
+
+      // ── 计价分支(与 publish 同口径: hourly / fixed / 公益特例; 收敛到 total_fen) ──
+      let docPricingTypeU, docRateFenU, docFixedPriceFenU, docProjectAttrU, total_fen;
+      docProjectAttrU = projectAttrU;
+      if (isWelfareU) {
+        const wFen = Number(config.welfare_fixed_price_fen);
+        if (!Number.isFinite(wFen)) {
+          return { ok: false, code: 'update_welfare_not_open', msg: '公益单暂未开放,请稍后再试' };
+        }
+        docPricingTypeU = 'fixed'; docFixedPriceFenU = wFen; docRateFenU = null; total_fen = wFen;
+      } else if (pricingTypeU === 'fixed') {
+        if (!fixed_price_fen || typeof fixed_price_fen !== 'number' || fixed_price_fen <= 0) {
+          return { ok: false, code: 'update_fixed_price', msg: '一口价金额格式有误' };
+        }
+        const _uFLo = Number(config.fixed_price_min_fen);
+        const _uFHi = Number(config.fixed_price_max_fen);
+        if (Number.isFinite(_uFLo) && fixed_price_fen < _uFLo) {
+          return { ok: false, code: 'update_fixed_range', msg: `一口价需不低于 ${_uFLo / 100} 元` };
+        }
+        if (Number.isFinite(_uFHi) && fixed_price_fen > _uFHi) {
+          return { ok: false, code: 'update_fixed_range', msg: `一口价需不高于 ${_uFHi / 100} 元` };
+        }
+        docPricingTypeU = 'fixed'; docFixedPriceFenU = fixed_price_fen; docRateFenU = null; total_fen = fixed_price_fen;
+      } else {
+        if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
+          return { ok: false, code: 'update_rate', msg: '时薪金额格式有误' };
+        }
+        // 0 是合法下限(不用 || 兜底); 区间与提示文案均按后台实配生成
+        const _uLo = Number(config.rate_min_fen);
+        const _uHi = Number(config.rate_max_fen);
+        const uLo = Number.isFinite(_uLo) ? _uLo : 3000;
+        const uHi = Number.isFinite(_uHi) ? _uHi : 10000;
+        if (rate_fen < uLo || rate_fen > uHi) {
+          return { ok: false, code: 'update_rate_range', msg: `时薪需在 ${uLo / 100}-${uHi / 100} 元/小时之间` };
+        }
+        docPricingTypeU = 'hourly'; docFixedPriceFenU = null; docRateFenU = rate_fen; total_fen = rate_fen * duration_h;
+      }
+
+      // ── 履约地点 ──
+      if (!location || !location.name) {
+        return { ok: false, code: 'update_location', msg: '请填写履约地点名称' };
+      }
+
+      // ── AA + 免责声明 ──
+      if (!aa_tier) return { ok: false, code: 'update_aa_tier', msg: '请选择 AA 档位' };
+      if (!aa_promise_checked) return { ok: false, code: 'update_aa_promise', msg: '请先勾选《线下费用自理承诺书》' };
+      if (!disclaimer_signed) return { ok: false, code: 'update_disclaimer', msg: '请先勾选《场景免责声明》' };
+      // W9 宠物照料授权(与 publish 同口径: 无凭证视为未授权)
+      if (scene === 'W9' && !pet_auth_checked) {
+        return { ok: false, code: 'update_pet_auth_required', msg: 'W9 宠物陪伴需先确认《宠物照料授权书》' };
+      }
+      // 首次补留证(该需求此前无凭证)时才要求手写签字图; 已签过的需求沿用原留证不重复签
+      let petSignature = null;
+      if (scene === 'W9' && pet_auth_checked && d.pet_auth_signed !== true) {
+        petSignature = await verifySignatureFile(pet_auth_signature_file_id);
+        if (!petSignature.ok) {
+          return { ok: false, code: 'update_pet_auth_sign_required', msg: '请完成《宠物照料授权书》手写签字后重试' };
+        }
+      }
+
+      // ── 定向邀约改 direct 时需校验 target_openid ──
+      if (mode === 'direct') {
+        if (!target_openid) return { ok: false, code: 'update_target_required', msg: '定向邀约缺少指定耍伴' };
+        if (target_openid === openid) return { ok: false, code: 'update_target_self', msg: '不能定向邀约自己' };
+        const tpR = await col('partner_profile')
+          .where({ openid: target_openid, status: 'approved', is_deleted: _.neq(true) })
+          .limit(1).get().catch(() => ({ data: [] }));
+        if (!(tpR.data && tpR.data[0])) {
+          return { ok: false, code: 'update_target_invalid', msg: '指定耍伴不存在或未通过审核' };
+        }
+      }
+
+      // ── 城市校验 ──
+      const normCity = (c) => String(c || '').replace(/市$/, '').trim();
+      const city = normCity(location.city) || '成都';
+      let enabledCities = (Array.isArray(config.city_enabled) ? config.city_enabled : [])
+        .map(normCity).filter(Boolean);
+      if (enabledCities.length === 0) enabledCities = ['成都'];
+      const locName = String((location && location.name) || '');
+      const cityOk = enabledCities.indexOf(city) >= 0
+        || enabledCities.some((c) => city.indexOf(c) >= 0 || locName.indexOf(c) >= 0);
+      if (!cityOk) {
+        return { ok: false, code: 'update_city_disabled', msg: `当前城市未开通服务(${city})` };
+      }
+
+      // ── 子服务内容校验 ──
+      let opts = Array.isArray(content_options)
+        ? content_options
+        : (typeof content_option === 'string' ? [content_option] : []);
+      opts = Array.from(new Set(opts.map((s) => String(s || '').trim()).filter(Boolean)));
+      if (opts.length === 0) return { ok: false, code: 'update_content_option', msg: '请选择服务内容' };
+      if (opts.length > contentOptionsMax(config)) return { ok: false, code: 'update_content_too_many', msg: `服务内容最多 ${contentOptionsMax(config)} 项` };
+      const sceneCfg = (config.scene_list || []).find((s) => s.code === scene);
+      const allowedOptions = (sceneCfg && sceneCfg.options) || SCENE_OPTIONS_FALLBACK[scene] || [];
+      for (const o of opts) {
+        if (allowedOptions.indexOf(o) < 0) {
+          return { ok: false, code: 'update_content_invalid', msg: `服务内容「${o}」不在该场景可选项内` };
+        }
+      }
+
+      // ── 备注安全 ──
+      const remarkStr = remark ? String(remark).trim() : '';
+      if (remarkStr) {
+        if (remarkStr.length > REMARK_MAX_LEN) {
+          return { ok: false, code: 'update_remark_long', msg: `备注最长 ${REMARK_MAX_LEN} 字` };
+        }
+        const chk = await checkText(openid, remarkStr, config.block_words);
+        if (!chk.pass) {
+          return { ok: false, code: 'update_remark_blocked', msg: chk.reason };
+        }
+      }
+
+      // ── 时间冲突校验:排除当前需求本身 ──
+      const newStart = start_time;
+      const newEnd = start_time + duration_h * 3600 * 1000;
+      const existDemands = await col('demand').where({
+        creator_openid: openid, scene, is_deleted: false,
+        status: _.neq('cancelled'),
+        _id: _.neq(demand_id)  // 排除自己, 避免编辑前和编辑后冲突
+      }).get();
+      for (const e of existDemands.data) {
+        const oldStart = e.start_time;
+        const oldEnd = e.start_time + (e.duration_h || 1) * 3600 * 1000;
+        if (!(newStart < oldEnd && oldStart < newEnd)) continue;
+        const oldOpts = (e.content_options && e.content_options.length)
+          ? e.content_options
+          : (e.content_option ? [e.content_option] : []);
+        if (opts.some((o) => oldOpts.indexOf(o) >= 0)) {
+          return { ok: false, code: 'update_time_conflict', msg: '该时段已有同类服务需求,请调整时间' };
+        }
+      }
+
+      // ── 青少年保护(total_fen 已在计价分支算出) ──
+      if (user.age !== null && user.age !== undefined && user.age >= 18 && user.age <= 22) {
+        if (total_fen > (config.youth_limit_fen || 20000)) {
+          return { ok: false, code: 'update_youth_limit', msg: '18-22 岁用户单笔订单上限 200 元' };
+        }
+      }
+
+      // ── 白名单字段组装(publish_location/broadcast/invited 等系统字段禁止改) ──
+      const now = Date.now();
+      const patch = {
+        scene,
+        content_option: opts[0],
+        content_options: opts,
+        start_time,
+        duration_h,
+        location: {
+          name: location.name,
+          address: location.name,
+          latitude: location.latitude || 0,
+          longitude: location.longitude || 0,
+          city
+        },
+        remark: remarkStr,
+        pricing_type: docPricingTypeU,
+        project_attr: docProjectAttrU,
+        rate_fen: docRateFenU,
+        fixed_price_fen: docFixedPriceFenU,
+        total_fen,
+        aa_tier,
+        aa_promise_signed: !!aa_promise_checked,
+        disclaimer_signed: !!disclaimer_signed,
+        disclaimer_signed_at: now,
+        match_mode: mode,
+        headcount: headcount || 1,
+        gender_pref: gender_pref || '不限',
+        updated_at: now
+      };
+      // match_mode 改了 → 同步更新 broadcast/invited(不改 publish_location!)
+      patch.broadcast = mode === 'broadcast';
+      patch.invited = mode === 'direct' ? [target_openid] : [];
+      // 场景变更时同步刷新免责声明类型(SSOT: admin_config.scene_list; 此前 update 漏刷新, 场景与类型可能不一致)
+      patch.disclaimer_type = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';
+      // W9 宠物照料授权(电子确认)状态同步; 非 W9 场景恒 false
+      patch.pet_auth_signed = scene === 'W9' && !!pet_auth_checked;
+      if (patch.pet_auth_signed) patch.pet_auth_signed_at = now;
+      if (mode === 'direct' && target_openid) {
+        patch.target_openid = target_openid;
+      }
+
+      // ── CAS 更新: 仅 matching 状态可改, 防止并发冲突 ──
+      try {
+        const cr = await col('demand').where({ _id: demand_id, status: 'matching' }).update({ data: patch });
+        if (!cr.stats || cr.stats.updated !== 1) {
+          return { ok: false, code: 'update_gone', msg: '需求状态已变化,请刷新后重试' };
+        }
+        log.d(`demand updated: ${d.demand_no}`);
+        // ── P1 留证: 场景变更(=换签新场景免责声明)才补新留证; 场景未变沿用原留证(不重复签) ──
+        let upEvidenceId = '';
+        let upEvidenceHash = '';
+        let upPetEvidenceId = '';
+        if (d.scene !== scene) {
+          try {
+            const upData = buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: patch.disclaimer_type, config,
+              demandId: demand_id, signedAt: now
+            });
+            const upRes = await col('disclaimer_signature').add({ data: upData });
+            upEvidenceId = (upRes && upRes._id) || '';
+            upEvidenceHash = upData.signature_hash || '';
+            log.d(`scene evidence(user) written(update): ${d.demand_no}`);
+          } catch (ee) {
+            log.d(`scene evidence(update) fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'update', scene, demand_id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
+        // ── W9 留证: 首次确认宠物照料授权书(该需求此前无凭证)时补留证 ──
+        if (scene === 'W9' && pet_auth_checked && d.pet_auth_signed !== true) {
+          try {
+            const upPetData = buildCheckboxEvidence({
+              openid, role: 'user', scene, disclaimerType: 'pet_authorization',
+              config, demandId: demand_id, signedAt: now,
+              kind: 'pet_authorization',
+              signature: petSignature,
+              doc: {
+                key: 'pet_authorization', title: '宠物照料授权书',
+                text: String(config.legal_pet_authorization || DEFAULT_PET_AUTHORIZATION)
+              }
+            });
+            const upPetRes = await col('disclaimer_signature').add({ data: upPetData });
+            upPetEvidenceId = (upPetRes && upPetRes._id) || '';
+            log.d(`pet auth evidence written(update): ${d.demand_no}`);
+          } catch (ee) {
+            log.d(`pet auth evidence(update) fail: ${(ee && ee.message) || ee}`);
+            col('platform_event').add({ data: {
+              level: 'P3', type: 'evidence_write_fail', openid,
+              payload: { node: 'update_pet', scene, demand_id, message: String((ee && ee.message) || ee) },
+              created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+            }}).catch(() => {});
+          }
+        }
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'business', action: 'demand_update',
+          target_type: 'demand', target_id: demand_id,
+          detail: {
+            demand_no: d.demand_no, scene, prev_scene: d.scene, match_mode: mode,
+            scene_changed: d.scene !== scene,
+            pet_auth: scene === 'W9' && !!pet_auth_checked,
+            evidence_ids: [upEvidenceId, upPetEvidenceId].filter(Boolean)
+          },
+          evidence_id: upEvidenceId, doc_hash: upEvidenceHash,
+          result: 'ok', client_ip: clientIp, device
+        });
+        return { ok: true, data: { _id: demand_id, updated_at: now } };
+      } catch (e) {
+        // 记录数据库原始错误(此前被吞, 无法定位; 查询通道: admin-action export_collection platform_event)
+        try {
+          await col('platform_event').add({ data: {
+            level: 'P3', type: 'demand_update_fail', openid,
+            payload: { demand_id, message: String((e && e.message) || e), errCode: (e && e.errCode) || '' },
+            created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+          }});
+        } catch (_) {}
+        log.d(`update db fail: ${(e && e.message) || e}`);
+        return { ok: false, code: 'update_db_fail', msg: '需求更新失败' };
+      }
+    }
+
+    default:
+      return { ok: false, code: 'publish_unknown_action', msg: '未知动作' };
+  }
+};
+
+// ─────────────── 内部函数 ───────────────
+// 懒过期:把 expire_at 已过期的 matching 需求置为 expired
+async function lazyExpire() {
+  try {
+    const r = await col('demand').where({
+      status: 'matching', expire_at: _.lt(Date.now()), is_deleted: false
+    }).limit(100).get();
+    if (!r.data || r.data.length === 0) return 0;
+    let n = 0;
+    for (const d of r.data) {
+      // CAS: 仅 matching→expired, 不覆盖刚被接单(matched)/取消的需求
+      try {
+        const cr = await col('demand').where({ _id: d._id, status: 'matching' }).update({ data: {
+          status: 'expired', expired_at: Date.now(), updated_at: Date.now()
+        }});
+        if (cr.stats && cr.stats.updated === 1) {
+          n++;
+          log.d(`demand expired: ${d.demand_no}`);
+        }
+      } catch (e) {}
+    }
+    return n;
+  } catch (e) {
+    log.d(`lazy_expire error: ${e.message}`);
+    return 0;
+  }
+}

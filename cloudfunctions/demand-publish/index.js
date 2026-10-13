@@ -386,6 +386,11 @@ async function addWithColl(name, doc) {
   }
 }
 
+// 已拆分 action 的 HANDLERS 分发表(物理拆分, 行为逐字不变; 约束见 .trae/skills/cloud-function-split)
+const HANDLERS = Object.assign({},
+  require('./action_lifecycle')
+);
+
 // ─────────────── 主入口 ───────────────
 exports.main = async (event, context) => {
   const wxCtx = cloud.getWXContext();
@@ -399,6 +404,12 @@ exports.main = async (event, context) => {
   // 审计留痕公共字段
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
+  // 已拆分 action 走 HANDLERS 分发; 其余 action 仍走下方 switch
+  if (HANDLERS[action]) {
+    const ctx = { event, openid, col, log, writeAudit, db, clientIp, device, isValidDocId, lazyExpire };
+    return await HANDLERS[action](ctx);
+  }
+
 
   switch (action) {
 
@@ -1062,45 +1073,6 @@ exports.main = async (event, context) => {
       }
     }
 
-    // 2. 取消需求(仅创建者,仅 matching 状态)
-    case 'cancel': {
-      const { demand_id } = event;
-      if (!demand_id) return { ok: false, code: 'cancel_no_id', msg: '缺少需求 ID' };
-      if (!isValidDocId(demand_id)) return { ok: false, code: 'cancel_bad_id', msg: '需求 ID 格式不正确:请传入需求 _id(32位十六进制),不是需求编号(DR 开头)' };
-
-      // 先懒过期
-      await lazyExpire();
-
-      try {
-        const r = await col('demand').doc(demand_id).get();
-        const d = r.data;
-        if (!d) return { ok: false, code: 'cancel_not_found', msg: '需求不存在' };
-        if (d.creator_openid !== openid) {
-          return { ok: false, code: 'cancel_not_owner', msg: '只能取消自己的需求' };
-        }
-        if (d.status !== 'matching') {
-          return { ok: false, code: 'cancel_status', msg: `当前状态${d.status},不可取消` };
-        }
-        // CAS: 仅 matching→cancelled, 与接单(order-create CAS matching→matched)/懒过期互斥
-        const cr = await col('demand').where({ _id: demand_id, status: 'matching' }).update({ data: {
-          status: 'cancelled', cancelled_at: Date.now(), updated_at: Date.now()
-        }});
-        if (!cr.stats || cr.stats.updated !== 1) {
-          return { ok: false, code: 'cancel_status', msg: '需求状态已变化,请刷新后重试' };
-        }
-        log.d(`demand cancelled: ${d.demand_no}`);
-        await writeAudit(db, log, {
-          openid, role: 'user', category: 'business', action: 'demand_cancel',
-          target_type: 'demand', target_id: demand_id,
-          detail: { demand_no: d.demand_no, scene: d.scene || '' },
-          result: 'ok', client_ip: clientIp, device
-        });
-        return { ok: true, data: { demand_id, status: 'cancelled' } };
-      } catch (e) {
-        return { ok: false, code: 'cancel_fail', msg: '取消失败' };
-      }
-    }
-
     // 3. 我的需求列表(含候选耍伴摘要)
     case 'my_demands': {
       // 先懒过期
@@ -1125,12 +1097,6 @@ exports.main = async (event, context) => {
       } catch (e) {
         return { ok: false, code: 'my_demands_fail', msg: '查询失败' };
       }
-    }
-
-    // 4. 懒过期:把过期 matching 需求置为 expired
-    case 'lazy_expire': {
-      const n = await lazyExpire();
-      return { ok: true, data: { expired_count: n } };
     }
 
     // 5. 需求详情(公开, 含发布者姓氏)
