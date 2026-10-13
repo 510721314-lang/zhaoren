@@ -11,6 +11,9 @@
     <el-tabs v-model="activeTab">
       <!-- ── Tab 1: 阈值与开关(schema 驱动) ── -->
       <el-tab-pane label="阈值与开关" name="thresholds">
+        <el-alert type="info" :closable="false" style="margin-bottom:12px">
+          每个参数下方的灰色文字为其用途与影响说明（由后台 CONFIG_SCHEMA 统一下发，改参数定义时同步维护）。保存仅提交发生变化的参数并需填写变更原因，立即写入配置历史（C 端约 5 分钟内生效）。高风险项：平台总开关、模拟支付开关、平台抽成、费率区间、信用阈值，调整前请评估影响面。
+        </el-alert>
         <el-form v-if="data" label-width="210px" label-position="right">
           <el-card v-for="grp in groups" :key="grp" style="margin-bottom:16px">
             <template #header>
@@ -43,6 +46,7 @@
                     inactive-text="关闭"
                   />
                   <span v-if="s.unit" class="ops-unit">{{ s.unit }}</span>
+                  <div v-if="s.d" class="ops-desc">{{ s.d }}</div>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -747,6 +751,7 @@ onMounted(async () => {
 
 <style scoped>
 .ops-unit { margin-left:8px; color:#909399; font-size:12px; }
+.ops-desc { flex-basis:100%; width:100%; font-size:12px; color:#909399; line-height:1.45; margin-top:2px; }
 .opt-chip { display:inline-flex; align-items:center; gap:2px; margin:0 10px 4px 0; }
 .opt-sort-row { display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px dashed #ebeef5; }
 .opt-sort-row:last-of-type { border-bottom:none; }

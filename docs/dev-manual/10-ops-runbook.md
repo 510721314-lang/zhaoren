@@ -87,11 +87,30 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 
 ## 10.5 配置变更与一致性同步
 
-- **唯一入口** `config_set`（后台 Config 页或网关直调）：`CONFIG_SCHEMA` 校验 + 事务写 + `config_history` 快照 + `platform_event(P2)` 审计。
+- **唯一入口** `config_set`（后台「运营配置」页或网关直调）：`CONFIG_SCHEMA` 校验 + 事务写 + `config_history` 快照 + `platform_event(P2)` 审计。
 - **生效时延**：`scene_list` 缓存 5 分钟 / `scene_groups` 60 秒；后台成功统一提示「约 5 分钟内生效」。
 - **场景中文映射全仓同步**（改场景名必须全改）：`SCENE_CN`/`SCENE_NAME`/`SCENE_NAMES_LEGACY`/`SCENE_NAMES` 散落在 order-action / admin-action / demand-publish / im-conv / im-send / home-action / payment-mock。新增/改场景须全仓 Grep 一处改处处查。
 - **共享模块四件套同步**：改 `_shared/` 规范源后**必须**跑对应 `sync-*.ps1`（`sync-take-rules` / `sync-money-rules` / `sync-test-data` / `sync-partner-audit` …），`scripts/check-shared-sync.js` 会做 SHA 拦截。
 - **零副作用验证手法**：`config_set` 传某 int 键的**当前值**（值不变但 patch 非空）→ 成功写入并产生快照，不改变线上行为。
+
+### 10.5.1 运营配置页维护指引（admin-web →「运营配置」）
+
+页面源码 [Operations.vue](file:///c:/zhaoren/admin-web-frontend/src/views/Operations.vue)，三个页签：
+
+| 页签 | 维护内容 | 关键规则 |
+|---|---|---|
+| 阈值与开关 | 15 组 78 项运营参数；**每项下方灰色文字即「设置方法与影响说明」**（2026-10-13 起内嵌，文案=`CONFIG_SCHEMA.d`，由 `config_get` 统一下发） | 保存走 diff 确认弹窗：仅提交变化项 + 必填变更原因；写 `config_history` + P2 审计 |
+| 场景管理 | 场景新增/删除、前端显示开关、↑↓ 排序、服务项增删与排序 | 列表顺序=前端展示顺序（**前 5 名进首页主宫格**，其余进「更多场景」折叠区）；内置场景（`builtin`）不可删除；「前端显示」为**入口级隐藏**（不做后端拦截，隐藏后存量需求仍可在广场/附近/详情看到）；场景可见但可用服务项为 0 时前端自动隐藏该场景 |
+| 首页活动 | 活动 CRUD（banner 轮播 / 活动卡片 / 两者） | 仅「有效期内 + 状态 active」前端可见；priority 越大越靠前；Banner 750×360 横向、封面 750×750 方形（jpg/png/webp ≤2MB，前端自动压缩） |
+
+**高风险项（调整前评估影响面）**：
+
+- **平台总开关** `switch_access` / `switch_blog` / `switch_im`：关闭=维护态（服务端拦截 + C 端维护提示）。
+- **模拟支付开关** `mock_payment_enabled`：测试期 mock 资金入口；**提审/正式上线前必须置回 `false`**（prod 下为 true 时 `quick_check` 返回 `mock_gate.status=BLOCK`）。
+- **平台抽成** `platform_fee_rate_fen`（万分比，1000=10%）与**费率区间**（`rate_min_fen`/`rate_max_fen` 为时薪滑杆钳制边界；一口价区间留空=不钳制）、**信用阈值**（发单/接单准入）。
+- 跨字段校验（`config_set` 内）：`rate_min_fen < rate_max_fen`、`fixed_price_min_fen ≤ fixed_price_max_fen`、`time_redline_open_min < time_redline_close_min`（close>0 时）。
+
+**说明文案的唯一事实源**：每项参数的 `label`（中文标签）与 `d`（设置说明）都定义在 [admin-action/index.js `CONFIG_SCHEMA`](file:///c:/zhaoren/cloudfunctions/admin-action/index.js#L130-L236)；新增参数或改说明只改这一处，运营配置页自动展示，无需改前端。
 
 ## 10.6 密钥轮换（`admin_web_key`）
 

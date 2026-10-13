@@ -87,5 +87,6 @@
 | 2026-10-13 | 运维负债闭环 | 索引走 tcb 直连通道核对（设计 33 / 已建 33 / 缺失 0）；`zz-warmup` 触发器经 tcb 更新为全天候并同步 `cloudbaserc.json`；新增 `config_restore` + `import_collection` 支撑 DB 恢复；备份清单补 `complaint` → 37 集合 |
 | 2026-10-13 | 代码/架构负债闭环 | ① `admin_login` 防爆破锁定（5 次/10 分钟，复用 `_shared/security_policy.js` 并入 SYNC_MAP）；② `openid.js` 全量 17 函数单一源收敛（admin-action 超集/init-db 变体归零，force_set_env 补写 `dev_until`） |
 | 2026-10-13 | 留存负债全量闭环 | ① `order-timer` 游标分页（消 skip 漂移，D23）；② 争议单超期升级落地（`dispute_escalate_d` → P1 `dispute_escalate_overdue`，D24）；③ 三处失败计数原子化（admin_login / password_login / SMS，D25）；④ 客服会话全局占位复核已修（`kefu_` 云端命中）→ **A.2 在册负债清零**；门禁 pass 360/0（+9 例） |
+| 2026-10-13 | 运营配置说明化 | `CONFIG_SCHEMA` 全 78 项新增 `d` 设置说明（SSOT 单点维护，`config_get` 统一下发）；运营配置页表单项下方内嵌灰色说明 + 页头使用提示；Ch10 §10.5.1 新增「运营配置页维护指引」（三页签操作规则 + 高风险项清单） |
 
 > 手册修订流程：以代码为唯一事实源 → 改动后跑 `node scripts/check-manual-links.js` 与 `npm run verify` → 更新本附录变更记录。
