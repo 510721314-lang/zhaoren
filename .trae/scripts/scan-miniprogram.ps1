@@ -1,4 +1,4 @@
-# zhaoren scan-miniprogram.ps1 — 小程序静态一致性门禁
+﻿# zhaoren scan-miniprogram.ps1 — 小程序静态一致性门禁
 # 三合一: node --check 语法 + no-undef 未定义变量 + data/WXML 绑定一致性
 # 用法:
 #   .\scan-miniprogram.ps1                # 全量扫描(默认 miniprogram 根)

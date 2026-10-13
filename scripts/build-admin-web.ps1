@@ -1,4 +1,4 @@
-# scripts/build-admin-web.ps1 · 构建 admin-web 前端并同步到云函数 public 目录(批 5.5)
+﻿# scripts/build-admin-web.ps1 · 构建 admin-web 前端并同步到云函数 public 目录(批 5.5)
 # 用法: powershell -File scripts/build-admin-web.ps1
 # public/ 构建产物已出库(.gitignore), 部署 admin-web 前须先跑本脚本生成产物。
 $ErrorActionPreference = 'Stop'

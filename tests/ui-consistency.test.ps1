@@ -1,4 +1,4 @@
-# UI 一致性校验测试 · 找人帮忙小程序
+﻿# UI 一致性校验测试 · 找人帮忙小程序
 # 用法: powershell -ExecutionPolicy Bypass -File tests\ui-consistency.test.ps1
 # 无需第三方依赖, 纯 PowerShell
 #

@@ -1,4 +1,4 @@
-# Sync openid.js (canonical) -> local copies in ALL 17 cloud functions that share the core resolver
+﻿# Sync openid.js (canonical) -> local copies in ALL 17 cloud functions that share the core resolver
 # Usage: powershell -File cloudfunctions/_shared/sync-openid.ps1
 # Canonical source: _shared/openid.js ; run this script after ANY edit to it.
 #

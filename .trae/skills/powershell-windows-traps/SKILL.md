@@ -190,3 +190,4 @@ Get-Content "$env:USERPROFILE\.gitconfig"
 - `git push 2>&1` 报 NativeCommandError 但实际成功，靠输出里 `master -> master` 判断
 - `$manifest | ConvertTo-Json | [IO.File]::WriteAllText` 报 pipeline 错，改为先存 `$json` 变量
 - 2026-10-10 manual-backup.ps1（中文注释 + UTF-8 无 BOM）→ `Unexpected token` / `Missing terminator`（表象像语法错误，实为 GBK 乱码解析）→ 方案 A 加 BOM 修复（e2fa124）；对照：JSON 配置文件反之必须**无 BOM**，勿混淆
+- 2026-10-13 二次实证（**BOM 会被后续编辑静默丢失**）：manual-backup.ps1 / restore.ps1 在 10-13 早间改动后丢 BOM → 整脚本 ParserError（备份链整体不可用；manual-backup 的 L6 CLI 旧路径同时会静默 SKIP）；修复=重加 BOM（f18d2d0）。**纪律：任何编辑/工具改写中文 .ps1 后，复检前 3 字节 = `EF BB BF`**；本次全仓扫描又补 6 个（.trae/predeploy.ps1、.trae/scripts/scan-miniprogram.ps1、_shared/sync-openid.ps1、_shared/sync-security-policy.ps1、scripts/build-admin-web.ps1、tests/ui-consistency.test.ps1）

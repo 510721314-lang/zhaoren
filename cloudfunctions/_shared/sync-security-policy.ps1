@@ -1,4 +1,4 @@
-# Sync security_policy.js (canonical) -> local copies in the 3 cloud functions that share it
+﻿# Sync security_policy.js (canonical) -> local copies in the 3 cloud functions that share it
 # Usage: powershell -File cloudfunctions/_shared/sync-security-policy.ps1
 # Canonical source: _shared/security_policy.js ; run this script after ANY edit to it.
 # Consumers: user-login(密码登录防爆破/紧急联系人冷却) / init-db(bootstrap CAS 决策) /
