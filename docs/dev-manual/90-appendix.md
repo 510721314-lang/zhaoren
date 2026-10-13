@@ -72,7 +72,7 @@
 | D22 | 场景隐藏过滤**统一在 `home-action.scene_groups` 出口** | 单一出口避免过滤散落导致泄漏 | Ch5 §5.5 |
 | D23 | `order-timer` 分页改**游标分页**（`_id` 游标 + `orderBy('_id')`） | skip 分页在并发写者下会越过未处理文档（延迟一轮）；`_id` 恒有索引、零新建索引成本，且对写者完全稳定 | [order-timer/index.js L31-L55](file:///c:/zhaoren/cloudfunctions/order-timer/index.js#L31-L55) |
 | D24 | 争议超期升级只做**升级信号**（P1 平台事件），禁止自动裁决 | 自动裁决的资金/责任风险不可控；P1 事件复用 errorScan 既有巡检推送链路，幂等标记 `dispute_escalated_at` 防重复 | [order-timer §4.8](file:///c:/zhaoren/cloudfunctions/order-timer/index.js) |
-| D25 | 失败计数一律**原子自增 + 达阈值条件写** | 读-改-写在并发下丢计数可绕过锁定阈值；`_.inc` + 条件写两者皆幂等、无锁成本 | [action_auth_pre.js L61-L72](file:///c:/zhaoren/cloudfunctions/admin-action/action_auth_pre.js#L61-L72) / [user-login L1196-L1205](file:///c:/zhaoren/cloudfunctions/user-login/index.js#L1196-L1205) |
+| D25 | 失败计数一律**原子自增 + 达阈值条件写** | 读-改-写在并发下丢计数可绕过锁定阈值；`_.inc` + 条件写两者皆幂等、无锁成本（`passwordFailPatch` 纯函数现无运行时调用者，保留——删除需连带 3 副本同步+重部署，随下次 init-db 部署顺带清理） | [action_auth_pre.js L61-L72](file:///c:/zhaoren/cloudfunctions/admin-action/action_auth_pre.js#L61-L72) / [user-login L1196-L1205](file:///c:/zhaoren/cloudfunctions/user-login/index.js#L1196-L1205) |
 
 ## A.4 变更记录
 
