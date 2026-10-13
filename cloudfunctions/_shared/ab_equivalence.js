@@ -34,6 +34,12 @@ const paStore = (over) => Object.assign({
   partner_profile: { [PAID]: { _id: PAID, openid: USER, status: 'approved', accept_scenes: ['W1'], is_deleted: false } },
   system_notice: {}, audit_log: {}, exam_bank: {}, evaluation: {}, order_main: {}
 }, over || {});
+// order-timer: 拆分用例夹具(纯 cron 入口, 经 timer event 触发; prod 口径忽略 mock_openid)
+const otStore = (over) => Object.assign({
+  admin_config: { global: { env: 'prod', admin_openids: [] } },
+  order_main: {}, user_account: {}, demand: {}, system_notice: {}, order_status_log: {},
+  platform_event: {}, audit_log: {}, evaluation: {}, credit_score_log: {}, admin_web_session: {}
+}, over || {});
 
 // P1 E2E: CN 12:00 安全时间戳(落在 redline 运营时段内), A/B 两侧同值故不影响等价
 const _tsD = new Date(); _tsD.setUTCDate(_tsD.getUTCDate() + 1); _tsD.setUTCHours(4, 0, 0, 0);
@@ -321,6 +327,20 @@ const CASES = [
   { fn: 'partner-action', name: 'pa_sub_ok', openid: USER, store: paStore(), event: { action: 'sub_authorize', tmpl: 'demand_grab', authorized: true, mock_openid: USER } },
   { fn: 'partner-action', name: 'pa_my_profile_no', openid: USER, store: paStore({ partner_profile: {} }), event: { action: 'my_profile', mock_openid: USER } },
   { fn: 'partner-action', name: 'pa_my_profile_ok', openid: USER, store: paStore(), event: { action: 'my_profile', mock_openid: USER } },
+  // ── order-timer：物理拆分段落组(S1/S0/中断/改期/加时/停用恢复/里程碑/自动评价/S8归档/S4升级/争议升级) A/B 证据 ──
+  { fn: 'order-timer', name: 'ot_forbidden', openid: USER, store: otStore(), event: { action: 'run', mock_openid: USER } },
+  { fn: 'order-timer', name: 'ot_timer_empty', openid: '', store: otStore(), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s1', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S1', created_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s0', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-2', status: 'S0', pay_expire_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s35', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-3', status: 'S3.5', interrupted_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s25', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-4', status: 'S2_5', modify_at: 1, pending_modify: { from_status: 'S2', by_openid: USER }, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s3_extend', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-5', status: 'S3', pending_extend: { created_at: 1, by_openid: USER }, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_suspend', openid: '', store: otStore({ user_account: { ['u'.repeat(32)]: { _id: 'u'.repeat(32), openid: USER, status: 'suspended', suspend_until: 1 } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_milestone', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-6', status: 'S3', milestone: { submitted_at: 1, confirmed: [false, false, false] }, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s5', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-7', status: 'S5', service_completed_at: 1, total_fen: 1000, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s8', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-8', status: 'S8', evaluated_at: 1, total_fen: 1000, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_s4', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-9', status: 'S4', updated_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
+  { fn: 'order-timer', name: 'ot_dispute', openid: '', store: otStore({ order_main: { [OID]: { _id: OID, order_no: 'ORD-10', status: 'S10.5', dispute_state: 'open', dispute_opened_at: 1, user_openid: USER, partner_openid: PARTNER } } }), event: { Type: 'Timer', TriggerName: 'orderTimer' } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，

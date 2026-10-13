@@ -19,6 +19,13 @@ const { casTransition } = require('./order_state');
 const { dueStages } = require('./urge_rules');
 // 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
 const { starCreditDelta } = require('./credit_rules');
+// 物理拆分(2026-10-13): 扫描段落已抽到同级模块(action_*.js), 经 sectionCtx 注入共享符号; 段内禁 require('./index')
+const SECTIONS = Object.assign({},
+  require('./action_timeout'),
+  // require('./action_lifecycle'),
+  // require('./action_modify'),
+  // require('./action_account'),
+);
 
 const BATCH = 50; // 单次每类状态最多处理笔数, 防止超时
 
@@ -525,69 +532,23 @@ exports.main = async (event, context) => {
   const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
+  // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
+  const sectionCtx = {
+    event, now, cfg, out, _backlog, adminOpenids, isAdmin, isTimer,
+    s1Min, interruptH, evalH, defaultStar, msConfirmMin, afterSaleDays, partialJudgeDays,
+    disputeEscDays, modifyConfirmH, extendConfirmMin,
+    cloud, db, _, col, log, BATCH, SCAN_PAGE, SCAN_MAX, DEFAULT_SCAN_EXEMPT, SCAN_REPUSH_MS,
+    PRUNE_DAYS, PRUNE_CAP,
+    trackBacklog, scanAll, getConfig, num, logStatus, casStatus, scanExemptList, isScanExemptEvent,
+    errorScan, auditPrune, validLngLat, haversineKm, fmtDate, sendDemandSub, processDemandNotify,
+    processUrgeReminder, revertExpiredDev, pruneSessions, starCreditDelta, casTransition, dueStages
+  };
+
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
-  try {
-    const s1Cut = now - s1Min * 60 * 1000;
-    const s1s = await scanAll('order_main', () => ({ status: 'S1', created_at: _.lt(s1Cut) }));
-    trackBacklog('S1', s1s.length >= SCAN_MAX ? s1s : []);
-    const s1OK = [];
-    await Promise.allSettled(s1s.map(async (o) => {
-      const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now }, 'cancel');
-      if (!won) { out.skipped.push(o.order_no + ':S1竞态'); return; }
-      if (o.demand_id) {
-        await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
-          data: { status: 'matching', updated_at: now }
-        }).catch(() => {});
-      }
-      s1OK.push(o);
-    }));
-    await Promise.allSettled(s1OK.map(o => logStatus(o._id, 'S1', 'S6', 'timeout_s1_cancel', 'system')));
-    // 通知双方: 四确认超时自动取消
-    await Promise.allSettled(s1OK.flatMap(o => {
-      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
-      return receivers.map(openid => col('system_notice').add({ data: {
-        to_openid: openid, order_id: o._id, type: 'timeout_cancel',
-        title: '四确认超时,订单已取消',
-        body: '双方未在15分钟内完成四确认,订单已自动取消,需求已重新开放',
-        action_key: 'jump_order', action_payload: { order_id: o._id },
-        created_at: now, read: false
-      }}));
-    }));
-    s1OK.forEach(o => { out.s1_cancel.push(o.order_no); log.d(`timeout S1→S6: ${o.order_no}`); });
-  } catch (e) { log.d(`s1 scan fail: ${e.message}`); }
+  await SECTIONS.processS1Timeout(sectionCtx);
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 + 释放需求(与 S1 对称, 修 D12) ─────────
-  try {
-    const q = { status: 'S0', pay_expire_at: _.lt(now) };
-    const s0s = await scanAll('order_main', () => q);
-    trackBacklog('S0', s0s.length >= SCAN_MAX ? s0s : []);
-    const s0OK = [];
-    await Promise.allSettled(s0s.map(async (o) => {
-      if (!(o.pay_expire_at && o.pay_expire_at < now)) return;
-      const won = await casStatus(o._id, 'S0', { status: 'S6', updated_at: now }, 'cancel');
-      if (!won) { out.skipped.push(o.order_no + ':S0竞态'); return; }
-      // Wave2 止血①(D12): S0 超时同样释放需求回 matching, 否则需求被已取消订单永久占用
-      if (o.demand_id) {
-        await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
-          data: { status: 'matching', updated_at: now }
-        }).catch(() => {});
-      }
-      s0OK.push(o);
-    }));
-    await Promise.allSettled(s0OK.map(o => logStatus(o._id, 'S0', 'S6', 'timeout_s0_close', 'system')));
-    // 通知双方: 支付超时自动取消
-    await Promise.allSettled(s0OK.flatMap(o => {
-      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
-      return receivers.map(openid => col('system_notice').add({ data: {
-        to_openid: openid, order_id: o._id, type: 'timeout_cancel',
-        title: '支付超时,订单已取消',
-        body: '未在30分钟内完成支付,订单已自动取消,需求已重新开放',
-        action_key: 'jump_order', action_payload: { order_id: o._id },
-        created_at: now, read: false
-      }}));
-    }));
-    s0OK.forEach(o => { out.s0_close.push(o.order_no); log.d(`timeout S0→S6: ${o.order_no}`); });
-  } catch (e) { log.d(`s0 scan fail: ${e.message}`); }
+  await SECTIONS.processS0Timeout(sectionCtx);
 
   // ───────── 3. S3.5 中断超 24 小时 → S4(部分完成) ─────────
   try {
