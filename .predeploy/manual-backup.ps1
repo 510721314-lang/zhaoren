@@ -1,4 +1,4 @@
-# 手动完整备份(等价 backup.ps1 的 L2+L3): admin_config 快照 + DB 全量导出 + manifest
+﻿# 手动完整备份(等价 backup.ps1 的 L2+L3): admin_config 快照 + DB 全量导出 + manifest
 # 用法: & 'c:\zhaoren\.predeploy\manual-backup.ps1' -AdminKey "<key>"
 param([string]$AdminKey = '')
 $ErrorActionPreference = 'Stop'
@@ -105,8 +105,11 @@ foreach ($col in $COLLECTIONS) {
 # L6: 云函数代码（从云端下载实际部署版本）
 Write-Host "`n===== L6 云函数代码(云端下载) =====" -ForegroundColor Yellow
 $fnCodeDir = $null
-# CLI 路径探测(2026-10-09 新机适配): 旧机 Administrator 桌面 / 新机 DC 桌面 / 当前用户桌面
+# CLI 路径探测(2026-10-09 新机适配; 2026-10-13 补主用安装与迁移后路径):
+#   主用 = Program Files (x86)\Tencent 安装(实测 cli 可用); 桌面旧拷版已移入 Desktop\工具\
 $cliDirs = @(
+  'C:\Program Files (x86)\Tencent\微信web开发者工具',
+  'C:\Users\DC\Desktop\工具\微信WEB开发者工具',
   'C:\Users\Administrator\Desktop\微信WEB开发者工具',
   'C:\Users\DC\Desktop\微信WEB开发者工具',
   (Join-Path $env:USERPROFILE 'Desktop\微信WEB开发者工具')
@@ -148,7 +151,7 @@ if (Test-Path $dumpJs) {
       $ledgerSha = (Get-FileHash $ledgerPath -Algorithm SHA256).Hash.ToLower()
       [System.IO.File]::WriteAllText("$ledgerPath.sha256", $ledgerSha, [System.Text.Encoding]::ASCII)
       $indexLedgerPath = $ledgerPath
-      Write-Host "[OK] index_ledger.json (32 indexes) SHA=$($ledgerSha.Substring(0,12))..." -ForegroundColor Green
+      Write-Host "[OK] index_ledger.json (design ledger) SHA=$($ledgerSha.Substring(0,12))..." -ForegroundColor Green
     } else { Write-Host '[SKIP] dump-index-ledger.js exec failed' -ForegroundColor Magenta }
   } catch { Write-Host "[FAIL] L7 : $($_.Exception.Message)" -ForegroundColor Red }
 } else { Write-Host '[SKIP] dump-index-ledger.js not found' -ForegroundColor Magenta }

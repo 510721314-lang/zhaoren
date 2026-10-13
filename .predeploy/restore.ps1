@@ -1,4 +1,4 @@
-# zhaoren cloud restore script
+﻿# zhaoren cloud restore script
 # Usage: .\restore.ps1 -BackupDir C:\zhaoren_backup_xxx [-Force] [-AdminKey AWK-...]
 #        or set $env:ADMIN_WEB_KEY before running
 # Warning: restore overwrites cloud data! Default dry-run only verifies
