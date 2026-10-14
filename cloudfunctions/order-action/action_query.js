@@ -47,6 +47,16 @@ async function detail(ctx) {
   if (uR.data && uR.data[0] && uR.data[0].nickname) userNickname = uR.data[0].nickname;
   if (pR.data && pR.data[0] && pR.data[0].nickname) partnerNickname = pR.data[0].nickname;
 
+  // 需求方查看耍伴联系方式(阶段C/D, 2026-10-14 规范 §2.2 确认弹窗): 实名全名(real_name) +
+  // 脱敏号(phone_mask = 加密存储的展示掩码, 无需解密; phone 明文字段在 user-login 落库时已 _.remove)
+  let partnerContact = null;
+  if (role === 'user' && pR.data && pR.data[0]) {
+    const pAcc = pR.data[0];
+    const pRealName = String(pAcc.real_name || '').trim();
+    const pPhoneMask = String(pAcc.phone_mask || '').trim();
+    if (pRealName || pPhoneMask) partnerContact = { real_name: pRealName, phone_mask: pPhoneMask };
+  }
+
   // 联系信息(过渡版, 2026-10-09): 接单方且订单已支付后 → 展示对方脱敏号;
   // 代发单展示两条: 需求发布者 + 被代发人(关系); 普通单仅发布者。真实号一律不外传; 拨打为占位(二期接号码保护)。
   let contactDisplay = null;
@@ -165,6 +175,7 @@ async function detail(ctx) {
       safety,
       user_nickname: userNickname,
       partner_nickname: partnerNickname,
+      partner_contact: partnerContact,   // 需求方视角: 耍伴实名 + 脱敏号(仅 role=user 且有数据时非空)
       milestone: order.milestone || null,
       user_confirm: order.user_confirm || null,
       // 履约留痕(2026-10-14 需求B一期可视化): 开始履约的现场照片+耍伴定位, 双方可见(规范 C14)

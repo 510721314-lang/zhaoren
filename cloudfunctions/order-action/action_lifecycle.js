@@ -445,4 +445,98 @@ async function user_confirm_start(ctx) {
   return { ok: true, data: { order_id, status: 'S3', user_confirm: payload } };
 }
 
-module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service, user_confirm_start, start_apply };
+// ── 履约双确认 · 阶段D(2026-10-14, 规范 §2.2): 需求方确认「耍伴已到场」 ──
+// start_confirm: S2_6→S3(no.24, 可带用户定位留痕, 复用 B2 的 user_confirm 字段)
+// start_reject : S2_6→S2(no.25, 60s 冷却; 连续 2 次→争议属阶段G(no.26), 本轮仅计数留证不升级)
+async function start_confirm(ctx) {
+  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
+  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+  const order = await getOrder(order_id);
+  if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+  const role = roleOf(order, openid);
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+  if (role !== 'user') return { ok: false, code: 'oa_start_confirm_perm', msg: '仅需求方可确认耍伴到场' };
+  if (order.status !== 'S2_6') return { ok: false, code: 'oa_start_confirm_status', msg: `订单当前状态(${order.status})不可确认` };
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可确认' };
+
+  const now = Date.now();
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+  const ul = event.user_location || {};
+  const uLat = Number(ul.latitude);
+  const uLng = Number(ul.longitude);
+  const uAcc = Number(ul.accuracy);
+  const hasLoc = !!(isFinite(uLat) && isFinite(uLng) && uLat && uLng);
+
+  const patch = {
+    status: 'S3', service_started_at: now, updated_at: now,
+    milestone: { current: 0, confirmed: [false, false, false], evidence: [], submitted_at: null }
+  };
+  // 规范 no.24 guard「同意(可带用户定位留痕)」: 有定位才留痕, 未带则留空
+  if (hasLoc) {
+    patch.user_confirm = {
+      latitude: uLat, longitude: uLng,
+      accuracy: Math.round(isFinite(uAcc) ? uAcc : 0),
+      address: String(ul.address || '').slice(0, 200),
+      at: now, by: openid
+    };
+  }
+  const won = await casStatus(order_id, 'S2_6', patch, 'start_confirm');
+  if (!won) {
+    const latest = await getOrder(order_id);
+    if (latest && latest.status === 'S3') {
+      await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_confirm', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
+      return { ok: true, data: { order_id, status: 'S3', service_started_at: latest.service_started_at || now, idempotent: true } };
+    }
+    return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+  }
+  await logStatus(order_id, 'S2_6', 'S3', 'start_confirm', openid);
+  log.d(`start confirmed: ${order.order_no} S2_6→S3`);
+  writeNotice({
+    to_openid: order.partner_openid, order_id, type: 'start_confirm',
+    title: '对方已确认你到场',
+    body: '需求方已确认你已到达履约点, 请拍摄现场照片开始履约',
+    action_key: 'jump_order', action_payload: { order_id }
+  });
+  await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_confirm', target_type: 'order', target_id: order_id, detail: { status: 'S3', has_location: hasLoc }, result: 'ok', client_ip: clientIp, device });
+  return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
+}
+
+async function start_reject(ctx) {
+  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
+  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+  const order = await getOrder(order_id);
+  if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+  const role = roleOf(order, openid);
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+  if (role !== 'user') return { ok: false, code: 'oa_start_reject_perm', msg: '仅需求方可拒绝' };
+  if (order.status !== 'S2_6') return { ok: false, code: 'oa_start_reject_status', msg: `订单当前状态(${order.status})不可拒绝` };
+
+  const now = Date.now();
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+  const rejectCount = (Number(order.start_reject_count) || 0) + 1;
+  const won = await casStatus(order_id, 'S2_6', {
+    status: 'S2', start_reject_at: now, start_reject_count: rejectCount, updated_at: now
+  }, 'start_reject');
+  if (!won) {
+    const latest = await getOrder(order_id);
+    if (latest && latest.status === 'S2') {
+      await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_reject', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
+      return { ok: true, data: { order_id, status: 'S2', start_reject_count: latest.start_reject_count || rejectCount, idempotent: true } };
+    }
+    return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+  }
+  await logStatus(order_id, 'S2_6', 'S2', 'start_reject', openid);
+  log.d(`start rejected: ${order.order_no} S2_6→S2 (count=${rejectCount})`);
+  writeNotice({
+    to_openid: order.partner_openid, order_id, type: 'start_reject',
+    title: '对方未同意开始履约',
+    body: '需求方暂未确认你到场, 60 秒后可重新发起申请',
+    action_key: 'jump_order', action_payload: { order_id }
+  });
+  await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_reject', target_type: 'order', target_id: order_id, detail: { status: 'S2', reject_count: rejectCount }, result: 'ok', client_ip: clientIp, device });
+  return { ok: true, data: { order_id, status: 'S2', start_reject_count: rejectCount } };
+}
+
+module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service, user_confirm_start, start_apply, start_confirm, start_reject };
