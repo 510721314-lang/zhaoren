@@ -409,6 +409,7 @@ Page({
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
       frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
       start_evidence: startEvidence,                        // 履约留痕(2026-10-14): 开始履约现场照片+到场地址/时间
+      user_confirm: d.user_confirm || null,                 // 需求B二期到场确认(2026-10-14): 原白名单漏映射, 致 WXML「你已确认到场」不显示
       urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
       modify_count: d.modify_count || 0,
       modify_result: modifyResult,
