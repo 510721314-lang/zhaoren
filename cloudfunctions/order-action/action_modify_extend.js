@@ -85,7 +85,8 @@ async function modify(ctx) {
   }
   await logStatus(order_id, fromStatus, 'S2_5', role === 'user' ? 'user_modify' : 'partner_modify', openid);
   log.d(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmHours}h`);
-  writeNotice({
+  // await 保证云函数返回前站内信落库(原 fire-and-forget: 主流程 return 后运行时可能冻结未完成的异步写入, 致对方收不到改期申请)
+  await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
     order_id, type: 'modify',
     title: `${role === 'user' ? '发单人' : '耍伴'}发起改期`, body: `请在 ${modifyConfig.confirmHours} 小时内确认或拒绝`,
@@ -249,7 +250,8 @@ async function extend(ctx) {
   }
   await logStatus(order_id, 'S3', 'S3', role === 'user' ? 'user_extend' : 'partner_extend', openid);
   log.d(`order extend: ${order.order_no} +${addHours}h addFen=${addAmountFen}`);
-  writeNotice({
+  // await 同理(改期申请): 防止云函数返回冻结异步写入致加时申请通知丢失
+  await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
     order_id, type: 'custom',
     title: `${role === 'user' ? '发单人' : '耍伴'}申请加时 ${addHours} 小时`,
