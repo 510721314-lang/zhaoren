@@ -234,7 +234,12 @@ const CONFIG_SCHEMA = [
   { f: 'no_show_count_window_days', t: 'int', g: '爽约处罚', label: '次数统计滚动窗口', unit: '天', min: 7, max: 365, def: 180, d: '停用判定的滚动统计窗口（天）' },
   { f: 'no_show_evidence_max', t: 'int', g: '爽约处罚', label: '双方举证照片上限', unit: '张', min: 1, max: 9, def: 3, d: '申诉/举证照片张数上限' },
   { f: 'no_show_reason_min_len', t: 'int', g: '爽约处罚', label: '申诉理由最短字数', unit: '字', min: 5, max: 200, def: 10, d: '申诉理由最短字数' },
-  { f: 'no_show_max_per_order', t: 'int', g: '爽约处罚', label: '同订单单方申诉上限', unit: '条', min: 1, max: 3, def: 1, d: '同一订单单方最多申诉次数' }
+  { f: 'no_show_max_per_order', t: 'int', g: '爽约处罚', label: '同订单单方申诉上限', unit: '条', min: 1, max: 3, def: 1, d: '同一订单单方最多申诉次数' },
+  // ── 评价激励(D, 2026-10-14): 评价完成后按配置给「用户」「耍伴」双方分别发放 现金(mock)+信用分; 缺省 0=不发(fail-closed) ──
+  { f: 'eval_reward_user_fen', t: 'int', g: '评价激励', label: '用户评价激励(现金)', unit: '分', min: 0, max: 100000, def: 0, d: '用户完成评价后按其配置发放的现金激励（mock，禁真实打款）；0=不发' },
+  { f: 'eval_reward_user_credit', t: 'int', g: '评价激励', label: '用户评价激励(信用分)', unit: '分', min: 0, max: 100, def: 0, d: '用户完成评价后增加的信用分；0=不加' },
+  { f: 'eval_reward_partner_fen', t: 'int', g: '评价激励', label: '耍伴评价激励(现金)', unit: '分', min: 0, max: 100000, def: 0, d: '评价完成后按耍伴配置发放的现金激励（mock）；0=不发' },
+  { f: 'eval_reward_partner_credit', t: 'int', g: '评价激励', label: '耍伴评价激励(信用分)', unit: '分', min: 0, max: 100, def: 0, d: '评价完成后给耍伴增加的信用分；0=不加' }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用

@@ -68,6 +68,81 @@ async function logStatus(orderId, from, to, action, operator) {
   }});
 }
 
+// 需求D 评价激励(2026-10-14): 评价完成后按后台配置给「用户」「耍伴」双方分别发放 现金(mock)+信用分。
+// 幂等: order_main.eval_reward_at 占坑(重复提交不重发); 缺省全 0 = 不发放(fail-closed); 现金为 mock(禁真实打款)。
+async function grantEvalRewards(order, now) {
+  const cfg = await getConfig();
+  const nz = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : 0; };
+  const uFen = nz(cfg.eval_reward_user_fen);
+  const uCredit = nz(cfg.eval_reward_user_credit);
+  const pFen = nz(cfg.eval_reward_partner_fen);
+  const pCredit = nz(cfg.eval_reward_partner_credit);
+  if (!uFen && !uCredit && !pFen && !pCredit) return { granted: false, reason: 'disabled' };
+
+  // 幂等占坑: 仅当尚未发放时写入标记
+  let cas;
+  try {
+    cas = await col('order_main').where({ _id: order._id, eval_reward_at: _.exists(false) }).update({
+      data: { eval_reward_at: now, updated_at: now }
+    });
+  } catch (e) { log.d(`eval_reward cas fail: ${e.message}`); return { granted: false, reason: 'cas_fail' }; }
+  if (!cas.stats || cas.stats.updated !== 1) return { granted: false, reason: 'idempotent' };
+
+  // 单方发放(现金 mock 流水 + 信用分; 各自独立 try, 单侧失败不影响另一侧)
+  const grantOne = async (openid, role, fen, credit, creditField) => {
+    try {
+      if (fen > 0) {
+        await col('pay_transaction').add({ data: {
+          order_id: order._id, openid, type: 'eval_reward', role, amount_fen: fen,
+          status: 'success', is_mock: true, created_at: now, updated_at: now, is_deleted: false
+        }});
+      }
+      if (credit > 0) {
+        const acc = await col('user_account').where({ openid }).limit(1).get().catch(() => ({ data: [] }));
+        const doc0 = acc.data && acc.data[0];
+        if (doc0) {
+          const cur = Number(doc0[creditField] || 800);
+          const next = Math.max(0, Math.min(1000, cur + credit));
+          const patch = { updated_at: now }; patch[creditField] = next;
+          await col('user_account').doc(doc0._id).update({ data: patch });
+          await col('credit_score_log').add({ data: {
+            openid, type: 'eval_reward', score: next, delta: credit, order_id: order._id,
+            created_at: now, updated_at: now, is_deleted: false
+          }});
+        }
+      }
+    } catch (e) { log.w(`eval_reward grant fail(${role}): ${e.message}`); }
+  };
+  await grantOne(order.user_openid, 'user', uFen, uCredit, 'user_credit_score');
+  await grantOne(order.partner_openid, 'partner', pFen, pCredit, 'partner_credit_score');
+
+  // 通知双方(有激励才发)
+  const notifyOne = (to, role) => {
+    const fen = role === 'user' ? uFen : pFen;
+    const credit = role === 'user' ? uCredit : pCredit;
+    const parts = [];
+    if (fen > 0) parts.push(`现金 ¥${(fen / 100).toFixed(2)}`);
+    if (credit > 0) parts.push(`信用分 +${credit}`);
+    if (!parts.length) return;
+    col('system_notice').add({ data: {
+      to_openid: to, order_id: order._id, type: 'eval_reward',
+      title: '评价激励已发放', body: parts.join(' · '),
+      action_key: 'jump_order', action_payload: { order_id: order._id },
+      created_at: now, read: false
+    }}).catch((e) => log.d('[notice] eval_reward fail:', e.message));
+  };
+  notifyOne(order.user_openid, 'user');
+  notifyOne(order.partner_openid, 'partner');
+
+  await writeAudit(db, log, {
+    openid: order.user_openid, role: 'user', category: 'business', action: 'eval_reward_grant',
+    target_type: 'order', target_id: order._id,
+    detail: { user_fen: uFen, user_credit: uCredit, partner_fen: pFen, partner_credit: pCredit },
+    result: 'ok', client_ip: '', device: ''
+  });
+  return { granted: true };
+}
+
 // 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截订单号/占位符)
 function isValidDocId(id) {
   return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
@@ -223,6 +298,12 @@ exports.main = async (event, context) => {
     }
 
     log.d(`evaluation submitted: ${order.order_no} star=${star} S5→S8`);
+    // 需求D(2026-10-14): 评价完成后按配置给双方分别发放评价激励(mock 现金 + 信用分); 失败仅 log.w, 不阻断评价结果
+    try {
+      await grantEvalRewards(order, now);
+    } catch (e) {
+      log.w(`eval_reward grant fail: ${e.message}`);
+    }
     // 通知 B 被评价了
     const db2 = cloud.database();
     db2.collection('system_notice').add({ data: {

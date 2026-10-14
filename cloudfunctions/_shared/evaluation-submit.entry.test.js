@@ -140,4 +140,31 @@ test('submit: CAS 未抢到且无重复评价 → ev_status_conflict', async () 
   assert.strictEqual(r.code, 'ev_status_conflict');
 });
 
+// 12. 评价激励(需求D 2026-10-14): 配置非 0 → 评价成功后双方分别发放(现金 mock + 信用分) + 幂等标记 + 通知
+test('submit: 配置评价激励 → 双方各发一笔(mock) + 幂等标记 + 通知', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({}, {
+    admin_config: { global: { env: 'dev', dev_until: Date.now() + 3600000,
+      eval_reward_user_fen: 100, eval_reward_user_credit: 2,
+      eval_reward_partner_fen: 200, eval_reward_partner_credit: 5 } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'submit', order_id: OID, star: 5, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const rewards = (sdk.writes.pay_transaction || []).filter((w) => w.add && w.data.type === 'eval_reward');
+  assert.strictEqual(rewards.length, 2, '双方各一笔现金激励');
+  assert.ok(rewards.every((w) => w.data.is_mock === true), '现金激励必须 is_mock');
+  assert.ok((sdk.writes.order_main || []).some((w) => w.data && w.data.eval_reward_at), '应写幂等标记 eval_reward_at');
+  assert.ok((sdk.writes.system_notice || []).some((w) => w.add && w.data.type === 'eval_reward'), '应通知激励发放');
+});
+
+// 13. 评价激励缺省(全 0) → 不发放
+test('submit: 评价激励缺省 0 → 不发放(无 eval_reward 流水)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'submit', order_id: OID, star: 5, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const rewards = (sdk.writes.pay_transaction || []).filter((w) => w.add && w.data.type === 'eval_reward');
+  assert.strictEqual(rewards.length, 0);
+});
+
 test.after(() => { Module._load = origLoad; });

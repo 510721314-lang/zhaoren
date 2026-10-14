@@ -129,6 +129,13 @@ function config_public(ctx) {
       remind_after_h: nsInt(cfgRaw.remind_after_h, 1),
       escalate_after_h: nsInt(cfgRaw.escalate_after_h, 4),
       max_count: nsInt(cfgRaw.urge_max_count, 2)
+    },
+    // 评价激励(D, 2026-10-14): 双方分别配置; 缺省 0=不发(fail-closed)
+    eval_reward: {
+      user_fen: nsInt(cfgRaw.eval_reward_user_fen, 0),
+      user_credit: nsInt(cfgRaw.eval_reward_user_credit, 0),
+      partner_fen: nsInt(cfgRaw.eval_reward_partner_fen, 0),
+      partner_credit: nsInt(cfgRaw.eval_reward_partner_credit, 0)
     }
   } };
 }
