@@ -362,7 +362,8 @@ Page({
     const yuan = (fen) => (Number(fen || 0) / 100).toFixed(2);
     const SETTLE_TEXT = { pending: '待结算', ready: '可结算', done: '已结算' };
     const REFUND_SRC = { dispute: '争议裁决退款', cancel: '订单取消退款', no_show: '爽约赔付', partner: '耍伴赔付', system: '平台退款' };
-    const DISPUTE_TYPE = { complaint: '投诉', no_show: '爽约申诉', refund: '退款争议' };
+    // 阶段G(2026-10-15): 新增履约双确认超时/连续拒绝/不确认转争议的两类 type 文案, 否则回退显示原始英文值
+    const DISPUTE_TYPE = { complaint: '投诉', no_show: '爽约申诉', refund: '退款争议', start_timeout: '开始履约超时', finish_timeout: '完毕确认超时' };
     const fRaw = d.fund || null;
     const rRaw = d.refund || null;
     const dvRaw = d.dispute || null;
@@ -1503,20 +1504,27 @@ Page({
   },
 
   // 阶段F(2026-10-15): 需求方「不确认」→ S3_6→S3(耍伴 60 秒后可重发)
+  // 阶段G补充(2026-10-15, 需求更正): 不确认后立即引导进入「与对方交流」(IM 会话页), 便于双方就履约分歧即时沟通
   onFinishReject() {
     const that = this;
     wx.showModal({
       title: '不确认履约完毕',
-      content: '确认不确认? 耍伴 60 秒后可重新发起完毕确认',
+      content: '不确认后将进入与对方交流, 耍伴 60 秒后可重新发起完毕确认',
       confirmText: '不确认',
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '提交中', mask: true });
-        callCloud('order-action', { action: 'finish_reject', order_id: that.data.order._id }).then((r) => {
+        const orderId = that.data.order._id;
+        callCloud('order-action', { action: 'finish_reject', order_id: orderId }).then((r) => {
           wx.hideLoading();
           if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
-          wx.showToast({ title: '已驳回', icon: 'none' });
-          that.fetchData({ orderId: that.data.order._id });
+          // 导航先行、反馈后置(与 square / demand-detail 同口径): toast 放 success 回调, 消灭「toast+导航」竞态
+          // navigateTo: 保留订单详情在栈, 聊天后返回可继续核对订单(不销毁当前页)
+          wx.navigateTo({
+            url: `/pages-v2/chat/chat?orderId=${orderId}`,
+            success: () => wx.showToast({ title: '已进入交流', icon: 'none' }),
+            fail: () => { that.fetchData({ orderId }); wx.showToast({ title: '已驳回', icon: 'none' }); }
+          });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });

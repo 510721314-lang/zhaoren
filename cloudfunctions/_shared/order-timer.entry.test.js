@@ -171,4 +171,22 @@ test('爽约申诉超期(S2 冻结中) → dispute_escalate=1', async () => {
   assert.strictEqual(r.data.counts.dispute_escalate, 1);
 });
 
+// 15. 守卫(阶段G 登记 KNOWN_EVOLUTION 后补独立断言): S3 加时申请到期 → 自动拒绝
+test('S3 加时到期 → extend_auto_reject=1', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({ O1: ord('O1', 'S3', { pending_extend: { created_at: now - 30 * MIN, by_openid: PARTNER } }) }));
+  assert.strictEqual(r.data.counts.extend_auto_reject, 1);
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'O1');
+  assert.ok(upd, '应 CAS 清除在途加时申请');
+});
+
+// 16. 守卫(阶段G 登记 KNOWN_EVOLUTION 后补独立断言): 账号停用到期 → 恢复 normal
+test('账号停用到期 → account_restored=1', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({}, { user_account: { ['u'.repeat(32)]: { _id: 'u'.repeat(32), openid: USER, status: 'suspended', suspend_until: now - 1000 } } }));
+  assert.strictEqual(r.data.counts.account_restored, 1);
+  const upd = (sdk.writes.user_account || []).find((w) => w.where && w.where._id === 'u'.repeat(32));
+  assert.strictEqual(upd.data.status, 'normal');
+});
+
 test.after(() => { Module._load = origLoad; });

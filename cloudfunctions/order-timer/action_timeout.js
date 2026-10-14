@@ -70,7 +70,77 @@ async function processS0Timeout(ctx) {
   } catch (e) { log.d(`s0 scan fail: ${e.message}`); }
 }
 
+// ── 阶段G(2026-10-15): 履约双确认两中间态超时 → S10.5 争议(状态机 no.26 / no.30) ──
+// 语义: 时间锚(start_apply_at / finish_apply_at)超阈值未获响应 → 状态迁移 S2_6/S3_6→S10.5
+//   + 争议正交位(dispute_state='open' / dispute_type / dispute_opened_at);
+//   no.26/no.30 的 money="资金冻结待裁定"本期不做(沿用阶段F「不动结算」), 冻结位由 mapStatus 对 S10.5 强制表达。
+async function processStartApplyTimeout(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, logStatus, casStatus, now, out, startApplyMin } = ctx;
+  try {
+    const cut = now - startApplyMin * 60 * 1000;
+    const rows = await scanAll('order_main', () => ({ status: 'S2_6', start_apply_at: _.lt(cut) }));
+    trackBacklog('S2_6', rows.length >= SCAN_MAX ? rows : []);
+    const ok = [];
+    await Promise.allSettled(rows.map(async (o) => {
+      if (!(o.start_apply_at && o.start_apply_at < cut)) return;
+      const won = await casStatus(o._id, 'S2_6', {
+        status: 'S10.5', dispute_state: 'open', dispute_type: 'start_timeout',
+        dispute_opened_at: now, updated_at: now
+      }, 'start_apply_timeout');
+      if (!won) { out.skipped.push(o.order_no + ':S2_6竞态'); return; }
+      ok.push(o);
+    }));
+    await Promise.allSettled(ok.map(o => logStatus(o._id, 'S2_6', 'S10.5', 'timeout_start_apply', 'system')));
+    // 通知双方: 开始履约申请超时, 转平台争议处理
+    await Promise.allSettled(ok.flatMap(o => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'dispute_open',
+        title: '开始履约确认超时,已转平台处理',
+        body: '开始履约申请 15 分钟未获响应,订单已转争议,平台将介入核实',
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
+    ok.forEach(o => { out.start_apply_timeout.push(o.order_no); log.d(`timeout S2_6→S10.5: ${o.order_no}`); });
+  } catch (e) { log.d(`s2_6 scan fail: ${e.message}`); }
+}
+
+async function processFinishConfirmTimeout(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, logStatus, casStatus, now, out, finishConfirmMin } = ctx;
+  try {
+    const cut = now - finishConfirmMin * 60 * 1000;
+    const rows = await scanAll('order_main', () => ({ status: 'S3_6', finish_apply_at: _.lt(cut) }));
+    trackBacklog('S3_6', rows.length >= SCAN_MAX ? rows : []);
+    const ok = [];
+    await Promise.allSettled(rows.map(async (o) => {
+      if (!(o.finish_apply_at && o.finish_apply_at < cut)) return;
+      const won = await casStatus(o._id, 'S3_6', {
+        status: 'S10.5', dispute_state: 'open', dispute_type: 'finish_timeout',
+        dispute_opened_at: now, updated_at: now
+      }, 'finish_confirm_timeout');
+      if (!won) { out.skipped.push(o.order_no + ':S3_6竞态'); return; }
+      ok.push(o);
+    }));
+    await Promise.allSettled(ok.map(o => logStatus(o._id, 'S3_6', 'S10.5', 'timeout_finish_confirm', 'system')));
+    // 通知双方: 履约完毕确认超时, 转平台争议处理
+    await Promise.allSettled(ok.flatMap(o => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'dispute_open',
+        title: '履约完毕确认超时,已转平台处理',
+        body: '履约完毕确认 30 分钟未获响应,订单已转争议,平台将介入核实',
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
+    ok.forEach(o => { out.finish_confirm_timeout.push(o.order_no); log.d(`timeout S3_6→S10.5: ${o.order_no}`); });
+  } catch (e) { log.d(`s3_6 scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processS1Timeout,
   processS0Timeout,
+  processStartApplyTimeout,
+  processFinishConfirmTimeout,
 };

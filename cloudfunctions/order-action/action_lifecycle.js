@@ -516,16 +516,33 @@ async function start_reject(ctx) {
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
   const rejectCount = (Number(order.start_reject_count) || 0) + 1;
-  const won = await casStatus(order_id, 'S2_6', {
+  // ── 阶段G(G1, 2026-10-15): 连续 2 次「不同意」不再回 S2, 直接转 S10.5 争议(状态机 no.26 guard「15min 超时未响应(或连续2次拒绝)」) ──
+  const escalated = rejectCount >= 2;
+  const won = await casStatus(order_id, 'S2_6', escalated ? {
+    status: 'S10.5', start_reject_at: now, start_reject_count: rejectCount,
+    dispute_state: 'open', dispute_type: 'start_timeout', dispute_opened_at: now, updated_at: now
+  } : {
     status: 'S2', start_reject_at: now, start_reject_count: rejectCount, updated_at: now
-  }, 'start_reject');
+  }, escalated ? 'start_apply_timeout' : 'start_reject');
   if (!won) {
     const latest = await getOrder(order_id);
-    if (latest && latest.status === 'S2') {
+    if (latest && (latest.status === 'S2' || latest.status === 'S10.5')) {
       await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_reject', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
-      return { ok: true, data: { order_id, status: 'S2', start_reject_count: latest.start_reject_count || rejectCount, idempotent: true } };
+      return { ok: true, data: { order_id, status: latest.status, start_reject_count: latest.start_reject_count || rejectCount, idempotent: true } };
     }
     return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+  }
+  if (escalated) {
+    await logStatus(order_id, 'S2_6', 'S10.5', 'start_apply_timeout', openid);
+    log.d(`start reject escalated: ${order.order_no} S2_6→S10.5 (count=${rejectCount})`);
+    writeNotice({
+      to_openid: order.partner_openid, order_id, type: 'dispute_open',
+      title: '连续未获确认,已转平台处理',
+      body: '需求方连续 2 次未确认开始履约, 订单已转争议, 平台将介入核实',
+      action_key: 'jump_order', action_payload: { order_id }
+    });
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_reject', target_type: 'order', target_id: order_id, detail: { status: 'S10.5', reject_count: rejectCount, escalated: true }, result: 'ok', client_ip: clientIp, device });
+    return { ok: true, data: { order_id, status: 'S10.5', start_reject_count: rejectCount, escalated: true } };
   }
   await logStatus(order_id, 'S2_6', 'S2', 'start_reject', openid);
   log.d(`start rejected: ${order.order_no} S2_6→S2 (count=${rejectCount})`);
@@ -782,16 +799,33 @@ async function finish_reject(ctx) {
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
   const rejectCount = (Number(order.finish_reject_count) || 0) + 1;
-  const won = await casStatus(order_id, 'S3_6', {
+  // ── 阶段G(G1, 2026-10-15): 连续 2 次「不确认」不再回 S3, 直接转 S10.5 争议(状态机 no.30 guard「30min 超时未响应(或连续2次不确认)」) ──
+  const escalated = rejectCount >= 2;
+  const won = await casStatus(order_id, 'S3_6', escalated ? {
+    status: 'S10.5', finish_reject_at: now, finish_reject_count: rejectCount,
+    dispute_state: 'open', dispute_type: 'finish_timeout', dispute_opened_at: now, updated_at: now
+  } : {
     status: 'S3', finish_reject_at: now, finish_reject_count: rejectCount, updated_at: now
-  }, 'finish_reject');
+  }, escalated ? 'finish_confirm_timeout' : 'finish_reject');
   if (!won) {
     const latest = await getOrder(order_id);
-    if (latest && latest.status === 'S3') {
+    if (latest && (latest.status === 'S3' || latest.status === 'S10.5')) {
       await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_finish_reject', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
-      return { ok: true, data: { order_id, status: 'S3', finish_reject_count: latest.finish_reject_count || rejectCount, idempotent: true } };
+      return { ok: true, data: { order_id, status: latest.status, finish_reject_count: latest.finish_reject_count || rejectCount, idempotent: true } };
     }
     return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+  }
+  if (escalated) {
+    await logStatus(order_id, 'S3_6', 'S10.5', 'finish_confirm_timeout', openid);
+    log.d(`finish reject escalated: ${order.order_no} S3_6→S10.5 (count=${rejectCount})`);
+    writeNotice({
+      to_openid: order.partner_openid, order_id, type: 'dispute_open',
+      title: '连续未获确认,已转平台处理',
+      body: '需求方连续 2 次未确认履约完毕, 订单已转争议, 平台将介入核实',
+      action_key: 'jump_order', action_payload: { order_id }
+    });
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_finish_reject', target_type: 'order', target_id: order_id, detail: { status: 'S10.5', reject_count: rejectCount, escalated: true }, result: 'ok', client_ip: clientIp, device });
+    return { ok: true, data: { order_id, status: 'S10.5', finish_reject_count: rejectCount, escalated: true } };
   }
   await logStatus(order_id, 'S3_6', 'S3', 'finish_reject', openid);
   log.d(`finish rejected: ${order.order_no} S3_6→S3 (count=${rejectCount})`);
