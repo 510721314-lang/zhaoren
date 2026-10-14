@@ -79,14 +79,8 @@ async function grantEvalRewards(order, now) {
   const pCredit = nz(cfg.eval_reward_partner_credit);
   if (!uFen && !uCredit && !pFen && !pCredit) return { granted: false, reason: 'disabled' };
 
-  // 幂等占坑: 仅当尚未发放时写入标记
-  let cas;
-  try {
-    cas = await col('order_main').where({ _id: order._id, eval_reward_at: _.exists(false) }).update({
-      data: { eval_reward_at: now, updated_at: now }
-    });
-  } catch (e) { log.d(`eval_reward cas fail: ${e.message}`); return { granted: false, reason: 'cas_fail' }; }
-  if (!cas.stats || cas.stats.updated !== 1) return { granted: false, reason: 'idempotent' };
+  // 幂等: 已完成发放(标记存在) → 直接返回(评价 CAS 保证本函数对同一订单只调用一次)
+  if (order.eval_reward_at) return { granted: false, reason: 'idempotent' };
 
   // 单方发放(现金 mock 流水 + 信用分; 各自独立 try, 单侧失败不影响另一侧)
   const grantOne = async (openid, role, fen, credit, creditField) => {
@@ -111,10 +105,11 @@ async function grantEvalRewards(order, now) {
           }});
         }
       }
-    } catch (e) { log.w(`eval_reward grant fail(${role}): ${e.message}`); }
+      return true;
+    } catch (e) { log.w(`eval_reward grant fail(${role}): ${e.message}`); return false; }
   };
-  await grantOne(order.user_openid, 'user', uFen, uCredit, 'user_credit_score');
-  await grantOne(order.partner_openid, 'partner', pFen, pCredit, 'partner_credit_score');
+  const okUser = await grantOne(order.user_openid, 'user', uFen, uCredit, 'user_credit_score');
+  const okPartner = await grantOne(order.partner_openid, 'partner', pFen, pCredit, 'partner_credit_score');
 
   // 通知双方(有激励才发)
   const notifyOne = (to, role) => {
@@ -133,6 +128,16 @@ async function grantEvalRewards(order, now) {
   };
   notifyOne(order.user_openid, 'user');
   notifyOne(order.partner_openid, 'partner');
+
+  // 【评审修复 D-1】标记改到"发放尝试之后"写, 且仅在双方均无失败时写:
+  // 避免原"先占坑后发放"在发放失败时残留已占标记 → 后续重试被误判 idempotent 而激励永久丢失(静默)
+  if (okUser && okPartner) {
+    try {
+      await col('order_main').where({ _id: order._id, eval_reward_at: _.exists(false) }).update({
+        data: { eval_reward_at: now, updated_at: now }
+      });
+    } catch (e) { log.w(`eval_reward mark fail: ${e.message}`); }
+  }
 
   await writeAudit(db, log, {
     openid: order.user_openid, role: 'user', category: 'business', action: 'eval_reward_grant',
