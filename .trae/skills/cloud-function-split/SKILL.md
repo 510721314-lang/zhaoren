@@ -54,18 +54,32 @@ module.exports = { foo_action };
 8. 独立 commit（可单独 revert）
 
 ## 等价性验证（A/B 深比较）
-- 夹具：`cloudfunctions/_shared/ab_equivalence.js` —— 同输入跑「拆分前(git 历史版本)」vs「当前」，`normalize` 把 >1e12 的数字当时间戳归一成 `<ts>`
+- 夹具：`cloudfunctions/_shared/ab_equivalence.js` —— 同输入跑「拆分前(_orig_baseline.js)」vs「当前 index.js」，`normalize` 把 >1e12 的数字当时间戳归一成 `<ts>`
 - baseline 必须用**拆分前**的 index：`git show <拆分前commit>:cloudfunctions/<fn>/index.js > <fn>/_orig_baseline.js`（不能自录自比，那恒真）
-- 每抽一组向 `CASES` 加该组的 early-return / 正常输入用例；`node cloudfunctions/_shared/ab_equivalence.js`，退出码=差异数，必须为 0
-- 测完删 `_orig_baseline.js`
+- 每抽一组向 `CASES` 加该组的 early-return / 正常输入用例；`node cloudfunctions/_shared/ab_equivalence.js`，意外差异数必须为 0
+- **`_orig_baseline.js` 冻结入库常驻、测完不删**（2026-10-13 起改定：作为后续每次改动的 A/B 常驻锚点；早期文档"测完删除"口径已作废）
+
+## A/B 门禁的三类盲区（2026-10-14 双专家评审实证，拆分收尾必查）
+A/B「0 差异」**只证明单次调用返回值一致**，下列问题全部能在 0 差异下漏网，必须各补一道独立测试/核对：
+1. **跨调用有状态行为**：进程内缓存 TTL/锁/计数器/单例——用「同一模块实例连调两次 + 第二次副作用计数（DB where.get 次数等）下降或为 0」守护。
+   实证：home-action 拆分时 ctx 漏注入 `TTL_SCENE_GROUPS` → `memSet(k,v,undefined)` → `until=Date.now()+undefined=NaN` → 60s 缓存永不命中，每次重跑 9 次 demand 查询，A/B 全绿。
+2. **静默退化（漏注入不抛错）**：静态核对「index.js ctx 提供键 ⊇ 各 handler 解构且体内真实使用的键」。机械扫描排除四类误报：`'./openid'` 等 require 路径字符串、`{openid: x}` 对象键名、解构行自身、体内 `const openid=` 同名局部。
+3. **成功路径从未走通**：A/B 两侧同抛错也判等价（互相背书）。每个核心写动作至少一条用例穿透到落库，断言返回值 + writes（多表/状态 CAS/审计/通知）。
+   实证：order-create `create_from_take` 成功路径 7 变量块作用域越界、事务已提交但客户端必收 500，A/B 长期 0 差异。
+- **`KNOWN_EVOLUTION` 是"跳过该例比较"不是"保护"**：修复基线时代既有 bug 致 B 成功/A(冻结基线)失败时，登记白名单（不刷基线，保留修复前证据），但**必须**为该路径另配独立行为断言（参考 `_shared/order_create_take_success.test.js`、`_shared/home_action_cache.test.js`）。
+
+## 拆分收尾：独立审查（多组/多提交完成后默认执行）
+- 派两个独立视角交叉取证（结构性猎手 + 高风险文件定点抽查），**2/2 确认才立项修复，1/1 低置信只登记**（zhaoren-tech-review 流程）。
+- 只报线上故障级：ctx 注入完整性、模块级缓存/锁单例归属（必须留 index.js 注入，防每请求重建）、块作用域越界（try/finally 花括号精确配对）、HANDLERS 分发行位于 openid 鉴权之后、重复 action 键（Object.assign 静默覆盖）、事务副作用与返回一致性；**不报风格问题**。
 
 ## 验证清单（每组必过）
 - [ ] `node --check` 新文件 + index 全过
 - [ ] index 无残留内联 `if (action === ...)` handler（grep 应为空或仅剩已分发的）
-- [ ] A/B 等价 0 差异（order-action 类有夹具的）
-- [ ] 全量单测只增不减（基线 183）
-- [ ] 项目 gate 全绿
-- [ ] 无循环 require（grep `require('./index')` 为空）
+- [ ] A/B 意外差异 0（KNOWN_EVOLUTION 每例均有独立守护测试）
+- [ ] 上述「三类盲区」各有对应独立测试/静态核对结论
+- [ ] 全量单测只增不减（数以 `npm test` 实测为准；2026-10-14 = 362 pass）
+- [ ] 项目 gate 全绿（`npm run verify`）
+- [ ] 无真实代码的循环 require（grep 命中先排除文件头"禁 require('./index')"注释文字）
 
 ## 部署
 拆完后**必须重新部署云函数才生效**：用 `wx-cloud-deploy` skill 串行部署 `<fn>`，确认 packSize 变化、filesCount 增加（含新 handler 文件）。部署后云端测试面板各分组至少调 1 个 action 跑线上烟雾。
@@ -76,6 +90,14 @@ module.exports = { foo_action };
 - gate 偶发 1 项失败 → 多为 live 网关抖动；重试确认，非代码问题
 - 大段删除用 node 脚本按 marker 切割，别用 Edit
 
-## 本项目已完成的拆分（参考）
-- order-action：2002 → 338 行，29 action → 6 个 handler（nudge/query/confirm/lifecycle/modify_extend/dispute）
-- admin-action：3529 → 544 行，~90 action → 22 个 handler；双分发点（HANDLERS_PRE 免鉴权 + HANDLERS 鉴权后）
+## 本项目已完成的拆分（参考，截至 2026-10-14 共 9 个入口）
+- admin-action：30 个 handler（86 action，双分发点 HANDLERS_PRE/HANDLERS）
+- order-action：→392 行，7 个 handler（32 action）
+- order-timer：969→639 行，4 个 section handler（11 扫描段落，SECTIONS 分发非 case）
+- user-login：1250→373 行，4 个 handler（20 action）
+- partner-action：1134→369 行，4 个 handler（13 action）
+- home-action：828→364 行，4 个 handler（8 action；进程内缓存全留 index.js）
+- payment-mock：874→186 行，4 个 handler（14 action；withdraw/fast_withdraw 落穿共享 case）
+- order-create：804→193 行，2 个 handler（非 case 结构：早返回块 + 尾部续写体）
+- demand-publish：1746→457 行，5 个 handler（10 action）
+- 每个函数均：冻结 `_orig_baseline.js` 入库 + A/B 常驻门禁 + 串行部署 + download SHA256 核验；详见 docs/FUNCTION-REGISTRY.md #51-59
