@@ -710,6 +710,40 @@ Page({
     });
   },
 
+  // 需求B 二期(2026-10-14): 需求方到场定位确认(仅"确认"时要求定位; 不点不拦主流程)
+  onUserConfirm() {
+    const that = this;
+    wx.showModal({
+      title: '确认我已到场',
+      content: '将获取你的实时位置并记录到场确认(仅本次确认时要求定位)',
+      confirmText: '确认',
+      success(res) {
+        if (!res.confirm) return;
+        wx.getLocation({
+          type: 'gcj02',
+          isHighAccuracy: true,
+          highAccuracyExpireTime: 4000,
+          success: (loc) => {
+            const at = Date.now();
+            that._addrOf(loc.latitude, loc.longitude).then((addr) => {
+              wx.showLoading({ title: '提交中', mask: true });
+              callCloud('order-action', {
+                action: 'user_confirm_start', order_id: that.data.order._id,
+                user_confirm: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, address: addr, at }
+              }).then((r) => {
+                wx.hideLoading();
+                if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+                wx.showToast({ title: '已确认到场', icon: 'success' });
+                that.fetchData({ orderId: that.data.order._id });
+              }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+            });
+          },
+          fail: () => { wx.showToast({ title: '确认到场需授权定位, 请开启后重试', icon: 'none' }); }
+        });
+      }
+    });
+  },
+
   // 开始履约留痕采集(需求B · 强制): 高精度定位(必须) + 1~3 张现场照片(客户端叠地址+时间水印后上传)
   // 返回 { photos:[{file_id,kind,at}], partner_location:{latitude,longitude,accuracy,address,at} };
   // 任一步被拒/失败返回 null → 不发起 start_service(与服务端 fail-closed 校验一致)

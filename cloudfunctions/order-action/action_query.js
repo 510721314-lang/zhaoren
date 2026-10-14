@@ -166,6 +166,7 @@ async function detail(ctx) {
       user_nickname: userNickname,
       partner_nickname: partnerNickname,
       milestone: order.milestone || null,
+      user_confirm: order.user_confirm || null,
       modify_count: Number(order.modify_count) || 0,
       pending_modify: order.pending_modify || null,
       // 改期结果(2026-10-12): 供详情页**双方**展示最近一次改期处理结果(同意/拒绝), 前端据此在 S2/S2_5 展示

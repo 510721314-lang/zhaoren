@@ -1,13 +1,13 @@
 // @VERIFIED 2026-10-13 已真机验证：order-action 投诉冻结位+S2协商取消链双出口+争议裁决超期升级(人工裁决,禁自动)+退款上限/回滚+CAS 乐观锁（依据：project_memory L41-52, L89, L182, L191）
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
-// 29 个 action: get_confirmation / update_item / confirm_item / confirm_all /
+// 30 个 action: get_confirmation / update_item / confirm_item / confirm_all /
 //              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
 //              modify / modify_confirm / modify_reject /
 //              extend / extend_confirm / extend_reject /
 //              resume_service / partial_confirm / ratio_confirm / complaint / complaint_withdraw /
 //              no_show_report_submit / no_show_report_defense / no_show_report_withdraw / no_show_report_detail /
-//              detail / my_orders / my_counts / nudge_partner / timeline
+//              detail / my_orders / my_counts / nudge_partner / timeline / user_confirm_start
 // 爽约申诉(第三批 3B): 用户/耍伴提交申诉 → 被诉方举证 → 管理员裁定(admin-action no_show_decide);
 //   订单状态机不因申诉改变; 数值全部后台可配(no_show_* 9 键), 规则纯函数见 ./no_show_rules
 //   撤回申诉(2026-10-10, N8 由「一期不做」变更为「做」): 仅申诉人本人、裁定前可撤, 撤回占 N6 配额
@@ -341,7 +341,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'no_show_report_submit', 'no_show_report_detail'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'complete_service', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };

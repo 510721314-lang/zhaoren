@@ -242,5 +242,46 @@ test('complaint: 订单已冻结 → oa_order_frozen', async () => {
   assert.strictEqual(r.code, 'oa_order_frozen');
 });
 
+// 18. user_confirm_start(需求B 二期 2026-10-14): 需求方 S3 带定位确认 → ok + 写 order_main.user_confirm
+test('user_confirm_start: 需求方 S3 带定位确认 → ok + 写 user_confirm', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S3' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'user_confirm_start', order_id: OID, mock_openid: USER,
+    user_confirm: { latitude: 30.5, longitude: 104.0, accuracy: 20, address: '成都市某地' } }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.status, 'S3');
+  assert.strictEqual(r.data.user_confirm.latitude, 30.5);
+  assert.ok((sdk.writes.order_main || []).length, '应写入 order_main.user_confirm');
+});
+
+// 19. user_confirm_start: 缺定位 → oa_user_location_required(仅该确认动作 fail-closed)
+test('user_confirm_start: 缺定位 → oa_user_location_required', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S3' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'user_confirm_start', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_user_location_required');
+});
+
+// 20. user_confirm_start: 仅需求方可用 → 耍伴调用 oa_uc_perm
+test('user_confirm_start: 耍伴调用 → oa_uc_perm', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S3' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'user_confirm_start', order_id: OID, mock_openid: PARTNER,
+    user_confirm: { latitude: 30.5, longitude: 104.0 } }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_uc_perm');
+});
+
+// 21. user_confirm_start: 非 S3 → oa_uc_status
+test('user_confirm_start: 非 S3 → oa_uc_status', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S2' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'user_confirm_start', order_id: OID, mock_openid: USER,
+    user_confirm: { latitude: 30.5, longitude: 104.0 } }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_uc_status');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

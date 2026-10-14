@@ -251,6 +251,11 @@
             提交{{order.nextPercent}}%履约进度
           </button>
         </view>
+        <!-- 需求B二期(2026-10-14): 需求方到场定位确认(仅"确认"时要求定位; 不点不拦主流程) -->
+        <block wx:if="{{order.my_role === 'user'}}">
+          <view class="od__ms-hint" wx:if="{{order.user_confirm}}">📍 你已确认到场 · {{order.user_confirm.address}}</view>
+          <button wx:else class="od__btn od__btn--primary" bindtap="onUserConfirm" hover-class="btn-press">📍 确认我已到场（定位）</button>
+        </block>
         <!-- 履约里程碑证据(2026-10-12 批6.4): fileID 直接渲染, 点击预览, 复用 onPreviewEvidence -->
         <view class="od__evi" wx:if="{{order.milestone && order.milestone.evidence && order.milestone.evidence.length > 0}}">
           <text class="od__evi-label">履约证据</text>

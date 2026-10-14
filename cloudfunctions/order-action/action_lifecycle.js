@@ -300,4 +300,56 @@ async function resume_service(ctx) {
   return { ok: true, data: { order_id, status: 'S3' } };
 }
 
-module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service };
+// 需求B 二期(2026-10-14): 需求方到场定位确认 —— 仅"确认"动作时要求定位(不点不拦主流程, 与 B1 耍伴侧 fail-closed 不同)
+// 与 B1 对称: S3 内由需求方自主确认, 写入 order_main.user_confirm(不出新集合); 幂等 + CAS 防并发重复。
+async function user_confirm_start(ctx) {
+  const { event, order_id, openid, getOrder, roleOf, col, _, wxCtx, db, log, writeAudit } = ctx;
+  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+  const order = await getOrder(order_id);
+  if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+  const role = roleOf(order, openid);
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+  if (role !== 'user') return { ok: false, code: 'oa_uc_perm', msg: '仅需求方可确认到场' };
+  if (order.status !== 'S3') return { ok: false, code: 'oa_uc_status', msg: `订单当前状态(${order.status})不可确认到场` };
+
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
+  // 幂等: 已确认过 → 返回首次结果
+  if (order.user_confirm && order.user_confirm.at) {
+    await writeAudit(db, log, { openid, role, category: 'business', action: 'order_user_confirm_start', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
+    return { ok: true, data: { order_id, status: order.status, user_confirm: order.user_confirm, idempotent: true } };
+  }
+
+  // 仅"确认"动作时要求定位(fail-closed): 缺经纬度即拒
+  const uc = event.user_confirm || {};
+  const lat = Number(uc.latitude);
+  const lng = Number(uc.longitude);
+  if (!(lat && lng)) {
+    return { ok: false, code: 'oa_user_location_required', msg: '确认到场需获取你的实时位置, 请授权定位后重试' };
+  }
+  const now = Date.now();
+  const payload = {
+    latitude: lat, longitude: lng,
+    accuracy: Math.round(Number(uc.accuracy) || 0),
+    address: String(uc.address || '').slice(0, 200),
+    at: now, by: openid
+  };
+  // CAS: 仅当尚未确认时写入(防并发重复); 复用 col/_ 原子条件
+  const res = await col('order_main').where({ _id: order_id, status: 'S3', 'user_confirm.at': _.exists(false) }).update({
+    data: { user_confirm: payload, updated_at: now }
+  });
+  if (!res.stats || res.stats.updated !== 1) {
+    const latest = await getOrder(order_id);
+    if (latest && latest.user_confirm && latest.user_confirm.at) {
+      await writeAudit(db, log, { openid, role, category: 'business', action: 'order_user_confirm_start', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
+      return { ok: true, data: { order_id, status: latest.status, user_confirm: latest.user_confirm, idempotent: true } };
+    }
+    return { ok: false, code: 'oa_uc_conflict', msg: '订单状态已变化,请刷新后重试' };
+  }
+  log.d(`user confirm start: ${order.order_no} (user_confirm)`);
+  await writeAudit(db, log, { openid, role, category: 'business', action: 'order_user_confirm_start', target_type: 'order', target_id: order_id, detail: { status: 'S3', has_location: true }, result: 'ok', client_ip: clientIp, device });
+  return { ok: true, data: { order_id, status: 'S3', user_confirm: payload } };
+}
+
+module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service, user_confirm_start };
