@@ -217,7 +217,11 @@
           <text>{{order.modify_result.text}}</text>
         </view>
         <block wx:if="{{order.my_role === 'partner'}}">
-          <button class="od__btn od__btn--primary" bindtap="onStartService" hover-class="btn-press">开始履约</button>
+          <!-- 阶段B(2026-10-14): 按钮状态由实时定位判定(geoGuard)决定; 未评估/null 时同样置灰 -->
+          <button class="od__btn od__btn--primary" bindtap="onStartService" hover-class="btn-press" disabled="{{!geoGuard || !geoGuard.ok}}">发起履约申请</button>
+          <!-- 阶段B: geoGuard 未评估(null)时给占位文案, 避免按钮置灰却无任何解释 -->
+          <view class="od__after-sale-tip" wx:if="{{!geoGuard}}">正在校验履约地点…</view>
+          <view class="od__after-sale-tip" wx:elif="{{geoGuard.tip}}">{{geoGuard.tip}}</view>
           <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
         </block>
         <block wx:else>

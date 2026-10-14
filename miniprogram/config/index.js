@@ -24,6 +24,9 @@ module.exports = {
   // 距离校验（公里，与后台 admin_config 同名键一致；前端仅用于提示与前置拦截，服务端为准）
   PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50, contentOptionsMax: 3, sceneOptionDisplayMax: 3 },// contentOptionsMax=勾选上限; sceneOptionDisplayMax=场景卡展示上限(均后台覆盖)
 
+  // 履约定位校验（米；规范 §五默认 200m / 精度 ≤50m；前端仅做按钮置灰与提示，服务端为准）
+  FULFILL: { distanceMaxM: 200, accuracyMaxM: 50 },
+
   AA_OPTIONS: ['0-50', '50-200', '200+', 'custom'],
 
   // 草稿（拍板项1）

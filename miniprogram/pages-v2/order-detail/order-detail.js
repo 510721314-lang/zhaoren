@@ -9,6 +9,8 @@ const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 const { callCloud } = require('../../utils/cloud.js');
 // 批 5.4: 纯映射函数(computeNextStep/pad)抽离到 utils/order-view.js, 可单测; 此处仅编排
 const { computeNextStep, pad } = require('../../utils/order-view.js');
+// 阶段B(2026-10-14): 履约定位三层判定(纯函数, 单测在 _shared/geo_guard.test.js)
+const { evaluatePosition } = require('../../utils/geo-guard.js');
 
 Page({
   data: {
@@ -35,6 +37,8 @@ Page({
     loadError: false,
     loadErrorMsg: '',
     isRedline: false,
+    // 阶段B(2026-10-14): 履约定位判定结果(仅 S2 耍伴侧; {ok,reason,distanceM,accuracy,tip}; null=未评估/非耍伴)
+    geoGuard: null,
     // C 可运营参数（供 WXML 绑定）
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: redline.PICKER_CLOSE,
@@ -97,6 +101,9 @@ Page({
       this.fetchNoShow(r.data);
       // 订单动态时间线(2026-10-12): 首屏后异步懒加载, 失败不阻断主流程
       if (!silent) this.fetchTimeline();
+      // 阶段B(2026-10-14): 履约定位判定仅随「非静默」刷新评估(进页面/回前台), 避开通知轮询的静默刷新重复定位
+      // 异常隔离(评审 C): 判定若抛错不得冒泡到外层 .catch, 否则整页被误置「网络异常」
+      if (!silent) { try { this._evalFulfillGeo(); } catch (e) { /* 定位判定失败不阻断详情渲染 */ } }
     }).catch(() => {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
@@ -675,10 +682,44 @@ Page({
     });
   },
 
+  // 阶段B(2026-10-14): 履约定位实时判定(仅 S2 耍伴侧) → 驱动「发起履约申请」按钮置灰与提示文案
+  // 触发点: fetchData 非静默分支(进页面 onLoad / 回前台 onShow 均走此处), 不走 refreshOrder 以免被通知轮询复用
+  _evalFulfillGeo() {
+    const o = this.data.order;
+    if (!o || o.status !== 'S2' || o.my_role !== 'partner') {
+      if (this.data.geoGuard) this.setData({ geoGuard: null });
+      return;
+    }
+    const site = o.location || null;
+    const thresholdM = CONFIG.FULFILL.distanceMaxM;
+    const accuracyMaxM = CONFIG.FULFILL.accuracyMaxM;
+    wx.getLocation({
+      type: 'gcj02',
+      isHighAccuracy: true,
+      highAccuracyExpireTime: 4000,
+      success: (loc) => {
+        this.setData({ geoGuard: evaluatePosition({
+          user: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy },
+          site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM
+        }) });
+      },
+      // 未授权/取点失败: 明确置灰并引导(不静默放行); 若本单履约地本身无有效坐标, 判定内部会兜底放行
+      fail: () => {
+        this.setData({ geoGuard: evaluatePosition({ user: null, site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM }) });
+      }
+    });
+  },
+
   onStartService() {
     const that = this;
     if (this.data.isRedline) {
       wx.showToast({ title: `夜间${redline.DISPLAY_CLOSE}-${CONFIG.TIME_REDLINE.open}暂停履约`, icon: 'none' });
+      return;
+    }
+    // 阶段B 点击二次校验(规范 C4, 防御性): 置灰已由 WXML disabled 保证, 此处防「定位在点击瞬间变化」绕过
+    const guard = this.data.geoGuard;
+    if (guard && !guard.ok) {
+      wx.showToast({ title: guard.tip || '当前不满足发起条件', icon: 'none' });
       return;
     }
     wx.showModal({
