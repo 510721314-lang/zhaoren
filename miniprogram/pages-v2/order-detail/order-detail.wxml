@@ -191,14 +191,16 @@
         <view class="od__contact-note">{{contactDisplay.note}}</view>
       </view>
 
-      <!-- S0 待支付 -->
+      <!-- S0 待支付(后端 IM 已对 S0 放开自由聊天: im-conv/im-send FREE_CHAT_STATUS 含 S0; 付款等待期双方可沟通) -->
       <block wx:if="{{order.status === 'S0'}}">
         <block wx:if="{{order.my_role === 'user'}}">
           <button class="od__btn od__btn--primary" bindtap="goPay" hover-class="btn-press">去支付</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系耍伴</button>
           <button class="od__btn od__btn--ghost" bindtap="onCancel" hover-class="btn-press">取消订单</button>
         </block>
         <block wx:else>
           <button class="od__btn od__btn--disabled" disabled>⏳ 等待用户支付</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
         </block>
       </block>
 
