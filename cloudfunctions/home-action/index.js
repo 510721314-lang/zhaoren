@@ -344,6 +344,7 @@ exports.main = async (event, context) => {
       const ctx = {
         event, action, cloud, db, _, col, log,
         SCENE_FALLBACK, SCENE_NAMES_LEGACY, CONTENT_TRUNC, HOME_GROUP_SIZE, SCENE_PAGE_SIZE,
+        TTL_SCENE_GROUPS,
         sceneOptionDisplayMax, ensureCollections, truncate,
         memSet, memGet, memo, sceneGroupsCacheKey, pickActivities,
         loadHomeActivitiesRaw, loadSceneList, buildSceneGroups, mapDemand, fillPublisherSurname,
