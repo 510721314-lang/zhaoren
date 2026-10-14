@@ -52,21 +52,14 @@
                 </el-form-item>
               </el-col>
             </el-row>
-            <!-- 分组级 重置/保存 (全滑动开关的分组不显示, 其改动走底部全局保存) -->
-            <div v-if="!isGroupAllBool(grp)" class="grp-actions">
+            <!-- 分组级 重置/保存 (唯一保存入口; 全滑动开关分组也走本组保存, 不再有底部全局按钮) -->
+            <div class="grp-actions">
               <el-button size="small" :disabled="!changedInGroup(grp).length" @click="resetGroup(grp)">重置</el-button>
               <el-button size="small" type="primary" :loading="saving && saveGroup === grp" @click="openSaveGroup(grp)">
                 保存<template v-if="changedInGroup(grp).length"> ({{ changedInGroup(grp).length }} 项变更)</template>
               </el-button>
             </div>
           </el-card>
-
-          <div style="text-align:right">
-            <el-button @click="load">重置</el-button>
-            <el-button type="primary" :loading="saving && saveGroup === null" @click="openSave">
-              保存<template v-if="diffRows.length"> ({{ diffRows.length }} 项变更)</template>
-            </el-button>
-          </div>
         </el-form>
       </el-tab-pane>
 
@@ -372,10 +365,6 @@ function changedInGroup(g) {
   const keys = fieldsOf(g).map((s) => s.f);
   return diffRows.value.filter((r) => keys.indexOf(r.f) >= 0);
 }
-// 分组是否全是滑动开关(bool) — 全开关分组不显示分组级 重置/保存, 其改动走底部全局保存
-function isGroupAllBool(g) {
-  return fieldsOf(g).every((s) => s.t === 'bool');
-}
 // 分组级重置: 把该分组字段恢复到加载快照
 function resetGroup(g) {
   fieldsOf(g).forEach((s) => { patch[s.f] = orig[s.f]; });
@@ -414,20 +403,14 @@ async function load() {
 
 const confirmDialog = ref(false);
 const reason = ref('');
-const saveGroup = ref(null); // null=全局保存; 字符串=仅该分组
+const saveGroup = ref(null); // 当前保存针对的分组名(仅该分组; 保存后置回 null)
 
-// 确认弹窗显示的 diff 行: saveGroup 限定单分组, 否则全部
+// 确认弹窗显示的 diff 行: 仅当前分组
 const confirmRows = computed(() => {
   if (saveGroup.value) return changedInGroup(saveGroup.value);
   return diffRows.value;
 });
 
-function openSave() {
-  if (!diffRows.value.length) { ElMessage.info('没有参数变更'); return; }
-  saveGroup.value = null;
-  reason.value = '';
-  confirmDialog.value = true;
-}
 function openSaveGroup(grp) {
   const changes = changedInGroup(grp);
   if (!changes.length) { ElMessage.info('没有参数变更'); return; }
