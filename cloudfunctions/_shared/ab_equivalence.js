@@ -638,6 +638,7 @@ function loadWith(dir, file, sdk) {
     'auto_order_timeline',                      // 新增 timeline action(原 oa_unknown_action)
     'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max · 2026-10-13 每项新增 d 说明文案(运营配置页内嵌) · extend_confirm_h→extend_confirm_min(分钟制默认20, 时间红线加 clock)
     'auto_admin_config_restore', 'auto_admin_import_collection', // 新增备份恢复 action(原 admin_unknown_action; 配合 .predeploy/restore.ps1 闭环 DB 恢复)
+    'oc_create_build_path', 'auto_oc_create_from_take', // 2026-10-14 修复拆分前既有块作用域越界: create_from_take 成功路径 7 变量提升到 try 外, 基线仍抛 ReferenceError、修复后返回成功(成功路径另由 order_create_take_success.test.js 独立守护)
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

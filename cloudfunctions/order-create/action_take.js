@@ -198,6 +198,15 @@ async function createFromTakeAction(ctx) {
     await logReject(openid, demand_id, 'take_lock_busy');
     return { ok: false, code: 'order_take_busy', msg: '操作太频繁,请稍后重试' };
   }
+  // 修复(拆分前既有块作用域越界): 成功路径后置段(finally 之后的 log/审计/通知/return)需要这些值,
+  // 必须在外层 try 之外声明; try 内仅赋值。原写法为 try 内 const/let → 成功时 finally 后 ReferenceError。
+  let orderNo = '';
+  let totalFen = 0;
+  let feeFen = 0;
+  let partnerIncomeFen = 0;
+  let orderData = null;
+  let orderId = '';
+  let userEvidenceId = '';
   try {
   // ── 并行: 创建者资料 + 耍伴进行中订单(时间重叠校验用, 互不依赖) ──
   const [creator, myOrdersRes] = await Promise.all([
@@ -331,11 +340,11 @@ async function createFromTakeAction(ctx) {
 
   // ── 创建订单 ──
   const now = Date.now();
-  const orderNo = genOrderNo();
-  const totalFen = demand.total_fen;
-  const { feeFen, partnerIncomeFen } = splitOrderAmount(totalFen, config.platform_fee_rate_fen);
+  orderNo = genOrderNo();
+  totalFen = demand.total_fen;
+  ({ feeFen, partnerIncomeFen } = splitOrderAmount(totalFen, config.platform_fee_rate_fen));
 
-  const orderData = {
+  orderData = {
     order_no: orderNo,
     demand_id,
     demand_no: demand.demand_no || '',
@@ -444,8 +453,6 @@ async function createFromTakeAction(ctx) {
   userEvidence.created_at = now;
   userEvidence.updated_at = now;
 
-  let orderId = '';
-  let userEvidenceId = '';
   try {
     await db.runTransaction(async (t) => {
       const addRes = await t.collection('order_main').add({ data: orderData });
