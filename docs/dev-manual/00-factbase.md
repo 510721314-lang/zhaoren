@@ -12,20 +12,20 @@
 | admin-web | HTTP 网关：代理 admin-action、静态资源托管、admin_login 免 key 入口 | 0 | 20 | — |
 | blog-action | 博客/资讯读写（switch 分发） | 0 | 20 | — |
 | demand-match | 供需匹配 | 0 | 20 | — |
-| demand-publish | 需求发布 | 0 | 20 | — |
+| demand-publish | 需求发布 | 5 | 20 | — |
 | evaluation-submit | 评价提交 + 信用分 | 0 | 8 | — |
-| home-action | 首页聚合（场景分组缓存/附近需求） | 0 | 8 | — |
+| home-action | 首页聚合（场景分组缓存/附近需求） | 4 | 8 | — |
 | im-conv | 会话列表/建会话 | 0 | 20 | — |
 | im-send | 消息发送 | 0 | 20 | — |
 | init-db | 数据库初始化/种子/索引/quick_check/lookup | 0 | 20 | — |
 | order-action | 订单全生命周期写操作（HANDLERS 拆分） | 7 | 20 | — |
-| order-create | 下单 | 0 | 20 | — |
-| order-timer | 定时任务：9 段分页扫描 + 状态推进 + 错误巡检 + 订阅消息推送 | 0 | 60 | `0 */5 * * * * *` |
-| partner-action | 耍伴侧操作（抢单/资质/上下线） | 0 | 8 | — |
+| order-create | 下单 | 2 | 20 | — |
+| order-timer | 定时任务：9 段分页扫描 + 状态推进 + 错误巡检 + 订阅消息推送 | 4 | 60 | `0 */5 * * * * *` |
+| partner-action | 耍伴侧操作（抢单/资质/上下线） | 4 | 8 | — |
 | partner-apply | 耍伴入驻申请 | 0 | 20 | — |
-| payment-mock | 支付（mock/真实） | 0 | 10 | — |
+| payment-mock | 支付（mock/真实） | 4 | 10 | — |
 | safety-report | 安全上报（SOS 等） | 0 | 8 | — |
-| user-login | 登录/身份/peek_login | 0 | 8 | — |
+| user-login | 登录/身份/peek_login | 4 | 8 | — |
 | zz-seed-orders | 种子订单批量注入 | 0 | — | — |
 | zz-warmup | 首屏云函数保温探针（唤醒 home-action/user-login） | 0 | 10 | `0 */5 * * * * *` |
 

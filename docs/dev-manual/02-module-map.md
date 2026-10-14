@@ -20,9 +20,16 @@
 共 **20 个业务云函数** + `_shared` 规范源。分发模式有两类：
 
 - **HANDLERS 注册表 / `switch` / `if(action===)`**：单文件 `index.js` 内分发。
-- **`action_*.js` 拆分**：巨型入口按 action 组抽离为同级文件，`index.js` 汇总。当前有两处：
+- **`action_*.js` 拆分**：巨型入口按 action 组抽离为同级文件，`index.js` 汇总。当前有 **9 处**（均入库拆分前基线 `_orig_baseline.js`，供 A/B 等价门禁常驻比对）：
   - `admin-action`：30 个 `action_*.js`（86 个 action）
   - `order-action`：7 个 `action_*.js`（32 个 action）
+  - `demand-publish`：5 个 `action_*.js`（10 个 action：`action_lifecycle`/`action_publish`/`action_query`/`action_draft`/`action_update`）
+  - `order-timer`：4 个 `action_*.js`（`SECTIONS` 段落分发，11 段）
+  - `user-login`：4 个 `action_*.js`（20 个 action）
+  - `partner-action`：4 个 `action_*.js`（13 个 action）
+  - `home-action`：4 个 `action_*.js`（8 个 action）
+  - `payment-mock`：4 个 `action_*.js`（14 个 action）
+  - `order-create`：2 个 `action_*.js`（4 个 action）
 
 | 函数 | 职责 | action 数 |
 |---|---|---|
