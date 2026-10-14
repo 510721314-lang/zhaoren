@@ -1,0 +1,62 @@
+---
+name: zhaoren-handoff-prompt
+description: 生成找人帮忙项目跨会话衔接（投喂/handoff）提示词。Use when 多轮会话将达上限、用户要新开任务继续工作、要求产出衔接/投喂提示词或交接文档时。必须先实测取证再写，投喂前走双专家评审。Do not use for 普通功能开发、bug 修复或会话内总结。
+---
+
+# 跨会话衔接提示词生成（zhaoren）
+
+为「新会话首条消息整段投喂」产出衔接提示词，使无上下文的新 Agent 能零偏差接手。本技能是 2026-10-14 三轮实证（生成 → 审计抓 6 处偏离 → 双专家评审抓 2 个计数硬错）的沉淀。
+
+## 触发与边界
+
+- 触发：用户说「新建任务继续工作」「多轮会话超上限」「给衔接/投喂/handoff 提示词」。
+- 不做：不重写业务代码、不部署、不把提示词与功能改动混在同一提交。
+- 项目固定事实（无需重查，除非怀疑漂移）：工作目录 `c:\zhaoren`；云环境 `cloud1-d9gkefwcp5c777088`；AppID `wxbc4a4afacdf234f5`；CLI `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`；项目记忆 `c:\Users\DC\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\project_memory.md`。
+
+## 流程
+
+### 1. 实测取证（禁止凭记忆/对话摘要写数字）
+
+提示词内每一个可核查值，都必须当场跑命令取证后再落笔：
+
+- Git：`git rev-parse HEAD`、`git rev-parse origin/master`、`git status --short`、`git show --stat <hash>`（改动文件与行数）。
+- 门禁：实跑 `node --test "cloudfunctions/_shared/*.test.js"`（pass/fail）、`node cloudfunctions/_shared/ab_equivalence.js`（例数/known 数）、必要时 `npm run verify *> .tmp-tcb/verify.log` 后 Select-String 提结论。
+- 计数：`(Get-Content <file> | Select-String 'pattern').Count`、`Get-ChildItem -Directory`（技能数、云函数数、sync-*.ps1 数、_orig_baseline.js 数）、逐条数 FUNCTION-REGISTRY 的「待验证」序号全集。
+- 存在性：`Test-Path`（CLI、key 文件、记忆文件、文档）；路径用仓库内真实相对路径，不写裸文件名。
+- 上一版衔接：读 `docs/HANDOFF-*.md` 中最新一版，逐条决定继承/修正/废弃。
+
+三类高频失真必须主动排查：①数字凭记忆未实测；②过时口径（已修复的缺口仍写成现状）；③状态漂移（产物写完后 HEAD/部署/推送状态又变化）。
+
+2026-10-14 实证抓出的错误（反向清单，写稿时逐项自查）：sync 脚本数 13→实为 14；技能数 23→实为 22 个目录；「待验证只 4 条」→实为 20 条；A 需求改的是 wxml 误写成 js；必读文件写裸名（实际在 `.trae/rules/` 下）；A/B 428 例归因错（428 由 demand-publish 全量拆分达到，非 B1）。
+
+### 2. 按固定七段结构起草
+
+- §0 开场回执校验：只放可机械执行项（工作目录、HEAD 与 origin/master 双校验、工作区允许的未跟踪文件、环境/AppID/CLI、必读文件**全相对路径**、5 个受保护配置文件禁改提醒、加载方式 alwaysApply 与否）；要求新 Agent 先回执再等派活。
+- §1 项目身份：技术栈、GitHub、HTTP 网关、测试身份（标注「测试标识非凭据」）、云函数全量名单、zz-* 临时目录禁令。
+- §2 本会话基线：每个交付项写 commit hash + 精确改动面（文件/行数）+ 行为变化 + 部署核验状态 + 门禁实跑值；本期更早的大背景（如拆分系列）概括为「勿重复立项」并指向 REGISTRY 编号。
+- §3 约束：最小改动、@VERIFIED 神圣、先说后做、`_orig_baseline.js` 禁删、受保护集合字段/云存储路径/错误码契约、业务红线（13 态/超时/信用分/整数分/模拟支付=正式方案/MVP 禁做）、未授权需求（B2/D 类）禁止任何代码与配置动作。
+- §4 约定与工具链：开发循环（verify 全绿才 commit）、predeploy.ps1 完整调用、CLI 串行部署/绝对路径 download 核验/deploy-log 登记、_shared 改规范源必跑 sync、云端测试口径（mock_openid + 32 位 _id，非业务单号）、PS5 与代理 push、admin-web build 前置、备份六步（正脚本 manual-backup.ps1）。
+- §5 资产索引：规则三件套全路径、项目记忆全路径、技能目录（名与数实测）、docs/dev-manual、runbooks、verification、上一版 HANDOFF、deploy-log。
+- §6 经验教训：只写新会话最易踩、且不读全文就会犯错的条目，每条带可操作结论；仓库已详载的内容给索引不搬运（控制投喂长度）。
+- §7 待办：编号 + 「谁做」（我真机/我确认配置/等批准）；最高风险时序（如 fail-closed 新门须先发客户端）单独成行加 ★，不得埋在括号里；未授权项写「禁止开工」。
+
+### 3. 投喂前双专家评审（默认必做）
+
+并行派两个只读子代理（general_purpose_task），禁止改文件：
+
+- 专家 A 事实核验：把每个可核查声明列清单，逐条实测，输出「属实/不符（给实测值）/无法核验 + 证据 + 置信度」。
+- 专家 B 完整性/偏离：查遗漏、矛盾、误导、自含性（无上下文能否开工）、凭据明文扫描；对照上一版 HANDOFF 查丢失项；评估危险操作防线（受保护配置、基线文件、zz-*、用户未跟踪文件、未授权需求）。
+
+裁决：2/2 确认 → 修正；1/1 且可低成本验证 → 主对话自行读码裁决；1/1 低置信 → 只登记。被证伪的初判必须在报告「验证者修正」章节留痕，禁止 silently 采纳。
+
+### 4. 交付
+
+- 默认在对话内给完整代码块（用户直接复制投喂）。
+- 用户明确要落盘时写 `docs/HANDOFF-YYYYMMDD.md`（文件头注明用途/用法），与上一版同体例；单独 docs 提交，不与代码混合。
+- 同步按规则 §9 追加 docs/CHANGELOG.md；提醒用户 commit（不代提交）。
+- 若评审修正了事实，提示用户旧版（对话中/已落盘）作废口径。
+
+## 凭据红线
+
+- 可出现：测试 openid（历史测试标识，须标注非凭据）、文件路径（key 文件只写路径不写内容）。
+- 禁止出现：admin key 明文、token、密码、云函数密钥内容。
