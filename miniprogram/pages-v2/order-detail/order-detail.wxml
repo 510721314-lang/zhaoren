@@ -93,6 +93,16 @@
       </view>
     </view>
 
+    <!-- 履约留痕(需求B一期可视化, 2026-10-14): 开始履约的现场照片+到场定位, 双方可见(规范 C14); 有留痕才渲染 -->
+    <view class="od__card" wx:if="{{order.start_evidence}}">
+      <view class="od__card-title">履约留痕</view>
+      <view class="od__row" wx:if="{{order.start_evidence.address}}"><text class="od__label">到场地点</text><text class="od__val">{{order.start_evidence.address}}</text></view>
+      <view class="od__row" wx:if="{{order.start_evidence.at_text}}"><text class="od__label">提交时间</text><text class="od__val">{{order.start_evidence.at_text}}</text></view>
+      <view class="od__evi" wx:if="{{order.start_evidence.photos.length > 0}}">
+        <image class="od__evi-img" wx:for="{{order.start_evidence.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-src="{{item}}" data-list="{{order.start_evidence.photos}}" bindtap="onPreviewEvidence" />
+      </view>
+    </view>
+
     <!-- 投诉详情(2026-10-12): 原因全文/发起方/状态/平台结论/退款, 双方可见; 复用爽约申诉卡的状态色 -->
     <view class="od__card" wx:if="{{order.complaint}}">
       <view class="od__card-title">投诉详情</view>

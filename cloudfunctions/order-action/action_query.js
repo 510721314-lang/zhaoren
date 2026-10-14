@@ -167,6 +167,9 @@ async function detail(ctx) {
       partner_nickname: partnerNickname,
       milestone: order.milestone || null,
       user_confirm: order.user_confirm || null,
+      // 履约留痕(2026-10-14 需求B一期可视化): 开始履约的现场照片+耍伴定位, 双方可见(规范 C14)
+      // fileID 直接供前端 <image src> / wx.previewImage 使用(与爽约证据同约定, 无需换临时链接)
+      service_start_evidence: order.service_start_evidence || null,
       modify_count: Number(order.modify_count) || 0,
       pending_modify: order.pending_modify || null,
       // 改期结果(2026-10-12): 供详情页**双方**展示最近一次改期处理结果(同意/拒绝), 前端据此在 S2/S2_5 展示

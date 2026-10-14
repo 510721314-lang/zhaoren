@@ -93,3 +93,23 @@ test('资料齐全 → S2→S3 且写入 service_start_evidence(照片/耍伴位
   assert.equal(ev.site_location.name, '成都市武侯区xx', '履约地点取自订单 location');
   assert.equal(ev.submitted_by, PARTNER);
 });
+
+test('detail 回传 service_start_evidence → 双方订单详情可见履约留痕(fileID 原样)', async () => {
+  // 独立守护: ab_equivalence 的 detail_ok 在 KNOWN_EVOLUTION(详情字段扩充), 故新字段须另有行为断言
+  const st = store();
+  st.order_main[OID].status = 'S3';
+  st.order_main[OID].service_start_evidence = {
+    photos: [{ file_id: 'cloud://x/1.jpg', kind: 'scene', at: 1700000000000 }],
+    partner_location: { latitude: 30.6, longitude: 104.1, accuracy: 15, address: '成都市锦江区yy', at: 1700000000000 },
+    submitted_by: PARTNER, submitted_at: 1700000000000
+  };
+  const sdk = makeSdk({ openid: USER, store: st });
+  const mod = loadOrderAction(sdk);
+  const r = await mod.main({ action: 'detail', order_id: OID, mock_openid: USER }, {});
+  assert.equal(r.ok, true, `应成功: ${JSON.stringify(r)}`);
+  const se = r.data.service_start_evidence;
+  assert.ok(se, 'detail 应回传 service_start_evidence');
+  assert.equal(se.photos.length, 1);
+  assert.equal(se.photos[0].file_id, 'cloud://x/1.jpg', 'fileID 原样回传(前端直接用于 <image src>)');
+  assert.equal(se.partner_location.address, '成都市锦江区yy');
+});

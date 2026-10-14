@@ -388,6 +388,13 @@ Page({
       income_text: yuan(feeRaw.partner_income_fen),
       aa_tier: feeRaw.aa_tier || ''
     } : null;
+    // 履约留痕(需求B一期可视化, 2026-10-14): 现场照片(fileID 直供 <image src>, 与爽约证据同约定)+到场地址/时间, 双方可见
+    const seRaw = d.service_start_evidence || null;
+    const startEvidence = (seRaw && Array.isArray(seRaw.photos) && seRaw.photos.length) ? {
+      photos: seRaw.photos.map((p) => (p && p.file_id) || '').filter(Boolean),
+      address: (seRaw.partner_location && seRaw.partner_location.address) || '',
+      at_text: fmtTs(seRaw.submitted_at || 0)
+    } : null;
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
@@ -401,6 +408,7 @@ Page({
       fees_view: feesView,                                  // 费用明细(平台服务费/耍伴收入/AA 档)
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
       frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
+      start_evidence: startEvidence,                        // 履约留痕(2026-10-14): 开始履约现场照片+到场地址/时间
       urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
       modify_count: d.modify_count || 0,
       modify_result: modifyResult,
