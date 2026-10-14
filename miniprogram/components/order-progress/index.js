@@ -9,6 +9,9 @@ const MAIN_CODES = ['S0', 'S1', 'S2', 'S3', 'S5', 'S8', 'S10'];
 // 分支态：anchor=主轴锚点；terminal=终止态（锚点及之前 done、无 current）；preview=锚点态时是否灰显预告
 const BRANCH_RULE = {
   S2_5:  { anchor: 'S2', terminal: false, preview: false },
+  // 履约双确认两中间态(2026-10-14 阶段C/D): 挂在锚点态旁边, 灰显预告
+  S2_6:  { anchor: 'S2', terminal: false, preview: true },
+  S3_6:  { anchor: 'S3', terminal: false, preview: true },
   S3_5:  { anchor: 'S3', terminal: false, preview: true },
   S4:    { anchor: 'S5', terminal: false, preview: true },
   S6:    { anchor: 'S0', terminal: true,  preview: false },

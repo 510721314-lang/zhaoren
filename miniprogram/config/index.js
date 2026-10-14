@@ -25,7 +25,8 @@ module.exports = {
   PUBLISH: { distanceMaxKm: 50, takeDistanceMaxKm: 50, contentOptionsMax: 3, sceneOptionDisplayMax: 3 },// contentOptionsMax=勾选上限; sceneOptionDisplayMax=场景卡展示上限(均后台覆盖)
 
   // 履约定位校验（米；规范 §五默认 200m / 精度 ≤50m；前端仅做按钮置灰与提示，服务端为准）
-  FULFILL: { distanceMaxM: 200, accuracyMaxM: 50 },
+  // 阶段C/D(2026-10-14): 双确认超时(分钟, 规范 §C8: 开始 15 / 完毕 30; 阶段 H 后台化)
+  FULFILL: { distanceMaxM: 200, accuracyMaxM: 50, applyTimeoutMin: 15, finishConfirmTimeoutMin: 30 },
 
   AA_OPTIONS: ['0-50', '50-200', '200+', 'custom'],
 

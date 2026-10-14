@@ -73,6 +73,12 @@ function computeNextStep(order, now = Date.now()) {
         ? { icon: '🚀', title: '准备履约', subtitle: '服务时间到达后点"开始履约"', tone: 'info' }
         : { icon: '🕐', title: '等待服务开始', subtitle: `服务时间 ${order.service_date} ${order.service_time}`, tone: 'mute' };
 
+    case 'S2_6':
+      // 履约双确认(2026-10-14 阶段C/D): 耍伴已发起到场申请, 等需求方确认
+      return role === 'user'
+        ? { icon: '🙋', title: '确认耍伴到场', subtitle: '耍伴已到达履约点, 请在下方确认是否开始履约', tone: 'primary' }
+        : { icon: '⏳', title: '等待需求方确认', subtitle: '已提交到场申请, 对方确认后开始履约', tone: 'mute' };
+
     case 'S3': {
       const partnerNext = order.nextPercent;
       if (role === 'partner') {

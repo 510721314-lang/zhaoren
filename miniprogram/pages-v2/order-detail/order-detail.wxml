@@ -247,6 +247,25 @@
         <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
+      <!-- S2.6 开始履约申请中(阶段C/D 2026-10-14): 需求方确认耍伴到场 / 耍伴等待对方确认 -->
+      <block wx:elif="{{order.status === 'S2_6'}}">
+        <!-- 到场耍伴信息(需求方视角): 实名全名 + 脱敏号 -->
+        <view class="od__card" wx:if="{{order.partner_contact}}">
+          <view class="od__card-title">到场耍伴</view>
+          <view class="od__row" wx:if="{{order.partner_contact.real_name}}"><text class="od__label">姓名</text><text class="od__val">{{order.partner_contact.real_name}}</text></view>
+          <view class="od__row" wx:if="{{order.partner_contact.phone_mask}}"><text class="od__label">电话</text><text class="od__val">{{order.partner_contact.phone_mask}}</text></view>
+        </view>
+        <block wx:if="{{order.my_role === 'user'}}">
+          <button class="od__btn od__btn--primary" bindtap="onStartConfirm" hover-class="btn-press">{{order.start_confirm_text}}</button>
+          <button class="od__btn od__btn--ghost" bindtap="onStartReject" hover-class="btn-press">不同意</button>
+          <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">与对方交流</button>
+        </block>
+        <block wx:else>
+          <view class="od__after-sale-tip">已提交到场申请，等待需求方确认后开始履约</view>
+          <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
+        </block>
+      </block>
+
       <!-- S3 履约中 -->
       <block wx:elif="{{order.status === 'S3'}}">
         <!-- 里程碑进度条 -->
@@ -265,11 +284,8 @@
             提交{{order.nextPercent}}%履约进度
           </button>
         </view>
-        <!-- 需求B二期(2026-10-14): 需求方到场定位确认(仅"确认"时要求定位; 不点不拦主流程) -->
-        <block wx:if="{{order.my_role === 'user'}}">
-          <view class="od__ms-hint" wx:if="{{order.user_confirm}}">📍 你已确认到场 · {{order.user_confirm.address}}</view>
-          <button wx:else class="od__btn od__btn--primary" bindtap="onUserConfirm" hover-class="btn-press">📍 确认我已到场（定位）</button>
-        </block>
+        <!-- 需求方到场留痕(阶段D 2026-10-14): 确认时留存; 原 B2「确认我已到场」按钮已随流程更正(确认提前至 S2.6)移除 -->
+        <view class="od__ms-hint" wx:if="{{order.my_role === 'user' && order.user_confirm}}">📍 你已确认耍伴到场{{order.user_confirm.address ? ' · ' + order.user_confirm.address : ''}}</view>
         <!-- 履约里程碑证据(2026-10-12 批6.4): fileID 直接渲染, 点击预览, 复用 onPreviewEvidence -->
         <view class="od__evi" wx:if="{{order.milestone && order.milestone.evidence && order.milestone.evidence.length > 0}}">
           <text class="od__evi-label">履约证据</text>

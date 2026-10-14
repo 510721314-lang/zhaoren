@@ -395,6 +395,11 @@ Page({
       address: (seRaw.partner_location && seRaw.partner_location.address) || '',
       at_text: fmtTs(seRaw.submitted_at || 0)
     } : null;
+    // 阶段C/D(2026-10-14): 需求方视角的耍伴联系信息(实名+脱敏号)与确认按钮文案
+    const pc = d.partner_contact || null;
+    const startConfirmText = (pc && (pc.real_name || pc.phone_mask))
+      ? `确认耍伴（${pc.real_name || ''}${pc.real_name && pc.phone_mask ? ' · ' : ''}${pc.phone_mask || ''}）已到场`
+      : '确认耍伴已到场';
     const order = {
       _id: d.order_id,
       order_id: d.order_id,
@@ -418,6 +423,8 @@ Page({
       scene_code: d.scene,
       scene_content_text: ((d.content_options && d.content_options.length ? d.content_options : (d.content_option ? [d.content_option] : [])) || []).join('/'),
       partner_name: d.partner_nickname,
+      partner_contact: pc,                                  // 阶段C/D: 需求方看耍伴实名+脱敏号(非需求方为 null)
+      start_confirm_text: startConfirmText,                 // 阶段C/D: S2_6 需求方确认按钮文案
       location: d.location || {},
       service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',
       service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
@@ -732,29 +739,107 @@ Page({
       return;
     }
     wx.showModal({
-      title: '确认开始履约',
-      content: '开始履约后进入安全保障期, 需提交现场照片(带地址与时间水印)并获取你的实时位置',
-      confirmText: '开始',
+      title: '发起履约申请',
+      content: '将获取你的实时位置并提交到场申请, 待需求方确认后开始履约',
+      confirmText: '提交',
       success(res) {
         if (!res.confirm) return;
-        that._collectStartEvidence().then((evidence) => {
-          if (!evidence) return;   // 用户取消选图或采集失败(内部已提示), 不发起请求
-          wx.showLoading({ title: '处理中', mask: true });
+        // 阶段C-3(2026-10-14): 只提交定位快照(不拍照; 照片在需求方同意后拍, 阶段E)
+        that._collectStartLocation(false, true).then((loc) => {
+          if (!loc) return;   // 未授权/取点失败(内部已提示), 不发起请求
+          wx.showLoading({ title: '提交中', mask: true });
           callCloud('order-action', {
-            action: 'start_service', order_id: that.data.order._id, start_evidence: evidence
+            action: 'start_apply', order_id: that.data.order._id, start_location: loc
           }).then((r) => {
             wx.hideLoading();
             if (!r.ok) {
               wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
               return;
             }
-            require('../../utils/report.js').report('order_start', { order_id: that.data.order._id });
-            wx.showToast({ title: '已开始履约', icon: 'success' });
+            wx.showToast({ title: '已提交到场申请', icon: 'success' });
             that.fetchData({ orderId: that.data.order._id });
           }).catch(() => {
             wx.hideLoading();
             wx.showToast({ title: '网络异常', icon: 'none' });
           });
+        });
+      }
+    });
+  },
+
+  // 阶段C-3(2026-10-14): 采集定位快照(纯定位, 不拍照)。
+  // silent=true 时取点失败不弹提示(供可选留痕场景); withAddr=true 时附逆地理地址(存证用, 失败退回无地址)
+  _collectStartLocation(silent, withAddr) {
+    const that = this;
+    return new Promise((resolve) => {
+      wx.getLocation({
+        type: 'gcj02',
+        isHighAccuracy: true,
+        highAccuracyExpireTime: 4000,
+        success: (loc) => {
+          const base = { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy };
+          if (!withAddr) { resolve(base); return; }
+          that._addrOf(loc.latitude, loc.longitude).then((addr) => resolve(Object.assign({ address: addr }, base)));
+        },
+        fail: () => {
+          if (!silent) wx.showToast({ title: '发起履约申请需授权定位, 请开启后重试', icon: 'none' });
+          resolve(null);
+        }
+      });
+    });
+  },
+
+  // 阶段D(2026-10-14): 需求方「同意开始履约」→ S2_6→S3(可带用户定位留痕; 取不到定位不阻断)
+  onStartConfirm() {
+    const that = this;
+    wx.showModal({
+      title: '确认耍伴已到场',
+      content: '确认后订单进入履约中, 耍伴将开始服务',
+      confirmText: '确认',
+      success(res) {
+        if (!res.confirm) return;
+        that._collectStartLocation(true, false).then((loc) => {
+          wx.showLoading({ title: '提交中', mask: true });
+          const payload = { action: 'start_confirm', order_id: that.data.order._id };
+          if (loc) payload.user_location = loc;
+          callCloud('order-action', payload).then((r) => {
+            wx.hideLoading();
+            if (!r.ok) {
+              wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+              return;
+            }
+            wx.showToast({ title: '已确认, 履约开始', icon: 'success' });
+            that.fetchData({ orderId: that.data.order._id });
+          }).catch(() => {
+            wx.hideLoading();
+            wx.showToast({ title: '网络异常', icon: 'none' });
+          });
+        });
+      }
+    });
+  },
+
+  // 阶段D(2026-10-14): 需求方「不同意」→ S2_6→S2(耍伴 60 秒后可重发)
+  onStartReject() {
+    const that = this;
+    wx.showModal({
+      title: '不同意开始履约',
+      content: '确认不同意? 耍伴 60 秒后可重新发起到场申请',
+      confirmText: '不同意',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', { action: 'start_reject', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+            return;
+          }
+          wx.showToast({ title: '已拒绝', icon: 'none' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常', icon: 'none' });
         });
       }
     });
