@@ -26,6 +26,22 @@ const dpStore = (demand) => ({
   demand: demand ? { [DID]: Object.assign({ _id: DID, demand_no: 'DR-TEST', scene: 'W1', is_deleted: false }, demand) } : {},
   order_main: {}, system_notice: {}, user_account: {}
 });
+// demand-publish: 全面拆分用例夹具(env=dev 放行 mock_openid; 富配置/实名用户让 publish 穿透到写库成功)
+const DPUID = 'u'.repeat(32);
+const dpPubStore = (over) => Object.assign({
+  admin_config: { global: {
+    env: 'dev',
+    scene_list: [{ code: 'W1', name: '就医陪诊', options: ['陪同挂号', '取药', '陪检'], visible: true, builtin: true, disclaimer_type: 'medical_disclaimer' }],
+    legal_scene_disclaimers: { W1: 'W1 就医陪诊场景免责声明全文' },
+    rate_min_fen: 3000, rate_max_fen: 10000,
+    min_credit_place_order: 600, min_credit_take_order: 600,
+    city_enabled: ['成都'], publish_distance_max_km: 50, take_distance_max_km: 50,
+    welfare_fixed_price_fen: 5000
+  } },
+  user_account: { [DPUID]: { _id: DPUID, openid: USER, nickname: '张三', surname: '张', status: 'normal', is_realname_done: true, user_credit_score: 800, age: null, is_deleted: false } },
+  emergency_contact: {}, partner_profile: {}, demand_draft: {}, disclaimer_signature: {},
+  demand: {}, order_main: {}, system_notice: {}, audit_log: {}, platform_event: {}
+}, over || {});
 // partner-action: 物理拆分用例夹具(admin_config env=dev 放行 mock_openid; 已认证耍伴 profile)
 const PAID = 'p'.repeat(32);
 const paStore = (over) => Object.assign({
@@ -187,6 +203,30 @@ const CASES = [
   { fn: 'demand-publish', name: 'dp_cancel_ok', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER }), event: { action: 'cancel', demand_id: DID, mock_openid: USER } },
   { fn: 'demand-publish', name: 'dp_lazy_expire_none', openid: USER, store: dpStore(null), event: { action: 'lazy_expire', mock_openid: USER } },
   { fn: 'demand-publish', name: 'dp_lazy_expire_one', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER, expire_at: 1 }), event: { action: 'lazy_expire', mock_openid: USER } },
+  // ── demand-publish：全面拆分 8 个 action(publish/my_demands/detail/detail_light/save_draft/list_drafts/delete_draft/update) A/B 证据 ──
+  { fn: 'demand-publish', name: 'dp_publish_no_scene', openid: USER, store: dpPubStore(), event: { action: 'publish', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_publish_bad_time', openid: USER, store: dpPubStore(), event: { action: 'publish', scene: 'W1', start_time: 1, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_publish_ok', openid: USER, store: dpPubStore(), event: {
+    action: 'publish', mock_openid: USER, device: 'test',
+    scene: 'W1', start_time: NEW_TS, duration_h: 1,
+    location: { name: '成都武侯区某医院', latitude: 30.55, longitude: 104.05, city: '成都' },
+    publish_location: { name: '当前位置', latitude: 30.55, longitude: 104.05, city: '成都' },
+    aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
+    content_options: ['陪同挂号'], rate_fen: 5000, match_mode: 'broadcast',
+    publish_type: 'self', contact_phone: '13800000000', headcount: 1 } },
+  { fn: 'demand-publish', name: 'dp_my_demands_ok', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER }), event: { action: 'my_demands', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_detail_no_id', openid: USER, store: dpStore(null), event: { action: 'detail', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_detail_ok', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER, content_options: ['陪同挂号'], remark: '需求标题｜需求描述', start_time: Date.now() + 3600000, duration_h: 1, rate_fen: 5000, pricing_type: 'hourly', location: { name: '成都市', city: '成都', latitude: 30.55, longitude: 104.05 }, contact_phone: '13800000000', created_at: Date.now() - 5 * 60000 }), event: { action: 'detail', demand_id: DID, viewer_lat: 30.6, viewer_lng: 104.1, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_detail_light_no_id', openid: USER, store: dpStore(null), event: { action: 'detail_light', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_detail_light_ok', openid: USER, store: dpStore({ status: 'matching', creator_openid: USER }), event: { action: 'detail_light', demand_id: DID, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_save_draft_no_data', openid: USER, store: dpStore(null), event: { action: 'save_draft', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_save_draft_create', openid: USER, store: dpStore(null), event: { action: 'save_draft', demand_data: { scene: 'W1', remark: 'draft' }, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_list_drafts_ok', openid: USER, store: dpStore(null), event: { action: 'list_drafts', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_delete_draft_no_id', openid: USER, store: dpStore(null), event: { action: 'delete_draft', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_update_no_id', openid: USER, store: dpStore(null), event: { action: 'update', mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_update_not_owner', openid: USER, store: dpStore({ status: 'matching', creator_openid: STRANGER }), event: { action: 'update', demand_id: DID, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_update_bad_status', openid: USER, store: dpStore({ status: 'matched', creator_openid: USER }), event: { action: 'update', demand_id: DID, mock_openid: USER } },
+  { fn: 'demand-publish', name: 'dp_unknown', openid: USER, store: dpStore(null), event: { action: 'nope_xxx', mock_openid: USER } },
   // ── user-login：物理拆分地图组(set_map_share / report_map_gps / nearby_map_list) A/B 证据 ──
   { fn: 'user-login', name: 'ul_map_share_bad_allow', openid: USER, store: ulStore({ allow_map_share: true }), event: { action: 'set_map_share', mock_openid: USER } },
   { fn: 'user-login', name: 'ul_map_share_no_user', openid: USER, store: ulStore(null), event: { action: 'set_map_share', allow: true, mock_openid: USER } },
@@ -546,6 +586,19 @@ const AUTO_SEEDS = [
   ...enumerateActions('order-create').map((a) => ({
     fn: 'order-create', name: `auto_oc_${a}`, openid: USER, store: ocStore(),
     event: { action: a, mock_openid: USER, demand_id: DEM, scene: 'W1', partner_location: { latitude: 30.5, longitude: 104.0 } },
+  })),
+  // demand-publish：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 无 ReferenceError
+  // (store 用 dpPubStore: env=dev + 富配置/实名用户, 通用入参穿透到各自业务分支)
+  ...enumerateActions('demand-publish').map((a) => ({
+    fn: 'demand-publish', name: `auto_dp_${a}`, openid: USER, store: dpPubStore(),
+    event: {
+      action: a, mock_openid: USER, device: 'test', demand_id: DID, draft_id: DID,
+      scene: 'W1', start_time: NEW_TS, duration_h: 1,
+      location: { name: '成都', city: '成都', latitude: 30.55, longitude: 104.05 },
+      content_options: ['陪同挂号'], rate_fen: 5000, aa_tier: '0-50',
+      aa_promise_checked: true, disclaimer_signed: true, publish_type: 'self',
+      contact_phone: '13800000000',
+    },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
