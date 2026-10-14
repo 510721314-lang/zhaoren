@@ -138,6 +138,99 @@ async function start_service(ctx) {
   return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
 }
 
+// ── 履约双确认 · 阶段C-1(2026-10-14, 依据《线下陪伴履约流程规范与流程图》§2.2) ──
+// 开始履约申请的定位阈值(规范 §五 默认值: 距离 200m / 精度 ≤50m; 阶段 H 后台化前先用常量兜底, 与前端 CONFIG.FULFILL 同值)
+const FULFILL_DISTANCE_MAX_M = 200;
+const FULFILL_ACCURACY_MAX_M = 50;
+// 需求方「不同意」后可重发的冷却窗(规范 §C9: 允许重发, 冷却 60 秒)
+const START_APPLY_COOLDOWN_MS = 60 * 1000;
+
+// 开始履约申请(耍伴发起, S2→S2_6): 只提交「定位快照」(不含照片, 照片在需求方同意后, 阶段E) + 存证先行;
+// 需求方确认(阶段D)后才进入 S3 真正开始履约。旧 start_service(no.5 直连 S2→S3)保留共存, 待前端切换后收口。
+async function start_apply(ctx) {
+  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm } = ctx;
+  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+  const order = await getOrder(order_id);
+  if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
+  const role = roleOf(order, openid);
+  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+  if (role !== 'partner') return { ok: false, code: 'oa_start_apply_perm', msg: '仅耍伴可发起履约申请' };
+  if (order.status !== 'S2') return { ok: false, code: 'oa_start_apply_status', msg: `订单当前状态(${order.status})不可发起履约申请` };
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可发起履约申请' };
+
+  const now = Date.now();
+  // 冷却(规范 §C9): 需求方刚「不同意」后 60 秒内不可重发申请
+  const lastReject = Number(order.start_reject_at) || 0;
+  if (lastReject && (now - lastReject) < START_APPLY_COOLDOWN_MS) {
+    const left = Math.ceil((START_APPLY_COOLDOWN_MS - (now - lastReject)) / 1000);
+    return { ok: false, code: 'oa_start_apply_cooldown', msg: `对方刚拒绝, 请 ${left} 秒后再试` };
+  }
+  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
+  const device = String(event.device || '').slice(0, 200);
+
+  // 定位快照(fail-closed): 真实客户端必须传 start_location; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 start_service 同口径
+  const isMockCall = (wxCtx && !wxCtx.OPENID) && !!event.mock_openid;
+  const sl = event.start_location || {};
+  const rawLat = Number(sl.latitude);
+  const rawLng = Number(sl.longitude);
+  const rawAcc = Number(sl.accuracy);
+  if (!isMockCall) {
+    if (!(isFinite(rawLat) && isFinite(rawLng) && rawLat && rawLng)) {
+      return { ok: false, code: 'oa_start_apply_location_required', msg: '发起履约申请需获取你的实时位置, 请授权定位后重试' };
+    }
+    if (!(isFinite(rawAcc) && rawAcc > 0) || rawAcc > FULFILL_ACCURACY_MAX_M) {
+      return { ok: false, code: 'oa_start_apply_accuracy_low', msg: `当前定位精度不足(需≤${FULFILL_ACCURACY_MAX_M}米), 请到开阔处重试` };
+    }
+    // 履约地有有效坐标才做距离校验; 无坐标=存量/手输地址订单 → 放行兜底(与前端 geo-guard no_site 同口径, 评审 2/2 确认)
+    const site = order.location || {};
+    const siteLat = Number(site.latitude);
+    const siteLng = Number(site.longitude);
+    if (isFinite(siteLat) && isFinite(siteLng) && !(siteLat === 0 && siteLng === 0)) {
+      const distM = Math.round(haversineKm(rawLat, rawLng, siteLat, siteLng) * 1000);
+      if (distM > FULFILL_DISTANCE_MAX_M) {
+        return { ok: false, code: 'oa_start_apply_too_far', msg: '请确认是否到达履约地点, 或联系用户确认地点' };
+      }
+    }
+  }
+
+  // 存证先行(规范 §2.4 FULFILL_EVIDENCE_FIELDS 口径): 定位快照先落库, 再推消息
+  const evidence = {
+    order_id,
+    role: 'partner',
+    stage: 'start',
+    lat: isFinite(rawLat) ? rawLat : 0,
+    lng: isFinite(rawLng) ? rawLng : 0,
+    coord_system: 'GCJ-02',
+    accuracy: Math.round(isFinite(rawAcc) ? rawAcc : 0),
+    address: String(sl.address || '').slice(0, 200),
+    server_time: now,
+    photo_urls: [],                          // 申请阶段不带照片(照片在需求方同意后, 阶段E)
+    threshold_used: FULFILL_DISTANCE_MAX_M    // 发起瞬间快照的阈值(后台改配不影响存量订单)
+  };
+  const won = await casStatus(order_id, 'S2', {
+    status: 'S2_6', start_apply_at: now, updated_at: now,
+    start_apply_evidence: evidence
+  }, 'start_apply');
+  if (!won) {
+    const latest = await getOrder(order_id);
+    if (latest && latest.status === 'S2_6') {
+      await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_apply', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
+      return { ok: true, data: { order_id, status: 'S2_6', start_apply_at: latest.start_apply_at || now, idempotent: true } };
+    }
+    return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+  }
+  await logStatus(order_id, 'S2', 'S2_6', 'start_apply', openid);
+  log.d(`start apply: ${order.order_no} S2→S2_6`);
+  writeNotice({
+    to_openid: order.user_openid, order_id, type: 'start_apply',
+    title: '耍伴已到达履约点',
+    body: `${order.partner_nickname || '耍伴'} 已到达指定履约点, 请确认是否开始履约`,
+    action_key: 'jump_order', action_payload: { order_id }
+  });
+  await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_apply', target_type: 'order', target_id: order_id, detail: { status: 'S2_6', accuracy: evidence.accuracy }, result: 'ok', client_ip: clientIp, device });
+  return { ok: true, data: { order_id, status: 'S2_6', start_apply_at: now } };
+}
+
 async function complete_service(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
@@ -352,4 +445,4 @@ async function user_confirm_start(ctx) {
   return { ok: true, data: { order_id, status: 'S3', user_confirm: payload } };
 }
 
-module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service, user_confirm_start };
+module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service, user_confirm_start, start_apply };
