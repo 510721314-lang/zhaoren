@@ -683,26 +683,121 @@ Page({
     }
     wx.showModal({
       title: '确认开始履约',
-      content: '开始履约后进入安全保障期',
+      content: '开始履约后进入安全保障期, 需提交现场照片(带地址与时间水印)并获取你的实时位置',
       confirmText: '开始',
       success(res) {
         if (!res.confirm) return;
-        wx.showLoading({ title: '处理中', mask: true });
-        callCloud('order-action', { action: 'start_service', order_id: that.data.order._id }).then((r) => {
-          wx.hideLoading();
-          if (!r.ok) {
-            wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
-            return;
-          }
-          require('../../utils/report.js').report('order_start', { order_id: that.data.order._id });
-          wx.showToast({ title: '已开始履约', icon: 'success' });
-          that.fetchData({ orderId: that.data.order._id });
-        }).catch(() => {
-          wx.hideLoading();
-          wx.showToast({ title: '网络异常', icon: 'none' });
+        that._collectStartEvidence().then((evidence) => {
+          if (!evidence) return;   // 用户取消选图或采集失败(内部已提示), 不发起请求
+          wx.showLoading({ title: '处理中', mask: true });
+          callCloud('order-action', {
+            action: 'start_service', order_id: that.data.order._id, start_evidence: evidence
+          }).then((r) => {
+            wx.hideLoading();
+            if (!r.ok) {
+              wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+              return;
+            }
+            require('../../utils/report.js').report('order_start', { order_id: that.data.order._id });
+            wx.showToast({ title: '已开始履约', icon: 'success' });
+            that.fetchData({ orderId: that.data.order._id });
+          }).catch(() => {
+            wx.hideLoading();
+            wx.showToast({ title: '网络异常', icon: 'none' });
+          });
         });
       }
     });
+  },
+
+  // 开始履约留痕采集(需求B · 强制): 高精度定位(必须) + 1~3 张现场照片(客户端叠地址+时间水印后上传)
+  // 返回 { photos:[{file_id,kind,at}], partner_location:{latitude,longitude,accuracy,address,at} };
+  // 任一步被拒/失败返回 null → 不发起 start_service(与服务端 fail-closed 校验一致)
+  _collectStartEvidence() {
+    const that = this;
+    return new Promise((resolve) => {
+      wx.getLocation({
+        type: 'gcj02',
+        isHighAccuracy: true,
+        highAccuracyExpireTime: 4000,
+        success: (loc) => {
+          const at = Date.now();
+          that._addrOf(loc.latitude, loc.longitude).then((addr) => {
+            wx.chooseMedia({
+              count: 3,
+              mediaType: ['image'],
+              sizeType: ['compressed'],
+              sourceType: ['camera', 'album'],
+              success: (res) => that._uploadStartPhotos(res.tempFiles || [], { loc, addr, at }).then(resolve),
+              fail: () => resolve(null)
+            });
+          });
+        },
+        fail: () => {
+          wx.showToast({ title: '开始履约需授权定位, 请开启后重试', icon: 'none' });
+          resolve(null);
+        }
+      });
+    });
+  },
+
+  // 逆地理编码取可读地址(腾讯地图 key 来自 CONFIG); 无 key/请求失败回退坐标串
+  _addrOf(lat, lng) {
+    const coord = `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    if (!CONFIG.TENCENT_MAP_KEY) return Promise.resolve(coord);
+    return new Promise((resolve) => {
+      wx.request({
+        url: `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${CONFIG.TENCENT_MAP_KEY}`,
+        timeout: 5000,
+        success: (r) => {
+          const res = r.data && r.data.result;
+          const addr = res && ((res.formatted_addresses && res.formatted_addresses.recommend) || res.address);
+          resolve(addr || coord);
+        },
+        fail: () => resolve(coord)
+      });
+    });
+  },
+
+  // 逐张叠水印(地址+时间)并上传云存储; 单张水印合成失败降级上传原图(不阻断履约)
+  async _uploadStartPhotos(files, ctx) {
+    if (!files.length) {
+      wx.showToast({ title: '请至少拍摄1张现场照片', icon: 'none' });
+      return null;
+    }
+    wx.showLoading({ title: '处理照片…', mask: true });
+    const { watermark } = require('../../utils/photo-watermark.js');
+    const d = new Date(ctx.at);
+    const pad = (n) => String(n).padStart(2, '0');
+    const timeText = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const orderNo = (this.data.order && this.data.order.order_no) || '';
+    const photos = [];
+    for (let i = 0; i < Math.min(files.length, 3); i++) {
+      const tmp = files[i].tempFilePath;
+      let out = tmp;
+      try {
+        out = await watermark(tmp, [`订单 ${orderNo}`, ctx.addr, timeText]);
+      } catch (e) { /* 水印合成失败: 降级上传原图, 不阻断 */ }
+      const name = String(tmp).split('/').pop();
+      const ext = String(name.split('.').pop() || 'jpg').toLowerCase();
+      const up = await wx.cloud.uploadFile({
+        cloudPath: `start-evidence/${this.__orderId}/${ctx.at}-${i}.${ext}`,
+        filePath: out
+      });
+      // 首张默认「周边环境」, 其余默认「局部」(服务端仅做归一化, 不强制比例)
+      photos.push({ file_id: up.fileID, kind: i === 0 ? 'scene' : 'closeup', at: ctx.at });
+    }
+    wx.hideLoading();
+    return {
+      photos,
+      partner_location: {
+        latitude: ctx.loc.latitude,
+        longitude: ctx.loc.longitude,
+        accuracy: Math.round(ctx.loc.accuracy || 0),
+        address: ctx.addr,
+        at: ctx.at
+      }
+    };
   },
 
   onSafety() {

@@ -364,9 +364,15 @@ const CASES = [
   { fn: 'order-action', name: 'cancel_S1_release_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S1', user_openid: USER, partner_openid: PARTNER, demand_id: 'e'.repeat(32), total_fen: 1000 } }, demand: { ['e'.repeat(32)]: { _id: 'e'.repeat(32), status: 'matched' } } }),
     event: { action: 'cancel', mock_openid: PARTNER, order_id: OID, reason: '不需要了' } },
+  // start_service 自 2026-10-14(需求B)起强制要求 start_evidence(照片+实时位置); 基线(_orig_baseline.js)忽略该字段,
+  // 故入参补齐后两侧返回值逐字一致(无需 KNOWN_EVOLUTION)。校验/落库由 order_start_evidence.test.js 独立守护。
   { fn: 'order-action', name: 'start_S2_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
-    event: { action: 'start_service', mock_openid: PARTNER, order_id: OID } },
+    event: { action: 'start_service', mock_openid: PARTNER, order_id: OID,
+      start_evidence: {
+        photos: [{ file_id: 'cloud://mock/start-evidence/1.jpg', kind: 'scene', at: 1700000000000 }],
+        partner_location: { latitude: 30.5, longitude: 104.0, accuracy: 12, address: '成都市', at: 1700000000000 }
+      } } },
   { fn: 'order-action', name: 'complete_S3_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, milestone: { current: 3, confirmed: [true, true, true] } } } }),
     event: { action: 'complete_service', mock_openid: PARTNER, order_id: OID } },

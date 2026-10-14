@@ -72,9 +72,52 @@ async function start_service(ctx) {
   const now = Date.now();
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
+
+  // ── 需求B 开始履约留痕(强制, fail-closed): 1~3 张现场照片(客户端已叠地址+时间水印) + 耍伴实时精确位置 ──
+  // 真实客户端必须传 start_evidence; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 order-create 接单同口径。
+  const isMockCall = (wxCtx && !wxCtx.OPENID) && !!event.mock_openid;
+  const se = event.start_evidence || {};
+  const sePhotos = Array.isArray(se.photos)
+    ? se.photos.filter((p) => p && typeof p.file_id === 'string' && p.file_id).slice(0, 3)
+    : [];
+  const seLoc = se.partner_location || {};
+  const seLat = Number(seLoc.latitude);
+  const seLng = Number(seLoc.longitude);
+  if (!isMockCall) {
+    if (!sePhotos.length) {
+      return { ok: false, code: 'oa_start_evidence_required', msg: '开始履约需提交 1~3 张现场照片(带地址与时间水印)' };
+    }
+    if (!(seLat && seLng)) {
+      return { ok: false, code: 'oa_start_location_required', msg: '开始履约需获取你的实时位置, 请授权定位后重试' };
+    }
+  }
   const won = await casStatus(order_id, 'S2', {
     status: 'S3', service_started_at: now, updated_at: now,
-    milestone: { current: 0, confirmed: [false, false, false], evidence: [], submitted_at: null }
+    milestone: { current: 0, confirmed: [false, false, false], evidence: [], submitted_at: null },
+    service_start_evidence: {
+      // 照片(云存储 fileID): kind=scene 周边环境 / closeup 局部; 客户端可选, 服务端仅归一化
+      photos: sePhotos.map((p) => ({
+        file_id: p.file_id,
+        kind: p.kind === 'closeup' ? 'closeup' : 'scene',
+        at: Number(p.at) || now
+      })),
+      // 耍伴端实时精确位置(客户端 wx.getLocation 采集, 含精度与逆地理地址)
+      partner_location: (seLat && seLng) ? {
+        latitude: seLat, longitude: seLng,
+        accuracy: Math.round(Number(seLoc.accuracy) || 0),
+        address: String(seLoc.address || '').slice(0, 200),
+        at: Number(seLoc.at) || now
+      } : null,
+      // 需求的最终用户履约地点: 服务端自取订单 location(下单时来自需求), 客户端不可伪造
+      site_location: order.location ? {
+        name: String(order.location.name || '').slice(0, 100),
+        address: String(order.location.address || order.location.name || '').slice(0, 200),
+        latitude: Number(order.location.latitude) || 0,
+        longitude: Number(order.location.longitude) || 0
+      } : null,
+      submitted_by: openid,
+      submitted_at: now
+    }
   }, 'start_service');
   if (!won) {
     const latest = await getOrder(order_id);

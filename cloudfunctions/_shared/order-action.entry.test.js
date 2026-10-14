@@ -105,10 +105,17 @@ test('cancel: CAS 未抢到且订单未变 S6 → oa_status_conflict', async () 
 });
 
 // 8. CAS 未抢到: 开始履约竞争落败 → oa_status_conflict
+// 注: 2026-10-14(需求B)起 start_service 强制 start_evidence, 须先满足资料门才能走到 CAS 分支
 test('start_service: CAS 未抢到 → oa_status_conflict', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S2' }), updateCount: 0 });
   const { main } = loadIndex(sdk);
-  const r = await main({ action: 'start_service', order_id: OID, mock_openid: PARTNER }, {});
+  const r = await main({
+    action: 'start_service', order_id: OID, mock_openid: PARTNER,
+    start_evidence: {
+      photos: [{ file_id: 'cloud://x/1.jpg', kind: 'scene', at: 1 }],
+      partner_location: { latitude: 30.5, longitude: 104.0, at: 1 }
+    }
+  }, {});
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'oa_status_conflict');
 });
