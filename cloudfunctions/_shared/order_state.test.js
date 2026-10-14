@@ -5,20 +5,30 @@ const assert = require('node:assert');
 const S = require('./order_state');
 
 // ── 状态分组常量 ──
-test('状态分组: 目标主轴9态 + 争议占位S10.5 + 终态3个 + 退役态S9 = 14 个合法 S 码, 无重复', () => {
-  assert.strictEqual(S.MAIN_AXIS.length, 9);
+test('状态分组: 目标主轴11态 + 争议占位S10.5 + 终态3个 + 退役态S9 = 16 个合法 S 码, 无重复', () => {
+  assert.strictEqual(S.MAIN_AXIS.length, 11);
   assert.deepStrictEqual(S.TERMINAL_STATES, ['S6', 'S7', 'S10']);
   assert.deepStrictEqual(S.SIDE_STATES, ['S10.5']);
   assert.deepStrictEqual(S.LEGACY_STATES, ['S9']);
-  assert.strictEqual(S.ALL_STATES.length, 14);
-  assert.strictEqual(new Set(S.ALL_STATES).size, 14);
+  assert.strictEqual(S.ALL_STATES.length, 16);
+  assert.strictEqual(new Set(S.ALL_STATES).size, 16);
+  // 履约双确认两中间态(2026-10-14)
+  assert.ok(S.MAIN_AXIS.indexOf('S2_6') >= 0 && S.MAIN_AXIS.indexOf('S3_6') >= 0);
   // 结算资格组收编原「S8/S9/S10 隐式算已结算」注释口径
   assert.deepStrictEqual(S.SETTLE_ELIGIBLE, ['S8', 'S9', 'S10']);
 });
 
+// ── 履约双确认存证结构(2026-10-14, 规范 §2.4) ──
+test('履约存证: 字段集/坐标系/阶段常量符合规范', () => {
+  assert.deepStrictEqual(S.FULFILL_EVIDENCE_FIELDS,
+    ['order_id', 'role', 'lat', 'lng', 'coord_system', 'accuracy', 'server_time', 'photo_urls', 'threshold_used']);
+  assert.strictEqual(S.FULFILL_COORD_SYSTEM, 'GCJ-02');
+  assert.deepStrictEqual(S.FULFILL_STAGES, { START: 'start', FINISH: 'finish' });
+});
+
 // ── 迁移表 ──
-test('迁移表: 22 条, no 连续 1..22', () => {
-  assert.strictEqual(S.TRANSITIONS.length, 22);
+test('迁移表: 30 条, no 连续 1..30', () => {
+  assert.strictEqual(S.TRANSITIONS.length, 30);
   S.TRANSITIONS.forEach((t, i) => assert.strictEqual(t.no, i + 1));
 });
 
@@ -45,6 +55,25 @@ test('canTransition 正向: 关键迁移均命中白名单', () => {
   assert.ok(S.canTransition('after_sale_expire', 'S8', 'S10'));
   assert.ok(S.canTransition('interrupt_report', 'S3', 'S3.5'));
   assert.ok(S.canTransition('resume', 'S3.5', 'S3'));
+});
+
+test('canTransition 履约双确认(2026-10-14): 8 条新迁移正向命中', () => {
+  assert.ok(S.canTransition('start_apply', 'S2', 'S2_6'));
+  assert.ok(S.canTransition('start_confirm', 'S2_6', 'S3'));
+  assert.ok(S.canTransition('start_reject', 'S2_6', 'S2'));
+  assert.ok(S.canTransition('start_apply_timeout', 'S2_6', 'S10.5'));
+  assert.ok(S.canTransition('finish_apply', 'S3', 'S3_6'));
+  assert.ok(S.canTransition('finish_confirm', 'S3_6', 'S5'));
+  assert.ok(S.canTransition('finish_reject', 'S3_6', 'S3'));
+  assert.ok(S.canTransition('finish_confirm_timeout', 'S3_6', 'S10.5'));
+});
+
+test('canTransition 履约双确认: 非法/越级迁移被拒', () => {
+  assert.ok(!S.canTransition('start_confirm', 'S2', 'S3'));      // 同意事件不能从 S2 直发(须经 S2_6)
+  assert.ok(!S.canTransition('start_apply', 'S2_6', 'S3'));     // 申请事件不能用于确认
+  assert.ok(!S.canTransition('finish_confirm', 'S3', 'S5'));    // 完毕确认不能从 S3 直发(须经 S3_6)
+  assert.ok(!S.canTransition('finish_apply', 'S2', 'S3_6'));    // 完毕申请不能从 S2 发起
+  assert.ok(!S.canTransition('start_apply', 'S2_6', 'S5'));     // to 不匹配
 });
 
 test('canTransition: to=null 的规则(目标由业务决定)只校验 from', () => {

@@ -15,7 +15,7 @@
 // ──────────────────────────────────────────────────────────────────
 /**
  * 订单主轴状态码(全量合法 14 态)。
- * @typedef {'S1'|'S0'|'S2'|'S2_5'|'S3'|'S3.5'|'S4'|'S5'|'S8'|'S10.5'|'S6'|'S7'|'S10'|'S9'} OrderStatus
+ * @typedef {'S1'|'S0'|'S2'|'S2_6'|'S2_5'|'S3'|'S3_6'|'S3.5'|'S4'|'S5'|'S8'|'S10.5'|'S6'|'S7'|'S10'|'S9'} OrderStatus
  */
 /**
  * 评价正交位。
@@ -71,12 +71,22 @@
  * @property {boolean} frozen
  */
 
-// ── 状态常量(§3.2): 目标主轴 9 态 + 争议占位 + 终态 + 退役态 ──
-const MAIN_AXIS = ['S1', 'S0', 'S2', 'S2_5', 'S3', 'S3.5', 'S4', 'S5', 'S8'];  // 目标主轴 9 态(S9 退役收编为 S8+eval_state=auto_done)
+// ── 状态常量(§3.2): 目标主轴 11 态 + 争议占位 + 终态 + 退役态 ──
+// 2026-10-14 履约双确认(规范《线下陪伴履约流程规范》)新增两中间态:
+//   S2_6=开始履约申请中(耍伴发起申请待用户确认) / S3_6=履约完毕确认中(耍伴发起完毕待用户凭证确认)
+const MAIN_AXIS = ['S1', 'S0', 'S2', 'S2_6', 'S2_5', 'S3', 'S3_6', 'S3.5', 'S4', 'S5', 'S8'];  // 目标主轴 11 态(S9 退役收编为 S8+eval_state=auto_done)
 const SIDE_STATES = ['S10.5'];                                                  // 争议占位(目标态由 dispute_state 正交位表达)
 const TERMINAL_STATES = ['S6', 'S7', 'S10'];                                    // 终态: 已取消/已退款/已关闭
 const LEGACY_STATES = ['S9'];                                                   // 退役态: 仅存量与读兼容保留(mapStatus → S8 + auto_done)
-const ALL_STATES = MAIN_AXIS.concat(SIDE_STATES, TERMINAL_STATES, LEGACY_STATES);  // 全量合法 S 码(14)
+const ALL_STATES = MAIN_AXIS.concat(SIDE_STATES, TERMINAL_STATES, LEGACY_STATES);  // 全量合法 S 码(16)
+
+// ── 履约双确认存证结构(2026-10-14, 规范 §2.4) ──
+// 定位快照与水印照片先落库再推消息(存证先行); 坐标全链路 GCJ-02; 时间一律服务端时间戳;
+// threshold_used=发起瞬间快照的距离阈值(后台改配不影响存量订单)。挂 order_main, 不新建集合。
+// 幂等: order_id + stage + 时间窗(同一阶段窗口内重复提交返回首次结果)。
+const FULFILL_EVIDENCE_FIELDS = ['order_id', 'role', 'lat', 'lng', 'coord_system', 'accuracy', 'server_time', 'photo_urls', 'threshold_used'];
+const FULFILL_COORD_SYSTEM = 'GCJ-02';
+const FULFILL_STAGES = { START: 'start', FINISH: 'finish' };   // start=开始履约申请/同意后留痕; finish=履约完毕凭证
 // 结算资格组: 原「S8/S9/S10 隐式算已结算」的注释口径(money_rules L85 注释), 在此收编为显式 SSOT(§3.2)
 const SETTLE_ELIGIBLE = ['S8', 'S9', 'S10'];
 
@@ -107,6 +117,7 @@ const TRANSITIONS = [
   { no: 3, event: 'cancel', role: 'both', from: ['S1', 'S0'], to: 'S6', guard: '', money: '已付则原路退', timeout: '' },
   { no: 4, event: 'cancel_request', role: 'both', from: ['S2'], to: null, guard: '挂起(不改主轴)', money: '按 PRD 取消梯度退款', timeout: '对方 2h 确认; 超时转裁决' },
   { no: 5, event: 'start_service', role: 'partner', from: ['S2'], to: 'S3', guard: '未冻结', money: '', timeout: 'start_time+Xh 未开始→提醒走申诉/取消' },
+  // ⚠️ no.5(直连 S2→S3)与 no.13(直连 S3→S5)为旧 B1/完毕链路, 阶段 A 保留共存, 待阶段 C/F 切换 handler 到 start_apply/finish_apply 后收口移除(防中途状态机拒绝线上请求)。
   { no: 6, event: 'modify', role: 'both', from: ['S2', 'S2_5'], to: null, guard: '未冻结', money: '', timeout: 'confirmHours(后台可配)→自动拒绝' },
   { no: 7, event: 'interrupt_report', role: 'both', from: ['S3'], to: 'S3.5', guard: '原因必填, 未冻结', money: '', timeout: '24h→S4' },
   { no: 8, event: 'resume', role: 'both', from: ['S3.5'], to: 'S3', guard: '', money: '', timeout: '' },
@@ -123,7 +134,16 @@ const TRANSITIONS = [
   { no: 19, event: 'dispute_resolve_complete', role: 'platform', from: ['*'], to: null, guard: '已有评价→S8(保留评价); 无评价→S5', money: '', timeout: '' },
   { no: 20, event: 'after_sale_expire', role: 'system', from: ['S8'], to: 'S10', guard: '售后窗口届满', money: 'settle ready 确认', timeout: '' },
   { no: 21, event: 'no_show_decide', role: 'platform', from: ['*'], to: null, guard: '受害方获退款通道', money: '一期零赔付(10% 赔付本期不做, 仅扣信用分/停用; 已拍板)', timeout: '' },
-  { no: 22, event: 'settle', role: 'system', from: ['S8', 'S9', 'S10'], to: null, guard: 'settle ready', money: '余额=Σ基数−已提现', timeout: '' }
+  { no: 22, event: 'settle', role: 'system', from: ['S8', 'S9', 'S10'], to: null, guard: 'settle ready', money: '余额=Σ基数−已提现', timeout: '' },
+  // ── 履约双确认链路(2026-10-14, 规范《线下陪伴履约流程规范》图1; 共 8 条 no.23-30) ──
+  { no: 23, event: 'start_apply', role: 'partner', from: ['S2'], to: 'S2_6', guard: 'D≤N 且定位可信; 未冻结; 定位快照已落库(存证先行)', money: '', timeout: '15min 无响应→S10.5(提醒2次)' },
+  { no: 24, event: 'start_confirm', role: 'user', from: ['S2_6'], to: 'S3', guard: '仅需求方; 同意(可带用户定位留痕)', money: '', timeout: '' },
+  { no: 25, event: 'start_reject', role: 'user', from: ['S2_6'], to: 'S2', guard: '仅需求方; 冷却60s 可重发', money: '', timeout: '连续2次拒绝→S10.5' },
+  { no: 26, event: 'start_apply_timeout', role: 'platform', from: ['S2_6'], to: 'S10.5', guard: '15min 超时未响应(或连续2次拒绝)', money: '资金冻结待裁定', timeout: '' },
+  { no: 27, event: 'finish_apply', role: 'partner', from: ['S3'], to: 'S3_6', guard: 'D≤N 且定位可信; 完成照片+定位快照已先落库(凭证前置)', money: '', timeout: '30min 无响应→S10.5(提醒2次)' },
+  { no: 28, event: 'finish_confirm', role: 'user', from: ['S3_6'], to: 'S5', guard: '仅需求方; 已查看凭证; 确认完毕→S5(已完成)', money: '完毕确认即触发结算(不等评价)', timeout: '连续2次不确认→S10.5' },
+  { no: 29, event: 'finish_reject', role: 'user', from: ['S3_6'], to: 'S3', guard: '仅需求方; 冷却60s 可重发', money: '', timeout: '' },
+  { no: 30, event: 'finish_confirm_timeout', role: 'platform', from: ['S3_6'], to: 'S10.5', guard: '30min 超时未响应(或连续2次不确认)', money: '资金冻结待裁定', timeout: '' }
 ];
 
 // 事件 → 规则(可能多条, 如 cancel 覆盖 S1/S0)
@@ -227,6 +247,7 @@ async function casTransition(col, _, orderId, expect, patch, opts) {
 
 module.exports = {
   MAIN_AXIS, SIDE_STATES, TERMINAL_STATES, LEGACY_STATES, ALL_STATES, SETTLE_ELIGIBLE,
+  FULFILL_EVIDENCE_FIELDS, FULFILL_COORD_SYSTEM, FULFILL_STAGES,
   orthoDefaults,
   TRANSITIONS, transitionsOf, transitionFor, canTransition, transitionAllowed,
   mapStatus,
