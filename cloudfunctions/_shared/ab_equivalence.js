@@ -91,6 +91,38 @@ const START_TS = NEW_TS - 24 * 3600 * 1000;
 // 爽约申诉窗口: 约定开始时间须在「now - reportWindowH(48h)」之后, 取 1h 前
 const RECENT_TS = Date.now() - 3600 * 1000;
 
+// order-create: 物理拆分用例夹具(env=dev → resolveOpenid 放行; USER=approved 耍伴带实名/信用/接单场景,
+// PARTNER=需求发布者; demand 处于 matching 且在允许时段/未过期 → create_from_take 可穿透到建单事务)
+const DEM = 'd'.repeat(32);
+const ocStore = (over) => Object.assign({
+  admin_config: { global: {
+    env: 'dev', dev_until: Date.now() + 3600 * 1000, take_distance_max_km: 50,
+    min_credit_take_order: 600, min_credit_place_order: 600, youth_limit_fen: 20000,
+    platform_fee_rate_fen: 1000, legal_scene_disclaimers: { W1: 'W1就医陪诊场景免责声明全文' }
+  } },
+  user_account: {
+    ['u'.repeat(32)]: { _id: 'u'.repeat(32), openid: USER, nickname: '耍伴', roles: ['user', 'partner'], status: 'normal', is_realname_done: true, partner_credit_score: 800, user_credit_score: 800, age: null, is_deleted: false },
+    ['v'.repeat(32)]: { _id: 'v'.repeat(32), openid: PARTNER, nickname: '需方', roles: ['user'], status: 'normal', user_credit_score: 800, age: null, is_deleted: false }
+  },
+  partner_profile: {
+    ['p'.repeat(32)]: { _id: 'p'.repeat(32), openid: USER, status: 'approved', accept_switch: true, accept_scenes: ['W1'], exam_scores: { base: 100, W1: 100 }, max_distance_km: 10, is_deleted: false }
+  },
+  demand: {
+    [DEM]: { _id: DEM, demand_no: 'DR-OC1', scene: 'W1', status: 'matching', is_deleted: false, broadcast: true, match_mode: 'broadcast', creator_openid: PARTNER, start_time: NEW_TS, duration_h: 1, expire_at: Date.now() + 7200000, location: { name: '成都市', city: '成都', latitude: 30.5, longitude: 104.0 }, publish_location: null, content_options: ['陪同挂号'], pricing_type: 'hourly', rate_fen: 5000, total_fen: 5000, project_attr: 'commercial', headcount: 1 }
+  },
+  disclaimer_signature: {
+    ['s'.repeat(32)]: { _id: 's'.repeat(32), openid: USER, role: 'partner', scene: 'W1', is_deleted: false, signature_hash: 'abc123', docs: [] }
+  },
+  exam_bank: {},
+  order_main: {}, order_confirmations: {}, order_status_log: {}, platform_event: {},
+  system_notice: {}, audit_log: {}
+}, over || {});
+// 无耍伴角色夹具(触发 order_not_partner)
+const ocNoPartner = () => ocStore({ user_account: {
+  ['u'.repeat(32)]: { _id: 'u'.repeat(32), openid: USER, nickname: '耍伴', roles: ['user'], status: 'normal', is_realname_done: true, partner_credit_score: 800 },
+  ['v'.repeat(32)]: { _id: 'v'.repeat(32), openid: PARTNER, nickname: '需方', roles: ['user'], status: 'normal', user_credit_score: 800 }
+} });
+
 // user-login: 物理拆分(地图组 set_map_share / report_map_gps / nearby_map_list)用例夹具
 const ULID = 'u'.repeat(32);
 const ULID2 = 'v'.repeat(32);
@@ -427,6 +459,27 @@ const CASES = [
   { fn: 'home-action', name: 'ha_act_detail_ok', openid: USER, store: haStore(), event: { action: 'activity_detail', id: 'act_card', mock_openid: USER } },
   { fn: 'home-action', name: 'ha_act_detail_not_found', openid: USER, store: haStore(), event: { action: 'activity_detail', id: 'nope', mock_openid: USER } },
   { fn: 'home-action', name: 'ha_unknown', openid: USER, store: haStore(), event: { action: 'nope_xxx', mock_openid: USER } },
+  // ── order-create：物理拆分显式用例(资格查询 / 免责签署 / 接单结果兜底 / 接单建单 正反路径) ──
+  { fn: 'order-create', name: 'oc_check_signed_ok', openid: USER, store: ocStore(), event: { action: 'check_signed', scene: 'W1', mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_check_signed_no_scene', openid: USER, store: ocStore(), event: { action: 'check_signed', mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_sign_ok', openid: USER, store: ocStore(), event: { action: 'sign_disclaimer', scene: 'W2', mock_openid: USER, device: 'test' } },
+  { fn: 'order-create', name: 'oc_sign_idempotent', openid: USER, store: ocStore(), event: { action: 'sign_disclaimer', scene: 'W1', mock_openid: USER, device: 'test' } },
+  { fn: 'order-create', name: 'oc_sign_no_scene', openid: USER, store: ocStore(), event: { action: 'sign_disclaimer', mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_check_take_bad_id', openid: USER, store: ocStore(), event: { action: 'check_take_result', demand_id: 'DR-NOT-HEX', mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_check_take_gone', openid: USER, store: ocStore(), event: { action: 'check_take_result', demand_id: 'e'.repeat(32), mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_check_take_not_mine', openid: USER, store: ocStore(), event: { action: 'check_take_result', demand_id: DEM, mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_bad_id', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: 'DR-NOT-HEX', mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_no_demand', openid: USER, store: ocStore(), event: { action: 'create_from_take', mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_not_partner', openid: USER, store: ocNoPartner(), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 30.5, longitude: 104.0 }, mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_demand_gone', openid: USER, store: ocStore({ demand: {} }), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 30.5, longitude: 104.0 }, mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_not_signed', openid: USER, store: ocStore({ disclaimer_signature: {} }), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 30.5, longitude: 104.0 }, mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_no_location', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: DEM, mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_too_far', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 40.0, longitude: 120.0 }, mock_openid: USER } },
+  // 注意: 该用例锁定「拆分前既有行为」——create_from_take 成功路径因 L482 try 块内 const
+  // (orderNo/orderId/totalFen/orderData/userEvidenceId) 在 finally 后越界引用, 两侧同抛
+  // ReferenceError; 后续单独修复该 bug 时本用例会转 FAIL, 需按 KNOWN_EVOLUTION 显式登记。
+  { fn: 'order-create', name: 'oc_create_build_path', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 30.5, longitude: 104.0 }, mock_openid: USER, device: 'test' } },
+  { fn: 'order-create', name: 'oc_unknown', openid: USER, store: ocStore(), event: { action: 'nope_xxx', mock_openid: USER } },
 ];
 
 // ── 自动种子：枚举每个 handler 导出的 action，为全部 action 生成 entry/鉴权种子，
@@ -487,6 +540,12 @@ const AUTO_SEEDS = [
   ...enumerateActions('home-action').map((a) => ({
     fn: 'home-action', name: `auto_ha_${a}`, openid: USER, store: haStore(),
     event: { action: a, mock_openid: USER, limit: 20, page: 1, page_size: 10, scene_code: 'W1' },
+  })),
+  // order-create：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 无 ReferenceError
+  // (store 用 ocStore: env=dev; USER 为 approved 耍伴带实时定位 → 兼容 create_from_take 定位门)
+  ...enumerateActions('order-create').map((a) => ({
+    fn: 'order-create', name: `auto_oc_${a}`, openid: USER, store: ocStore(),
+    event: { action: a, mock_openid: USER, demand_id: DEM, scene: 'W1', partner_location: { latitude: 30.5, longitude: 104.0 } },
   })),
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
