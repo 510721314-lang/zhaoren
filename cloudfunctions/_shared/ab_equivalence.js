@@ -645,6 +645,8 @@ function loadWith(dir, file, sdk) {
     'auto_order_user_confirm_start',            // 2026-10-14 需求B二期: 新增 user_confirm_start action(原 oa_unknown_action); 行为由 order-action.entry.test.js 独立守护
     'auto_order_start_apply',                   // 2026-10-14 阶段C-1: 新增 start_apply action(原 order_unknown_action); 行为由 order_start_apply.test.js 独立守护(4 例)
     'auto_order_start_confirm', 'auto_order_start_reject', // 2026-10-14 阶段D: 新增 start_confirm/start_reject(原 order_unknown_action); 行为由 order_start_confirm.test.js 独立守护
+    'auto_order_server_now', 'auto_order_start_photo', // 2026-10-14 阶段E: 新增 server_now(取服务端时间戳, §F3 水印用) / start_photo(S3 内现场照片存证, 不改状态); 行为由 order_start_photo.test.js 独立守护(7 例)
+    'auto_order_finish_apply', 'auto_order_finish_confirm', 'auto_order_finish_reject', // 2026-10-15 阶段F: 新增 finish_apply(S3→S3_6, 凭证前置) / finish_confirm(S3_6→S5) / finish_reject(S3_6→S3); 行为由 order_finish.test.js 独立守护(13 例)
     'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max · 2026-10-13 每项新增 d 说明文案(运营配置页内嵌) · extend_confirm_h→extend_confirm_min(分钟制默认20, 时间红线加 clock)
     'auto_admin_config_restore', 'auto_admin_import_collection', // 新增备份恢复 action(原 admin_unknown_action; 配合 .predeploy/restore.ps1 闭环 DB 恢复)
     'oc_create_build_path', 'auto_oc_create_from_take', // 2026-10-14 修复拆分前既有块作用域越界: create_from_take 成功路径 7 变量提升到 try 外, 基线仍抛 ReferenceError、修复后返回成功(成功路径另由 order_create_take_success.test.js 独立守护)

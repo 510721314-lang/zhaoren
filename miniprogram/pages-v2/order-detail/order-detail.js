@@ -395,6 +395,13 @@ Page({
       address: (seRaw.partner_location && seRaw.partner_location.address) || '',
       at_text: fmtTs(seRaw.submitted_at || 0)
     } : null;
+    // 阶段F(2026-10-15): 完毕确认的完成照片+定位(双方可见, 规范 §2.3 第4条), 结构同 start_evidence
+    const fseRaw = d.service_finish_evidence || null;
+    const finishEvidence = (fseRaw && Array.isArray(fseRaw.photos) && fseRaw.photos.length) ? {
+      photos: fseRaw.photos.map((p) => (p && p.file_id) || '').filter(Boolean),
+      address: (fseRaw.partner_location && fseRaw.partner_location.address) || '',
+      at_text: fmtTs(fseRaw.submitted_at || 0)
+    } : null;
     // 阶段C/D(2026-10-14): 需求方视角的耍伴联系信息(实名+脱敏号)与确认按钮文案
     const pc = d.partner_contact || null;
     const startConfirmText = (pc && (pc.real_name || pc.phone_mask))
@@ -414,6 +421,7 @@ Page({
       can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
       frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
       start_evidence: startEvidence,                        // 履约留痕(2026-10-14): 开始履约现场照片+到场地址/时间
+      finish_evidence: finishEvidence,                      // 阶段F(2026-10-15): 完毕确认完成照片+地址/时间(双方可见)
       user_confirm: d.user_confirm || null,                 // 需求B二期到场确认(2026-10-14): 原白名单漏映射, 致 WXML「你已确认到场」不显示
       urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
       modify_count: d.modify_count || 0,
@@ -845,6 +853,37 @@ Page({
     });
   },
 
+  // 阶段E(2026-10-14): 需求方确认到场后, 耍伴在「履约中(S3)」拍摄现场照片上传存证(规范 §2.2 第6条)。
+  // 水印时间取服务端时间戳(规范 §F3): 先取 server_now 拿服务端时间, 再叠水印上传, 最后落库(start_photo, 不改状态)。
+  onStartPhotos() {
+    const that = this;
+    wx.showModal({
+      title: '拍摄现场照片',
+      content: '请拍摄 1~3 张履约现场照片上传存档(自动叠加服务端时间与地点水印)',
+      confirmText: '去拍照',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '准备中', mask: true });
+        callCloud('order-action', { action: 'server_now' }).then((r) => {
+          wx.hideLoading();
+          const serverAt = (r && r.ok && r.data && r.data.server_time) || 0;
+          that._collectStartEvidence(serverAt).then((ev) => {
+            if (!ev) return; // 采集/上传失败已提示, 不发起落库
+            wx.showLoading({ title: '提交中', mask: true });
+            callCloud('order-action', {
+              action: 'start_photo', order_id: that.data.order._id, start_evidence: ev
+            }).then((r2) => {
+              wx.hideLoading();
+              if (!r2.ok) { wx.showToast({ title: r2.msg || '操作失败', icon: 'none' }); return; }
+              wx.showToast({ title: '已上传现场照片', icon: 'success' });
+              that.fetchData({ orderId: that.data.order._id });
+            }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+          });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
+  },
+
   // 需求B 二期(2026-10-14): 需求方到场定位确认(仅"确认"时要求定位; 不点不拦主流程)
   onUserConfirm() {
     const that = this;
@@ -879,10 +918,11 @@ Page({
     });
   },
 
-  // 开始履约留痕采集(需求B · 强制): 高精度定位(必须) + 1~3 张现场照片(客户端叠地址+时间水印后上传)
+  // 现场留痕采集(阶段E 复用需求B 上传链): 高精度定位(必须) + 1~3 张现场照片(客户端叠地址+时间水印后上传)
   // 返回 { photos:[{file_id,kind,at}], partner_location:{latitude,longitude,accuracy,address,at} };
-  // 任一步被拒/失败返回 null → 不发起 start_service(与服务端 fail-closed 校验一致)
-  _collectStartEvidence() {
+  // 任一步被拒/失败返回 null → 不发起 start_photo(与服务端 fail-closed 校验一致)
+  // 水印时间取服务端时间戳(规范 §F3): serverAt 由调用方先经 server_now 取得; 缺失时退回本地时间兜底
+  _collectStartEvidence(serverAt, stage) {
     const that = this;
     return new Promise((resolve) => {
       wx.getLocation({
@@ -892,7 +932,7 @@ Page({
         success: (loc) => {
           // L1-1(2026-10-14) 异常隔离: 采集/上传链任何抛错都须收敛为 resolve(null), 不得悬空 Promise 或卡住 loading
           try {
-            const at = Date.now();
+            const at = Number(serverAt) || Date.now();
             that._addrOf(loc.latitude, loc.longitude).then((addr) => {
               wx.chooseMedia({
                 count: 3,
@@ -900,7 +940,7 @@ Page({
                 sizeType: ['compressed'],
                 sourceType: ['camera', 'album'],
                 // _uploadStartPhotos 内部已兜底返回 null; 末尾 .catch 为防御性二次兜底
-                success: (res) => that._uploadStartPhotos(res.tempFiles || [], { loc, addr, at }).then(resolve).catch(() => resolve(null)),
+                success: (res) => that._uploadStartPhotos(res.tempFiles || [], { loc, addr, at, stage }).then(resolve).catch(() => resolve(null)),
                 fail: () => resolve(null)
               });
             }).catch(() => {
@@ -959,13 +999,14 @@ Page({
         const tmp = files[i].tempFilePath;
         let out = tmp;
         try {
-          out = await watermark(tmp, [`订单 ${orderNo}`, ctx.addr, timeText]);
+          // 水印内容(规范 §2.4): 角色标识 + 订单号 + 地点 + 服务端时间
+          out = await watermark(tmp, ['耍伴', `订单 ${orderNo}`, ctx.addr, timeText]);
         } catch (e) { /* 水印合成失败: 降级上传原图, 不阻断 */ }
         const name = String(tmp).split('/').pop();
         const ext = String(name.split('.').pop() || 'jpg').toLowerCase();
         jobs.push({
           filePath: out,
-          cloudPath: `start-evidence/${this.__orderId}/${ctx.at}-${i}.${ext}`,
+          cloudPath: `${ctx.stage || 'start'}-evidence/${this.__orderId}/${ctx.at}-${i}.${ext}`,
           // 首张默认「周边环境」, 其余默认「局部」(服务端仅做归一化, 不强制比例)
           kind: i === 0 ? 'scene' : 'closeup',
           at: ctx.at
@@ -1403,34 +1444,80 @@ Page({
     });
   },
 
+  // 阶段F(2026-10-15, 规范 §2.3): 耍伴「发起履约完毕确认」→ 先采集完成照片+定位(凭证前置), 再 S3→S3_6
+  // 水印时间取服务端时间戳(规范 §F3); 旧 complete_service(no.13 直连 S3→S5)停用, 保留共存待收口
   onFinishService() {
     const that = this;
     wx.showModal({
-      title: '确认履约完成',
-      content: '完成后订单进入评价期',
-      confirmText: '完成',
+      title: '发起履约完毕确认',
+      content: '将先拍摄完成照片(带水印)与定位存档, 再提交给需求方确认',
+      confirmText: '继续',
       success(res) {
         if (!res.confirm) return;
         // 乐观更新: 立即隐藏加时按钮 + 禁用完成按钮, 杜绝"已点完成却还能加时"的矛盾窗口
         that.setData({ finishingService: true });
-        wx.showLoading({ title: '处理中', mask: true });
-        callCloud('order-action', { action: 'complete_service', order_id: that.data.order._id }).then((r) => {
+        wx.showLoading({ title: '准备中', mask: true });
+        callCloud('order-action', { action: 'server_now' }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) {
-            that.setData({ finishingService: false });
-            wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
-            return;
-          }
-          require('../../utils/report.js').report('order_finish', { order_id: that.data.order._id });
-          wx.showToast({ title: `履约完成，${CONFIG.ORDER.evalWindowH}小时内可评价`, icon: 'success' });
-          that.fetchData({ orderId: that.data.order._id });
-          // 刷新后由 WXML 根据 order.status===S5 渲染"去评价"按钮
-          // partner 完成后不自动跳评价, 只有 user 视角进 S5 才能点评价
+          const serverAt = (r && r.ok && r.data && r.data.server_time) || 0;
+          return that._collectStartEvidence(serverAt, 'finish');
+        }).then((ev) => {
+          if (!ev) { that.setData({ finishingService: false }); return; } // 采集/上传失败已提示, 不发起
+          wx.showLoading({ title: '提交中', mask: true });
+          return callCloud('order-action', {
+            action: 'finish_apply', order_id: that.data.order._id, finish_evidence: ev
+          }).then((r2) => {
+            wx.hideLoading();
+            if (!r2.ok) { that.setData({ finishingService: false }); wx.showToast({ title: r2.msg || '操作失败', icon: 'none' }); return; }
+            require('../../utils/report.js').report('order_finish', { order_id: that.data.order._id });
+            wx.showToast({ title: '已发起, 等待对方确认', icon: 'success' });
+            that.fetchData({ orderId: that.data.order._id });
+          });
         }).catch(() => {
           wx.hideLoading();
           that.setData({ finishingService: false });
           wx.showToast({ title: '网络异常', icon: 'none' });
         });
+      }
+    });
+  },
+
+  // 阶段F(2026-10-15): 需求方「确认履约完毕」→ S3_6→S5(触发结算走既有链路)
+  onFinishConfirm() {
+    const that = this;
+    wx.showModal({
+      title: '确认履约完毕',
+      content: '确认后订单完成, 将进入评价',
+      confirmText: '确认',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', { action: 'finish_confirm', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: '已确认, 订单完成', icon: 'success' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+      }
+    });
+  },
+
+  // 阶段F(2026-10-15): 需求方「不确认」→ S3_6→S3(耍伴 60 秒后可重发)
+  onFinishReject() {
+    const that = this;
+    wx.showModal({
+      title: '不确认履约完毕',
+      content: '确认不确认? 耍伴 60 秒后可重新发起完毕确认',
+      confirmText: '不确认',
+      success(res) {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', { action: 'finish_reject', order_id: that.data.order._id }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          wx.showToast({ title: '已驳回', icon: 'none' });
+          that.fetchData({ orderId: that.data.order._id });
+        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });
   },
