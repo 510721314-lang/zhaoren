@@ -50,3 +50,19 @@ powershell -ExecutionPolicy Bypass -File .predeploy/smoke-check.ps1
 - WXSS 不支持 `*` 通配；样式改后须重编译/重传体验版生效
 - 微信要求登录可见用户协议 + 隐私政策，改协议死链时不能只删注册
 - `wx.showModal` confirmText >4 字符在真机静默失败（v1 `demand-publish`「我已阅读并同意」7 字、admin「标记已解决」5 字是同款地雷）
+
+## 正式发布当天操作清单（提审通过、版本发布为正式版之后）
+
+> 与上方「提审前」清单的时序区别：以下项目**必须等正式版发布成功后再做**，提前做反而出错。
+
+1. **订阅消息 miniprogram_state：trial → formal（两个模板都要改）**
+   - 背景：提审前无正式版，`demand_grab`（抢单提醒）/`demand_urge`（催办提醒）两模板按 2026-10-09 定论统一配 `trial`；无正式版时用 `formal` 推送微信侧有 41030 风险。正式版发布后须改回 `formal`，否则正式版用户可能收不到订阅服务通知。
+   - 操作（二选一）：
+     - admin-web 运营后台订阅消息模板配置项，把两个模板的 miniprogram_state 改为 formal 保存；
+     - 或经 HTTP 网关调 admin-action（X-Admin-Key 鉴权），config_set 对 `sub_msg_templates` 是逐模板浅合并（[action_config_set.js:194-204](../../cloudfunctions/admin-action/action_config_set.js)），只传 state 不会覆盖 tmpl_id：
+       ```json
+       {"action":"config_set","sub_msg_templates":{"demand_grab":{"miniprogram_state":"formal"},"demand_urge":{"miniprogram_state":"formal"}}}
+       ```
+   - 验证：①网关 config_get 复核 `sub_msg.demand_grab/demand_urge.miniprogram_state` 均 = formal；②真机触发一条真实订阅（抢单提醒或催办）确认微信「服务通知」送达。
+   - 回退：送达异常时改回 `trial`（同法只改这两个 state 键）。
+   - 现值（2026-10-15 实测）：两模板均为 `trial`。
