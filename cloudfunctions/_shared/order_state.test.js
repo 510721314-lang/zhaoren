@@ -77,7 +77,9 @@ test('canTransition 履约双确认: 非法/越级迁移被拒', () => {
 });
 
 test('canTransition: to=null 的规则(目标由业务决定)只校验 from', () => {
-  assert.ok(S.canTransition('complaint_open', 'S5'));          // 目标态=原状态+frozen
+  assert.ok(S.canTransition('complaint_open', 'S4'));          // 目标态=原状态+frozen
+  assert.ok(!S.canTransition('complaint_open', 'S5'));         // 2026-10-15 需求变更: 用户确认履约完毕(S5)起关闭投诉入口
+  assert.ok(!S.canTransition('complaint_open', 'S8'));         // S8(已评价)同样关闭
   assert.ok(S.canTransition('complaint_withdraw', 'S10.5'));   // from 通配 *
   assert.ok(!S.canTransition('complaint_withdraw', 'S99'));    // 非法态仍拒绝
 });

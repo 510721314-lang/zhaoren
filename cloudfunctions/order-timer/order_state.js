@@ -128,7 +128,7 @@ const TRANSITIONS = [
   { no: 13, event: 'complete', role: 'partner', from: ['S3'], to: 'S5', guard: '里程碑 100% 或双方豁免', money: '', timeout: '' },
   { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '双方各确认一次', money: '按 PRD 分段结算', timeout: '裁限期→平台介入' },
   { no: 15, event: 'evaluate', role: 'user', from: ['S5'], to: 'S8', guard: '无已有评价', money: '信用分±; settle ready', timeout: '48h→auto_done' },
-  { no: 16, event: 'complaint_open', role: 'both', from: ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8'], to: null, guard: '售后/履约窗口内(目标态=原状态+frozen, 不改主轴)', money: '', timeout: '一审时限→升级二审/催办' },
+  { no: 16, event: 'complaint_open', role: 'both', from: ['S2', 'S3', 'S3.5', 'S4'], to: null, guard: '售后/履约窗口内(目标态=原状态+frozen, 不改主轴); 2026-10-15 需求变更: 用户确认履约完毕(S5)起关闭投诉入口 → 移除 S5/S8, 与 action_dispute.COMPLAINT_OPEN_STATUS 对齐', money: '', timeout: '一审时限→升级二审/催办' },
   { no: 17, event: 'complaint_withdraw', role: 'both', from: ['*'], to: null, guard: '未受理(回 from_status)', money: '', timeout: '' },
   { no: 18, event: 'dispute_resolve_refund', role: 'platform', from: ['*'], to: null, guard: '金额≤可退上限; 全退→S7 / 部分退→回主轴', money: 'type=refund 流水+字段+通知', timeout: '' },
   { no: 19, event: 'dispute_resolve_complete', role: 'platform', from: ['*'], to: null, guard: '已有评价→S8(保留评价); 无评价→S5', money: '', timeout: '' },

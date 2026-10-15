@@ -735,6 +735,7 @@ Page({
     });
   },
 
+  // @VERIFIED 2026-10-15 已真机验证：发起履约申请先拍照上传、成功才提交(凭证前置)，失败停留 S2 且不发通知；S3 阶段旧「拍摄现场照片」入口已移除
   onStartService() {
     const that = this;
     if (this.data.isRedline) {

@@ -103,6 +103,7 @@
       </view>
     </view>
 
+    <!-- @VERIFIED 2026-10-15 已真机验证：履约凭证卡在 S3.6 待确认 / S5 已完成 / S8 已评价均双方可见且仅一份(顶层卡, 与状态无关) -->
     <!-- 履约凭证(阶段F 2026-10-15, 规范 §2.3; 2026-10-15 修正): 完成照片+定位快照, 双方可见。
          原置于 S3_6 块内 → 仅"待需求方确认"期间可见, 完毕确认进 S5 / 评价进 S8 后整块不再渲染、凭证消失;
          现上移为顶层卡, 与状态无关, S3.6/S5/S8 均可见(与「履约留痕」卡同口径) -->
@@ -372,6 +373,7 @@
       </block>
 
       <!-- S5 已完成 -->
+      <!-- @VERIFIED 2026-10-15 已真机验证：S5、S8 双方均不显示「发起投诉」(入口关闭)；S2/S3/S3.5/部分完成待确认 4 处仍在 -->
       <block wx:elif="{{order.status === 'S5'}}">
         <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'user'}}" bindtap="onEvaluate" hover-class="btn-press">去评价</button>
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
