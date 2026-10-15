@@ -286,9 +286,6 @@
         </view>
         <!-- 需求方到场留痕(阶段D 2026-10-14): 确认时留存; 原 B2「确认我已到场」按钮已随流程更正(确认提前至 S2.6)移除 -->
         <view class="od__ms-hint" wx:if="{{order.my_role === 'user' && order.user_confirm}}">📍 你已确认耍伴到场{{order.user_confirm.address ? ' · ' + order.user_confirm.address : ''}}</view>
-        <!-- 阶段E(2026-10-14): 需求方确认到场后, 耍伴拍摄现场照片上传存证(规范 §2.2 第6条); 已有留痕则隐藏入口 -->
-        <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'partner' && !order.start_evidence}}" bindtap="onStartPhotos" hover-class="btn-press">📷 拍摄现场照片</button>
-        <view class="od__after-sale-tip" wx:if="{{order.my_role === 'partner' && !order.start_evidence}}">需拍摄 1~3 张现场照片存档(自动叠加服务端时间水印)</view>
         <!-- 履约里程碑证据(2026-10-12 批6.4): fileID 直接渲染, 点击预览, 复用 onPreviewEvidence -->
         <view class="od__evi" wx:if="{{order.milestone && order.milestone.evidence && order.milestone.evidence.length > 0}}">
           <text class="od__evi-label">履约证据</text>
@@ -375,15 +372,13 @@
         <button class="od__btn od__btn--primary" wx:if="{{order.my_role === 'user'}}" bindtap="onEvaluate" hover-class="btn-press">去评价</button>
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
         <button class="od__btn od__btn--ghost" wx:elif="{{order.my_role !== 'user'}}" disabled>⏳ 等待用户评价</button>
-        <!-- 履约完成(S5)即可投诉，无需等到评价完成(S8): 双方均可(与 S8 口径一致, 2026-10-10) -->
-        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <!-- 2026-10-15 需求变更: 用户确认履约完毕(S5)起关闭「发起投诉」入口, 双方一致(原为 S5 起双方均可投诉) -->
       </block>
 
-      <!-- S8 已评价（PRD 3.5.2 nextActions: complaint） -->
+      <!-- S8 已评价（2026-10-15 需求变更: 投诉入口自 S5 起已关闭, 此处仅留打赏） -->
       <block wx:elif="{{order.status === 'S8'}}">
         <view class="od__after-sale-tip">售后窗口{{afterSaleDays}}天</view>
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
-        <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
       </block>
 
       <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方2小时内确认，超时自动拒绝） -->

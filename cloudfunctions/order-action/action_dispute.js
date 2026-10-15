@@ -1,9 +1,11 @@
 // order-action · 争议/爽约申诉分组（从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
-// 可发起投诉的订单状态(D1 拍板 2026-10-12): 与状态机 no.16(complaint_open from)对齐,
-// 覆盖 S2 付款后 → 关单前全周期; 撤回后按 complaint_from_status 原路回退, 故同一白名单。
-const COMPLAINT_FROM_STATUS = ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'];
+// 可**发起**投诉的订单状态(2026-10-15 需求变更): 用户确认履约完毕(S5)起不再可发起投诉, 双方一致(耍伴端与需求方一致收口);
+// 相对状态机 no.16(complaint_open from 含 S5/S8) 为**有意收窄**, 状态机副本暂缓同步(待用户拍板)。
+const COMPLAINT_OPEN_STATUS = ['S2', 'S3', 'S3.5', 'S4'];
+// 撤回投诉的自助回退白名单(D1 拍板 2026-10-12): 覆盖全部历史起源状态(含存量 S5/S8 起源的争议单), 保证存量争议仍可自助撤回
+const COMPLAINT_RESTORE_STATUS = ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'];
 
 async function complaint(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, checkText, wxCtx, db, log, casStatus, logStatus, col, writeNotice, writeAudit } = ctx;
@@ -13,7 +15,7 @@ async function complaint(ctx) {
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
-  if (!COMPLAINT_FROM_STATUS.includes(order.status)) {
+  if (!COMPLAINT_OPEN_STATUS.includes(order.status)) {
     return { ok: false, code: 'oa_complaint_status', msg: `订单当前状态(${order.status})不可发起争议` };
   }
   // D2(不互斥但受冻结位约束): 爽约申诉等已置 frozen 时不可再发起投诉, 避免覆盖在途争议(谁先发起谁冻结)
@@ -28,7 +30,7 @@ async function complaint(ctx) {
     const chk = await checkText(openid, reason);
     if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
   }
-  const won = await casStatus(order_id, COMPLAINT_FROM_STATUS, {
+  const won = await casStatus(order_id, COMPLAINT_OPEN_STATUS, {
     status: 'S10.5',
     help_flag: true,
     complaint_at: now,
@@ -96,7 +98,7 @@ async function complaint_withdraw(ctx) {
       restore = (lg.data && lg.data[0] && lg.data[0].from_status) || '';
     } catch (e) { restore = ''; }
   }
-  if (!COMPLAINT_FROM_STATUS.includes(restore)) {
+  if (!COMPLAINT_RESTORE_STATUS.includes(restore)) {
     return { ok: false, code: 'oa_complaint_no_restore', msg: '该投诉不支持自助撤回, 请联系客服' };
   }
   const now = Date.now();

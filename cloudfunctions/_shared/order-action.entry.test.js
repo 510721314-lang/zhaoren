@@ -183,6 +183,26 @@ test('complaint: 非参与方 → oa_not_participant', async () => {
   assert.strictEqual(r.code, 'oa_not_participant');
 });
 
+// 12c. complaint: 履约完成(S5) 起双方均不可发起 → oa_complaint_status(2026-10-15 需求变更)
+test('complaint: S5 需求方不可发起 → oa_complaint_status 且不落库', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S5' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
+  assert.strictEqual(r.code, 'oa_complaint_status');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
+});
+
+// 12d. complaint: 已评价(S8) 起耍伴同样不可发起 → oa_complaint_status(双方一致收口)
+test('complaint: S8 耍伴不可发起 → oa_complaint_status 且不落库', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S8' }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
+  assert.strictEqual(r.code, 'oa_complaint_status');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
+});
+
 // 13. timeline: 缺 order_id → oa_bad_order_id(分发层预检)
 test('timeline: 缺 order_id → oa_bad_order_id', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore() });

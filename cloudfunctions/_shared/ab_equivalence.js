@@ -641,6 +641,7 @@ function loadWith(dir, file, sdk) {
     'detail_ok', 'auto_order_detail',          // detail 字段扩充(modify_*_at / complaint / fund / refund / dispute / fees / frozen)
     'confirm_all_not_participant',              // 错误消息脱敏(不再回显参与方 openid)
     'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
+    'complaint_open_ok',                        // 2026-10-15 需求变更: S5(履约完成)/S8(已评价)起不再可发起投诉(原 S8 可发起·基线仍放开); 新行为由 order-action.entry.test.js 新增 2 例(S5 需求方 / S8 耍伴 → oa_complaint_status 且不落库)独立守护
     'auto_order_timeline',                      // 新增 timeline action(原 oa_unknown_action)
     'auto_order_user_confirm_start',            // 2026-10-14 需求B二期: 新增 user_confirm_start action(原 oa_unknown_action); 行为由 order-action.entry.test.js 独立守护
     'auto_order_start_apply',                   // 2026-10-14 阶段C-1: 新增 start_apply action(原 order_unknown_action); 行为由 order_start_apply.test.js 独立守护(4 例)

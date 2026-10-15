@@ -145,7 +145,7 @@ const FULFILL_ACCURACY_MAX_M = 50;
 // 需求方「不同意」后可重发的冷却窗(规范 §C9: 允许重发, 冷却 60 秒)
 const START_APPLY_COOLDOWN_MS = 60 * 1000;
 
-// 开始履约申请(耍伴发起, S2→S2_6): 只提交「定位快照」(不含照片, 照片在需求方同意后, 阶段E) + 存证先行;
+// 开始履约申请(耍伴发起, S2→S2_6): 凭证前置(2026-10-15 需求变更)——定位快照 + 现场照片(1~3 张)同一次 CAS 落库 + 存证先行;
 // 需求方确认(阶段D)后才进入 S3 真正开始履约。旧 start_service(no.5 直连 S2→S3)保留共存, 待前端切换后收口。
 async function start_apply(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm } = ctx;
@@ -193,6 +193,20 @@ async function start_apply(ctx) {
     }
   }
 
+  // 凭证前置(2026-10-15 需求变更): 现场照片(1~3 张, 客户端已叠地址+时间水印)必须随申请一并提交
+  // 真实客户端必须传 start_evidence; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 start_service 同口径。
+  const se = event.start_evidence || {};
+  const sePhotos = Array.isArray(se.photos)
+    ? se.photos.filter((p) => p && typeof p.file_id === 'string' && p.file_id).slice(0, 3)
+    : [];
+  if (!isMockCall && !sePhotos.length) {
+    return { ok: false, code: 'oa_start_evidence_required', msg: '发起履约申请需先上传 1~3 张现场照片(带地址与时间水印)' };
+  }
+  const seLoc = se.partner_location || {};
+  const seLat = Number(seLoc.latitude);
+  const seLng = Number(seLoc.longitude);
+  const hasSeLoc = isFinite(seLat) && isFinite(seLng) && !!seLat && !!seLng;
+
   // 存证先行(规范 §2.4 FULFILL_EVIDENCE_FIELDS 口径): 定位快照先落库, 再推消息
   const evidence = {
     order_id,
@@ -204,12 +218,38 @@ async function start_apply(ctx) {
     accuracy: Math.round(isFinite(rawAcc) ? rawAcc : 0),
     address: String(sl.address || '').slice(0, 200),
     server_time: now,
-    photo_urls: [],                          // 申请阶段不带照片(照片在需求方同意后, 阶段E)
+    photo_urls: sePhotos.map((p) => p.file_id), // 2026-10-15 需求变更: 照片随申请前置提交(原为空数组, 照片原在需求方同意后拍)
     threshold_used: FULFILL_DISTANCE_MAX_M    // 发起瞬间快照的阈值(后台改配不影响存量订单)
   };
   const won = await casStatus(order_id, 'S2', {
     status: 'S2_6', start_apply_at: now, updated_at: now,
-    start_apply_evidence: evidence
+    start_apply_evidence: evidence,
+    // 凭证前置(2026-10-15 需求变更): 现场照片+定位随申请同一次 CAS 原子落库, 需求方在 S2_6 看着照片确认
+    service_start_evidence: {
+      // 照片(云存储 fileID): kind=scene 周边环境 / closeup 局部; 客户端可选, 服务端仅归一化
+      photos: sePhotos.map((p) => ({
+        file_id: p.file_id,
+        kind: p.kind === 'closeup' ? 'closeup' : 'scene',
+        at: Number(p.at) || now
+      })),
+      // 优先取照片水印定位(采集瞬间), 缺失时回退已校验的申请定位快照
+      partner_location: {
+        latitude: hasSeLoc ? seLat : (isFinite(rawLat) ? rawLat : 0),
+        longitude: hasSeLoc ? seLng : (isFinite(rawLng) ? rawLng : 0),
+        accuracy: Math.round((hasSeLoc ? Number(seLoc.accuracy) : rawAcc) || 0),
+        address: String((hasSeLoc ? seLoc.address : sl.address) || '').slice(0, 200),
+        at: Number(seLoc.at) || now
+      },
+      // 需求的最终用户履约地点: 服务端自取订单 location(下单时来自需求), 客户端不可伪造
+      site_location: order.location ? {
+        name: String(order.location.name || '').slice(0, 100),
+        address: String(order.location.address || order.location.name || '').slice(0, 200),
+        latitude: Number(order.location.latitude) || 0,
+        longitude: Number(order.location.longitude) || 0
+      } : null,
+      submitted_by: openid,
+      submitted_at: now
+    }
   }, 'start_apply');
   if (!won) {
     const latest = await getOrder(order_id);

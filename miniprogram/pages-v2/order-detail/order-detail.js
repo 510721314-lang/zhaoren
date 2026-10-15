@@ -749,24 +749,36 @@ Page({
     }
     wx.showModal({
       title: '发起履约申请',
-      content: '将获取你的实时位置并提交到场申请, 待需求方确认后开始履约',
-      confirmText: '提交',
+      content: '需先拍摄 1~3 张现场照片上传存档(自动叠加服务端时间与地点水印), 照片上传成功后才发出到场申请',
+      confirmText: '去拍照',
       success(res) {
         if (!res.confirm) return;
-        // 阶段C-3(2026-10-14): 只提交定位快照(不拍照; 照片在需求方同意后拍, 阶段E)
+        // 凭证前置(2026-10-15 需求变更): 定位快照 → 现场照片上传 → 两步都成功才提交申请;
+        // 任一步失败即停留 S2、不发系统通知, 提示耍伴重新上传(服务端同口径 fail-closed 校验)
         that._collectStartLocation(false, true).then((loc) => {
           if (!loc) return;   // 未授权/取点失败(内部已提示), 不发起请求
-          wx.showLoading({ title: '提交中', mask: true });
-          callCloud('order-action', {
-            action: 'start_apply', order_id: that.data.order._id, start_location: loc
-          }).then((r) => {
+          wx.showLoading({ title: '准备中', mask: true });
+          callCloud('order-action', { action: 'server_now' }).then((r) => {
             wx.hideLoading();
-            if (!r.ok) {
-              wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
-              return;
-            }
-            wx.showToast({ title: '已提交到场申请', icon: 'success' });
-            that.fetchData({ orderId: that.data.order._id });
+            const serverAt = (r && r.ok && r.data && r.data.server_time) || 0;
+            that._collectStartEvidence(serverAt).then((ev) => {
+              if (!ev) return;   // 采集/上传失败(内部已提示), 拒发起: 订单留 S2
+              wx.showLoading({ title: '提交中', mask: true });
+              callCloud('order-action', {
+                action: 'start_apply', order_id: that.data.order._id, start_location: loc, start_evidence: ev
+              }).then((r2) => {
+                wx.hideLoading();
+                if (!r2.ok) {
+                  wx.showToast({ title: r2.msg || '操作失败', icon: 'none' });
+                  return;
+                }
+                wx.showToast({ title: '已提交到场申请', icon: 'success' });
+                that.fetchData({ orderId: that.data.order._id });
+              }).catch(() => {
+                wx.hideLoading();
+                wx.showToast({ title: '网络异常', icon: 'none' });
+              });
+            });
           }).catch(() => {
             wx.hideLoading();
             wx.showToast({ title: '网络异常', icon: 'none' });
@@ -854,37 +866,6 @@ Page({
     });
   },
 
-  // 阶段E(2026-10-14): 需求方确认到场后, 耍伴在「履约中(S3)」拍摄现场照片上传存证(规范 §2.2 第6条)。
-  // 水印时间取服务端时间戳(规范 §F3): 先取 server_now 拿服务端时间, 再叠水印上传, 最后落库(start_photo, 不改状态)。
-  onStartPhotos() {
-    const that = this;
-    wx.showModal({
-      title: '拍摄现场照片',
-      content: '请拍摄 1~3 张履约现场照片上传存档(自动叠加服务端时间与地点水印)',
-      confirmText: '去拍照',
-      success(res) {
-        if (!res.confirm) return;
-        wx.showLoading({ title: '准备中', mask: true });
-        callCloud('order-action', { action: 'server_now' }).then((r) => {
-          wx.hideLoading();
-          const serverAt = (r && r.ok && r.data && r.data.server_time) || 0;
-          that._collectStartEvidence(serverAt).then((ev) => {
-            if (!ev) return; // 采集/上传失败已提示, 不发起落库
-            wx.showLoading({ title: '提交中', mask: true });
-            callCloud('order-action', {
-              action: 'start_photo', order_id: that.data.order._id, start_evidence: ev
-            }).then((r2) => {
-              wx.hideLoading();
-              if (!r2.ok) { wx.showToast({ title: r2.msg || '操作失败', icon: 'none' }); return; }
-              wx.showToast({ title: '已上传现场照片', icon: 'success' });
-              that.fetchData({ orderId: that.data.order._id });
-            }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
-          });
-        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
-      }
-    });
-  },
-
   // 需求B 二期(2026-10-14): 需求方到场定位确认(仅"确认"时要求定位; 不点不拦主流程)
   onUserConfirm() {
     const that = this;
@@ -921,7 +902,7 @@ Page({
 
   // 现场留痕采集(阶段E 复用需求B 上传链): 高精度定位(必须) + 1~3 张现场照片(客户端叠地址+时间水印后上传)
   // 返回 { photos:[{file_id,kind,at}], partner_location:{latitude,longitude,accuracy,address,at} };
-  // 任一步被拒/失败返回 null → 不发起 start_photo(与服务端 fail-closed 校验一致)
+  // 任一步被拒/失败返回 null → 不提交请求(开始履约申请 start_apply / 完毕确认 finish_apply 均凭证前置, 同口径 fail-closed)
   // 水印时间取服务端时间戳(规范 §F3): serverAt 由调用方先经 server_now 取得; 缺失时退回本地时间兜底
   _collectStartEvidence(serverAt, stage) {
     const that = this;
