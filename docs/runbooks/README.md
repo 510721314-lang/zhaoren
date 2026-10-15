@@ -23,6 +23,7 @@
 | [config-sync.md](config-sync.md) | 全仓配置同步清单（SCENE 等） |
 | [troubleshooting.md](troubleshooting.md) | 坑位速查（代理/GitHub 单 IP 阻断绕过/网关限制等） |
 | [user-side-todo.md](user-side-todo.md) | **用户侧待办 B4-B7**（凭证矩阵填写 / 真人接管演练 / 第二运营者 / 异地备份），当前项目最大剩余风险 |
+| [regression-1.6.7-checklist.md](regression-1.6.7-checklist.md) | **1.6.7 真机回归可勾选清单**（N1 地图 key 白名单 + #72 防连点/#73 改期倒计时/#74 订单渲染/#75 发布校验，基线 5fb9a56） |
 
 ## 账号恢复矩阵（B4，凭证只存仓库外 C:\zhaoren-bak，勿入 git）
 
