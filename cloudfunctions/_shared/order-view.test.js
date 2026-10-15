@@ -1,7 +1,8 @@
 // order-view 纯映射函数单测（批 5.4）· 从 order-detail.js 抽离的 computeNextStep 全分支覆盖
 const test = require('node:test');
 const assert = require('node:assert');
-const { computeNextStep, pad, buildModifyTs, buildPrepCountdown } = require('../../miniprogram/utils/order-view.js');
+const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, fmtDate, buildOrderView } = require('../../miniprogram/utils/order-view.js');
+const { ORDER_STATUS } = require('../../miniprogram/config/enums.js');
 
 const U = (over) => Object.assign({ status: 'S2', my_role: 'user', service_date: '10-12', service_time: '20:00' }, over);
 
@@ -107,4 +108,199 @@ test('buildPrepCountdown 无任何时间信息 → 0 分钟', () => {
 });
 test('buildPrepCountdown 不传 now → 不抛错且返回字符串（默认 Date.now 旧行为）', () => {
   assert.strictEqual(typeof buildPrepCountdown({ service_start_ts: Date.now() + 600000 }), 'string');
+});
+
+// ── 拆分阶段1 C2（2026-10-15）：fmtDate / buildOrderView（refreshOrder 13 键视图 patch） ──
+const NOW = new Date(2026, 9, 20, 12, 0, 0, 0).getTime(); // 2026-10-20 12:00 本地
+const H = 3600000;
+// detail 最小原始返回（老订单形态：无任何扩展字段）
+const D = (over) => Object.assign({ order_id: 'O1', order_no: 'NO1', status: 'S1', role: 'user', scene: 'W9', start_time: 0 }, over);
+const PATCH_KEYS = ['amountYuan', 'currentCancelIdx', 'finishingService', 'modifyDateMin', 'modifyUsedUp', 'nextStep', 'order', 'orderSummary', 'scene', 'statusInfo', 'timeMaxRange', 'tipEnabled', 'tipTotalYuan'];
+
+test('fmtDate → YYYY-MM-DD 补零', () => {
+  assert.strictEqual(fmtDate(new Date(2026, 0, 5)), '2026-01-05');
+});
+
+test('buildOrderView 最小入参 → 恰好 13 键 + 老订单安全空值', () => {
+  const p = buildOrderView(D(), NOW);
+  assert.deepStrictEqual(Object.keys(p).sort(), PATCH_KEYS.slice().sort());
+  assert.strictEqual(p.finishingService, false);
+  assert.strictEqual(p.tipEnabled, false);                 // CONFIG.PAYMENT.tipEnabled=false
+  assert.strictEqual(p.orderSummary, null);
+  assert.strictEqual(p.amountYuan, '0.00');
+  assert.strictEqual(p.tipTotalYuan, '0.00');
+  assert.strictEqual(p.modifyUsedUp, false);
+  assert.strictEqual(p.modifyDateMin, '2026-10-20');       // fmtDate(now)
+  assert.strictEqual(p.timeMaxRange, '2026-10-23');        // now + CONFIG.MODIFY.maxSpanH(72h)
+  assert.strictEqual(p.currentCancelIdx, 2);               // start_time=0 → hoursLeft 大负 → 末档
+  assert.strictEqual(p.scene.name, '宠物陪伴');             // getScene 回退 SCENES 硬编码
+  assert.strictEqual(p.statusInfo, ORDER_STATUS.S1);
+  assert.strictEqual(p.nextStep.action.key, 'chat');       // computeNextStep 已接入
+  const o = p.order;
+  assert.strictEqual(o._id, 'O1');
+  assert.strictEqual(o.status, 'S1');
+  assert.strictEqual(o.my_role, 'user');
+  assert.strictEqual(o.service_date, '');
+  assert.strictEqual(o.service_time, '');
+  assert.deepStrictEqual(o.location, {});
+  assert.strictEqual(o.money, null);
+  assert.strictEqual(o.refund_view, null);
+  assert.strictEqual(o.dispute_view, null);
+  assert.strictEqual(o.fees_view, null);
+  assert.strictEqual(o.complaint, null);
+  assert.strictEqual(o.start_evidence, null);
+  assert.strictEqual(o.finish_evidence, null);
+  assert.strictEqual(o.pending_modify, null);
+  assert.strictEqual(o.pending_extend, null);
+  assert.strictEqual(o.modify_result, null);
+  assert.strictEqual(o.insurance, null);
+  assert.strictEqual(o.nextPercent, 30);
+  assert.strictEqual(o.canFinishService, false);
+  assert.strictEqual(o.start_confirm_text, '确认耍伴已到场');
+});
+
+test('buildOrderView 服务时间映射 + 金额/打赏元值', () => {
+  const p = buildOrderView(D({ start_time: NOW, total_fen: 8000, tip_total_fen: 500, duration_h: 2 }), NOW);
+  assert.strictEqual(p.order.service_date, '2026-10-20');
+  assert.strictEqual(p.order.service_time, '12:00');
+  assert.strictEqual(p.order.duration_hours, 2);
+  assert.strictEqual(p.order.amount_fen, 8000);
+  assert.strictEqual(p.amountYuan, '80.00');
+  assert.strictEqual(p.tipTotalYuan, '5.00');
+});
+
+test('buildOrderView 取消三档（CONFIG.CANCEL_LEAD_HOURS=[24,4]）', () => {
+  assert.strictEqual(buildOrderView(D({ start_time: NOW + 25 * H }), NOW).currentCancelIdx, 0);
+  assert.strictEqual(buildOrderView(D({ start_time: NOW + 10 * H }), NOW).currentCancelIdx, 1);
+  assert.strictEqual(buildOrderView(D({ start_time: NOW + 2 * H }), NOW).currentCancelIdx, 2);
+});
+
+test('buildOrderView 改期次数用尽（maxTimes=2）', () => {
+  assert.strictEqual(buildOrderView(D({ modify_count: 2 }), NOW).modifyUsedUp, true);
+});
+
+test('buildOrderView 改期在途：对方可响应/己方不可 + 日期时分映射', () => {
+  const pm = { new_start_time: new Date(2026, 9, 21, 9, 5).getTime(), by_role: 'partner', reason: '有事', expire_at: NOW + 2 * H };
+  const other = buildOrderView(D({ role: 'user', pending_modify: pm }), NOW).order.pending_modify;
+  assert.strictEqual(other.can_respond, true);
+  assert.strictEqual(other.new_date, '2026-10-21');
+  assert.strictEqual(other.new_time, '09:05');
+  assert.strictEqual(other.by_role, 'partner');
+  const mine = buildOrderView(D({ role: 'partner', pending_modify: pm }), NOW).order.pending_modify;
+  assert.strictEqual(mine.can_respond, false);
+  assert.strictEqual(buildOrderView(D({ pending_modify: { by_role: 'partner' } }), NOW).order.pending_modify, null);
+});
+
+test('buildOrderView 加时在途：分钟/小时/超时三文案 + 可响应判定', () => {
+  const mk = (mins) => ({ add_hours: 1, add_amount_fen: 1000, by_role: 'partner', expire_at: NOW + mins * 60000 });
+  const m10 = buildOrderView(D({ role: 'user', pending_extend: mk(10) }), NOW).order.pending_extend;
+  assert.strictEqual(m10.expire_text, '10分钟内确认');
+  assert.strictEqual(m10.can_respond, true);
+  const m120 = buildOrderView(D({ role: 'user', pending_extend: mk(120) }), NOW).order.pending_extend;
+  assert.strictEqual(m120.expire_text, '2小时内确认');
+  const expired = buildOrderView(D({ role: 'user', pending_extend: { add_hours: 1, by_role: 'partner', expire_at: NOW - 1 } }), NOW).order.pending_extend;
+  assert.strictEqual(expired.expire_text, '已超时');
+  assert.strictEqual(expired.can_respond, true); // can_respond 与超时无关, 保旧逻辑
+});
+
+test('buildOrderView 改期结果 confirmed/rejected/null', () => {
+  const t = NOW;
+  assert.strictEqual(buildOrderView(D({ modify_confirmed_at: t }), NOW).order.modify_result.type, 'confirmed');
+  assert.strictEqual(buildOrderView(D({ modify_rejected_at: t }), NOW).order.modify_result.type, 'rejected');
+  assert.strictEqual(buildOrderView(D({ modify_confirmed_at: t, modify_rejected_at: t + 1 }), NOW).order.modify_result.type, 'rejected');
+});
+
+test('buildOrderView 投诉卡全字段映射 + 状态文案', () => {
+  const c = { status: 'withdrawn', mine: true, by_role: 'user', reason: '爽约', at: NOW, withdrawn_at: NOW, handled_at: 0, result_note: '已撤', refund_fen: 5000 };
+  const v = buildOrderView(D({ complaint: c }), NOW).order.complaint;
+  assert.strictEqual(v.status_text, '已撤回');
+  assert.strictEqual(v.by_text, '我（发单人）');
+  assert.strictEqual(v.at_text, '10-20 12:00');
+  assert.strictEqual(v.handled_at_text, '');
+  assert.strictEqual(v.refund_text, '50.00');
+  assert.strictEqual(buildOrderView(D({ complaint: { status: 'open', by_role: 'partner' } }), NOW).order.complaint.status_text, '处理中');
+  assert.strictEqual(buildOrderView(D({ complaint: { status: 'resolved', by_role: 'partner' } }), NOW).order.complaint.status_text, '平台已处理');
+});
+
+test('buildOrderView 资金/退款/争议/费用四视图', () => {
+  const p = buildOrderView(D({
+    fund: { paid_fen: 8000, refunded_fen: 0, settle_state: 'done', settled_at: NOW },
+    refund: { fen: 2000, source: 'dispute', at: NOW, no: 'R1' },
+    dispute: { state: 'open', type: 'start_timeout', opened_at: NOW },
+    fees: { fee_fen: 300, partner_income_fen: 1700, aa_tier: 'A' }
+  }), NOW);
+  assert.deepStrictEqual(p.order.money, { paid_text: '80.00', refunded_text: '0.00', settle_text: '已结算', settled_at_text: '10-20 12:00' });
+  assert.strictEqual(p.order.refund_view.source_text, '争议裁决退款');
+  assert.strictEqual(p.order.dispute_view.type_text, '开始履约超时');
+  assert.strictEqual(p.order.fees_view.fee_text, '3.00');
+  assert.strictEqual(p.order.fees_view.aa_tier, 'A');
+  // 边界：未支付无资金卡；非 open 争议无卡；零费用无卡；未知 source 回退原值
+  const q = buildOrderView(D({
+    fund: { paid_fen: 0 },
+    refund: { fen: 1, source: 'weird_x' },
+    dispute: { state: 'closed', type: 'complaint' },
+    fees: { fee_fen: 0, partner_income_fen: 0 }
+  }), NOW).order;
+  assert.strictEqual(q.money, null);
+  assert.strictEqual(q.dispute_view, null);
+  assert.strictEqual(q.fees_view, null);
+  assert.strictEqual(q.refund_view.source_text, 'weird_x');
+});
+
+test('buildOrderView 开始/完毕履约留痕：照片映射+空数组安全', () => {
+  const withPhotos = buildOrderView(D({
+    service_start_evidence: { photos: [{ file_id: 'f1' }, null, { file_id: 'f2' }], partner_location: { address: '新南门' }, submitted_at: NOW },
+    service_finish_evidence: { photos: [{ file_id: 'f9' }], partner_location: { address: '春熙路' }, submitted_at: NOW }
+  }), NOW).order;
+  assert.deepStrictEqual(withPhotos.start_evidence.photos, ['f1', 'f2']);
+  assert.strictEqual(withPhotos.start_evidence.address, '新南门');
+  assert.strictEqual(withPhotos.start_evidence.at_text, '10-20 12:00');
+  assert.deepStrictEqual(withPhotos.finish_evidence.photos, ['f9']);
+  const empty = buildOrderView(D({ service_start_evidence: { photos: [] }, service_finish_evidence: null }), NOW).order;
+  assert.strictEqual(empty.start_evidence, null);
+  assert.strictEqual(empty.finish_evidence, null);
+});
+
+test('buildOrderView 到场确认文案：实名+脱敏号三组合', () => {
+  assert.strictEqual(buildOrderView(D({ partner_contact: { real_name: '张三', phone_mask: '138****5678' } }), NOW).order.start_confirm_text, '确认耍伴（张三 · 138****5678）已到场');
+  assert.strictEqual(buildOrderView(D({ partner_contact: { real_name: '张三' } }), NOW).order.start_confirm_text, '确认耍伴（张三）已到场');
+  assert.strictEqual(buildOrderView(D({ partner_contact: { phone_mask: '138****5678' } }), NOW).order.start_confirm_text, '确认耍伴（138****5678）已到场');
+  assert.strictEqual(buildOrderView(D({ partner_contact: {} }), NOW).order.partner_contact && buildOrderView(D({ partner_contact: {} }), NOW).order.start_confirm_text, '确认耍伴已到场');
+});
+
+test('buildOrderView 里程碑 0/1/2/3 → nextPercent 取 [30,60,100][current] 与完成位', () => {
+  assert.strictEqual(buildOrderView(D({ milestone: { current: 0 } }), NOW).order.nextPercent, 30);
+  const p1 = buildOrderView(D({ milestone: { current: 1 } }), NOW).order;
+  assert.strictEqual(p1.nextPercent, 60);                 // 已确认 30%, 下一档 60%
+  assert.strictEqual(p1.milestoneSteps[0].done, true);
+  assert.strictEqual(p1.milestoneSteps[1].done, false);
+  const p2 = buildOrderView(D({ milestone: { current: 2 } }), NOW).order;
+  assert.strictEqual(p2.nextPercent, 100);                // 已确认 30%/60%, 下一档 100%
+  assert.strictEqual(p2.milestoneSteps[0].done, true);
+  assert.strictEqual(p2.milestoneSteps[1].done, true);
+  assert.strictEqual(p2.milestoneSteps[2].done, false);
+  assert.strictEqual(p2.canFinishService, false);
+  const p3 = buildOrderView(D({ milestone: { current: 3 } }), NOW).order;
+  assert.strictEqual(p3.nextPercent, null);
+  assert.strictEqual(p3.canFinishService, true);
+});
+
+test('buildOrderView 服务内容：数组/单值/缺省三路', () => {
+  assert.strictEqual(buildOrderView(D({ content_options: ['陪诊', '取药'] }), NOW).order.scene_content_text, '陪诊/取药');
+  assert.strictEqual(buildOrderView(D({ content_option: '陪玩' }), NOW).order.scene_content_text, '陪玩');
+  assert.strictEqual(buildOrderView(D(), NOW).order.scene_content_text, '');
+});
+
+test('buildOrderView 布尔/透传字段不漂移', () => {
+  const o = buildOrderView(D({ frozen: 1, can_withdraw_complaint: 1, user_confirm: { at: NOW }, urge: { count: 1 }, confirm: { a: 1 }, evaluation: { star: 5 }, pay_expire_at: NOW, partner_nickname: '小李' }), NOW).order;
+  assert.strictEqual(o.frozen, true);
+  assert.strictEqual(o.can_withdraw_complaint, true);
+  assert.deepStrictEqual(o.user_confirm, { at: NOW });
+  assert.deepStrictEqual(o.urge, { count: 1 });
+  assert.deepStrictEqual(o.confirm, { a: 1 });
+  assert.deepStrictEqual(o.evaluation, { star: 5 });
+  assert.strictEqual(o.pay_expire_at, NOW);
+  assert.strictEqual(o.partner_name, '小李');
+  assert.strictEqual(o.scene_code, 'W9');
+  assert.strictEqual(o.modify_count, 0);
 });

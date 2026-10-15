@@ -9,7 +9,8 @@ const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 const { callCloud } = require('../../utils/cloud.js');
 // 批 5.4: 纯映射函数(computeNextStep/pad)抽离到 utils/order-view.js, 可单测; 此处仅编排
 // 拆分阶段1 C1(2026-10-15): buildModifyTs/buildPrepCountdown 同外移, 页面留薄代理/编排调用
-const { computeNextStep, pad, buildModifyTs, buildPrepCountdown } = require('../../utils/order-view.js');
+// 拆分阶段1 C2(2026-10-15): buildOrderView(原 refreshOrder 映射主体)/fmtDate 外移; refreshOrder 仅留 setData+弹窗震动编排
+const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, buildOrderView } = require('../../utils/order-view.js');
 // 阶段B(2026-10-14): 履约定位三层判定(纯函数, 单测在 _shared/geo_guard.test.js)
 const { evaluatePosition } = require('../../utils/geo-guard.js');
 
@@ -315,201 +316,11 @@ Page({
   onHide() { this.clearTimers(); },
 
   refreshOrder(d) {
-    // detail 返回字段 → WXML 绑定字段
-    const st = Number(d.start_time) || 0;
-    const dt = st ? new Date(st) : null;
-    // milestone: { current:0-3, confirmed:[bool,bool,bool], evidence:[...] }
-    const ms = d.milestone || { current: 0, confirmed: [false, false, false], evidence: [] };
-    const milestoneSteps = [
-      { idx: 1, label: '30%', done: ms.current >= 1 },
-      { idx: 2, label: '60%', done: ms.current >= 2 },
-      { idx: 3, label: '100%', done: ms.current >= 3 }
-    ];
-    // 下一节点百分比: nextIdx 1→30%, 2→60%, 3→100%
-    const nextPercent = ms.current >= 3 ? null : [30, 60, 100][ms.current];
-    // C1 改期在途申请(云端点号状态经 normalizeStatus 归一化为下划线)
-    const pm = d.pending_modify || null;
-    let pendingModify = null;
-    if (pm && pm.new_start_time) {
-      const pdt = new Date(pm.new_start_time);
-      pendingModify = {
-        new_date: `${pdt.getFullYear()}-${pad(pdt.getMonth() + 1)}-${pad(pdt.getDate())}`,
-        new_time: `${pad(pdt.getHours())}:${pad(pdt.getMinutes())}`,
-        by_role: pm.by_role || '',
-        reason: pm.reason || '',
-        expire_at: pm.expire_at || 0,
-        // 仅对方(非发起人)显示同意/拒绝按钮
-        can_respond: !!d.role && !!pm.by_role && d.role !== pm.by_role
-      };
-    }
-    // 加时在途申请(同改期)
-    const pe = d.pending_extend || null;
-    let pendingExtend = null;
-    if (pe && pe.add_hours) {
-      const expireMs = (pe.expire_at || 0) - Date.now();
-      // 剩余时限文案: 不足 1 小时按分钟显示(后台加时确认窗口默认 20 分钟, 分钟制), 否则按小时取整
-      const expireMins = Math.max(0, Math.round(expireMs / 60000));
-      const expireText = expireMins >= 60 ? `${Math.round(expireMins / 60)}小时内确认` : `${expireMins}分钟内确认`;
-      pendingExtend = {
-        add_hours: pe.add_hours,
-        add_amount_fen: pe.add_amount_fen || 0,
-        by_role: pe.by_role || '',
-        reason: pe.reason || '',
-        expire_at: pe.expire_at || 0,
-        expire_text: expireMs > 0 ? expireText : '已超时',
-        can_respond: !!d.role && !!pe.by_role && d.role !== pe.by_role
-      };
-    }
-    // 改期结果(2026-10-12): 由云端返回的最近一次改期处理时间戳推导, 供双方详情页展示(不再仅发起方一次性 toast)
-    const mcAt = Number(d.modify_confirmed_at) || 0;
-    const mrAt = Number(d.modify_rejected_at) || 0;
-    const modifyResult = (!mcAt && !mrAt) ? null
-      : (mcAt >= mrAt
-        ? { type: 'confirmed', text: '改期已确认，服务时间已更新' }
-        : { type: 'rejected', text: '改期申请已被拒绝，服务时间不变' });
-    // 投诉详情卡(2026-10-12): 云端 detail 回传 complaint(未发起过为 null), 时间统一格式化为 MM-DD HH:mm
-    const cRaw = d.complaint || null;
-    const fmtTs = (ts) => {
-      const t = Number(ts);
-      if (!t) return '';
-      const dd = new Date(t);
-      if (isNaN(dd.getTime())) return '';
-      return `${pad(dd.getMonth() + 1)}-${pad(dd.getDate())} ${pad(dd.getHours())}:${pad(dd.getMinutes())}`;
-    };
-    const complaint = cRaw ? {
-      status: cRaw.status || 'open',
-      status_text: cRaw.status === 'withdrawn' ? '已撤回' : (cRaw.status === 'resolved' ? '平台已处理' : '处理中'),
-      by_text: `${cRaw.mine ? '我' : '对方'}（${cRaw.by_role === 'user' ? '发单人' : '耍伴'}）`,
-      reason: cRaw.reason || '',
-      at_text: fmtTs(cRaw.at),
-      withdrawn_at_text: fmtTs(cRaw.withdrawn_at),
-      handled_at_text: fmtTs(cRaw.handled_at),
-      result_note: cRaw.result_note || '',
-      refund_text: Number(cRaw.refund_fen) > 0 ? (Number(cRaw.refund_fen) / 100).toFixed(2) : ''
-    } : null;
-
-    // 付款后信息全量展示(2026-10-12): 资金明细 / 退款 / 争议正交位 / 费用明细(老订单无这些字段 → 全 null 安全)
-    const yuan = (fen) => (Number(fen || 0) / 100).toFixed(2);
-    const SETTLE_TEXT = { pending: '待结算', ready: '可结算', done: '已结算' };
-    const REFUND_SRC = { dispute: '争议裁决退款', cancel: '订单取消退款', no_show: '爽约赔付', partner: '耍伴赔付', system: '平台退款' };
-    // 阶段G(2026-10-15): 新增履约双确认超时/连续拒绝/不确认转争议的两类 type 文案, 否则回退显示原始英文值
-    const DISPUTE_TYPE = { complaint: '投诉', no_show: '爽约申诉', refund: '退款争议', start_timeout: '开始履约超时', finish_timeout: '完毕确认超时' };
-    const fRaw = d.fund || null;
-    const rRaw = d.refund || null;
-    const dvRaw = d.dispute || null;
-    const feeRaw = d.fees || null;
-    const money = (fRaw && Number(fRaw.paid_fen) > 0) ? {
-      paid_text: yuan(fRaw.paid_fen),
-      refunded_text: yuan(fRaw.refunded_fen),
-      settle_text: SETTLE_TEXT[fRaw.settle_state] || '',
-      settled_at_text: fmtTs(fRaw.settled_at)
-    } : null;
-    const refundView = rRaw ? {
-      amount_text: yuan(rRaw.fen),
-      source_text: REFUND_SRC[rRaw.source] || rRaw.source || '',
-      at_text: fmtTs(rRaw.at),
-      no: rRaw.no || ''
-    } : null;
-    const disputeView = (dvRaw && dvRaw.state === 'open') ? {
-      type_text: DISPUTE_TYPE[dvRaw.type] || dvRaw.type || '争议',
-      opened_at_text: fmtTs(dvRaw.opened_at)
-    } : null;
-    const feesView = (feeRaw && (Number(feeRaw.fee_fen) > 0 || Number(feeRaw.partner_income_fen) > 0 || feeRaw.aa_tier)) ? {
-      fee_text: yuan(feeRaw.fee_fen),
-      income_text: yuan(feeRaw.partner_income_fen),
-      aa_tier: feeRaw.aa_tier || ''
-    } : null;
-    // 履约留痕(需求B一期可视化, 2026-10-14): 现场照片(fileID 直供 <image src>, 与爽约证据同约定)+到场地址/时间, 双方可见
-    const seRaw = d.service_start_evidence || null;
-    const startEvidence = (seRaw && Array.isArray(seRaw.photos) && seRaw.photos.length) ? {
-      photos: seRaw.photos.map((p) => (p && p.file_id) || '').filter(Boolean),
-      address: (seRaw.partner_location && seRaw.partner_location.address) || '',
-      at_text: fmtTs(seRaw.submitted_at || 0)
-    } : null;
-    // 阶段F(2026-10-15): 完毕确认的完成照片+定位(双方可见, 规范 §2.3 第4条), 结构同 start_evidence
-    const fseRaw = d.service_finish_evidence || null;
-    const finishEvidence = (fseRaw && Array.isArray(fseRaw.photos) && fseRaw.photos.length) ? {
-      photos: fseRaw.photos.map((p) => (p && p.file_id) || '').filter(Boolean),
-      address: (fseRaw.partner_location && fseRaw.partner_location.address) || '',
-      at_text: fmtTs(fseRaw.submitted_at || 0)
-    } : null;
-    // 阶段C/D(2026-10-14): 需求方视角的耍伴联系信息(实名+脱敏号)与确认按钮文案
-    const pc = d.partner_contact || null;
-    const startConfirmText = (pc && (pc.real_name || pc.phone_mask))
-      ? `确认耍伴（${pc.real_name || ''}${pc.real_name && pc.phone_mask ? ' · ' : ''}${pc.phone_mask || ''}）已到场`
-      : '确认耍伴已到场';
-    const order = {
-      _id: d.order_id,
-      order_id: d.order_id,
-      order_no: d.order_no,
-      status: normalizeStatus(d.status),
-      my_role: d.role || '',
-      complaint,                                            // 投诉详情(原因全文/发起方/状态/处理结论/退款)
-      money,                                                // 资金明细(实付/已退/结算状态)
-      refund_view: refundView,                              // 退款(含非投诉路径的 S7 自助退)
-      dispute_view: disputeView,                            // 争议处理中(投诉/爽约申诉) + 开启时间
-      fees_view: feesView,                                  // 费用明细(平台服务费/耍伴收入/AA 档)
-      can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
-      frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
-      start_evidence: startEvidence,                        // 履约留痕(2026-10-14): 开始履约现场照片+到场地址/时间
-      finish_evidence: finishEvidence,                      // 阶段F(2026-10-15): 完毕确认完成照片+地址/时间(双方可见)
-      user_confirm: d.user_confirm || null,                 // 需求B二期到场确认(2026-10-14): 原白名单漏映射, 致 WXML「你已确认到场」不显示
-      urge: d.urge || null,                                 // Wave2 止血⑥: 催办信息(count/max/can_urge/auto_reminded/logs)
-      modify_count: d.modify_count || 0,
-      modify_result: modifyResult,
-      pending_modify: pendingModify,
-      pending_extend: pendingExtend,
-      scene_code: d.scene,
-      scene_content_text: ((d.content_options && d.content_options.length ? d.content_options : (d.content_option ? [d.content_option] : [])) || []).join('/'),
-      partner_name: d.partner_nickname,
-      partner_contact: pc,                                  // 阶段C/D: 需求方看耍伴实名+脱敏号(非需求方为 null)
-      start_confirm_text: startConfirmText,                 // 阶段C/D: S2_6 需求方确认按钮文案
-      location: d.location || {},
-      service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',
-      service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
-      duration_hours: d.duration_h || 0,
-      amount_fen: d.total_fen || 0,
-      tip_total_fen: d.tip_total_fen || 0,
-      insurance: null, // detail 暂未返回保险, 先隐藏保险卡
-      confirm: d.confirm,
-      evaluation: d.evaluation,
-      pay_expire_at: d.pay_expire_at,
-      milestone: ms,
-      milestoneSteps,
-      nextPercent,
-      canFinishService: ms.current >= 3
-    };
-
-    // 引导横幅: 根据 status + my_role + 特殊条件计算下一步
-    const nextStep = computeNextStep(order);
-
-    const scene = getScene(d.scene);
-    const statusInfo = ORDER_STATUS[order.status] || ORDER_STATUS.S1;
-    // 改期次数以 detail 返回的 modify_count 为准
-    const modifyUsedUp = (d.modify_count || 0) >= CONFIG.MODIFY.maxTimes;
-    // 取消档位: detail 返回 start_time, 按 CONFIG.CANCEL_LEAD_HOURS 计算
-    const serviceStart = new Date(st);
-    const hoursLeft = (serviceStart - new Date()) / 3600000;
-    let currentCancelIdx = 0;
-    const [leadH1, leadH2] = CONFIG.CANCEL_LEAD_HOURS || [24, 2];
-    if (hoursLeft > leadH1) currentCancelIdx = 0;
-    else if (hoursLeft > leadH2) currentCancelIdx = 1;
-    else currentCancelIdx = 2;
-    this.setData({
-      order,
-      scene,
-      statusInfo,
-      modifyUsedUp,
-      currentCancelIdx,
-      tipEnabled: !!(CONFIG.PAYMENT && CONFIG.PAYMENT.tipEnabled),
-      orderSummary: d.order_summary || null,
-      amountYuan: ((order.amount_fen || 0) / 100).toFixed(2),
-      tipTotalYuan: ((order.tip_total_fen || 0) / 100).toFixed(2),
-      modifyDateMin: this.fmtDate(new Date()),
-      timeMaxRange: this.fmtDate(new Date(Date.now() + CONFIG.MODIFY.maxSpanH * 3600000)),
-      nextStep,
-      finishingService: false
-    });
+    // 拆分阶段1 C2·A1(2026-10-15): detail→视图映射纯函数外移 buildOrderView(utils/order-view.js, 返回与旧 setData 同形 13 键 patch, 经书面批准自 @VERIFIED 逐字搬迁)
+    // 本方法仅保留: setData + 待确认加时/改期弹窗震动编排 + 打赏明细拉取(以下 wx 段逐字未动)
+    const patch = buildOrderView(d);
+    const { order, statusInfo } = patch;
+    this.setData(patch);
     // 醒目即时提醒: 有待自己确认的加时/改期时, 进页即弹 modal + 震动
     // 同单同类型只弹一次, 避免 onShow 轮询重复刷屏
     this.__pendingAlerted = this.__pendingAlerted || {};
@@ -640,14 +451,7 @@ Page({
     }, 1000);
   },
 
-  fmtDate(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  },
-
-  // 到账通知时间戳(毫秒 → MM-DD HH:mm)
+  // 到账通知时间戳(毫秒 → MM-DD HH:mm)（fmtDate 已在拆分阶段1 C2·A2 外移 utils/order-view.js, 本页无残留调用）
   __fmtNoticeTime(ts) {
     const d = new Date(Number(ts));
     if (isNaN(d.getTime())) return '';
