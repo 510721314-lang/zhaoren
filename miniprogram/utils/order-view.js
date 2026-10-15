@@ -126,4 +126,29 @@ function computeNextStep(order, now = Date.now()) {
   }
 }
 
-module.exports = { computeNextStep, pad };
+// 组合 picker 的日期+时分 → 本地时间戳
+// @VERIFIED 2026-10-13（随源文件 order-detail.js 文件级标记迁入；2026-10-15 拆分阶段1·A3 经书面批准自 L1361 逐字搬迁，唯一差异：this.data 解构改为两个形参）
+function buildModifyTs(modifyDate, modifyTime) {
+  if (!modifyDate || !modifyTime) return 0;
+  const dy = modifyDate.split('-').map(Number);
+  const hm = modifyTime.split(':').map(Number);
+  if (dy.length !== 3 || dy.some(isNaN) || hm.length !== 2 || hm.some(isNaN)) return 0;
+  return new Date(dy[0], dy[1] - 1, dy[2], hm[0], hm[1], 0, 0).getTime();
+}
+
+// 履约准备弹窗倒计时文案（分钟/小时/天三档）
+// @VERIFIED 2026-10-13（随源文件 order-detail.js 文件级标记迁入；2026-10-15 拆分阶段1·A4 经书面批准自 onViewPrep L679-687 逐字搬迁，唯一差异：增加可选 now 参数支持确定性单测，调用方不传即旧行为）
+function buildPrepCountdown(o, now = Date.now()) {
+  const startTs = o.service_start_ts || (o.service_date && o.service_time
+    ? new Date(`${o.service_date}T${o.service_time.replace(/(\d{1,2}):(\d{2})/, (_, h, m) => `${h.padStart(2,'0')}:${m}`)}:00`).getTime()
+    : 0);
+  const diffMin = Math.max(0, Math.round((startTs - now) / 60000));
+  const diffStr = diffMin < 60
+    ? `还有 ${diffMin} 分钟开始`
+    : diffMin < 1440
+      ? `还有 ${Math.round(diffMin/60)} 小时 ${diffMin%60} 分钟开始`
+      : `还有 ${Math.round(diffMin/1440)} 天开始`;
+  return diffStr;
+}
+
+module.exports = { computeNextStep, pad, buildModifyTs, buildPrepCountdown };

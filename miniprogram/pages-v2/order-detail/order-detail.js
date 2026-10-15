@@ -8,7 +8,8 @@ const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 const { callCloud } = require('../../utils/cloud.js');
 // 批 5.4: 纯映射函数(computeNextStep/pad)抽离到 utils/order-view.js, 可单测; 此处仅编排
-const { computeNextStep, pad } = require('../../utils/order-view.js');
+// 拆分阶段1 C1(2026-10-15): buildModifyTs/buildPrepCountdown 同外移, 页面留薄代理/编排调用
+const { computeNextStep, pad, buildModifyTs, buildPrepCountdown } = require('../../utils/order-view.js');
 // 阶段B(2026-10-14): 履约定位三层判定(纯函数, 单测在 _shared/geo_guard.test.js)
 const { evaluatePosition } = require('../../utils/geo-guard.js');
 
@@ -675,16 +676,8 @@ Page({
   // 用户端 S2: 查看履约准备 (弹窗展示履约信息 + 可选操作)
   onViewPrep() {
     const o = this.data.order || {};
-    const now = Date.now();
-    const startTs = o.service_start_ts || (o.service_date && o.service_time
-      ? new Date(`${o.service_date}T${o.service_time.replace(/(\d{1,2}):(\d{2})/, (_, h, m) => `${h.padStart(2,'0')}:${m}`)}:00`).getTime()
-      : 0);
-    const diffMin = Math.max(0, Math.round((startTs - now) / 60000));
-    const diffStr = diffMin < 60
-      ? `还有 ${diffMin} 分钟开始`
-      : diffMin < 1440
-        ? `还有 ${Math.round(diffMin/60)} 小时 ${diffMin%60} 分钟开始`
-        : `还有 ${Math.round(diffMin/1440)} 天开始`;
+    // 拆分阶段1 C1·A4(2026-10-15): 倒计时文案纯计算外移 buildPrepCountdown; 弹窗/ActionSheet/催办 nudge_partner 编排仍留本页不动
+    const diffStr = buildPrepCountdown(o);
 
     wx.showModal({
       title: '📋 履约准备',
@@ -1358,14 +1351,9 @@ Page({
     this.setData({ modifyReason: v });
   },
 
-  // 组合 picker 的日期+时分 → 本地时间戳
+  // 组合 picker 的日期+时分 → 本地时间戳(拆分阶段1 C1·A3: 纯计算外移 utils/order-view.js, 此薄代理保 this.buildModifyTs() 调用点与 @VERIFIED 行为不变)
   buildModifyTs() {
-    const { modifyDate, modifyTime } = this.data;
-    if (!modifyDate || !modifyTime) return 0;
-    const dy = modifyDate.split('-').map(Number);
-    const hm = modifyTime.split(':').map(Number);
-    if (dy.length !== 3 || dy.some(isNaN) || hm.length !== 2 || hm.some(isNaN)) return 0;
-    return new Date(dy[0], dy[1] - 1, dy[2], hm[0], hm[1], 0, 0).getTime();
+    return buildModifyTs(this.data.modifyDate, this.data.modifyTime);
   },
 
   submitModify() {
