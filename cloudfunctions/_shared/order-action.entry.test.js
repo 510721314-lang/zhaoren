@@ -253,6 +253,26 @@ test('timeline: 超过 50 条 → 仅返回最近 50', async () => {
   assert.ok(r.data.total > 50);
 });
 
+// 16b. timeline: 履约双确认阶段G事件须有中文 label(2026-10-15 真机缺陷: 字典缺失致显示裸状态码)
+test('timeline: start_reject/finish_reject 等阶段G事件 → 中文 label 不裸码', async () => {
+  const logs = {
+    g1: { order_id: OID, from_status: 'S2', to_status: 'S2_6', action: 'start_apply', operator: PARTNER, created_at: 100, is_deleted: false },
+    g2: { order_id: OID, from_status: 'S2_6', to_status: 'S2', action: 'start_reject', operator: USER, created_at: 200, is_deleted: false },
+    g3: { order_id: OID, from_status: 'S3', to_status: 'S3_6', action: 'finish_apply', operator: PARTNER, created_at: 300, is_deleted: false },
+    g4: { order_id: OID, from_status: 'S3_6', to_status: 'S3', action: 'finish_reject', operator: USER, created_at: 400, is_deleted: false }
+  };
+  const sdk = makeSdk({ openid: USER, store: Object.assign(tlStore(), { order_status_log: logs }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'timeline', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const labels = r.data.events.filter((e) => e.type === 'status').map((e) => e.label);
+  assert.ok(labels.indexOf('发起履约申请') >= 0, 'start_apply 应中文');
+  assert.ok(labels.indexOf('不同意开始履约') >= 0, 'start_reject 应中文');
+  assert.ok(labels.indexOf('发起履约完毕确认') >= 0, 'finish_apply 应中文');
+  assert.ok(labels.indexOf('不确认履约完毕') >= 0, 'finish_reject 应中文');
+  assert.ok(labels.every((l) => l.indexOf('S2_6') < 0 && l.indexOf('S3_6') < 0), '不应出现中间态裸码');
+});
+
 // 17. complaint: 冻结位(爽约申诉在途) → oa_order_frozen(D2: 谁先发起谁冻结)
 test('complaint: 订单已冻结 → oa_order_frozen', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore({ status: 'S2', frozen: true }) });

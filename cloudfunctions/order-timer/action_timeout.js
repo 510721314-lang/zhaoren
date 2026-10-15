@@ -97,7 +97,7 @@ async function processStartApplyTimeout(ctx) {
       return receivers.map(openid => col('system_notice').add({ data: {
         to_openid: openid, order_id: o._id, type: 'dispute_open',
         title: '开始履约确认超时,已转平台处理',
-        body: '开始履约申请 15 分钟未获响应,订单已转争议,平台将介入核实',
+        body: `开始履约申请 ${startApplyMin} 分钟未获响应,订单已转争议,平台将介入核实`,
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
@@ -129,7 +129,7 @@ async function processFinishConfirmTimeout(ctx) {
       return receivers.map(openid => col('system_notice').add({ data: {
         to_openid: openid, order_id: o._id, type: 'dispute_open',
         title: '履约完毕确认超时,已转平台处理',
-        body: '履约完毕确认 30 分钟未获响应,订单已转争议,平台将介入核实',
+        body: `履约完毕确认 ${finishConfirmMin} 分钟未获响应,订单已转争议,平台将介入核实`,
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));

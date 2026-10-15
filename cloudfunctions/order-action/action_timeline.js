@@ -34,7 +34,19 @@ const ACTION_LABEL = {
   timeout_interrupt_partial: '超时自动转部分完成',
   timeout_modify_auto_reject: '改期超时自动拒绝',
   timeout_extend_auto_reject: '加时超时自动拒绝',
-  after_sale_expire: '售后窗口到期关闭'
+  after_sale_expire: '售后窗口到期关闭',
+  // 履约双确认阶段A-G(2026-10-15): 字典补全, 否则时间线兜底显示裸状态码(S2_6 → 已支付待履约), 用户不可读
+  start_apply: '发起履约申请',
+  start_confirm: '确认到场',
+  start_reject: '不同意开始履约',
+  start_apply_timeout: '连续2次未确认开始履约转争议',
+  timeout_start_apply: '开始履约超时转争议',
+  finish_apply: '发起履约完毕确认',
+  finish_confirm: '确认履约完毕',
+  finish_reject: '不确认履约完毕',
+  finish_confirm_timeout: '连续2次不确认完毕转争议',
+  timeout_finish_confirm: '完毕确认超时转争议',
+  user_confirm_start: '确认我已到场'
 };
 // 投诉/撤回类 status_log 跳过(由 complaint 集合承载, 避免同一动作重复两遍)
 const SKIP_STATUS_ACTIONS = ['user_complaint', 'partner_complaint', 'complaint_withdraw'];
