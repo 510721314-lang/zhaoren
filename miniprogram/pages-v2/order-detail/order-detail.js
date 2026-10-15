@@ -81,7 +81,8 @@ Page({
       return;
     }
     if (!silent) this.setData({ loading: true, loadError: false });
-    callCloud('order-action', { action: 'detail', order_id: this.__orderId }).then((r) => {
+    // 2026-10-15 F4: 返回刷新 Promise, 供写操作「loading 保持到刷新完成」(既有调用方不接返回值, 向后兼容)
+    return callCloud('order-action', { action: 'detail', order_id: this.__orderId }).then((r) => {
       if (!r.ok) {
         this.setData({ loading: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
         return;
@@ -107,6 +108,34 @@ Page({
     }).catch(() => {
       this.setData({ loading: false, loadError: true, loadErrorMsg: '网络异常,请重试' });
     });
+  },
+
+  // 2026-10-15 F1 页级操作互斥锁: 替代裸 wx.showModal——连点会在弹窗渲染空窗堆叠两个 modal,
+  // 首请求改状态+刷新换按钮后, 第二个 modal 的确认对新状态二次请求(被服务端 oa_*_status 拒绝)。
+  // 入口(弹窗前)即拦; 取消/弹窗失败/业务 Promise 链结算后自动放锁。success 回调必须 return 其 Promise 链。
+  // cancelIsAction: 取消键本身也是业务动作(如加时弹窗的「拒绝」)时置 true, 回调照常执行
+  _modal(opts) {
+    if (this._acting) return;
+    this._acting = true;
+    const release = () => { this._acting = false; };
+    wx.showModal(Object.assign({}, opts, {
+      success: (res) => {
+        if (!res.confirm && !opts.cancelIsAction) { release(); return; }
+        Promise.resolve().then(() => opts.success(res)).then(release, release);
+      },
+      fail: () => { release(); if (opts.fail) opts.fail(); }
+    }));
+  },
+
+  // 2026-10-15 F2 状态冲突收敛: oa_*_status/oa_status_conflict 不直出含裸状态码的服务端文案,
+  // 静默刷新订单(按钮按新状态重渲染)+友好提示; 命中返回 true(调用方不再弹 r.msg)
+  _handleConflict(r) {
+    if (r && r.code && /_status$|status_conflict/.test(r.code)) {
+      this.fetchData({ orderId: (this.data.order && this.data.order._id) || this.__orderId });
+      wx.showToast({ title: '订单状态已更新, 请刷新后重试', icon: 'none' });
+      return true;
+    }
+    return false;
   },
 
   // 拉取安全中心状态(safety-report status: 仅订单参与方可读)
@@ -814,24 +843,24 @@ Page({
   // 阶段D(2026-10-14): 需求方「同意开始履约」→ S2_6→S3(可带用户定位留痕; 取不到定位不阻断)
   onStartConfirm() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '确认耍伴已到场',
       content: '确认后订单进入履约中, 耍伴将开始服务',
       confirmText: '确认',
       success(res) {
         if (!res.confirm) return;
-        that._collectStartLocation(true, false).then((loc) => {
+        return that._collectStartLocation(true, false).then((loc) => {
           wx.showLoading({ title: '提交中', mask: true });
           const payload = { action: 'start_confirm', order_id: that.data.order._id };
           if (loc) payload.user_location = loc;
-          callCloud('order-action', payload).then((r) => {
+          return callCloud('order-action', payload).then((r) => {
             wx.hideLoading();
             if (!r.ok) {
-              wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+              if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
               return;
             }
             wx.showToast({ title: '已确认, 履约开始', icon: 'success' });
-            that.fetchData({ orderId: that.data.order._id });
+            return that.fetchData({ orderId: that.data.order._id });
           }).catch(() => {
             wx.hideLoading();
             wx.showToast({ title: '网络异常', icon: 'none' });
@@ -844,21 +873,21 @@ Page({
   // 阶段D(2026-10-14): 需求方「不同意」→ S2_6→S2(耍伴 60 秒后可重发)
   onStartReject() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '不同意开始履约',
       content: '确认不同意? 耍伴 60 秒后可重新发起到场申请',
       confirmText: '不同意',
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '提交中', mask: true });
-        callCloud('order-action', { action: 'start_reject', order_id: that.data.order._id }).then((r) => {
+        return callCloud('order-action', { action: 'start_reject', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
-            wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+            if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
             return;
           }
           wx.showToast({ title: '已拒绝', icon: 'none' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => {
           wx.hideLoading();
           wx.showToast({ title: '网络异常', icon: 'none' });
@@ -1263,20 +1292,22 @@ Page({
     const that = this;
     const pe = this.data.order && this.data.order.pending_extend;
     if (!pe) { wx.showToast({ title: '无待处理的加时申请', icon: 'none' }); return; }
-    wx.showModal({
+    this._modal({
       title: '确认同意加时',
       content: `+${pe.add_hours}小时 · 加时金额 ¥${(pe.add_amount_fen / 100).toFixed(2)}\n确认后金额合并进结算`,
       confirmText: '同意',
       cancelText: '拒绝',
+      // F1: 本弹窗取消键=「拒绝加时」业务动作而非放弃, 回调须照常执行
+      cancelIsAction: true,
       fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
       success: (res) => {
         const act = res.confirm ? 'extend_confirm' : 'extend_reject';
         wx.showLoading({ title: res.confirm ? '确认加时' : '拒绝加时', mask: true });
-        callCloud('order-action', { action: act, order_id: that.data.order._id }).then((r) => {
+        return callCloud('order-action', { action: act, order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
           wx.showToast({ title: res.confirm ? '加时已确认' : '已拒绝加时', icon: 'success' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });
@@ -1353,7 +1384,7 @@ Page({
       wx.showToast({ title: `须提前${CONFIG.MODIFY.minLeadHours}小时申请改期`, icon: 'none' });
       return;
     }
-    wx.showModal({
+    this._modal({
       title: '确认提交改期',
       content: `新服务时间：${modifyDate} ${modifyTime}\n提交后需耍伴${CONFIG.MODIFY.confirmHours}小时内确认`,
       confirmText: '确认',
@@ -1362,7 +1393,7 @@ Page({
         if (!res.confirm) return;
         that.setData({ modifyPanelVisible: false });
         wx.showLoading({ title: '提交改期', mask: true });
-        callCloud('order-action', {
+        return callCloud('order-action', {
           action: 'modify',
           order_id: that.data.order._id,
           new_start_time: ts,
@@ -1370,11 +1401,11 @@ Page({
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
-            wx.showToast({ title: r.msg || '改期失败', icon: 'none' });
+            if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '改期失败', icon: 'none' });
             return;
           }
           wx.showToast({ title: '改期申请已提交', icon: 'success' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => {
           wx.hideLoading();
           wx.showToast({ title: '网络异常', icon: 'none' });
@@ -1387,7 +1418,7 @@ Page({
   onModifyConfirm() {
     const that = this;
     const pm = this.data.order && this.data.order.pending_modify;
-    wx.showModal({
+    this._modal({
       title: '同意改期',
       content: pm ? `确认将服务时间改为 ${pm.new_date} ${pm.new_time}？` : '确认同意本次改期？',
       confirmText: '同意',
@@ -1395,11 +1426,11 @@ Page({
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '处理中', mask: true });
-        callCloud('order-action', { action: 'modify_confirm', order_id: that.data.order._id }).then((r) => {
+        return callCloud('order-action', { action: 'modify_confirm', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
           wx.showToast({ title: '已同意改期', icon: 'success' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });
@@ -1408,7 +1439,7 @@ Page({
   // S2_5 对方拒绝改期 → 回原状态, 服务时间不变
   onModifyReject() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '拒绝改期',
       content: '拒绝后服务时间保持不变',
       confirmText: '拒绝',
@@ -1417,11 +1448,11 @@ Page({
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '处理中', mask: true });
-        callCloud('order-action', { action: 'modify_reject', order_id: that.data.order._id }).then((r) => {
+        return callCloud('order-action', { action: 'modify_reject', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
           wx.showToast({ title: '已拒绝改期', icon: 'none' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });
@@ -1431,7 +1462,7 @@ Page({
   // 水印时间取服务端时间戳(规范 §F3); 旧 complete_service(no.13 直连 S3→S5)停用, 保留共存待收口
   onFinishService() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '发起履约完毕确认',
       content: '将先拍摄完成照片(带水印)与定位存档, 再提交给需求方确认',
       confirmText: '继续',
@@ -1440,7 +1471,7 @@ Page({
         // 乐观更新: 立即隐藏加时按钮 + 禁用完成按钮, 杜绝"已点完成却还能加时"的矛盾窗口
         that.setData({ finishingService: true });
         wx.showLoading({ title: '准备中', mask: true });
-        callCloud('order-action', { action: 'server_now' }).then((r) => {
+        return callCloud('order-action', { action: 'server_now' }).then((r) => {
           wx.hideLoading();
           const serverAt = (r && r.ok && r.data && r.data.server_time) || 0;
           return that._collectStartEvidence(serverAt, 'finish');
@@ -1451,10 +1482,18 @@ Page({
             action: 'finish_apply', order_id: that.data.order._id, finish_evidence: ev
           }).then((r2) => {
             wx.hideLoading();
-            if (!r2.ok) { that.setData({ finishingService: false }); wx.showToast({ title: r2.msg || '操作失败', icon: 'none' }); return; }
+            if (!r2.ok) {
+              that.setData({ finishingService: false });
+              if (!that._handleConflict(r2)) wx.showToast({ title: r2.msg || '操作失败', icon: 'none' });
+              return;
+            }
             require('../../utils/report.js').report('order_finish', { order_id: that.data.order._id });
-            wx.showToast({ title: '已发起, 等待对方确认', icon: 'success' });
-            that.fetchData({ orderId: that.data.order._id });
+            // F4(2026-10-15): loading 保持到详情刷新完成再反馈, 防慢网刷新空窗重复点击
+            wx.showLoading({ title: '刷新中', mask: true });
+            return that.fetchData({ orderId: that.data.order._id }).then(() => {
+              wx.hideLoading();
+              wx.showToast({ title: '已发起, 等待对方确认', icon: 'success' });
+            });
           });
         }).catch(() => {
           wx.hideLoading();
@@ -1468,18 +1507,18 @@ Page({
   // 阶段F(2026-10-15): 需求方「确认履约完毕」→ S3_6→S5(触发结算走既有链路)
   onFinishConfirm() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '确认履约完毕',
       content: '确认后订单完成, 将进入评价',
       confirmText: '确认',
       success(res) {
         if (!res.confirm) return;
         wx.showLoading({ title: '提交中', mask: true });
-        callCloud('order-action', { action: 'finish_confirm', order_id: that.data.order._id }).then((r) => {
+        return callCloud('order-action', { action: 'finish_confirm', order_id: that.data.order._id }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
           wx.showToast({ title: '已确认, 订单完成', icon: 'success' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });
@@ -1489,7 +1528,7 @@ Page({
   // 阶段G补充(2026-10-15, 需求更正): 不确认后立即引导进入「与对方交流」(IM 会话页), 便于双方就履约分歧即时沟通
   onFinishReject() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '不确认履约完毕',
       content: '不确认后将进入与对方交流, 耍伴 60 秒后可重新发起完毕确认',
       confirmText: '不确认',
@@ -1497,14 +1536,13 @@ Page({
         if (!res.confirm) return;
         wx.showLoading({ title: '提交中', mask: true });
         const orderId = that.data.order._id;
-        callCloud('order-action', { action: 'finish_reject', order_id: orderId }).then((r) => {
+        return callCloud('order-action', { action: 'finish_reject', order_id: orderId }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
-          // 导航先行、反馈后置(与 square / demand-detail 同口径): toast 放 success 回调, 消灭「toast+导航」竞态
+          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+          // F3(2026-10-15): 删除跳转成功后的跨页 toast「已进入交流」(聊天页内多余); 聊天后返回详情由 onShow 自动非静默刷新
           // navigateTo: 保留订单详情在栈, 聊天后返回可继续核对订单(不销毁当前页)
           wx.navigateTo({
             url: `/pages-v2/chat/chat?orderId=${orderId}`,
-            success: () => wx.showToast({ title: '已进入交流', icon: 'none' }),
             fail: () => { that.fetchData({ orderId }); wx.showToast({ title: '已驳回', icon: 'none' }); }
           });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
@@ -1611,7 +1649,7 @@ Page({
   // S8 售后
   onComplaint() {
     const that = this;
-    wx.showModal({
+    this._modal({
       title: '发起争议',
       content: '争议将提交管理员仲裁',
       confirmText: '提交',
@@ -1621,15 +1659,15 @@ Page({
         if (!res.confirm) return;
         const reason = (res.content || '').trim();
         wx.showLoading({ title: '提交中', mask: true });
-        callCloud('order-action', {
+        return callCloud('order-action', {
           action: 'complaint',
           order_id: that.data.order._id,
           reason
         }).then((r) => {
           wx.hideLoading();
-          if (!r.ok) { wx.showToast({ title: r.msg || '提交失败', icon: 'none' }); return; }
+          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '提交失败', icon: 'none' }); return; }
           wx.showToast({ title: '已进入争议处理', icon: 'none' });
-          that.fetchData({ orderId: that.data.order._id });
+          return that.fetchData({ orderId: that.data.order._id });
         }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
       }
     });
@@ -1640,7 +1678,7 @@ Page({
     const that = this;
     const tier = this.data.cancelTiers[this.data.currentCancelIdx];
     const ruleLines = this.data.cancelTiers.map((t) => `· ${t.label}：退款${t.rate * 100}%`).join('\n');
-    wx.showModal({
+    this._modal({
       title: '取消订单',
       content: `退款规则：\n${ruleLines}\n\n当前适用：${tier.label}，退款${tier.rate * 100}%`,
       confirmText: '确认取消',
@@ -1649,14 +1687,14 @@ Page({
       success: (res) => {
         if (!res.confirm) return;
         wx.showLoading({ title: '取消中', mask: true });
-        callCloud('order-action', {
+        return callCloud('order-action', {
           action: 'cancel',
           order_id: that.data.order._id,
           reason: tier ? `按${tier.label}梯度退款` : ''
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
-            wx.showToast({ title: r.msg || '取消失败', icon: 'none' });
+            if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '取消失败', icon: 'none' });
             return;
           }
           wx.showToast({ title: tier ? `已取消·退款${tier.label}` : '已取消', icon: 'none', duration: 2000 });
