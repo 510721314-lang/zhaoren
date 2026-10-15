@@ -41,8 +41,8 @@
 
 | # | 负债 | 证据 | 评估 |
 |---|---|---|---|
-| P2-1 | **前端巨型页面**：order-detail.js 1656 行 + order-detail.wxml 470 行；publish.js 1296 行 + publish.wxml 309 行 | `miniprogram/pages-v2/order-detail/`、`pages-v2/publish/` | 履约链每次需求都改 order-detail，回归面持续扩大。云函数 9 入口已物理拆分收官（REGISTRY #51–#58），前端仅批 5.4 抽过纯映射。建议提审后立项，当前禁动 |
-| P2-2 | **前端零单测**：437 单测全部在 cloudfunctions/_shared | `cloudfunctions/_shared/*.test.js` | 页面 setData/跳转/按钮态纯靠真机。与 P2-1 同批：先抽纯函数再补测 |
+| P2-1 | **前端巨型页面**：order-detail.js 1692 行 + order-detail.wxml 470 行；publish.js 1296 行 + publish.wxml 309 行 | `miniprogram/pages-v2/order-detail/`、`pages-v2/publish/` | 履约链每次需求都改 order-detail，回归面持续扩大。云函数 9 入口已物理拆分收官（REGISTRY #51–#58），前端仅批 5.4 抽过纯映射。**已出审定方案**（2026-10-15 双专家评审 v2，见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md)）：五层递进、@VERIFIED 逐函数批准、能力链路阶段需真机；无机期最多执行阶段 1（纯函数外移） |
+| P2-2 | **前端零页面单测**：437 单测全部在 cloudfunctions/_shared（其中 geo_guard/order-view 两例已跨目录测 miniprogram/utils 纯函数，基建先例已存在） | `cloudfunctions/_shared/*.test.js` | 页面 setData/跳转/按钮态纯靠真机。与 P2-1 同批：先抽纯函数再补测，路径见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §5.6（测试照 _shared 先例、不动 npm run verify） |
 | P2-3 | **9 份 `_orig_baseline.js` 约 1.07 万行冻结常驻并随函数部署**（运行时永不 require） | 9 个拆分函数目录下 | project_rules §10 禁删/改名/改——A/B 锚点价值交换包体与暴露面，已接受的债 |
 | P2-4 | `_shared` 多副本物理同步：openid.js 17 份、logger.js 16 份、audit.js 11 份等 | 14 个 sync-*.ps1 + check-shared-sync 门禁 | CloudBase 无 layer 的必然结果；改规范源忘跑 sync 已被门禁拦截 |
 | P2-5 | 考试题库硬编码双份，无 sync 守护 | `partner-action/index.js:98`、`admin-action/action_exam.js:8` | 改题需两处手改。低成本可治，但触业务代码须先走批准 |
