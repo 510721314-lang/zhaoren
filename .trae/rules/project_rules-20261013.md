@@ -111,4 +111,14 @@ alwaysApply: true
 - **提交信息直传中文原文**（禁止用 `\uXXXX` 转义拼串），提交后必须读 `git log -1` 回执校验；若已产生乱码且**尚未推送**，经我批准可**一次性重写该提交说明**（`reset --soft` 重放或 amend HEAD），并同步修正文档中引用的 hash；**已推送后禁止重写历史**。
 - **状态机 SSOT 与 handler 层白名单必须同步**：改任一侧就要同步规则表 `no.x` 的 `from`、3 份副本（跑 `cloudfunctions/_shared/sync-*.ps1`）与对应测试断言（含反向断言），否则口径漂移（2026-10-15 规则 no.16 收窄 S5/S8 即为此例）。
 - **执行环境兜底**：ToolHost 不可用时改用 Exec(code mode)，并**显式补 PATH + 全路径**调用（`C:\Program Files\nodejs\npm.cmd`、`C:\Program Files\Git\cmd\git.exe`）——该通道 PATH 精简，`git`/`node` 都不在 PATH 内。
-- **推送/联网失败先验代理**：若 `github.com:443` 不通而常规域名（baidu / api.weixin.qq.com）通 = **定向阻断**（非断网、非 DNS、非仓库问题）；本机代理在 `127.0.0.1:7890` 监听、但系统代理 `ProxyEnable=0` 时，**不得改 git config / 系统设置**，仅在该次命令注入 `$env:HTTPS_PROXY=http://127.0.0.1:7890` 后重试，并用 `git ls-remote origin -h refs/heads/master` **核实远端 hash == 本地 HEAD**（禁止只看 push 回显）。
+- **推送/联网失败先验代理**：若 `github.com:443` 不通而常规域名（baidu / api.weixin.qq.com）通 = **定向阻断**（非断网、非 DNS、非仓库问题）；本机代理在 `127.0.0.1:7890` 监听、但系统代理 `ProxyEnable=0` 时，**不得改 git config / 系统设置**，仅在该次命令注入 `$env:HTTPS_PROXY=http://127.0.0.1:7890` 后重试，并用 `git ls-remote origin -h refs/heads/master` **核实远端 hash == 本地 HEAD**（禁止只看 push 回显）。PowerShell 5 下 git push 的进度走 stderr，会被标红/包成 `NativeCommandError`——**以 exit code=0 + ls-remote hash 一致为准**，勿把标红噪音误判为推送失败（2026-10-15 实证）。
+
+## 13. 小程序前端写操作防连点与提示时序纪律（2026-10-15 实证新增）
+- **真机实证（订单详情连点跳出原逻辑）**：凡「`wx.showModal` 确认 → 云调用写操作」的 handler，**禁止裸调 `wx.showModal`**。弹窗渲染存在空窗，快速连点会堆叠两个 modal：首请求 CAS 改状态 + fetchData 换掉按钮后，第二个 modal 的确认对新状态二次请求，服务端以 `oa_*_status`/`oa_status_conflict` 拒绝，前端再把含裸状态码的 `r.msg` 直接弹给用户。注意 `wx.showLoading({mask:true})` 只遮住 loading 期间；modal 弹起到点确认、以及确认后到 loading 出现前均无遮罩。
+- **统一走页级互斥包装**（参照 `pages-v2/order-detail/order-detail.js` 的 `_modal`，commit 6654403）：互斥标志挂页面实例（**不入 data、不 setData**），在**弹窗前入口**即拦；放锁必须覆盖三条路径——点取消、弹窗 fail、业务 Promise 链结算（`.then(release, release)` 兜底，success 回调必须 `return` 其 Promise 链）；成功后的 fetchData 要 return 进同一条链，保证放锁时按钮已按新状态重渲染，杜绝「放锁瞬间旧按钮仍在」。
+- **「取消键也是业务动作」的弹窗必须显式放行**：同意/拒绝共用一个 modal（如加时确认弹窗取消键=「拒绝加时」）时用 `cancelIsAction` 类开关让回调照常执行，禁止一律把 `!res.confirm` 当放弃处理。
+- **状态冲突错误码不直出 `r.msg`**：码名匹配 `/_status$|status_conflict/` 时静默 fetchData + 固定友好文案（如「订单状态已更新, 请刷新后重试」）；权限/冷却/次数/资金/文本安全等业务错误**仍走原文案**，禁止一刀切吞掉所有 `!r.ok`。
+- **成功反馈时序**：写操作成功后 loading 保持到 fetchData 刷新完成再弹成功 toast（堵慢网刷新空窗的重复点）；fetchData 类刷新函数须返回 Promise（既有调用方不接返回值，天然向后兼容）。
+- **`wx.navigateTo` 的 success 回调里禁止 toast**（跨页提示在目标页多余）；返回原页所需的刷新交给 onShow 兜底，不靠跳转前 toast 交代状态。
+- **修复切口**：只做「加包装器 + 逐 handler 替换调用」，不重写既有回调体；带 `// @VERIFIED` 且本次未点名的 handler 不动，未覆盖的同构 handler 在 FUNCTION-REGISTRY 单列残留项由我决定是否扩面，禁止借修 bug 顺手扩面。
+- **前端锁不替代服务端幂等**：互斥锁只改善交互体验，资金/状态推进仍以服务端 CAS + 写操作不重试为准（本项目已具备）；禁止以「前端已加锁」为由放松任何服务端状态/权限校验。
