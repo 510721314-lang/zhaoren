@@ -1,4 +1,4 @@
-// zz-seed-orders · 临时种子生成器(验收视觉后删除)
+// zz-seed-orders · 自测造数工具(保留: 不部署; 入口 fail-closed 仅管理员/代理密钥可调, 见 REGISTRY #34; 真机造数与回归复用, 勿当临时文件删除)
 // 用途: 以「真人感」模拟订单填充广场/首页/附近列表, 用于真机视觉测试
 // 方式: ①创建一批虚拟 user_account(成都本地感昵称+姓氏) ②按 admin_config.scene_list 每个子场景写 5 条 demand
 // 落库结构对齐 demand-publish 产出(remark='标题｜描述', home-action mapDemand/fillPublisherSurname 直接渲染)

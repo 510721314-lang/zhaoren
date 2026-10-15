@@ -1,0 +1,6 @@
+# 行尾统一规则（2026-10-15 技术债 #5A）
+# 云函数源码强制 LF：与云端部署/CLI download 产物行尾保持一致，
+# 备份逐文件 SHA256 比对不再出现「工作区 CRLF vs 云端 LF」的伪差异（归一化前 payment-mock/index.js 曾每次重复解释）。
+# 仅约束 cloudfunctions；miniprogram 与本地 .ps1(含中文 BOM 纪律)维持 core.autocrlf 现状不动。
+cloudfunctions/**/*.js   text eol=lf
+cloudfunctions/**/*.json text eol=lf
