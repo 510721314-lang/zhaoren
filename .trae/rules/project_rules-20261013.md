@@ -111,3 +111,4 @@ alwaysApply: true
 - **提交信息直传中文原文**（禁止用 `\uXXXX` 转义拼串），提交后必须读 `git log -1` 回执校验；若已产生乱码且**尚未推送**，经我批准可**一次性重写该提交说明**（`reset --soft` 重放或 amend HEAD），并同步修正文档中引用的 hash；**已推送后禁止重写历史**。
 - **状态机 SSOT 与 handler 层白名单必须同步**：改任一侧就要同步规则表 `no.x` 的 `from`、3 份副本（跑 `cloudfunctions/_shared/sync-*.ps1`）与对应测试断言（含反向断言），否则口径漂移（2026-10-15 规则 no.16 收窄 S5/S8 即为此例）。
 - **执行环境兜底**：ToolHost 不可用时改用 Exec(code mode)，并**显式补 PATH + 全路径**调用（`C:\Program Files\nodejs\npm.cmd`、`C:\Program Files\Git\cmd\git.exe`）——该通道 PATH 精简，`git`/`node` 都不在 PATH 内。
+- **推送/联网失败先验代理**：若 `github.com:443` 不通而常规域名（baidu / api.weixin.qq.com）通 = **定向阻断**（非断网、非 DNS、非仓库问题）；本机代理在 `127.0.0.1:7890` 监听、但系统代理 `ProxyEnable=0` 时，**不得改 git config / 系统设置**，仅在该次命令注入 `$env:HTTPS_PROXY=http://127.0.0.1:7890` 后重试，并用 `git ls-remote origin -h refs/heads/master` **核实远端 hash == 本地 HEAD**（禁止只看 push 回显）。
