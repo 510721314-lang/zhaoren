@@ -100,4 +100,13 @@ test('admin_config 配 start_apply_timeout_min=30 → 20min 不触发', async ()
   assert.strictEqual(r.data.counts.start_apply_timeout, 0);
 });
 
+// ⑤b finish 侧对称守护: 配 finish_confirm_timeout_min=30 → 20min 不触发
+test('admin_config 配 finish_confirm_timeout_min=30 → 20min 不触发', async () => {
+  const now = Date.now();
+  const store = baseStore({ P5B: ord('P5B', 'S3_6', { finish_apply_at: now - 20 * MIN }) });
+  store.admin_config.global.finish_confirm_timeout_min = 30;
+  const { r } = await run(store);
+  assert.strictEqual(r.data.counts.finish_confirm_timeout, 0);
+});
+
 test.after(() => { Module._load = origLoad; });

@@ -102,6 +102,31 @@ test('config_set: 切 dev 带 dev_hours=2 → ok(updated 含 env/dev_until)', as
   assert.ok((r.data.updated || []).indexOf('dev_until') >= 0, '应写入 dev_until');
 });
 
+// 阶段 H(2026-10-15): 履约双确认两超时阈值注册 CONFIG_SCHEMA, 走通用 int 区间校验(1-1440)
+test('config_set: start/finish 超时阈值越界(0 / 1441) → config_bad_* 且不落库', async () => {
+  const sdk = makeSdk({ openid: '', store: store('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r1 = await main({ action: 'config_set', start_apply_timeout_min: 0, mock_openid: ADMIN }, {});
+  assert.strictEqual(r1.ok, false);
+  assert.strictEqual(r1.code, 'config_bad_start_apply_timeout_min');
+  const r2 = await main({ action: 'config_set', finish_confirm_timeout_min: 1441, mock_openid: ADMIN }, {});
+  assert.strictEqual(r2.ok, false);
+  assert.strictEqual(r2.code, 'config_bad_finish_confirm_timeout_min');
+  assert.ok(!sdk.writes.admin_config, '越界不应写 admin_config');
+});
+
+test('config_set: start/finish 超时阈值合法(15/30) → ok 且 updated 含两键、按整数落库', async () => {
+  const sdk = makeSdk({ openid: '', store: store('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_set', start_apply_timeout_min: 15, finish_confirm_timeout_min: 30, mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, true);
+  assert.ok((r.data.updated || []).indexOf('start_apply_timeout_min') >= 0, 'updated 应含 start_apply_timeout_min');
+  assert.ok((r.data.updated || []).indexOf('finish_confirm_timeout_min') >= 0, 'updated 应含 finish_confirm_timeout_min');
+  const w = (sdk.writes.admin_config || [])[0];
+  assert.strictEqual(w.data.start_apply_timeout_min, 15);
+  assert.strictEqual(w.data.finish_confirm_timeout_min, 30);
+});
+
 // ── 2026-10-13: admin_login 防爆破锁定(复用 _shared/security_policy.js, 与 user-login 同口径) ──
 const crypto2 = require('crypto');
 const SALT = 'salt_x1';
