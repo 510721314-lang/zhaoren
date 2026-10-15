@@ -9,7 +9,7 @@
 
 ## 一、结论摘要
 
-**本地备份全部完成，完整性核验零异常**（含恢复演练 dry-run **39 OK / 0 BAD**）。代码层双保险（bundle + 热备）+ 数据层（配置快照 + 37 集合 + 云函数代码 + 索引台账）+ 沉淀资产副本，全部落 `C:\zhaoren-bak` 并登记 `CHECKSUMS.txt`。**飞书异地本轮未执行**（待用户确认后按 runbook 三步闭环补做）。
+**备份六步全部完成，完整性核验零异常**（含恢复演练 dry-run **39 OK / 0 BAD**）。代码层双保险（bundle + 热备）+ 数据层（配置快照 + 37 集合 + 云函数代码 + 索引台账）+ 沉淀资产副本，全部落 `C:\zhaoren-bak` 并登记 `CHECKSUMS.txt`；**飞书异地第⑥步同日闭环**（三件 push 3/3、复核 exact unchanged）。
 
 | # | 类别 | 产物 | 大小 / 计数 |
 |---|---|---|---|
@@ -20,6 +20,7 @@
 | 5 | 云函数 | `zhaoren_backup_20261015-1211\meta\functions_code\`（20/20 云端下载） | 465.12 MB |
 | 6 | 索引 | `meta\index_ledger.json`（设计 33 条，SHA 匹配） | — |
 | 7 | 沉淀资产 | `zhaoren_assets_20261015-124810\`（memory 全树 + .trae 全量） | 2.66 MB / 136 条目 |
+| 8 | 异地·飞书 | zhaoren-backup 云空间（folder_token `RCsff3kGUlKhpud1KVFckJOhnGc`）：bundle + `zhaoren_backup_20261015-1211.zip`（37 集合+admin_config+索引台账+manifest，**不含 functions_code**）+ CHECKSUMS.txt | 16.79 MB + 1.02 MB + 7.7 KB |
 
 ---
 
@@ -87,6 +88,7 @@
 | 索引 | 台账 SHA + 条数 | ✅ 33 条，SHA 匹配（云端重扫本轮未做） |
 | 沉淀资产 | SHA256SUMS 重算 | ✅ 136/136，0 bad |
 | **恢复演练** | `restore.ps1` dry-run（不写云端） | ✅ **39 OK / 0 BAD** |
+| 异地 | lark-cli `--as user` 三步闭环（exact SHA 比对） | ✅ +status 差异 3 → +push uploaded 2/overwritten 1/失败 0 → +status 全 unchanged |
 
 ---
 
@@ -96,6 +98,7 @@
 2. **配置/数据恢复**：`.predeploy\restore.ps1 -BackupDir C:\zhaoren-bak\zhaoren_backup_20261015-1211`（默认 dry-run；`-Force` 真恢复，密钥取 `C:\zhaoren-bak\admin-key-20261009.txt`，整文件即密钥本体需 `.Trim()`）
 3. **云函数**：`meta\functions_code\` 为云端实际部署版本快照（与 HEAD 76c462e 内容一致），可直接对目录重新部署
 4. **沉淀资产**：`zhaoren_assets_20261015-124810\` 回拷 memory 树与 `.trae`（用 `SHA256SUMS.txt` 校验）
+5. **异地取回**：飞书「zhaoren-backup」云空间目录（bundle token `MVg7bL2HJolYocxiaA0cs6znn1b` / DB zip token `XT9Rbe1RZoZUvCxstk0cAxBGnoe` / CHECKSUMS token `F0T8biqZooN0ilx5A7oct3MunCg`）；远程另有 7 个历史包（10-07/10-09/10-13 期，保留未删）
 
 ---
 
@@ -109,11 +112,11 @@
 
 ## 六、已知边界（如实登记）
 
-1. **飞书异地本轮未上传**：bundle / DB zip / CHECKSUMS 三件未推 `folder_token=RCsff3kGUlKhpud1KVFckJOhnGc`；待确认后按 runbook（staging 在 `c:\zhaoren\.backup-lark`、`--as user`、`+status`→`+push --if-exists overwrite`→`+status`）补做
-2. 索引仅做设计台账核验，未做 tcb 云端实测重扫（10-13 实测 33/33 之后无索引变更）
-3. `functions_code`（465 MB 含 node_modules）不上传异地：云端持有部署代码、bundle 覆盖源码、node_modules 可再生
-4. DB 集合导出为展示级脱敏产物；密钥类字段需以未脱敏 admin_config 快照恢复
-5. L6 下载耗时约 20 分钟属正常（含 node_modules），日志长时静默不代表卡死，判活看 `functions_code\<fn>\` 文件数增长
+1. 索引仅做设计台账核验，未做 tcb 云端实测重扫（10-13 实测 33/33 之后无索引变更）
+2. `functions_code`（465 MB 含 node_modules）**不传异地**（异地 zip 已排除）：云端持有部署代码、bundle 覆盖源码、node_modules 可再生
+3. DB 集合导出为展示级脱敏产物；密钥类字段需以未脱敏 admin_config 快照恢复
+4. L6 下载耗时约 20 分钟属正常（含 node_modules），日志长时静默不代表卡死，判活看 `functions_code\<fn>\` 文件数增长
+5. 飞书目录保留 7 个历史包（10-07/10-09/10-13 期），本次未清理（保留策略待定）
 
 ---
 
