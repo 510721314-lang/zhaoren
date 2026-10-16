@@ -2,7 +2,7 @@
 
 > 盘点日期：2026-10-15　**刷新：2026-10-16（HEAD `73a396a`，本地=origin/master MATCH，工作区干净）**
 > 基线：HEAD `ab9de38`（本地=origin/master，分叉 0/0，工作区干净）
-> 数据来源：FUNCTION-REGISTRY/CHANGELOG/deploy-log 实测 + 代码扫描（空 catch、文件行数、eol、引用关系均当场命令核实）；2026-10-16 刷新项：待验证 ID 全集、两巨页行数、单测数均当场命令重测
+> 数据来源：FUNCTION-REGISTRY/CHANGELOG/deploy-log 实测 + 代码扫描（空 catch、文件行数、eol、引用关系均当场命令核实）；2026-10-16 刷新项：待验证 ID 全集、两巨页行数、单测数、空 catch 净口径（163）、P2-5 题库深比（0 漂移）均当场命令重测
 > 继承：`docs/tech-debt-delivery-report-20261012.md`（10-09～10-12 六批整改已偿还项不在本单重复列）
 > 维护约定：每条债务处置后在本文件标注「已偿还(日期/commit)」或「已决策不处理(原因)」，并同步 FUNCTION-REGISTRY/CHANGELOG。
 
@@ -42,10 +42,10 @@
 | # | 负债 | 证据 | 评估 |
 |---|---|---|---|
 | P2-1 | **前端巨型页面**：order-detail.js 非空 **1488** 行（原 1692）+ order-detail.wxml 470 行；publish.js 非空 **1216** 行（原 1296）+ publish.wxml 309 行 | `miniprogram/pages-v2/order-detail/`、`pages-v2/publish/` | **部分偿还（2026-10-16 刷新）**：拆分方案 v2.1 阶段 1（C1/C2/C3，commit 38a183d/02e02bb/b28a431）已完成，纯函数外移至 utils/order-view.js、新建 utils/publish-validate.js，里程碑 1 阈值（≤1500/≤1220）达标；**里程碑 2-4 未开工**（2b/2c 定位证据轮询服务模块、定位链、展示/交互组件、授权合一），全部需真机，门禁见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §8（@VERIFIED 逐函数批准、setData 路径化独立 commit 先行）；债未结清 |
-| P2-2 | **前端零页面单测（部分缓解）**：**484** 单测全部在 cloudfunctions/_shared，其中 geo_guard/**order-view/publish-validate 三例已跨目录测 miniprogram/utils 纯函数**（阶段 1 新增 46 例：438→484），基建先例已存在 | `cloudfunctions/_shared/*.test.js` | 纯函数已随拆分补测；**页面 setData/跳转/按钮态仍纯靠真机**。续作路径见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §5.6（测试照 _shared 先例、不动 npm run verify） |
+| P2-2 | **前端零页面单测（部分缓解）**：**503** 单测全部在 cloudfunctions/_shared，其中 geo_guard/**order-view/publish-validate/util/constants 五例已跨目录测 miniprogram/utils 纯函数**（阶段 1 新增 46 例 438→484；2026-10-16 无机批次再 +19 例 484→503，含 constants 对 enums SSOT 的防漂移断言，REGISTRY #76），基建先例已存在 | `cloudfunctions/_shared/*.test.js` | 纯函数已随拆分+专项补测；**页面 setData/跳转/按钮态仍纯靠真机**。续作路径见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §5.6（测试照 _shared 先例、不动 npm run verify） |
 | P2-3 | **9 份 `_orig_baseline.js` 约 1.07 万行冻结常驻并随函数部署**（运行时永不 require） | 9 个拆分函数目录下 | project_rules §10 禁删/改名/改——A/B 锚点价值交换包体与暴露面，已接受的债 |
 | P2-4 | `_shared` 多副本物理同步：openid.js 17 份、logger.js 16 份、audit.js 11 份等 | 14 个 sync-*.ps1 + check-shared-sync 门禁 | CloudBase 无 layer 的必然结果；改规范源忘跑 sync 已被门禁拦截 |
-| P2-5 | 考试题库硬编码双份，无 sync 守护 | `partner-action/index.js:98`、`admin-action/action_exam.js:8` | 改题需两处手改。低成本可治，但触业务代码须先走批准 |
+| P2-5 | 考试题库硬编码双份，无 sync 守护 | `partner-action/index.js` L92-123、`admin-action/action_exam.js` L4-29 | **2026-10-16 程序化深比较：base+W1 共 20 题题干/选项/answer_idx/元信息逐字一致，当前 0 漂移**（性质=双写漂移风险，非现存故障）。改题仍需两处手改；治理二选一（提审后批准）：抽 `_shared` 单份+sync，或 seed 进 exam_bank 后仅留极简兜底。触业务代码须先走批准 |
 
 ---
 
@@ -53,7 +53,7 @@
 
 | # | 负债 | 决策与依据 |
 |---|---|---|
-| P3-1 | **空 catch 74 处 / 18 个云函数**（已排除 _shared 副本、_orig_baseline、测试；2026-10-15 复核仍 74） | 抽样定性多为**有意设计**：①配置 doc 读取失败降级返回代码默认值（im-send/index.js:66、order-action/index.js:101）②抢锁失败的并发控制流（payment-mock/index.js:98）③尽力而为副作用（admin-action 通知、demand-match/index.js:405 单条 lazy_expire CAS）。无差别加日志会刷噪声甚至改变行为。仅「副作用静默失败」窄类（约 10–15 处）值得补 log.w → **提审后立专项**，逐处证明不改变返回/不阻断主流程，多函数分批+全量部署回归 |
+| P3-1 | **空 catch 163 处**（2026-10-16 净口径重盘，替代旧「74 处/18 云函数」口径：全仓 495 块 catch 中 163 空，前端 48/云函数 115；带注释 46、无注释 117；已排除 _orig_baseline、admin-web/public 构建产物、_shared 副本、测试） | 多数为**有意设计**：①doc().get 不存在抛错→返回 null（约 13 处，行内已注释）②wx 系统信息/震动/Storage/deleteFile 等非关键 API 兜底 ③并发控制流。**payment-mock/index.js:121 releaseWithdrawLock 已只读核实为低风险**：锁残留系 fail-closed（不双花），acquire 对超 30s（WD_LOCK_TTL_MS）陈旧锁有抢占（L111），最坏 30s 内拒提，仅建议补 log.d。仅「审计/通知/会话 update 副作用静默」窄类（约 20 处）值得补日志 → **提审后立专项**，逐处证明不改变返回/不阻断主流程，多函数分批+全量部署回归 |
 | P3-2 | `miniprogram/utils/testmode.js` 死开关（isTestMode 恒 false、setTestMode 空操作，全仓零 require） | **保留**作定位链路事故的降级旁路（2026-09-15 隐私整改时刻意留），删除收益≈0 |
 | P3-3 | 两处手机号明文历史保留：`emergency_contact.phone`、`demand.contact_phone` | **维持 2026-10-12 拍板暂缓**。`scripts/backfill-phone-enc.js` 实测只覆盖 user_account.phone；真做需把这两处的业务读写一并改为 phone_crypt 加密写/解密读+掩码展示+存量两阶段回填，触隐私/联系人能力链路。提审后单独立项（设计+评审+真机） |
 | P3-4 | G3「超时前提醒 2 次」未做（阶段 G 仅做超时即转 S10.5） | **属新功能不是隐蔽债**。需定义 S2.6/S3.6 到期前提醒的时机/次数/渠道、与现有催办 urge 的防骚扰关系、订阅 -501001 降级站内信、幂等标记字段。另出 PRD 级方案 |
