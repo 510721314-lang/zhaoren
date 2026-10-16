@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   detectSensitive, haversineKm, pad2, fmtDist,
-  isPhoneOrLandline, defaultDisclaimer, buildDraftData, validatePublish
+  isMobilePhone, defaultDisclaimer, buildDraftData, validatePublish
 } = require('../../miniprogram/utils/publish-validate.js');
 
 // ── B1 工具四函数 ──
@@ -45,16 +45,19 @@ test('fmtDist：空/非正→空串，米档/公里档', () => {
 });
 
 // ── B2 电话格式 ──
-test('isPhoneOrLandline：手机/座机/脏值', () => {
-  assert.strictEqual(isPhoneOrLandline('13812345678'), true);
-  assert.strictEqual(isPhoneOrLandline(' 13812345678 '), true);       // trim
-  assert.strictEqual(isPhoneOrLandline('028-88888888'), true);        // 3 位区号
-  assert.strictEqual(isPhoneOrLandline('010-12345678'), true);        // 3 位区号 8 位号
-  assert.strictEqual(isPhoneOrLandline('12300000000'), false);        // 非 1[3-9] 开头
-  assert.strictEqual(isPhoneOrLandline('028-12345'), false);          // 座机号太短
-  assert.strictEqual(isPhoneOrLandline('abc'), false);
-  assert.strictEqual(isPhoneOrLandline(null), false);
-  assert.strictEqual(isPhoneOrLandline(undefined), false);
+test('isMobilePhone：仅 11 位手机号（2026-10-16 取消座机）', () => {
+  assert.strictEqual(isMobilePhone('13812345678'), true);
+  assert.strictEqual(isMobilePhone(' 13812345678 '), true);       // trim
+  assert.strictEqual(isMobilePhone('12300000000'), false);        // 非 1[3-9] 开头
+  assert.strictEqual(isMobilePhone('abc'), false);
+  assert.strictEqual(isMobilePhone(null), false);
+  assert.strictEqual(isMobilePhone(undefined), false);
+  assert.strictEqual(isMobilePhone('1381234567'), false);         // 少一位
+  assert.strictEqual(isMobilePhone('138123456789'), false);       // 多一位
+  // 座机格式一律拒绝（2026-10-16 取消座机联系方式）
+  assert.strictEqual(isMobilePhone('028-88888888'), false);       // 原 3 位区号座机
+  assert.strictEqual(isMobilePhone('010-12345678'), false);       // 原 3 位区号 8 位号
+  assert.strictEqual(isMobilePhone('028-12345'), false);          // 原短座机
 });
 
 // ── B3 默认免责声明 ──
@@ -187,13 +190,14 @@ test('validatePublish：联系手机三态 + 编辑模式跳过', () => {
   assert.deepStrictEqual(validatePublish(F(), C({ isEditMode: true, useAccountPhone: false, contactPhone: '' })), []);
 });
 
-test('validatePublish：代发 5 子项逐个拦截 + 手机/座机通过 + 非代发跳过', () => {
+test('validatePublish：代发 5 子项逐个拦截 + 手机号通过/座机拒绝（2026-10-16）+ 非代发跳过', () => {
   const proxy = (overCtx) => C(Object.assign({
     publishType: 'proxy', proxyName: '李四', proxyRelation: '父母',
     proxyRelationNote: '', proxyPhone: '13900000000', proxyAuthChecked: true
   }, overCtx));
   assert.deepStrictEqual(validatePublish(F(), proxy({})), []);
-  assert.deepStrictEqual(validatePublish(F(), proxy({ proxyPhone: '028-88888888' })), []);
+  // 取消座机后：座机号必须被拦截，提示「请填写正确的手机号」
+  assert.ok(validatePublish(F(), proxy({ proxyPhone: '028-88888888' })).includes('请填写正确的手机号'));
   assert.ok(validatePublish(F(), proxy({ proxyName: '  ' })).includes('请填写被代发人姓名'));
   assert.deepStrictEqual(validatePublish(F(), proxy({ proxyRelation: '' })).filter((m) => m.includes('关系')), ['请选择与本人的关系']);
   assert.deepStrictEqual(validatePublish(F(), proxy({ proxyRelation: '其他', proxyRelationNote: '' })), ['请填写关系补充说明（20 字内）']);

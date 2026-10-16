@@ -1,7 +1,8 @@
 // miniprogram/utils/publish-validate.js · 需求发布「纯校验/纯工具」函数
 // 拆分阶段1 C3(2026-10-15) 从 pages-v2/publish/publish.js 抽离；设计：零 wx 依赖、可在 node 下单测。
 // @VERIFIED 2026-10-13（随源文件 publish.js 文件级标记「需求发布+代发校验+脱敏」迁入；
-//   2026-10-15 拆分阶段1·B1-B5 经用户书面批准逐字搬迁，迁入处保留标记）
+//   2026-10-15 拆分阶段1·B1-B5 经用户书面批准逐字搬迁，迁入处保留标记；
+//   2026-10-16 需求点名变更：电话校验 isPhoneOrLandline→isMobilePhone 取消座机，提示缩短为「请填写正确的手机号」，#77）
 // 唯一签名差异：validatePublish 原读 this.data 的 12 个字段改为 ctx 参数（B5，已单列报批）；其余函数逐字未改。
 
 const { validateBudget, validateYouthAmount } = require('./redline.js');
@@ -36,10 +37,10 @@ function fmtDist(km) {
   return `${km.toFixed(1)} 公里`;
 }
 
-// 电话格式: 11 位手机号 或 带区号座机(如 028-88888888; 与 demand-publish 服务端同口径)
-function isPhoneOrLandline(s) {
+// 电话格式: 仅 11 位手机号(需求变更 2026-10-16 取消座机; 与 demand-publish 服务端同口径)
+function isMobilePhone(s) {
   const t = String(s || '').trim();
-  return /^1[3-9]\d{9}$/.test(t) || /^0\d{2,3}-\d{7,8}$/.test(t);
+  return /^1[3-9]\d{9}$/.test(t);
 }
 
 // 场景无内置免责声明时的默认文案
@@ -116,7 +117,7 @@ function validatePublish(f, ctx) {
     if (!ctx.proxyRelation) errs.push('请选择与本人的关系');
     if (ctx.proxyRelation === '其他' && !ctx.proxyRelationNote.trim()) errs.push('请填写关系补充说明（20 字内）');
     if (!ctx.proxyPhone.trim()) errs.push('请填写被代发人电话');
-    else if (!isPhoneOrLandline(ctx.proxyPhone)) errs.push('请填写正确的手机号，或带区号的座机号（如 028-88888888）');
+    else if (!isMobilePhone(ctx.proxyPhone)) errs.push('请填写正确的手机号');
     if (!ctx.proxyAuthChecked) errs.push('请完成《委托授权书》手写签字确认');
   }
   // 敏感词
@@ -141,7 +142,7 @@ module.exports = {
   haversineKm,
   pad2,
   fmtDist,
-  isPhoneOrLandline,
+  isMobilePhone,
   defaultDisclaimer,
   buildDraftData,
   validatePublish

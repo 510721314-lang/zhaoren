@@ -1,4 +1,5 @@
 // @VERIFIED 2026-10-13 已真机验证：需求发布 + 代发校验(关系/手机/座机) + 联系手机号脱敏 138****5678（依据：project_memory L31-34, L155-156）
+// @VERIFIED 2026-10-16 需求点名变更：代发联系电话取消座机仅留 11 位手机号(随 1.6.7 后版本真机复验 #77)；其余发布/代发校验逻辑未动
 // PRD章节: 3.3 需求发布 / 3.3.1 场景与撮合 / 3.5.1-V15 AA费用 / 1.5 公益 / R1时间红线 / R9场景白名单
 const redline = require('../../utils/redline.js');
 const { getScene } = redline;
@@ -10,12 +11,13 @@ const L3_MIN = (CREDIT_LEVEL.find((l) => l.level === 'L3') || {}).min || 900;
 
 const { callCloud } = require('../../utils/cloud.js');
 
-// 拆分阶段1 C3(2026-10-15): 发布校验/工具纯函数(detectSensitive/haversineKm/pad2/fmtDist/isPhoneOrLandline/
+// 拆分阶段1 C3(2026-10-15): 发布校验/工具纯函数(detectSensitive/haversineKm/pad2/fmtDist/isMobilePhone/
 // defaultDisclaimer/buildDraftData/validatePublish)外移 utils/publish-validate.js; 页面 4 个 this.xxx 方法留薄代理,
 // 顶层 4 工具同名解构导入(8 处既有调用零改); reverseGeocode 留本页(方案阶段2定位链路再搬, 需真机)
+// 2026-10-16 需求变更: 电话校验取消座机仅留手机号, isPhoneOrLandline→isMobilePhone
 const {
   detectSensitive, haversineKm, pad2, fmtDist,
-  isPhoneOrLandline, defaultDisclaimer, buildDraftData, validatePublish
+  isMobilePhone, defaultDisclaimer, buildDraftData, validatePublish
 } = require('../../utils/publish-validate.js');
 
 // 逆地理编码: 经纬度 → 中文可读地址(腾讯地图 WebService; key 空则降级返回坐标字符串)
@@ -81,7 +83,7 @@ Page({
     proxyRelation: '',            // 与我的关系(选项值; 选「其他」时配合 proxyRelationNote)
     proxyRelationNote: '',        // 关系补充说明(仅「其他」, ≤20 字)
     relationOptions: ['父母', '子女', '配偶', '长辈', '兄弟姐妹', '亲友', '邻居', '同事', '其他'],
-    proxyPhone: '',               // 被代发人电话(手机/带区号座机; 服务端真号受限存储, 输出脱敏)
+    proxyPhone: '',               // 被代发人电话(仅手机号; 服务端真号受限存储, 输出脱敏)
     // 发布者联系手机号(所有需求必填; 二期接真实验证/虚拟号)
     contactPhone: '',             // 手动输入的手机号(custom)
     useAccountPhone: true,        // 默认「使用账户手机号」(账户未绑号时自动关闭)
@@ -581,9 +583,9 @@ Page({
     const on = (e.detail.value || []).length > 0;
     this.setData({ useAccountPhone: on });
   },
-  // 电话格式(拆分阶段1 C3·B2: 纯校验外移 utils/publish-validate.js; 此薄代理保 this._isPhoneOrLandline() 调用点零改)
-  _isPhoneOrLandline(s) {
-    return isPhoneOrLandline(s);
+  // 电话格式(拆分阶段1 C3·B2 薄代理; 2026-10-16 取消座机改名 _isMobilePhone; 当前页面零调用, 保留垫片)
+  _isMobilePhone(s) {
+    return isMobilePhone(s);
   },
   // 委托授权书全文(本项目无后台该键, 用本地固定文案; 与后端留证 doc 文本语义一致)
   _loadProxyAuthText() {

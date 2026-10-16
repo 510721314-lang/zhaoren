@@ -207,7 +207,7 @@
       <view class="pub__chip {{proxyRelation === item ? 'is-on' : ''}}" wx:for="{{relationOptions}}" wx:key="*this" data-rel="{{item}}" bindtap="setProxyRelation">{{item}}</view>
     </view>
     <input class="pub__input" wx:if="{{proxyRelation === '其他'}}" value="{{proxyRelationNote}}" placeholder="关系补充说明（20 字内）" maxlength="20" bindinput="onProxyRelationNoteInput" />
-    <input class="pub__input" value="{{proxyPhone}}" placeholder="被代发人电话（手机或带区号座机，如 028-88888888）" maxlength="20" bindinput="onProxyPhoneInput" />
+    <input class="pub__input" type="number" value="{{proxyPhone}}" placeholder="被代发人电话（11 位手机号）" maxlength="11" bindinput="onProxyPhoneInput" />
     <view class="pub__pet-doc" bindtap="openProxySheet">
       <text class="pub__pet-doc-name">《委托授权书》</text>
       <text class="pub__pet-doc-op">{{proxyAuthChecked ? '已签署 · 点击查看' : '点击查看全文'}}</text>
