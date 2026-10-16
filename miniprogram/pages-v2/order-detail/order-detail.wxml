@@ -49,6 +49,9 @@
     <!-- 订单信息(概要三行沿用消息页 order_summary l1/l2/l3; 金额/场景标签保留) -->
     <view class="od__card">
       <view class="od__card-title">订单信息</view>
+      <!-- 需求标题/详细描述(2026-10-16 新增展示, 用户批准 D1): 服务端按 demand.remark 全角｜拆分下发; 存量订单经 demand_id 反查同样生效 -->
+      <view class="od__demand-title" wx:if="{{order.demand_title}}">{{order.demand_title}}</view>
+      <view class="od__demand-desc" wx:if="{{order.demand_desc}}">{{order.demand_desc}}</view>
       <view class="od__tags">
         <tag-chip type="scene" scene-code="{{scene.code}}" wx:if="{{scene}}"></tag-chip>
         <tag-chip type="gongyi" wx:if="{{order.project_attr === 'public_welfare'}}" />

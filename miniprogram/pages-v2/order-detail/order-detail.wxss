@@ -2,6 +2,9 @@
 .od__body { padding-top: 20rpx; }
 .od__card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 28rpx; box-shadow: var(--shadow-card); margin-bottom: 20rpx; }
 .od__card-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); margin-bottom: 16rpx; }
+/* 需求标题/详细描述(2026-10-16 新增展示): 订单信息卡内, 口径同需求详情 .dd__title/.dd__desc(仅字号降一档适配卡内) */
+.od__demand-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); line-height: 1.4; }
+.od__demand-desc { margin-top: 8rpx; margin-bottom: 16rpx; font-size: var(--font-sm); color: var(--text-3); line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
 
 /* 联系信息(过渡版, 2026-10-09): 接单方且已支付后展示对方脱敏号 + 拨打占位 */
 .od__contact { margin-bottom: 16rpx; padding: 16rpx 20rpx; background: var(--bg-2, #F6F7F9); border-radius: var(--r-sm); }

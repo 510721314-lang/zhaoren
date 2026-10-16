@@ -323,5 +323,38 @@ test('user_confirm_start: 非 S3 → oa_uc_status', async () => {
   assert.strictEqual(r.code, 'oa_uc_status');
 });
 
+// 22. detail: 需求标题/详细描述透传(2026-10-16 新增展示) —— 拆分口径 = demand.remark 全角｜
+//     A/B 侧 detail_ok 已按 KNOWN_EVOLUTION 登记(新增 demand_title/demand_desc 两键), 本例为其独立行为守护
+test('detail: demand.remark「标题｜描述」→ 拆为 demand_title/demand_desc', async () => {
+  const DID = 'b'.repeat(32);
+  const sdk = makeSdk({ openid: USER, store: Object.assign(baseStore({ demand_id: DID }), {
+    demand: { [DID]: { _id: DID, remark: '帮我遛狗｜每天两次，每次 30 分钟，小区内' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'detail', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.demand_title, '帮我遛狗');
+  assert.strictEqual(r.data.demand_desc, '每天两次，每次 30 分钟，小区内');
+  assert.strictEqual(r.data.order_id, OID, '既有返回字段不受影响');
+});
+
+// 23. detail: 拆分口径边界 —— remark 无｜仅标题(desc 空) / 历史单无 demand_id(两值兜底空, 不抛错)
+test('detail: remark 无｜ / 无 demand_id → 两字段兜底为空', async () => {
+  const DID = 'c'.repeat(32);
+  const sdk1 = makeSdk({ openid: USER, store: Object.assign(baseStore({ demand_id: DID }), {
+    demand: { [DID]: { _id: DID, remark: '只填了标题' } }
+  }) });
+  const r1 = await loadIndex(sdk1).main({ action: 'detail', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r1.ok, true);
+  assert.strictEqual(r1.data.demand_title, '只填了标题');
+  assert.strictEqual(r1.data.demand_desc, '');
+
+  const sdk2 = makeSdk({ openid: USER, store: baseStore() });   // 历史单: order_main 无 demand_id
+  const r2 = await loadIndex(sdk2).main({ action: 'detail', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r2.ok, true);
+  assert.strictEqual(r2.data.demand_title, '');
+  assert.strictEqual(r2.data.demand_desc, '');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

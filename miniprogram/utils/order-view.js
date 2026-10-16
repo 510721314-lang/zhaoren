@@ -307,6 +307,8 @@ function buildOrderView(d, now = Date.now()) {
     _id: d.order_id,
     order_id: d.order_id,
     order_no: d.order_no,
+    demand_title: d.demand_title || '',                   // 需求标题(2026-10-16 新增展示, 服务端拆 demand.remark 下发)
+    demand_desc: d.demand_desc || '',                     // 需求详细描述(同上)
     status: normalizeStatus(d.status),
     my_role: d.role || '',
     complaint,                                            // 投诉详情(原因全文/发起方/状态/处理结论/退款)

@@ -12,15 +12,25 @@ async function detail(ctx) {
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
 
-  // 并行:6 个独立查询(确认单 + 评价 + 双昵称 + sos + checkin)合并为 1 批, 冷启动压到 2s 内
-  const [conf, evR, uR, pR, sosR, ckR] = await Promise.all([
+  // 并行:7 个独立查询(确认单 + 评价 + 双昵称 + sos + checkin + 需求)合并为 1 批, 冷启动压到 2s 内
+  const [conf, evR, uR, pR, sosR, ckR, dmR] = await Promise.all([
     getConfirmation(order_id),
     col('evaluation').where({ order_id, is_deleted: false }).limit(1).get().catch(() => ({ data: [] })),
     col('user_account').where({ openid: order.user_openid }).limit(1).get().catch(() => ({ data: [] })),
     col('user_account').where({ openid: order.partner_openid }).limit(1).get().catch(() => ({ data: [] })),
     col('safety_report').where({ order_id, type: 'sos', status: 'active', is_deleted: false }).orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] })),
-    col('safety_report').where({ order_id, type: 'checkin', is_deleted: false }).orderBy('created_at', 'desc').limit(3).get().catch(() => ({ data: [] }))
+    col('safety_report').where({ order_id, type: 'checkin', is_deleted: false }).orderBy('created_at', 'desc').limit(3).get().catch(() => ({ data: [] })),
+    // 需求标题/详细描述(2026-10-16 新增展示): 按 demand_id 反查 demand, 并入既有查询并行(不新增串行耗时); 历史单无 demand_id 或查不到 → { data: null }
+    order.demand_id ? col('demand').doc(order.demand_id).get().catch(() => ({ data: null })) : Promise.resolve({ data: null })
   ]);
+
+  // 需求标题/详细描述(2026-10-16 用户批准 D1 方案「订单详情应显示订单标题和详细描述」)
+  // 拆分口径与 demand-publish/action_query.js L58-60 一致: 发布时 demand.remark = `标题｜详细描述`(全角｜拼接, 见 publish.js L979)
+  //   → 按全角｜拆两段; 无｜则仅标题; 标题兜底 content_options[0]; demand 查不到 → 两值均空(前端 wx:if 自然隐藏)
+  const dmRemark = String((dmR.data && dmR.data.remark) || '');
+  const dmParts = dmRemark.split('｜');
+  const demandTitle = dmParts[0] ? dmParts[0].trim() : ((order.content_options && order.content_options[0]) || '');
+  const demandDesc = dmParts[1] ? dmParts[1].trim() : '';
 
   // 确认单
   let confirm = null;
@@ -151,6 +161,9 @@ async function detail(ctx) {
       order_id,
       order_no: order.order_no,
       demand_no: order.demand_no || '',
+      // 需求标题/详细描述(2026-10-16 新增): 订单详情「订单信息」卡展示; 存量订单经 demand_id 反查同样可得
+      demand_title: demandTitle,
+      demand_desc: demandDesc,
       scene: order.scene,
       scene_name: SCENE_NAME[order.scene] || order.scene,
       content_options: order.content_options || [],

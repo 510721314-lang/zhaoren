@@ -638,7 +638,7 @@ function loadWith(dir, file, sdk) {
   // 与拆分前基线的差异属预期, 不计为回归; 未登记的新差异一律 FAIL。
   // 来源: 3509ef1(投诉放开 S2 起 / 动态时间线 / detail 字段扩充) · 安全整改(错误消息脱敏去 openid) · 批3(config_schema 新增 extend_confirm_h/scene_option_display_max)。
   const KNOWN_EVOLUTION = new Set([
-    'detail_ok', 'auto_order_detail',          // detail 字段扩充(modify_*_at / complaint / fund / refund / dispute / fees / frozen)
+    'detail_ok', 'auto_order_detail',          // detail 字段扩充(modify_*_at / complaint / fund / refund / dispute / fees / frozen); 2026-10-16 再新增 demand_title/demand_desc(需求标题/详细描述, 按 demand.remark 全角｜拆分) — 行为由 order-action.entry.test.js 新增 2 例独立守护
     'confirm_all_not_participant',              // 错误消息脱敏(不再回显参与方 openid)
     'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
     'complaint_open_ok',                        // 2026-10-15 需求变更: S5(履约完成)/S8(已评价)起不再可发起投诉(原 S8 可发起·基线仍放开); 新行为由 order-action.entry.test.js 新增 2 例(S5 需求方 / S8 耍伴 → oa_complaint_status 且不落库)独立守护
