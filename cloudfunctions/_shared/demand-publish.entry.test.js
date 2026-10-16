@@ -98,4 +98,19 @@ test('delete_draft 缺 draft_id → draft_no_id', async () => {
   assert.strictEqual(r.code, 'draft_no_id');
 });
 
+test('publish 代发座机号 → publish_proxy_phone（2026-10-16 取消座机仅留手机号）', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({
+    action: 'publish', mock_openid: USER,
+    scene: 'W1', start_time: Date.now() + 3600000, duration_h: 2, rate_fen: 10000,
+    aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
+    publish_type: 'proxy', proxy_authorized: true,
+    location: { name: '北京协和医院', latitude: 39.9042, longitude: 116.4074 },
+    service_target: { name: '李四', relation: '父母', phone: '028-88888888' }
+  }, {});
+  assert.strictEqual(r.code, 'publish_proxy_phone');
+  assert.strictEqual(r.msg, '请填写正确的手机号');
+});
+
 test.after(() => { Module._load = origLoad; });

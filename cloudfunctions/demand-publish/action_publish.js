@@ -2,7 +2,7 @@
 
     // 1. 发布需求
 async function publish_action(ctx) {
-  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, phoneCrypt, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, isPhoneOrLandline, maskContact, verifySignatureFile, REMARK_MAX_LEN, checkText, genDemandNo, isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax, getUser, hasEmergencyContact, isValidDocId } = ctx;
+  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, phoneCrypt, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, isMobilePhone, maskContact, verifySignatureFile, REMARK_MAX_LEN, checkText, genDemandNo, isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax, getUser, hasEmergencyContact, isValidDocId } = ctx;
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
@@ -107,8 +107,8 @@ async function publish_action(ctx) {
           return { ok: false, code: 'publish_proxy_target', msg: '请填写关系补充说明' };
         }
         // 电话: 兼容旧入参名 phone_mask; 存储升级为真号(phone), 输出层一律脱敏
-        if (!isPhoneOrLandline(service_target.phone || service_target.phone_mask)) {
-          return { ok: false, code: 'publish_proxy_phone', msg: '请填写正确的手机号，或带区号的座机号（如 028-88888888）' };
+        if (!isMobilePhone(service_target.phone || service_target.phone_mask)) {
+          return { ok: false, code: 'publish_proxy_phone', msg: '请填写正确的手机号' };
         }
         proxySignature = await verifySignatureFile(proxy_signature_file_id);
         if (!proxySignature.ok) {

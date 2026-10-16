@@ -121,10 +121,10 @@ function buildCheckboxEvidence(o) {
   return data;
 }
 
-// 电话格式校验: 11 位手机号 或 带区号座机(区号 0 开头 3-4 位 + 连字符 + 7-8 位号码, 如 028-88888888)
-function isPhoneOrLandline(s) {
+// 电话格式校验: 仅 11 位手机号(需求变更 2026-10-16 取消座机; 与前端 publish-validate 同口径)
+function isMobilePhone(s) {
   const t = String(s || '').trim();
-  return /^1[3-9]\d{9}$/.test(t) || /^0\d{2,3}-\d{7,8}$/.test(t);
+  return /^1[3-9]\d{9}$/.test(t);
 }
 // 电话脱敏(phone_mask 语义): 手机保留前 3 后 4; 座机保留区号 + 后 4; 其他长度保留首尾各 2 位
 function maskContact(s) {
@@ -414,7 +414,7 @@ exports.main = async (event, context) => {
       event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, crypto, cloud,
       phoneCrypt, SCENE_NAME, SCENE_CODES_FALLBACK, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP,
       SCENE_OPTIONS_FALLBACK, BLOCK_WORDS_FALLBACK, DEFAULT_PET_AUTHORIZATION, sceneDocText, buildCheckboxEvidence,
-      isPhoneOrLandline, maskContact, verifySignatureFile, REMARK_MAX_LEN, checkText, genDemandNo,
+      isMobilePhone, maskContact, verifySignatureFile, REMARK_MAX_LEN, checkText, genDemandNo,
       isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax,
       creditLevelOf, timeAgoText, buildRecommendPartners, getUser, hasEmergencyContact, isValidDocId, addWithColl, lazyExpire
     };
