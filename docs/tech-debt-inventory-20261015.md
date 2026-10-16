@@ -1,6 +1,6 @@
 # 找人帮忙项目技术负债清单（刷新版）
 
-> 盘点日期：2026-10-15　**刷新：2026-10-16（HEAD `73a396a`，本地=origin/master MATCH，工作区干净）**
+> 盘点日期：2026-10-15　**刷新：2026-10-16 二次刷新（HEAD `6ce3209`，本地=origin/master MATCH，工作区干净）**
 > 基线：HEAD `ab9de38`（本地=origin/master，分叉 0/0，工作区干净）
 > 数据来源：FUNCTION-REGISTRY/CHANGELOG/deploy-log 实测 + 代码扫描（空 catch、文件行数、eol、引用关系均当场命令核实）；2026-10-16 刷新项：待验证 ID 全集、两巨页行数、单测数、空 catch 净口径（163）、P2-5 题库深比（0 漂移）均当场命令重测
 > 继承：`docs/tech-debt-delivery-report-20261012.md`（10-09～10-12 六批整改已偿还项不在本单重复列）
@@ -10,7 +10,7 @@
 
 本会话（2026-10-15 后半段）已偿还 6 项：deploy-log 10-15 台账欠账、阶段 G 两阈值硬编码（#71 后台化）、线上 confirmHours=2 误配、payment-mock CRLF/LF 伪漂移（.gitattributes）、zz-seed 文件头误导注释、订阅 trial→formal 发布操作入册。
 
-**当前剩余主体是「真机验证缺口」**（2026-10-16 实测 **26 条** REGISTRY 待验证：59/60/62/71 已转已验证移出，新增 72-75；成员见 P0-1），其次是有意保留的兼容面与提审后再治的结构性债。前端巨页拆分阶段 1（C1/C2/C3）已完成（P2-1/P2-2 部分偿还），里程碑 2-4 待真机窗口（见拆分方案 §8）。
+**当前剩余主体是「真机验证缺口」**（2026-10-16 实测 **26 条** REGISTRY 待验证：59/60/62/71 已转已验证移出，72-75 亦已随 1.6.7 转已验证，本批新增 79-82；成员见 P0-1），其次是有意保留的兼容面与提审后再治的结构性债。前端巨页拆分阶段 1（C1/C2/C3）、里程碑 2（C4-C7）与阶段 3 B+A0+A1 均已完成（P2-1 部分偿还），余 A2/A3 与阶段 4 未开工（见拆分方案 §8）。
 
 ---
 
@@ -42,7 +42,7 @@
 | # | 负债 | 证据 | 评估 |
 |---|---|---|---|
 | P2-1 | **前端巨型页面**：order-detail.js 非空 **1286** 行（原 1692）+ order-detail.wxml **437** 行（原 470）；publish.js 非空 **1029** 行（原 1296）+ publish.wxml 309 行 | `miniprogram/pages-v2/order-detail/`、`pages-v2/publish/` | **部分偿还（2026-10-16 二次刷新）**：阶段 1（C1/C2/C3：38a183d/02e02bb/b28a431）纯函数外移 utils/order-view.js、utils/publish-validate.js（里程碑 1 阈值 ≤1500/≤1220 达标）；里程碑 2（C4-C7：7b508b9/2af5a56/aadb6ef/a381b0c）服务模块外移（order-detail.js 1488→1286、publish.js 1216→1094，阈值 ≤1300/≤1100 达标）；阶段 3 B（e701fc4）草稿组外移（publish.js 1094→1029）、A0/A1（3860c25/65e136c）timeline-card/finance-card 组件化（order-detail.wxml 470→437、wxss 313→298）。**M3 暂定阈值 ≤1250/≤1000：publish 1029 未达标**；**A2/A3 与阶段 4 未开工**，门禁见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §8；债未结清 |
-| P2-2 | **前端零页面单测（部分缓解）**：**503** 单测全部在 cloudfunctions/_shared，其中 geo_guard/**order-view/publish-validate/util/constants 五例已跨目录测 miniprogram/utils 纯函数**（阶段 1 新增 46 例 438→484；2026-10-16 无机批次再 +19 例 484→503，含 constants 对 enums SSOT 的防漂移断言，REGISTRY #76），基建先例已存在 | `cloudfunctions/_shared/*.test.js` | 纯函数已随拆分+专项补测；**页面 setData/跳转/按钮态仍纯靠真机**。续作路径见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §5.6（测试照 _shared 先例、不动 npm run verify） |
+| P2-2 | **前端零页面单测（部分缓解）**：**504** 单测全部在 cloudfunctions/_shared，其中 geo_guard/**order-view/publish-validate/util/constants 五例已跨目录测 miniprogram/utils 纯函数**（阶段 1 新增 46 例 438→484；2026-10-16 无机批次再 +19 例 484→503；其后累计至 **504**，含 constants 对 enums SSOT 的防漂移断言，REGISTRY #76），基建先例已存在 | `cloudfunctions/_shared/*.test.js` | 纯函数已随拆分+专项补测；**页面 setData/跳转/按钮态仍纯靠真机**。续作路径见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §5.6（测试照 _shared 先例、不动 npm run verify） |
 | P2-3 | **9 份 `_orig_baseline.js` 约 1.07 万行冻结常驻并随函数部署**（运行时永不 require） | 9 个拆分函数目录下 | project_rules §10 禁删/改名/改——A/B 锚点价值交换包体与暴露面，已接受的债 |
 | P2-4 | `_shared` 多副本物理同步：openid.js 17 份、logger.js 16 份、audit.js 11 份等 | 14 个 sync-*.ps1 + check-shared-sync 门禁 | CloudBase 无 layer 的必然结果；改规范源忘跑 sync 已被门禁拦截 |
 | P2-5 | 考试题库硬编码双份，无 sync 守护 | `partner-action/index.js` L92-123、`admin-action/action_exam.js` L4-29 | **2026-10-16 程序化深比较：base+W1 共 20 题题干/选项/answer_idx/元信息逐字一致，当前 0 漂移**（性质=双写漂移风险，非现存故障）。改题仍需两处手改；治理二选一（提审后批准）：抽 `_shared` 单份+sync，或 seed 进 exam_bank 后仅留极简兜底。触业务代码须先走批准 |
@@ -70,8 +70,8 @@
 
 ## 建议处置优先级
 
-1. **真机回归**（2026-10-16 口径：本批 **#72/#73/#74/#75** 随 1.6.7 最优先；履约链 **#67（仅余 T-7.1.2）/#68/#63/#64/#61/#65** 及历史存量 16 个 ID）——唯一能让 P0-1 下降的动作，需人工真机/开发者工具执行；#59/#60/#62/#71 已于 10-15 转已验证。
+1. **真机回归**（2026-10-16 口径：#72-75 已随 1.6.7 转已验证；本批 **#79/#80/#81/#82**，其中 #81/#82 可在开发者工具室内目检；履约链 **#67（仅余 T-7.1.2）/#68/#63/#64/#61/#65** 及历史存量 16 个 ID）——唯一能让 P0-1 下降的动作，需人工真机/开发者工具执行；#59/#60/#62/#71 已于 10-15 转已验证。
 2. **提审决策项**：下次 upload 必须递增版本号至 **1.6.7**（P0-2）；正式版发布当天按 runbook 把订阅两模板 trial→formal 并真机验送达。
-3. **真机窗口后的结构债主线**：P2-1/P2-2 续作=拆分里程碑 2-4（方案 §8 四前置：1.6.7 真机→setData 路径化独立 commit→逐函数批准→N1 地图 key 白名单）；P2-5（题库双份）、P3-1（空 catch 窄类）可并入同批。
+3. **真机窗口后的结构债主线**：P2-1/P2-2 续作＝阶段 3 余项（A2 留痕/凭证卡、A3 投诉/争议/保险卡）+ 阶段 4（方案 §8；A2 含 @VERIFIED 卡须单独点名批准）；P2-5（题库双份）、P3-1（空 catch 窄类）可并入同批。
 4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）、P3-4（G3 超时前提醒）。
 5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5。
