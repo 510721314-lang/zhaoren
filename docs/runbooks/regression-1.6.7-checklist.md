@@ -3,7 +3,7 @@
 > 日期：2026-10-16　对应代码基线：HEAD `5fb9a56`（前端拆分阶段 1 C1/C2/C3 + 订单防连点 F1-F4）
 > 适用：本清单全部为**用户手工操作，0 代码**。任一项不通过 → 截图 + 提示原文回传，**不要自行改代码**（规则 §7：一次只验一个假设）。
 > 建议顺序：**先 N1（约 5 分钟）→ 上传 1.6.7（约 3 分钟）→ #75 → #74 → #73 → #72**（从简到繁）。
-> 权威事实（2026-10-16 实测）：AppID **`wxbc4a4afacdf234f5`**（project.config.json:7）；云环境 `cloud1-d9gkefwcep5c777088`；地图 key 值见 `miniprogram/config/index.js` 的 `TENCENT_MAP_KEY`（约 L79，**勿在群聊/工单里复述明文**）。
+> 权威事实（2026-10-16 实测）：AppID **`wxbc4a4afacdf234f5`**（project.config.json:7）；云环境 `cloud1-d9gkefwcp5c777088`；地图 key 值见 `miniprogram/config/index.js` 的 `TENCENT_MAP_KEY`（约 L79，**勿在群聊/工单里复述明文**）。
 
 ---
 
