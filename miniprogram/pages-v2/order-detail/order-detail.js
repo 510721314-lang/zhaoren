@@ -13,6 +13,8 @@ const { callCloud } = require('../../utils/cloud.js');
 const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, buildOrderView } = require('../../utils/order-view.js');
 // 阶段B(2026-10-14): 履约定位三层判定(纯函数, 单测在 _shared/geo_guard.test.js)
 const { evaluatePosition } = require('../../utils/geo-guard.js');
+// 拆分阶段2b(2026-10-16): 定位能力链路(定位判定/定位采集/逆地理)外移 utils/geo-wx.js(经用户书面批准逐字搬迁); 页面留同名薄代理
+const { evalFulfillGeo, collectStartLocation, addrOf } = require('../../utils/geo-wx.js');
 
 Page({
   data: {
@@ -536,29 +538,8 @@ Page({
   // 阶段B(2026-10-14): 履约定位实时判定(仅 S2 耍伴侧) → 驱动「发起履约申请」按钮置灰与提示文案
   // 触发点: fetchData 非静默分支(进页面 onLoad / 回前台 onShow 均走此处), 不走 refreshOrder 以免被通知轮询复用
   _evalFulfillGeo() {
-    const o = this.data.order;
-    if (!o || o.status !== 'S2' || o.my_role !== 'partner') {
-      if (this.data.geoGuard) this.setData({ geoGuard: null });
-      return;
-    }
-    const site = o.location || null;
-    const thresholdM = CONFIG.FULFILL.distanceMaxM;
-    const accuracyMaxM = CONFIG.FULFILL.accuracyMaxM;
-    wx.getLocation({
-      type: 'gcj02',
-      isHighAccuracy: true,
-      highAccuracyExpireTime: 4000,
-      success: (loc) => {
-        this.setData({ geoGuard: evaluatePosition({
-          user: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy },
-          site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM
-        }) });
-      },
-      // 未授权/取点失败: 明确置灰并引导(不静默放行); 若本单履约地本身无有效坐标, 判定内部会兜底放行
-      fail: () => {
-        this.setData({ geoGuard: evaluatePosition({ user: null, site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM }) });
-      }
-    });
+    // 拆分阶段2b(2026-10-16): 定位判定外移 utils/geo-wx.js(经用户书面批准逐字搬迁); 薄代理保 this._evalFulfillGeo() 调用点与 @VERIFIED 行为不变
+    return evalFulfillGeo(this);
   },
 
   // @VERIFIED 2026-10-15 已真机验证：发起履约申请先拍照上传、成功才提交(凭证前置)，失败停留 S2 且不发通知；S3 阶段旧「拍摄现场照片」入口已移除
@@ -618,23 +599,8 @@ Page({
   // 阶段C-3(2026-10-14): 采集定位快照(纯定位, 不拍照)。
   // silent=true 时取点失败不弹提示(供可选留痕场景); withAddr=true 时附逆地理地址(存证用, 失败退回无地址)
   _collectStartLocation(silent, withAddr) {
-    const that = this;
-    return new Promise((resolve) => {
-      wx.getLocation({
-        type: 'gcj02',
-        isHighAccuracy: true,
-        highAccuracyExpireTime: 4000,
-        success: (loc) => {
-          const base = { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy };
-          if (!withAddr) { resolve(base); return; }
-          that._addrOf(loc.latitude, loc.longitude).then((addr) => resolve(Object.assign({ address: addr }, base)));
-        },
-        fail: () => {
-          if (!silent) wx.showToast({ title: '发起履约申请需授权定位, 请开启后重试', icon: 'none' });
-          resolve(null);
-        }
-      });
-    });
+    // 拆分阶段2b(2026-10-16): 定位采集外移 utils/geo-wx.js(经用户书面批准逐字搬迁); 薄代理保 this._collectStartLocation() 调用点不变
+    return collectStartLocation(this, silent, withAddr);
   },
 
   // 阶段D(2026-10-14): 需求方「同意开始履约」→ S2_6→S3(可带用户定位留痕; 取不到定位不阻断)
@@ -772,20 +738,8 @@ Page({
 
   // 逆地理编码取可读地址(腾讯地图 key 来自 CONFIG); 无 key/请求失败回退坐标串
   _addrOf(lat, lng) {
-    const coord = `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
-    if (!CONFIG.TENCENT_MAP_KEY) return Promise.resolve(coord);
-    return new Promise((resolve) => {
-      wx.request({
-        url: `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${CONFIG.TENCENT_MAP_KEY}`,
-        timeout: 5000,
-        success: (r) => {
-          const res = r.data && r.data.result;
-          const addr = res && ((res.formatted_addresses && res.formatted_addresses.recommend) || res.address);
-          resolve(addr || coord);
-        },
-        fail: () => resolve(coord)
-      });
-    });
+    // 拆分阶段2b(2026-10-16): 逆地理外移 utils/geo-wx.js(经用户书面批准逐字搬迁; 阶段2 后续与 publish reverseGeocode 合一)
+    return addrOf(lat, lng);
   },
 
   // 逐张叠水印(地址+时间)并上传云存储; 单张水印合成失败降级上传原图(不阻断履约)
