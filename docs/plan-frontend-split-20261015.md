@@ -80,7 +80,9 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 
 1. **@VERIFIED 审批（规则 §2）**：order-detail.js L1 文件级标记、onStartService 函数级 **@VERIFIED 注释在 L767、函数头在 L768（v2.1 消歧）**。被搬函数逐函数列「搬迁理由 + 向后兼容（页面留薄代理或调用点全替）+ 书面批准」；迁入处保留原 @VERIFIED 标记并注来源 commit。
 2. **函数体逐字搬迁**：原注释保留、标注新位置；不顺手优化写法、不清理看不懂的分支；发现既有问题只登记（规则 §1/§7）。例外仅 §3 文件2 阶段4b（已单列）。
-3. **setData 路径化前置（v2.1 加严）**：阶段 3 开始前，refreshOrder 末尾整对象 setData（order-detail.js L497-511，一次 14 字段）、publish 恢复草稿 `setData({form})`（publish.js L505）改路径写法——行为不变，保证组件 properties 切片收到变更。**此步必须独立于搬迁单独 commit、单独专项回归**：对比改前改后渲染结果与 Console（无字段丢失、无多次冗余渲染、无时序差异导致的闪现/置空），禁止与任何函数搬迁混在同一提交。
+3. **setData 路径化前置（v2.1 加严；2026-10-16 实测收窄为仅 publish 一处）**：
+   - ~~refreshOrder 末尾整对象 setData（order-detail.js L497-511，一次 14 字段）~~ **order-detail 处 C2 后已消解、本项关闭**：refreshOrder 现为 `this.setData(buildOrderView(d))`（order-detail.js L318-323），patch 是冻结的 **13 个顶层键**（order-view.js L354-368，键集合有断言 order-view.test.js L118）；顶层键路径化 = no-op，唯一复合键 `order` 叶子化会把 ~35 字段摊回页面、拆散 C2 契约且与降行数目标相反，阶段 3 展示组件未拆前亦无消费者；buildOrderView 每次返回全新对象，子组件 properties 收新引用本就触发更新，原担忧不成立。若阶段 3 拆出订单卡组件确有 payload 诉求，届时在组件边界独立立项，不属本前置。
+   - **实际仅执行 publish 一处**：恢复草稿 `restoreDraft`（按 §5.10 以函数名定位，旧锚点 L505 已漂移：函数 L420-454、setData L426-452）的 `setData({form})` 整对象改 **20 条 `'form.<字段>'` 叶子路径**（20 字段：project_attr/pricing_type/fixed_price/scene_code/content_options/title/description/service_date/service_time/duration_hours/duration_custom/location_name/latitude/longitude/headcount/budget/aa_estimate/aa_custom/gender_pref/match_mode），三个标量顶层键 titleCount/descCount/draftBoxVisible 保持原样——行为不变，保证阶段 3 组件 properties 切片收到变更。**此步必须独立于搬迁单独 commit、单独专项回归**：对比改前改后渲染结果与 Console（20 字段无丢失、无多次冗余渲染、无时序差异导致的闪现/置空），禁止与任何函数搬迁混在同一提交。
 4. **json 注册与样式（规则 §3 逐项书面批准）**：每组件附 order-detail.json / publish.json 的 usingComponents 增量 diff；新组件显式 `"styleIsolation":"apply-shared"`（现有 20 组件中 4 个已用此惯例），wxss 随组件迁走，**禁入 app.wxss**。
 5. **组件契约**：properties 只读切片；callCloud 推进状态与 wx.cloud.uploadFile 一律留页面，组件只出临时路径/事件。order-detail.js 全文件 uploadFile **唯一直接调用点是 _uploadEvidenceOne L1055**（_uploadStartPhotos 仅经它间接上传）；SOS/爽约均无上传（评审证伪的伪矛盾，勿再设上传边界讨论）。
 6. **测试**：新纯函数测试照 `cloudfunctions/_shared/geo_guard.test.js` 先例放 `_shared/` 跨目录 require，自动纳入 `npm test`（只增不减）；**不动 `npm run verify`**。fixture 只用 TESTMODE 造单：手机号→13800000000、openid→占位串、坐标偏移 ±0.01，禁生产 dump。
@@ -148,7 +150,7 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 ### 8.2 阶段 2 开工前置（四条全部满足才动手，缺一即停）
 
 1. **真机门禁**：1.6.7（版本号必须递增，P0-2）iOS+Android 回归 #72（F1-F4 防连点 11 弹窗）/#73/#74/#75（发布校验 5 类分支 toast）通过，REGISTRY 四项转「已验证」并给迁入模块补 `// @VERIFIED` 日期；
-2. **setData 路径化先行**：§5.3 两处（order-detail refreshOrder 末尾 14 字段整对象 setData、publish 恢复草稿 `setData({form})`）作为**独立 commit + 专项渲染回归**，禁止与任何搬迁混提交；
+2. **setData 路径化先行**：§5.3 经 2026-10-16 实测**收窄为仅 publish 一处**（order-detail refreshOrder 的 14 字段整对象在 C2 后已消解：现 setData 的是 buildOrderView 返回的冻结 13 顶层键，顶层路径化 no-op、order 叶子化拆散契约，详见 §5.3）；仅 publish 恢复草稿 `restoreDraft`（L426-452）form **20 字段**整对象改叶子路径，作为**独立 commit + 专项渲染回归**，禁止与任何搬迁混提交；
 3. **逐函数批准**：被搬 @VERIFIED 函数按规则 §2 逐个书面批准；行号一律按 §5.10 以「函数名+签名」重新 grep，对照基线 `git show e45aa52:<file>`，不沿用本方案旧行号下刀；
 4. ~~**N1 地图 key 先行（0 代码）**~~ **✅ 已完成（2026-10-16）**：key `zhaoren-mini`（找人帮忙应用）控制台核查——WebServiceAPI 原已开通；**「微信小程序」授权原本未勾选（真实缺口），已补勾并绑定授权 APP ID `wxbc4a4afacdf234f5`**（以 project.config.json:7 为准），保存时通过「多产品共用 key 风险」二次确认，重开编辑框核验已持久化；用该 key 实测逆地理编码返回 `status=0 Success`（北京市东城区正义路）证明服务/配额正常。前置仅剩 1/2/3。
 
