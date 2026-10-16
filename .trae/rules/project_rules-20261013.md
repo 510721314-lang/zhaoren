@@ -144,3 +144,9 @@ alwaysApply: true
   4. Exec 代码通道的成功返回值在部分环境不回显（throw/console 也不可用），直接以 run_mcp 单步调用 computer-use 工具为准。
 - **推送网络状态会动态切换**：Clash 7890 可能临时未监听、github 直连也可能间歇恢复/再被阻断。推送前先 `Test-NetConnection 127.0.0.1 -Port 7890` + 常规域名对照（§12），哪通用哪、**仅当次注入**；直连可用时 `git -c http.proxy= -c https.proxy=` 当次清空，任何情况下不改 git config/系统代理，一律以 exit=0 + `ls-remote` hash == HEAD 为成功判据（stderr 标红的进度文本不算失败）。
 - **微信开发者工具 Console 执行纪律（2026-10-16 实证新增）**：①**粘贴的多行 JS 会被按行逐条执行**，多行对象字面量被拆断报 `Unexpected token '}'` → 多步验证一律拆成**各自单行**命令（实证：把"注入草稿/调用 restoreDraft/打印结果"拆成三条单行才跑通）；②模拟器停在预览/白板视图时 `getCurrentPages()` 返回**空数组**（需先「编译」或从首页进入页面，页面栈为 `pages-v2/index/index` 时方可取页面实例）；③在无某字段的页面上打印该字段（如 index 页的 `draftCount`）得 `undefined` 属正常，不可当异常；④可用 `页面实例.方法名(...)` 直接调用页面方法做受控验证（比手点更硬，且绕开入口/角标依赖）。
+
+## 16. 云函数批量部署 · 提交信息乱码判定 · 测试基建口径（2026-10-17 实证新增）
+- **CLI 多函数部署必须逐个、download 核验必须各自独立目录**：`cli cloud functions deploy --names a,b`（逗号分隔）会报 `Error: cloudfunction path not found` 且 **DEPLOY_EXIT 仍为 0**（成功回执误导）——必须**逐函数单独** `--names <fn>` 执行并逐条核对 success；多函数 download 核验须**各自独立 `-p` 目录**（共用同一目录时 `index.js` 互相覆盖，无法逐函数 SHA256 比对）。
+- **提交信息「乱码」先验显示编码，再判是否重写**：PowerShell 5 控制台默认 GBK，`git log` 输出的 UTF-8 中文会被显示成乱码（实证 `璁㈠崟`），但**存储可能完全正确**。复核手段：`$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8` 后重看 `git log -1`；**只有确认存储真乱码且尚未推送才可重写**，禁止仅凭控制台乱码就误判并重写提交历史（与 §12「已推送后禁止重写历史」配套）。`git commit -F <UTF-8 无 BOM 文件>` 存中文正常，回执一律以 UTF-8 console 复核为准。
+- **`_mock_sdk` 等值匹配：fixture 须显式带 `is_deleted:false`**：`where().get()` 的等值比较是 `dv === qv`，fixture 缺该字段时 `undefined !== false` 静默不匹配 → 查回空数组、用例误 fail。凡断言「按 `{user_openid, is_deleted:false}` 查询命中」的 fixture **必须显式带 `is_deleted:false`**（实证 `my_orders` 两例首跑 fail 即此因）。
+- **node:test 汇总行抓取口径**：新版 Node 的汇总行为 `ℹ tests N / ℹ pass N / ℹ fail N`（**非** `# ` 前缀），脚本抓取改用 `Pattern "tests |pass |fail "`，勿沿用 `Select-String -Pattern "^# "`（实证抓空）。
