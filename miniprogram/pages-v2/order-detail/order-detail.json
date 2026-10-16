@@ -3,6 +3,7 @@
   "usingComponents": {
     "nav-bar": "/components/nav-bar/index",
     "order-progress": "/components/order-progress/index",
-    "tag-chip": "/components/tag-chip/index"
+    "tag-chip": "/components/tag-chip/index",
+    "timeline-card": "/components/timeline-card/index"
   }
 }

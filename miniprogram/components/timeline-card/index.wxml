@@ -1,0 +1,20 @@
+<!-- components/timeline-card · 订单动态(全事件时间线, 2026-10-12): 投诉/爽约/改期/加时/里程碑/支付退款/催办等, 双方可见 -->
+<!-- 拆分阶段3 A0(2026-10-16): 自 order-detail.wxml 逐字迁入(用户书面批准); 唯一机械改动 wx:for 数据源 timeline→list(组件 property); 空数组 wx:if 留页面 -->
+<view class="od__card">
+  <view class="od__card-title">订单动态</view>
+  <view class="od__tl">
+    <view class="od__tl-item" wx:for="{{list}}" wx:key="key">
+      <view class="od__tl-dot od__tl-dot--{{item.type}}">{{item.icon}}</view>
+      <view class="od__tl-body">
+        <view class="od__tl-head">
+          <text class="od__tl-label">{{item.label}}</text>
+          <text class="od__tl-time">{{item.time}}</text>
+        </view>
+        <view class="od__tl-meta" wx:if="{{item.who || item.detail}}">
+          <text class="od__tl-who" wx:if="{{item.who}}">{{item.who}}</text>
+          <text class="od__tl-detail" wx:if="{{item.detail}}">{{item.detail}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -420,25 +420,8 @@
       </block>
     </view>
 
-    <!-- 订单动态(全事件时间线, 2026-10-12): 投诉/爽约/改期/加时/里程碑/支付退款/催办等, 双方可见 -->
-    <view class="od__card" wx:if="{{timeline.length > 0}}">
-      <view class="od__card-title">订单动态</view>
-      <view class="od__tl">
-        <view class="od__tl-item" wx:for="{{timeline}}" wx:key="key">
-          <view class="od__tl-dot od__tl-dot--{{item.type}}">{{item.icon}}</view>
-          <view class="od__tl-body">
-            <view class="od__tl-head">
-              <text class="od__tl-label">{{item.label}}</text>
-              <text class="od__tl-time">{{item.time}}</text>
-            </view>
-            <view class="od__tl-meta" wx:if="{{item.who || item.detail}}">
-              <text class="od__tl-who" wx:if="{{item.who}}">{{item.who}}</text>
-              <text class="od__tl-detail" wx:if="{{item.detail}}">{{item.detail}}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
+    <!-- 订单动态卡(全事件时间线)拆分阶段3 A0(2026-10-16): 结构迁 components/timeline-card; wx:if 留页面(空数组不实例化); fetchTimeline/数据切片留页面 -->
+    <timeline-card list="{{timeline}}" wx:if="{{timeline.length > 0}}" />
   </view>
 
   <!-- O4 改期内联卡(原生 date/time picker + 提交时 wx.showModal 二次确认, 替代 bottom-sheet) -->
