@@ -143,3 +143,4 @@ alwaysApply: true
   3. computer-use 前先用「关闭查找栏/Esc + 确认焦点窗口」清理现场；每次关键点击后截图取证再进下一步。
   4. Exec 代码通道的成功返回值在部分环境不回显（throw/console 也不可用），直接以 run_mcp 单步调用 computer-use 工具为准。
 - **推送网络状态会动态切换**：Clash 7890 可能临时未监听、github 直连也可能间歇恢复/再被阻断。推送前先 `Test-NetConnection 127.0.0.1 -Port 7890` + 常规域名对照（§12），哪通用哪、**仅当次注入**；直连可用时 `git -c http.proxy= -c https.proxy=` 当次清空，任何情况下不改 git config/系统代理，一律以 exit=0 + `ls-remote` hash == HEAD 为成功判据（stderr 标红的进度文本不算失败）。
+- **微信开发者工具 Console 执行纪律（2026-10-16 实证新增）**：①**粘贴的多行 JS 会被按行逐条执行**，多行对象字面量被拆断报 `Unexpected token '}'` → 多步验证一律拆成**各自单行**命令（实证：把"注入草稿/调用 restoreDraft/打印结果"拆成三条单行才跑通）；②模拟器停在预览/白板视图时 `getCurrentPages()` 返回**空数组**（需先「编译」或从首页进入页面，页面栈为 `pages-v2/index/index` 时方可取页面实例）；③在无某字段的页面上打印该字段（如 index 页的 `draftCount`）得 `undefined` 属正常，不可当异常；④可用 `页面实例.方法名(...)` 直接调用页面方法做受控验证（比手点更硬，且绕开入口/角标依赖）。
