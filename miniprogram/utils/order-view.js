@@ -1,6 +1,7 @@
 // miniprogram/utils/order-view.js · 订单详情「纯映射」函数（批 5.4 从 order-detail.js 抽离）
 // 设计：零副作用、不依赖 wx/云函数，可在 node 下单测。页面 order-detail.js 仅做编排与拉数。
 // 抽离前后行为逐行一致；computeNextStep 增加可选 now 参数(默认 Date.now())以支持确定性单测，调用方不传即旧行为。
+// @VERIFIED 2026-10-16 已真机验证：拆分阶段1 C1(buildModifyTs/buildPrepCountdown)+C2(buildOrderView/fmtDate) 随 1.6.7 iOS/Android 回归通过(REGISTRY #73/#74)
 
 // 拆分阶段1 C2·A1(2026-10-15): buildOrderView 自 order-detail.js refreshOrder 逐字搬迁引入以下依赖
 // redline.getScene 内部 getApp() 有 try/catch 回退 SCENES, node 下可安全 require(已实测)
