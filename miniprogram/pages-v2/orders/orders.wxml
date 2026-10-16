@@ -43,6 +43,9 @@
         <text class="ol__status" style="color:{{item.status_color}};background:{{item.status_bg}};">{{item.status_name}}</text>
       </view>
       <view class="ol__card-body">
+        <!-- 需求标题/详细描述(2026-10-17 新增展示): 服务端按 demand.remark 全角｜拆分下发 -->
+        <view class="ol__demand-title" wx:if="{{item.demand_title}}">{{item.demand_title}}</view>
+        <view class="ol__demand-desc" wx:if="{{item.demand_desc}}">{{item.demand_desc}}</view>
         <view class="ol__summary-box" wx:if="{{item.order_summary && item.order_summary.l1}}">
           <view class="ol__summary-l1">{{item.order_summary.l1}}</view>
           <view class="ol__summary-line" wx:if="{{item.order_summary.l2}}">{{item.order_summary.l2}}</view>

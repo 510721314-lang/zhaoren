@@ -18,6 +18,9 @@
     >
       <view class="nt__ic">🔔</view>
       <view class="nt__body">
+        <!-- 需求标题/详细描述(2026-10-17 新增展示): 服务端按 demand.remark 全角｜拆分下发 -->
+        <view class="nt__demand-title" wx:if="{{item.demand_title}}">{{item.demand_title}}</view>
+        <view class="nt__demand-desc" wx:if="{{item.demand_desc}}">{{item.demand_desc}}</view>
         <!-- 订单概要信息块(结构化三行: 主信息/时间/地点+AA) -->
         <view class="nt__summary" wx:if="{{item.order_summary && item.order_summary.l1}}">
           <text class="nt__summary-l1">{{item.order_summary.l1}}</text>

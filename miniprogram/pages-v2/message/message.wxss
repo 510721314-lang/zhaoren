@@ -117,6 +117,9 @@
 .msg__summary-box { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
 .msg__summary-l1 { font-size: 22rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
 .msg__summary-l2, .msg__summary-l3 { font-size: 20rpx; color: var(--text-3, #666666); }
+/* 需求标题/详细描述(2026-10-17 新增展示): 会话列表内, 标题一行+描述多行 */
+.msg__demand-title { margin-top: 6rpx; font-size: 22rpx; font-weight: 600; color: var(--text-1, #ffffff); }
+.msg__demand-desc { margin-top: 4rpx; font-size: 20rpx; color: var(--text-3, #666666); line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
 .msg__row2 {
   margin-top: 10rpx;
   display: flex;

@@ -23,6 +23,9 @@
 .nt__summary { display: flex; flex-direction: column; gap: 4rpx; margin-bottom: 10rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
 .nt__summary-l1 { font-size: 24rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
 .nt__summary-l2, .nt__summary-l3 { font-size: 20rpx; color: var(--text-3, #999); }
+/* 需求标题/详细描述(2026-10-17 新增展示): 通知列表内, 标题一行+描述多行 */
+.nt__demand-title { font-size: 26rpx; font-weight: 600; color: var(--text-1, #ffffff); margin-bottom: 4rpx; }
+.nt__demand-desc { font-size: 22rpx; color: var(--text-3, #999); line-height: 1.6; margin-bottom: 10rpx; white-space: pre-wrap; word-break: break-all; }
 .nt__dot {
   width: 14rpx; height: 14rpx; border-radius: 50%;
   background: var(--func-danger, #fa5151);

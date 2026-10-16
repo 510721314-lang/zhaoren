@@ -55,6 +55,9 @@
             <text class="msg__name">{{item.displayTitle}}</text>
             <status-tag code="{{item.order_status}}"></status-tag>
           </view>
+          <!-- 需求标题/详细描述(2026-10-17 新增展示): 服务端按 demand.remark 全角｜拆分下发 -->
+          <view class="msg__demand-title" wx:if="{{item.demand_title}}">{{item.demand_title}}</view>
+          <view class="msg__demand-desc" wx:if="{{item.demand_desc}}">{{item.demand_desc}}</view>
           <!-- 订单概要信息块(结构化三行, 参照消息通知页排版) -->
           <view class="msg__summary-box" wx:if="{{item.order_summary && item.order_summary.l1}}">
             <text class="msg__summary-l1">{{item.order_summary.l1}}</text>
