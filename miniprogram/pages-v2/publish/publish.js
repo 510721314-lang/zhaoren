@@ -21,6 +21,8 @@ const {
 } = require('../../utils/publish-validate.js');
 // 拆分阶段2(文件2, 2026-10-16): 定位四法外移 utils/publish-locate.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { onLocationPick, locatePublish, offerManualPick, onRelocatePublish } = require('../../utils/publish-locate.js');
+// 拆分阶段3 B(2026-10-16): 草稿组 7 法外移 utils/draft-store.js(经用户书面批准逐字搬迁); 页面留同名薄代理, wxml/onLoad 调用点零改
+const { fmtTime, saveDraftCloud, openDraftBox, closeDraftBox, restoreDraft, startAutoSave, saveDraft } = require('../../utils/draft-store.js');
 
 // 2026-10-16 阶段2(文件2): reverseGeocode 已迁 utils/geo-wx.js(与文件1 addrOf 共置, 逐字搬迁)
 
@@ -349,88 +351,30 @@ Page({
   },
 
   // ── B1 草稿箱 ──
+  // 拆分阶段3 B(2026-10-16): 草稿组 7 法外移 utils/draft-store.js(经用户书面批准逐字搬迁); 薄代理保调用点零改
   fmtTime(ts) {
-    const d = new Date(ts);
-    const pad = (n) => (n < 10 ? '0' + n : '' + n);
-    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return fmtTime(ts);
   },
   // 表单 → 草稿存储结构(拆分阶段1 C3·B4: 纯映射外移 utils/publish-validate.js buildDraftData; 此薄代理保 this._buildDraftData() 调用点零改)
   _buildDraftData() {
     return buildDraftData(this.data.form);
   },
   // 云端保存草稿(手动存草稿与自动保存共用; draft_id 存在则更新)
+  // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js saveDraftCloud(经用户书面批准逐字搬迁)
   _saveDraftCloud(silent) {
-    return callCloud('demand-publish', {
-      action: 'save_draft',
-      draft_id: this.__draftId || '',
-      demand_data: this._buildDraftData()
-    }).then((r) => {
-      if (!r.ok) {
-        if (!silent) wx.showToast({ title: r.msg || '草稿保存失败', icon: 'none' });
-        return null;
-      }
-      if (r.data && r.data.draft_id) this.__draftId = r.data.draft_id;
-      this.setData({
-        autoSaveText: silent ? `${CONFIG.DRAFT.autoSaveSec}秒前` : '刚刚',
-        draftCount: Math.max(this.data.draftCount, 1)
-      });
-      return r.data;
-    }).catch(() => {
-      if (!silent) wx.showToast({ title: '网络异常，保存失败', icon: 'none' });
-      return null;
-    });
+    return saveDraftCloud(this, silent);
   },
   openDraftBox() {
-    this.setData({ draftBoxVisible: true });
-    callCloud('demand-publish', { action: 'list_drafts' }).then((r) => {
-      if (!r.ok) {
-        wx.showToast({ title: r.msg || '草稿拉取失败', icon: 'none' });
-        return;
-      }
-      const list = (r.data.list || []).map((d) => ({
-        _id: d._id,
-        demand_data: d.demand_data || {},
-        saved_at: d.updated_at ? this.fmtTime(d.updated_at) : ''
-      }));
-      this.setData({ draftList: list, draftCount: list.length });
-    }).catch(() => wx.showToast({ title: '网络异常', icon: 'none' }));
+    // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); wxml bindtap 调用点不变
+    return openDraftBox(this);
   },
   closeDraftBox() {
-    this.setData({ draftBoxVisible: false });
+    // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁)
+    return closeDraftBox(this);
   },
   restoreDraft(e) {
-    const idx = e.currentTarget.dataset.index;
-    const draft = this.data.draftList[idx];
-    if (!draft) return;
-    const d = draft.demand_data;
-    this.__draftId = draft._id;  // 后续保存/自动保存更新同一条草稿
-    // 拆分前置2(2026-10-16): form 整对象替换 → 20 条叶子路径(行为等价; 为阶段3组件 properties 切片保证变更可达)
-    this.setData({
-      'form.project_attr': d.project_attr || 'commercial',
-      'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 老草稿无该字段 → 兜底 hourly
-      'form.fixed_price': d.fixed_price != null ? String(d.fixed_price) : '',
-      'form.scene_code': d.scene_code || '',
-      'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
-      'form.title': d.title || '',
-      'form.description': d.description || '',
-      'form.service_date': d.service_date || '',
-      'form.service_time': d.service_time || '',
-      'form.duration_hours': d.duration_hours || 3,
-      'form.duration_custom': '',
-      'form.location_name': d.location ? d.location.name : '',
-      'form.latitude': (d.location && d.location.latitude) || 0,
-      'form.longitude': (d.location && d.location.longitude) || 0,
-      'form.headcount': d.headcount || 1,
-      'form.budget': String(d.budget || ''),
-      'form.aa_estimate': d.aa_estimate || '',
-      'form.aa_custom': '',
-      'form.gender_pref': d.gender_pref || '不限',
-      'form.match_mode': d.match_mode || 'broadcast',
-      titleCount: (d.title || '').length,
-      descCount: (d.description || '').length,
-      draftBoxVisible: false
-    });
-    wx.showToast({ title: '草稿已恢复', icon: 'none' });
+    // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); 20 条叶子路径在模块内逐字保留
+    return restoreDraft(this, e);
   },
 
   // ── B2 项目属性 ──
@@ -849,22 +793,13 @@ Page({
   },
 
   // ── B10 自动保存(云端 upsert 草稿; 静默失败不打扰用户) ──
+  // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); onLoad this.startAutoSave() 调用点不变
   startAutoSave() {
-    this._saveTimer = setInterval(() => {
-      const f = this.data.form;
-      if (!f.title && !f.description) return;
-      this._saveDraftCloud(true);
-    }, CONFIG.DRAFT.autoSaveSec * 1000);
+    return startAutoSave(this);
   },
   saveDraft() {
-    const f = this.data.form;
-    if (!f.title && !f.description) {
-      wx.showToast({ title: '请先填写内容', icon: 'none' });
-      return;
-    }
-    this._saveDraftCloud(false).then((d) => {
-      if (d) wx.showToast({ title: `草稿已保存（有效期${CONFIG.DRAFT.expireDays}天）`, icon: 'success' });
-    });
+    // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); wxml bindtap 调用点不变
+    return saveDraft(this);
   },
 
   // ── B11 发布 ──
