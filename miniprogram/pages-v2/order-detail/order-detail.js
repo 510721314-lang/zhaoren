@@ -10,13 +10,15 @@ const { callCloud } = require('../../utils/cloud.js');
 // 批 5.4: 纯映射函数(computeNextStep/pad)抽离到 utils/order-view.js, 可单测; 此处仅编排
 // 拆分阶段1 C1(2026-10-15): buildModifyTs/buildPrepCountdown 同外移, 页面留薄代理/编排调用
 // 拆分阶段1 C2(2026-10-15): buildOrderView(原 refreshOrder 映射主体)/fmtDate 外移; refreshOrder 仅留 setData+弹窗震动编排
-const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, buildOrderView } = require('../../utils/order-view.js');
+const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, buildOrderView, fmtNoticeTime } = require('../../utils/order-view.js');
 // 阶段B(2026-10-14): 履约定位三层判定(纯函数, 单测在 _shared/geo_guard.test.js)
 const { evaluatePosition } = require('../../utils/geo-guard.js');
 // 拆分阶段2b(2026-10-16): 定位能力链路(定位判定/定位采集/逆地理)外移 utils/geo-wx.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { evalFulfillGeo, collectStartLocation, addrOf } = require('../../utils/geo-wx.js');
 // 拆分阶段2b(2026-10-16): 证据采集/上传(唯一 uploadFile 点)外移 utils/order-evidence.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { collectStartEvidence, uploadStartPhotos, uploadEvidenceOne } = require('../../utils/order-evidence.js');
+// 拆分阶段2c(2026-10-16): 定时器/通知轮询(6 法)外移 utils/order-poll.js(经用户书面批准逐字搬迁); 页面留同名薄代理
+const { clearTimers, startTipPoll, stopTipPoll, onTipNoticeTap, startCountdown, fetchTipList } = require('../../utils/order-poll.js');
 
 Page({
   data: {
@@ -370,8 +372,8 @@ Page({
   },
 
   clearTimers() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
-    if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
+    // 拆分阶段2c(2026-10-16): 定时器清理外移 utils/order-poll.js(经用户书面批准逐字搬迁); 薄代理保 onUnload/onHide 等调用点不变
+    return clearTimers(this);
   },
 
   // 通知轮询: 停在订单详情页时每 8s 查本人该订单未读通知(多条递增展示)
@@ -379,105 +381,36 @@ Page({
   // - 拉到新通知后静默刷新订单详情, 同步最新状态/新服务时间
   // 幂等去重: 已展示过的通知 id 不再重复展示(本地 Map 记忆)
   startTipPoll() {
-    this.stopTipPoll();
-    this.__shownTipIds = this.__shownTipIds || {};
-    this._tipTimer = setInterval(() => {
-      callCloud('order-action', { action: 'notice_poll', order_id: this.data.order.order_id }).then((r) => {
-        const d = r && r.ok && r.data;
-        if (!d || !d.list || !d.list.length) return;
-        // 多次打赏/多通知: 依次追加到列表, 已展示过的不再重复
-        const fresh = d.list.filter((n) => n && n.id && !this.__shownTipIds[n.id]);
-        if (!fresh.length) return;
-        fresh.forEach((n) => { this.__shownTipIds[n.id] = 1; });
-        const iconOf = (type) => (type === 'tip' ? '💝' : '🔔');
-        const textOf = (n) => (n.type === 'tip' ? (n.body || '收到打赏') : (n.body || n.title || '新通知'));
-        const items = fresh.map((n) => ({
-          id: n.id,
-          text: `${iconOf(n.type)} ${textOf(n)}`,
-          time: n.created_at ? this.__fmtNoticeTime(n.created_at) : ''
-        }));
-        this.setData({ tipNotices: [...items, ...this.data.tipNotices] });
-        // 即时提示: 对方(需求方/耍伴)对该订单的变动, toast 醒目提示; 关键类型用明确文案
-        // 四确认单步通知(title=订单沟通)只进横幅不弹 toast, 避免逐项刷屏
-        // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)
-        const RESPOND_ALERT = {
-          extend_confirm: '✅ 对方已同意加时',
-          extend_reject: '❌ 对方已拒绝加时',
-          modify_confirm: '✅ 对方已同意改期',
-          modify_reject: '❌ 对方已拒绝改期'
-        };
-        const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
-        if (respondHit) {
-          try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-          wx.showModal({
-            title: RESPOND_ALERT[respondHit.type],
-            content: respondHit.body || '',
-            showCancel: false,
-            confirmText: '知道了'
-          });
-        } else {
-          const key = fresh[0];
-          const TITLE_OF = {
-            accept: '有人接单了', paid: '对方已支付',
-            confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
-            finish: '履约已完成', milestone: '履约进度更新',
-            cancel: '订单已取消', tip: '收到打赏'
-          };
-          const toastTitle = TITLE_OF[key.type] || (key.title && key.title !== '订单沟通' ? key.title : '');
-          if (toastTitle) wx.showToast({ title: toastTitle.slice(0, 12), icon: 'none', duration: 2500 });
-        }
-        // 静默刷新同步最新状态/时间(不闪 loading)
-        this.fetchData({ orderId: this.__orderId }, true);
-      }).catch(() => {});
-    }, 8000);
+    // 拆分阶段2c(2026-10-16): 通知轮询外移 utils/order-poll.js(经用户书面批准逐字搬迁); 薄代理保 this.startTipPoll() 调用点不变
+    return startTipPoll(this);
   },
 
   stopTipPoll() {
-    if (this._tipTimer) { clearInterval(this._tipTimer); this._tipTimer = null; }
+    // 拆分阶段2c(2026-10-16): 外移 utils/order-poll.js(经用户书面批准逐字搬迁)
+    return stopTipPoll(this);
   },
 
   // 点击单条横幅 → 标记该通知已读 + 移除(后续轮询不再带回)
   onTipNoticeTap(e) {
-    const id = e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id;
-    if (!id) return;
-    this.setData({ tipNotices: this.data.tipNotices.filter((n) => n.id !== id) });
-    callCloud('order-action', { action: 'notice_read', notice_id: id }).catch(() => {});
+    // 拆分阶段2c(2026-10-16): 外移 utils/order-poll.js(经用户书面批准逐字搬迁); wxml bindtap 调用点不变
+    return onTipNoticeTap(this, e);
   },
 
   startCountdown() {
-    this.clearTimers();
-    this._timer = setInterval(() => {
-      const o = this.data.order;
-      if (!o) return;
-      // PRD 3.5.2：倒计时文案以 ORDER_STATUS.timeoutText 为唯一 SSOT
-      const st = ORDER_STATUS[o.status];
-      this.setData({ countdownText: st ? st.timeoutText : '' });
-    }, 1000);
+    // 拆分阶段2c(2026-10-16): 倒计时外移 utils/order-poll.js(经用户书面批准逐字搬迁)
+    return startCountdown(this);
   },
 
   // 到账通知时间戳(毫秒 → MM-DD HH:mm)（fmtDate 已在拆分阶段1 C2·A2 外移 utils/order-view.js, 本页无残留调用）
   __fmtNoticeTime(ts) {
-    const d = new Date(Number(ts));
-    if (isNaN(d.getTime())) return '';
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    // 拆分阶段2c(2026-10-16): 纯格式化按用户裁定移 utils/order-view.js(fmtNoticeTime); 薄代理保 fetchNoShow/fetchTimeline 等调用点不变
+    return fmtNoticeTime(ts);
   },
 
   // 💝 打赏逐笔明细(订单双方可见, 时间升序; 打赏成功后由 onTip 刷新触发重拉)
   fetchTipList() {
-    const o = this.data.order || {};
-    if (!o.order_id) return;
-    callCloud('payment-mock', { action: 'tip_list', order_id: o.order_id }).then((r) => {
-      if (!r.ok || !r.data || !r.data.list) return;
-      this.setData({
-        tipList: r.data.list.map((t) => ({
-          pay_no: t.pay_no,
-          amountYuan: ((t.amount_fen || 0) / 100).toFixed(2),
-          note: t.note || '',
-          timeText: t.created_at ? this.__fmtNoticeTime(t.created_at) : ''
-        }))
-      });
-    }).catch(() => {});
+    // 拆分阶段2c(2026-10-16): 打赏明细外移 utils/order-poll.js(经用户书面批准逐字搬迁)
+    return fetchTipList(this);
   },
 
   // O3 操作区

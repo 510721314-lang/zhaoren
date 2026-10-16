@@ -167,6 +167,15 @@ function fmtDate(d) {
   return `${y}-${m}-${day}`;
 }
 
+// 拆分阶段2c(2026-10-16): 到账通知时间戳(毫秒 → MM-DD HH:mm)自 order-detail.js __fmtNoticeTime 逐字迁入(用户裁定归属, §8.2 前置3)
+// 原注释: fmtDate 已在拆分阶段1 C2·A2 外移 utils/order-view.js, 本页无残留调用
+function fmtNoticeTime(ts) {
+  const d = new Date(Number(ts));
+  if (isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // detail 原始返回 d → 页面 setData 视图 patch（13 键同形，逐键与旧 refreshOrder 内联实现一致）
 // @VERIFIED 2026-10-13（随源文件 order-detail.js 文件级标记迁入；2026-10-15 拆分阶段1·A1 经书面批准自 refreshOrder L317-510 逐字搬迁；
 // 唯一机械差异：①this.setData(x) 改 return x；②this.fmtDate 改模块内 fmtDate；③3 处时间源 Date.now()/new Date() 收敛为可选 now 参数，不传即旧行为）
@@ -368,4 +377,4 @@ function buildOrderView(d, now = Date.now()) {
   };
 }
 
-module.exports = { computeNextStep, pad, buildModifyTs, buildPrepCountdown, fmtDate, buildOrderView };
+module.exports = { computeNextStep, pad, buildModifyTs, buildPrepCountdown, fmtDate, buildOrderView, fmtNoticeTime };
