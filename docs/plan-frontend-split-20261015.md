@@ -76,6 +76,9 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 注：2a 仅约 9 行纯函数可在无机期随里程碑 1 一并提交并计入里程碑 1 实测；2b/2c 未完成前不得宣称到达里程碑 2。
 **度量口径修正（2026-10-16 用户裁定）**：阶段3/4 本质是「把 wxml/wxss 搬进组件」，**几乎不减 `.js`**（callCloud/写操作按 §5.5 留页面）——故里程碑 1/2 仅用 `.js` 度量对阶段3/4 不适用。**新增 `order-detail.wxml/wxss`、`publish.wxml/wxss` 减量列**（逐阶段回填）；`.js` 阈值**按实测重定**（不再预设低目标）。
 **里程碑 1 实测回填（2026-10-15，C1/C2/C3 收官；数值 2026-10-16 用 node 一致口径复核订正）**：order-detail.js 非空行 1692→**1488**（−204），publish.js 1296→**1216**（−80）（publish 当前 1218，含 #77 前端注释 +2）；原 ≤1400/≤1150 两阈值均证伪（纯函数存量已全部搬完，继续下降只能进入需真机的阶段 2，故按「实测非承诺」上调而非提前搬能力链路）；node 单测 438→**484**（+46）。
+**阶段3 wxml/wxss 减量实测回填（非空行口径，2026-10-16）**：
+- **A0 后（commit `3860c25`）**：order-detail.wxml **470→453（−17）**、order-detail.wxss **313→298（−15）**；迁入 components/timeline-card（wxml 20 / wxss 18 非空行，含注释）；publish.wxml/wxss 本阶段未动（B 为纯 .js 服务模块，0/0）。
+- **B 后（commit `e701fc4`）**：publish.js 1094→**1029**（−65，.js 列见 §8.1）；B 不涉 wxml/wxss。
 
 ## 5. 统一门禁（每阶段独立 commit、独立回归）
 
@@ -145,7 +148,7 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 |---|---|---|---|
 | 里程碑 1 | ≤1500 / ≤1220（2026-10-15 用户裁定上调；原 ≤1400/≤1150 证伪） | 1488 / 1216（里程碑1 完成时；publish 现 1218，含 #77 注释 +2） | ✅ 已完成：C1 `38a183d` / C2 `02e02bb` / C3 `b28a431`；node 单测 438→**484 pass**（+46，后续补 util/constants 至 504）；云函数/wxml/wxss/json/app.json 零触碰；REGISTRY #73/#74/#75 **已于 2026-10-16 随 1.6.7 真机通过转「已验证」** |
 | 里程碑 2 | ~~≤1200 / ≤1000~~ **≤1300 / ≤1100（2026-10-16 用户按实测裁定上调；原阈值证伪）** | **1286 / 1094（达标）** | 🔶 子阶段全部完成（2026-10-16）：C4 `7b508b9`（geo-wx）/ C5 `2af5a56`（order-evidence）/ C6 `aadb6ef`（order-poll）/ C7 `a381b0c`（publish-locate，文件2阶段2）；文件1 2b 6 法 + 2c 6 法 + __fmtNoticeTime + 文件2 定位四法 + reverseGeocode **全部逐字搬完（无遗漏可搬项）**；自证：node --check 6 文件全 PASS、devtools preview 编译通过（总包 705.0KB/主包 490.6KB）、npm test 504 pass/0 fail、A/B 437 EQUIVALENT；**能力链路真机回归 2026-10-16 用户决定暂缓**（Android 已确认，iOS 未确认）；行数按用户裁定阈值达标 |
-| 里程碑 3 | **order-detail ≤1250（暂定）/ publish ≤1000（暂定）**（2026-10-16 用户裁定：`.js` 阈值按实测重定；原 ≤1000/≤900 因阶段3 以 wxml/wxss 外移为主而证伪）+ **新增 wxml/wxss 减量度量（逐阶段回填）** | 1286 / **1029**（B 后；起点 1094，−65） | 🔵 **B 已落盘（2026-10-16）**：commit `e701fc4`，草稿组 **7 法** → `utils/draft-store.js`（`_buildDraftData` 薄代理按方案留页面）；自证 node --check 两文件 PASS / npm test **504 pass/0 fail** / A/B **437 EQUIVALENT** / cli preview **EXIT=0**（705.5KB/491.1KB）；REGISTRY **#80 待验证**（人工草稿链回归随下次真机/模拟器批次）。剩余：文件1 **A0 timeline 试点 → A1-A3**（共用原语留页面 + apply-shared），执行顺序 **B ✅ → A0 → 再评估 A1-A3**；wxml/wxss 减量随 A0 首卡回填；真机回归暂缓，自证下限=编译 EXIT 0 + 模拟器渲染比对 |
+| 里程碑 3 | **order-detail ≤1250（暂定）/ publish ≤1000（暂定）**（2026-10-16 用户裁定：`.js` 阈值按实测重定；原 ≤1000/≤900 因阶段3 以 wxml/wxss 外移为主而证伪）+ **新增 wxml/wxss 减量度量（A0 已回填，见 §4）** | .js **1286 / 1029**（B 后；起点 1094，−65）；wxml/wxss：order-detail **453 / 298**（A0 后，−17/−15），publish 未动 | 🔵 **B + A0 已落盘（2026-10-16）**：B commit `e701fc4` 草稿组 **7 法** → `utils/draft-store.js`（REGISTRY **#80 待验证**）；A0 commit `3860c25` 订单动态卡 → `components/timeline-card`（apply-shared 首卡，property list 纯切片、fetchTimeline 留页面、零事件；REGISTRY **#81 待验证**）；自证 node --check PASS / npm test **504 pass/0 fail** / A/B **437 EQUIVALENT** / cli preview **EXIT=0**（A0 后 705.7KB/491.3KB）。剩余：文件1 **A1-A3 待逐卡书面批准再评估**（A2 含 @VERIFIED 履约凭证卡须单独点名）；执行顺序 **B ✅ → A0 ✅ → A1-A3**；真机回归暂缓，自证下限=编译 EXIT 0 + 模拟器渲染比对（#81 需目检 dot 四色/间距/标题） |
 | 里程碑 4 | ≤850 / ≤600 | — | ☐ 未开工：文件1 阶段4 两交互组件；文件2 阶段4a 场景组 + **4b 授权合一（有限改写，单列审批+真机）** |
 
 ### 8.2 阶段 2 开工前置（四条全部满足才动手，缺一即停）
