@@ -141,3 +141,4 @@
 - 新增部署前：`git -C c:\zhaoren bundle create "C:\zhaoren-bak\zhaoren-deploy-<YYYYMMDD>-<HHMMSS>.bundle" master --tags`，核 SHA 记 `C:\zhaoren-bak\CHECKSUMS.txt`
 - 部署后：按上表格式追加一行（前 commit 用上一版 HEAD，后 commit 用部署完成后的新 HEAD）
 - 回滚：用表中「回滚点」commit 的代码重新部署，出错靠本表兜底而非手工记忆
+| 2026-10-16 | demand-publish | d76608a（#77 前在线版） | f6ddf07 | zhaoren-deploy-20261016-110947.bundle（部署前归档 16.9MB；HEAD=d3deb82） | d76608a | **#77 代发联系电话取消座机仅留 11 位手机号（服务端）**：index.js isPhoneOrLandline→isMobilePhone 删座机正则+ctx 键名；action_publish.js 同口径+文案缩短「请填写正确的手机号」（错误码 publish_proxy_phone 不变）；maskContact 座机脱敏分支保留（存量兼容）；entry 测试 +1 反向断言；CLI `--remote-npm-install` success=true / 16 文件 / 70.5KB；**download 核验 index.js AC459BC0B33AC172、action_publish.js FA7B31FB4CC39F34 云端==本地双 MATCH**；部署后等 90-120s 云端 npm；真机随 1.6.8 复验（REGISTRY #77 待验证） |
