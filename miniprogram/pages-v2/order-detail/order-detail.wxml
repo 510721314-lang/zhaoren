@@ -147,25 +147,8 @@
       <view class="od__row"><text class="od__label">状态</text><text class="od__val od__val--success">{{order.insurance.status === 'insured' ? '生效中' : '待生效'}}</text></view>
     </view>
 
-    <!-- 资金明细(2026-10-12 付款后信息全量展示): 实付/已退/结算状态 + 退款(含非投诉路径的 S7 自助退) -->
-    <view class="od__card" wx:if="{{order.money || order.refund_view}}">
-      <view class="od__card-title">资金明细</view>
-      <view class="od__row" wx:if="{{order.money}}"><text class="od__label">实付金额</text><text class="od__val">¥{{order.money.paid_text}}</text></view>
-      <view class="od__row" wx:if="{{order.money && order.money.refunded_text !== '0.00'}}"><text class="od__label">已退金额</text><text class="od__val">¥{{order.money.refunded_text}}</text></view>
-      <view class="od__row" wx:if="{{order.money && order.money.settle_text}}"><text class="od__label">结算状态</text><text class="od__val">{{order.money.settle_text}}</text></view>
-      <view class="od__row" wx:if="{{order.money && order.money.settled_at_text}}"><text class="od__label">结算时间</text><text class="od__val">{{order.money.settled_at_text}}</text></view>
-      <view class="od__row" wx:if="{{order.refund_view}}"><text class="od__label">退款金额</text><text class="od__val">¥{{order.refund_view.amount_text}}</text></view>
-      <view class="od__row" wx:if="{{order.refund_view && order.refund_view.source_text}}"><text class="od__label">退款来源</text><text class="od__val">{{order.refund_view.source_text}}</text></view>
-      <view class="od__row" wx:if="{{order.refund_view && order.refund_view.at_text}}"><text class="od__label">退款时间</text><text class="od__val">{{order.refund_view.at_text}}</text></view>
-    </view>
-
-    <!-- 费用明细(付款后信息全量展示): 平台服务费 / 耍伴收入 / AA 档位 -->
-    <view class="od__card" wx:if="{{order.fees_view}}">
-      <view class="od__card-title">费用明细</view>
-      <view class="od__row"><text class="od__label">平台服务费</text><text class="od__val">¥{{order.fees_view.fee_text}}</text></view>
-      <view class="od__row"><text class="od__label">耍伴收入</text><text class="od__val">¥{{order.fees_view.income_text}}</text></view>
-      <view class="od__row" wx:if="{{order.fees_view.aa_tier}}"><text class="od__label">AA 档位</text><text class="od__val">{{order.fees_view.aa_tier}}</text></view>
-    </view>
+    <!-- 资金明细卡 + 费用明细卡拆分阶段3 A1(2026-10-16): 结构迁 components/finance-card; 两卡 wx:if 内收组件、页面外层 wx:if 保「两卡全空不实例化」 -->
+    <finance-card money="{{order.money}}" refund-view="{{order.refund_view}}" fees-view="{{order.fees_view}}" wx:if="{{order.money || order.refund_view || order.fees_view}}" />
 
     <!-- O3.5 爽约申诉(第三批 3B): 处理中/已裁定 + 被诉方举证入口 -->
     <view class="od__card" wx:if="{{noShowReports.length > 0}}">

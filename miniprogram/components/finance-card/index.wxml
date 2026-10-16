@@ -1,0 +1,21 @@
+<!-- components/finance-card · 资金明细 + 费用明细卡(付款后信息全量展示) -->
+<!-- 拆分阶段3 A1(2026-10-16, 用户书面批准): 自 order-detail.wxml L149-167 逐字迁入; 唯一机械改动 order.money→money / order.refund_view→refundView / order.fees_view→feesView -->
+<!-- 两卡为兄弟根节点, 各自 wx:if 随层次内收; 页面外层 wx:if 保「两卡全空不实例化」 -->
+<view class="od__card" wx:if="{{money || refundView}}">
+  <view class="od__card-title">资金明细</view>
+  <view class="od__row" wx:if="{{money}}"><text class="od__label">实付金额</text><text class="od__val">¥{{money.paid_text}}</text></view>
+  <view class="od__row" wx:if="{{money && money.refunded_text !== '0.00'}}"><text class="od__label">已退金额</text><text class="od__val">¥{{money.refunded_text}}</text></view>
+  <view class="od__row" wx:if="{{money && money.settle_text}}"><text class="od__label">结算状态</text><text class="od__val">{{money.settle_text}}</text></view>
+  <view class="od__row" wx:if="{{money && money.settled_at_text}}"><text class="od__label">结算时间</text><text class="od__val">{{money.settled_at_text}}</text></view>
+  <view class="od__row" wx:if="{{refundView}}"><text class="od__label">退款金额</text><text class="od__val">¥{{refundView.amount_text}}</text></view>
+  <view class="od__row" wx:if="{{refundView && refundView.source_text}}"><text class="od__label">退款来源</text><text class="od__val">{{refundView.source_text}}</text></view>
+  <view class="od__row" wx:if="{{refundView && refundView.at_text}}"><text class="od__label">退款时间</text><text class="od__val">{{refundView.at_text}}</text></view>
+</view>
+
+<!-- 费用明细(付款后信息全量展示): 平台服务费 / 耍伴收入 / AA 档位 -->
+<view class="od__card" wx:if="{{feesView}}">
+  <view class="od__card-title">费用明细</view>
+  <view class="od__row"><text class="od__label">平台服务费</text><text class="od__val">¥{{feesView.fee_text}}</text></view>
+  <view class="od__row"><text class="od__label">耍伴收入</text><text class="od__val">¥{{feesView.income_text}}</text></view>
+  <view class="od__row" wx:if="{{feesView.aa_tier}}"><text class="od__label">AA 档位</text><text class="od__val">{{feesView.aa_tier}}</text></view>
+</view>
