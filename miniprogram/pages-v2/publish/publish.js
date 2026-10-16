@@ -423,29 +423,28 @@ Page({
     if (!draft) return;
     const d = draft.demand_data;
     this.__draftId = draft._id;  // 后续保存/自动保存更新同一条草稿
+    // 拆分前置2(2026-10-16): form 整对象替换 → 20 条叶子路径(行为等价; 为阶段3组件 properties 切片保证变更可达)
     this.setData({
-      form: {
-        project_attr: d.project_attr || 'commercial',
-        pricing_type: d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 老草稿无该字段 → 兜底 hourly
-        fixed_price: d.fixed_price != null ? String(d.fixed_price) : '',
-        scene_code: d.scene_code || '',
-        content_options: Array.isArray(d.content_options) ? d.content_options : [],
-        title: d.title || '',
-        description: d.description || '',
-        service_date: d.service_date || '',
-        service_time: d.service_time || '',
-        duration_hours: d.duration_hours || 3,
-        duration_custom: '',
-        location_name: d.location ? d.location.name : '',
-        latitude: (d.location && d.location.latitude) || 0,
-        longitude: (d.location && d.location.longitude) || 0,
-        headcount: d.headcount || 1,
-        budget: String(d.budget || ''),
-        aa_estimate: d.aa_estimate || '',
-        aa_custom: '',
-        gender_pref: d.gender_pref || '不限',
-        match_mode: d.match_mode || 'broadcast'
-      },
+      'form.project_attr': d.project_attr || 'commercial',
+      'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 老草稿无该字段 → 兜底 hourly
+      'form.fixed_price': d.fixed_price != null ? String(d.fixed_price) : '',
+      'form.scene_code': d.scene_code || '',
+      'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
+      'form.title': d.title || '',
+      'form.description': d.description || '',
+      'form.service_date': d.service_date || '',
+      'form.service_time': d.service_time || '',
+      'form.duration_hours': d.duration_hours || 3,
+      'form.duration_custom': '',
+      'form.location_name': d.location ? d.location.name : '',
+      'form.latitude': (d.location && d.location.latitude) || 0,
+      'form.longitude': (d.location && d.location.longitude) || 0,
+      'form.headcount': d.headcount || 1,
+      'form.budget': String(d.budget || ''),
+      'form.aa_estimate': d.aa_estimate || '',
+      'form.aa_custom': '',
+      'form.gender_pref': d.gender_pref || '不限',
+      'form.match_mode': d.match_mode || 'broadcast',
       titleCount: (d.title || '').length,
       descCount: (d.description || '').length,
       draftBoxVisible: false
