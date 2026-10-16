@@ -244,6 +244,17 @@ async function my_orders(ctx) {
     return { ok: false, code: 'oa_list_fail', msg: '订单查询失败' };
   }
 
+  // 需求标题/详细描述(2026-10-17 新增展示): 按本页订单的 demand_id 一次批量反查 demand(不逐条查);
+  // 查不到/无 demand_id → 对应条目两值兜底空(前端 wx:if 自然隐藏)
+  const demandIds = Array.from(new Set(orders.map((o) => o.demand_id).filter(Boolean)));
+  const demandMap = {};
+  if (demandIds.length) {
+    try {
+      const dmR = await col('demand').where({ _id: _.in(demandIds) }).limit(demandIds.length).get();
+      (dmR.data || []).forEach((d) => { demandMap[d._id] = d; });
+    } catch (e) { log.d(`my_orders demand join fail: ${e.message}`); }
+  }
+
   // 发单人视角: 订单在耍伴接单后才生成, 已发布但仍待接单(matching)的需求需一并展示
   let pendingDemands = [];
   if (role === 'user') {
@@ -251,7 +262,11 @@ async function my_orders(ctx) {
       const dr = await col('demand').where({
         creator_openid: openid, status: 'matching', is_deleted: false
       }).orderBy('created_at', 'desc').limit(20).get();
-      pendingDemands = (dr.data || []).map((d) => ({
+      pendingDemands = (dr.data || []).map((d) => {
+        // 需求标题/详细描述(2026-10-17 新增展示): 待接单需求本身即 demand, 直接按其 remark 全角｜拆分(口径同 detail)
+        const dParts = String(d.remark || '').split('｜');
+        const dCO = d.content_options || (d.content_option ? [d.content_option] : []);
+        return {
         item_type: 'demand',
         order_id: d._id,
         demand_id: d._id,
@@ -259,6 +274,9 @@ async function my_orders(ctx) {
         scene: d.scene,
         scene_name: SCENE_NAME[d.scene] || d.scene,
         content_options: d.content_options || (d.content_option ? [d.content_option] : []),
+        // 需求标题/详细描述(2026-10-17): 标题兜底 content_options[0]
+        demand_title: dParts[0] ? dParts[0].trim() : (dCO[0] || ''),
+        demand_desc: dParts[1] ? dParts[1].trim() : '',
         location_name: (d.location && d.location.name) || '',
         location_lat: (d.location && d.location.latitude) || null,
         location_lng: (d.location && d.location.longitude) || null,
@@ -272,7 +290,8 @@ async function my_orders(ctx) {
           total_fen: d.total_fen, duration_h: d.duration_h, headcount: d.headcount,
           created_at: d.created_at, start_time: d.start_time, location: d.location || null, aa_tier: d.aa_tier
         })
-      }));
+        };
+      });
     } catch (e) {
       log.d(`my_orders pending demands query fail: ${e.message}`);
     }
@@ -281,10 +300,15 @@ async function my_orders(ctx) {
   const ACTIVE_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
 
   const orderItems = orders.map((o, idx) => {
+    // 需求标题/详细描述(2026-10-17 新增展示): demandMap 批量反查 + 全角｜拆分(口径同 detail)
+    const dmParts = String((demandMap[o.demand_id] && demandMap[o.demand_id].remark) || '').split('｜');
     const item = {
       item_type: 'order',
       order_id: o._id,
       order_no: o.order_no,
+      // 需求标题/详细描述(2026-10-17): 订单列表展示; 存量单经 demand_id 反查同样可得
+      demand_title: dmParts[0] ? dmParts[0].trim() : ((o.content_options && o.content_options[0]) || ''),
+      demand_desc: dmParts[1] ? dmParts[1].trim() : '',
       scene: o.scene,
       scene_name: SCENE_NAME[o.scene] || o.scene,
       content_options: o.content_options || [],
@@ -385,9 +409,25 @@ async function notice_list(ctx) {
       (orders.data || []).forEach((o) => { orderMap[o._id] = o; });
     } catch (e) { log.d('notice order join fail:', e.message); }
   }
-  const decorated = (list.data || []).map((n) => Object.assign({}, n, {
-    order_summary: n.order_id ? buildOrderSummary(orderMap[n.order_id]) : ''
-  }));
+  // 需求标题/详细描述(2026-10-17 新增展示): 按订单 demand_id 一次批量反查 demand
+  const dmIds = Array.from(new Set(Object.values(orderMap).map((o) => o.demand_id).filter(Boolean)));
+  const dmMap = {};
+  if (dmIds.length) {
+    try {
+      const dmr = await col('demand').where({ _id: _.in(dmIds) }).limit(dmIds.length).get();
+      (dmr.data || []).forEach((d) => { dmMap[d._id] = d; });
+    } catch (e) { log.d('notice demand join fail:', e.message); }
+  }
+  const decorated = (list.data || []).map((n) => {
+    const order = n.order_id ? orderMap[n.order_id] : null;
+    const dmParts = String((order && dmMap[order.demand_id] && dmMap[order.demand_id].remark) || '').split('｜');
+    return Object.assign({}, n, {
+      order_summary: order ? buildOrderSummary(order) : '',
+      // 需求标题/详细描述(2026-10-17): 通知列表展示; 标题兜底 content_options[0]
+      demand_title: dmParts[0] ? dmParts[0].trim() : (((order && order.content_options) || [])[0] || ''),
+      demand_desc: dmParts[1] ? dmParts[1].trim() : ''
+    });
+  });
   return { ok: true, data: { list: decorated, unread: unread.total } };
 }
 

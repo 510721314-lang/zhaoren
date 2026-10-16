@@ -103,4 +103,22 @@ test('my_convs 成功返回列表', async () => {
   assert.strictEqual(r.ok, true);
 });
 
+// 会话关联订单含 demand_id → 批量反查 demand 拆出 demand_title/demand_desc(2026-10-17 新增展示)
+test('my_convs: 会话关联订单 → demand.remark 拆为 demand_title/demand_desc', async () => {
+  const DID = 'd'.repeat(32);
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    im_conversation: { [CID]: { _id: CID, order_id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: OTHER, is_deleted: false, last_msg_at: 1, user_unread: 0, partner_unread: 0 } },
+    order_main: { [OID]: { _id: OID, status: 'S2', user_openid: USER, partner_openid: OTHER, content_options: ['遛狗'], demand_id: DID } },
+    demand: { [DID]: { _id: DID, remark: '帮我遛狗｜每天两次，每次 30 分钟' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'my_convs', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const c = (r.data.list || [])[0];
+  assert.ok(c, '应返回会话');
+  assert.strictEqual(c.demand_title, '帮我遛狗');
+  assert.strictEqual(c.demand_desc, '每天两次，每次 30 分钟');
+  assert.strictEqual(c.order_id, OID, '既有字段不受影响');
+});
+
 test.after(() => { Module._load = origLoad; });

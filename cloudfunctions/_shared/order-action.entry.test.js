@@ -356,5 +356,60 @@ test('detail: remark 无｜ / 无 demand_id → 两字段兜底为空', async ()
   assert.strictEqual(r2.data.demand_desc, '');
 });
 
+// 24. my_orders: 订单含 demand_id → 批量反查 demand 拆出 demand_title/demand_desc(2026-10-17 新增展示)
+//     A/B 侧 my_orders_* 已按 KNOWN_EVOLUTION 登记(列表项新增两键), 本例为其独立行为守护
+test('my_orders: 订单含 demand_id → demand.remark 拆为 demand_title/demand_desc', async () => {
+  const DID = 'd'.repeat(32);
+  const sdk = makeSdk({ openid: USER, store: {
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
+    order_main: { [OID]: { _id: OID, status: 'S2', user_openid: USER, partner_openid: PARTNER, created_at: 1, content_options: ['遛狗'], demand_id: DID, is_deleted: false } },
+    demand: { [DID]: { _id: DID, remark: '帮我遛狗｜每天两次，每次 30 分钟，小区内' } }
+  } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'my_orders', role: 'user', filter: 'all', page: 1, page_size: 20, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const item = (r.data.list || []).find((x) => x.item_type === 'order');
+  assert.ok(item, '应返回订单项');
+  assert.strictEqual(item.demand_title, '帮我遛狗');
+  assert.strictEqual(item.demand_desc, '每天两次，每次 30 分钟，小区内');
+  assert.strictEqual(item.order_id, OID, '既有字段不受影响');
+});
+
+// 25. my_orders: 无 demand_id / demand 查不到 → 标题兜底 content_options[0]、描述空(不抛错)
+test('my_orders: 无 demand_id → 标题兜底 content_options[0]、描述空', async () => {
+  const sdk = makeSdk({ openid: USER, store: {
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
+    order_main: { [OID]: { _id: OID, status: 'S2', user_openid: USER, partner_openid: PARTNER, created_at: 1, content_options: ['遛狗', '喂食'], is_deleted: false } }
+  } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'my_orders', role: 'user', filter: 'all', page: 1, page_size: 20, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const item = (r.data.list || []).find((x) => x.item_type === 'order');
+  assert.ok(item);
+  assert.strictEqual(item.demand_title, '遛狗');
+  assert.strictEqual(item.demand_desc, '');
+});
+
+// 26. notice_list: 通知关联订单含 demand_id → 反查 demand 拆出 demand_title/demand_desc(2026-10-17)
+//     A/B 侧 notice_list 已按 KNOWN_EVOLUTION 登记(新增两键), 本例为其独立行为守护
+test('notice_list: 通知关联订单 → demand.remark 拆为 demand_title/demand_desc', async () => {
+  const DID = 'd'.repeat(32);
+  const NID = 'n'.repeat(32);
+  const sdk = makeSdk({ openid: USER, store: {
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
+    system_notice: { [NID]: { _id: NID, to_openid: USER, order_id: OID, title: '抢单提醒', read: false, created_at: 1 } },
+    order_main: { [OID]: { _id: OID, status: 'S2', user_openid: USER, partner_openid: PARTNER, content_options: ['遛狗'], demand_id: DID } },
+    demand: { [DID]: { _id: DID, remark: '帮我遛狗｜每天两次' } }
+  } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'notice_list', limit: 20, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const n = (r.data.list || [])[0];
+  assert.ok(n, '应返回通知条目');
+  assert.strictEqual(n.demand_title, '帮我遛狗');
+  assert.strictEqual(n.demand_desc, '每天两次');
+  assert.strictEqual(n.title, '抢单提醒', '既有字段不受影响');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

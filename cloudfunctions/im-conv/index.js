@@ -330,6 +330,15 @@ exports.main = async (event, context) => {
         for (const o of (oR.data || [])) orderMap[o._id] = o;
       } catch (e) {}
     }
+    // 需求标题/详细描述(2026-10-17 新增展示): 按会话订单的 demand_id 一次批量反查 demand
+    const dmIds = Array.from(new Set(Object.values(orderMap).map((o) => o.demand_id).filter(Boolean)));
+    const dmMap = {};
+    if (dmIds.length) {
+      try {
+        const dmr = await col('demand').where({ _id: _.in(dmIds) }).limit(dmIds.length).get();
+        (dmr.data || []).forEach((d) => { dmMap[d._id] = d; });
+      } catch (e) {}
+    }
 
     const config = await getConfig();
     const list = convs.map((c) => {
@@ -339,6 +348,8 @@ exports.main = async (event, context) => {
       const order = orderMap[c.order_id];
       const status = order ? order.status : '';
       const p = userMap[peerOpenid] || {};
+      // 需求标题/详细描述(2026-10-17): 全角｜拆分(口径同 order-action detail); 标题兜底 content_options[0]
+      const dmParts = String((order && dmMap[order.demand_id] && dmMap[order.demand_id].remark) || '').split('｜');
       return {
         conv_id: c._id,
         order_id: c.order_id,
@@ -356,7 +367,9 @@ exports.main = async (event, context) => {
         last_msg_text: c.last_msg_text || '',
         last_msg_at: c.last_msg_at || c.created_at,
         unread: myRole === 'user' ? (c.user_unread || 0) : (c.partner_unread || 0),
-        order_summary: order ? buildOrderSummary(order) : ''
+        order_summary: order ? buildOrderSummary(order) : '',
+        demand_title: dmParts[0] ? dmParts[0].trim() : (((order && order.content_options) || [])[0] || ''),
+        demand_desc: dmParts[1] ? dmParts[1].trim() : ''
       };
     });
 
