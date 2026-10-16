@@ -46,7 +46,7 @@
 | 2a 纯函数小段（无机可做） | **仅** onViewPrep 内倒计时文案计算段 L679-687（startTs/diffMin/diffStr，约 9 行）抽为 `buildPrepCountdown(o, now)` | `utils/order-view.js`。**onViewPrep 的 wx.showModal/wx.showActionSheet 编排与催办 `callCloud('order-action', nudge_partner)` 写操作 L689-737 永久留页面**（v2.1 纠正：v2 误把整个 onViewPrep 标为纯计算） |
 | 2b 定位 + 证据链（**需真机**） | **_evalFulfillGeo L741-765**（内含 `wx.getLocation` L750 + setData geoGuard，v2.1 从 2a 移入：属定位能力链路不是纯计算）；证据链**五方法**：_collectStartLocation L823、_collectStartEvidence L937、_addrOf L977（v1 误写 reverseGeocode，本页无此函数；与 publish.js reverseGeocode L44-64 同构的是 _addrOf）、**_uploadStartPhotos L996（53 行，v1 漏列）**、_uploadEvidenceOne L1051（**全文件唯一 `wx.cloud.uploadFile` 直接调用点在其体内 L1055**，_uploadStartPhotos 经 `this._uploadEvidenceOne(j)` L1027 间接上传） | _evalFulfillGeo + _addrOf → `utils/geo-wx.js`（接收 page）；证据采集/上传 → `utils/order-evidence.js` |
 | 2c 定时器（**需真机**） | clearTimers/startTipPoll/stopTipPoll/onTipNoticeTap/startCountdown/__fmtNoticeTime/fetchTipList **L556-672（约 117 行，v2 误写 675/105 行）**；onHide/onUnload 既有 clearTimers 调用点不动 | `utils/order-poll.js`（接收 page，禁 getApp） |
-| 3 展示组件 | 资金费用卡 wxml L150-168 → 留痕卡 L96-118 → 时间线（fetchTimeline L211）→ 投诉/争议/保险卡 L119-149，逐卡独立提交 | `components/` 四个 |
+| 3 展示组件（2026-10-16 评审修正：顺序与约束） | **A0 `timeline-card` 先行试点**（wxml L423-441，`.od__tl*` 选择器干净、无跨卡复用）；其后评估 **资金费用卡 L150-168 / 留痕卡 L96-117 / 投诉·争议·保险卡 L119-148**，逐卡独立提交。**关键约束（本次核验坐实）：`.od__card`/`.od__row`/`.od__label`/`.od__val` 被 ≥7 卡共用（含非阶段3 的订单信息卡 L56-69、S2.6 联系卡 L268-269）、`.od__evi*` 被 留痕/爽约申诉/里程碑证据 三处共用 → 共用原语一律留页面 wxss，组件只迁“卡专属选择器”并显式 `styleIsolation:"apply-shared"`**（否则搬家即回归订单信息/S2.6/爽约/里程碑排版） | components/（主包，各附 json 增量） |
 | 4 交互组件（**需真机**） | 爽约申诉卡 L170-202（handler 仅 onNoShowReport L234 / onNoShowDefense L250 / onNoShowWithdraw L260 **三个，无 onNoShowPreview**）；安全中心卡 L79-95 + onSafety L1064 / onSos L1078 / _submitSos L1108 / _showCallSheet L1140-1184 | `components/`，triggerEvent 回页面写 |
 | 留页面 | data/生命周期/fetchData/_modal/_handleConflict/**onViewPrep 弹窗与催办编排 L689-737**/全部 order-action 写 handler/goPay/goChat/13 态操作区 wxml L203+ | — |
 
@@ -56,7 +56,7 @@
 |---|---|---|
 | 1 纯函数（无机可做） | detectSensitive L14 / haversineKm L24 / pad2 L34 / fmtDist L37；validatePublish **L1079-1134**（v1 写 1137 误）；_defaultDisclaimer L765；_buildDraftData L397；_isPhoneOrLandline L625 | `utils/publish-validate.js`；validatePublish 签名 `(form, ctx)`，ctx 对象打包 10+ 校验字段，禁长参数表 |
 | 2 定位 + 逆地理（**需真机**） | _locatePublish L922 / _offerManualPick L987 / onLocationPick L825 / onRelocatePublish L1013；**reverseGeocode L44-64（v2.1 补列：内含 `wx.request` L48 腾讯地图逆地理，key 空时降级返回空串）**，与文件1 的 _addrOf 在 geo-wx 内合一 | `utils/publish-locate.js` + `utils/geo-wx.js` |
-| 3 草稿 | 草稿组 L390-494（含 fmtTime 等 7 方法），bottom-sheet 留页面 | `utils/draft-store.js` |
+| 3 草稿 | 草稿组 **8 法**（2026-10-16 重新定位：fmtTime L352 / _buildDraftData L358 / _saveDraftCloud L362 / openDraftBox L383 / closeDraftBox L398 / restoreDraft L401 / startAutoSave L852 / saveDraft L859），**bottom-sheet 弹层与 wxml/wxss 留页面** | utils/draft-store.js（接收 page，页面留同名薄代理） |
 | 4a 组件化 | 场景选择组 L694-791 | `components/scene-option-sheet/` |
 | 4b 授权合一（**有限改写，单列审批 + 真机**） | 宠物授权 **8** 方法 L520-603 + 委托授权 **8** 方法 L630-693（v1 写 7 误，含 _loadProxyAuthText L630）。新 `components/auth-sign-sheet/` 内部复用 signature-canvas（properties.tip；methods clear/isEmpty/exportPNG，已被 pet-sign/proxy-sign/realname 三实例验证）。**实质差异须保留**：① 文案来源——宠物由页面 callCloud('admin-action',config_public) 拉取（_loadPetAuthText L520），委托为本地硬编码（_loadProxyAuthText L630），合一后文案一律由 properties 传入，**各自来源不改**；② selectComponent id 不同；③ state 命名 pet*/proxy*。组件只管 canvas/弹层，`triggerEvent('sign-confirm',{tempFilePath,kind})`；**页面保留 onPetSignConfirm L561 / onProxySignConfirm L662 两 handler 负责 uploadFile + setData** | `components/auth-sign-sheet/` |
 | 留页面 | data 63 字段/生命周期/onPublish L1037/_continuePublish L1058/confirmPublish L1138/_doPublish L1201-1331 发布主链 | — |
@@ -70,10 +70,11 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 | 当前 | 1692 | 1296 | — |
 | 里程碑 1 后 | ~~≤1400~~ **≤1500（2026-10-15 用户按实测裁定；实测 1488 已达）** | ~~≤1150~~ **≤1220（2026-10-15 用户按实测裁定；里程碑1 完成时 1216 已达；当前 1218 含 #77 注释 +2，仍达标）** | 文件1 阶段1+2a小段 + 文件2 阶段1（纯函数）。2026-10-15 C1/C2/C3 全部完成 |
 | 里程碑 2 后 | ~~≤1200~~ **≤1300（2026-10-16 用户按实测裁定上调；实测 1286 达标）** | ~~≤1000~~ **≤1100（同上；实测 1094 达标）** | 文件1 阶段 **2a+2b+2c** + 文件2 阶段 **2**（服务模块，全部需真机）；2026-10-16 代码已全部搬完，**真机回归暂缓** |
-| 里程碑 3 后 | ≤1000 | ≤900 | 文件1 阶段3 + 文件2 阶段3（展示组件 / 草稿） |
+| 里程碑 3 后 | ~~≤1000~~ **≤1250（暂定，2026-10-16 用户裁定按实测重定）** | ~~≤900~~ **≤1000（暂定）** | 文件1 阶段3（**A0 timeline 试点 → A1-A3**）+ 文件2 阶段3（**B 草稿组 → draft-store**）；新增 wxml/wxss 减量度量。执行顺序 **先 B → A0 → 再评估 A1-A3** |
 | 里程碑 4 后 | ≤850 | ≤600 | 文件1 阶段4 + 文件2 阶段 **4a+4b**（交互组件 / 授权合一） |
 
 注：2a 仅约 9 行纯函数可在无机期随里程碑 1 一并提交并计入里程碑 1 实测；2b/2c 未完成前不得宣称到达里程碑 2。
+**度量口径修正（2026-10-16 用户裁定）**：阶段3/4 本质是「把 wxml/wxss 搬进组件」，**几乎不减 `.js`**（callCloud/写操作按 §5.5 留页面）——故里程碑 1/2 仅用 `.js` 度量对阶段3/4 不适用。**新增 `order-detail.wxml/wxss`、`publish.wxml/wxss` 减量列**（逐阶段回填）；`.js` 阈值**按实测重定**（不再预设低目标）。
 **里程碑 1 实测回填（2026-10-15，C1/C2/C3 收官；数值 2026-10-16 用 node 一致口径复核订正）**：order-detail.js 非空行 1692→**1488**（−204），publish.js 1296→**1216**（−80）（publish 当前 1218，含 #77 前端注释 +2）；原 ≤1400/≤1150 两阈值均证伪（纯函数存量已全部搬完，继续下降只能进入需真机的阶段 2，故按「实测非承诺」上调而非提前搬能力链路）；node 单测 438→**484**（+46）。
 
 ## 5. 统一门禁（每阶段独立 commit、独立回归）
@@ -144,7 +145,7 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 |---|---|---|---|
 | 里程碑 1 | ≤1500 / ≤1220（2026-10-15 用户裁定上调；原 ≤1400/≤1150 证伪） | 1488 / 1216（里程碑1 完成时；publish 现 1218，含 #77 注释 +2） | ✅ 已完成：C1 `38a183d` / C2 `02e02bb` / C3 `b28a431`；node 单测 438→**484 pass**（+46，后续补 util/constants 至 504）；云函数/wxml/wxss/json/app.json 零触碰；REGISTRY #73/#74/#75 **已于 2026-10-16 随 1.6.7 真机通过转「已验证」** |
 | 里程碑 2 | ~~≤1200 / ≤1000~~ **≤1300 / ≤1100（2026-10-16 用户按实测裁定上调；原阈值证伪）** | **1286 / 1094（达标）** | 🔶 子阶段全部完成（2026-10-16）：C4 `7b508b9`（geo-wx）/ C5 `2af5a56`（order-evidence）/ C6 `aadb6ef`（order-poll）/ C7 `a381b0c`（publish-locate，文件2阶段2）；文件1 2b 6 法 + 2c 6 法 + __fmtNoticeTime + 文件2 定位四法 + reverseGeocode **全部逐字搬完（无遗漏可搬项）**；自证：node --check 6 文件全 PASS、devtools preview 编译通过（总包 705.0KB/主包 490.6KB）、npm test 504 pass/0 fail、A/B 437 EQUIVALENT；**能力链路真机回归 2026-10-16 用户决定暂缓**（Android 已确认，iOS 未确认）；行数按用户裁定阈值达标 |
-| 里程碑 3 | ≤1000 / ≤900 | — | ☐ 未开工：文件1 阶段3 四展示组件；文件2 阶段3 草稿组 → draft-store |
+| 里程碑 3 | **order-detail ≤1250（暂定）/ publish ≤1000（暂定）**（2026-10-16 用户裁定：`.js` 阈值按实测重定；原 ≤1000/≤900 因阶段3 以 wxml/wxss 外移为主而证伪）+ **新增 wxml/wxss 减量度量（逐阶段回填）** | 1286 / 1094（起点） | ☐ 未开工：文件1 **A0 timeline 试点 → A1-A3**（共用原语留页面 + apply-shared）；文件2 **B 草稿组 8 法 → utils/draft-store.js**。执行顺序 **先 B → A0 → 再评估 A1-A3**；真机回归暂缓，自证下限=编译 EXIT 0 + 模拟器渲染比对 |
 | 里程碑 4 | ≤850 / ≤600 | — | ☐ 未开工：文件1 阶段4 两交互组件；文件2 阶段4a 场景组 + **4b 授权合一（有限改写，单列审批+真机）** |
 
 ### 8.2 阶段 2 开工前置（四条全部满足才动手，缺一即停）
