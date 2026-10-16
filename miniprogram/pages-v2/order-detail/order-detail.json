@@ -5,6 +5,7 @@
     "order-progress": "/components/order-progress/index",
     "tag-chip": "/components/tag-chip/index",
     "timeline-card": "/components/timeline-card/index",
-    "finance-card": "/components/finance-card/index"
+    "finance-card": "/components/finance-card/index",
+    "dispute-card": "/components/dispute-card/index"
   }
 }

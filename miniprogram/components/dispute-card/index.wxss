@@ -1,0 +1,3 @@
+/* components/dispute-card · 三卡专属样式(拆分阶段3 A3, 2026-10-16): 自 order-detail.wxss L117 逐字迁入 */
+/* 其余 .od__card/.od__card-title/.od__row/.od__label/.od__val/.od__nsitem* 为页面共用原语, 留页面 wxss 经 styleIsolation=apply-shared 生效 */
+.od__val--success { color: var(--func-success); }

@@ -116,36 +116,8 @@
       <view class="od__row" wx:if="{{order.finish_evidence.at_text}}"><text class="od__label">提交时间</text><text class="od__val">{{order.finish_evidence.at_text}}</text></view>
     </view>
 
-    <!-- 投诉详情(2026-10-12): 原因全文/发起方/状态/平台结论/退款, 双方可见; 复用爽约申诉卡的状态色 -->
-    <view class="od__card" wx:if="{{order.complaint}}">
-      <view class="od__card-title">投诉详情</view>
-      <view class="od__nsitem-head">
-        <text class="od__nsitem-role">{{order.complaint.by_text}}发起</text>
-        <text class="od__nsitem-status {{order.complaint.status === 'withdrawn' ? 'is-withdrawn' : (order.complaint.status === 'resolved' ? 'is-rejected' : 'is-pending')}}">{{order.complaint.status_text}}</text>
-      </view>
-      <view class="od__nsitem-reason" wx:if="{{order.complaint.reason}}">{{order.complaint.reason}}</view>
-      <view class="od__row" wx:if="{{order.complaint.at_text}}"><text class="od__label">发起时间</text><text class="od__val">{{order.complaint.at_text}}</text></view>
-      <view class="od__row" wx:if="{{order.complaint.withdrawn_at_text}}"><text class="od__label">撤回时间</text><text class="od__val">{{order.complaint.withdrawn_at_text}}</text></view>
-      <view class="od__row" wx:if="{{order.complaint.result_note}}"><text class="od__label">平台处理</text><text class="od__val">{{order.complaint.result_note}}</text></view>
-      <view class="od__row" wx:if="{{order.complaint.handled_at_text}}"><text class="od__label">处理时间</text><text class="od__val">{{order.complaint.handled_at_text}}</text></view>
-      <view class="od__row" wx:if="{{order.complaint.refund_text}}"><text class="od__label">退款金额</text><text class="od__val">¥{{order.complaint.refund_text}}</text></view>
-    </view>
-
-    <!-- 争议处理中(2026-10-12): 投诉/爽约申诉在途时的正交位(dispute_state=open), 双方可见 -->
-    <view class="od__card" wx:if="{{order.dispute_view}}">
-      <view class="od__card-title">争议处理中</view>
-      <view class="od__row"><text class="od__label">类型</text><text class="od__val">{{order.dispute_view.type_text}}</text></view>
-      <view class="od__row" wx:if="{{order.dispute_view.opened_at_text}}"><text class="od__label">发起时间</text><text class="od__val">{{order.dispute_view.opened_at_text}}</text></view>
-      <view class="od__row"><text class="od__label">说明</text><text class="od__val">争议期间订单暂停推进,平台介入处理</text></view>
-    </view>
-
-    <!-- O7 保险卡 -->
-    <view class="od__card" wx:if="{{order.insurance && order.insurance.policy_no}}">
-      <view class="od__card-title">保险保障</view>
-      <view class="od__row"><text class="od__label">保单号</text><text class="od__val">{{order.insurance.policy_no}}</text></view>
-      <view class="od__row"><text class="od__label">保额</text><text class="od__val">{{insuranceWan}}万元</text></view>
-      <view class="od__row"><text class="od__label">状态</text><text class="od__val od__val--success">{{order.insurance.status === 'insured' ? '生效中' : '待生效'}}</text></view>
-    </view>
+    <!-- 投诉/争议/保险三卡拆分阶段3 A3(2026-10-16): 结构迁 components/dispute-card; 三卡 wx:if 内收组件、页面外层 wx:if 保「三卡全空不实例化」 -->
+    <dispute-card complaint="{{order.complaint}}" dispute-view="{{order.dispute_view}}" insurance="{{order.insurance}}" insurance-wan="{{insuranceWan}}" wx:if="{{order.complaint || order.dispute_view || (order.insurance && order.insurance.policy_no)}}" />
 
     <!-- 资金明细卡 + 费用明细卡拆分阶段3 A1(2026-10-16): 结构迁 components/finance-card; 两卡 wx:if 内收组件、页面外层 wx:if 保「两卡全空不实例化」 -->
     <finance-card money="{{order.money}}" refund-view="{{order.refund_view}}" fees-view="{{order.fees_view}}" wx:if="{{order.money || order.refund_view || order.fees_view}}" />

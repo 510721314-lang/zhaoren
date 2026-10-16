@@ -1,0 +1,33 @@
+<!-- components/dispute-card · 投诉详情 / 争议处理中 / 保险保障 三卡 -->
+<!-- 拆分阶段3 A3(2026-10-16, 用户批准): 自 order-detail.wxml L119-148 逐字迁入; 唯一机械改动 order.complaint→complaint / order.dispute_view→disputeView / order.insurance→insurance(insuranceWan 同名不改) -->
+<!-- 三卡为兄弟根节点, 各自 wx:if 随层次内收; 页面外层 wx:if 保「三卡全空不实例化」 -->
+<!-- 投诉详情(2026-10-12): 原因全文/发起方/状态/平台结论/退款, 双方可见; 复用爽约申诉卡的状态色 -->
+<view class="od__card" wx:if="{{complaint}}">
+  <view class="od__card-title">投诉详情</view>
+  <view class="od__nsitem-head">
+    <text class="od__nsitem-role">{{complaint.by_text}}发起</text>
+    <text class="od__nsitem-status {{complaint.status === 'withdrawn' ? 'is-withdrawn' : (complaint.status === 'resolved' ? 'is-rejected' : 'is-pending')}}">{{complaint.status_text}}</text>
+  </view>
+  <view class="od__nsitem-reason" wx:if="{{complaint.reason}}">{{complaint.reason}}</view>
+  <view class="od__row" wx:if="{{complaint.at_text}}"><text class="od__label">发起时间</text><text class="od__val">{{complaint.at_text}}</text></view>
+  <view class="od__row" wx:if="{{complaint.withdrawn_at_text}}"><text class="od__label">撤回时间</text><text class="od__val">{{complaint.withdrawn_at_text}}</text></view>
+  <view class="od__row" wx:if="{{complaint.result_note}}"><text class="od__label">平台处理</text><text class="od__val">{{complaint.result_note}}</text></view>
+  <view class="od__row" wx:if="{{complaint.handled_at_text}}"><text class="od__label">处理时间</text><text class="od__val">{{complaint.handled_at_text}}</text></view>
+  <view class="od__row" wx:if="{{complaint.refund_text}}"><text class="od__label">退款金额</text><text class="od__val">¥{{complaint.refund_text}}</text></view>
+</view>
+
+<!-- 争议处理中(2026-10-12): 投诉/爽约申诉在途时的正交位(dispute_state=open), 双方可见 -->
+<view class="od__card" wx:if="{{disputeView}}">
+  <view class="od__card-title">争议处理中</view>
+  <view class="od__row"><text class="od__label">类型</text><text class="od__val">{{disputeView.type_text}}</text></view>
+  <view class="od__row" wx:if="{{disputeView.opened_at_text}}"><text class="od__label">发起时间</text><text class="od__val">{{disputeView.opened_at_text}}</text></view>
+  <view class="od__row"><text class="od__label">说明</text><text class="od__val">争议期间订单暂停推进,平台介入处理</text></view>
+</view>
+
+<!-- O7 保险卡 -->
+<view class="od__card" wx:if="{{insurance && insurance.policy_no}}">
+  <view class="od__card-title">保险保障</view>
+  <view class="od__row"><text class="od__label">保单号</text><text class="od__val">{{insurance.policy_no}}</text></view>
+  <view class="od__row"><text class="od__label">保额</text><text class="od__val">{{insuranceWan}}万元</text></view>
+  <view class="od__row"><text class="od__label">状态</text><text class="od__val od__val--success">{{insurance.status === 'insured' ? '生效中' : '待生效'}}</text></view>
+</view>
