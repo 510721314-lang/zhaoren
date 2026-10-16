@@ -7,14 +7,16 @@
 
 ---
 
-## 〇、N1 腾讯地图 key 白名单核查（约 5 分钟，先做）
+## 〇、N1 腾讯地图 key 白名单核查 —— ✅ 已于 2026-10-16 由 AI 代操作完成
 
-- [ ] 打开 https://lbs.qq.com/ 并登录申请 key 的账号 → 控制台 →「应用管理 → 我的应用」
-- [ ] 找到 key 值与 `config/index.js` 中 `TENCENT_MAP_KEY` 一致的那把应用（多把就逐把对值）
-- [ ] 白名单/授权对象含且仅含 AppID **`wxbc4a4afacdf234f5`**（为空 → 当场补；含陌生 AppID → 删掉）
-- [ ] 已开通产品至少含「**WebServiceAPI**」（前端逆地理编码走它）
-- [ ] 「配额管理」确认逆地理编码当日用量未爆、未欠费/停用
-- [ ] 回传：**N1 正常 / N1 异常（具体现象）**
+> 结论：key `zhaoren-mini` WebServiceAPI 原已开通；「微信小程序」授权原**未勾选**（真实缺口）已补，绑定 AppID `wxbc4a4afacdf234f5` 并持久化；逆地理实测 `status=0 Success`。本节无需再操作。
+
+- [x] 打开 https://lbs.qq.com/ 并登录申请 key 的账号 → 控制台 →「应用管理 → 我的应用」
+- [x] 找到 key 值与 `config/index.js` 中 `TENCENT_MAP_KEY` 一致的那把应用（找人帮忙 / zhaoren-mini）
+- [x] 「微信小程序」授权含且仅含 AppID **`wxbc4a4afacdf234f5`**（原为空，已补勾保存）
+- [x] 已开通产品含「**WebServiceAPI**」（原本已勾选）
+- [x] 配额/可用性：用该 key 实测逆地理返回 status=0 Success（控制台配额页 SPA 空白，以功能实测替代）
+- [x] 回传：**N1 正常**
 
 ---
 

@@ -150,7 +150,7 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 1. **真机门禁**：1.6.7（版本号必须递增，P0-2）iOS+Android 回归 #72（F1-F4 防连点 11 弹窗）/#73/#74/#75（发布校验 5 类分支 toast）通过，REGISTRY 四项转「已验证」并给迁入模块补 `// @VERIFIED` 日期；
 2. **setData 路径化先行**：§5.3 两处（order-detail refreshOrder 末尾 14 字段整对象 setData、publish 恢复草稿 `setData({form})`）作为**独立 commit + 专项渲染回归**，禁止与任何搬迁混提交；
 3. **逐函数批准**：被搬 @VERIFIED 函数按规则 §2 逐个书面批准；行号一律按 §5.10 以「函数名+签名」重新 grep，对照基线 `git show e45aa52:<file>`，不沿用本方案旧行号下刀；
-4. **N1 地图 key 先行（0 代码）**：定位/逆地理外移前，先由用户在腾讯位置服务控制台确认 key 的 AppID 白名单（`wxbc4a4afacdf234f5`，以 project.config.json:7 为准）与配额正常；操作清单见 `docs/runbooks/regression-1.6.7-checklist.md` 〇节。
+4. ~~**N1 地图 key 先行（0 代码）**~~ **✅ 已完成（2026-10-16）**：key `zhaoren-mini`（找人帮忙应用）控制台核查——WebServiceAPI 原已开通；**「微信小程序」授权原本未勾选（真实缺口），已补勾并绑定授权 APP ID `wxbc4a4afacdf234f5`**（以 project.config.json:7 为准），保存时通过「多产品共用 key 风险」二次确认，重开编辑框核验已持久化；用该 key 实测逆地理编码返回 `status=0 Success`（北京市东城区正义路）证明服务/配额正常。前置仅剩 1/2/3。
 
 ### 8.3 已知挂起项（不阻塞阶段 2，但永久登记）
 
