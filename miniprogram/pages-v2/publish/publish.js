@@ -13,35 +13,16 @@ const { callCloud } = require('../../utils/cloud.js');
 
 // 拆分阶段1 C3(2026-10-15): 发布校验/工具纯函数(detectSensitive/haversineKm/pad2/fmtDist/isMobilePhone/
 // defaultDisclaimer/buildDraftData/validatePublish)外移 utils/publish-validate.js; 页面 4 个 this.xxx 方法留薄代理,
-// 顶层 4 工具同名解构导入(8 处既有调用零改); reverseGeocode 留本页(方案阶段2定位链路再搬, 需真机)
+// 顶层 4 工具同名解构导入(8 处既有调用零改); 2026-10-16 阶段2: reverseGeocode→utils/geo-wx.js, 定位四法→utils/publish-locate.js(页面留薄代理)
 // 2026-10-16 需求变更: 电话校验取消座机仅留手机号, isPhoneOrLandline→isMobilePhone
 const {
   detectSensitive, haversineKm, pad2, fmtDist,
   isMobilePhone, defaultDisclaimer, buildDraftData, validatePublish
 } = require('../../utils/publish-validate.js');
+// 拆分阶段2(文件2, 2026-10-16): 定位四法外移 utils/publish-locate.js(经用户书面批准逐字搬迁); 页面留同名薄代理
+const { onLocationPick, locatePublish, offerManualPick, onRelocatePublish } = require('../../utils/publish-locate.js');
 
-// 逆地理编码: 经纬度 → 中文可读地址(腾讯地图 WebService; key 空则降级返回坐标字符串)
-function reverseGeocode(lat, lng) {
-  return new Promise((resolve) => {
-    const key = CONFIG.TENCENT_MAP_KEY;
-    if (!key) { resolve(''); return; }
-    wx.request({
-      url: `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${key}`,
-      timeout: 5000,
-      success: (r) => {
-        const data = r.data || {};
-        if (data.status !== 0 || !data.result) {
-          console.warn('[reverseGeocode] bad status:', data.status, data.message);
-          resolve(''); return;
-        }
-        const addr = (data.result.formatted_addresses && data.result.formatted_addresses.recommend)
-          || data.result.address || '';
-        resolve(addr);
-      },
-      fail: (err) => { console.error('[reverseGeocode] wx.request fail:', err && err.errMsg); resolve(''); }
-    });
-  });
-}
+// 2026-10-16 阶段2(文件2): reverseGeocode 已迁 utils/geo-wx.js(与文件1 addrOf 共置, 逐字搬迁)
 
 Page({
   data: {
@@ -780,31 +761,8 @@ Page({
     this.setData({ 'form.location_name': e.detail.value });
   },
   onLocationPick() {
-    wx.chooseLocation({
-      success: (res) => {
-        const pub = this.data.publishLocation;
-        const dist = (pub && Number(res.latitude) && Number(res.longitude))
-          ? haversineKm(pub.latitude, pub.longitude, Number(res.latitude), Number(res.longitude))
-          : 0;
-        this.setData({
-          'form.location_name': res.name || res.address,
-          'form.latitude': res.latitude,
-          'form.longitude': res.longitude,
-          distanceKm: dist,
-          distanceText: fmtDist(dist)
-        });
-      },
-      fail: (err) => {
-        // 用户主动取消不提示
-        if (err && err.errMsg && err.errMsg.indexOf('cancel') >= 0) return;
-        console.error('[onLocationPick] fail:', err);
-        wx.showModal({
-          title: '选点失败',
-          content: (err && err.errMsg) || '请检查系统定位服务是否开启',
-          showCancel: false
-        });
-      }
-    });
+    // 拆分阶段2(文件2, 2026-10-16): 手动选点外移 utils/publish-locate.js(经用户书面批准逐字搬迁); wxml bindtap 调用点不变
+    return onLocationPick(this);
   },
 
   // ── B6 人数/预算 ──
@@ -877,98 +835,17 @@ Page({
 
   // ── 发布地址: 自动记录当前位置(网络定位), 用户不可手改, 仅可点击重新定位 ──
   _locatePublish(showToast) {
-    if (this.data.locating) return;
-    this.setData({ locating: true });
-    wx.getLocation({
-      type: 'gcj02',
-      success: async (res) => {
-        const now = new Date();
-        const pub = {
-          latitude: res.latitude,
-          longitude: res.longitude,
-          name: '当前位置',
-          address: '',  // 逆地理编码回填, key 空则保持空
-          updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-        };
-        const f = this.data.form;
-        const dist = (Number(f.latitude) && Number(f.longitude))
-          ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude))
-          : 0;
-        this.setData({
-          locating: false,
-          publishLocation: pub,
-          distanceKm: dist,
-          distanceText: fmtDist(dist)
-        });
-        // 逆地理编码(异步, 不阻塞页面; key 空则静默跳过)
-        const addr = await reverseGeocode(pub.latitude, pub.longitude);
-        if (addr) {
-          this.setData({ 'publishLocation.address': addr });
-        }
-        if (showToast) wx.showToast({ title: '已重新定位', icon: 'success' });
-      },
-      fail: (err) => {
-        this.setData({ locating: false });
-        const msg = (err && err.errMsg) || 'unknown';
-        if (/cancel/i.test(msg)) return;
-        console.warn('[getLocation fail]', msg);
-        // 权限被拒(含"不再询问") → 引导去设置开启, 恢复后自动重新定位
-        if (/auth|deny|denied/i.test(msg)) {
-          wx.showModal({
-            title: '需要定位权限',
-            content: '定位权限未开启, 是否前往设置开启?',
-            confirmText: '去设置',
-            cancelText: '手动选点',
-            success: (r) => {
-              if (!r.confirm) return this._offerManualPick();
-              wx.openSetting({
-                success: (s) => {
-                  if (s.authSetting && s.authSetting['scope.userLocation']) {
-                    this._locatePublish(true);
-                  } else {
-                    this._offerManualPick();
-                  }
-                },
-                fail: () => this._offerManualPick()
-              });
-            }
-          });
-          return;
-        }
-        // 非权限类失败: 弹窗带出具体 errMsg, 现场可见根因
-        this._offerManualPick(msg);
-      }
-    });
+    // 拆分阶段2(文件2, 2026-10-16): 自动定位外移 utils/publish-locate.js(经用户书面批准逐字搬迁); 薄代理保 this._locatePublish() 调用点不变
+    return locatePublish(this, showToast);
   },
   // 手动选点兜底弹窗(errMsg 附加展示, 便于现场定位根因)
   _offerManualPick(msg) {
-    wx.showModal({
-      title: '定位不可用',
-      content: `定位失败(${msg || 'unknown'}), 是否在地图上手动选点?`,
-      confirmText: '手动选点',
-      cancelText: '跳过',
-      success: (r) => {
-        if (!r.confirm) return;
-        wx.chooseLocation({
-          success: async (loc) => {
-            const now = new Date();
-            const pub = {
-              latitude: loc.latitude, longitude: loc.longitude,
-              name: loc.name || '手动选点', address: loc.address || '',
-              updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-            };
-            const f = this.data.form;
-            const dist = (Number(f.latitude) && Number(f.longitude))
-              ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude)) : 0;
-            this.setData({ publishLocation: pub, distanceKm: dist, distanceText: fmtDist(dist) });
-          },
-          fail: () => wx.showToast({ title: '未选择位置', icon: 'none' })
-        });
-      }
-    });
+    // 拆分阶段2(文件2, 2026-10-16): 外移 utils/publish-locate.js(经用户书面批准逐字搬迁)
+    return offerManualPick(this, msg);
   },
   onRelocatePublish() {
-    this._locatePublish(true);
+    // 拆分阶段2(文件2, 2026-10-16): 外移 utils/publish-locate.js(经用户书面批准逐字搬迁); wxml bindtap 调用点不变
+    return onRelocatePublish(this);
   },
 
   // ── B10 自动保存(云端 upsert 草稿; 静默失败不打扰用户) ──

@@ -71,4 +71,28 @@ function addrOf(lat, lng) {
   });
 }
 
-module.exports = { evalFulfillGeo, collectStartLocation, addrOf };
+// 迁自 publish.js reverseGeocode(顶层函数, 逐字搬迁; 方案 §3 阶段2 与文件1 addrOf 同模块共置, 但**降级行为各自不变**: 本函数无 key 时返回空串 '')
+// 逆地理编码: 经纬度 → 中文可读地址(腾讯地图 WebService; key 空则降级返回坐标字符串)
+function reverseGeocode(lat, lng) {
+  return new Promise((resolve) => {
+    const key = CONFIG.TENCENT_MAP_KEY;
+    if (!key) { resolve(''); return; }
+    wx.request({
+      url: `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${key}`,
+      timeout: 5000,
+      success: (r) => {
+        const data = r.data || {};
+        if (data.status !== 0 || !data.result) {
+          console.warn('[reverseGeocode] bad status:', data.status, data.message);
+          resolve(''); return;
+        }
+        const addr = (data.result.formatted_addresses && data.result.formatted_addresses.recommend)
+          || data.result.address || '';
+        resolve(addr);
+      },
+      fail: (err) => { console.error('[reverseGeocode] wx.request fail:', err && err.errMsg); resolve(''); }
+    });
+  });
+}
+
+module.exports = { evalFulfillGeo, collectStartLocation, addrOf, reverseGeocode };
