@@ -15,6 +15,8 @@ const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, buildOrderView 
 const { evaluatePosition } = require('../../utils/geo-guard.js');
 // 拆分阶段2b(2026-10-16): 定位能力链路(定位判定/定位采集/逆地理)外移 utils/geo-wx.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { evalFulfillGeo, collectStartLocation, addrOf } = require('../../utils/geo-wx.js');
+// 拆分阶段2b(2026-10-16): 证据采集/上传(唯一 uploadFile 点)外移 utils/order-evidence.js(经用户书面批准逐字搬迁); 页面留同名薄代理
+const { collectStartEvidence, uploadStartPhotos, uploadEvidenceOne } = require('../../utils/order-evidence.js');
 
 Page({
   data: {
@@ -698,42 +700,8 @@ Page({
   // 任一步被拒/失败返回 null → 不提交请求(开始履约申请 start_apply / 完毕确认 finish_apply 均凭证前置, 同口径 fail-closed)
   // 水印时间取服务端时间戳(规范 §F3): serverAt 由调用方先经 server_now 取得; 缺失时退回本地时间兜底
   _collectStartEvidence(serverAt, stage) {
-    const that = this;
-    return new Promise((resolve) => {
-      wx.getLocation({
-        type: 'gcj02',
-        isHighAccuracy: true,
-        highAccuracyExpireTime: 4000,
-        success: (loc) => {
-          // L1-1(2026-10-14) 异常隔离: 采集/上传链任何抛错都须收敛为 resolve(null), 不得悬空 Promise 或卡住 loading
-          try {
-            const at = Number(serverAt) || Date.now();
-            that._addrOf(loc.latitude, loc.longitude).then((addr) => {
-              wx.chooseMedia({
-                count: 3,
-                mediaType: ['image'],
-                sizeType: ['compressed'],
-                sourceType: ['camera', 'album'],
-                // _uploadStartPhotos 内部已兜底返回 null; 末尾 .catch 为防御性二次兜底
-                success: (res) => that._uploadStartPhotos(res.tempFiles || [], { loc, addr, at, stage }).then(resolve).catch(() => resolve(null)),
-                fail: () => resolve(null)
-              });
-            }).catch(() => {
-              wx.showToast({ title: '定位解析失败,请重试', icon: 'none' });
-              resolve(null);
-            });
-          } catch (e) {
-            console.error('[start-evidence collect]', e);
-            wx.showToast({ title: '采集失败,请重试', icon: 'none' });
-            resolve(null);
-          }
-        },
-        fail: () => {
-          wx.showToast({ title: '开始履约需授权定位, 请开启后重试', icon: 'none' });
-          resolve(null);
-        }
-      });
-    });
+    // 拆分阶段2b(2026-10-16): 证据采集/上传外移 utils/order-evidence.js(经用户书面批准逐字搬迁); 薄代理保 this._collectStartEvidence() 调用点不变
+    return collectStartEvidence(this, serverAt, stage);
   },
 
   // 逆地理编码取可读地址(腾讯地图 key 来自 CONFIG); 无 key/请求失败回退坐标串
@@ -745,71 +713,14 @@ Page({
   // 逐张叠水印(地址+时间)并上传云存储; 单张水印合成失败降级上传原图(不阻断履约)
   // L1-1/L1-2(2026-10-14): 并行上传 + 单张 15s 超时 + 失败仅重传该张(1 轮) + try/catch 全程兜底(loading 必收)
   async _uploadStartPhotos(files, ctx) {
-    if (!files.length) {
-      wx.showToast({ title: '请至少拍摄1张现场照片', icon: 'none' });
-      return null;
-    }
-    const { watermark } = require('../../utils/photo-watermark.js');
-    const d = new Date(ctx.at);
-    const pad = (n) => String(n).padStart(2, '0');
-    const timeText = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const orderNo = (this.data.order && this.data.order.order_no) || '';
-    wx.showLoading({ title: '处理照片…', mask: true });
-    try {
-      // 先逐张叠水印(可失败降级原图), 再并行上传 —— 缩短总耗时
-      const jobs = [];
-      for (let i = 0; i < Math.min(files.length, 3); i++) {
-        const tmp = files[i].tempFilePath;
-        let out = tmp;
-        try {
-          // 水印内容(规范 §2.4): 角色标识 + 订单号 + 地点 + 服务端时间
-          out = await watermark(tmp, ['耍伴', `订单 ${orderNo}`, ctx.addr, timeText]);
-        } catch (e) { /* 水印合成失败: 降级上传原图, 不阻断 */ }
-        const name = String(tmp).split('/').pop();
-        const ext = String(name.split('.').pop() || 'jpg').toLowerCase();
-        jobs.push({
-          filePath: out,
-          cloudPath: `${ctx.stage || 'start'}-evidence/${this.__orderId}/${ctx.at}-${i}.${ext}`,
-          // 首张默认「周边环境」, 其余默认「局部」(服务端仅做归一化, 不强制比例)
-          kind: i === 0 ? 'scene' : 'closeup',
-          at: ctx.at
-        });
-      }
-      const photos = await Promise.all(jobs.map((j) => this._uploadEvidenceOne(j)));
-      wx.hideLoading();
-      return {
-        photos,
-        partner_location: {
-          latitude: ctx.loc.latitude,
-          longitude: ctx.loc.longitude,
-          accuracy: Math.round(ctx.loc.accuracy || 0),
-          address: ctx.addr,
-          at: ctx.at
-        }
-      };
-    } catch (e) {
-      // L1-1: 上传/合成任何失败都收敛为 null, 保证 loading 关闭并给出可读提示(不再静默卡死)
-      wx.hideLoading();
-      console.error('[start-evidence upload]', e);
-      const raw = (e && (e.errMsg || e.message)) || '';
-      const title = raw ? `上传失败:${raw}` : '照片上传失败,请重试';
-      wx.showToast({ title: title.length > 20 ? title.slice(0, 20) : title, icon: 'none', duration: 3000 });
-      return null;
-    }
+    // 拆分阶段2b(2026-10-16): 逐张叠水印+并行上传外移 utils/order-evidence.js(经用户书面批准逐字搬迁); 薄代理保调用点不变
+    return uploadStartPhotos(this, files, ctx);
   },
 
   // 单张留痕照片上传: 单次 15s 超时; 失败自动重试 1 次(仅该张, 不牵动其它张); 仍失败则 reject
   _uploadEvidenceOne(job) {
-    const attempt = () => new Promise((resolve, reject) => {
-      let settled = false;
-      const timer = setTimeout(() => { if (!settled) { settled = true; reject(new Error('upload_timeout')); } }, 15000);
-      wx.cloud.uploadFile({ cloudPath: job.cloudPath, filePath: job.filePath })
-        .then((up) => { if (settled) return; settled = true; clearTimeout(timer); resolve(up); })
-        .catch((err) => { if (settled) return; settled = true; clearTimeout(timer); reject(err); });
-    });
-    return attempt()
-      .catch(() => attempt())
-      .then((up) => ({ file_id: up.fileID, kind: job.kind, at: job.at }));
+    // 拆分阶段2b(2026-10-16): 单张上传(唯一 wx.cloud.uploadFile 点)外移 utils/order-evidence.js(经用户书面批准逐字搬迁)
+    return uploadEvidenceOne(job);
   },
 
   onSafety() {
