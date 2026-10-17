@@ -247,6 +247,12 @@ exports.main = async (event, context) => {
         if (body.owner_city) seedData.owner_city = body.owner_city;
         if (body.exclude_scenes) seedData.exclude_scenes = body.exclude_scenes;
         if (body.cleanup === true) seedData.cleanup = true;
+        // 2026-10-17: 新增透传 —— 圆心/半径(米)/固定履约日/履约时段/总条数上限
+        if (body.owner_location) seedData.owner_location = body.owner_location;
+        if (body.radius_m) seedData.radius_m = body.radius_m;
+        if (body.force_date) seedData.force_date = body.force_date;
+        if (Array.isArray(body.hours)) seedData.hours = body.hours;
+        if (body.limit) seedData.limit = body.limit;
       }
       if (seedAction === 'fix_sdm_city' && body.city) seedData.city = body.city;
     }

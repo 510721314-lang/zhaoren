@@ -803,12 +803,17 @@ exports.main = async (event) => {
   // ── scene_demands: 生成 N 条匹配中需求(默认排除 W9 宠物陪伴), 供场景测试 ──
   // 用途: 广场/首页/附近按场景浏览与抢单链路测试; 服务时间在未来 1-5 天白天时段(避开夜间红线)
   // 参数: per=每场景(或 per_sub=true 时每子场景)单数; owner_openid=指定发布人(缺省用虚拟账号轮流)
-  // 幂等: client_request_id = sdm-{scene}-{sub}-{i}; cleanup=true 软删全部 sdm-* 需求
+  // 幂等: client_request_id = sdm-{scene}-{sub}-{i}(传 force_date 时追加 -{日期} 后缀); cleanup=true 软删全部 sdm-* 需求
   if (action === 'scene_demands') {
     const now = Date.now();
-    const per = Math.min(10, Math.max(1, Number(event.per) || 3));
+    const per = Math.min(100, Math.max(1, Number(event.per) || 3));   // 2026-10-17: 上限 10→100(造数用; 默认调用不受影响)
     const perSub = event.per_sub === true;   // true: 每个子场景 per 单; false: 每场景 per 单(子场景轮流)
     const owner = event.owner_openid ? String(event.owner_openid) : '';  // 指定则以该用户名义发布需求
+    // 2026-10-17: 可选参数 —— radius_m 半径(米)/force_date 固定履约日(YYYY-MM-DD)/hours 履约时段/limit 总条数上限; 均不传则走原逻辑
+    const radiusM = Math.max(0, Number(event.radius_m) || 0);
+    const forceRaw = event.force_date ? String(event.force_date).trim() : '';
+    const forceDate = /^\d{4}-\d{2}-\d{2}$/.test(forceRaw) ? forceRaw : '';
+    const LIMIT = Math.max(0, Number(event.limit) || 0);
     let exSet = new Set(['W9']);
     if (event.exclude_scenes) {
       const arr = Array.isArray(event.exclude_scenes) ? event.exclude_scenes : String(event.exclude_scenes).split(',');
@@ -832,24 +837,26 @@ exports.main = async (event) => {
     // 幂等: 一次 in 查询已有 crid(需求维度)
     const allCrids = [];
     const slotOf = {};
+    const dateTag = forceDate ? `-${forceDate}` : '';   // 2026-10-17: 指定履约日时 crid 带日期后缀, 便于定向清理且不与既有种子撞号
     for (const s of targets) {
       const subs = (s.options || []).filter((sub) => CONTENT[sub]);
       if (perSub) {
         for (const sub of subs) {
           for (let i = 0; i < per; i++) {
-            const crid = `sdm-${s.code}-${sub}-${i}`;
+            const crid = `sdm-${s.code}-${sub}-${i}${dateTag}`;
             allCrids.push(crid);
             slotOf[crid] = { s, sub, i };
           }
         }
       } else {
         for (let i = 0; i < per; i++) {
-          const crid = `sdm-${s.code}-${i}`;
+          const crid = `sdm-${s.code}-${i}${dateTag}`;
           allCrids.push(crid);
           slotOf[crid] = { s, sub: subs[i % subs.length], i };
         }
       }
     }
+    if (LIMIT && allCrids.length > LIMIT) allCrids.length = LIMIT;   // 2026-10-17: 总条数上限
     let existingSet = new Set();
     try {
       const er = await db.collection('demand').where({ client_request_id: _.in(allCrids), is_deleted: _.neq(true) }).field({ client_request_id: true }).get();
@@ -899,7 +906,10 @@ exports.main = async (event) => {
     const docs = [];
     // 北京时段: 白天 9-18 点(避 00:00-06:00 夜间红线); bjDayStart = 北京今天 00:00 的 UTC 时间戳
     const bjDayStart = Math.floor((now + 8 * 3600000) / 86400000) * 86400000 - 8 * 3600000;
-    const BJ_HOURS = [9, 11, 14, 16, 18];
+    const BJ_HOURS = (Array.isArray(event.hours) && event.hours.length) ? event.hours : [9, 11, 14, 16, 18];
+    // 2026-10-17: force_date 存在时履约日固定为该日(北京时区), 不再用「今天+dayOffset」
+    let forceDayStart = null;
+    if (forceDate) { const [fy, fm, fd] = forceDate.split('-').map(Number); forceDayStart = Date.UTC(fy, fm - 1, fd) - 8 * 3600000; }
     allCrids.forEach((crid) => {
       if (existingSet.has(crid)) return;
       const { s, sub, i } = slotOf[crid];
@@ -908,11 +918,15 @@ exports.main = async (event) => {
       const user = USERS[i % USERS.length];
       const dayOffset = DAY_OFFSETS[i % DAY_OFFSETS.length];   // 未来 1-5 天
       const hourBJ = BJ_HOURS[i % BJ_HOURS.length];             // 北京白天时段 9-18 点
-      const start_time = bjDayStart + dayOffset * 86400000 + hourBJ * 3600000 + 15 * 60000;
+      const start_time = (forceDayStart !== null)
+        ? forceDayStart + BJ_HOURS[i % BJ_HOURS.length] * 3600000 + 15 * 60000
+        : bjDayStart + dayOffset * 86400000 + hourBJ * 3600000 + 15 * 60000;
       const rate_fen = RATE_MIN + Math.floor(Math.random() * (RATE_MAX - RATE_MIN));
-      // owner 位置中心 ±0.01°(约1km)小偏移模拟周边; 无 center 回退成都随机
-      const lat = center ? +(center.lat + (Math.random() - 0.5) * 0.02).toFixed(6) : +(30.58 + Math.random() * 0.16).toFixed(6);
-      const lng = center ? +(center.lng + (Math.random() - 0.5) * 0.02).toFixed(6) : +(104.03 + Math.random() * 0.12).toFixed(6);
+      // owner 位置中心小偏移模拟周边; 2026-10-17: 传 radius_m 时改为「半径米内随机」, 不传维持原 ±0.01°(≈1km); 无 center 回退成都随机
+      const jLat = center ? (radiusM ? radiusM / 111320 : 0.01) : 0;
+      const jLng = center ? (radiusM ? radiusM / (111320 * Math.cos(center.lat * Math.PI / 180)) : 0.01) : 0;
+      const lat = center ? +(center.lat + (Math.random() - 0.5) * 2 * jLat).toFixed(6) : +(30.58 + Math.random() * 0.16).toFixed(6);
+      const lng = center ? +(center.lng + (Math.random() - 0.5) * 2 * jLng).toFixed(6) : +(104.03 + Math.random() * 0.12).toFixed(6);
       const place = center ? center.name : pick(PLACES);
       const city = center ? center.city : '成都';
       const createdAt = now - Math.floor(Math.random() * 6 * 3600000) - 60000;
