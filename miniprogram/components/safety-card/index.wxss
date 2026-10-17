@@ -1,0 +1,31 @@
+/* 安全中心(图5) 独占样式 · 里程碑4·文件1阶段4 ②b(2026-10-17)
+   自 pages-v2/order-detail/order-detail.wxss 原样迁入(逐字未改); 页面原位留注记
+   本卡共用的 .od__card/.od__card-title 为页面原语, 经 styleIsolation=apply-shared 生效 */
+.od__safety-grid { display: flex; gap: 20rpx; }
+.od__sos-btn,
+.od__report-btn {
+  flex: 1;
+  height: 96rpx;
+  line-height: 96rpx;
+  border-radius: var(--r-md);
+  font-size: var(--font-md);
+  font-weight: 600;
+  padding: 0;
+  margin: 0;
+}
+.od__sos-btn { background: var(--func-danger); color: var(--text-invert); }
+.od__report-btn { background: var(--bg-card); color: var(--func-danger); border: 2rpx solid var(--func-danger-light); }
+.od__sos-btn::after,
+.od__report-btn::after { border: none; }
+.od__safety-desc { margin-top: 16rpx; font-size: var(--font-xs); color: var(--text-4); line-height: 1.6; }
+.od__checkin-list { margin-top: 8rpx; border-top: 1rpx solid var(--border-divider); }
+.od__checkin-item {
+  display: flex;
+  align-items: center;
+  height: 72rpx;
+  border-bottom: 1rpx solid var(--border-divider);
+}
+.od__checkin-item:last-child { border-bottom: none; }
+.od__checkin-ic { font-size: var(--font-md); margin-right: 12rpx; }
+.od__checkin-text { flex: 1; font-size: var(--font-sm); color: var(--text-2); }
+.od__checkin-time { font-size: var(--font-sm); color: var(--text-4); }
