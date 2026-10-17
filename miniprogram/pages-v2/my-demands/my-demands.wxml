@@ -20,6 +20,9 @@
         <text class="md__status" style="color:{{item.status_color}};background:{{item.status_bg}};">{{item.status_name}}</text>
       </view>
       <view class="md__card-body">
+        <!-- 需求标题/详细描述(2026-10-17 新增展示): 服务端按 demand.remark 全角｜拆分下发, 与详情页口径一致 -->
+        <view class="md__demand-title" wx:if="{{item.demand_title}}">{{item.demand_title}}</view>
+        <view class="md__demand-desc" wx:if="{{item.demand_desc}}">{{item.demand_desc}}</view>
         <view class="md__row">🕐 {{item.time_str}}<text wx:if="{{item.duration_h}}"> · {{item.duration_h}}小时</text></view>
         <view class="md__row">📄 {{item.demand_no}}</view>
       </view>

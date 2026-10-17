@@ -43,6 +43,22 @@
 .md__card-body {
   margin-top: 16rpx;
 }
+/* 需求标题/详细描述(2026-10-17 新增展示): 沿用详情页口径, 标题一行 + 描述多行可换行 */
+.md__demand-title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.4;
+  margin-bottom: 8rpx;
+}
+.md__demand-desc {
+  margin-bottom: 8rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 .md__row {
   font-size: var(--font-sm);
   color: var(--text-3);
