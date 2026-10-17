@@ -1,0 +1,60 @@
+/* 发布页授权签字弹层组独占样式 · 里程碑4·文件2阶段4b(2026-10-17)
+   自 pages-v2/publish/publish.wxss 原样迁入(逐字未改): 授权书电子文件弹窗组 + 手写签字窗口组
+   本组件仅用上述独占选择器, 无页面共用原语 → 无需页面样式承接(仍按 §5.4 惯例显式 apply-shared)
+   页面留存的 .pub__pet-doc 与 .pub__pet-agree 系列属授权块(留页面)与联系手机号块共用, 不在本组件内 */
+/* W9 授权书电子文件弹窗(bottom-sheet 内容/底部按钮) */
+.pub__pet-sheet-body {
+  height: 52vh;
+  box-sizing: border-box;
+  padding: 8rpx 0 0;
+}
+.pub__pet-sheet-text {
+  font-size: 27rpx;
+  color: var(--text-2);
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+.pub__pet-sheet-foot { display: flex; gap: 20rpx; }
+.pub__sign-btn {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx 0;
+  border-radius: 44rpx;
+  font-size: var(--font-xl);
+}
+.pub__sign-btn--cancel { background: var(--bg-segment); color: var(--text-2); }
+.pub__sign-btn--ok { background: var(--brand-primary); color: var(--text-invert); font-weight: 600; }
+
+/* W9 授权书手写签字窗口(页级浮层; bottom-sheet z-index 999/1000, 此处需更高) */
+.pub__petsign-mask {
+  position: fixed;
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: var(--bg-mask);
+  z-index: 1001;
+  display: flex;
+  align-items: flex-end;
+}
+.pub__petsign-panel {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-card);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  padding: 28rpx 32rpx calc(28rpx + env(safe-area-inset-bottom));
+}
+.pub__petsign-head { display: flex; justify-content: space-between; align-items: center; }
+.pub__petsign-title { font-size: var(--font-xxl); font-weight: 600; color: var(--text-1); }
+.pub__petsign-close { font-size: var(--font-xl); color: var(--text-4); padding: 0 10rpx; }
+.pub__petsign-tip {
+  font-size: 25rpx;
+  color: var(--text-4);
+  line-height: 1.7;
+  margin: 16rpx 0;
+}
+.pub__petsign-clear {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: var(--font-md);
+  color: var(--brand-primary);
+  padding: 8rpx 0;
+}
+.pub__petsign-foot { display: flex; gap: 20rpx; margin-top: 20rpx; }

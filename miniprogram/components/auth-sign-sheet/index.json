@@ -1,0 +1,8 @@
+{
+  "component": true,
+  "styleIsolation": "apply-shared",
+  "usingComponents": {
+    "bottom-sheet": "/components/bottom-sheet/index",
+    "signature-canvas": "/components/signature-canvas/index"
+  }
+}

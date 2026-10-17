@@ -257,61 +257,17 @@
     </view>
   </bottom-sheet>
 
-  <!-- W9 宠物照料授权书 电子文件弹窗(签字确认 / 取消) -->
-  <bottom-sheet visible="{{petAuthSheetVisible}}" title="宠物照料授权书" has-footer="{{true}}" bind:close="onPetAuthCancel">
-    <scroll-view class="pub__pet-sheet-body" scroll-y>
-      <text class="pub__pet-sheet-text">{{petAuthText || '授权书文本加载失败，请检查网络后重试'}}</text>
-    </scroll-view>
-    <view slot="footer" class="pub__pet-sheet-foot">
-      <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onPetAuthCancel">取消</view>
-      <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onPetAuthSign">本人签字确认</view>
-    </view>
-  </bottom-sheet>
+  <!-- 里程碑4·文件2阶段4b(2026-10-17 用户书面批准): W9 宠物照料授权书电子文件弹窗 + 手写签字窗口 → components/auth-sign-sheet(kind=pet)
+       文案仍由页面 _loadPetAuthText(admin-action config_public) 拉取经 doc-text 传入; 勾选态与签字图 uploadFile 仍留页面 -->
+  <auth-sign-sheet id="pet-auth" kind="pet" doc-title="宠物照料授权书" doc-text="{{petAuthText}}"
+    sign-tip="请在下方手写你的姓名；签字后《宠物照料授权书》即时生效，并作为授权凭证留存"
+    bind:check-change="onAuthCheckChange" bind:sign-confirm="onPetSignConfirm" />
 
-  <!-- W9 授权书手写签字窗口(点「本人签字确认」弹出; 页级浮层: canvas 直接挂载在本页, 便于测量与导出) -->
-  <view class="pub__petsign-mask" wx:if="{{petSignSheetVisible}}" catchtouchmove="noop">
-    <view class="pub__petsign-panel">
-      <view class="pub__petsign-head">
-        <text class="pub__petsign-title">本人签字确认</text>
-        <text class="pub__petsign-close" bindtap="onPetSignCancel">✕</text>
-      </view>
-      <view class="pub__petsign-tip">请在下方手写你的姓名；签字后《宠物照料授权书》即时生效，并作为授权凭证留存</view>
-      <signature-canvas id="pet-sign" tip="请在此处手写你的姓名"></signature-canvas>
-      <view class="pub__petsign-clear" bindtap="onPetSignClear">清除重签</view>
-      <view class="pub__petsign-foot">
-        <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onPetSignCancel">取消</view>
-        <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onPetSignConfirm">{{petSignSubmitting ? '提交中…' : '完成签署'}}</view>
-      </view>
-    </view>
-  </view>
-
-  <!-- 委托授权书(需求②代他人发布) 电子文件弹窗 -->
-  <bottom-sheet visible="{{proxySheetVisible}}" title="委托授权书" has-footer="{{true}}" bind:close="onProxyAuthCancel">
-    <scroll-view class="pub__pet-sheet-body" scroll-y>
-      <text class="pub__pet-sheet-text">{{proxyText || '授权书文本加载失败，请检查网络后重试'}}</text>
-    </scroll-view>
-    <view slot="footer" class="pub__pet-sheet-foot">
-      <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onProxyAuthCancel">取消</view>
-      <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onProxyAuthSign">本人签字确认</view>
-    </view>
-  </bottom-sheet>
-
-  <!-- 委托授权书(需求②代他人发布) 手写签字窗口 -->
-  <view class="pub__petsign-mask" wx:if="{{proxySignSheetVisible}}" catchtouchmove="noop">
-    <view class="pub__petsign-panel">
-      <view class="pub__petsign-head">
-        <text class="pub__petsign-title">本人签字确认</text>
-        <text class="pub__petsign-close" bindtap="onProxySignCancel">✕</text>
-      </view>
-      <view class="pub__petsign-tip">请在下方手写你的姓名；签字后《委托授权书》即时生效，并作为委托凭证留存</view>
-      <signature-canvas id="proxy-sign" tip="请在此处手写你的姓名"></signature-canvas>
-      <view class="pub__petsign-clear" bindtap="onProxySignClear">清除重签</view>
-      <view class="pub__petsign-foot">
-        <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onProxySignCancel">取消</view>
-        <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onProxySignConfirm">{{proxySignSubmitting ? '提交中…' : '完成签署'}}</view>
-      </view>
-    </view>
-  </view>
+  <!-- 里程碑4·文件2阶段4b: 委托授权书电子文件弹窗 + 手写签字窗口 → components/auth-sign-sheet(kind=proxy)
+       文案仍由页面 _loadProxyAuthText(本地硬编码) 经 doc-text 传入; 勾选态与签字图 uploadFile 仍留页面 -->
+  <auth-sign-sheet id="proxy-auth" kind="proxy" doc-title="委托授权书" doc-text="{{proxyText}}"
+    sign-tip="请在下方手写你的姓名；签字后《委托授权书》即时生效，并作为委托凭证留存"
+    bind:check-change="onAuthCheckChange" bind:sign-confirm="onProxySignConfirm" />
 
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

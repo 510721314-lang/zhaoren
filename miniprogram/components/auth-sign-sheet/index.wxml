@@ -1,0 +1,31 @@
+<!-- 里程碑4·文件2阶段4b(2026-10-17 用户书面批准): 自 pages-v2/publish/publish.wxml 逐字迁入两套授权弹层(宠物 W9 / 委托代发), 合一
+     机械改动仅六类: ①petAuthSheetVisible/proxySheetVisible → data.sheetVisible; ②petSignSheetVisible/proxySignSheetVisible → data.signVisible;
+     ③petSignSubmitting/proxySignSubmitting → data.submitting; ④petAuthText/proxyText → property docText;
+     ⑤bindtap/bind:close 客户端方法名 → 本组件方法; ⑥signature-canvas 两实例 id 「pet-sign」「proxy-sign」→ 统一 id="sig"(组件实例作用域)
+     文案来源/勾选态/签字图 uploadFile 一律留页面, 本组件只承载 fixed 弹层与 canvas -->
+<bottom-sheet visible="{{sheetVisible}}" title="{{docTitle}}" has-footer="{{true}}" bind:close="onDocCancel">
+  <scroll-view class="pub__pet-sheet-body" scroll-y>
+    <text class="pub__pet-sheet-text">{{docText || '授权书文本加载失败，请检查网络后重试'}}</text>
+  </scroll-view>
+  <view slot="footer" class="pub__pet-sheet-foot">
+    <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onDocCancel">取消</view>
+    <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onDocSign">本人签字确认</view>
+  </view>
+</bottom-sheet>
+
+<!-- 授权书手写签字窗口(页级浮层: canvas 直接挂载, 便于测量与导出) -->
+<view class="pub__petsign-mask" wx:if="{{signVisible}}" catchtouchmove="noop">
+  <view class="pub__petsign-panel">
+    <view class="pub__petsign-head">
+      <text class="pub__petsign-title">本人签字确认</text>
+      <text class="pub__petsign-close" bindtap="onSignCancel">✕</text>
+    </view>
+    <view class="pub__petsign-tip">{{signTip}}</view>
+    <signature-canvas id="sig" tip="请在此处手写你的姓名"></signature-canvas>
+    <view class="pub__petsign-clear" bindtap="onSignClear">清除重签</view>
+    <view class="pub__petsign-foot">
+      <view class="pub__sign-btn pub__sign-btn--cancel" bindtap="onSignCancel">取消</view>
+      <view class="pub__sign-btn pub__sign-btn--ok" bindtap="onSignConfirm">{{submitting ? '提交中…' : '完成签署'}}</view>
+    </view>
+  </view>
+</view>

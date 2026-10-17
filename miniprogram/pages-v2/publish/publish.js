@@ -73,11 +73,7 @@ Page({
     accountPhoneMasked: '',       // 账户已绑手机号(脱敏, 仅展示)
     // 代发授权手写签字(强制留存, 复用 W9 签字范式; kind=proxy_authorization)
     proxyAuthChecked: false,
-    proxySheetVisible: false,     // 委托授权书弹窗
     proxyText: '',
-    proxySheetFromCheck: false,
-    proxySignSheetVisible: false, // 手写签字窗口
-    proxySignSubmitting: false,
     proxyAuthSignFileId: '',      // 签字图 cloud fileID(发布时上报服务端复算 SHA-256)
     titleCount: 0,
     descCount: 0,
@@ -85,12 +81,10 @@ Page({
     // B3 免责声明(选场景时 wx.showModal 签署后置 true; 草稿恢复场景 onPublish 会补弹)
     disclaimerChecked: false,
     // B3.2 W9 宠物照料授权书(电子确认; PRD R9: 无凭证视为未授权, 不得履约)
+    // 里程碑4·文件2阶段4b(2026-10-17): 两套授权弹层的 visible/fromCheck/submitting 已移入 components/auth-sign-sheet 内部 data;
+    //   此处仅保留业务态(勾选态/文案/签字图 fileID), 命名不变(onPublish/validatePublish/草稿回填零改)
     petAuthChecked: false,
-    petAuthSheetVisible: false,     // 授权书电子文件弹窗
-    petAuthSheetFromCheck: false,   // 由勾选动作进入(取消时回到未签署初始态)
     petAuthText: '',
-    petSignSheetVisible: false,     // 手写签字窗口(点「本人签字确认」弹出)
-    petSignSubmitting: false,
     petAuthSignFileId: '',          // 签名图 cloud fileID(发布时上报服务端复算 SHA-256 留证)
     // B3.1 服务内容选择窗(免责声明通过后自动弹出)
     optionSheetVisible: false,
@@ -411,78 +405,43 @@ Page({
       this.setData({ petAuthText: CONFIG.LEGAL_FALLBACK.petAuthorization });
     });
   },
-  // 点击《宠物照料授权书》标题: 仅查看(取消不改变已签状态)
+  // 点击《宠物照料授权书》标题: 仅查看(取消不改变已签状态); 弹层已迁 components/auth-sign-sheet(阶段4b)
   openPetAuthSheet() {
-    this.setData({ petAuthSheetVisible: true, petAuthSheetFromCheck: false });
     if (!this.data.petAuthText) this._loadPetAuthText();
+    this.selectComponent('#pet-auth').openDoc({ fromCheck: false });
   },
-  // 勾选 → 弹出授权书电子文件; 需「本人签字确认」后才生效
+  // 勾选 → 弹出授权书电子文件; 需「本人签字确认」后才生效(勾选态留页面, 弹层在组件内)
   onPetAuthChange(e) {
     const on = (e.detail.value || []).length > 0;
     if (!on) { this.setData({ petAuthChecked: false }); return; }   // 直接取消勾选(无弹窗)
-    this.setData({ petAuthChecked: true, petAuthSheetVisible: true, petAuthSheetFromCheck: true });
+    this.setData({ petAuthChecked: true });
     if (!this.data.petAuthText) this._loadPetAuthText();
+    this.selectComponent('#pet-auth').openDoc({ fromCheck: true });
   },
-  // 取消: 由勾选进入 → 回到未签署初始态(返回发布界面); 查看进入 → 仅关闭
-  onPetAuthCancel() {
-    const patch = { petAuthSheetVisible: false };
-    if (this.data.petAuthSheetFromCheck) patch.petAuthChecked = false;
-    this.setData(patch);
-  },
-  // 「本人签字确认」→ 弹出手写签字窗口(签字完成才生效)
-  onPetAuthSign() {
-    this.setData({ petAuthSheetVisible: false, petSignSheetVisible: true, petSignSubmitting: false });
-  },
-  // 签字窗口取消: 由勾选进入 → 回到未签署初始态(返回发布界面); 由「已签署·点击查看」进入 → 保持已签
-  onPetSignCancel() {
-    const patch = { petSignSheetVisible: false, petSignSubmitting: false };
-    if (this.data.petAuthSheetFromCheck) patch.petAuthChecked = false;
-    this.setData(patch);
-  },
-  onPetSignClear() {
-    const sig = this.selectComponent('#pet-sign');
-    if (sig) sig.clear();
-  },
-  // 完成签署: 导出签名图 → 上传云存储 → 返回发布界面并置已签(签名图随发布上报服务端复算 SHA-256 留证)
-  onPetSignConfirm() {
-    if (this.data.petSignSubmitting) return;
-    const sig = this.selectComponent('#pet-sign');
-    if (!sig) {
-      wx.showToast({ title: '签字板未就绪,请重试', icon: 'none' });
-      return;
-    }
-    this.setData({ petSignSubmitting: true });
+  // 完成签署(组件上抛临时路径): 上传云存储 → 返回发布界面并置已签(签名图随发布上报服务端复算 SHA-256 留证; uploadFile 留页面 §5.5)
+  onPetSignConfirm(e) {
+    const tempFilePath = e && e.detail && e.detail.tempFilePath;
+    if (!tempFilePath) return;
+    const sigSheet = this.selectComponent('#pet-auth');
     const prevFileId = this.data.petAuthSignFileId;
-    sig.exportPNG().then((tempPath) => {
-      const rand = Math.random().toString(36).slice(2, 8);
-      const cloudPath = 'sign_evidence/pet_auth_' + Date.now() + '_' + rand + '.png';
-      wx.cloud.uploadFile({
-        cloudPath,
-        filePath: tempPath,
-        success: (up) => {
-          // 换签时清掉上一张签名图, 避免孤儿文件
-          if (prevFileId && prevFileId !== up.fileID) {
-            try { wx.cloud.deleteFile({ fileList: [prevFileId] }); } catch (e) {}
-          }
-          this.setData({
-            petSignSheetVisible: false, petSignSubmitting: false,
-            petAuthChecked: true, petAuthSheetFromCheck: false,
-            petAuthSignFileId: up.fileID
-          });
-          wx.showToast({ title: '已签字确认', icon: 'success' });
-        },
-        fail: () => {
-          this.setData({ petSignSubmitting: false });
-          wx.showToast({ title: '签名上传失败,请重试', icon: 'none' });
+    const rand = Math.random().toString(36).slice(2, 8);
+    const cloudPath = 'sign_evidence/pet_auth_' + Date.now() + '_' + rand + '.png';
+    wx.cloud.uploadFile({
+      cloudPath,
+      filePath: tempFilePath,
+      success: (up) => {
+        // 换签时清掉上一张签名图, 避免孤儿文件
+        if (prevFileId && prevFileId !== up.fileID) {
+          try { wx.cloud.deleteFile({ fileList: [prevFileId] }); } catch (err) {}
         }
-      });
-    }).catch((e) => {
-      this.setData({ petSignSubmitting: false });
-      if (e && e.message === 'empty_signature') {
-        wx.showToast({ title: '请先手写签名', icon: 'none' });
-        return;
+        if (sigSheet) sigSheet.finishSign();
+        this.setData({ petAuthChecked: true, petAuthSignFileId: up.fileID });
+        wx.showToast({ title: '已签字确认', icon: 'success' });
+      },
+      fail: () => {
+        if (sigSheet) sigSheet.failSign();
+        wx.showToast({ title: '签名上传失败,请重试', icon: 'none' });
       }
-      wx.showToast({ title: '签字失败,请重试', icon: 'none' });
     });
   },
 
@@ -521,59 +480,49 @@ Page({
         + '四、本人同意：本确认及手写签字将作为平台内「委托授权」凭证留存，用于履约与纠纷举证。'
     });
   },
-  openProxySheet() { this.setData({ proxySheetVisible: true, proxySheetFromCheck: false, proxyText: this.data.proxyText || '' }); if (!this.data.proxyText) this._loadProxyAuthText(); },
+  // 点击《委托授权书》标题: 仅查看(取消不改变已签状态); 弹层已迁 components/auth-sign-sheet(阶段4b)
+  openProxySheet() {
+    if (!this.data.proxyText) this._loadProxyAuthText();
+    this.selectComponent('#proxy-auth').openDoc({ fromCheck: false });
+  },
+  // 勾选 → 弹出委托授权书电子文件; 需手写签字确认后才生效(勾选态留页面, 弹层在组件内)
   onProxyAuthChange(e) {
     const on = (e.detail.value || []).length > 0;
     if (!on) { this.setData({ proxyAuthChecked: false }); return; }
-    this.setData({ proxyAuthChecked: true, proxySheetVisible: true, proxySheetFromCheck: true });
+    this.setData({ proxyAuthChecked: true });
     if (!this.data.proxyText) this._loadProxyAuthText();
+    this.selectComponent('#proxy-auth').openDoc({ fromCheck: true });
   },
-  onProxyAuthCancel() {
-    const patch = { proxySheetVisible: false };
-    if (this.data.proxySheetFromCheck) patch.proxyAuthChecked = false;
-    this.setData(patch);
-  },
-  onProxyAuthSign() { this.setData({ proxySheetVisible: false, proxySignSheetVisible: true, proxySignSubmitting: false }); },
-  onProxySignCancel() {
-    const patch = { proxySignSheetVisible: false, proxySignSubmitting: false };
-    if (this.data.proxySheetFromCheck) patch.proxyAuthChecked = false;
-    this.setData(patch);
-  },
-  onProxySignClear() {
-    const sig = this.selectComponent('#proxy-sign');
-    if (sig) sig.clear();
-  },
-  // 完成代发授权签字: 导出签名图 → 传云存储 sign_evidence/proxy_auth_*.png → 置已签
-  onProxySignConfirm() {
-    if (this.data.proxySignSubmitting) return;
-    const sig = this.selectComponent('#proxy-sign');
-    if (!sig) { wx.showToast({ title: '签字板未就绪,请重试', icon: 'none' }); return; }
-    this.setData({ proxySignSubmitting: true });
+  // 完成代发授权签字(组件上抛临时路径): 传云存储 sign_evidence/proxy_auth_*.png → 置已签; uploadFile 留页面(§5.5)
+  onProxySignConfirm(e) {
+    const tempFilePath = e && e.detail && e.detail.tempFilePath;
+    if (!tempFilePath) return;
+    const sigSheet = this.selectComponent('#proxy-auth');
     const prevFileId = this.data.proxyAuthSignFileId;
-    sig.exportPNG().then((tempPath) => {
-      const rand = Math.random().toString(36).slice(2, 8);
-      const cloudPath = 'sign_evidence/proxy_auth_' + Date.now() + '_' + rand + '.png';
-      wx.cloud.uploadFile({
-        cloudPath,
-        filePath: tempPath,
-        success: (up) => {
-          if (prevFileId && prevFileId !== up.fileID) {
-            try { wx.cloud.deleteFile({ fileList: [prevFileId] }); } catch (e) {}
-          }
-          this.setData({
-            proxySignSheetVisible: false, proxySignSubmitting: false,
-            proxyAuthChecked: true, proxySheetFromCheck: false,
-            proxyAuthSignFileId: up.fileID
-          });
-          wx.showToast({ title: '已签字确认', icon: 'success' });
-        },
-        fail: () => { this.setData({ proxySignSubmitting: false }); wx.showToast({ title: '签名上传失败,请重试', icon: 'none' }); }
-      });
-    }).catch((e) => {
-      this.setData({ proxySignSubmitting: false });
-      if (e && e.message === 'empty_signature') { wx.showToast({ title: '请先手写签名', icon: 'none' }); return; }
-      wx.showToast({ title: '签字失败,请重试', icon: 'none' });
+    const rand = Math.random().toString(36).slice(2, 8);
+    const cloudPath = 'sign_evidence/proxy_auth_' + Date.now() + '_' + rand + '.png';
+    wx.cloud.uploadFile({
+      cloudPath,
+      filePath: tempFilePath,
+      success: (up) => {
+        if (prevFileId && prevFileId !== up.fileID) {
+          try { wx.cloud.deleteFile({ fileList: [prevFileId] }); } catch (err) {}
+        }
+        if (sigSheet) sigSheet.finishSign();
+        this.setData({ proxyAuthChecked: true, proxyAuthSignFileId: up.fileID });
+        wx.showToast({ title: '已签字确认', icon: 'success' });
+      },
+      fail: () => {
+        if (sigSheet) sigSheet.failSign();
+        wx.showToast({ title: '签名上传失败,请重试', icon: 'none' });
+      }
     });
+  },
+  // 弹层取消回退(组件上抛): 由勾选进入的取消 → 勾选回到未签署(阶段4b)
+  onAuthCheckChange(e) {
+    if (!(e && e.detail && e.detail.on === false)) return;
+    if (e.detail.kind === 'proxy') this.setData({ proxyAuthChecked: false });
+    else this.setData({ petAuthChecked: false });
   },
 
   setScene(e) {
