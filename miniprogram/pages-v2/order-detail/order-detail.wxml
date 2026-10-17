@@ -109,38 +109,12 @@
     <!-- 资金明细卡 + 费用明细卡拆分阶段3 A1(2026-10-16): 结构迁 components/finance-card; 两卡 wx:if 内收组件、页面外层 wx:if 保「两卡全空不实例化」 -->
     <finance-card money="{{order.money}}" refund-view="{{order.refund_view}}" fees-view="{{order.fees_view}}" wx:if="{{order.money || order.refund_view || order.fees_view}}" />
 
-    <!-- O3.5 爽约申诉(第三批 3B): 处理中/已裁定 + 被诉方举证入口 -->
-    <view class="od__card" wx:if="{{noShowReports.length > 0}}">
-      <view class="od__card-title">爽约申诉</view>
-      <view class="od__nsitem" wx:for="{{noShowReports}}" wx:key="report_id">
-        <view class="od__nsitem-head">
-          <text class="od__nsitem-role">{{item.my_role === 'reporter' ? '你提交的申诉' : '对方提交的申诉'}}</text>
-          <text class="od__nsitem-status {{item.status === 'withdrawn' ? 'is-withdrawn' : (item.status === 'decided' ? (item.verdict === 'upheld' ? 'is-upheld' : 'is-rejected') : 'is-pending')}}">{{item.status_text}}</text>
-        </view>
-        <view class="od__nsitem-reason" wx:if="{{item.reason_display}}">{{item.reason_display}}</view>
-        <!-- 申诉方证据(2026-10-12): fileID 直接渲染, 点击预览 -->
-        <view class="od__evi" wx:if="{{item.evidence.length > 0}}">
-          <text class="od__evi-label">申诉证据</text>
-          <view class="od__evi-list">
-            <image class="od__evi-img" wx:for="{{item.evidence}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" data-src="{{img}}" data-list="{{item.evidence}}" bindtap="onPreviewEvidence" />
-          </view>
-        </view>
-        <!-- 被诉方举证(含时间) -->
-        <view class="od__evi" wx:if="{{item.defense_evidence.length > 0}}">
-          <text class="od__evi-label">对方举证{{item.defense_at_text ? ' · ' + item.defense_at_text : ''}}</text>
-          <view class="od__evi-list">
-            <image class="od__evi-img" wx:for="{{item.defense_evidence}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" data-src="{{img}}" data-list="{{item.defense_evidence}}" bindtap="onPreviewEvidence" />
-          </view>
-        </view>
-        <view class="od__nsitem-sub" wx:if="{{item.status !== 'decided' && item.status !== 'withdrawn'}}">举证截止：{{item.deadline_text}}{{item.defense_overdue ? '（已逾期，平台可直接裁定）' : ''}}</view>
-        <view class="od__nsitem-sub" wx:if="{{item.defense_reason}}">对方说明：{{item.defense_reason}}</view>
-        <view class="od__nsitem-sub" wx:if="{{item.decided_at_text}}">裁定时间：{{item.decided_at_text}}</view>
-        <view class="od__nsitem-sub" wx:if="{{item.decided_reason}}">平台裁定：{{item.decided_reason}}</view>
-        <view class="od__nsitem-sub" wx:if="{{item.withdrawn_at_text}}">撤回时间：{{item.withdrawn_at_text}}</view>
-        <button class="od__btn od__btn--primary" wx:if="{{item.can_defense}}" data-id="{{item.report_id}}" bindtap="onNoShowDefense" hover-class="btn-press">提交举证</button>
-        <button class="od__btn od__btn--ghost" wx:if="{{item.can_withdraw}}" data-id="{{item.report_id}}" bindtap="onNoShowWithdraw" hover-class="btn-press">撤回申诉</button>
-      </view>
-    </view>
+    <!-- 里程碑4·文件1阶段4 ②a(2026-10-17, 用户确认推进): 爽约申诉卡结构自本文件逐字迁 components/no-show-card
+         (机械改动仅三处: ①noShowReports → 组件 property reports; ②2 处 bindtap="onPreviewEvidence" → 组件 triggerEvent('preview'); ③onNoShowDefense/onNoShowWithdraw → triggerEvent('defense'/'withdraw'), 页面 handler 已兼容 e.detail)
+         .od__nsitem* 为 dispute-card 与本卡共用、.od__evi* 被 留痕/本卡/里程碑证据 3 处共用、.od__card/.od__btn* 为多卡共用原语
+         → 一律留页面 wxss 经 styleIsolation=apply-shared 生效(本组件无专属样式, 不建 index.wxss); 页面外层 wx:if 保「无申诉记录不实例化」
+         「报告爽约」(onNoShowReport) 按钮在操作区 S2 块内, 不属本卡, 未迁 -->
+    <no-show-card reports="{{noShowReports}}" wx:if="{{noShowReports.length > 0}}" bindpreview="onPreviewEvidence" binddefense="onNoShowDefense" bindwithdraw="onNoShowWithdraw" />
 
     <!-- O3 操作区 -->
     <view class="od__card">

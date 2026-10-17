@@ -257,9 +257,9 @@ Page({
     wx.previewImage({ current: cur, urls: (Array.isArray(list) && list.length) ? list : [cur] });
   },
 
-  // 被诉方举证(跳举证页)
+  // 被诉方举证(跳举证页) + 里程碑4·文件1阶段4 ②a(2026-10-17): 兼容 components/no-show-card 的 triggerEvent('defense')(e.detail) 与页面内 data-id
   onNoShowDefense(e) {
-    const reportId = e.currentTarget.dataset.id || '';
+    const reportId = ((e && e.detail && e.detail.id) || (e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id)) || '';
     if (!reportId) return;
     wx.navigateTo({
       url: `/pages-v2/pkg-low/no-show-report/no-show-report?mode=defense&reportId=${reportId}&orderId=${this.__orderId}`,
@@ -268,8 +268,9 @@ Page({
   },
 
   // 撤回申诉(2026-10-10): 入口仅申诉人、裁定前可见(can_withdraw 由服务端计算); 二次确认后调云端(服务端二次校验)
+  // 里程碑4·文件1阶段4 ②a(2026-10-17): 兼容 components/no-show-card 的 triggerEvent('withdraw')(e.detail) 与页面内 data-id
   onNoShowWithdraw(e) {
-    const reportId = e.currentTarget.dataset.id || '';
+    const reportId = ((e && e.detail && e.detail.id) || (e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id)) || '';
     if (!reportId) return;
     wx.showModal({
       title: '撤回申诉',

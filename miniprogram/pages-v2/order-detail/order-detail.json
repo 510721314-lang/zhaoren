@@ -7,6 +7,7 @@
     "timeline-card": "/components/timeline-card/index",
     "finance-card": "/components/finance-card/index",
     "dispute-card": "/components/dispute-card/index",
-    "evidence-card": "/components/evidence-card/index"
+    "evidence-card": "/components/evidence-card/index",
+    "no-show-card": "/components/no-show-card/index"
   }
 }

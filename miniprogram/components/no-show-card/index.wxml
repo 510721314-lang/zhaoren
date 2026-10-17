@@ -1,0 +1,34 @@
+<!-- 里程碑4·文件1阶段4 ②a(2026-10-17, 用户确认推进): 自 pages-v2/order-detail/order-detail.wxml 逐字迁入
+     机械改动仅三处: ①noShowReports → 组件 property reports; ②2 处 bindtap="onPreviewEvidence" → bindtap="onPreview"(triggerEvent); ③onNoShowDefense/onNoShowWithdraw → onDefense/onWithdraw(triggerEvent)
+     卡体 wx:if(noShowReports.length>0) 由页面外层 wx:if 承担, 保「无申诉记录不实例化」 -->
+<view class="od__card">
+  <view class="od__card-title">爽约申诉</view>
+  <view class="od__nsitem" wx:for="{{reports}}" wx:key="report_id">
+    <view class="od__nsitem-head">
+      <text class="od__nsitem-role">{{item.my_role === 'reporter' ? '你提交的申诉' : '对方提交的申诉'}}</text>
+      <text class="od__nsitem-status {{item.status === 'withdrawn' ? 'is-withdrawn' : (item.status === 'decided' ? (item.verdict === 'upheld' ? 'is-upheld' : 'is-rejected') : 'is-pending')}}">{{item.status_text}}</text>
+    </view>
+    <view class="od__nsitem-reason" wx:if="{{item.reason_display}}">{{item.reason_display}}</view>
+    <!-- 申诉方证据(2026-10-12): fileID 直接渲染, 点击预览 -->
+    <view class="od__evi" wx:if="{{item.evidence.length > 0}}">
+      <text class="od__evi-label">申诉证据</text>
+      <view class="od__evi-list">
+        <image class="od__evi-img" wx:for="{{item.evidence}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" data-src="{{img}}" data-list="{{item.evidence}}" bindtap="onPreview" />
+      </view>
+    </view>
+    <!-- 被诉方举证(含时间) -->
+    <view class="od__evi" wx:if="{{item.defense_evidence.length > 0}}">
+      <text class="od__evi-label">对方举证{{item.defense_at_text ? ' · ' + item.defense_at_text : ''}}</text>
+      <view class="od__evi-list">
+        <image class="od__evi-img" wx:for="{{item.defense_evidence}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" data-src="{{img}}" data-list="{{item.defense_evidence}}" bindtap="onPreview" />
+      </view>
+    </view>
+    <view class="od__nsitem-sub" wx:if="{{item.status !== 'decided' && item.status !== 'withdrawn'}}">举证截止：{{item.deadline_text}}{{item.defense_overdue ? '（已逾期，平台可直接裁定）' : ''}}</view>
+    <view class="od__nsitem-sub" wx:if="{{item.defense_reason}}">对方说明：{{item.defense_reason}}</view>
+    <view class="od__nsitem-sub" wx:if="{{item.decided_at_text}}">裁定时间：{{item.decided_at_text}}</view>
+    <view class="od__nsitem-sub" wx:if="{{item.decided_reason}}">平台裁定：{{item.decided_reason}}</view>
+    <view class="od__nsitem-sub" wx:if="{{item.withdrawn_at_text}}">撤回时间：{{item.withdrawn_at_text}}</view>
+    <button class="od__btn od__btn--primary" wx:if="{{item.can_defense}}" data-id="{{item.report_id}}" bindtap="onDefense" hover-class="btn-press">提交举证</button>
+    <button class="od__btn od__btn--ghost" wx:if="{{item.can_withdraw}}" data-id="{{item.report_id}}" bindtap="onWithdraw" hover-class="btn-press">撤回申诉</button>
+  </view>
+</view>
