@@ -113,4 +113,32 @@ test('publish 代发座机号 → publish_proxy_phone（2026-10-16 取消座机�
   assert.strictEqual(r.msg, '请填写正确的手机号');
 });
 
+// my_demands 按 demand.remark 全角｜拆出需求标题/详细描述(2026-10-17 新增展示)
+test('my_demands: 拆出 demand_title/demand_desc', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    demand: { [DID]: { _id: DID, creator_openid: USER, is_deleted: false, status: 'matching', demand_no: 'DR1', remark: '帮我搬家｜三件大家电，三楼无电梯' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'my_demands', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const d = (r.data.list || [])[0];
+  assert.ok(d, '应返回需求');
+  assert.strictEqual(d.demand_title, '帮我搬家');
+  assert.strictEqual(d.demand_desc, '三件大家电，三楼无电梯');
+  assert.strictEqual(d.demand_no, 'DR1', '既有字段不受影响');
+});
+
+// 无全角｜时: 标题兜底 content_options[0]、描述为空(2026-10-17 新增展示)
+test('my_demands: 无｜时标题兜底 content_options[0]', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    demand: { [DID]: { _id: DID, creator_openid: USER, is_deleted: false, status: 'matching', content_options: ['陪同挂号'], remark: '' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'my_demands', mock_openid: USER }, {});
+  const d = (r.data.list || [])[0];
+  assert.ok(d, '应返回需求');
+  assert.strictEqual(d.demand_title, '陪同挂号');
+  assert.strictEqual(d.demand_desc, '');
+});
+
 test.after(() => { Module._load = origLoad; });

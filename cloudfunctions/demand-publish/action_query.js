@@ -10,7 +10,11 @@ async function my_demands_action(ctx) {
           creator_openid: openid, is_deleted: false
         }).orderBy('created_at', 'desc').limit(50).get();
 
-        const list = (r.data || []).map(d => ({
+        const list = (r.data || []).map(d => {
+          // 需求标题/详细描述(2026-10-17 新增展示): 复用详情页口径 —— demand.remark = `标题｜详细描述`(全角｜, 发布时写入)
+          // 无｜则仅标题; 标题兜底 content_options[0]; 两值空则前端 wx:if 自然隐藏(注意: demand 文档自身即含 remark, 无需反查)
+          const dp = String(d.remark || '').split('｜');
+          return {
           _id: d._id, demand_no: d.demand_no, scene: d.scene,
           scene_name: SCENE_NAME[d.scene] || d.scene,
           location: (d.location && { name: d.location.name, address: d.location.address }) || null,
@@ -19,8 +23,11 @@ async function my_demands_action(ctx) {
           match_candidates: (d.match_candidates || []).slice(0, 5),
           invited: d.invited || [],
           broadcast: !!d.broadcast,
-          created_at: d.created_at
-        }));
+          created_at: d.created_at,
+          demand_title: dp[0] ? dp[0].trim() : ((d.content_options && d.content_options[0]) || ''),
+          demand_desc: dp[1] ? dp[1].trim() : ''
+          };
+        });
         return { ok: true, data: { list } };
       } catch (e) {
         return { ok: false, code: 'my_demands_fail', msg: '查询失败' };
