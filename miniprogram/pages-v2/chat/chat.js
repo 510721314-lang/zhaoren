@@ -127,6 +127,7 @@ Page({
           if (msgs.ok) this.renderMessages(msgs.data.messages);
           this.scrollBottom();
           this.__maybeGuideConfirm(conf, msgs);
+          this.__loadCommTmpl();
         });
       });
     }).catch(() => {
@@ -168,6 +169,31 @@ Page({
   },
 
   reload() { this.fetchData(); },
+
+  // 2026-10-17: 耍伴端「对方发起沟通」订阅消息(一次性订阅, 离端即时提醒): 进页静默拉模板 ID, 用户点按确认动作时再请求授权并落库
+  // 未配模板/未授权一律静默降级 —— 端内弹窗(见 pollNotices)始终生效, 订阅消息仅作离端补充通道
+  __loadCommTmpl() {
+    if (this.data.role !== 'partner' || this.data.orderStatus !== 'S1') return;
+    callCloud('admin-action', { action: 'config_public' }).then((r) => {
+      const t = (r && r.ok && r.data && r.data.sub_msg && r.data.sub_msg.confirm_comm) || null;
+      this.__commTmplId = (t && t.tmpl_id) || '';
+    }).catch(() => {});
+  },
+  // 请求订阅授权(须在用户点按手势内调用, 否则微信拒绝); 授权结果落库 partner_profile.sub_msgs.confirm_comm(与接单设置页同口径)
+  __requestCommSub() {
+    if (this.__subReqDone || this.data.role !== 'partner' || this.data.orderStatus !== 'S1') return;
+    const tmplId = this.__commTmplId || '';
+    if (!tmplId) return;                                     // 未配模板 → 仅端内弹窗
+    this.__subReqDone = true;
+    wx.requestSubscribeMessage({
+      tmplIds: [tmplId],
+      success: (res) => {
+        const accept = !!(res && res[tmplId] === 'accept');
+        callCloud('partner-action', { action: 'sub_authorize', tmpl: 'confirm_comm', authorized: accept }).catch(() => {});
+      },
+      fail: () => {}
+    });
+  },
 
   // ───────── 四确认状态 ─────────
   applyConfirmation(d) {
@@ -434,6 +460,13 @@ Page({
         modify_reject: '❌ 对方已拒绝改期'
       };
       const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
+      // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
+      // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
+      this.__commShownKeys = this.__commShownKeys || {};
+      const commHit = (this.data.role === 'partner' && !respondHit)
+        ? (d.list || []).find((n) => n && n.type === 'modify' && n.title === '订单沟通'
+            && !this.__commShownKeys[n.id + '|' + (n.body || '')])
+        : null;
       if (respondHit) {
         try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
         wx.showModal({
@@ -441,6 +474,21 @@ Page({
           content: respondHit.body || '',
           showCancel: false,
           confirmText: '知道了'
+        });
+      } else if (commHit) {
+        // 先记账再弹窗: 弹窗未关时下一轮轮询(5s)不会重复弹出
+        this.__commShownKeys[commHit.id + '|' + (commHit.body || '')] = 1;
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: '对方发起沟通',
+          content: `${commHit.body || '对方修改了确认项'}\n请回到上方四确认面板查看并重新确认`,
+          confirmText: '去确认',
+          cancelText: '稍后',
+          confirmColor: '#07C160',
+          fail: () => {},
+          success: (res) => {
+            if (res.confirm) wx.pageScrollTo({ scrollTop: 0, duration: 200 }); // 四确认面板在页面顶部
+          }
         });
       } else {
         const key = fresh[0];
@@ -476,6 +524,7 @@ Page({
   },
 
   confirmItem(field) {
+    this.__requestCommSub();   // 2026-10-17: 点按手势内请求「对方发起沟通」订阅授权(耍伴端, 未配模板/已请求过则跳过)
     wx.showLoading({ title: '提交中', mask: true });
     callCloud('order-action', {
       action: 'confirm_item', order_id: this.data.orderId, item: field
@@ -508,6 +557,7 @@ Page({
       fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
       success: (res) => {
         if (!res.confirm) return;
+        this.__requestCommSub();   // 2026-10-17: 同上(点按手势内请求订阅授权)
         wx.showLoading({ title: '提交中', mask: true });
         callCloud('order-action', {
           action: 'confirm_all', order_id: this.data.orderId
