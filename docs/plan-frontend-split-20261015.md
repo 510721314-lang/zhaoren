@@ -151,7 +151,7 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 | 里程碑 1 | ≤1500 / ≤1220（2026-10-15 用户裁定上调；原 ≤1400/≤1150 证伪） | 1488 / 1216（里程碑1 完成时；publish 现 1218，含 #77 注释 +2） | ✅ 已完成：C1 `38a183d` / C2 `02e02bb` / C3 `b28a431`；node 单测 438→**484 pass**（+46，后续补 util/constants 至 504）；云函数/wxml/wxss/json/app.json 零触碰；REGISTRY #73/#74/#75 **已于 2026-10-16 随 1.6.7 真机通过转「已验证」** |
 | 里程碑 2 | ~~≤1200 / ≤1000~~ **≤1300 / ≤1100（2026-10-16 用户按实测裁定上调；原阈值证伪）** | **1286 / 1094（达标）** | 🔶 子阶段全部完成（2026-10-16）：C4 `7b508b9`（geo-wx）/ C5 `2af5a56`（order-evidence）/ C6 `aadb6ef`（order-poll）/ C7 `a381b0c`（publish-locate，文件2阶段2）；文件1 2b 6 法 + 2c 6 法 + __fmtNoticeTime + 文件2 定位四法 + reverseGeocode **全部逐字搬完（无遗漏可搬项）**；自证：node --check 6 文件全 PASS、devtools preview 编译通过（总包 705.0KB/主包 490.6KB）、npm test 504 pass/0 fail、A/B 437 EQUIVALENT；**能力链路真机回归 2026-10-16 用户决定暂缓**（Android 已确认，iOS 未确认）；行数按用户裁定阈值达标 |
 | 里程碑 3 | **order-detail ≤1250（暂定）/ publish ≤1000（暂定）**（2026-10-16 用户裁定：`.js` 阈值按实测重定；原 ≤1000/≤900 因阶段3 以 wxml/wxss 外移为主而证伪）+ **新增 wxml/wxss 减量度量（A0/A1/A3 已回填，见 §4）** | .js **1286 / 1029**（B 后；起点 1094，−65）；wxml/wxss：order-detail **411 / 298**（A3 后；wxml A0 −17 + A1 −16 + A3 −26 累计 −59，wxss 仅 A0 −15、B/A1/A3 0），publish 未动 | 🔵 **B + A0 + A1 + A3 已落盘（2026-10-16）**：B commit `e701fc4` 草稿组 **7 法** → `utils/draft-store.js`（REGISTRY **#80 待验证**）；A0 commit `3860c25` 订单动态卡 → `components/timeline-card`（apply-shared 首卡；REGISTRY **#81 待验证**）；A1 commit `65e136c` 资金/费用卡 → `components/finance-card`（property 三切片、零事件、多根；REGISTRY **#82 待验证**）；A3 commit `312adaf` 投诉/争议/保险三卡 → `components/dispute-card`（property 四切片、零事件、多根；唯一专属选择器 `.od__val--success` 随卡迁入组件 wxss；**A3 区实测无 bindtap/无 @VERIFIED**；REGISTRY **#83 待验证**）；自证 node --check PASS / npm test **504 pass/0 fail** / A/B **437 EQUIVALENT** / cli preview **EXIT=0**（A1 后 705.9KB/491.5KB）。**评估结论（A1 取证实证）**：A1-A3 全部由共用原语构成（`.od__evi*` 5 处共用、`.od__nsitem*` 2 处共用）→ 组件化**不产 wxss 减量、仅减页面 wxml、净代码量不降**；故 **A3 可做（零事件低风险）、A2 建议缓做**（2×onPreviewEvidence 需 triggerEvent + 含 `@VERIFIED 2026-10-15` 履约凭证卡须单独点名）。执行顺序 **B ✅ → A0 ✅ → A1 ✅ → A3 ✅ → A2 待单独书面批准**；真机回归暂缓，自证下限=编译 EXIT 0 + 模拟器渲染比对（#81/#82/#83 需目检；#79-#83 与能力链/存量共 28 条待验证的操作指引见 [runbooks/regression-pending-20261016-checklist.md](runbooks/regression-pending-20261016-checklist.md)） |
-| 里程碑 4 | ≤850 / ≤600 | — | ☐ 未开工：文件1 阶段4 两交互组件；文件2 阶段4a 场景组 + **4b 授权合一（有限改写，单列审批+真机）** |
+| 里程碑 4 | ≤850 / ≤600（**未达**；阶段3/4 以 wxml/wxss 外移为主、`.js` 几乎不减，阈值待按实测重裁） | .js **1290 / 979**；wxml/wxss：order-detail **362 / 273**、publish **252 / 446** | ✅ **子阶段全部落盘（2026-10-17）**：**文件1 阶段4** ＝ ②a `3327e22` `no-show-card`（不建 wxss）+ ②b `293e029` `safety-card`（独占样式 28 行随卡迁出）（REGISTRY **#90 待验证**）；**文件2 阶段4a** ＝ `c579e92` `scene-picker`（只抽块、弹层逻辑留页面；REGISTRY **#91 待验证**）；**文件2 阶段4b** ＝ `73e0495` `auth-sign-sheet`（宠物 W9 + 代发委托两套授权签字弹层**合一**，属「有限改写」→ 用户**逐函数书面批准**；**迁组件 8 法 / 留页面 8 法**，差异 3 条保留；REGISTRY **#92 待验证**）；自证：`node --check`（各文件）+ JSON 解析 + 被删标识符全仓零残留 + wxml 句柄齐备/标签与 CSS 注释配对 全 PASS；**编译门禁统一改用「IDE 编译 + Console 无红错」**（`cli preview` 被 IDE 侧代理 `127.0.0.1:7890` 阻断、exit 0 假成功，§16「成功回执误导」，与 4a 同因）；行数 publish.js **1030→979（−51）**、publish.wxml **294→252（−42）**、publish.wxss **498→446（−52）**；**真机回归全部暂缓（用户决定；签字/上传/SOS 等属能力链路，按 §5/§5.9 必须 iOS+Android）** → 先模拟器目检（#90/#91/#92 目检项见各 REGISTRY 行） |
 
 ### 8.2 阶段 2 开工前置（四条全部满足才动手，缺一即停）
 
@@ -168,16 +168,17 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 
 ### 8.4 分拆遗留工作汇总（2026-10-17 现场实测回填）
 
-> 用途：跨会话接手时的「剩余工作总览」。行数 = 非空行，2026-10-17 当场 `node`/`Get-Content` 实测。
+> 用途：跨会话接手时的「剩余工作总览」。行数 = 非空行；**2026-10-17 两次实测**（阶段3 A2 前 / 里程碑4 全部落盘后——下表为后一次）。
 
 **A. 现场实测**
 | 文件 | 非空行 | 备注 |
 |---|---|---|
-| order-detail.js | **1286** | 即里程碑 2 达标值 |
-| order-detail.wxml | **414** | §4 记 A3 后 411；**+3 来自 #84**（需求标题/描述两行及配套） |
-| order-detail.wxss | **301** | §4 记 A3 后 298；+3 同因 #84 |
-| publish.js | **1029** | B（draft-store）后值 |
-| publish.wxml | **309** | 阶段 3 未动 wxml |
+| order-detail.js | **1290** | 里程碑 2 达标值 1286 + A2 `3fdf716` 兼容两来源 +3 + 其它 |
+| order-detail.wxml | **362** | 里程碑4 文件1 阶段4 后（A0 −17 / A1 −16 / A3 −26 / A2 −15 / ② −52） |
+| order-detail.wxss | **273** | ②b safety-card 独占样式迁出后（301→273，−28） |
+| publish.js | **979** | 阶段4a/4b 后（B 后 1029 → 4b **−51**） |
+| publish.wxml | **252** | 阶段4a **−15** + 4b **−42**（309→252） |
+| publish.wxss | **446** | 阶段4a **−80** + 4b **−52**（577→446） |
 
 **B. 剩余工作（执行顺序）**
 | 序 | 项 | 内容 | 状态 / 约束 |
@@ -185,9 +186,9 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 | ① | **A2**（里程碑 3 收官） | 履约留痕卡（`order-detail.wxml L99-107`，`order.start_evidence`）+ 履约凭证卡（`L109-120`，含 **`@VERIFIED 2026-10-15`**，`order.finish_evidence`）→ `components/`；**2 处 `bindtap="onPreviewEvidence"` 改 `triggerEvent`**，页面保留 `onPreviewEvidence`（原 `order-detail.js L250`）接事件 | **✅ 已完成（commit `3fdf716`，2026-10-17）**：新建 `components/evidence-card`（**不建 wxss** —— `.od__evi*` 3 卡共用留页面）；页面 wxml **414→399（−15）**、js **1286→1289（+3，`onPreviewEvidence` 兼容 `e.detail`/`dataset` 两来源）**；自证 `node --check`+JSON PASS、devtools `cli preview` **EXIT=0**（710.0/495.1KB）；REGISTRY **#89 待验证**（模拟器目检；真机暂缓）。**里程碑 3 至此收官** |
 | ② | 里程碑 4 · 文件1 阶段4 | 爽约申诉卡 `L170-202`（`onNoShowReport`/`onNoShowDefense`/`onNoShowWithdraw`）+ 安全中心卡 `L79-95`（`onSafety`/`onSos`/`_submitSos`/`_showCallSheet`）→ 交互组件 | **✅ 已完成（两 commit `3327e22`+`293e029`，2026-10-17）**：`no-show-card`（不建 wxss）+ `safety-card`（独占样式 28 行随卡迁出）；wxml **399→362（−37）**、wxss **301→273（−28）**；自证 PASS + `preview` **EXIT=0 两次**；REGISTRY **#90 待验证**（需模拟器目检 + 真机） |
 | ③ | 里程碑 4 · 文件2 阶段4a | 场景选择组 `L694-791`（**旧锚点已失效，按函数名重定位为 publish.wxml 场景网格 + 已选服务内容行**）→ `components/scene-picker/`（**用户 2026-10-17 确认边界=只抽块，弹层留页面，故组件名定为 `scene-picker` 而非原拟 `scene-option-sheet`**） | **✅ 已完成（commit `c579e92`，2026-10-17）**：12 条独占样式随块迁出、弹层与逻辑留页面；publish.wxml **309→294（−15）**、wxss **−80**；自证 PASS（编译门禁以 **IDE 控制台无红错** 取证，`cli preview` 因 IDE 侧 `ECONNRESET` 假成功不可用）；REGISTRY **#91 待验证**（需模拟器目检 + 真机） |
-| ④ | 里程碑 4 · 文件2 阶段4b | 宠物授权 8 法 + 委托授权 8 法 → `components/auth-sign-sheet/`；**属「有限改写」**（宠物文案来自 `config_public`、委托为本地硬编码，差异须保留） | 推进已确认，但 **4b 本体开工时仍须单列书面批准 + 真机** |
+| ④ | 里程碑 4 · 文件2 阶段4b | 宠物授权 8 法 + 委托授权 8 法 → `components/auth-sign-sheet/`；**属「有限改写」**（宠物文案来自 `config_public`、委托为本地硬编码，差异须保留） | **✅ 已完成（commit `73e0495`，8 文件 +248/−227，2026-10-17）**：用户**逐函数书面批准**推荐边界（**迁组件 8 法 / 留页面 8 法**）；组件＝4 props + 内部 data（sheetVisible/signVisible/submitting/fromCheck）+ 10 方法 + 2 事件（check-change/sign-confirm），`kind=pet/proxy` 两次实例化于页面根部（弹层 `position:fixed` → **零布局位移**）；差异 3 条保留（文案来源不改 / 两实例 id 不同 / 页面 state 命名仍 `pet*`/`proxy*`）；`publish.json` +`auth-sign-sheet` −`signature-canvas`；行数 publish.js **1030→979（−51）**、wxml **294→252（−42）**、wxss **498→446（−52）**；自证 PASS；**编译门禁＝IDE 编译 + Console 无红错**（`cli preview` 被 IDE 侧代理阻断、exit 0 假成功）；REGISTRY **#92 待验证**（需模拟器目检 + 真机 iOS+Android，真机暂缓） |
 | ⑤ | 前置 | 前置 1/2/4 **均已满足**（见 §8.2 订正）；**前置 3「逐函数批准」**为每阶段开工例行动作 | — |
-| ⑥ | 关联真机回归 | #79（定位/证据/轮询）需真机；#80 草稿组 / #81 timeline-card / #82 finance-card / #83 dispute-card 可先**模拟器目检**；连同 #84/#85/#87/#88 等共 **31 条「待验证」** | 真机批次**暂缓**（用户决定）；指引见 [runbooks/regression-pending-20261016-checklist.md](runbooks/regression-pending-20261016-checklist.md) |
+| ⑥ | 关联真机回归 | #79（定位/证据/轮询）需真机；#80 草稿组 / #81 timeline-card / #82 finance-card / #83 dispute-card / #89 evidence-card / #90 no-show+safety-card / #91 scene-picker / **#92 auth-sign-sheet** 可先**模拟器目检**；连同 #84/#85/#87/#88 等，FUNCTION-REGISTRY 实测共 **35 条「待验证」** | 真机批次**暂缓**（用户决定）；指引见 [runbooks/regression-pending-20261016-checklist.md](runbooks/regression-pending-20261016-checklist.md) |
 
 **C. 云函数侧「大文件分拆」= 已收官，无遗留**
 9 个巨型入口已物理拆分并部署（admin-action / order-action / demand-publish / order-timer / user-login / partner-action / home-action / payment-mock / order-create）。现测最大剩余 `zz-seed-orders` **1024 行** = **自测造数工具**（skill 标注「勿随意部署」），不在拆分计划内；admin-action 630 / order-timer 606 / init-db 594 均**已拆**为 `action_*.js` + 分发表。
