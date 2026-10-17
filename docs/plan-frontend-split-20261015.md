@@ -182,7 +182,7 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 **B. 剩余工作（执行顺序）**
 | 序 | 项 | 内容 | 状态 / 约束 |
 |---|---|---|---|
-| ① | **A2**（里程碑 3 收官） | 履约留痕卡（`order-detail.wxml L99-107`，`order.start_evidence`）+ 履约凭证卡（`L109-120`，含 **`@VERIFIED 2026-10-15`**，`order.finish_evidence`）→ `components/`；**2 处 `bindtap="onPreviewEvidence"` 改 `triggerEvent`**，页面保留 `onPreviewEvidence`（原 `order-detail.js L250`）接事件 | **已书面批准（2026-10-17，用户）**；独立 commit + 编译 EXIT 0 + 模拟器目检（真机暂缓） |
+| ① | **A2**（里程碑 3 收官） | 履约留痕卡（`order-detail.wxml L99-107`，`order.start_evidence`）+ 履约凭证卡（`L109-120`，含 **`@VERIFIED 2026-10-15`**，`order.finish_evidence`）→ `components/`；**2 处 `bindtap="onPreviewEvidence"` 改 `triggerEvent`**，页面保留 `onPreviewEvidence`（原 `order-detail.js L250`）接事件 | **✅ 已完成（commit `3fdf716`，2026-10-17）**：新建 `components/evidence-card`（**不建 wxss** —— `.od__evi*` 3 卡共用留页面）；页面 wxml **414→399（−15）**、js **1286→1289（+3，`onPreviewEvidence` 兼容 `e.detail`/`dataset` 两来源）**；自证 `node --check`+JSON PASS、devtools `cli preview` **EXIT=0**（710.0/495.1KB）；REGISTRY **#89 待验证**（模拟器目检；真机暂缓）。**里程碑 3 至此收官** |
 | ② | 里程碑 4 · 文件1 阶段4 | 爽约申诉卡 `L170-202`（`onNoShowReport`/`onNoShowDefense`/`onNoShowWithdraw`）+ 安全中心卡 `L79-95`（`onSafety`/`onSos`/`_submitSos`/`_showCallSheet`）→ 交互组件 | **已确认推进（2026-10-17，用户）**；triggerEvent 回页面写；**需真机** |
 | ③ | 里程碑 4 · 文件2 阶段4a | 场景选择组 `L694-791` → `components/scene-option-sheet/` | 同上 |
 | ④ | 里程碑 4 · 文件2 阶段4b | 宠物授权 8 法 + 委托授权 8 法 → `components/auth-sign-sheet/`；**属「有限改写」**（宠物文案来自 `config_public`、委托为本地硬编码，差异须保留） | 推进已确认，但 **4b 本体开工时仍须单列书面批准 + 真机** |
