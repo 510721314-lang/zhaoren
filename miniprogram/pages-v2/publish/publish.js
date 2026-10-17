@@ -577,7 +577,8 @@ Page({
   },
 
   setScene(e) {
-    const code = e.currentTarget ? e.currentTarget.dataset.code : e.code;
+    // 里程碑4·文件2阶段4a(2026-10-17): 兼容 components/scene-picker 的 triggerEvent('scene')(e.detail.code) / 页面内 data-code / 直接调用 setScene({code})
+    const code = (e && e.detail && e.detail.code) || (e.currentTarget ? e.currentTarget.dataset.code : (e && e.code)) || '';
     // 优先从动态场景列表找, SCENES 兜底（编辑模式回填时可能还没拉动态列表）
     let scene = (this.data.scenes || []).find((s) => s.code === code) || getScene(code);
     if (!scene) return;

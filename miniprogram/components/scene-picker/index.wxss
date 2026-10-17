@@ -1,0 +1,84 @@
+/* 发布页「场景选择」块独占样式 · 里程碑4·文件2阶段4a(2026-10-17)
+   自 pages-v2/publish/publish.wxss 原样迁入(逐字未改): B3 场景网格组 + B3.1 已选服务内容组
+   本块共用的 .pub__block/.pub__label/.pub__required 为页面原语, 经 styleIsolation=apply-shared 生效
+   服务内容选择窗(.pub__opt-tip/-list/-item/-check/-footer/-name)不在本组件内, 仍留页面 wxss */
+.pub__scene-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.pub__scene-card {
+  position: relative;
+  width: calc(33.33% - 11rpx);
+  border-radius: var(--r-md);
+  border: 2rpx solid var(--border-1);
+  padding: 16rpx 0;
+  text-align: center;
+}
+.pub__scene-card.is-on {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-light);
+}
+.pub__scene-ic {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 16rpx;
+  margin: 0 auto 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-xxl);
+}
+.pub__scene-name {
+  font-size: var(--font-sm);
+  color: var(--text-2);
+}
+.pub__gb-badge {
+  position: absolute;
+  top: -12rpx;
+  right: 12rpx;
+  background: var(--brand-accent);
+  color: var(--text-invert);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  padding: 0 8rpx;
+  border-radius: 8rpx;
+}
+.pub__opt-row {
+  margin-top: 18rpx;
+}
+.pub__opt-label {
+  font-size: var(--font-sm);
+  color: var(--text-2);
+  margin-bottom: 8rpx;
+}
+.pub__opt-picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12rpx;
+  min-height: 76rpx;
+  padding: 12rpx 20rpx;
+  border: 1rpx solid var(--border-1);
+  border-radius: 14rpx;
+  background: var(--bg-card);
+}
+.pub__opt-chip {
+  height: 52rpx;
+  line-height: 52rpx;
+  padding: 0 20rpx;
+  border-radius: 26rpx;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  font-size: var(--font-sm);
+}
+.pub__opt-empty {
+  flex: 1;
+  color: var(--text-3);
+  font-size: var(--font-sm);
+}
+.pub__opt-edit {
+  margin-left: auto;
+  color: var(--brand-primary);
+  font-size: var(--font-sm);
+}

@@ -32,27 +32,12 @@
   </view>
 
   <!-- B3 场景选择 -->
-  <view class="pub__block">
-    <view class="pub__label">场景选择 <text class="pub__required">*</text></view>
-    <view class="pub__scene-grid">
-      <view class="pub__scene-card {{form.scene_code === item.code ? 'is-on' : ''}}" wx:for="{{scenes}}" wx:key="code" data-code="{{item.code}}" bindtap="setScene">
-        <view class="pub__gb-badge" wx:if="{{item.gb}}">国标</view>
-        <view class="pub__scene-ic" style="background:{{item.color}};">{{item.icon}}</view>
-        <view class="pub__scene-name">{{item.name}}</view>
-      </view>
-    </view>
-    <!-- B3.1 已选服务内容(点场景卡→免责声明→选择窗; 此处可点击重新编辑) -->
-    <view class="pub__opt-row" wx:if="{{form.scene_code}}">
-      <view class="pub__opt-label">服务内容 <text class="pub__required">*</text></view>
-      <view class="pub__opt-picked" bindtap="openOptionSheet">
-        <block wx:if="{{form.content_options.length > 0}}">
-          <text class="pub__opt-chip" wx:for="{{form.content_options}}" wx:key="*this">{{item}}</text>
-        </block>
-        <text class="pub__opt-empty" wx:else>请选择服务内容</text>
-        <text class="pub__opt-edit">修改 ›</text>
-      </view>
-    </view>
-  </view>
+  <!-- 里程碑4·文件2阶段4a(2026-10-17, 用户确认边界=只抽场景选择块): 场景网格 + 服务内容已选行 自本文件逐字迁 components/scene-picker
+       (机械改动: ①form.scene_code → property sceneCode; ②scenes → property scenes; ③form.content_options → property contentOptions;
+        ④bindtap setScene/openOptionSheet → triggerEvent('scene',{code})/('open-sheet'))
+       「选择服务内容」bottom-sheet 弹层与逻辑编排(setScene 免责声明→清空→开窗 / _openOptionSheet / toggleOption / confirmOptions)一律留页面(沿用阶段3 B「弹层留页面」口径)
+       .pub__scene-*/.pub__gb-badge/.pub__opt-row|-label|-picked|-chip|-empty|-edit 为本块独占 → 随块迁入组件 wxss; .pub__block/.pub__label/.pub__required 为页面共用原语留页面 -->
+  <scene-picker scenes="{{scenes}}" scene-code="{{form.scene_code}}" content-options="{{form.content_options}}" bindscene="setScene" bindopen-sheet="openOptionSheet" />
 
   <!-- B3.2 W9 宠物照料授权书(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权、不得履约) -->
   <view class="pub__block" wx:if="{{form.scene_code === 'W9'}}">

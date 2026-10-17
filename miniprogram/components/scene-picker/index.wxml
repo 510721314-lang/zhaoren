@@ -1,0 +1,24 @@
+<!-- 里程碑4·文件2阶段4a(2026-10-17, 用户确认边界=只抽场景选择块): 自 pages-v2/publish/publish.wxml 逐字迁入
+     机械改动仅四类: ①form.scene_code → property sceneCode(用于 is-on 判断与 wx:if); ②scenes → property scenes; ③form.content_options → property contentOptions; ④bindtap="setScene"/"openOptionSheet" → bindtap="onScene"/"onOpenSheet"(triggerEvent 上抛)
+     「选择服务内容」bottom-sheet 弹层与全部逻辑编排(setScene/_openOptionSheet/toggleOption/confirmOptions)留页面 -->
+<view class="pub__block">
+  <view class="pub__label">场景选择 <text class="pub__required">*</text></view>
+  <view class="pub__scene-grid">
+    <view class="pub__scene-card {{sceneCode === item.code ? 'is-on' : ''}}" wx:for="{{scenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onScene">
+      <view class="pub__gb-badge" wx:if="{{item.gb}}">国标</view>
+      <view class="pub__scene-ic" style="background:{{item.color}};">{{item.icon}}</view>
+      <view class="pub__scene-name">{{item.name}}</view>
+    </view>
+  </view>
+  <!-- B3.1 已选服务内容(点场景卡→免责声明→选择窗; 此处可点击重新编辑) -->
+  <view class="pub__opt-row" wx:if="{{sceneCode}}">
+    <view class="pub__opt-label">服务内容 <text class="pub__required">*</text></view>
+    <view class="pub__opt-picked" bindtap="onOpenSheet">
+      <block wx:if="{{contentOptions.length > 0}}">
+        <text class="pub__opt-chip" wx:for="{{contentOptions}}" wx:key="*this">{{item}}</text>
+      </block>
+      <text class="pub__opt-empty" wx:else>请选择服务内容</text>
+      <text class="pub__opt-edit">修改 ›</text>
+    </view>
+  </view>
+</view>
