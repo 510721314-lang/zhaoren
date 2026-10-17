@@ -922,11 +922,22 @@ exports.main = async (event) => {
         ? forceDayStart + BJ_HOURS[i % BJ_HOURS.length] * 3600000 + 15 * 60000
         : bjDayStart + dayOffset * 86400000 + hourBJ * 3600000 + 15 * 60000;
       const rate_fen = RATE_MIN + Math.floor(Math.random() * (RATE_MAX - RATE_MIN));
-      // owner 位置中心小偏移模拟周边; 2026-10-17: 传 radius_m 时改为「半径米内随机」, 不传维持原 ±0.01°(≈1km); 无 center 回退成都随机
-      const jLat = center ? (radiusM ? radiusM / 111320 : 0.01) : 0;
-      const jLng = center ? (radiusM ? radiusM / (111320 * Math.cos(center.lat * Math.PI / 180)) : 0.01) : 0;
-      const lat = center ? +(center.lat + (Math.random() - 0.5) * 2 * jLat).toFixed(6) : +(30.58 + Math.random() * 0.16).toFixed(6);
-      const lng = center ? +(center.lng + (Math.random() - 0.5) * 2 * jLng).toFixed(6) : +(104.03 + Math.random() * 0.12).toFixed(6);
+      // owner 位置中心小偏移模拟周边; 2026-10-17: 传 radius_m 时改为「半径米内圆域随机(极坐标采样)」, 不传维持原 ±0.01°(≈1km); 无 center 回退成都随机
+      let lat; let lng;
+      if (center) {
+        if (radiusM) {
+          const rr = Math.sqrt(Math.random()) * radiusM;   // 半径 rr 圆域均匀采样 → 距圆心必 ≤ radius_m
+          const th = Math.random() * Math.PI * 2;
+          lat = +(center.lat + (rr * Math.cos(th)) / 111320).toFixed(6);
+          lng = +(center.lng + (rr * Math.sin(th)) / (111320 * Math.cos(center.lat * Math.PI / 180))).toFixed(6);
+        } else {
+          lat = +(center.lat + (Math.random() - 0.5) * 0.02).toFixed(6);
+          lng = +(center.lng + (Math.random() - 0.5) * 0.02).toFixed(6);
+        }
+      } else {
+        lat = +(30.58 + Math.random() * 0.16).toFixed(6);
+        lng = +(104.03 + Math.random() * 0.12).toFixed(6);
+      }
       const place = center ? center.name : pick(PLACES);
       const city = center ? center.city : '成都';
       const createdAt = now - Math.floor(Math.random() * 6 * 3600000) - 60000;
