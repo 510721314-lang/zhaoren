@@ -1,0 +1,21 @@
+<!-- 拆分阶段3 A2(2026-10-17, 用户批准): 自 pages-v2/order-detail/order-detail.wxml 逐字迁入
+     仅两处机械改动: ①order.start_evidence/finish_evidence → 组件 properties start/finish; ②bindtap="onPreviewEvidence" → bindtap="onPreview"(triggerEvent 上抛)
+     两卡作兄弟根节点、各自 wx:if 内收; 页面外层 wx:if 保「两卡全空不实例化」 -->
+<view class="od__card" wx:if="{{start}}">
+  <view class="od__card-title">履约留痕</view>
+  <view class="od__row" wx:if="{{start.address}}"><text class="od__label">到场地点</text><text class="od__val">{{start.address}}</text></view>
+  <view class="od__row" wx:if="{{start.at_text}}"><text class="od__label">提交时间</text><text class="od__val">{{start.at_text}}</text></view>
+  <view class="od__evi" wx:if="{{start.photos.length > 0}}">
+    <image class="od__evi-img" wx:for="{{start.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-src="{{item}}" data-list="{{start.photos}}" bindtap="onPreview" />
+  </view>
+</view>
+
+<!-- @VERIFIED 2026-10-15 已真机验证：履约凭证卡在 S3.6 待确认 / S5 已完成 / S8 已评价均双方可见且仅一份(顶层卡, 与状态无关)(标记随卡迁入, 来源 order-detail.wxml L109) -->
+<view class="od__card" wx:if="{{finish}}">
+  <view class="od__card-title">履约凭证</view>
+  <view class="od__evi-list">
+    <image class="od__evi-img" wx:for="{{finish.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-src="{{item}}" data-list="{{finish.photos}}" bindtap="onPreview" />
+  </view>
+  <view class="od__row" wx:if="{{finish.address}}"><text class="od__label">完成地点</text><text class="od__val">{{finish.address}}</text></view>
+  <view class="od__row" wx:if="{{finish.at_text}}"><text class="od__label">提交时间</text><text class="od__val">{{finish.at_text}}</text></view>
+</view>

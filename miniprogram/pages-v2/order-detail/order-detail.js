@@ -247,9 +247,12 @@ Page({
   },
 
   // 爽约证据图片预览(2026-10-12): 证据用云存储 fileID, 直接 wx.previewImage
+  // 拆分阶段3 A2(2026-10-17, 用户书面批准): 兼容两来源 —— 页面内卡(data-src/data-list) 与 components/evidence-card 的 triggerEvent('preview')(e.detail)
   onPreviewEvidence(e) {
-    const cur = (e.currentTarget.dataset.src) || '';
-    const list = e.currentTarget.dataset.list || [];
+    const ds = (e && e.currentTarget && e.currentTarget.dataset) || {};
+    const dt = (e && e.detail) || {};
+    const cur = dt.src || ds.src || '';
+    const list = dt.list || ds.list || [];
     if (!cur) return;
     wx.previewImage({ current: cur, urls: (Array.isArray(list) && list.length) ? list : [cur] });
   },

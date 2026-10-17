@@ -96,28 +96,12 @@
       </view>
     </view>
 
-    <!-- 履约留痕(需求B一期可视化, 2026-10-14): 开始履约的现场照片+到场定位, 双方可见(规范 C14); 有留痕才渲染 -->
-    <view class="od__card" wx:if="{{order.start_evidence}}">
-      <view class="od__card-title">履约留痕</view>
-      <view class="od__row" wx:if="{{order.start_evidence.address}}"><text class="od__label">到场地点</text><text class="od__val">{{order.start_evidence.address}}</text></view>
-      <view class="od__row" wx:if="{{order.start_evidence.at_text}}"><text class="od__label">提交时间</text><text class="od__val">{{order.start_evidence.at_text}}</text></view>
-      <view class="od__evi" wx:if="{{order.start_evidence.photos.length > 0}}">
-        <image class="od__evi-img" wx:for="{{order.start_evidence.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-src="{{item}}" data-list="{{order.start_evidence.photos}}" bindtap="onPreviewEvidence" />
-      </view>
-    </view>
-
-    <!-- @VERIFIED 2026-10-15 已真机验证：履约凭证卡在 S3.6 待确认 / S5 已完成 / S8 已评价均双方可见且仅一份(顶层卡, 与状态无关) -->
-    <!-- 履约凭证(阶段F 2026-10-15, 规范 §2.3; 2026-10-15 修正): 完成照片+定位快照, 双方可见。
-         原置于 S3_6 块内 → 仅"待需求方确认"期间可见, 完毕确认进 S5 / 评价进 S8 后整块不再渲染、凭证消失;
-         现上移为顶层卡, 与状态无关, S3.6/S5/S8 均可见(与「履约留痕」卡同口径) -->
-    <view class="od__card" wx:if="{{order.finish_evidence}}">
-      <view class="od__card-title">履约凭证</view>
-      <view class="od__evi-list">
-        <image class="od__evi-img" wx:for="{{order.finish_evidence.photos}}" wx:key="*this" src="{{item}}" mode="aspectFill" data-src="{{item}}" data-list="{{order.finish_evidence.photos}}" bindtap="onPreviewEvidence" />
-      </view>
-      <view class="od__row" wx:if="{{order.finish_evidence.address}}"><text class="od__label">完成地点</text><text class="od__val">{{order.finish_evidence.address}}</text></view>
-      <view class="od__row" wx:if="{{order.finish_evidence.at_text}}"><text class="od__label">提交时间</text><text class="od__val">{{order.finish_evidence.at_text}}</text></view>
-    </view>
+    <!-- 拆分阶段3 A2(2026-10-17, 用户书面批准): 履约留痕 + 履约凭证两卡结构自本文件逐字迁 components/evidence-card
+         (机械改动仅两处: ①order.start_evidence/finish_evidence → 组件 properties start/finish; ②2 处 bindtap="onPreviewEvidence" → 组件 triggerEvent('preview'), 页面 handler 已兼容两来源)
+         .od__card/.od__card-title/.od__row/.od__label/.od__val 为 ≥7 卡共用原语、.od__evi* 被 留痕/爽约申诉/里程碑证据 3 处共用
+         → 一律留页面 wxss 经 styleIsolation=apply-shared 生效(本组件无专属样式, 不建 index.wxss); 页面外层 wx:if 保「两卡全空不实例化」
+         @VERIFIED 2026-10-15(履约凭证卡) 标记已随卡迁入组件 wxml 并注来源 -->
+    <evidence-card wx:if="{{order.start_evidence || order.finish_evidence}}" start="{{order.start_evidence}}" finish="{{order.finish_evidence}}" bindpreview="onPreviewEvidence" />
 
     <!-- 投诉/争议/保险三卡拆分阶段3 A3(2026-10-16): 结构迁 components/dispute-card; 三卡 wx:if 内收组件、页面外层 wx:if 保「三卡全空不实例化」 -->
     <dispute-card complaint="{{order.complaint}}" dispute-view="{{order.dispute_view}}" insurance="{{order.insurance}}" insurance-wan="{{insuranceWan}}" wx:if="{{order.complaint || order.dispute_view || (order.insurance && order.insurance.policy_no)}}" />
