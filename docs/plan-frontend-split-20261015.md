@@ -158,10 +158,39 @@ v1 目标值（760/640）经评审证伪（代理 A 按方法体加总测算 900
 1. **真机门禁**：1.6.7（版本号必须递增，P0-2）iOS+Android 回归 #72（F1-F4 防连点 11 弹窗）/#73/#74/#75（发布校验 5 类分支 toast）通过，REGISTRY 四项转「已验证」并给迁入模块补 `// @VERIFIED` 日期；
 2. **setData 路径化先行**：§5.3 经 2026-10-16 实测**收窄为仅 publish 一处**（order-detail refreshOrder 的 14 字段整对象在 C2 后已消解：现 setData 的是 buildOrderView 返回的冻结 13 顶层键，顶层路径化 no-op、order 叶子化拆散契约，详见 §5.3）；仅 publish 恢复草稿 `restoreDraft`（L426-452）form **20 字段**整对象改叶子路径，作为**独立 commit + 专项渲染回归**，禁止与任何搬迁混提交；→ **✅ 已落盘（2026-10-16）**：commit `9747ada`（publish.js +21/−22，1 文件），node --check PASS + devtools `preview` 编译无报错（总包 703.2KB/主包 488.8KB）；**静态等价验证完成**；专项渲染回归（草稿恢复 20 字段回填）**2026-10-16 以开发者工具运行时受控测试完成**（Console 注入已知草稿→真实 restoreDraft→`p.data.form` 20 键逐项全对 + `titleCount/descCount/draftBoxVisible` 全对 + Console 无红错），#78 转「已验证」；视觉渲染未单独肉眼核对（数据层=WXML 绑定入参已全对，残余可忽略）；
 3. **逐函数批准**：被搬 @VERIFIED 函数按规则 §2 逐个书面批准；行号一律按 §5.10 以「函数名+签名」重新 grep，对照基线 `git show e45aa52:<file>`，不沿用本方案旧行号下刀；
-4. ~~**N1 地图 key 先行（0 代码）**~~ **✅ 已完成（2026-10-16）**：key `zhaoren-mini`（找人帮忙应用）控制台核查——WebServiceAPI 原已开通；**「微信小程序」授权原本未勾选（真实缺口），已补勾并绑定授权 APP ID `wxbc4a4afacdf234f5`**（以 project.config.json:7 为准），保存时通过「多产品共用 key 风险」二次确认，重开编辑框核验已持久化；用该 key 实测逆地理编码返回 `status=0 Success`（北京市东城区正义路）证明服务/配额正常。前置 2 已于 2026-10-16 落盘（`9747ada`），前置仅剩 1/3（真机门禁 + 逐函数批准）。
+4. ~~**N1 地图 key 先行（0 代码）**~~ **✅ 已完成（2026-10-16）**：key `zhaoren-mini`（找人帮忙应用）控制台核查——WebServiceAPI 原已开通；**「微信小程序」授权原本未勾选（真实缺口），已补勾并绑定授权 APP ID `wxbc4a4afacdf234f5`**（以 project.config.json:7 为准），保存时通过「多产品共用 key 风险」二次确认，重开编辑框核验已持久化；用该 key 实测逆地理编码返回 `status=0 Success`（北京市东城区正义路）证明服务/配额正常。前置 2 已于 2026-10-16 落盘（`9747ada`）。**状态订正（2026-10-17 现场实测）**：**前置 1 亦已满足** —— #72/#73/#74/#75 已于 **2026-10-16 真机（iOS+Android）通过**并转「已验证」（见 CHANGELOG 2026-10-16 条目）；故**四条前置全部达成**，阶段 3/4 开工仅余「前置 3 逐函数批准」这一每阶段例行动作。原表述「前置仅剩 1/3（真机门禁 + 逐函数批准）」已作废。
 
 ### 8.3 已知挂起项（不阻塞阶段 2，但永久登记）
 
 - #67 T-7.1.2 finish 确认超时→S10.5：通知正文「1 分钟」只能凭历史截图核对，无截图维持现状；
 - 阶段 4b 两套授权签字合一属**有限改写**（文案来源 pet 云端 / proxy 本地硬编码等差异），不适用「函数体逐字搬」，开工时按 §3 文件2 4b 单列审批；
 - 每阶段 commit 后须用 IDE「代码依赖分析」读**主包实际体积**回填 §1（开工基线 1281.1 KB / 余量约 700 KB）。
+
+### 8.4 分拆遗留工作汇总（2026-10-17 现场实测回填）
+
+> 用途：跨会话接手时的「剩余工作总览」。行数 = 非空行，2026-10-17 当场 `node`/`Get-Content` 实测。
+
+**A. 现场实测**
+| 文件 | 非空行 | 备注 |
+|---|---|---|
+| order-detail.js | **1286** | 即里程碑 2 达标值 |
+| order-detail.wxml | **414** | §4 记 A3 后 411；**+3 来自 #84**（需求标题/描述两行及配套） |
+| order-detail.wxss | **301** | §4 记 A3 后 298；+3 同因 #84 |
+| publish.js | **1029** | B（draft-store）后值 |
+| publish.wxml | **309** | 阶段 3 未动 wxml |
+
+**B. 剩余工作（执行顺序）**
+| 序 | 项 | 内容 | 状态 / 约束 |
+|---|---|---|---|
+| ① | **A2**（里程碑 3 收官） | 履约留痕卡（`order-detail.wxml L99-107`，`order.start_evidence`）+ 履约凭证卡（`L109-120`，含 **`@VERIFIED 2026-10-15`**，`order.finish_evidence`）→ `components/`；**2 处 `bindtap="onPreviewEvidence"` 改 `triggerEvent`**，页面保留 `onPreviewEvidence`（原 `order-detail.js L250`）接事件 | **已书面批准（2026-10-17，用户）**；独立 commit + 编译 EXIT 0 + 模拟器目检（真机暂缓） |
+| ② | 里程碑 4 · 文件1 阶段4 | 爽约申诉卡 `L170-202`（`onNoShowReport`/`onNoShowDefense`/`onNoShowWithdraw`）+ 安全中心卡 `L79-95`（`onSafety`/`onSos`/`_submitSos`/`_showCallSheet`）→ 交互组件 | **已确认推进（2026-10-17，用户）**；triggerEvent 回页面写；**需真机** |
+| ③ | 里程碑 4 · 文件2 阶段4a | 场景选择组 `L694-791` → `components/scene-option-sheet/` | 同上 |
+| ④ | 里程碑 4 · 文件2 阶段4b | 宠物授权 8 法 + 委托授权 8 法 → `components/auth-sign-sheet/`；**属「有限改写」**（宠物文案来自 `config_public`、委托为本地硬编码，差异须保留） | 推进已确认，但 **4b 本体开工时仍须单列书面批准 + 真机** |
+| ⑤ | 前置 | 前置 1/2/4 **均已满足**（见 §8.2 订正）；**前置 3「逐函数批准」**为每阶段开工例行动作 | — |
+| ⑥ | 关联真机回归 | #79（定位/证据/轮询）需真机；#80 草稿组 / #81 timeline-card / #82 finance-card / #83 dispute-card 可先**模拟器目检**；连同 #84/#85/#87/#88 等共 **31 条「待验证」** | 真机批次**暂缓**（用户决定）；指引见 [runbooks/regression-pending-20261016-checklist.md](runbooks/regression-pending-20261016-checklist.md) |
+
+**C. 云函数侧「大文件分拆」= 已收官，无遗留**
+9 个巨型入口已物理拆分并部署（admin-action / order-action / demand-publish / order-timer / user-login / partner-action / home-action / payment-mock / order-create）。现测最大剩余 `zz-seed-orders` **1024 行** = **自测造数工具**（skill 标注「勿随意部署」），不在拆分计划内；admin-action 630 / order-timer 606 / init-db 594 均**已拆**为 `action_*.js` + 分发表。
+
+**D. 每阶段纪律（重申 §5）**
+一张表行 / 一组同构方法 = 一个**独立 commit**，提交信息写清「从 X 搬至 Y、行为等价」；组件显式 `styleIsolation:"apply-shared"`、**共用原语（`.od__card`/`.od__row`/`.od__evi*` 等）留页面 wxss**；`npm run verify` **不覆盖 `miniprogram/`**（既有门禁盲区）→ 前端改动最低自证 = **开发者工具编译 EXIT 0 + Console 无报错 + 模拟器渲染比对**，不得以 verify 通过代替。
