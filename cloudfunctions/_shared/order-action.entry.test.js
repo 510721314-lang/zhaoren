@@ -129,6 +129,27 @@ test('complete_service: CAS 未抢到 → oa_status_conflict', async () => {
   assert.strictEqual(r.code, 'oa_status_conflict');
 });
 
+// confirm_comm 订阅消息夹具(2026-10-17): S1 订单 + 未确认确认单 + 已授权 confirm_comm 的耍伴档案
+// cfg 可选, 合并进 admin_config.global(如 { sub_msg_templates: { confirm_comm: { tmpl_id: 'x' } } })
+function commStore(cfg = {}) {
+  const CID = 'c'.repeat(32);
+  return {
+    admin_config: { global: Object.assign({ env: 'dev', dev_until: DEV_UNTIL }, cfg) },
+    order_main: {
+      [OID]: { _id: OID, status: 'S1', user_openid: USER, partner_openid: PARTNER, order_no: 'ORD_TEST_1', version: 1, is_deleted: false }
+    },
+    order_confirmations: {
+      [CID]: { _id: CID, order_id: OID, version: 1, is_deleted: false, items: {
+        time: { value: Date.now() + 3600000, user_ok: false, partner_ok: false },
+        location: { value: null, user_ok: false, partner_ok: false },
+        content: { value: [], user_ok: false, partner_ok: false },
+        fee: { value: 5000, user_ok: false, partner_ok: false }
+      } }
+    },
+    partner_profile: { p1: { _id: 'p1', openid: PARTNER, sub_msgs: { confirm_comm: { authorized: true, updated_at: 1 } } } }
+  };
+}
+
 // 时间线测试夹具: 覆盖 5 个数据源(状态轴/投诉/爽约/支付/订单内嵌里程碑+催办)
 function tlStore() {
   return {
@@ -409,6 +430,34 @@ test('notice_list: 通知关联订单 → demand.remark 拆为 demand_title/dema
   assert.strictEqual(n.demand_title, '帮我遛狗');
   assert.strictEqual(n.demand_desc, '每天两次');
   assert.strictEqual(n.title, '抢单提醒', '既有字段不受影响');
+});
+
+// 27. update_item 成功路径(发单人改「时间」) + confirm_comm 已配模板且耍伴已授权 → 订阅消息真发 1 次(2026-10-17)
+//     覆盖 §10「成功路径必须走通」: 断言返回值 + 副作用(订阅发送被调用), 不只覆盖错误码分支
+test('update_item: 发单人改时间 → 落库成功且向耍伴发 confirm_comm 订阅消息', async () => {
+  const sdk = makeSdk({ openid: USER, store: commStore({
+    sub_msg_templates: { confirm_comm: { tmpl_id: 'TMPL_CONFIRM_COMM', fields: { thing1: 'comm_item', time2: 'comm_time' } } }
+  }) });
+  let sent = 0; let sentTo = ''; let sentPage = '';
+  sdk.openapi.subscribeMessage.send = async (o) => { sent++; sentTo = o.touser; sentPage = o.page; return { errMsg: 'send:ok' }; };
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'update_item', order_id: OID, item: 'time', value: Date.now() + 3600000, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.reset, true);
+  assert.strictEqual(sent, 1, '应发出 1 条订阅消息');
+  assert.strictEqual(sentTo, PARTNER, '收件人应为耍伴');
+  assert.ok(String(sentPage).indexOf('chat') >= 0, '落地页应指向聊天页');
+});
+
+// 28. 未配 confirm_comm 模板 → 静默降级: 不阻断主流程、不发订阅(端内弹窗仍生效)
+test('update_item: 未配 confirm_comm → 静默降级不发订阅消息', async () => {
+  const sdk = makeSdk({ openid: USER, store: commStore() });
+  let sent = 0;
+  sdk.openapi.subscribeMessage.send = async () => { sent++; return { errMsg: 'send:ok' }; };
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'update_item', order_id: OID, item: 'time', value: Date.now() + 3600000, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(sent, 0, '未配模板不应调用订阅发送');
 });
 
 // 还原 Module._load，避免污染后续测试文件

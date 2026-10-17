@@ -309,9 +309,9 @@ async function updateConfigAction(ctx) {
     // 将授权结果存 partner_profile.sub_msgs, 供 order-timer 抢单通知时判断是否额外发订阅消息(静默降级: 未授权仅站内)
 async function subAuthorizeAction(ctx) {
   const { event, openid, clientIp, device, db, col, log, writeAudit, getProfile } = ctx;
-      // 授权模板白名单: demand_grab(抢单提醒) / demand_urge(催办提醒, Wave2 止血⑥)
+      // 授权模板白名单: demand_grab(抢单提醒) / demand_urge(催办提醒, Wave2 止血⑥) / confirm_comm(订单沟通提醒, 2026-10-17)
       const tmpl = String(event.tmpl || 'demand_grab');
-      if (['demand_grab', 'demand_urge'].indexOf(tmpl) < 0) return { ok: false, code: 'pa_sub_tmpl_bad', msg: '不支持的订阅模板' };
+      if (['demand_grab', 'demand_urge', 'confirm_comm'].indexOf(tmpl) < 0) return { ok: false, code: 'pa_sub_tmpl_bad', msg: '不支持的订阅模板' };
       const profile = await getProfile(openid);
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
       const sub_msgs = Object.assign({}, profile.sub_msgs || {}, {

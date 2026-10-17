@@ -267,6 +267,43 @@ async function sendUrgeSub(order, config, now, used) {
   });
 }
 
+// 2026-10-17: 四确认沟通订阅发送（用户在四确认面板提交修改/沟通 → 耍伴端微信订阅消息, 离端即时提醒）
+// 未配模板/耍伴未授权/发送失败一律静默降级(退回站内 system_notice + 聊天页端内弹窗), 绝不阻断原流程
+async function sendCommSub(order, config, item) {
+  const tmpl = (config && config.sub_msg_templates && config.sub_msg_templates.confirm_comm) || null;
+  if (!tmpl || !tmpl.tmpl_id) return;                       // 未配模板 → 静默降级
+  const p = order.partner_openid;
+  if (!p) return;
+  let authorized = false;                                    // 耍伴需已授权 confirm_comm(一次性订阅)
+  try {
+    const pr = await col('partner_profile').where({ openid: p }).limit(1).get();
+    const prof = (pr.data && pr.data[0]) || {};
+    authorized = !!(prof.sub_msgs && prof.sub_msgs.confirm_comm && prof.sub_msgs.confirm_comm.authorized === true);
+  } catch (e) { return; }
+  if (!authorized) return;
+  const fields = Object.assign({ thing1: 'comm_item', time2: 'comm_time', thing3: 'comm_scene' },
+    (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
+  const pad = (n) => (n < 10 ? '0' + n : '' + n);
+  const d = new Date();
+  const tstr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const data = {};
+  for (const kw of Object.keys(fields)) {
+    const s = fields[kw];
+    let v = '';
+    if (s === 'comm_item') v = `对方修改了「${FIELD_CN[item] || item}」`;
+    else if (s === 'comm_time') v = tstr;
+    else if (s === 'comm_scene') v = `订单 ${order.order_no || ''} 需重新确认`;
+    else if (typeof s === 'string') v = String(s);
+    if (v) data[kw] = { value: String(v).slice(0, 20) };
+  }
+  if (!Object.keys(data).length) return;
+  await cloud.openapi.subscribeMessage.send({
+    touser: p, templateId: tmpl.tmpl_id,
+    page: tmpl.page || `pages-v2/chat/chat?orderId=${order._id}`,
+    data, miniprogramState: tmpl.miniprogram_state || 'formal'
+  });
+}
+
 // ── action 分发表：已物理抽到同级 action_*.js 的 handler 在此注册，ctx 注入共享符号 ──
 // 新增分组：require 后 Object.assign 进 HANDLERS；handler 签名 (ctx)=>result，禁止反向 require('./index')。
 const HANDLERS = Object.assign(
@@ -305,6 +342,7 @@ const HANDLERS = Object.assign(
  * @property {Function} isFrozen
  * @property {Function} allConfirmed
  * @property {Function} sendUrgeSub
+ * @property {Function} sendCommSub
  * @property {Function} buildOrderSummary
  * @property {Function} fmtDT
  * @property {Function} fmtDTShort
@@ -371,7 +409,7 @@ exports.main = async (event, context) => {
       event, openid, order_id, action, wxCtx,
       col, db, _, log, cloud,
       getConfig, getOrder, writeNotice, getConfirmation, logStatus, casStatus,
-      roleOf, isFrozen, allConfirmed, sendUrgeSub, buildOrderSummary,
+      roleOf, isFrozen, allConfirmed, sendUrgeSub, sendCommSub, buildOrderSummary,
       fmtDT, fmtDTShort, isValidDocId, maskContact, reasonMaxLen, estimateCommute, checkText,
       canManualUrge, casTransition, noShowCfg, canSubmitReport, defenseDeadlineOf, canWithdrawReport, REPORT_STATUS,
       haversineKm, splitOrderAmount, writeAudit,

@@ -71,6 +71,15 @@ test('sub_authorize 非法模板 → pa_sub_tmpl_bad', async () => {
   assert.strictEqual(r.code, 'pa_sub_tmpl_bad');
 });
 
+test('sub_authorize confirm_comm 合法 → 落库 sub_msgs.confirm_comm', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ partner_profile: { p1: { _id: 'p1', openid: USER } } }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sub_authorize', tmpl: 'confirm_comm', authorized: true, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.sub_msgs.confirm_comm.authorized, true);
+});
+
+// get_exam_questions 科目不存在 → pa_exam_bad_subject
 test('get_exam_questions 科目不存在 → pa_exam_bad_subject', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore() });
   const { main } = loadIndex(sdk);

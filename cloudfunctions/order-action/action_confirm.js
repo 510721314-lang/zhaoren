@@ -58,7 +58,7 @@ async function get_confirmation(ctx) {
 }
 
 async function update_item(ctx) {
-  const { event, order_id, openid, CONFIRM_FIELDS, getOrder, roleOf, getConfig, splitOrderAmount, col, _, getConfirmation, log, casStatus, writeNotice, FIELD_CN } = ctx;
+  const { event, order_id, openid, CONFIRM_FIELDS, getOrder, roleOf, getConfig, splitOrderAmount, col, _, getConfirmation, log, casStatus, writeNotice, sendCommSub, FIELD_CN } = ctx;
   const { item, value } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   if (CONFIRM_FIELDS.indexOf(item) < 0) {
@@ -160,6 +160,10 @@ async function update_item(ctx) {
     body: `对方修改了「${FIELD_CN[item] || item}」,需重新确认`,
     action_key: 'jump_chat', action_payload: { order_id }
   });
+  // 2026-10-17: 用户(发单人)提交修改/沟通 → 耍伴端微信订阅消息(离端即时提醒); 未配模板/未授权/发送失败一律降级, 不阻断
+  if (role === 'user') {
+    try { await sendCommSub(order, config, item); } catch (e) { log.w(`comm sub fail: ${e && (e.errMsg || e.message)}`); }
+  }
   return {
     ok: true,
     data: { item, reset: true, version: v + 1, confirmed_count: 0, total_count: 8 }

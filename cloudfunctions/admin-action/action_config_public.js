@@ -21,6 +21,14 @@ function config_public(ctx) {
     miniprogram_state: subUrge.miniprogram_state || 'formal',
     fields: subUrge.fields || null
   } : { enabled: false };
+  const subComm = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.confirm_comm) || {};
+  const confirmComm = subComm.tmpl_id ? {
+    enabled: true,
+    tmpl_id: subComm.tmpl_id,
+    page: subComm.page || 'pages-v2/chat/chat',
+    miniprogram_state: subComm.miniprogram_state || 'formal',
+    fields: subComm.fields || null
+  } : { enabled: false };
   return { ok: true, data: {
     version: cfgRaw.version,
     timeouts: {
@@ -123,7 +131,8 @@ function config_public(ctx) {
     },
     sub_msg: {
       demand_grab: demandGrab,
-      demand_urge: demandUrge
+      demand_urge: demandUrge,
+      confirm_comm: confirmComm
     },
     urge: {
       remind_after_h: nsInt(cfgRaw.remind_after_h, 1),

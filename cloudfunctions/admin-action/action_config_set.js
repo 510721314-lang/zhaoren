@@ -190,7 +190,7 @@ async function config_set(ctx) {
     if (typeof event.sub_msg_templates !== 'object' || Array.isArray(event.sub_msg_templates) || event.sub_msg_templates === null) {
       return fail('config_bad_sub_msg', 'sub_msg_templates 须为对象');
     }
-    const TMPL_WHITELIST = ['demand_grab', 'demand_urge'];
+    const TMPL_WHITELIST = ['demand_grab', 'demand_urge', 'confirm_comm'];   // confirm_comm: 订单沟通提醒(2026-10-17)
     before.sub_msg_templates = config.sub_msg_templates || {};
     const merged = Object.assign({}, before.sub_msg_templates);
     for (const tk of TMPL_WHITELIST) {
