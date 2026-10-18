@@ -460,6 +460,7 @@ Page({
         modify_reject: '❌ 对方已拒绝改期'
       };
       const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
+      // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）
       // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
       // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
       this.__commShownKeys = this.__commShownKeys || {};
