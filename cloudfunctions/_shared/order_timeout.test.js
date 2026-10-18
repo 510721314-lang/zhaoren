@@ -61,6 +61,10 @@ test('S2_6 超时 → start_apply_timeout=1 且转 S10.5 + 争议正交位 + 通
   assert.strictEqual(upd.data.dispute_state, 'open');
   assert.strictEqual(upd.data.dispute_type, 'start_timeout');
   assert.ok(upd.data.dispute_opened_at > 0, '应写争议开立时间');
+  assert.strictEqual(upd.data.complaint_by, '', '#01争议升级 complaint_by 应为空串(系统自动转)');
+  assert.strictEqual(upd.data.complaint_from_status, 'S2_6', '#01 complaint_from_status 应记录起源态');
+  assert.strictEqual(upd.data.frozen, true, '#01争议升级应置 frozen:true 对齐主动投诉路径');
+  assert.strictEqual(upd.data.help_flag, true, '#03争议升级应置 help_flag:true 对齐主动投诉路径');
   const notices = (sdk.writes.system_notice || []).filter((w) => w.add);
   assert.strictEqual(notices.length, 2, '应通知双方');
   assert.strictEqual(notices[0].data.type, 'dispute_open');
@@ -82,6 +86,10 @@ test('S3_6 超时 → finish_confirm_timeout=1 且转 S10.5 + dispute_type=finis
   const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'P3');
   assert.strictEqual(upd.data.status, 'S10.5');
   assert.strictEqual(upd.data.dispute_type, 'finish_timeout');
+  assert.strictEqual(upd.data.complaint_by, '', '#01争议升级 complaint_by 应为空串');
+  assert.strictEqual(upd.data.complaint_from_status, 'S3_6', '#01 complaint_from_status 应记录起源态');
+  assert.strictEqual(upd.data.frozen, true, '#01争议升级应置 frozen:true');
+  assert.strictEqual(upd.data.help_flag, true, '#03争议升级应置 help_flag:true');
 });
 
 // ④ 状态不符(非待确认中间态) → 不处理

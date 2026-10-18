@@ -88,7 +88,7 @@ async function processStartApplyTimeout(ctx) {
         status: 'S10.5', dispute_state: 'open', dispute_type: 'start_timeout',
         dispute_opened_at: now, complaint_at: now, complaint_by: '',
         complaint_from_status: 'S2_6', complaint_withdrawn_at: 0, complaint_withdrawn_by: '',
-        updated_at: now
+        frozen: true, help_flag: true, updated_at: now
       }, 'start_apply_timeout');
       if (!won) { out.skipped.push(o.order_no + ':S2_6竞态'); return; }
       ok.push(o);
@@ -122,7 +122,7 @@ async function processFinishConfirmTimeout(ctx) {
         status: 'S10.5', dispute_state: 'open', dispute_type: 'finish_timeout',
         dispute_opened_at: now, complaint_at: now, complaint_by: '',
         complaint_from_status: 'S3_6', complaint_withdrawn_at: 0, complaint_withdrawn_by: '',
-        updated_at: now
+        frozen: true, help_flag: true, updated_at: now
       }, 'finish_confirm_timeout');
       if (!won) { out.skipped.push(o.order_no + ':S3_6竞态'); return; }
       ok.push(o);

@@ -224,6 +224,49 @@ test('complaint: S8 耍伴不可发起 → oa_complaint_status 且不落库', as
   assert.strictEqual((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
 });
 
+// 12e. complaint_withdraw: 争议升级(complaint_by='') 需求方可撤 → 恢复 S2_6
+test('complaint_withdraw: complaint_by空串 需求方撤 → restore S2_6 且 frozen=false', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    status: 'S10.5', complaint_by: '', complaint_from_status: 'S2_6',
+    dispute_state: 'open', dispute_type: 'start_timeout', frozen: true,
+    complaint_at: Date.now() - 60000, complaint_withdrawn_at: 0, complaint_withdrawn_by: ''
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint_withdraw', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true, `需求方应可撤争议升级: ${JSON.stringify(r)}`);
+  assert.strictEqual(r.data.status, 'S2_6');
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === OID);
+  assert.ok(upd, '应 CAS 回写 order_main');
+  assert.strictEqual(upd.data.frozen, false, '撤回后应解冻');
+  assert.strictEqual(upd.data.dispute_state, 'resolved', '撤回后 dispute_state 应 resolved');
+});
+
+// 12f. complaint_withdraw: 争议升级(complaint_by='') 耍伴方同样可撤 → 恢复 S3_6
+test('complaint_withdraw: complaint_by空串 耍伴方撤 → restore S3_6(双方可撤)', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: baseStore({
+    status: 'S10.5', complaint_by: '', complaint_from_status: 'S3_6',
+    dispute_state: 'open', dispute_type: 'finish_timeout', frozen: true,
+    complaint_at: Date.now() - 60000, complaint_withdrawn_at: 0, complaint_withdrawn_by: ''
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint_withdraw', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, true, `耍伴应可撤争议升级: ${JSON.stringify(r)}`);
+  assert.strictEqual(r.data.status, 'S3_6');
+});
+
+// 12g. complaint_withdraw: 主动投诉(complaint_by=USER) 耍伴方不可撤 → oa_not_complaint_owner
+test('complaint_withdraw: complaint_by=USER 耍伴撤 → oa_not_complaint_owner(仅发起人可撤)', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: baseStore({
+    status: 'S10.5', complaint_by: USER, complaint_from_status: 'S2',
+    dispute_state: 'open', dispute_type: 'complaint', frozen: true,
+    complaint_at: Date.now() - 60000, complaint_withdrawn_at: 0, complaint_withdrawn_by: ''
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint_withdraw', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_not_complaint_owner');
+});
+
 // 13. timeline: 缺 order_id → oa_bad_order_id(分发层预检)
 test('timeline: 缺 order_id → oa_bad_order_id', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore() });
