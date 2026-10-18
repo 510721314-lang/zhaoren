@@ -148,7 +148,7 @@
 | 实名与签署 | realname_face_mode | `mock` / `wx`（类目资质审批后切微信官方人脸核验） |
 | 耍伴资料 | p_skills_max, p_skills_len, p_highlights_max, p_highlight_len, p_media_title_max, p_media_len, p_media_photo_max, p_media_photo_size_mb, p_bio_len | 技能/亮点/资质/简介的数量与字数上限 |
 | 消息 | msg_page_size | 会话列表每页加载数 |
-| 发布与展示 | publish_content_options_max, workbench_income_show, order_page_size, page_index_nearby, page_index_square, page_square_limit, page_nearby_limit, page_wallet_withdraw, page_notice_limit, share_title_max, order_reason_max_len, publish_remark_max_len, scene_option_display_max | 各类分页/字数/展示条数上限（publish_remark_max_len=需求备注「标题＋全角｜＋描述」整串上限，前后端同口径） |
+| 发布与展示 | publish_content_options_max, workbench_income_show, order_page_size, page_index_nearby, page_index_square, page_square_limit, page_nearby_limit, page_wallet_withdraw, page_notice_limit, share_title_max, order_reason_max_len, publish_title_max_len, publish_desc_max_len, scene_option_display_max | 各类分页/字数/展示条数上限（`publish_title_max_len`=需求标题字数上限，默认 20/范围 5–60；`publish_desc_max_len`=详细描述字数上限，默认 200/范围 50–1000；两者由 demand-publish 分别强约束、前端输入层各自卡，落库仍拼回 `remark = 标题｜描述`。**原 `publish_remark_max_len`（整串总闸）已于 2026-10-18 废弃**） |
 | 爽约处罚 | no_show_report_window_h, no_show_defense_window_h, no_show_score_deduct, no_show_suspend_threshold, no_show_suspend_days, no_show_count_window_days, no_show_evidence_max, no_show_reason_min_len, no_show_max_per_order | 申诉/举证窗口、扣分、停用阈值与天数、举证张数、理由字数、单方申诉上限 |
 
 > 交叉校验（`config_set` 内）：`rate_min_fen < rate_max_fen`、`fixed_price_min_fen ≤ fixed_price_max_fen`、`time_redline_open_min < time_redline_close_min`（close>0 时）。
