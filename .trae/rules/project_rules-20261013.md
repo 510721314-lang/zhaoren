@@ -178,3 +178,11 @@ alwaysApply: true
 - **此后新产生的任何资产一律不得带「AI 生成 / AI-generated / 由 AI 编写」类水印标识**：覆盖代码注释、文档、方案、报告、衔接提示词、规则文件、交付物等一切对外可见内容；必要的协作事实标注（如提交人/日期）不受影响，但禁止「AI 生成」类署名。
 - **存量资产水印清理为挂起项（待用户派活）**：2026-10-18 已只读取证 `c:\zhaoren` 下含「AI生成|AI 生成|AI-generated|AI generated」字样 3 处（PRD_v15.1.md / PRD/kaifaV2.0.md / PRD/PRD.md 各 1 处）；执行前必须先全量 grep 确认全部变体与范围（含 git 历史、云存储、飞书资产），改前先报方案，禁止未批准即动。
 - 本规则自生效日起约束本仓库内一切新产资产；规则体系本身（.trae/rules、docs/*）同样适用。
+
+## 19. 备案类配置完整提示纪律（2026-10-18 用户指令）
+- 凡涉及小程序备案类配置（隐私保护指引、订阅消息模板、后台权限声明、合法域名、第三方 key 白名单等），必须先**全仓实测取证**再给完整提示：所需填报项**全量清单** + **特别注意事项**（坑/陷阱/联动影响），禁止凭记忆/摘要列项。
+- **双通道分工（2026-10-18 实证，最高频错误）**：`app.json` 的 `requiredPrivateInfos` 白名单**仅限定位类 8 项**——`chooseAddress / chooseLocation / choosePoi / getFuzzyLocation / getLocation / onLocationChange / startLocationUpdate / startLocationUpdateBackground`；相册/摄像头类（`chooseMedia`/`chooseImage`/`chooseVideo`）**不得写入 app.json**（会报 `requiredPrivateInfos[n] field needs to be ...` 编译错），改由 mp 后台「用户隐私保护指引」声明。
+- **位置类必须声明全**：`getLocation` 与 `chooseLocation` 都需后台「位置信息」类目；漏任一 → 真机报 `api scope is not declared in the privacy agreement`（选点/定位被拦）。
+- **用途说明须与真实调用点一一对应**（先 grep 实测调用面；本次实证 chooseMedia 4 处 / getLocation 14 处 / chooseLocation 7 处）；**存储期限勿填 0 天**（建议「注销/删除」类选项或明确期限）。
+- **隐私指引变更会触发重新审核**，审核中期间真机隐私接口可能被拦；**前后端两侧必须对齐**（app.json `requiredPrivateInfos` ↔ 后台隐私指引），缺任何一侧都静默/显式失败。
+- 实测零调用即可跳过声明（本项目实证：手机号/头像昵称/麦克风/保存相册/通讯录均无需声明）。
