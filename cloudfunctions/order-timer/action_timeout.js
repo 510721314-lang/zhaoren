@@ -74,6 +74,7 @@ async function processS0Timeout(ctx) {
 // 语义: 时间锚(start_apply_at / finish_apply_at)超阈值未获响应 → 状态迁移 S2_6/S3_6→S10.5
 //   + 争议正交位(dispute_state='open' / dispute_type / dispute_opened_at);
 //   no.26/no.30 的 money="资金冻结待裁定"本期不做(沿用阶段F「不动结算」), 冻结位由 mapStatus 对 S10.5 强制表达。
+// @VERIFIED 2026-10-18 已真机验证：order-timer 超时扫描段 processStartApplyTimeout/processFinishConfirmTimeout（S2.6 开始履约申请 15min / S3.6 完毕确认 30min 未响应 → S10.5 + 双方站内信；阈值后台可配，T-7.1.1/1.2/1.3/1.4 全子项真机通过）
 async function processStartApplyTimeout(ctx) {
   const { _, col, log, trackBacklog, SCAN_MAX, scanAll, logStatus, casStatus, now, out, startApplyMin } = ctx;
   try {
