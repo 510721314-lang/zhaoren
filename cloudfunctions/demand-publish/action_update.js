@@ -2,9 +2,9 @@
 
     // 9. 更新需求(仅创建者,仅 matching 状态; 白名单字段更新; 跳过发布地址重定位)
 async function update_action(ctx) {
-  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, verifySignatureFile, remarkMaxLen, checkText, suspendLeftDays, getConfig, contentOptionsMax, getUser, isValidDocId } = ctx;
+  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, verifySignatureFile, titleMaxLen, descMaxLen, checkText, suspendLeftDays, getConfig, contentOptionsMax, getUser, isValidDocId } = ctx;
       const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
-        remark, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
+        remark, title, description, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
         match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id,
         pricing_type, fixed_price_fen, project_attr } = event;
       // 计价模式归一化(与 publish 同口径; 缺省 hourly/commercial 兼容存量)
@@ -160,13 +160,30 @@ async function update_action(ctx) {
         }
       }
 
-      // ── 备注安全 ──
-      const remarkStr = remark ? String(remark).trim() : '';
-      if (remarkStr) {
-        const remarkLimit = remarkMaxLen(config);
-        if (remarkStr.length > remarkLimit) {
-          return { ok: false, code: 'update_remark_long', msg: `备注最长 ${remarkLimit} 字` };
+      // ── 标题/详细描述字数 + 备注安全(2026-10-18: 两上限分别后台可配;
+      //    新客户端分别上报 title/description → 分别校验并拼回 remark 落库, 展示口径不变;
+      //    旧客户端只传 remark 整串 → 按派生总上限(标题上限+1+描述上限)兜底) ──
+      const titleStr = title != null ? String(title).trim() : '';
+      const descStr = description != null ? String(description).trim() : '';
+      let remarkStr;
+      if (titleStr || descStr) {
+        const tLimit = titleMaxLen(config);
+        const dLimit = descMaxLen(config);
+        if (titleStr.length > tLimit) {
+          return { ok: false, code: 'update_title_long', msg: `需求标题最长 ${tLimit} 字` };
         }
+        if (descStr.length > dLimit) {
+          return { ok: false, code: 'update_desc_long', msg: `详细描述最长 ${dLimit} 字` };
+        }
+        remarkStr = `${titleStr}｜${descStr}`;
+      } else {
+        remarkStr = remark ? String(remark).trim() : '';
+        const totalLimit = titleMaxLen(config) + 1 + descMaxLen(config);
+        if (remarkStr.length > totalLimit) {
+          return { ok: false, code: 'update_remark_long', msg: `备注最长 ${totalLimit} 字` };
+        }
+      }
+      if (remarkStr) {
         const chk = await checkText(openid, remarkStr, config.block_words);
         if (!chk.pass) {
           return { ok: false, code: 'update_remark_blocked', msg: chk.reason };

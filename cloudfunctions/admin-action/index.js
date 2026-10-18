@@ -218,8 +218,9 @@ const CONFIG_SCHEMA = [
   { f: 'page_notice_limit', t: 'int', g: '发布与展示', label: '通知单页条数', unit: '条', min: 1, max: 100, def: 50, d: '通知列表单页条数' },
   { f: 'share_title_max', t: 'int', g: '发布与展示', label: '分享标题字数上限', unit: '字', min: 5, max: 60, def: 30, d: '微信分享标题字数上限' },
   { f: 'order_reason_max_len', t: 'int', g: '发布与展示', label: '改期/加时原因字数上限', unit: '字', min: 20, max: 500, def: 200, d: '改期/加时原因字数上限' },
-  // 需求备注(标题｜描述)整串字数上限: 前后端同口径(demand-publish 读此键强约束, 前端输入层按整串卡)
-  { f: 'publish_remark_max_len', t: 'int', g: '发布与展示', label: '需求备注字数上限', unit: '字', min: 50, max: 500, def: 200, d: '需求备注(标题＋描述)总字数上限' },
+  // 需求标题/详细描述字数上限: 前后端同口径(demand-publish 读此两键分别强约束, 前端输入层各自卡)
+  { f: 'publish_title_max_len', t: 'int', g: '发布与展示', label: '需求标题字数上限', unit: '字', min: 5, max: 60, def: 20, d: '发布需求时标题字数上限' },
+  { f: 'publish_desc_max_len', t: 'int', g: '发布与展示', label: '详细描述字数上限', unit: '字', min: 50, max: 1000, def: 200, d: '发布需求时详细描述字数上限' },
   // 场景卡「服务项」展示上限(批3.2): 前端场景卡/发布页/后台预览最多展示几项; 展示层截断, 与勾选上限 content_options_max 不同
   { f: 'scene_option_display_max', t: 'int', g: '发布与展示', label: '场景卡服务项展示数', unit: '项', min: 1, max: 8, def: 3, d: '场景卡/发布页最多展示前几项服务项（展示层截断）' },
   // ── 费率(公益单时薪后台可调) ──

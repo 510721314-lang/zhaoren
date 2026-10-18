@@ -2,10 +2,10 @@
 
     // 1. 发布需求
 async function publish_action(ctx) {
-  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, phoneCrypt, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, isMobilePhone, maskContact, verifySignatureFile, remarkMaxLen, checkText, genDemandNo, isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax, getUser, hasEmergencyContact, isValidDocId } = ctx;
+  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, phoneCrypt, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, isMobilePhone, maskContact, verifySignatureFile, titleMaxLen, descMaxLen, checkText, genDemandNo, isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax, getUser, hasEmergencyContact, isValidDocId } = ctx;
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
-        remark, rate_fen, aa_tier, aa_promise_checked,
+        remark, title, description, rate_fen, aa_tier, aa_promise_checked,
         match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id,
         pricing_type, fixed_price_fen, project_attr,
         headcount, gender_pref,
@@ -321,13 +321,31 @@ async function publish_action(ctx) {
         }
       }
 
-      // ── 备注安全检测(msgSecCheck v2,降级违禁词 · rules.md 六) ──
-      const remarkStr = remark ? String(remark).trim() : '';
-      if (remarkStr) {
-        const remarkLimit = remarkMaxLen(config);
-        if (remarkStr.length > remarkLimit) {
-          return { ok: false, code: 'publish_remark_long', msg: `备注最长 ${remarkLimit} 字` };
+      // ── 标题/详细描述字数 + 备注安全检测(msgSecCheck v2,降级违禁词 · rules.md 六) ──
+      // 2026-10-18: 标题/描述上限分别后台可配(publish_title_max_len / publish_desc_max_len)
+      // 新客户端分别上报 title/description → 服务端分别校验并拼回 remark 落库(展示/检索口径不变)
+      // 旧客户端未传 title/description → 只传 remark 整串, 按派生总上限(标题上限+1+描述上限)兜底
+      const titleStr = title != null ? String(title).trim() : '';
+      const descStr = description != null ? String(description).trim() : '';
+      let remarkStr;
+      if (titleStr || descStr) {
+        const tLimit = titleMaxLen(config);
+        const dLimit = descMaxLen(config);
+        if (titleStr.length > tLimit) {
+          return { ok: false, code: 'publish_title_long', msg: `需求标题最长 ${tLimit} 字` };
         }
+        if (descStr.length > dLimit) {
+          return { ok: false, code: 'publish_desc_long', msg: `详细描述最长 ${dLimit} 字` };
+        }
+        remarkStr = `${titleStr}｜${descStr}`;
+      } else {
+        remarkStr = remark ? String(remark).trim() : '';
+        const totalLimit = titleMaxLen(config) + 1 + descMaxLen(config);
+        if (remarkStr.length > totalLimit) {
+          return { ok: false, code: 'publish_remark_long', msg: `备注最长 ${totalLimit} 字` };
+        }
+      }
+      if (remarkStr) {
         const chk = await checkText(openid, remarkStr, config.block_words);
         if (!chk.pass) {
           return { ok: false, code: 'publish_remark_blocked', msg: chk.reason };
