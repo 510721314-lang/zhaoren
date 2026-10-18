@@ -83,13 +83,13 @@ function computeNextStep(order, now = Date.now()) {
     case 'S2_6':
       // 履约双确认(2026-10-14 阶段C/D): 耍伴已发起到场申请, 等需求方确认
       return role === 'user'
-        ? { icon: '🙋', title: '确认耍伴到场', subtitle: '耍伴已到达履约点, 请在下方确认是否开始履约', tone: 'primary' }
+        ? { icon: '⚠️', title: '对方开始履约申请 待你确认', subtitle: '耍伴已提交到场申请, 请及时处理', tone: 'warn' }
         : { icon: '⏳', title: '等待需求方确认', subtitle: '已提交到场申请, 对方确认后开始履约', tone: 'mute' };
 
     case 'S3_6':
       // 履约双确认(2026-10-15 阶段F): 耍伴已发起完毕确认, 等需求方确认/不确认
       return role === 'user'
-        ? { icon: '📸', title: '确认履约完毕', subtitle: '耍伴已提交完成照片与定位凭证, 请在下方确认', tone: 'primary' }
+        ? { icon: '⚠️', title: '对方履约完毕申请 待你确认', subtitle: '耍伴已提交完成凭证, 请及时处理', tone: 'warn' }
         : { icon: '⏳', title: '等待需求方确认', subtitle: '已发起完毕确认, 对方确认后订单完成', tone: 'mute' };
 
     case 'S3': {
