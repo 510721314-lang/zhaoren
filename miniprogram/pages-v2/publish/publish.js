@@ -120,7 +120,7 @@ Page({
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: redline.PICKER_CLOSE,
     titleMax: CONFIG.TITLE_MAX,
-    descMax: CONFIG.DESC_MAX,
+    descMax: Math.max(0, (Number(CONFIG.REMARK_MAX) || 200) - 1),   // 描述预算=整串上限−标题−1(初始标题为空)
     contentOptionsMax: Number(CONFIG.PUBLISH.contentOptionsMax) || 3,
     draftExpireDays: CONFIG.DRAFT.expireDays,
     budgetPlaceholder: `${CONFIG.BUDGET_RANGE[0]}-${CONFIG.BUDGET_RANGE[1]}`,
@@ -368,7 +368,11 @@ Page({
   },
   restoreDraft(e) {
     // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); 20 条叶子路径在模块内逐字保留
-    return restoreDraft(this, e);
+    const r = restoreDraft(this, e);
+    // 2026-10-18: 草稿不经服务端校验(save_draft 不查 remark 长度), 旧草稿可能存于历史上限(500)下
+    // → 恢复后按当前整串口径夹紧, 否则用户恢复草稿提交仍会被服务端拒
+    this._clampRemark();
+    return r;
   },
 
   // ── B2 项目属性 ──
@@ -621,12 +625,26 @@ Page({
     });
   },
   // ── B4 标题/描述 ──
+  // 备注口径(2026-10-18): 服务端校验整串 remark=标题＋全角｜＋描述 ≤ 后台 publish_remark_max_len(默认200)
+  // 前端同口径卡死, 避免"界面承诺 500 / 实际可用 179"的错位
+  _remarkBudget(title) {
+    const max = Number(CONFIG.REMARK_MAX) || 200;
+    return Math.max(0, max - String(title || '').length - 1);
+  },
+  // 按当前标题回压描述, 保证 标题＋1＋描述 ≤ 整串上限(输入层与草稿恢复共用)
+  _clampRemark() {
+    const f = this.data.form || {};
+    const budget = this._remarkBudget(f.title);
+    const clamped = String(f.description || '').slice(0, budget);
+    this.setData({ 'form.description': clamped, descCount: clamped.length, descMax: budget });
+  },
   onTitleInput(e) {
     let v = (e.detail.value || '').slice(0, CONFIG.TITLE_MAX);
     this.setData({ 'form.title': v, titleCount: v.length });
+    this._clampRemark();   // 标题变长 → 描述预算随之收缩
   },
   onDescInput(e) {
-    let v = (e.detail.value || '').slice(0, CONFIG.DESC_MAX);
+    let v = (e.detail.value || '').slice(0, this._remarkBudget(this.data.form.title));
     this.setData({ 'form.description': v, descCount: v.length });
   },
 

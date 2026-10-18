@@ -53,6 +53,7 @@ const CLOUD_MAP = {
   'publish.welfare_hourly_rate_fen': 'WELFARE.hourlyRateFen',
   'publish.good_review_min_stars': 'ORDER.goodReviewMin',
   'publish.reason_max_len': 'ORDER.reasonMaxLen',
+  'publish.remark_max_len': 'REMARK_MAX',
   'publish.share_title_max': 'SHARE.titleMax',
   'paging.order_page_size': 'PAGING.orderPageSize',
   'paging.index_nearby': 'PAGING.indexNearby',
