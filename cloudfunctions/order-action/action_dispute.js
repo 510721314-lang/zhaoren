@@ -5,7 +5,7 @@
 // 相对状态机 no.16(complaint_open from 含 S5/S8) 为**有意收窄**, 状态机副本暂缓同步(待用户拍板)。
 const COMPLAINT_OPEN_STATUS = ['S2', 'S3', 'S3.5', 'S4'];
 // 撤回投诉的自助回退白名单(D1 拍板 2026-10-12): 覆盖全部历史起源状态(含存量 S5/S8 起源的争议单), 保证存量争议仍可自助撤回
-const COMPLAINT_RESTORE_STATUS = ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9'];
+const COMPLAINT_RESTORE_STATUS = ['S2', 'S3', 'S3.5', 'S4', 'S5', 'S8', 'S9', 'S2_6', 'S3_6'];
 
 async function complaint(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, checkText, wxCtx, db, log, casStatus, logStatus, col, writeNotice, writeAudit } = ctx;
@@ -89,7 +89,8 @@ async function complaint_withdraw(ctx) {
     if (order.complaint_withdrawn_by === openid) return { ok: true, data: { status: order.status || '', idempotent: true } };
     return { ok: false, code: 'oa_complaint_not_open', msg: '当前订单不在争议处理中, 不可撤回' };
   }
-  if (order.complaint_by !== openid) return { ok: false, code: 'oa_not_complaint_owner', msg: '仅投诉发起人可撤回' };
+  // 争议升级场景 complaint_by 为空(系统自动转 S10.5), 双方均可撤; 主动投诉仍仅发起人可撤
+  if (order.complaint_by && order.complaint_by !== openid) return { ok: false, code: 'oa_not_complaint_owner', msg: '仅投诉发起人可撤回' };
   let restore = order.complaint_from_status || '';
   if (!restore) {
     try {

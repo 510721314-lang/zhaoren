@@ -244,7 +244,9 @@ function buildOrderView(d, now = Date.now()) {
   const complaint = cRaw ? {
     status: cRaw.status || 'open',
     status_text: cRaw.status === 'withdrawn' ? '已撤回' : (cRaw.status === 'resolved' ? '平台已处理' : '处理中'),
-    by_text: `${cRaw.mine ? '我' : '对方'}（${cRaw.by_role === 'user' ? '发单人' : '耍伴'}）`,
+    by_text: cRaw.by_role === 'system'
+      ? '系统超时转入'
+      : `${cRaw.mine ? '我' : '对方'}（${cRaw.by_role === 'user' ? '发单人' : '耍伴'}）`,
     reason: cRaw.reason || '',
     at_text: fmtTs(cRaw.at),
     withdrawn_at_text: fmtTs(cRaw.withdrawn_at),

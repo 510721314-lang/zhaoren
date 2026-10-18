@@ -86,7 +86,9 @@ async function processStartApplyTimeout(ctx) {
       if (!(o.start_apply_at && o.start_apply_at < cut)) return;
       const won = await casStatus(o._id, 'S2_6', {
         status: 'S10.5', dispute_state: 'open', dispute_type: 'start_timeout',
-        dispute_opened_at: now, updated_at: now
+        dispute_opened_at: now, complaint_at: now, complaint_by: '',
+        complaint_from_status: 'S2_6', complaint_withdrawn_at: 0, complaint_withdrawn_by: '',
+        updated_at: now
       }, 'start_apply_timeout');
       if (!won) { out.skipped.push(o.order_no + ':S2_6竞态'); return; }
       ok.push(o);
@@ -118,7 +120,9 @@ async function processFinishConfirmTimeout(ctx) {
       if (!(o.finish_apply_at && o.finish_apply_at < cut)) return;
       const won = await casStatus(o._id, 'S3_6', {
         status: 'S10.5', dispute_state: 'open', dispute_type: 'finish_timeout',
-        dispute_opened_at: now, updated_at: now
+        dispute_opened_at: now, complaint_at: now, complaint_by: '',
+        complaint_from_status: 'S3_6', complaint_withdrawn_at: 0, complaint_withdrawn_by: '',
+        updated_at: now
       }, 'finish_confirm_timeout');
       if (!won) { out.skipped.push(o.order_no + ':S3_6竞态'); return; }
       ok.push(o);
