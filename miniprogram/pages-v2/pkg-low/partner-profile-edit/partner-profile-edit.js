@@ -219,7 +219,11 @@ Page({
       mediaType: ['image'],
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
-      success: (res) => this.doUpload(key, res.tempFiles || [])
+      success: (res) => this.doUpload(key, res.tempFiles || []),
+      fail: () => {
+        // 2026-10-18 补: 隐私指引审核中/用户拒绝等失败场景不再静默, 给出可见提示
+        wx.showToast({ title: '图片选择失败，请检查权限', icon: 'none' });
+      }
     });
   },
   async doUpload(key, files) {
