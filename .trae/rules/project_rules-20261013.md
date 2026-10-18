@@ -173,3 +173,8 @@ alwaysApply: true
 - **「检查网络」标准四查（一条命令给全结论，判「定向阻断 / 断网 / 代理未监听」）**：① `Resolve-DnsName github.com`（DNS）；② `Test-NetConnection github.com -Port 443`（目标）；③ `Test-NetConnection www.baidu.com -Port 443`（对照，§12 判定向阻断）；④ `Test-NetConnection 127.0.0.1 -Port 7890` + 读 `HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 的 `ProxyEnable/ProxyServer` + `git config --get http.proxy`/`https.proxy`。**要点**：git 自身**不读** Windows 系统代理（实证二者可分离——系统代理开着但 git 无代理配置），故「IDE 报代理错」与「git 能否推送」是两条独立通道，必须分别验。
 - **弹层类 UI 组件化的低风险切口（4b 实证）**：组件**只承载 `position:fixed` 的弹层 + canvas**，在**页面根部按 kind 实例化两次**（如 `#pet-auth`/`#proxy-auth`）；页面流内的标题行/勾选组/文案 loader/勾选态/`wx.cloud.uploadFile` 一律留页面 → **零布局位移**，且三类差异（文案来源、实例 id、state 命名 `pet*`/`proxy*`）可原样保留。**前置判定**：先确认目标 UI 定位方式，`fixed` 者优先走此切口。多根组件（弹层与遮罩各为一个根）与 `styleIsolation:"apply-shared"`（独占样式随块迁组件 wxss、共用原语留页面）均实证可行。
 - **PowerShell 5 下不要用 `node -e` 内嵌复杂正则**：含引号/反斜杠的校验脚本会被 PS 解析器撕碎（实证 `Missing ] at end of attribute or type literal`，exit 1）；**复杂校验一律先写临时 `.js` 文件再 `node <file>`**，临时脚本放系统 temp（如 `$env:TEMP`）、不入 `c:\zhaoren`（与交付物分离，用户会自行清理）。
+
+## 18. 产物「AI 生成」水印治理纪律（2026-10-18 用户指令）
+- **此后新产生的任何资产一律不得带「AI 生成 / AI-generated / 由 AI 编写」类水印标识**：覆盖代码注释、文档、方案、报告、衔接提示词、规则文件、交付物等一切对外可见内容；必要的协作事实标注（如提交人/日期）不受影响，但禁止「AI 生成」类署名。
+- **存量资产水印清理为挂起项（待用户派活）**：2026-10-18 已只读取证 `c:\zhaoren` 下含「AI生成|AI 生成|AI-generated|AI generated」字样 3 处（PRD_v15.1.md / PRD/kaifaV2.0.md / PRD/PRD.md 各 1 处）；执行前必须先全量 grep 确认全部变体与范围（含 git 历史、云存储、飞书资产），改前先报方案，禁止未批准即动。
+- 本规则自生效日起约束本仓库内一切新产资产；规则体系本身（.trae/rules、docs/*）同样适用。
