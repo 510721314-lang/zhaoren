@@ -38,7 +38,7 @@
 | TC-07e | 不选服务内容 | 拦截 `publish_content_option` | ✅ toast"请选择服务内容"；服务端 mock 14j2 实测 `publish_content_option`"请选择服务内容"✓ |
 | TC-08 | 再发一笔与 TC-06 完全同时段需求 | 拦截 `publish_time_conflict` | ✅ toast"该时段已有同类服务需求,请调整时间"(与存量 DR20260912126109 撞窗)；服务端 mock n10 实测 `publish_time_conflict`✓(W1取药送药撞 D_MAIN) |
 | TC-09 | 订单 tab 取消该需求 | 状态变更、大厅消失；取消他人需求报 `cancel_not_owner` | ✅ match页"撤销需求"→modal 确认→toast"需求已撤销"；my_orders 已无该单；14:00 单保留 |
-| TC-10a | 备注 201+ 字 | 拦截 `publish_remark_long` | ✅ 前端直填201字→云端拒"备注最长 200 字"(真机键盘 maxlength=200 物理截断)；服务端 mock 14k2 实测 `publish_remark_long`✓ |
+| TC-10a | 备注 201+ 字 | 拦截 `publish_remark_long` | ✅ 前端直填201字→云端拒"备注最长 200 字"(真机键盘 maxlength=200 物理截断)；服务端 mock 14k2 实测 `publish_remark_long`✓ 【2026-10-18 口径订正】上限已后台化(`publish_remark_max_len`，默认 200/范围 50-500)；前端由 500 收紧为「整串(标题＋全角｜＋描述)≤上限」，描述预算=上限−标题−1 → 原「maxlength=200 物理截断」表述已过期 |
 | TC-10b | 备注含违禁词 | 拦截 `publish_remark_blocked` | ✅ 前端拦截"备注含联系方式/转账等违规内容"；服务端 mock 14l2 实测 `publish_remark_blocked`"备注包含平台禁止的内容(如联系方式/转账),请修改后重试"✓ |
 | TC-11s | 服务端发布红线补充(mock 通道) | 场景白名单/开始时间过去/时薪格式/内容超纲 | ✅ 14d `publish_scene_invalid`"场景不在白名单(仅 W1/W2/W8/W10/W11)"、14e `publish_start_time`"开始时间必须是未来时间戳"、14h-2 `publish_rate`"时薪金额格式有误"(0.5元)、14j2 `publish_content_invalid`"服务内容「上门护士」不在该场景可选项内" |
 | TC-11 | 发布正常需求（明天 14:00，避开 10:00 时段） | 成功进匹配页，供双号链路 | ✅ DR20260912814117(_id 4c2f81c76aa4ef860176869969578fec) 9/13 14:00 取药送药 ¥100 已广播 matching |
@@ -126,7 +126,7 @@
 | n06 | aa_promise_checked=false | `publish_aa_promise`「请先阅读并勾选《线下费用自理承诺书》」 | ✅ |
 | n07a | content_options=["上门护士"] | `publish_content_invalid`「服务内容「上门护士」不在该场景可选项内」 | ✅ |
 | n07b | content_options=[] | `publish_content_option`「请选择服务内容」 | ✅ |
-| n08 | remark=220 字 | `publish_remark_long`「备注最长 200 字」 | ✅ |
+| n08 | remark=220 字 | `publish_remark_long`「备注最长 200 字」 | ✅ 【2026-10-18】上限后台可配(`publish_remark_max_len`)，文案随配置值变化 |
 | n09 | remark="加微信私聊我" | `publish_remark_blocked`「备注包含平台禁止的内容(如联系方式/转账),请修改后重试」 | ✅ |
 
 ### C. 订单链路 mock 回归（2026-09-13，阶段B 事务/CAS 新代码下重跑）
