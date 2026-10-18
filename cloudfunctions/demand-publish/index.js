@@ -152,7 +152,7 @@ async function verifySignatureFile(fileId) {
     return { ok: false, code: 'download_fail' };
   }
 }
-const REMARK_MAX_LEN = 200;
+const REMARK_MAX_LEN = 200;   // 备注字数上限兜底值(实际以后台 publish_remark_max_len 为准)
 
 // 备注内容安全:msgSecCheck v2;87014 明确违规;其他异常(未开通/网络)降级本地违禁词
 async function checkText(openid, text, blockWords) {
@@ -222,6 +222,13 @@ async function getConfig() {
 function contentOptionsMax(config) {
   const v = Number(config && config.publish_content_options_max);
   return Number.isFinite(v) && v >= 1 ? v : 3;
+}
+
+// 需求备注(标题｜描述)整串字数上限(后台 publish_remark_max_len 可配, 缺省 200)
+// 与后台 config_set 的下限(min 50)同口径, 越界即回落兜底, 防静默退化
+function remarkMaxLen(config) {
+  const v = Number(config && config.publish_remark_max_len);
+  return Number.isFinite(v) && v >= 50 ? v : REMARK_MAX_LEN;
 }
 
 // 信用分等级(与 partner-action 同源: L1[600,699] L2[700,799] L3[800,899] L4[900,1000])
@@ -414,7 +421,7 @@ exports.main = async (event, context) => {
       event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, crypto, cloud,
       phoneCrypt, SCENE_NAME, SCENE_CODES_FALLBACK, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP,
       SCENE_OPTIONS_FALLBACK, BLOCK_WORDS_FALLBACK, DEFAULT_PET_AUTHORIZATION, sceneDocText, buildCheckboxEvidence,
-      isMobilePhone, maskContact, verifySignatureFile, REMARK_MAX_LEN, checkText, genDemandNo,
+      isMobilePhone, maskContact, verifySignatureFile, remarkMaxLen, checkText, genDemandNo,
       isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax,
       creditLevelOf, timeAgoText, buildRecommendPartners, getUser, hasEmergencyContact, isValidDocId, addWithColl, lazyExpire
     };

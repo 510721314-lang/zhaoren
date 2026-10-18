@@ -141,4 +141,80 @@ test('my_demands: 无｜时标题兜底 content_options[0]', async () => {
   assert.strictEqual(d.demand_desc, '');
 });
 
+// ── 需求备注字数上限(publish_remark_max_len 后台可配, 默认 200) ──
+// 2026-10-18: 前后端口径对齐 + 后台化; 服务端由硬编码常量改为读 admin_config
+const PUB_UID = 'u'.repeat(32);
+function pubStore(over = {}) {
+  return Object.assign({
+    admin_config: { global: {
+      env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000,
+      scene_list: [{ code: 'W1', name: '就医陪诊', options: ['陪同挂号', '取药', '陪检'], visible: true, builtin: true, disclaimer_type: 'medical_disclaimer' }],
+      legal_scene_disclaimers: { W1: 'W1 就医陪诊场景免责声明全文' },
+      rate_min_fen: 3000, rate_max_fen: 10000,
+      min_credit_place_order: 600, min_credit_take_order: 600,
+      city_enabled: ['成都'], publish_distance_max_km: 50, take_distance_max_km: 50,
+      welfare_fixed_price_fen: 5000
+    } },
+    user_account: { [PUB_UID]: { _id: PUB_UID, openid: USER, nickname: '张三', surname: '张', status: 'normal', is_realname_done: true, user_credit_score: 800, age: null, is_deleted: false } },
+    emergency_contact: {}, partner_profile: {}, demand_draft: {}, disclaimer_signature: {},
+    demand: {}, order_main: {}, system_notice: {}, audit_log: {}, platform_event: {}
+  }, over || {});
+}
+// 可穿透的 publish 入参(除 remark 外全部合法)
+function pubEvent(remark) {
+  return {
+    action: 'publish', mock_openid: USER, device: 'test',
+    scene: 'W1', start_time: Date.now() + 3600000, duration_h: 1,
+    location: { name: '成都武侯区某医院', latitude: 30.55, longitude: 104.05, city: '成都' },
+    publish_location: { name: '当前位置', latitude: 30.55, longitude: 104.05, city: '成都' },
+    aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
+    content_options: ['陪同挂号'], rate_fen: 5000, match_mode: 'broadcast',
+    publish_type: 'self', contact_phone: '13800000000', headcount: 1,
+    remark
+  };
+}
+
+test('publish: 备注超默认上限(201字) → publish_remark_long「备注最长 200 字」', async () => {
+  const sdk = makeSdk({ openid: USER, store: pubStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main(pubEvent('标'.repeat(20) + '｜' + '描'.repeat(180)), {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'publish_remark_long');
+  assert.strictEqual(r.msg, '备注最长 200 字');
+});
+
+test('publish: 后台 publish_remark_max_len=50 → 51 字被拒「备注最长 50 字」(证明可配)', async () => {
+  const store = pubStore();
+  store.admin_config.global.publish_remark_max_len = 50;
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main(pubEvent('标'.repeat(20) + '｜' + '描'.repeat(30)), {});
+  assert.strictEqual(r.code, 'publish_remark_long');
+  assert.strictEqual(r.msg, '备注最长 50 字', '上限应取自后台配置而非硬编码 200');
+});
+
+test('publish: 备注在限内 → 成功穿透到落库(独立行为守护)', async () => {
+  const sdk = makeSdk({ openid: USER, store: pubStore() });
+  const { main } = loadIndex(sdk);
+  const remark = '帮我搬家｜三件大家电，三楼无电梯';
+  const r = await main(pubEvent(remark), {});
+  assert.strictEqual(r.ok, true, `应发布成功, 实际: ${r.code || ''} ${r.msg || ''}`);
+  const added = (sdk.writes.demand || []).filter((w) => w.add);
+  assert.strictEqual(added.length, 1, '应写库 1 条 demand');
+  assert.strictEqual(added[0].data.remark, remark);
+  assert.strictEqual(added[0].data.creator_openid, USER);
+});
+
+test('update: 备注超默认上限 → update_remark_long「备注最长 200 字」', async () => {
+  const sdk = makeSdk({ openid: USER, store: pubStore({
+    demand: { [DID]: { _id: DID, creator_openid: USER, is_deleted: false, status: 'matching', demand_no: 'DR1', remark: '旧标题｜旧描述' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const ev = Object.assign(pubEvent('标'.repeat(20) + '｜' + '描'.repeat(180)), { action: 'update', demand_id: DID });
+  const r = await main(ev, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'update_remark_long');
+  assert.strictEqual(r.msg, '备注最长 200 字');
+});
+
 test.after(() => { Module._load = origLoad; });

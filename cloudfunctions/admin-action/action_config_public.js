@@ -101,6 +101,7 @@ function config_public(ctx) {
       welfare_fixed_price_fen: cfgRaw.welfare_fixed_price_fen,
       good_review_min_stars: cfgRaw.order_good_review_min_stars !== undefined ? cfgRaw.order_good_review_min_stars : 4,
       reason_max_len: cfgRaw.order_reason_max_len !== undefined ? cfgRaw.order_reason_max_len : 200,
+      remark_max_len: cfgRaw.publish_remark_max_len !== undefined ? cfgRaw.publish_remark_max_len : 200,
       share_title_max: cfgRaw.share_title_max !== undefined ? cfgRaw.share_title_max : 30
     },
     no_show: {

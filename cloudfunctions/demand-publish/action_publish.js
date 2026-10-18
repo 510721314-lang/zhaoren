@@ -2,7 +2,7 @@
 
     // 1. 发布需求
 async function publish_action(ctx) {
-  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, phoneCrypt, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, isMobilePhone, maskContact, verifySignatureFile, REMARK_MAX_LEN, checkText, genDemandNo, isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax, getUser, hasEmergencyContact, isValidDocId } = ctx;
+  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, phoneCrypt, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, isMobilePhone, maskContact, verifySignatureFile, remarkMaxLen, checkText, genDemandNo, isServiceTimeAllowed, suspendLeftDays, haversineKm, isTestOpenid, validLngLat, getConfig, contentOptionsMax, getUser, hasEmergencyContact, isValidDocId } = ctx;
       const {
         scene, start_time, duration_h, location, publish_location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked,
@@ -324,8 +324,9 @@ async function publish_action(ctx) {
       // ── 备注安全检测(msgSecCheck v2,降级违禁词 · rules.md 六) ──
       const remarkStr = remark ? String(remark).trim() : '';
       if (remarkStr) {
-        if (remarkStr.length > REMARK_MAX_LEN) {
-          return { ok: false, code: 'publish_remark_long', msg: `备注最长 ${REMARK_MAX_LEN} 字` };
+        const remarkLimit = remarkMaxLen(config);
+        if (remarkStr.length > remarkLimit) {
+          return { ok: false, code: 'publish_remark_long', msg: `备注最长 ${remarkLimit} 字` };
         }
         const chk = await checkText(openid, remarkStr, config.block_words);
         if (!chk.pass) {

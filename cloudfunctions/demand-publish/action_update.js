@@ -2,7 +2,7 @@
 
     // 9. 更新需求(仅创建者,仅 matching 状态; 白名单字段更新; 跳过发布地址重定位)
 async function update_action(ctx) {
-  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, verifySignatureFile, REMARK_MAX_LEN, checkText, suspendLeftDays, getConfig, contentOptionsMax, getUser, isValidDocId } = ctx;
+  const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, verifySignatureFile, remarkMaxLen, checkText, suspendLeftDays, getConfig, contentOptionsMax, getUser, isValidDocId } = ctx;
       const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
         remark, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
         match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id,
@@ -163,8 +163,9 @@ async function update_action(ctx) {
       // ── 备注安全 ──
       const remarkStr = remark ? String(remark).trim() : '';
       if (remarkStr) {
-        if (remarkStr.length > REMARK_MAX_LEN) {
-          return { ok: false, code: 'update_remark_long', msg: `备注最长 ${REMARK_MAX_LEN} 字` };
+        const remarkLimit = remarkMaxLen(config);
+        if (remarkStr.length > remarkLimit) {
+          return { ok: false, code: 'update_remark_long', msg: `备注最长 ${remarkLimit} 字` };
         }
         const chk = await checkText(openid, remarkStr, config.block_words);
         if (!chk.pass) {
