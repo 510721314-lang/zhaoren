@@ -15,9 +15,9 @@ module.exports = {
 
   // 发布校验
   BUDGET_RANGE: [10, 500],          // 元/小时
+  // 需求标题/详细描述字数上限(服务端 demand-publish 同口径分别强约束; 后台 publish_title_max_len / publish_desc_max_len 覆盖)
   TITLE_MAX: 20,
-  // 需求备注(标题＋全角｜＋描述)整串字数上限; 服务端 demand-publish 同口径强约束(后台 publish_remark_max_len 覆盖)
-  REMARK_MAX: 200,
+  DESC_MAX: 200,
   HEADCOUNT: [1, 3],
   DATE_RANGE_DAYS: 30,
   DURATION_OPTIONS: [1, 2, 3, 4, 6, 8],

@@ -120,7 +120,7 @@ Page({
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: redline.PICKER_CLOSE,
     titleMax: CONFIG.TITLE_MAX,
-    descMax: Math.max(0, (Number(CONFIG.REMARK_MAX) || 200) - 1),   // 描述预算=整串上限−标题−1(初始标题为空)
+    descMax: Number(CONFIG.DESC_MAX) || 200,
     contentOptionsMax: Number(CONFIG.PUBLISH.contentOptionsMax) || 3,
     draftExpireDays: CONFIG.DRAFT.expireDays,
     budgetPlaceholder: `${CONFIG.BUDGET_RANGE[0]}-${CONFIG.BUDGET_RANGE[1]}`,
@@ -369,9 +369,9 @@ Page({
   restoreDraft(e) {
     // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); 20 条叶子路径在模块内逐字保留
     const r = restoreDraft(this, e);
-    // 2026-10-18: 草稿不经服务端校验(save_draft 不查 remark 长度), 旧草稿可能存于历史上限(500)下
-    // → 恢复后按当前整串口径夹紧, 否则用户恢复草稿提交仍会被服务端拒
-    this._clampRemark();
+    // 2026-10-18: 草稿不经服务端字数校验(save_draft 不查长度), 旧草稿可能存于历史上限(500)下
+    // → 恢复后按当前标题/描述各自上限夹紧, 否则用户恢复草稿提交仍会被服务端拒
+    this._clampText();
     return r;
   },
 
@@ -625,26 +625,25 @@ Page({
     });
   },
   // ── B4 标题/描述 ──
-  // 备注口径(2026-10-18): 服务端校验整串 remark=标题＋全角｜＋描述 ≤ 后台 publish_remark_max_len(默认200)
-  // 前端同口径卡死, 避免"界面承诺 500 / 实际可用 179"的错位
-  _remarkBudget(title) {
-    const max = Number(CONFIG.REMARK_MAX) || 200;
-    return Math.max(0, max - String(title || '').length - 1);
-  },
-  // 按当前标题回压描述, 保证 标题＋1＋描述 ≤ 整串上限(输入层与草稿恢复共用)
-  _clampRemark() {
+  // 字数口径(2026-10-18): 标题、描述各自后台可配(publish_title_max_len / publish_desc_max_len);
+  // 服务端 demand-publish 同口径分别强约束, 前端在输入层各自卡死
+  // 按各自上限夹紧 title/description(输入层已卡, 本方法供草稿恢复等程序化回填使用, 并同步上限显示)
+  _clampText() {
     const f = this.data.form || {};
-    const budget = this._remarkBudget(f.title);
-    const clamped = String(f.description || '').slice(0, budget);
-    this.setData({ 'form.description': clamped, descCount: clamped.length, descMax: budget });
+    const title = String(f.title || '').slice(0, Number(CONFIG.TITLE_MAX) || 20);
+    const desc = String(f.description || '').slice(0, Number(CONFIG.DESC_MAX) || 200);
+    this.setData({
+      'form.title': title, titleCount: title.length,
+      'form.description': desc, descCount: desc.length,
+      titleMax: Number(CONFIG.TITLE_MAX) || 20, descMax: Number(CONFIG.DESC_MAX) || 200
+    });
   },
   onTitleInput(e) {
-    let v = (e.detail.value || '').slice(0, CONFIG.TITLE_MAX);
+    let v = (e.detail.value || '').slice(0, Number(CONFIG.TITLE_MAX) || 20);
     this.setData({ 'form.title': v, titleCount: v.length });
-    this._clampRemark();   // 标题变长 → 描述预算随之收缩
   },
   onDescInput(e) {
-    let v = (e.detail.value || '').slice(0, this._remarkBudget(this.data.form.title));
+    let v = (e.detail.value || '').slice(0, Number(CONFIG.DESC_MAX) || 200);
     this.setData({ 'form.description': v, descCount: v.length });
   },
 
@@ -945,6 +944,9 @@ Page({
       // 发布地址: 新建时传真实GPS, 编辑模式传原发布地址(只读留痕不可改)
       publish_location: this.__editMode ? null : pubLoc,
       remark: `${f.title}｜${f.description}`,
+      // 2026-10-18: 新增分别上报(服务端按 title/description 分别校验并拼回 remark 落库); remark 保留以兼容旧服务端
+      title: f.title,
+      description: f.description,
       pricing_type: pricingType,
       project_attr: f.project_attr,
       rate_fen: rateFen,
