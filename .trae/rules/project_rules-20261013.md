@@ -197,3 +197,16 @@ alwaysApply: true
 - **M6 replace_all 禁区**：禁止对表格/列表等重复结构用 `replace_all=true` 改单格——同串多处命中会同步改写所有匹配行；确需批量改时逐条列出命中行数与目标行数、经确认后逐次单点 Edit。
 - **M7 误删恢复纪律**：发现误删后先用 `git diff` 定位原串，恢复性 Edit 同样守 M1-M3（最小锚 + 先粘贴再改 + 回读）；**禁止凭记忆重打正文**——恢复动作本身可能二次误删。
 - 与既有规则关系：§1 最小改动（同向不冲突，M2 边界已划）/ §17 自证 6 项（互补不冲突：§17 验内容、§20 防误删）；改 WXSS 内容后仍按 §17 做注释配对复算。
+
+## 21. CloudBase 单函数目录打包约束（2026-10-19 最危险事故实证新增）
+- **铁律：云函数禁止跨目录 require。** 微信云开发按「单函数目录」打包上传，`cloudfunctions/_shared/` 不在任何函数包内。任何 `require('../...')` 在云端必 `MODULE_NOT_FOUND` → 整个云函数加载失败（`FUNCTIONS_INVOCATION_FAILED`），该函数**全部接口**不可用（后台直接读不出数据）。
+- **共享代码唯一合法用法**：① canonical 置于 `cloudfunctions/_shared/`；② 建 `sync-*.ps1` 复制到各消费函数目录；③ 在 `scripts/check-shared-sync.js` 的 `SYNC_MAP` 登记；④ 函数内写 `require('./xxx')`（本地副本）。详见 `cloudfunctions/_shared/README.md`。
+- **新增/修改 `_shared/*.js` 后必须先跑 `npm run verify:offline`**，确认 `check-shared-sync`（含未登记模块自动发现）与 `check-require-scope` 全绿，再部署。
+- **三重假阳性警戒（本次实证：三个信号全"绿"却线上崩溃）**：
+  1. 本地 `verify:offline` 全绿 ≠ 云端可加载——本地 `_shared/` 真实存在，require 能解析；云端打包后不存在；
+  2. `deploy` 返回 `success=true + filesCount` ≠ 依赖完整——`filesCount` 不含 `_shared/`（实证 admin-web 48 = 44 public + 4 基础文件）；
+  3. `download` 逐文件 SHA 全 MATCH ≠ 运行时可用——只证明「部署的文件两边一致」，不证明「运行时依赖齐全」。
+- **部署唯一入口**：一律走 `deploy-cloud.ps1`（→ `.trae/predeploy.ps1` 门禁），**禁止直接裸调 `cli.bat`**——绕过入口即绕过全部门禁（本次事故即因裸调 cli 绕过 predeploy）。
+- **`_shared/` 新增文件判定**：在任一函数目录存在同名副本即属「可部署共享模块」，必须登记 SYNC_MAP，否则 `check-shared-sync` 报 `[UNREGISTERED]` 拦截（fail-closed）。
+- **既有漂移只登记不手修**（§10）：如 `heal.js`（canonical 含 `healAuditLock`，demand-match/order-create 为旧版）已登记 `KNOWN_DRIFT`，非阻断但每次运行显式打印并由 owed 计数；修复须单独授权 + 同步 + 重新部署。
+- 与既有规则关系：§16（部署口径）/§12（上线核验）同向；§10（A/B 与白名单纪律）适用于 `KNOWN_DRIFT`。
