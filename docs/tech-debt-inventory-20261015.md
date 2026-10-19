@@ -65,6 +65,21 @@
 
 ---
 
+## 备份体系债（2026-10-19 立，B-1~B-6）
+
+> 背景：自动备份体系当日落盘（`scripts/auto-backup.ps1` 三模式 + `scripts/raw-export.js`/`raw-export-encrypted.ps1` 加密明文通道 + `scripts/raw-decrypt.ps1` + `scripts/register-backup-tasks.ps1`，commit `8f5a07e`/`ae59c10`），三链手动实测均 SUCCESS、3 个 Windows 计划任务已注册（full 每日 02:30 / incremental 21 触发器每小时 / verify 每日 04:30）。以下为该体系自身的登记债。
+
+| # | 负债 | 证据 | 状态 / 处置口径 |
+|---|---|---|---|
+| B-1 | **全自动定时备份链未真跑**（三链手动实测通过，但计划任务自动触发路径未经验证） | 手动实测：incremental 136s SUCCESS（12464 文档）、full 全链 ~35 分钟（37 表+20 函数+raw 37 集合加密往返全过）、verify 53s（CHECKSUMS 1102 全过 + restore dry-run 39 OK/0 BAD + 解密探针 3 件 + lark 缺口检查） | **2026-10-20 凌晨为首次全自动真跑窗口**（02:30 full → 04:30 verify）；次日核对 `H:\zhaoren_bak_day\logs\backup-log.csv` 与产物目录即闭环；verify 任务本身即每日自动体检 |
+| B-2 | **lark-cli 登录态过期无自动续期** | lark 异地推送依赖 `--as user` 登录态；auto-backup 设计为 lark=WARN **不阻断**本地备份，verify 每日跑 lark 缺口检查双向比对 | 若 verify 日志报 lark=WARN/缺口：`lark-cli auth login --domain drive` 重登（device-flow 二维码授权）；属可自愈的低危债 |
+| B-3 | **DB 集合名单三处硬编码，无一致性门禁** | `scripts/raw-export.js` `COLLECTIONS_37`（注释声明权威口径=admin-action）、`.predeploy/manual-backup.ps1` `$COLLECTIONS`（37）、服务端 `admin-action EXPORT_COLLECTIONS`（权威）；新增/下线集合需三处手工同步，漂移无自动校验 | 名单变更时三处同步 + 全链复跑；远期可加「三处名单一致性」断言门禁（owed，不阻断） |
+| B-4 | **飞书异地目录历史包无清理策略** | folder `RCsff3kGUlKhpud1KVFckJOhnGc` 已存 10-07/10-09 等 5 个历史节点包；auto-backup 每日 full 推送（镜像结构逐文件）将持续累积 | 人工定期清理或制定保留策略（如保留最近 N 份）；暂不阻塞 |
+| B-5 | **CHECKSUMS 豁免 `functions_code\`**（≈465MB 含 node_modules 数万小文件，全量哈希实测 >10 分钟不可用） | `auto-backup.ps1` `Get-CheckSums` 豁免规则 | **已接受的边界（2026-10-19 决策）**：functions_code 完整性由 L6「`cli cloud functions download` 云端实时下载」机制保证（产物来自云端而非本地沉淀）；云函数代码正确性另由部署链 download SHA 门禁证明 |
+| B-6 | **加密备份密钥仅存 C 盘单点**（`C:\zhaoren-bak\backup-enc-key.txt`） | raw 37 集合加密产物（ZRBE1 / AES-256-CBC / PBKDF2-SHA1 100k）恢复**完全依赖**此密钥；密钥丢失 = 加密备份全部不可恢复；C 盘故障时无第二副本 | **P0 级行动项（人为）**：立即抄存至 H 盘之外至少一处（纸质 / 密码管理器）；完成前，每日 verify 的解密探针仅证明「密钥本地可用」，不能证明「密钥有灾备」 |
+
+---
+
 ## 治理成本（非缺陷，登记备查）
 
 - **KNOWN_EVOLUTION 33 例**：A/B 有意演进白名单（ab_equivalence.js），每登记一例均配独立行为断言，符合 project_rules §10。
@@ -77,3 +92,4 @@
 3. **真机窗口后的结构债主线**：~~P2-1 已偿还（2026-10-19）~~ ~~P2-5 已偿还（2026-10-19，题库收敛 `_shared/exam-fallback.js` + sync 脚本）~~ → P3-1（空 catch 窄类）+ P2-6（闸门覆盖面残留）可并入同批；P2-2 页面单测续作路径见拆分方案 §5.6
 4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）、P3-4（G3 超时前提醒）。
 5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5。
+6. **备份体系（B-1~B-6，2026-10-19 立）**：**B-6 密钥抄存为 P0 级行动项**（立即可做，无技术依赖）；B-1 于 2026-10-20 凌晨自动首验（次日核对 backup-log.csv 即闭环）；B-2 随 verify 每日自动暴露、处置仅一步重登；B-3/B-4 提审后择机；B-5 已接受不再列债。
