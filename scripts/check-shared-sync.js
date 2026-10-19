@@ -43,7 +43,9 @@ const SYNC_MAP = {
   ],
   // 补登记(2026-10-19, M1): canonical _shared/heal.js 含 healAuditLock(审核死锁治愈), partner-action 副本一致;
   // demand-match/order-create 为旧版副本(缺该函数) → 依 §10「只登记不手修」登记 KNOWN_DRIFT
-  'heal.js': ['partner-action', 'demand-match', 'order-create']
+  'heal.js': ['partner-action', 'demand-match', 'order-create'],
+  // 题库单一规范源(2026-10-19 P2-5 重做): partner-action + admin-action 各持本地副本, require('./exam-fallback')
+  'exam-fallback.js': ['partner-action', 'admin-action']
 };
 
 // KNOWN_DRIFT(2026-10-19): 已登记的「既有漂移」, 依 §10「只登记不手修」处理——
