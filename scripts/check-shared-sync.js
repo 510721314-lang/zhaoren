@@ -29,7 +29,8 @@ const SYNC_MAP = {
   ],
   'audit.js': [
     'admin-action', 'blog-action', 'demand-publish', 'evaluation-submit', 'im-send',
-    'order-action', 'order-create', 'partner-action', 'payment-mock', 'safety-report', 'user-login'
+    'order-action', 'order-create', 'partner-action', 'payment-mock', 'safety-report', 'user-login',
+    'admin-web'
   ],
   // 密码/身份安全策略纯函数(2026-10-13 纳入): 密码登录防爆破锁定 + 紧急联系人冷却 + bootstrap CAS
   'security_policy.js': ['user-login', 'init-db', 'admin-action', 'admin-web'],

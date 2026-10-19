@@ -12,6 +12,8 @@ const path = require('path');
 const crypto = require('crypto');
 // (P2-6 重做, 2026-10-19) admin_login / admin_logout 本地直调 —— 引 _shared/admin-login.js 的本地副本(由 sync-admin-login.ps1 维护)
 const { admin_login: adminLoginShared, admin_logout: adminLogoutShared } = require('./admin-login');
+// (复核整改 2026-10-19) 审计镜像需要: 与 admin-action 同构, P2 级事件镜像写 audit_log
+const { writeAudit } = require('./audit');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -139,13 +141,32 @@ async function ensureAdminColls() {
 }
 function col(name) { return db.collection(name); }
 async function logEvent(level, type, openid, payload) {
+  const now = Date.now();
   try {
     await db.collection('platform_event').add({ data: {
-      level, type, openid: openid || '',
-      payload: payload || {},
-      created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+      level, type, openid: openid || 'unknown', payload: payload || {},
+      created_at: now, updated_at: now, is_deleted: false
     }});
   } catch (e) { /* 告警写失败不影响主流程 */ }
+  // (复核整改 2026-10-19) 与 admin-action logEvent 同构: P2 级镜像写 audit_log(审计留痕),
+  // 保证 admin-web 本地直调后「登录成功」等 P2 事件仍入审计链(action='admin_'+type)
+  if (level === 'P2') {
+    try {
+      const pl = payload || {};
+      const detail = {};
+      Object.keys(pl).forEach((k) => {
+        const v = pl[k];
+        if (v === undefined || v === null) return;
+        detail[k] = (typeof v === 'object') ? JSON.stringify(v) : v;
+      });
+      await writeAudit(db, { d: function () {} }, {
+        openid: openid || '', role: 'admin', category: 'business',
+        action: 'admin_' + type,
+        target_type: 'platform_event', target_id: '',
+        detail, result: 'ok', client_ip: '', device: 'admin-web', at: now
+      });
+    } catch (e) { /* 审计镜像失败不影响主流程 */ }
+  }
 }
 
 // P0② 网关鉴权失败告警: 鉴权拒绝时写 platform_event(P2, type=gateway_bad_key), 供 order-timer errorScan 巡检项④聚合。
@@ -211,13 +232,15 @@ exports.main = async (event, context) => {
     }
   }
 
+  // 管理员身份(admin_openids[0]): 供本地直调登录的审计口径使用(与原 proxy 路径经 admin-action 解析的身份一致)
+  const adminOpenid = (cfg.admin_openids && cfg.admin_openids[0]) || null;
+
   // (P2-6 重做, 2026-10-19) admin_login / admin_logout 本地直调 · 绕过 proxy admin-action,
   // 避免 admin-web 与 admin-action 双云函数冷启动叠加超网关 3s 硬限(原 504 根因)
   if (action === 'admin_login') {
     try {
-      const localOpenid = (req.headers['x-admin-proxy-openid'] || '').trim() || null;
       const r = await adminLoginShared({
-        event: body, openid: localOpenid,
+        event: body, openid: adminOpenid,
         ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent,
         log: { w: function () {} }
       });
@@ -230,8 +253,6 @@ exports.main = async (event, context) => {
       return makeJson(r);
     } catch (e) { return makeJson({ ok: false, code: 'logout_error', msg: e.message }, 502); }
   }
-
-  const adminOpenid = (cfg.admin_openids && cfg.admin_openids[0]) || null;
 
   // Bootstrap generate_admin_web_key → init-db 直调 (无鉴权)
   // 身份取 admin_openids[0]，不再硬编码；空则拒绝(不留死兜底)

@@ -8,6 +8,20 @@ const DELAY_EFFECT_ACTIONS = new Set([
   'config_set', 'home_activity_create', 'home_activity_update', 'home_activity_delete'
 ]);
 
+// (复核整改 2026-10-19) 504 自动重试白名单 —— 仅【读类 action】可安全重试(幂等; 按前端实际调用面穷举)。
+// 写类(action 不在本集合)一律不重试: 504 时云函数可能已落库, 重试会重复提交(config_set / *_review / *_handle / *_delete / seed 等)。
+const READ_ONLY_ACTIONS = new Set([
+  'admin_account_list', 'config_get', 'blog_list', 'blog_comment_list',
+  'audit_query', 'audit_verify', 'finance_stats', 'finance_list', 'withdraw_list',
+  'im_message_admin_list', 'kefu_conv_list', 'dispute_list', 'dispute_detail',
+  'demand_list', 'config_log_list', 'dashboard', 'report_list',
+  'exam_subject_list', 'exam_subject_detail', 'event_list',
+  'order_list', 'order_detail', 'insurance_list', 'home_activity_list',
+  'user_list', 'user_detail', 'credit_log_list', 'partner_profile_pending_list',
+  'safety_log_list', 'partner_list', 'no_show_report_list',
+  'export_collection', 'export_admin_config'
+]);
+
 // 规则: 始终直打 CloudBase HTTP 网关（HTTPS + CORS 已配置, 跨域无问题）
 //       call() 固定 .post('/api', data) → 最终拼成 PROD_ROOT/api + body.action
 // 这样无论本机 dev / 远程桌面 / 手机浏览器 / 生产 dist 都能通, 不依赖 vite proxy
@@ -66,11 +80,19 @@ http.interceptors.response.use(
   },
   (e) => {
     const status = e.response && e.response.status;
-    // (P2-6 重做) 504 网关超时自动重试一次: 云函数冷启动首个请求可能超网关 3s 硬限,
-    // 第二次命中热启动云函数秒级返回; 只重试一次防死循环
+    // (P2-6 重做 + 复核整改 2026-10-19) 504 网关超时自动重试一次 —— 仅限【读类 action】(见 READ_ONLY_ACTIONS);
+    // 写类非幂等, 重试可能重复落库, 一律不重试, 直接抛给调用方。
     if (status === 504 && e.config && !e.config._retry) {
-      e.config._retry = true;
-      return new Promise((resolve) => setTimeout(() => resolve(http.request(e.config)), 1000));
+      let act = '';
+      try {
+        const b = e.config.data;
+        const parsed = typeof b === 'string' ? JSON.parse(b) : b;
+        act = (parsed && parsed.action) || '';
+      } catch (_) { act = ''; }
+      if (READ_ONLY_ACTIONS.has(act)) {
+        e.config._retry = true;
+        return new Promise((resolve) => setTimeout(() => resolve(http.request(e.config)), 1000));
+      }
     }
     if (status === 401) {
       localStorage.removeItem('admin_web_key');
