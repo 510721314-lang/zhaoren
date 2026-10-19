@@ -129,7 +129,7 @@ Page({
         const u = r.data.user;
         const isPartner = (u.roles || []).indexOf('partner') >= 0;
         this.setData({ user: u, isPartner });
-        if (isPartner) this.fetchNearby();   // 附近可接单池仅耍伴端拉取
+        if (isPartner) { this.fetchNearby(); this.startNearbyPoll(); }   // 附近可接单池仅耍伴端拉取 + 新单轮询
       }
     });
   },
@@ -139,6 +139,7 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 });
     }
+    if (this.data.isPartner) this.startNearbyPoll();   // 仅耍伴端: 首页可见期间轮询附近新单
     // 首次 onShow 跳过(onLoad 已拉); 之后切回首页/发布返回刷新广场
     if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.fetchSquare();
@@ -146,13 +147,44 @@ Page({
   },
 
   // 拉取附近可接单池(仅耍伴端): 复用 nearby action 按发布时间倒序, 首页只取前10条
+  // 轮询内部门锁: 上一轮未 resolve 时不发下一轮(防叠请求)
   async fetchNearby() {
-    const app = getApp();
-    const r = await app.cloudCall('home-action', { action: 'nearby', page: 1, page_size: CONFIG.PAGING.indexNearby });
-    if (r.ok && r.data) {
-      this.setData({ nearbyList: r.data.list || [] });
+    if (this.__nearbyFetching) return;
+    this.__nearbyFetching = true;
+    try {
+      const app = getApp();
+      const r = await app.cloudCall('home-action', { action: 'nearby', page: 1, page_size: CONFIG.PAGING.indexNearby });
+      if (r.ok && r.data) {
+        const list = r.data.list || [];
+        this.setData({ nearbyList: list });
+        this.__notifyNearbyNew(list);
+      }
+    } finally {
+      this.__nearbyFetching = false;
     }
   },
+  // 附近新单提醒(方案B 震动+toast, 音效后补): 首条变化即新单; 去响键=需求id+created_at(精确到秒)
+  __notifyNearbyNew(list) {
+    const first = (list || [])[0];
+    if (!first) return;
+    const key = String(first._id || first.demand_no || '') + '|' + String(first.created_at || '');
+    if (!this.__nearbyLastKey) { this.__nearbyLastKey = key; return; }
+    if (key === this.__nearbyLastKey) return;
+    this.__nearbyLastKey = key;
+    if (typeof wx.vibrateShort === 'function') wx.vibrateShort({ type: 'medium', fail: () => {} });
+    wx.showToast({ title: '附近有新需求', icon: 'none' });
+  },
+  // 首页可见期间 30s 轮询附近新单(仅耍伴端)
+  startNearbyPoll() {
+    this.stopNearbyPoll();
+    this.__nearbyPollTimer = setInterval(() => { if (this.data.isPartner) this.fetchNearby(); }, 30000);
+  },
+  stopNearbyPoll() {
+    if (this.__nearbyPollTimer) { clearInterval(this.__nearbyPollTimer); this.__nearbyPollTimer = null; }
+  },
+  // 页面不可见/销毁即停轮询(仅页面可见时轮询)
+  onHide() { this.stopNearbyPoll(); },
+  onUnload() { this.stopNearbyPoll(); },
 
   // 附近可接单「更多」→ 附近列表页(全部可接需求, 分页加载)
   onNearbyMoreTap() {
