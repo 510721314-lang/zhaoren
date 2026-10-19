@@ -66,12 +66,6 @@ http.interceptors.response.use(
   },
   (e) => {
     const status = e.response && e.response.status;
-    // (P2-6) 504 网关超时自动重试一次: admin-action 冷启动后 admin-web proxy 叠加超 3s
-    // 第二次请求命中热启动云函数, 秒级返回; 只重试一次防死循环
-    if (status === 504 && !e.config._retry) {
-      e.config._retry = true;
-      return new Promise(resolve => setTimeout(() => resolve(http.request(e.config)), 1000));
-    }
     if (status === 401) {
       localStorage.removeItem('admin_web_key');
       window.location.hash = '#/login';
