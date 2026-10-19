@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # zhaoren - Pre-deploy Syntax Gate
 # Runs `node --check` on EVERY cloud function before any deploy.
 # Bad syntax (e.g. duplicate const -> SyntaxError) blocks deploy.
@@ -92,6 +92,30 @@ foreach ($f in $functions) {
         $out | Where-Object { $_ -and $_.Trim() } | Select-Object -First 4 |
             ForEach-Object { Write-Host "             $($_.Trim())" -ForegroundColor Yellow }
         $failed += $f.Name
+    }
+}
+
+# ── 2b. 跨目录 require + 共享模块同步 硬门禁(2026-10-19 事故后新增; 双专家评审 F1) ──
+# 事故: CloudBase 按单函数目录打包, _shared/ 不随包上传; require('../_shared/...') 云端必 MODULE_NOT_FOUND
+#       → 整函数加载失败(FUNCTIONS_INVOCATION_FAILED)。仅挂在 npm run verify:offline 不足 —— 部署若绕过
+#       verify 或不走 verify, 闸门形同虚设; 故在此与语法检查同级硬拦(fail-closed)。
+Write-Host "[2b/5] shared-sync + require-scope gates" -ForegroundColor Gray
+$gateFailed = @()
+foreach ($gateJs in @("scripts\check-shared-sync.js", "scripts\check-require-scope.js")) {
+    $gatePath = Join-Path $root $gateJs
+    if (-not (Test-Path $gatePath)) {
+        Write-Host "      [FAIL] gate script missing: $gateJs" -ForegroundColor Red
+        $gateFailed += $gateJs
+        continue
+    }
+    $gout = & cmd /c "`"$nodeExe`" `"$gatePath`" 2>&1"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "      [OK]   $gateJs" -ForegroundColor Green
+    } else {
+        Write-Host "      [FAIL] $gateJs" -ForegroundColor Red
+        $gout | Where-Object { $_ -and $_.Trim() } | Select-Object -First 6 |
+            ForEach-Object { Write-Host "             $($_.Trim())" -ForegroundColor Yellow }
+        $gateFailed += $gateJs
     }
 }
 
@@ -194,10 +218,15 @@ if ($auditIssues.Count -eq 0) {
 
 # ── 5. Gate result ──
 Write-Host "[5/5] result" -ForegroundColor Gray
-if ($failed.Count -gt 0) {
+if ($failed.Count -gt 0 -or $gateFailed.Count -gt 0) {
     Write-Host ""
     Write-Host "##################################################" -ForegroundColor Red
-    Write-Host " SYNTAX CHECK FAILED ($($failed.Count)/$checked): $($failed -join ', ')" -ForegroundColor Red
+    if ($failed.Count -gt 0) {
+        Write-Host " SYNTAX CHECK FAILED ($($failed.Count)/$checked): $($failed -join ', ')" -ForegroundColor Red
+    }
+    if ($gateFailed.Count -gt 0) {
+        Write-Host " SHARED-SYNC / REQUIRE-SCOPE GATE FAILED: $($gateFailed -join ', ')" -ForegroundColor Red
+    }
     Write-Host " DEPLOY BLOCKED. Fix the errors above first." -ForegroundColor Red
     Write-Host "##################################################" -ForegroundColor Red
     exit 1

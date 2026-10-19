@@ -206,7 +206,7 @@ alwaysApply: true
   1. 本地 `verify:offline` 全绿 ≠ 云端可加载——本地 `_shared/` 真实存在，require 能解析；云端打包后不存在；
   2. `deploy` 返回 `success=true + filesCount` ≠ 依赖完整——`filesCount` 不含 `_shared/`（实证 admin-web 48 = 44 public + 4 基础文件）；
   3. `download` 逐文件 SHA 全 MATCH ≠ 运行时可用——只证明「部署的文件两边一致」，不证明「运行时依赖齐全」。
-- **部署唯一入口**：一律走 `deploy-cloud.ps1`（→ `.trae/predeploy.ps1` 门禁），**禁止直接裸调 `cli.bat`**——绕过入口即绕过全部门禁（本次事故即因裸调 cli 绕过 predeploy）。
+- **部署唯一入口**：一律走 `deploy-cloud.ps1`（→ `.trae/predeploy.ps1`）。该门禁现已含 `check-shared-sync` + `check-require-scope`（2026-10-19 双专家评审 F1 补齐，与语法检查同级 fail-closed）。**禁止直接裸调 `cli.bat`**：裸调会跳过 predeploy 的全部闸门（本次事故即因裸调 cli 发生）。
 - **`_shared/` 新增文件判定**：在任一函数目录存在同名副本即属「可部署共享模块」，必须登记 SYNC_MAP，否则 `check-shared-sync` 报 `[UNREGISTERED]` 拦截（fail-closed）。
 - **既有漂移只登记不手修**（§10）：如 `heal.js`（canonical 含 `healAuditLock`，demand-match/order-create 为旧版）已登记 `KNOWN_DRIFT`，非阻断但每次运行显式打印并由 owed 计数；修复须单独授权 + 同步 + 重新部署。
 - 与既有规则关系：§16（部署口径）/§12（上线核验）同向；§10（A/B 与白名单纪律）适用于 `KNOWN_DRIFT`。
