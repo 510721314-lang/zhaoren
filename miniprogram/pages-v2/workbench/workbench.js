@@ -15,6 +15,9 @@ Page({
     creditLevel: 'L2',
     weekDays: [],
     todayOrders: [],
+    // T-7.3 附近新单轮询(仅耍伴端, workbench 同步)
+    isPartner: false,
+    nearbyList: [],
     // W4 资金速览 tab
     fundTabs: [
       { key: 'withdrawable', name: '可提现' },
@@ -42,11 +45,13 @@ Page({
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 操作后返回 onShow 正常刷新
     this.__skipNextShow = true;
+    this.fetchUser();  // T-7.3 判定耍伴身份 → 启动附近新单轮询
     this.fetchData();
   },
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    if (this.data.isPartner) this.startNearbyPoll();  // T-7.3 耍伴端回工作台恢复轮询
     if (this.__skipNextShow) { this.__skipNextShow = false; return; }
     this.fetchData();
   },
@@ -193,5 +198,54 @@ Page({
       }
     });
   },
-  onReserve() { require('../../utils/redline.js').reserveNotice(); }
+  onReserve() { require('../../utils/redline.js').reserveNotice(); },
+
+  // ─── T-7.3 附近新单轮询(与首页逐字同构, 仅 workbench tab 可见期间轮询) ───
+
+  fetchUser() {
+    callCloud('user-login', { action: 'peek_login' }).then((r) => {
+      if (r.ok && r.data && r.data.found && r.data.user) {
+        const u = r.data.user;
+        const isPartner = (u.roles || []).indexOf('partner') >= 0;
+        this.setData({ user: u, isPartner });
+        if (isPartner) { this.fetchNearby(); this.startNearbyPoll(); }
+      }
+    });
+  },
+
+  async fetchNearby() {
+    if (this.__nearbyFetching) return;
+    this.__nearbyFetching = true;
+    try {
+      const app = getApp();
+      const r = await app.cloudCall('home-action', { action: 'nearby', page: 1, page_size: (CONFIG.PAGING && CONFIG.PAGING.indexNearby) || 10 });
+      if (r.ok && r.data) {
+        const list = r.data.list || [];
+        this.setData({ nearbyList: list });
+        this.__notifyNearbyNew(list);
+      }
+    } finally {
+      this.__nearbyFetching = false;
+    }
+  },
+  __notifyNearbyNew(list) {
+    const first = (list || [])[0];
+    if (!first) return;
+    const key = String(first._id || first.demand_no || '') + '|' + String(first.created_at || '');
+    if (!this.__nearbyLastKey) { this.__nearbyLastKey = key; return; }
+    if (key === this.__nearbyLastKey) return;
+    this.__nearbyLastKey = key;
+    if (typeof wx.vibrateShort === 'function') wx.vibrateShort({ type: 'medium', fail: () => {} });
+    wx.showToast({ title: '附近有新需求', icon: 'none' });
+  },
+  startNearbyPoll() {
+    this.stopNearbyPoll();
+    this.__nearbyPollTimer = setInterval(() => { if (this.data.isPartner) this.fetchNearby(); }, 30000);
+  },
+  stopNearbyPoll() {
+    if (this.__nearbyPollTimer) { clearInterval(this.__nearbyPollTimer); this.__nearbyPollTimer = null; }
+  },
+  // 页面不可见/销毁即停轮询(与首页 onHide/onUnload 同构)
+  onHide() { this.stopNearbyPoll(); },
+  onUnload() { this.stopNearbyPoll(); }
 });
