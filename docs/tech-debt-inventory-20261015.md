@@ -46,7 +46,7 @@
 | P2-3 | **9 份 `_orig_baseline.js` 约 1.07 万行冻结常驻并随函数部署**（运行时永不 require） | 9 个拆分函数目录下 | project_rules §10 禁删/改名/改——A/B 锚点价值交换包体与暴露面，已接受的债 |
 | P2-4 | `_shared` 多副本物理同步：openid.js 17 份、logger.js 16 份、audit.js 11 份等 | 14 个 sync-*.ps1 + check-shared-sync 门禁 | CloudBase 无 layer 的必然结果；改规范源忘跑 sync 已被门禁拦截 |
 | P2-5 | 考试题库硬编码双份，无 sync 守护 | `partner-action/index.js` L92-123、`admin-action/action_exam.js` L4-29 | **2026-10-16 程序化深比较：base+W1 共 20 题题干/选项/answer_idx/元信息逐字一致，当前 0 漂移**（性质=双写漂移风险，非现存故障）。改题仍需两处手改；治理二选一（提审后批准）：抽 `_shared` 单份+sync，或 seed 进 exam_bank 后仅留极简兜底。触业务代码须先走批准 |
-| P2-6 | **防复发闸门覆盖面残留（owed，不阻断；2026-10-19 双专家评审专家 B 确证）** | `scripts/check-require-scope.js`、`scripts/check-shared-sync.js` | ①**F3 动态 require 漏检**：`require(变量)` / `require.resolve('../x')` / `import('../x')` 无法静态判定（现以 `[DYNAMIC REQUIRE WARN]` 非阻断提示兜底，当前仓库 0 命中）；②**F4 非 .js 与子目录不扫**：`.cjs/.mjs/.node` 及函数目录子目录不在扫描面；③**F5 M1 对「改名副本」盲区**：`_shared/foo.js` → `a/foo_v2.js` 时 M1 判 0 消费方、M2 亦视为合法；④**F6 `KNOWN_DRIFT` 登记后永久静默豁免**，缺 §10 要求的配对独立断言（现含 `heal.js` 2 例）；⑤**F7 `_shared/*.json` 等非 js 共享资源无守护**。治理时机：提审后专项，逐项补断言/扩面后收窄豁免 |
+| P2-6 | **防复发闸门覆盖面残留（owed，不阻断；2026-10-19 双专家评审专家 B 确证）** | `scripts/check-require-scope.js`、`scripts/check-shared-sync.js` | ①**F3 动态/非常规 require 漏检**：`require(变量)` 有 `[DYNAMIC REQUIRE WARN]` 非阻断提示兜底，但 `require.resolve('../x')`、`import('../x')`、模板串表达式内 `${require('../x')}` **完全静默无提示**（2026-10-19 复核轮实测订正；当前仓库 0 命中）；②**F4 非 .js 与子目录不扫**：`.cjs/.mjs/.node` 及函数目录子目录不在扫描面；③**F5 M1 对「改名副本」盲区**：`_shared/foo.js` → `a/foo_v2.js` 时 M1 判 0 消费方、M2 亦视为合法；④**F6 `KNOWN_DRIFT` 登记后永久静默豁免**，缺 §10 要求的配对独立断言（现含 `heal.js` 2 例）；⑤**F7 `_shared/*.json` 等非 js 共享资源无守护**；⑥**复核轮新增（2026-10-19）**：`require` 与 `(` 之间换行的写法，**行号显示漂移 +1**（仅提示显示口径，不影响拦截判定本身）；模板串表达式盲区见①。治理时机：提审后专项，逐项补断言/扩面后收窄豁免 |
 
 ---
 
