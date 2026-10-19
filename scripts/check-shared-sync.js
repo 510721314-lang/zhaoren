@@ -32,7 +32,7 @@ const SYNC_MAP = {
     'order-action', 'order-create', 'partner-action', 'payment-mock', 'safety-report', 'user-login'
   ],
   // 密码/身份安全策略纯函数(2026-10-13 纳入): 密码登录防爆破锁定 + 紧急联系人冷却 + bootstrap CAS
-  'security_policy.js': ['user-login', 'init-db', 'admin-action'],
+  'security_policy.js': ['user-login', 'init-db', 'admin-action', 'admin-web'],
   // openid.js(安全关键, fail-closed 环境门控): 2026-10-13 收敛为全量 17 个业务函数同源;
   //   原 admin-action 超集的网关密钥校验已上移其 index.js 包装层, init-db 变体已废弃合并
   'openid.js': [
@@ -45,7 +45,10 @@ const SYNC_MAP = {
   // demand-match/order-create 为旧版副本(缺该函数) → 依 §10「只登记不手修」登记 KNOWN_DRIFT
   'heal.js': ['partner-action', 'demand-match', 'order-create'],
   // 题库单一规范源(2026-10-19 P2-5 重做): partner-action + admin-action 各持本地副本, require('./exam-fallback')
-  'exam-fallback.js': ['partner-action', 'admin-action']
+  'exam-fallback.js': ['partner-action', 'admin-action'],
+  // admin 登录单一规范源(2026-10-19 P2-6 重做): admin-web 本地直调(消除双冷启动 504) + admin-action 前置组;
+  // 本模块内部 require('./security_policy') -> 两消费方均需 security_policy.js 副本(见上一项)
+  'admin-login.js': ['admin-action', 'admin-web']
 };
 
 // KNOWN_DRIFT(2026-10-19): 已登记的「既有漂移」, 依 §10「只登记不手修」处理——

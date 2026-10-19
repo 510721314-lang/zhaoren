@@ -66,6 +66,12 @@ http.interceptors.response.use(
   },
   (e) => {
     const status = e.response && e.response.status;
+    // (P2-6 重做) 504 网关超时自动重试一次: 云函数冷启动首个请求可能超网关 3s 硬限,
+    // 第二次命中热启动云函数秒级返回; 只重试一次防死循环
+    if (status === 504 && e.config && !e.config._retry) {
+      e.config._retry = true;
+      return new Promise((resolve) => setTimeout(() => resolve(http.request(e.config)), 1000));
+    }
     if (status === 401) {
       localStorage.removeItem('admin_web_key');
       window.location.hash = '#/login';

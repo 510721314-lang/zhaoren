@@ -9,6 +9,9 @@ const db = cloud.database();
 const _ = db.command;
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+// (P2-6 重做, 2026-10-19) admin_login / admin_logout 本地直调 —— 引 _shared/admin-login.js 的本地副本(由 sync-admin-login.ps1 维护)
+const { admin_login: adminLoginShared, admin_logout: adminLogoutShared } = require('./admin-login');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -126,6 +129,25 @@ function sessionValid(sess) {
   return !!(sess && sess.is_deleted !== true && (sess.expires_at || 0) > Date.now());
 }
 
+// (P2-6 重做) admin-login 本地直调 helpers · 与 admin-action 侧同构(admin_login 免鉴权直调, 不再 proxy 到 admin-action)
+function hashAdminPassword(password, salt) {
+  return crypto.createHash('sha256').update(salt + password + salt).digest('hex');
+}
+async function ensureAdminColls() {
+  try { await db.createCollection('admin_accounts'); } catch (e) { /* 已存在则忽略 */ }
+  try { await db.createCollection('admin_web_sessions'); } catch (e) { /* 已存在则忽略 */ }
+}
+function col(name) { return db.collection(name); }
+async function logEvent(level, type, openid, payload) {
+  try {
+    await db.collection('platform_event').add({ data: {
+      level, type, openid: openid || '',
+      payload: payload || {},
+      created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+    }});
+  } catch (e) { /* 告警写失败不影响主流程 */ }
+}
+
 // P0② 网关鉴权失败告警: 鉴权拒绝时写 platform_event(P2, type=gateway_bad_key), 供 order-timer errorScan 巡检项④聚合。
 // 调用方 await 本函数(见鉴权块): 保证事件落库后响应, 避免运行时回收导致写入截断; 内部 try/catch 吞异常, 不影响 401 响应。
 // 注意: 绝不把提交的 key 本身写入事件(payload 仅 reason/path), 防密钥泄密。
@@ -187,6 +209,26 @@ exports.main = async (event, context) => {
         return makeJson({ ok: false, code: auth.msg }, 401);
       }
     }
+  }
+
+  // (P2-6 重做, 2026-10-19) admin_login / admin_logout 本地直调 · 绕过 proxy admin-action,
+  // 避免 admin-web 与 admin-action 双云函数冷启动叠加超网关 3s 硬限(原 504 根因)
+  if (action === 'admin_login') {
+    try {
+      const localOpenid = (req.headers['x-admin-proxy-openid'] || '').trim() || null;
+      const r = await adminLoginShared({
+        event: body, openid: localOpenid,
+        ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent,
+        log: { w: function () {} }
+      });
+      return makeJson(r);
+    } catch (e) { return makeJson({ ok: false, code: 'login_error', msg: e.message }, 502); }
+  }
+  if (action === 'admin_logout') {
+    try {
+      const r = await adminLogoutShared({ event: body, col });
+      return makeJson(r);
+    } catch (e) { return makeJson({ ok: false, code: 'logout_error', msg: e.message }, 502); }
   }
 
   const adminOpenid = (cfg.admin_openids && cfg.admin_openids[0]) || null;
