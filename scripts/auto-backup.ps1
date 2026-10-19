@@ -19,6 +19,7 @@ $LOG_DIR  = Join-Path $BackupRoot 'logs'
 $LOG_FILE = Join-Path $LOG_DIR  'backup-log.csv'
 $HOT_COLLECTIONS = 'audit_log,order_main,order_status_log,platform_event,im_message'
 $GATEWAY_URL = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api'
+$LARK_FOLDER = 'RCsff3kGUlKhpud1KVFckJOhnGc'   # 异地备份目标文件夹(明文 token 非密钥, 见 cloud-backup-restore 技能)
 $script:t0 = Get-Date
 
 # ── 公共函数 ──
@@ -78,6 +79,35 @@ function Invoke-RawExport([string]$RawDir, [switch]$Hot) {
   if ($Hot) { & $p -OutDir $RawDir -Hot -EncKeyFile $ENC_KEY_FILE }
   else      { & $p -OutDir $RawDir -EncKeyFile $ENC_KEY_FILE }
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $RawDir 'enc-manifest.json'))) { throw "raw 加密导出失败: $RawDir" }
+}
+function Invoke-LarkPush([string]$Dir, [string]$Bundle) {
+  # 异地自动推送(lark-cli 镜像): staging=bundle+CHECKSUMS+raw\*(均<20MB; 2026-10-19 实测 28MB 被拒/16.8MB 过)
+  # 纪律(cloud-backup-restore 技能): --as user; --local-dir 须在 cwd 内; overwrite 推送 + smart 复核; 失败重试 2 次
+  $stag = 'C:\zhaoren\.backup-lark'
+  Remove-Item "$stag\*" -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Force -Path "$stag\raw" | Out-Null
+  Copy-Item $Bundle $stag -Force
+  Copy-Item (Join-Path $Dir 'CHECKSUMS.txt') $stag -Force
+  Copy-Item (Join-Path $Dir 'raw\*') "$stag\raw\" -Force
+  foreach ($o in (Get-ChildItem $stag -Recurse -File | Where-Object { $_.Length -gt 19MB })) {
+    Remove-Item $o.FullName -Force
+    Write-Host "[LARK-WARN] 超限剔除(本地保留原件): $($o.Name)"
+  }
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'   # lark-cli stderr 在 Stop 模式会变终止错误(同 git 坑)
+  try {
+    $ok = $false; $detail = ''
+    for ($i = 1; $i -le 2; $i++) {
+      $out = lark-cli drive +push --folder-token $script:LARK_FOLDER --as user --local-dir .backup-lark --if-exists overwrite --json 2>&1
+      if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+      $detail = (($out | Out-String) -replace '\s+', ' ')
+      if ($detail.Length -gt 160) { $detail = $detail.Substring(0, 160) }
+      if ($i -lt 2) { Start-Sleep -Seconds 30 }
+    }
+    if (-not $ok) { return @{ ok = $false; detail = 'push 失败: ' + $detail } }
+    $out2 = lark-cli drive +push --folder-token $script:LARK_FOLDER --as user --local-dir .backup-lark --if-exists smart --json 2>&1
+    if ($LASTEXITCODE -ne 0) { return @{ ok = $false; detail = 'push 成功但 smart 复核失败' } }
+    return @{ ok = $true; detail = 'pushed+verified' }
+  } finally { $ErrorActionPreference = $prev }
 }
 function Test-DecryptProbe([string]$RawDir, [int]$Take) {
   $mf = Get-Content (Join-Path $RawDir 'enc-manifest.json') -Raw | ConvertFrom-Json
@@ -152,15 +182,14 @@ if ($Mode -eq 'full') {
     # 5) CHECKSUMS + 保留清理
     Get-CheckSums $dir
     Remove-OldFull
-    # 6) 异地 3 件套 staging(best-effort, 推送保持手动: 见 cloud-backup-restore 技能 lark 流程)
+    # 6) 异地自动推送(lark mirror): staging → overwrite push(重试2) → smart 复核; 失败 WARN 不阻断本地备份
+    $larkTag = 'lark=WARN(未执行)'
     try {
-      $stag = 'C:\zhaoren\.backup-lark'
-      New-Item -ItemType Directory -Force -Path $stag | Out-Null
-      $zip = Join-Path $stag ('zhaoren-full-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.zip')
-      Compress-Archive -Path $bundle, (Join-Path $dir 'raw'), (Join-Path $dir 'CHECKSUMS.txt') -DestinationPath $zip -Force
-      Write-Host "[LARK-STAGING] $zip (异地推送保持手动流程)"
-    } catch { Write-Host "[WARN] lark staging 失败(不阻断): $($_.Exception.Message)" }
-    Write-Log 'SUCCESS' "full -> $dir"
+      $lark = Invoke-LarkPush $dir $bundle
+      if ($lark.ok) { $larkTag = 'lark=OK'; Write-Host "[LARK] 异地推送+复核完成" }
+      else { $larkTag = 'lark=WARN: ' + $lark.detail; Write-Host "[LARK-WARN] $larkTag" }
+    } catch { $larkTag = 'lark=WARN: ' + $_.Exception.Message; Write-Host "[LARK-WARN] $larkTag" }
+    Write-Log 'SUCCESS' "full -> $dir $larkTag"
     exit 0
   } catch {
     Write-Log 'FAIL' $_.Exception.Message
@@ -232,6 +261,9 @@ if ($Mode -eq 'verify') {
       if (Test-Path (Join-Path $rawDir 'enc-manifest.json')) {
         try { Test-DecryptProbe $rawDir 2 } catch { $issues += "raw 探针: $($_.Exception.Message)" }
       } else { $issues += 'raw/enc-manifest.json 缺失' }
+      # 异地推送缺口检查(最近 full 成功行须含 lark=OK, 04:30 verify 暴露 02:30 的推送缺口)
+      $lastFullLog = Get-Content $LOG_FILE -ErrorAction SilentlyContinue | Where-Object { $_ -match ',full,SUCCESS' } | Select-Object -Last 1
+      if ($lastFullLog -and $lastFullLog -notmatch 'lark=OK') { $issues += '最近 full 异地推送未确认(lark 缺口)' }
     } else { Write-Host '[WARN] 尚无 full 份(仅查 incremental)'; $issues += 'full 缺席' }
     # 最近 incremental 抽查
     $incrRoot = Join-Path $BackupRoot 'incremental'

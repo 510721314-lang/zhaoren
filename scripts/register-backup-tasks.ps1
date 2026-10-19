@@ -16,7 +16,10 @@ foreach ($t in $tasks) {
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
     -Argument ('-NoProfile -ExecutionPolicy Bypass -File ' + $cmd + ' -Mode ' + $t.Mode)
   if ($t.At) { $trigger = New-ScheduledTaskTrigger -Daily -At $t.At }
-  else       { $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration ([TimeSpan]::MaxValue) }
+  else {
+    # HOURLY 跨午夜改用 21 个 Daily 触发器(00,01,05-23 点各一; RepetitionDuration MaxValue 超任务计划 XML 上限 P99999999D 被拒)
+    $trigger = @(foreach ($h in (@(0,1) + @(5..23))) { New-ScheduledTaskTrigger -Daily -At ('{0:D2}:00' -f $h) })
+  }
   $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Hours $t.LimitH) -MultipleInstances IgnoreNew
   # 已存在则先卸载(幂等重注册)
