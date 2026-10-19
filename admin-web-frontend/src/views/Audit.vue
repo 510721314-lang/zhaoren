@@ -156,7 +156,8 @@ function fmtTime(ts) {
 
 async function load(p = 1) {
   loading.value = true;
-  const params = { page: p, size };
+  // size 必须取 .value: 直接传 ref 对象会被 axios JSON.stringify 抛「循环引用」(Ref 内部依赖图), 且后端收不到数字
+  const params = { page: p, size: size.value };
   if (q.openid.trim()) params.openid = q.openid.trim();
   if (q.action_name.trim()) params.action_name = q.action_name.trim();
   if (q.category) params.category = q.category;
