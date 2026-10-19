@@ -5,6 +5,7 @@
 
 | 日期 | 变更内容 | 可能影响的功能 | 回归结论 |
 |---|---|---|---|
+| 2026-10-19 | **4 commit 批次**：①`91b3a5e` feat(index) 首页附近新单 30s 轮询+震动+toast（仅耍伴端）；②`76a10cb` fix(order-timer) 争议升级补 complaint_reason 使 admin 纠纷原因列不为空；③`91e7469` feat(workbench) 同步附近新单轮询（与首页逐字同构）；④`0b7173c` feat(admin-web) Config.vue 补「发布与展示」三字段（publish_title_max_len/publish_desc_max_len/scene_option_display_max） | 首页/工作台 tabBar 轮询新增（onHide/onUnload 自动清定时器）；order-timer 争议升级 casStatus 新增 complaint_reason 字段；admin-web Config.vue 新增 collapse-item ⑧；publish_remark_max_len 已废弃消失 | verify:offline **524 pass / 0 fail / A/B 437 EQUIVALENT**；cli preview ✔ 714.5 KB；order-timer 部署 **download SHA 14/14 MATCH**；admin-action 部署 download SHA 全匹配；前端已上传（用户确认）；**20 条 REGISTRY 待验证全部转已验证（用户真机通过）** |
 | 2026-10-13 | 建立 AI 协作防回退规则体系：`.trae/rules/project_rules-20261013.md`（九条铁律，alwaysApply）+ `.trae/rules/miniprogram-config-guard.md`（5 个配置文件 globs 保护）+ `docs/FUNCTION-REGISTRY.md`（50 条功能清单，已验证 33 / 待验证 17） | 全局规则文件，零行为变更；仅约束 AI 后续协作行为 | 7 处 @VERIFIED 标记所在文件 node --check 7/7 PASS；FUNCTION-REGISTRY 表格格式自证；待用户真机复核 17 条"待验证"功能 |
 | 2026-10-13 | 给 7 个重点功能加 `// @VERIFIED 2026-10-13` 标记：login.js / publish.js / order-detail.js / no-show-report.js / redline.js / _shared/security_policy.js / _shared/openid.js | 仅注释行，零运行时影响 | 7/7 语法 PASS；标记依据=project_memory L48-52/L71/L83-85/L104/L109-111/L155-156/L181/L280 |
 | 2026-10-13 | 修复上轮遗漏：`_shared/security_policy.js`、`_shared/openid.js` 加注释后造成 20 处副本 SHA 漂移（check-shared-sync 会 FAIL），已跑 `sync-security-policy.ps1` + `sync-openid.ps1` 修复 | 无（副本内容回归同源） | SHARED SYNC ALL OK |
