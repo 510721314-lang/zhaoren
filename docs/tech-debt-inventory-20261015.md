@@ -41,7 +41,7 @@
 
 | # | 负债 | 证据 | 评估 |
 |---|---|---|---|
-| P2-1 | **前端巨型页面**：order-detail.js 非空 **1286** 行（原 1692）+ order-detail.wxml **437** 行（原 470）；publish.js 非空 **1029** 行（原 1296）+ publish.wxml 309 行 | `miniprogram/pages-v2/order-detail/`、`pages-v2/publish/` | **部分偿还（2026-10-16 二次刷新）**：阶段 1（C1/C2/C3：38a183d/02e02bb/b28a431）纯函数外移 utils/order-view.js、utils/publish-validate.js（里程碑 1 阈值 ≤1500/≤1220 达标）；里程碑 2（C4-C7：7b508b9/2af5a56/aadb6ef/a381b0c）服务模块外移（order-detail.js 1488→1286、publish.js 1216→1094，阈值 ≤1300/≤1100 达标）；阶段 3 B（e701fc4）草稿组外移（publish.js 1094→1029）、A0/A1（3860c25/65e136c）timeline-card/finance-card 组件化（order-detail.wxml 470→437、wxss 313→298）。**M3 暂定阈值 ≤1250/≤1000：publish 1029 未达标**；**A2/A3 与阶段 4 未开工**，门禁见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §8；债未结清 |
+| P2-1 | ~~**前端巨型页面**~~ **✅ 已偿还（2026-10-19）**：order-detail.js **1290** 行（原 1692）+ .wxml **362**（原 470）+ .wxss **273**（原 313）；publish.js **999** 行（原 1296）+ .wxml **252**（原 309）+ .wxss **446**（原 577） | `miniprogram/pages-v2/order-detail/`、`pages-v2/publish/` | **全部里程碑双阈值达标**：里程碑 1（纯函数 C1/C2/C3）+ 里程碑 2（服务模块 C4-C7）+ 里程碑 3（B 草稿 A0/A1/A2/A3 组件化）+ 里程碑 4（交互组件 no-show-card / safety-card / scene-picker / auth-sign-sheet）共 **16 个 commit** 全落盘。`.js` 减量 order-detail 1692→1290（−402）、publish 1296→999（−297）；`.wxml/.wxss` 累计减量 order-detail −148、publish −188。阈值里程碑 3 ≤1250/≤1000 → 里程碑 4 ≤1320/≤1000 **双达标**（order-detail 1290/1320、publish 999/1000）。wxml/wxss 减量 336 行，净增组件文件 10 个，总组件化收益 = 页面复杂度下降 + 主包体积仅增 6.1 KB（490.6→496.0 KB）。详细落盘见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §8 |
 | P2-2 | **前端零页面单测（部分缓解）**：**504** 单测全部在 cloudfunctions/_shared，其中 geo_guard/**order-view/publish-validate/util/constants 五例已跨目录测 miniprogram/utils 纯函数**（阶段 1 新增 46 例 438→484；2026-10-16 无机批次再 +19 例 484→503；其后累计至 **504**，含 constants 对 enums SSOT 的防漂移断言，REGISTRY #76），基建先例已存在 | `cloudfunctions/_shared/*.test.js` | 纯函数已随拆分+专项补测；**页面 setData/跳转/按钮态仍纯靠真机**。续作路径见 [plan-frontend-split-20261015.md](plan-frontend-split-20261015.md) §5.6（测试照 _shared 先例、不动 npm run verify） |
 | P2-3 | **9 份 `_orig_baseline.js` 约 1.07 万行冻结常驻并随函数部署**（运行时永不 require） | 9 个拆分函数目录下 | project_rules §10 禁删/改名/改——A/B 锚点价值交换包体与暴露面，已接受的债 |
 | P2-4 | `_shared` 多副本物理同步：openid.js 17 份、logger.js 16 份、audit.js 11 份等 | 14 个 sync-*.ps1 + check-shared-sync 门禁 | CloudBase 无 layer 的必然结果；改规范源忘跑 sync 已被门禁拦截 |
@@ -72,6 +72,6 @@
 
 1. **真机回归**（2026-10-16 二次复核口径：#72-75 已随 1.6.7 转已验证；本批 **#79/#80/#81/#82/#83**，其中 **#81/#82/#83 可先在开发者工具室内目检**；能力链 **#59/#64/#67（仅余 T-7.1.2）/#68**；历史存量 15 个 ID——**完整可勾选操作指引见 [runbook](runbooks/regression-pending-20261016-checklist.md)**）——唯一能让 P0-1 下降的动作，需人工真机/开发者工具执行；#34 走云控制台、#61/#63/#65 改「室内确认前端无残留调用」（均不需真机）；#60/#62/#71 已于 10-15 转已验证。
 2. **提审决策项**：版本号递增**已履行**——2026-10-17 上传 **`1.6.10`**（承载 #79-83 + #84/#85；1.6.7/1.6.8 曾分别用于 #72-75 与 #77；P0-2）；正式版发布当天按 runbook 把订阅两模板 trial→formal 并真机验送达。
-3. **真机窗口后的结构债主线**：P2-1/P2-2 续作＝阶段 3 余项（**A2 留痕/凭证卡**，A3 已落盘见 §8.1）+ 阶段 4（方案 §8；A2 含 @VERIFIED 卡须单独点名批准）；P2-5（题库双份）、P3-1（空 catch 窄类）可并入同批。
+3. **真机窗口后的结构债主线**：~~P2-1 已偿还（2026-10-19）~~ → P2-5（题库双份）+ P3-1（空 catch 窄类）可并入同批；P2-2 页面单测续作路径见拆分方案 §5.6
 4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）、P3-4（G3 超时前提醒）。
 5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5。
