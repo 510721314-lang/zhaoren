@@ -153,6 +153,11 @@ const CONFIG_SCHEMA = [
   // 履约双确认阶段 G(2026-10-15): S2.6/S3.6 等待响应超时 → 自动转 S10.5 争议; 读取侧 order-timer 早已动态读取, 此处注册后运营页可改
   { f: 'start_apply_timeout_min', t: 'int', g: '订单超时', label: 'S2.6开始履约申请超时', unit: '分钟', min: 1, max: 1440, def: 15, d: '耍伴发起履约申请(S2.6)后需求方超过该时长未确认/拒绝 → 自动转争议处理 S10.5；缺省 15 分钟（真机造数可临时设 1 分钟，验毕改回）' },
   { f: 'finish_confirm_timeout_min', t: 'int', g: '订单超时', label: 'S3.6完毕确认超时', unit: '分钟', min: 1, max: 1440, def: 30, d: '耍伴发起履约完毕确认(S3.6)后需求方超过该时长未确认/不确认 → 自动转争议处理 S10.5；缺省 30 分钟（真机造数可临时设 1 分钟，验毕改回）' },
+  // G3 超时前提醒(2026-10-20): S2.6/S3.6 待确认窗口内各提醒 2 次(站内信); 第 2 档应 ≤ 对应超时 - 5min(order-timer 每 5min 一轮); 读取侧 order-timer 早已动态读取, 此处注册后可通过 config_set 下发
+  { f: 'start_apply_remind1_min', t: 'int', g: '订单超时', label: 'S2.6开始履约·第1次提醒', unit: '分钟', min: 0, max: 1440, def: 5, d: 'S2.6(开始履约申请)后第 1 次「超时前提醒」时刻(相对申请时刻)；缺省 5 分钟' },
+  { f: 'start_apply_remind2_min', t: 'int', g: '订单超时', label: 'S2.6开始履约·第2次提醒', unit: '分钟', min: 0, max: 1440, def: 10, d: 'S2.6 第 2 次超时前提醒时刻；缺省 10 分钟（应 ≤ S2.6开始履约申请超时 - 5）' },
+  { f: 'finish_confirm_remind1_min', t: 'int', g: '订单超时', label: 'S3.6完毕确认·第1次提醒', unit: '分钟', min: 0, max: 1440, def: 10, d: 'S3.6(完毕确认)后第 1 次「超时前提醒」时刻(相对申请时刻)；缺省 10 分钟' },
+  { f: 'finish_confirm_remind2_min', t: 'int', g: '订单超时', label: 'S3.6完毕确认·第2次提醒', unit: '分钟', min: 0, max: 1440, def: 20, d: 'S3.6 第 2 次超时前提醒时刻；缺省 20 分钟（应 ≤ S3.6完毕确认超时 - 5）' },
   { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4, d: '评价超时未评时系统给出的默认星级' },
   // ── 时间红线 ──
   { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止', unit: '分钟', min: 0, max: 1440, def: 1440, d: '每日接单截止时刻（自 0:00 起算的分钟数）；0=全天开放不受限', clock: true, clockZero: '全天开放' },

@@ -16,6 +16,8 @@ const SYNC_MAP = {
   'no_show_rules.js': ['order-action', 'admin-action'],
   'order_state.js': ['order-action', 'order-timer'],
   'urge_rules.js': ['order-timer', 'order-action'],
+  // G3 超时前提醒纯规则(S2_6/S3_6 窗口内 2 次, 2026-10-20): 规范源 → order-timer 本地副本
+  'timeout_remind_rules.js': ['order-timer'],
   'credit_rules.js': ['evaluation-submit', 'order-timer'],
   // 场景中文名兜底映射(批3.1 单一源): 此前 8 处手抄副本, 收敛为一份常量 + 各函数副本
   'scene_meta.js': ['payment-mock', 'im-send', 'im-conv', 'demand-publish', 'order-action', 'admin-action', 'home-action'],

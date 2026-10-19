@@ -145,9 +145,78 @@ async function processFinishConfirmTimeout(ctx) {
   } catch (e) { log.d(`s3_6 scan fail: ${e.message}`); }
 }
 
+// ── G3(2026-10-20): S2_6/S3_6 待确认窗口「超时前提醒」2 次 ──
+// 依据 docs/prd-g3-timeout-reminder-20261019.md(《线下陪伴履约流程规范》§C8「提醒 2 次后转争议」)
+//   渠道: 站内信(定时触发云调用订阅必报 -501001); 不新增状态转移、不改超时阈值。
+//   幂等: 每档先条件更新订单标记位(仅当字段不存在时写), 抢到才发; 互斥(cancel 挂起/frozen)在纯规则内已跳过。
+//   顺序: 本段须排在 processStartApplyTimeout/processFinishConfirmTimeout 之前(同轮内先提醒后超时)。
+async function processStartApplyRemind(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, dueRemindStages, now, out, cfg } = ctx;
+  try {
+    const rows = await scanAll('order_main', () => ({ status: 'S2_6' }));
+    trackBacklog('S2_6r', rows.length >= SCAN_MAX ? rows : []);
+    const sent = [];
+    await Promise.allSettled(rows.map(async (o) => {
+      const stages = dueRemindStages(o, now, cfg);
+      for (const s of stages) {
+        const cond = { _id: o._id, status: 'S2_6' };
+        cond[s.markField] = _.exists(false);   // 仅当该档标记位不存在时才抢（幂等防并发重复）
+        const patch = { updated_at: now };
+        patch[s.markField] = now;
+        const upd = await col('order_main').where(cond).update({ data: patch });
+        if (!upd.stats || upd.stats.updated !== 1) continue; // 已被抢先标记, 跳过本档
+        if (o.user_openid) {
+          await col('system_notice').add({ data: {
+            to_openid: o.user_openid, order_id: o._id, type: 'remind_' + s.stage,
+            title: s.title, body: s.body,
+            action_key: 'jump_order', action_payload: { order_id: o._id },
+            created_at: now, read: false
+          }}).catch(() => {});
+        }
+        sent.push(o.order_no + ':' + s.stage);
+        log.d(`remind ${s.stage} -> user: ${o.order_no}`);
+      }
+    }));
+    out.start_apply_remind.push(...sent);
+  } catch (e) { log.d(`s2_6 remind scan fail: ${e.message}`); }
+}
+
+async function processFinishConfirmRemind(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, dueRemindStages, now, out, cfg } = ctx;
+  try {
+    const rows = await scanAll('order_main', () => ({ status: 'S3_6' }));
+    trackBacklog('S3_6r', rows.length >= SCAN_MAX ? rows : []);
+    const sent = [];
+    await Promise.allSettled(rows.map(async (o) => {
+      const stages = dueRemindStages(o, now, cfg);
+      for (const s of stages) {
+        const cond = { _id: o._id, status: 'S3_6' };
+        cond[s.markField] = _.exists(false);
+        const patch = { updated_at: now };
+        patch[s.markField] = now;
+        const upd = await col('order_main').where(cond).update({ data: patch });
+        if (!upd.stats || upd.stats.updated !== 1) continue;
+        if (o.user_openid) {
+          await col('system_notice').add({ data: {
+            to_openid: o.user_openid, order_id: o._id, type: 'remind_' + s.stage,
+            title: s.title, body: s.body,
+            action_key: 'jump_order', action_payload: { order_id: o._id },
+            created_at: now, read: false
+          }}).catch(() => {});
+        }
+        sent.push(o.order_no + ':' + s.stage);
+        log.d(`remind ${s.stage} -> user: ${o.order_no}`);
+      }
+    }));
+    out.finish_confirm_remind.push(...sent);
+  } catch (e) { log.d(`s3_6 remind scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processS1Timeout,
   processS0Timeout,
   processStartApplyTimeout,
   processFinishConfirmTimeout,
+  processStartApplyRemind,
+  processFinishConfirmRemind,
 };

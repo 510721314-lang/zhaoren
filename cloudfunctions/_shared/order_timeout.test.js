@@ -55,8 +55,9 @@ test('S2_6 超时 → start_apply_timeout=1 且转 S10.5 + 争议正交位 + 通
   assert.strictEqual(r.ok, true, JSON.stringify(r));
   assert.strictEqual(r.data.counts.start_apply_timeout, 1);
   assert.deepStrictEqual(r.data.start_apply_timeout, ['ORD-P1']);
-  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'P1');
-  assert.ok(upd, '应 CAS 写 order_main');
+  // G3(2026-10-20): 提醒段先于超时段执行, 故 order_main 首写为提醒标记位; 按 status 定位超时 CAS 写
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'P1' && w.data && w.data.status === 'S10.5');
+  assert.ok(upd, '应 CAS 写 order_main(S10.5)');
   assert.strictEqual(upd.data.status, 'S10.5');
   assert.strictEqual(upd.data.dispute_state, 'open');
   assert.strictEqual(upd.data.dispute_type, 'start_timeout');
@@ -65,9 +66,9 @@ test('S2_6 超时 → start_apply_timeout=1 且转 S10.5 + 争议正交位 + 通
   assert.strictEqual(upd.data.complaint_from_status, 'S2_6', '#01 complaint_from_status 应记录起源态');
   assert.strictEqual(upd.data.frozen, true, '#01争议升级应置 frozen:true 对齐主动投诉路径');
   assert.strictEqual(upd.data.help_flag, true, '#03争议升级应置 help_flag:true 对齐主动投诉路径');
-  const notices = (sdk.writes.system_notice || []).filter((w) => w.add);
+  // 提醒段到期会额外写 remind_sr* 通知, 故按 type 过滤仅统计争议通知
+  const notices = (sdk.writes.system_notice || []).filter((w) => w.add && w.data.type === 'dispute_open');
   assert.strictEqual(notices.length, 2, '应通知双方');
-  assert.strictEqual(notices[0].data.type, 'dispute_open');
 });
 
 // ② S2_6 未到阈值 → 不处理
@@ -83,7 +84,7 @@ test('S3_6 超时 → finish_confirm_timeout=1 且转 S10.5 + dispute_type=finis
   const { r, sdk } = await run(baseStore({ P3: ord('P3', 'S3_6', { finish_apply_at: now - 40 * MIN }) }));
   assert.strictEqual(r.data.counts.finish_confirm_timeout, 1);
   assert.deepStrictEqual(r.data.finish_confirm_timeout, ['ORD-P3']);
-  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'P3');
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'P3' && w.data && w.data.status === 'S10.5');
   assert.strictEqual(upd.data.status, 'S10.5');
   assert.strictEqual(upd.data.dispute_type, 'finish_timeout');
   assert.strictEqual(upd.data.complaint_by, '', '#01争议升级 complaint_by 应为空串');
@@ -115,6 +116,66 @@ test('admin_config 配 finish_confirm_timeout_min=30 → 20min 不触发', async
   store.admin_config.global.finish_confirm_timeout_min = 30;
   const { r } = await run(store);
   assert.strictEqual(r.data.counts.finish_confirm_timeout, 0);
+});
+
+// ── G3(2026-10-20) 超时前提醒守护(PRD: docs/prd-g3-timeout-reminder-20261019.md) ──
+// ⑥ S2_6 超 5min → 第 1 档提醒(站内信 remind_sr1 + 写幂等标记 start_apply_remind1_at), 未转争议
+test('G3: S2_6 超 5min → start_apply_remind=1 (remind_sr1) 且未转争议', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({ R1: ord('R1', 'S2_6', { start_apply_at: now - 6 * MIN }) }));
+  assert.strictEqual(r.data.counts.start_apply_remind, 1);
+  assert.deepStrictEqual(r.data.start_apply_remind, ['ORD-R1:sr1']);
+  assert.strictEqual(r.data.counts.start_apply_timeout, 0);
+  const mark = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'R1' && w.data && w.data.start_apply_remind1_at > 0);
+  assert.ok(mark, '应写幂等标记 start_apply_remind1_at');
+  const n = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'remind_sr1');
+  assert.ok(n, '应发 remind_sr1 站内信');
+  assert.strictEqual(n.data.to_openid, USER);
+});
+
+// ⑦ S2_6 超 11min → 两档齐发(仍在 15min 超时前)
+test('G3: S2_6 超 11min → start_apply_remind=2 (sr1+sr2)', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ R2: ord('R2', 'S2_6', { start_apply_at: now - 11 * MIN }) }));
+  assert.strictEqual(r.data.counts.start_apply_remind, 2);
+  assert.deepStrictEqual(r.data.start_apply_remind, ['ORD-R2:sr1', 'ORD-R2:sr2']);
+  assert.strictEqual(r.data.counts.start_apply_timeout, 0);
+});
+
+// ⑧ 幂等: 已写 remind1 → 本轮仅补 sr2
+test('G3: S2_6 已标记 remind1 → 仅补 sr2', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ R3: ord('R3', 'S2_6', { start_apply_at: now - 11 * MIN, start_apply_remind1_at: now - 6 * MIN }) }));
+  assert.deepStrictEqual(r.data.start_apply_remind, ['ORD-R3:sr2']);
+});
+
+// ⑨ S3_6 超 12min → fr1(30min 窗口第 1 档 10min)
+test('G3: S3_6 超 12min → finish_confirm_remind=1 (fr1)', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({ R4: ord('R4', 'S3_6', { finish_apply_at: now - 12 * MIN }) }));
+  assert.strictEqual(r.data.counts.finish_confirm_remind, 1);
+  assert.deepStrictEqual(r.data.finish_confirm_remind, ['ORD-R4:fr1']);
+  assert.strictEqual(r.data.counts.finish_confirm_timeout, 0);
+  const mark = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'R4' && w.data && w.data.finish_confirm_remind1_at > 0);
+  assert.ok(mark, '应写幂等标记 finish_confirm_remind1_at');
+});
+
+// ⑩ 互斥: 取消挂起 → 不提醒
+test('G3: S2_6 取消挂起 → 不提醒', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ R5: ord('R5', 'S2_6', { start_apply_at: now - 11 * MIN, cancel_request: { status: 'pending' } }) }));
+  assert.strictEqual(r.data.counts.start_apply_remind, 0);
+});
+
+// ⑪ 可配: start_apply_remind1_min=0 / remind2_min=30 / 超时 60 → 20min 仅 sr1
+test('G3: 后台改配提醒时刻生效', async () => {
+  const now = Date.now();
+  const store = baseStore({ R6: ord('R6', 'S2_6', { start_apply_at: now - 20 * MIN }) });
+  store.admin_config.global.start_apply_remind1_min = 0;
+  store.admin_config.global.start_apply_remind2_min = 30;
+  store.admin_config.global.start_apply_timeout_min = 60;
+  const { r } = await run(store);
+  assert.deepStrictEqual(r.data.start_apply_remind, ['ORD-R6:sr1']);
 });
 
 test.after(() => { Module._load = origLoad; });

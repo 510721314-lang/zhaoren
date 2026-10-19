@@ -19,6 +19,8 @@ const { casTransition } = require('./order_state');
 const { dueStages } = require('./urge_rules');
 // 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
 const { starCreditDelta } = require('./credit_rules');
+// G3 超时前提醒纯规则(规范源 _shared/timeout_remind_rules.js, 修改后跑 sync-timeout-remind-rules.ps1)
+const { dueRemindStages, remindCfg } = require('./timeout_remind_rules');
 // 物理拆分(2026-10-13): 扫描段落已抽到同级模块(action_*.js), 经 sectionCtx 注入共享符号; 段内禁 require('./index')
 const SECTIONS = Object.assign({},
   require('./action_timeout'),
@@ -531,8 +533,10 @@ exports.main = async (event, context) => {
   // 履约双确认超时(阶段G, 2026-10-15): 规范《线下陪伴履约流程规范》§C8 —— S2.6 开始履约申请 15min 未响应 / S3.6 完毕确认 30min 未响应 → 转 S10.5 争议
   const startApplyMin = num(cfg.start_apply_timeout_min, 15);
   const finishConfirmMin = num(cfg.finish_confirm_timeout_min, 30);
+  // G3(2026-10-20) 超时前提醒: S2_6/S3_6 窗口内各 2 档(缺省 5/10 与 10/20, 后台可配)
+  const remindMin = remindCfg(cfg);
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
@@ -544,7 +548,8 @@ exports.main = async (event, context) => {
     PRUNE_DAYS, PRUNE_CAP,
     trackBacklog, scanAll, getConfig, num, logStatus, casStatus, scanExemptList, isScanExemptEvent,
     errorScan, auditPrune, validLngLat, haversineKm, fmtDate, sendDemandSub, processDemandNotify,
-    processUrgeReminder, revertExpiredDev, pruneSessions, starCreditDelta, casTransition, dueStages
+    processUrgeReminder, revertExpiredDev, pruneSessions, starCreditDelta, casTransition, dueStages,
+    dueRemindStages
   };
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
@@ -562,8 +567,14 @@ exports.main = async (event, context) => {
   // ───────── 3.7 S3 加时申请 expire_at 到期 → 自动拒绝(不加时, 服务时长不变) ─────────
   await SECTIONS.processExtendTimeout(sectionCtx);
 
+  // ───────── 3.9a S2.6 超时前提醒(G3, 2026-10-20): 须排在超时段之前(同轮内先提醒后超时) ─────────
+  await SECTIONS.processStartApplyRemind(sectionCtx);
+
   // ───────── 3.9 S2.6 开始履约申请超时(15min) → S10.5 争议(阶段G, no.26) ─────────
   await SECTIONS.processStartApplyTimeout(sectionCtx);
+
+  // ───────── 3.10a S3.6 超时前提醒(G3, 2026-10-20): 须排在超时段之前 ─────────
+  await SECTIONS.processFinishConfirmRemind(sectionCtx);
 
   // ───────── 3.10 S3.6 履约完毕确认超时(30min) → S10.5 争议(阶段G, no.30) ─────────
   await SECTIONS.processFinishConfirmTimeout(sectionCtx);
@@ -617,7 +628,7 @@ exports.main = async (event, context) => {
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
       urge_remind: urgeRemind,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin, start_apply_remind1_min: remindMin.startApplyRemind1Min, start_apply_remind2_min: remindMin.startApplyRemind2Min, finish_confirm_remind1_min: remindMin.finishConfirmRemind1Min, finish_confirm_remind2_min: remindMin.finishConfirmRemind2Min },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
@@ -631,6 +642,8 @@ exports.main = async (event, context) => {
       dispute_escalate: out.dispute_escalate,
       start_apply_timeout: out.start_apply_timeout,
       finish_confirm_timeout: out.finish_confirm_timeout,
+      start_apply_remind: out.start_apply_remind,
+      finish_confirm_remind: out.finish_confirm_remind,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
@@ -645,7 +658,9 @@ exports.main = async (event, context) => {
         s4_escalate: out.s4_escalate.length,
         dispute_escalate: out.dispute_escalate.length,
         start_apply_timeout: out.start_apply_timeout.length,
-        finish_confirm_timeout: out.finish_confirm_timeout.length
+        finish_confirm_timeout: out.finish_confirm_timeout.length,
+        start_apply_remind: out.start_apply_remind.length,
+        finish_confirm_remind: out.finish_confirm_remind.length
       }
     }
   };
