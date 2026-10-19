@@ -88,6 +88,7 @@ async function processStartApplyTimeout(ctx) {
         status: 'S10.5', dispute_state: 'open', dispute_type: 'start_timeout',
         dispute_opened_at: now, complaint_at: now, complaint_by: '',
         complaint_from_status: 'S2_6', complaint_withdrawn_at: 0, complaint_withdrawn_by: '',
+        complaint_reason: '开始履约确认超时,系统自动转入争议',
         frozen: true, help_flag: true, updated_at: now
       }, 'start_apply_timeout');
       if (!won) { out.skipped.push(o.order_no + ':S2_6竞态'); return; }
@@ -122,6 +123,7 @@ async function processFinishConfirmTimeout(ctx) {
         status: 'S10.5', dispute_state: 'open', dispute_type: 'finish_timeout',
         dispute_opened_at: now, complaint_at: now, complaint_by: '',
         complaint_from_status: 'S3_6', complaint_withdrawn_at: 0, complaint_withdrawn_by: '',
+        complaint_reason: '履约完毕确认超时,系统自动转入争议',
         frozen: true, help_flag: true, updated_at: now
       }, 'finish_confirm_timeout');
       if (!won) { out.skipped.push(o.order_no + ':S3_6竞态'); return; }
