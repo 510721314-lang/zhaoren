@@ -73,6 +73,14 @@
           </el-form>
           <p style="color:#909399;font-size:12px">换算: close_min=1440→24:00, 360→06:00; close_min=0 表示全天开放</p>
         </el-collapse-item>
+        <!-- 发布与展示(T-7.4 新增补全 admin-action SCHEMA_FIELDS 已定义但前端缺失的三个字段) -->
+        <el-collapse-item title="⑧ 发布与展示" name="publish">
+          <el-form :model="patch" label-width="220px">
+            <el-form-item label="需求标题字数上限"><el-input-number v-model="patch.publish_title_max_len" :min="5" :max="60" /></el-form-item>
+            <el-form-item label="详细描述字数上限"><el-input-number v-model="patch.publish_desc_max_len" :min="50" :max="1000" /></el-form-item>
+            <el-form-item label="场景卡服务项展示数"><el-input-number v-model="patch.scene_option_display_max" :min="1" :max="8" /></el-form-item>
+          </el-form>
+        </el-collapse-item>
       </el-collapse>
     </div>
     <el-empty v-else description="加载中..." />
@@ -124,7 +132,11 @@ async function load() {
     credit_freeze_line: (d.credits || {}).credit_freeze_line,
     rate_min_fen: (d.rate_range || {}).rate_min_fen,
     rate_max_fen: (d.rate_range || {}).rate_max_fen,
-    scene_default_rate_fen: (d.rate_range || {}).scene_default_rate_fen
+    scene_default_rate_fen: (d.rate_range || {}).scene_default_rate_fen,
+    // T-7.4 发布与展示三字段(admin-action SCHEMA_FIELDS 已定义但前端缺失)
+    publish_title_max_len: d.publish_title_max_len,
+    publish_desc_max_len: d.publish_desc_max_len,
+    scene_option_display_max: d.scene_option_display_max
   };
   // 保留只读 idcard_aes_key_set 用于 UI badge 显示
   flat.idcard_aes_key_set = d.idcard_aes_key_set;
