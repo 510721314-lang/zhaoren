@@ -38,8 +38,6 @@
 
 | 文件 | 内容 |
 |---|---|
-| [履约域业务逻辑与流程设计方案.md](file:///c:/zhaoren/docs/履约域业务逻辑与流程设计方案.md) | 履约域状态机/流程设计（**本手册 Ch9 为其代码化收口**） |
-| [订单详情-投诉爽约入口-业务逻辑与流程.md](file:///c:/zhaoren/docs/订单详情-投诉爽约入口-业务逻辑与流程.md) | 投诉/爽约入口 |
 | [design-20261007-pricing-noshow-flows.md](file:///c:/zhaoren/docs/design-20261007-pricing-noshow-flows.md) | 定价/爽约流程设计 |
 | [design-20261010-noshow-withdraw.md](file:///c:/zhaoren/docs/design-20261010-noshow-withdraw.md) | 爽约撤回设计 |
 | [design-20261007-guest-onboarding-flow.md](file:///c:/zhaoren/docs/design-20261007-guest-onboarding-flow.md) | 访客引导流程 |
@@ -56,11 +54,8 @@
 | [verification/tech-review-20261010.md](file:///c:/zhaoren/docs/verification/tech-review-20261010.md) | 技术评审 |
 | [verification/p0-p2-status-20261006.md](file:///c:/zhaoren/docs/verification/p0-p2-status-20261006.md) | P0-P2 状态 |
 | [verification/cold-start-protocol.md](file:///c:/zhaoren/docs/verification/cold-start-protocol.md) | 冷启动协议 |
-| [20261010-走查记录-撤回与通知.md](file:///c:/zhaoren/docs/20261010-走查记录-撤回与通知.md) | 撤回与通知走查 |
-| [20261008-站内抢单通知-代他人发布-3B走查.md](file:///c:/zhaoren/docs/20261008-站内抢单通知-代他人发布-3B走查.md) | 抢单通知/代发/3B 走查 |
 | [regression-checklist.md](file:///c:/zhaoren/docs/regression-checklist.md) | 回归清单 |
 | [tech-debt-delivery-report-20261012.md](file:///c:/zhaoren/docs/tech-debt-delivery-report-20261012.md) | 技术债交付报告 |
-| [prd-vs-implementation-20261001-功能实现对照表.md](file:///c:/zhaoren/docs/prd-vs-implementation-20261001-功能实现对照表.md) | 功能实现对照（**历史，实现已超越 PRD，不再作为对齐基线**） |
 
 ### 11.2.4 商业 / 产品（非技术，参考）
 
@@ -70,9 +65,9 @@
 
 `docs/onboarding-prompt-*.md`（2026-09-30 起多版）——冷启动/交接提示词演进；最新经验已收敛进本手册。
 
-## 11.3 项目技能库（`.trae/skills/`，22 个）
+## 11.3 项目技能库（`.trae/skills/`，24 个）
 
-> 技能是「意图 → 动作」的封装产物，覆盖开发/审计/运维/美化四类。使用时按触发意图选取。
+> 技能是「意图 → 动作」的封装产物，覆盖开发/审计/运维/美化/流程协作五类。使用时按触发意图选取。
 
 ### 11.3.1 提审与审计
 
@@ -115,6 +110,13 @@
 | `wxapp-ui-polish` | 视觉美化与体验走查（Design Token / 动效 / 多机型适配） |
 | `mini-interaction-motion` | 交互细节（按钮反馈 / 骨架屏 / 空状态 / 入场动效） |
 | `zhaoren-perf-baseline` | 性能基线实测（包体成分 / 启动链路 / 云函数保温） |
+
+### 11.3.5 流程与协作
+
+| 技能 | 用途（触发） |
+|---|---|
+| `zhaoren-handoff-prompt` | 生成跨会话衔接/投喂（handoff）提示词（会话将达上限、新开任务续作；实测取证 + 双专家评审） |
+| `zhaoren-experience-sedimentation` | 经验沉淀落地（根因定性 / 口径定型 / 会话收尾 → 固化进规则 / CHANGELOG / 台账 / 技术债 / 交接文档 / 项目记忆） |
 
 ## 11.4 门禁与运维脚本入口（`scripts/`）
 
