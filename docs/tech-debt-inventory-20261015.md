@@ -25,7 +25,7 @@
 
 ---
 
-## P1 · 有意保留的兼容/挂起面（6 项，纪律禁回切/禁擅改）
+## P1 · 有意保留的兼容/挂起面（7 项，纪律禁回切/禁擅改）
 
 | # | 负债 | 证据 | 口径 |
 |---|---|---|---|
@@ -34,6 +34,7 @@
 | P1-3 | `start_photo`（REGISTRY #65）服务端保留、S3 前端入口已移除（凭证前置到 S2） | REGISTRY #65 | 验收=确认前端无残留调用，不回开 |
 | P1-4 | demand-match `hall_list` 标 deprecated 仍在线（广场已走 home-action.square） | `cloudfunctions/demand-match/index.js:389` | 下线前须确认无旧版客户端调用 |
 | P1-5 | MVP 禁做项的代码 TODO：短信发送占位、人脸三分支占位；#64 mock 现金（is_mock=true） | `user-login/action_auth.js:45`、`user-login/action_account.js:167` | 产品决策债，商业化批次偿还；禁止接真实打款 |
+| P1-7 | **`auto_approve_partner` 线上为 `true` 且变更无审计**：只读实查 `admin_config.global.auto_approve_partner=true`，但 `config_history` 内**无任何触及该键的记录**，来源不可追溯（默认值 `init-db` 与后台 `CONFIG_SCHEMA` 均为 `false`，`Config.vue` 标注「生产须 false」） | 只读实查 2026-10-21；`cloudfunctions/init-db/index.js:137`、`admin-action/index.js:186`（def:false）、`admin-web-frontend/src/views/Config.vue:16` | **提审期可保留（用户 2026-10-21 批准临时开）**：审核员提交申请即可通过、能走通接单链。**提审通过后必须回 `false`**（运营配置页写入，留审计），并清理测试期自动通过的 `partner_profile`；未回改＝任何人自助入驻即获接单资格 |
 | P1-6 | **提审期临时放开 prod mock 人脸**（2026-10-21 用户批准方案 A）：`admin_config.global.realname_face_mode` 由 `wx` 改为 `mock`，使审核员可走通「实名→发布/接单/申请耍伴」全链 | 配置现值 `realname_face_mode='mock'`（原 `wx`）；守卫 `user-login/action_account.js:163-174`；prod 经 mock 实名的账号打标 `is_realname_simulated=true` + `realname_method='mock_face'` | **有明确到期条件的临时放宽（非遗留兼容面）**：提审通过后必须双动作关闸——①`config_set realname_face_mode='wx'` ②按需 `admin-action realname_reset_simulated` 清除打标账号；未关闸＝任何人可自授实名，三链放行 |
 
 ---
