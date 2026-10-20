@@ -51,7 +51,7 @@
 | 日志目录 | `H:\zhaoren_bak_day\logs` | 存在 | 接收 |
 | runbook | `docs/runbooks/`（deploy / backup-restore / key-rotation / audit-checklist） | 4 个具名均存在（目录共 11 文件） | 接收 |
 | 双记忆路径 | 两处 `project_memory.md` 并存、勿合并 | `-c-Users-DC-…-p2-b17c5ede3c5cef668d1f\project_memory.md` 与 `-c-zhaoren--p2-f953b3c8ed7b028eaf39\project_memory.md` **均存在** | 接收 |
-| A/B 34 vs tech-debt 33 | 待确认项 | `tech-debt` L86 记 `KNOWN_EVOLUTION 33`，A/B 工具实测 **34** → 该待确认项**登记如实** | 接收 |
+| A/B 34 vs tech-debt 33 | **✅ 已定口径（2026-10-20）** | `tech-debt` L87 记 `KNOWN_EVOLUTION 33` 为**过时值** → 实测：**运行时 34 例**（`OK` 403 + `KNOWN` 34 = 437）、白名单 Set **声明 37 条**，其中 3 条 stale（`my_orders_partner`/`my_orders_user`/`notice_list`）不命中。**引用一律以 34 为准**；stale 清理登记 tech-debt **P3-10**（提审后） | 已订正 |
 
 ## 四、v4 新增条目 + 继承区间（清点）
 
