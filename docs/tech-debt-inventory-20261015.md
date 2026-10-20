@@ -50,7 +50,7 @@
 
 ---
 
-## P3 · 卫生级 / 已接受的债（10 项）
+## P3 · 卫生级 / 已接受的债（11 项）
 
 | # | 负债 | 决策与依据 |
 |---|---|---|
@@ -64,6 +64,7 @@
 | P3-8 | **系统自动转争议（order-timer）不写 `complaint` 集合**（2026-10-20 T-7.23 只读调查结案） | **根因**：`complaint` 集合唯一创建者＝用户/耍伴发起投诉（`order-action/action_dispute.js:58` `col('complaint').add`）；系统超时转 S10.5（`order-timer/action_timeout.js:89-91 / 124-126`，S2_6/S3_6 超时）**只改 `order_main` 字段**（`complaint_at/by/from_status/reason`），**不写集合**。**读方**：admin 纠纷**详情**依赖该集合（`admin-action/action_dispute_detail.js:13` → `:105` `complaint = 末条 / null`）＋用户端时间线（`order-action/action_timeline.js:65`）；**纠纷列表不依赖**（`admin-action/action_finance_dispute_views.js:20` 仅查 `order_main`）。**影响（低危·优雅兜底）**：自动转争议单详情时间线少 1 条 complaint 卡片、`detail.complaint` 恒 null（前端 `Dispute.vue` 未渲染该字段，仅用 `order.complaint_reason`）→ 无报错 / 无阻断 / **无提审风险**。**裁定＝方案 B（记已知边界·关闭 T-7.23；提审前不动）**：影响低危 ＋ 提审前 stability-first（T-7.22 禁未授权代码动作）＋ cost/risk 不对等。**复活路径（日后要修时）**：在 `order-timer/action_timeout.js:89-91 / 124-126` 补 1 条 `col('complaint').add`（`initiator_openid` 置空、`reason` 复用现有 `complaint_reason`、`status='pending'`），须配**幂等防重复 add** ＋ 单测 ＋ 全门禁部署链 |
 | P3-9 | **A1 门禁 `smoke-check.ps1` 网关响应捕获编码缺陷（2026-10-20 实跑暴露并修复，commit `7e39f94`；新增 §25-J6）**：`Invoke-Gw` 用 `$raw = curl.exe …` **直接捕获 stdout** → PS5.1 按 `[Console]::OutputEncoding`（中文机 GB2312/936）解码网关 UTF-8 中文 JSON → 乱码**吞闭合引号** → `ConvertFrom-Json` 抛错 → `$r = $null` → 6 项判据全 false → **6/6 恒 FAIL**（fail-closed，只误挡不误放） | **根因**：native stdout 捕获走控制台编码（与 §25-J2/J3 三连环同源，触发点＝脚本自身捕获大输出）。**证据**：实跑 6/6 FAIL ＋ `[RAW] {…}` dump 首部 `"ok":true`（证明网关与密钥均正常，故障纯在解码层）。**修复**：`curl -o` 把字节原样落临时文件 ＋ `Get-Content -Raw -Encoding UTF8` 读回。**影响面**：`smoke-check.ps1` 是 `gate.ps1` 第 7-8 步 & 审计清单/密钥轮换「改钥后全链路」唯一硬证据 → 中文机上恒红＝无证据、诱发门禁疲劳。**验收**：实跑 **6/6 PASS / exit 0**（4 项 `config_public` ＋ `system_notice` 由 FAIL 转 PASS；`home_probe_square` 经 `seed_scene_demands` per=3 reseed 24 条 matching 后 ≥10）。**纪律**：脚本内捕获 native 大输出并做 JSON 解析者一律走「落盘 + 显式 UTF8 读回」（§25-J6） |
 | P3-10 | **`KNOWN_EVOLUTION` 白名单 3 条 stale 死条目**（2026-10-20 实测发现） | **声明 37 条 / 运行时命中 34 例**（`node cloudfunctions/_shared/ab_equivalence.js` 实测：`OK` 403 + `KNOWN` 34 = 437 EQUIVALENT）。stale 3 条＝`my_orders_partner`／`my_orders_user`／`notice_list`（2026-10-17 为 `demand_title/demand_desc` 登记，现两侧已自然等价、不再差异 → 白名单条目不命中）。**风险**：若这 3 例日后真漂移，仍会被 KNOWN **静默兜住（fail-open 残留）**，与 project_rules §10「每登记一例均配独立行为断言」初衷相悖。**处置**：提审后清理（删 3 条 stale 条目 + 复跑 A/B 应仍为 437 EQUIVALENT / KNOWN 31）。**提审前不动**（改门禁白名单属代码改动，T-7.22） |
+| P3-11 | **CI 常红噪音（`datadog-synthetics.yml` 历史 487 次运行全 failure）**（2026-10-20 核查并处置） | **根因**：该 workflow 为 GitHub 模板遗留，依赖 `secrets.DD_API_KEY` / `DD_APP_KEY`，本项目从未配置 → 每次 push 必失败。**实测**：`CI` workflow 同日 4 次提交（`315e6f8`/`5037464`/`ca1357a`/`8fec287`）全 `success`；该 workflow 最近 30 次全 `failure`，累计 487 次。**影响**：Actions 页面长期红点 → 掩盖真实失败、诱发「CI 红了不理会」的习惯。**处置（2026-10-20）**：`git mv` 重命名为 `datadog-synthetics.yml.disabled`（GitHub 仅执行 `.yml/.yaml`，重命名即停用；**保留原文件以便日后接入真实 Datadog**）。另两个模板 workflow（`npm-publish-github-packages.yml` / `generator-generic-ossf-slsa3-publish.yml`）**历史运行数=0**，不产生噪音，本次不动。**验收**：push 后 `datadog-synthetics` 不再产生新 run，`CI` 仍 success |
 
 已偿还（本会话）：~~zz-seed-orders 文件头「验收视觉后删除」误导~~（已订正为「自测造数工具·保留·不部署·fail-closed·REGISTRY #34」，该目录有 6 例入口契约测试 + admin-web 种子代理分支，非孤儿）；~~payment-mock CRLF/LF 伪漂移~~（新增 `.gitattributes` 强制 cloudfunctions js/json eol=lf，工作区 w/crlf 实测归零，commit `ab9de38`）。
 

@@ -33,6 +33,7 @@
 | [troubleshooting.md](file:///c:/zhaoren/docs/runbooks/troubleshooting.md) | 坑位速查 |
 | [audit-checklist.md](file:///c:/zhaoren/docs/runbooks/audit-checklist.md) | 交付前审计清单 |
 | [user-side-todo.md](file:///c:/zhaoren/docs/runbooks/user-side-todo.md) | 需用户侧完成的待办 |
+| [pre-release-filing-checklist.md](file:///c:/zhaoren/docs/runbooks/pre-release-filing-checklist.md) | 提审备案类配置填报（隐私指引/接口权限/订阅模板/合法域名/密钥白名单 + 坑位速查） |
 
 ### 11.2.2 设计与方案
 
