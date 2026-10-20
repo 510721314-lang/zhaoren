@@ -20,6 +20,19 @@ function loadIndex(sdk) {
 const USER = 'o_user_1';
 const DID = 'd'.repeat(32);
 
+// P3-7(2026-10-20): start_time 须满足「未来 + 避开 00:00-06:00 休息区」。
+// 旧写法 Date.now()+3600000 当 now∈[23:00,05:00) 时会派生到休息区 → 触发 publish_redline, 期望错误码被提前拦截(深夜必红)。
+// 此处改用「固定安全窗口」: now+1h, 若落入休息区则顺延到当日 10:00。24h 稳定, 且不改业务红线。
+// 不用字面常量: 业务侧要求 start_time 为未来且距发布 ≤30 天, 常量会随时间推移失真。
+// now 参数仅供单测/核查注入, 业务调用一律走默认。
+const H1 = 3600 * 1000;
+function safeStart(now = Date.now()) {
+  const t = now + H1;
+  const d = new Date(t);
+  if (d.getHours() < 6) { d.setHours(10, 0, 0, 0); return d.getTime(); } // 落入 00:00-06:00 → 顺延当日 10:00
+  return t;
+}
+
 function baseStore(extra = {}) {
   return Object.assign({
     admin_config: { global: { env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000 } },
@@ -45,7 +58,7 @@ test('未知动作 → publish_unknown_action', async () => {
 test('publish 场景不在白名单 → publish_scene_invalid', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore() });
   const { main } = loadIndex(sdk);
-  const r = await main({ action: 'publish', scene: 'ZZZ', start_time: Date.now() + 3600000, mock_openid: USER }, {});
+  const r = await main({ action: 'publish', scene: 'ZZZ', start_time: safeStart(), mock_openid: USER }, {});
   assert.strictEqual(r.code, 'publish_scene_invalid');
 });
 
@@ -103,7 +116,7 @@ test('publish 代发座机号 → publish_proxy_phone（2026-10-16 取消座机�
   const { main } = loadIndex(sdk);
   const r = await main({
     action: 'publish', mock_openid: USER,
-    scene: 'W1', start_time: Date.now() + 3600000, duration_h: 2, rate_fen: 10000,
+    scene: 'W1', start_time: safeStart(), duration_h: 2, rate_fen: 10000,
     aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
     publish_type: 'proxy', proxy_authorized: true,
     location: { name: '北京协和医院', latitude: 39.9042, longitude: 116.4074 },
@@ -164,7 +177,7 @@ function pubStore(over = {}) {
 function pubEvent(extra = {}) {
   return Object.assign({
     action: 'publish', mock_openid: USER, device: 'test',
-    scene: 'W1', start_time: Date.now() + 3600000, duration_h: 1,
+    scene: 'W1', start_time: safeStart(), duration_h: 1,
     location: { name: '成都武侯区某医院', latitude: 30.55, longitude: 104.05, city: '成都' },
     publish_location: { name: '当前位置', latitude: 30.55, longitude: 104.05, city: '成都' },
     aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
@@ -235,6 +248,18 @@ test('update: 标题超默认上限 → update_title_long「需求标题最长 2
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'update_title_long');
   assert.strictEqual(r.msg, '需求标题最长 20 字');
+});
+
+// P3-7 守护: safeStart 在一天 24 个整点(含深夜)都必须产出「未来 + 非 00:00-06:00 休息区」的时间戳。
+// 撤回修复(改回 Date.now()+1h)时, h∈[23,5] 各点会在本地时区落入休息区 → 本用例失败, 守护力成立。
+test('P3-7: safeStart 任意时刻都落在 06:00 之后且为未来', () => {
+  const base = new Date(2026, 0, 1, 0, 0, 0, 0).getTime(); // 本地 1/1 00:00
+  for (let h = 0; h < 24; h++) {
+    const now = base + h * 3600 * 1000;
+    const t = safeStart(now);
+    assert.ok(t > now, `now=${h}h 应产出未来时间戳`);
+    assert.ok(new Date(t).getHours() >= 6, `now=${h}h 产出的时间落入休息区(${new Date(t).getHours()}h)`);
+  }
 });
 
 test.after(() => { Module._load = origLoad; });
