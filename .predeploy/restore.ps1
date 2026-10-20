@@ -41,7 +41,7 @@ $okCount = 0; $badCount = 0
 Get-ChildItem $BackupDir -Recurse -Filter '*.sha256' | ForEach-Object {
   $hashFile = $_.FullName
   $targetFile = $hashFile -replace '\.sha256$', ''
-  $expected = (Get-Content $hashFile -Raw).Trim().ToLower()
+  $expected = (Get-Content $hashFile -Raw -Encoding UTF8).Trim().ToLower()
   if (-not (Test-Path $targetFile)) { Write-Host "  [MISSING] $targetFile"; $badCount++; return }
   $actual = (Get-FileHash -Path $targetFile -Algorithm SHA256).Hash.ToLower()
   if ($expected -eq $actual) { Write-Host "  [OK] $($_.Name -replace '\.sha256$')"; $okCount++ }

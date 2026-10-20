@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $key = $env:AWK_KEY
 if (-not $key) {
   $kf = 'C:\zhaoren-bak\admin-key-20261009.txt'
-  if (Test-Path $kf) { $key = (Get-Content $kf -Raw).Trim() }
+  if (Test-Path $kf) { $key = (Get-Content $kf -Raw -Encoding UTF8).Trim() }
 }
 $logPath = 'C:\zhaoren-bak\audit-prune-check.log'
 $gate = 'https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api'

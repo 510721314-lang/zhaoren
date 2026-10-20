@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $PROJECT = 'C:\zhaoren'
 
 if (-not (Test-Path $EncKeyFile)) { throw "加密密钥文件不存在: $EncKeyFile" }
-$encPass = (Get-Content $EncKeyFile -Raw).Trim()
+$encPass = (Get-Content $EncKeyFile -Raw -Encoding UTF8).Trim()
 if (-not $encPass) { throw "加密密钥文件为空: $EncKeyFile" }
 
 $plainDir = Join-Path $OutDir 'plain'

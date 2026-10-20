@@ -8,7 +8,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $EncKeyFile)) { throw "加密密钥文件不存在: $EncKeyFile" }
-$encPass = (Get-Content $EncKeyFile -Raw).Trim()
+$encPass = (Get-Content $EncKeyFile -Raw -Encoding UTF8).Trim()
 if (-not $encPass) { throw "加密密钥文件为空: $EncKeyFile" }
 if (-not (Test-Path $File)) { throw "输入文件不存在: $File" }
 

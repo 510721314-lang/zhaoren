@@ -31,7 +31,7 @@ function Test-Bom([string]$Path) {
 }
 function Read-KeyFile([string]$Path, [string]$Name) {
   if (-not (Test-Path $Path)) { throw "$Name 密钥文件不存在: $Path" }
-  $k = (Get-Content $Path -Raw).Trim()
+  $k = (Get-Content $Path -Raw -Encoding UTF8).Trim()
   if (-not $k) { throw "$Name 密钥文件为空: $Path" }
   return $k
 }

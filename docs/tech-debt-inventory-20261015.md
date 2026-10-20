@@ -10,11 +10,11 @@
 
 本会话（2026-10-15 后半段）已偿还 6 项：deploy-log 10-15 台账欠账、阶段 G 两阈值硬编码（#71 后台化）、线上 confirmHours=2 误配、payment-mock CRLF/LF 伪漂移（.gitattributes）、zz-seed 文件头误导注释、订阅 trial→formal 发布操作入册。
 
-**当前剩余主体是「真机验证缺口」**（2026-10-16 二次复核实测 **28 条** REGISTRY 待验证：59/60/62/71 已转已验证移出，72-75 亦已随 1.6.7 转已验证，本批新增 79-83；成员与四类归并见 P0-1 + [runbook](runbooks/regression-pending-20261016-checklist.md)），其次是有意保留的兼容面与提审后再治的结构性债。前端巨页拆分阶段 1（C1/C2/C3）、里程碑 2（C4-C7）与阶段 3 B+A0+A1+A3 均已完成（P2-1 部分偿还），余 A2 与阶段 4 未开工（见拆分方案 §8）。
+**当前 REGISTRY 待验证/待真机 = 0 条**（2026-10-20 二次复核结案、P0-1 清零：#98 于 2026-10-19 真机通过、#102 于 2026-10-20 线上实证；2026-10-16 的「28 条」属历史口径，成员与四类归并见 P0-1 + [runbook](runbooks/regression-pending-20261016-checklist.md)）。当前剩余主体为**有意保留的兼容面与审后再治的结构性债**。前端巨页拆分阶段 1（C1/C2/C3）、里程碑 2（C4-C7）与阶段 3 B+A0+A1+A3 均已完成（P2-1 部分偿还），余 A2 与阶段 4 未开工（见拆分方案 §8）。
 
 ---
 
-## P0 · 提审前应清零或确认（2 项）
+## P0 · 提审前应清零或确认（2 项，**2026-10-20 均已结案**）
 
 | # | 负债 | 最新状态 / 证据 |
 |---|---|---|
@@ -73,7 +73,7 @@
 | # | 负债 | 证据 | 状态 / 处置口径 |
 |---|---|---|---|
 | B-1 | **备份链「自动触发路径」修复后尚未验证**（三链手动实测通过；2026-10-20 首次自动真跑即暴露编码事故、已修复，但计划任务侧修复后结果尚未产出） | 手动实测：incremental 136s SUCCESS（12464 文档）、full 全链 ~35 分钟（37 表+20 函数+raw 37 集合加密往返全过）、verify 53s（CHECKSUMS 1102 全过 + restore dry-run 39 OK/0 BAD + 解密探针 3 件 + lark 缺口检查） | **2026-10-20 首跑取证 + 编码事故已修复；⏳ 自动路径待终局验证（尚未「闭环」）**：①**02:30 自动 full FAIL**——根因＝PS5.1 编码三连环（`git log` 输出按 GB2312 解码成乱码；manifest/JSON 无 BOM；读端 `Get-Content -Raw` 默认 GB2312 → 某字节对吞掉闭合引号 → `ConvertFrom-Json` 报 `(239)`），连带 04:30 自动 verify 报 4 项缺失；②**已修复**：A1 git 输出编码（取文本前后临时置 UTF8 再还原）、A2 读端补 `-Encoding UTF8`（auto-backup ×2 + restore ×3）、A3 写端带 BOM（manifest ×3 + 集合 JSON ×2 + enc-manifest ×1）；并补 BOM 加固 5 个在库脚本（`.trae/predeploy.ps1` / 3 个 `sync-*.ps1` / `smoke-check.ps1`）；③**手动复跑取证（非自动触发）**：full **SUCCESS 2166s**（五项产物齐全、`git_short` 为可读中文、manifest first3bytes=239,187,191、源目录已搬入 db_export）、incremental **SUCCESS 150s**、**verify SUCCESS 71s、issues 为空（4 项缺失全消）**；④**B1 重试**：网关调用 6×10s、raw 导出 3×15s（含子脚本终止性错误纳入重试）；⑤**自伤回归已复盘**：B1 包装器参数 `$Body` 与脚本域 `$body` 大小写撞名 → 脚本块内 `-Body $body` 解析成脚本块自身 → 网关 400（空体），由「同点直连 vs 包装器」二分定位、改名为 `$Job`（规则 §25-J5）；⑥**⏳ 终局判据（尚未满足）**：`Get-ScheduledTaskInfo` 实测计划任务结果——`zhaoren-backup-full` Last=10/20 02:30 **Result=1**、`zhaoren-backup-incr` Last=12:00 **Result=1**、`zhaoren-backup-verify` Last=04:30 **Result=2**（修复后**尚无一次自动运行成功**）；**修复后首个自动窗口**＝今日 **13:00**（incr）与明日 **02:30 / 04:30**（full / verify）——届时 `backup-log.csv` 三行 SUCCESS 且 verify `issues` 为空，方可判定闭环 |
-| B-2 | **lark-cli 登录态过期无自动续期** | lark 异地推送依赖 `--as user` 登录态；auto-backup 设计为 lark=WARN **不阻断**本地备份，verify 每日跑 lark 缺口检查双向比对 | 若 verify 日志报 lark=WARN/缺口：`lark-cli auth login --domain drive` 重登（device-flow 二维码授权）；属可自愈的低危债 |
+| B-2 | **lark-cli 登录态过期无自动续期** | lark 异地推送依赖 `--as user` 登录态；auto-backup 设计为 lark=WARN **不阻断**本地备份，verify 每日跑 lark 缺口检查双向比对 | **✅ 本期通过（2026-10-20：full 日志 `lark=OK`、verify 无 lark 缺口）**；若日后 verify 报 lark=WARN/缺口：`lark-cli auth login --domain drive` 重登（device-flow 二维码授权）——可自愈的低危债 |
 | B-3 | **DB 集合名单三处硬编码，无一致性门禁** | `scripts/raw-export.js` `COLLECTIONS_37`（注释声明权威口径=admin-action）、`.predeploy/manual-backup.ps1` `$COLLECTIONS`（37）、服务端 `admin-action EXPORT_COLLECTIONS`（权威）；新增/下线集合需三处手工同步，漂移无自动校验 | 名单变更时三处同步 + 全链复跑；远期可加「三处名单一致性」断言门禁（owed，不阻断） |
 | B-4 | **飞书异地目录历史包无清理策略** | folder `RCsff3kGUlKhpud1KVFckJOhnGc` 已存 10-07/10-09 等 5 个历史节点包；auto-backup 每日 full 推送（镜像结构逐文件）将持续累积 | 人工定期清理或制定保留策略（如保留最近 N 份）；暂不阻塞 |
 | B-5 | **CHECKSUMS 豁免 `functions_code\`**（≈465MB 含 node_modules 数万小文件，全量哈希实测 >10 分钟不可用） | `auto-backup.ps1` `Get-CheckSums` 豁免规则 | **已接受的边界（2026-10-19 决策）**：functions_code 完整性由 L6「`cli cloud functions download` 云端实时下载」机制保证（产物来自云端而非本地沉淀）；云函数代码正确性另由部署链 download SHA 门禁证明 |
@@ -84,14 +84,14 @@
 ## 治理成本（非缺陷，登记备查）
 
 - **KNOWN_EVOLUTION 33 例**：A/B 有意演进白名单（ab_equivalence.js），每登记一例均配独立行为断言，符合 project_rules §10。
-- **28 条待验证中的三个挂起项**（#61 旧 start_service、#65 start_photo、**#63 user_confirm_start**）：服务端保留无入口，验收口径=确认前端无残留调用。
+- **三个挂起项**（#61 旧 start_service、#65 start_photo、**#63 user_confirm_start**）：服务端保留无入口，验收口径=确认前端无残留调用（**2026-10-20 REGISTRY 待验证已清零**，本条仅作口径备忘）。
 
 ## 建议处置优先级
 
 1. **真机回归**（2026-10-16 二次复核口径：#72-75 已随 1.6.7 转已验证；本批 **#79/#80/#81/#82/#83**，其中 **#81/#82/#83 可先在开发者工具室内目检**；能力链 **#59/#64/#67（仅余 T-7.1.2）/#68**；历史存量 15 个 ID——**完整可勾选操作指引见 [runbook](runbooks/regression-pending-20261016-checklist.md)**）——唯一能让 P0-1 下降的动作，需人工真机/开发者工具执行；#34 走云控制台、#61/#63/#65 改「室内确认前端无残留调用」（均不需真机）；#60/#62/#71 已于 10-15 转已验证。
 2. **提审决策项**：版本号递增**已履行**——2026-10-17 上传 **`1.6.10`**（承载 #79-83 + #84/#85；1.6.7/1.6.8 曾分别用于 #72-75 与 #77；P0-2）；**2026-10-19 口径订正：当前上传版本 = `1.6.27`**（`1.6.10`~`1.6.20` 为历史值，`1.6.21~1.6.26` 无登记见 **P3-6**）；正式版发布当天按 runbook 把订阅两模板 trial→formal 并真机验送达。
 3. **真机窗口后的结构债主线**：~~P2-1 已偿还（2026-10-19）~~ ~~P2-5 已偿还（2026-10-19，题库收敛 `_shared/exam-fallback.js` + sync 脚本）~~ → P3-1（空 catch 窄类）可并入同批；**P2-6 已于 2026-10-19 提审前插队偿还 F3/F4/F6/F7+⑥（F5 留提审后）**；P2-2 页面单测续作路径见拆分方案 §5 条目 6
-4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）、P3-4（G3 超时前提醒）。
+4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）；~~P3-4（G3 超时前提醒）~~ **✅ 已实施（2026-10-20，REGISTRY #102 已验证）**。
 5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5。
 6. **备份体系（B-1~B-6，2026-10-19 立）**：**B-1 ⏳ 修复完成、自动路径待验**（2026-10-20 手动三链复跑 SUCCESS + verify 0 issue；`Get-ScheduledTaskInfo` 实测修复后**尚无一次自动成功**，首窗口＝今日 13:00 incr / 明日 02:30 full，终局判据见 B-1 行 ⑥）；**B-6 ✅ 已处理（用户 2026-10-20 确认密钥已抄存至 H 盘之外）**；**B-2 ✅ 本期通过（verify 日志 lark=OK、无缺口，仍保留「过期即一步重登」口径）**；B-3/B-4 提审后择机；B-5 已接受不再列债。
-7. **P3-7（低风险、可独立提前，2026-10-19 新立）**：demand-publish 段测试时段敏感性——修法＝测试内固定安全窗口使 24h 稳定；属测试代码改动，**须先出方案经确认后执行**（不触业务红线）。
+7. ~~**P3-7**（demand-publish 段测试时段敏感性，2026-10-19 新立）~~ **✅ 已偿还（2026-10-20，commit `a136f73`）**：改用固定安全窗口 `safeStart()` + 24 整点守护用例，危险时区 `TZ=Etc/GMT-1` 实跑 546 pass / 0 fail → 深夜不再误挡部署。
