@@ -654,6 +654,7 @@ function loadWith(dir, file, sdk) {
     'ot_s1', 'ot_s0', 'ot_s35', 'ot_s25', 'ot_s3_extend', 'ot_suspend', 'ot_milestone', 'ot_s5', 'ot_s8', 'ot_s4', 'ot_dispute', 'ot_timer_empty', // 2026-10-15 阶段G: order-timer 返回体新增 thresholds(start_apply_timeout_min/finish_confirm_timeout_min) + 两段字段/counts(start_apply_timeout/finish_confirm_timeout: S2.6→S10.5/no.26, S3.6→S10.5/no.30); 新行为由 order_timeout.test.js 独立守护(5 例), ot_s3_extend/ot_suspend 既有行为由 order-timer.entry.test.js 新增 2 例独立守护
     'my_orders_partner', 'my_orders_user', 'notice_list', // 2026-10-17 订单列表/通知列表新增 demand_title/demand_desc(需求标题/详细描述, 按 demand.remark 全角｜拆分反查 demand) — 行为由 order-action.entry.test.js 新增 3 例独立守护
     'dp_my_demands_ok', // 2026-10-17 my_demands 新增 demand_title/demand_desc(需求标题/详细描述, 按 demand.remark 全角｜拆分; 文档自身含 remark, 无需反查) — 行为由 demand-publish.entry.test.js 新增 2 例独立守护
+    'ul_simulate_realname', 'auto_ul_simulate_realname', // 2026-10-21 修复拆分遗留作用域缺陷: action_account.js 引用本文件不存在的 getCachedEnv → 基线恒 login_server_error; 提审期方案A 改为读 config.env 后 dev 正常返回 ok(守卫与 simulate 行为由 user-login.entry.test.js 新增 4 例独立守护)
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

@@ -160,12 +160,16 @@ async function submit_realname_action(ctx) {
       }
 
       const config = await getConfig();
-      // 人脸模式守卫: mock 通道仅 dev 环境放行(env 为唯一权威开关, fail-closed);
-      // prod 下无论 face_mode 配置漂移到何值, 模拟人脸一律拒绝 —— 防 mock 人脸洗成"正式实名+签名留证"的证据污染
+      // 人脸模式守卫(2026-10-21 提审期方案A, 用户批准): 以 realname_face_mode 为唯一开关, fail-closed。
+      // 'mock' → 放行 mock 人脸(提审期供审核员走通实名链路); 'wx' 或键缺失(prod) → 一律拒绝。
+      // 证据可追溯: verify_method='mock_face' 永久保留; prod 经 mock 实名的账号打标 is_realname_simulated=true,
+      // 提审通过后只需把 realname_face_mode 回改 'wx' 关闸, 并可用 admin-action realname_reset_simulated 清除。
       // TODO(最后一步): 接入真实人脸时需重构为 mock(dev)/wx(prod)/拒绝 三分支, 仅改 face_mode 配置不会自动开通真实核验
-      const envNow = getCachedEnv();
-      const faceMode = String(config.realname_face_mode || 'mock');
-      if (faceMode !== 'mock' || envNow !== 'dev') {
+      // env 直接取本次已读到的 config(与上方 getConfig 同源, 不走跨进程失效不掉的缓存)
+      // 修复(2026-10-21): 原 getCachedEnv() 在拆分后的本文件作用域内不存在 → ReferenceError → login_server_error
+      const envNow = String(config.env || '') === 'dev' ? 'dev' : 'prod';
+      const faceMode = String(config.realname_face_mode || (envNow === 'dev' ? 'mock' : 'wx'));
+      if (faceMode !== 'mock') {
         return { ok: false, code: 'realname_face_online', msg: '正式人脸核验通道尚未开放,请等待上线后再试' };
       }
 
@@ -231,7 +235,8 @@ async function submit_realname_action(ctx) {
           real_name: name,
           idcard_enc: idcardEnc, idcard_mask: maskIdCard(id), idcard: '',
           age,
-          is_realname_done: true, is_realname_simulated: false,
+          // dev 保持 false(既有口径不变); prod 经 mock 实名打标 true, 便于提审后用 realname_reset_simulated 一键清除
+          is_realname_done: true, is_realname_simulated: envNow !== 'dev',
           realname_method: 'mock_face', realname_evidence_id: evidenceId, realname_done_at: nowTs,
           updated_at: nowTs
         }});
@@ -255,8 +260,10 @@ async function submit_realname_action(ctx) {
     // 4.5 模拟实名认证(测试期专用: 仅 dev 环境可用, env 为唯一权威开关 fail-closed)
     // prod 下任意用户(含真实 OPENID)一律拒绝, 防一键自授权实名绕过人脸核验
 async function simulate_realname_action(ctx) {
-  const { event, openid, clientIp, device, db, col, log, writeAudit, safeUserDoc } = ctx;
-      if (getCachedEnv() !== 'dev') {
+  const { event, openid, clientIp, device, db, col, log, writeAudit, safeUserDoc, getConfig } = ctx;
+      // 修复(2026-10-21): 原 getCachedEnv() 在本文件作用域内不存在 → ReferenceError → login_server_error
+      const cfg = await getConfig();
+      if (String(cfg.env || '') !== 'dev') {
         return { ok: false, code: 'realname_mock_closed', msg: '实名认证通道暂未开放,请稍后重试' };
       }
       const now = Date.now();

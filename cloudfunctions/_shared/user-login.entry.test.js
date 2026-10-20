@@ -90,3 +90,45 @@ test('password_login: 账号不存在 → password_wrong(防枚举, 与密码错
 });
 
 test.after(() => { Module._load = origLoad; });
+
+// ── 2026-10-21 提审期方案A: 实名人脸守卫 fail-closed 断言 ──
+// 目标: ① prod + face_mode='wx' 必拒; ② prod 键缺失(默认) 必拒; ③ dev 键缺失仍放行(开发便利保留)。
+// 守卫在下载签名图之前, 故这三条用例不依赖 cloud.downloadFile(测试 SDK 未实现)。
+const RN_NAME = '测试用户';
+const RN_ID = '11010519491231002X'; // 合法校验位(1949-12-31, 成年)
+function realnameStore(cfg) {
+  return {
+    admin_config: { global: Object.assign({ env: 'prod' }, cfg || {}) },
+    user_account: {
+      u1: { _id: 'u1', openid: OPENID, status: 'normal', is_deleted: false, is_realname_done: false }
+    }
+  };
+}
+const RN_EVENT = {
+  action: 'submit_realname', real_name: RN_NAME, idcard: RN_ID,
+  signature_file_id: 'cloud://test-env/sign_evidence/zz.png', docs_ack: true
+};
+
+test('submit_realname: prod + face_mode=wx → realname_face_online(提审后关闸)', async () => {
+  const { r, sdk } = await run(realnameStore({ realname_face_mode: 'wx' }), RN_EVENT);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'realname_face_online');
+  assert.ok(!(sdk.writes.user_account || []).some((w) => w.data && w.data.is_realname_done), '拒绝时不得置实名');
+});
+
+test('submit_realname: prod + face_mode 缺失 → realname_face_online(fail-closed 默认)', async () => {
+  const { r } = await run(realnameStore({}), RN_EVENT);
+  assert.strictEqual(r.code, 'realname_face_online');
+});
+
+test('submit_realname: dev + face_mode 缺失 → 守卫放行(mock 默认, 开发便利)', async () => {
+  const { r } = await run(realnameStore({ env: 'dev' }), RN_EVENT);
+  assert.notStrictEqual(r.code, 'realname_face_online', 'dev 不应被守卫拦截');
+  assert.notStrictEqual(r.code, 'login_server_error', '不得因作用域缺陷抛 ReferenceError(2026-10-21 修复回归)');
+});
+
+test('simulate_realname: prod → realname_mock_closed(不得 ReferenceError)', async () => {
+  const { r } = await run(realnameStore({ env: 'prod' }), { action: 'simulate_realname' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'realname_mock_closed');
+});
