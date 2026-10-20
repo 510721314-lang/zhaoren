@@ -11,7 +11,17 @@ function Invoke-Gw($body) {
   $json = $body | ConvertTo-Json -Compress -Depth 5
   # escape quotes for cmdline transport (same as manual curl \")
   $d = $json.Replace('"', '\"')
-  $raw = curl.exe -s -X POST $gate -H 'Content-Type: application/json' -H "X-Admin-Key: $key" -d $d
+  # curl.exe is a native command: capturing its stdout makes PowerShell decode the bytes using
+  # [Console]::OutputEncoding (GB2312/936 on zh-CN Windows), which garbles the gateway's UTF-8
+  # JSON and swallows closing quotes -> ConvertFrom-Json throws (same class as rules 25-J2/J3).
+  # So write the raw response bytes to a temp file and read them back explicitly as UTF-8.
+  $tmp = Join-Path $env:TEMP ('smoke-gw-' + [Guid]::NewGuid().ToString('N') + '.json')
+  try {
+    curl.exe -s -X POST $gate -H 'Content-Type: application/json' -H "X-Admin-Key: $key" -d $d -o $tmp
+    $raw = Get-Content -Raw -Encoding UTF8 $tmp
+  } finally {
+    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+  }
   try { return ($raw | ConvertFrom-Json) } catch { Write-Host "[RAW] $raw"; return $null }
 }
 function Check($name, $cond, $detail) {
