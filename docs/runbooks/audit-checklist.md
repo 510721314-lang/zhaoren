@@ -5,18 +5,18 @@
 ## 前置条件
 
 - Node 环境可用（CI 用 node 22），脚本全部零依赖
-- 门禁脚本（磁盘真实存在）：`scripts/check-nightmask.js`、`scripts/check-ssot.js`、`scripts/check-syntax.js`、`scripts/check-shared-sync.js`
+- 门禁脚本（磁盘真实存在，**以 `package.json` `verify:offline` 的 8 脚本链为准**）：`scripts/check-syntax.js`、`scripts/check-ssot.js`、`scripts/check-shared-sync.js`、`scripts/check-require-scope.js`、`scripts/check-handlers.js`、`scripts/check-index-ledger.js`、`scripts/check-deploy-config.js`、`scripts/check-manual-links.js`；另有 `scripts/check-nightmask.js`（夜间蒙层）单独跑
 - 冒烟脚本：`.predeploy/smoke-check.ps1`（改密钥后须先 `$env:AWK_KEY=<新钥>`）
 
 ## 步骤（门禁全序列，必须全部通过才可交付/提交）
 
 ```powershell
-# 1. 合规静态检查（zhaoren-audit 要求，顺序执行）
-node scripts/check-nightmask.js     # exit 0
-node scripts/check-ssot.js          # exit 0
-node scripts/check-syntax.js        # exit 0（全部云函数 node --check 解析）
-node scripts/check-shared-sync.js   # exit 0（共享模块防漂移哈希校验）
-npm test                            # 108 条单测全绿（node:test 零依赖）
+# 1. 合规静态门禁链（8 脚本 + 单测，顺序执行；与 package.json verify:offline 一致）
+npm run verify:offline              # exit 0；链式执行下列 8 脚本 + npm test
+#   check-syntax → check-ssot → check-shared-sync → check-require-scope
+#   → check-handlers → check-index-ledger → check-deploy-config(--offline)
+#   → check-manual-links → npm test（546 条单测全绿 + A/B 等价 437 例·34 known）
+node scripts/check-nightmask.js     # exit 0（夜间蒙层；独立于 verify:offline）
 
 # 2. 网关冒烟（只读/幂等探针；exit 0 = SMOKE ALL PASS）
 powershell -ExecutionPolicy Bypass -File .predeploy/smoke-check.ps1
@@ -32,16 +32,16 @@ powershell -ExecutionPolicy Bypass -File .predeploy/smoke-check.ps1
 
 抢单（连点防抖）、四确认→支付→开始履约、改期确认即时通知（≤8s）、聊天页订单动态（≤5s）、打赏按钮与逐笔明细、钱包双专栏、首页空路径兜底、夜间红线、双模式 UI 可读。
 
-## 提审前静态审计已知风险点（R1-R3 需核对）
+## 提审前静态审计已知风险点（R1-R4，含 2026-10-20 核查状态）
 
-1. **v1 页面死链**：app.json `pages[]` 是否仍注册 v1 页（`user-home`/`blog`/`blog-detail`/`blog-publish`/`agreement`/`privacy`/`partner-home`）会混入提审包。审计用 `url:\s*['"]/pages/[a-z]`（ridgrep 不支持 lookbehind/前瞻，`/pages/(?!v2)` 会直接报错）
-2. **模拟支付违规文案**：「模拟支付/MVP测试版」文案出现在 `pay.js` toast「模拟支付成功」、v1 `agreement.wxml`「MVP 测试版…模拟支付」、`admin/finance.wxml`，微信易判违规
-3. **协议死链 + 隐私政策**：login/pay 跳 `/pages/agreement` `/pages/privacy` 是 v1 死链，但微信要求登录可见隐私政策 + 用户协议 → 需 v2 协议页或 modal
+1. **v1 页面死链（2026-10-20 核查 ✅ 无死链）**：app.json `pages[]` 已**全为 `pages-v2/*`（零 v1 注册）**，`miniprogram/pages/` 目录已不存在，全仓无 v1 路径引用。审计用 `url:\s*['"]/pages/[a-z]`（ripgrep 不支持 lookbehind/前瞻，`/pages/(?!v2)` 会直接报错）
+2. **模拟支付/测试期违规文案（2026-10-20 核查 ⚠ 存在 live 字样，待处置）**：**合规**——`pay.wxml:4` / `pay.js:126` / `pay.wxss:6` / `config/index.js:89` 命中**全为注释**且注明「不出现内测/模拟字样」；`admin/finance.wxml:10` 显示值已中性化（`is_mock ? '平台担保'`）。**风险（提审包内用户可见 live）**——`pkg-low/realname`：`realname.wxml:42`「测试期 · 模拟核验」、`:44` 按钮「（测试期模拟）」、`realname.js:61`「模拟人脸核验（测试期）」、`realname.js:130-132` modal 标题/正文/`confirmText`「模拟通过」（`faceMode='mock'` 时可见；`config/index.js:90` 兜底即 `mock`，云端 `realname.face_mode` 现值需另行核对）；另 `config/index.js:94` 兜底服务协议含「测试期精简版」、云端关闭分支 msg「模拟认证已关闭」(`user-login/action_account.js:260`)/「模拟支付/提现功能已关闭」(`payment-mock/index.js:161`)。**原条目引用已过时**：`pay.js` toast「模拟支付成功」不存在，v1 `agreement.wxml` 随 v1 目录删除已不存在。微信易判违规
+3. **协议页可达 + 隐私政策（2026-10-20 核查 ✅ 已迁 v2）**：login/pay 实际跳 `/pages-v2/agreement/agreement`、`/pages-v2/privacy/privacy`（均注册为分包、页面存在；原「跳 `/pages/agreement` `/pages/privacy` 是 v1 死链」的描述已过时）。微信要求登录可见隐私政策 + 用户协议 → login 页已有双入口，剩余实项＝**真机目视确认**入口可见
 4. **admin_openids 兜底**：云端数组为空时后台靠 RBAC 会话运转，建议补录首个管理员真实 OPENID 保旧路径兜底
 
 ## 验证
 
-- 静态检查 exit 0、`npm test` 108 条全绿、smoke `SMOKE ALL PASS`
+- 静态检查 exit 0、`npm test` 546 条全绿（A/B 437·34 known）、smoke `SMOKE ALL PASS`
 - 云函数 action 分派两种写法都要覆盖审计：`demand-publish` 用 `case 'x':`（switch），`order-action` 用 `if (action === 'x')`
 
 ## 坑
