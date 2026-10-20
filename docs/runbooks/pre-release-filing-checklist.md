@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | F1 | mp 后台 → 设置 → 服务内容声明 → 用户隐私保护指引 | 隐私保护指引 | **是**（未通过则无法提审） | 20 min |
 | F2 | mp 后台 → 开发 → 开发管理 → 接口设置 | `getLocation`/`chooseLocation` 权限申请 | **是**（未开通则位置功能报错） | 10 min + 审核 |
-| F3 | mp 后台 → 功能 → 订阅消息 | 2 个订阅模板 | 否（缺则静默不推送） | 15 min |
+| F3 | mp 后台 → 功能 → 订阅消息 | **3 个**订阅模板（`demand_grab`/`demand_urge`/`confirm_comm`） | 否（缺则静默不推送） | 15 min |
 | F4 | mp 后台 → 开发 → 开发管理 → 服务器域名 | request 合法域名 | **是**（缺则真机请求被拦） | 5 min |
 | F5 | 云开发控制台 + `admin_config` | HTTP 网关与密钥白名单 | 否（仅影响后台） | 10 min |
 
@@ -51,21 +51,24 @@
 
 ---
 
-## F3 订阅消息模板（2 个）
+## F3 订阅消息模板（3 个）
 
 ### 需选用/申请的模板
 
 | 键（`admin_config.sub_msg_templates`） | 场景 | 模板类目建议 | 代码位置 |
 |---|---|---|---|
 | `demand_grab` | 抢单通知（需求被接单/有新需求） | 生活服务 → 订单状态通知 | `miniprogram/config/index.js:73`（SSOT 由 `config_public.sub_msg.demand_grab` 覆盖） |
-| `urge` | 催单提醒（超时未确认/即将超时） | 生活服务 → 服务提醒 | `accept-config.js:170`（`urgeCloudSub`） |
+| `demand_urge` | 催单提醒（超时未确认/即将超时） | 生活服务 → 服务提醒 | `accept-config.js:170`（`urgeCloudSub`） |
+| `confirm_comm` | 确认完成/结算提醒 | 生活服务 → 订单状态通知 | `order-timer` 提醒段（G3 超时提醒同链路） |
+
+> 服务端键白名单 `TMPL_WHITELIST = ['demand_grab','demand_urge','confirm_comm']`（`cloudfunctions/admin-action/action_config_set.js`）——不在白名单内的键写了也不生效。
 
 ### 填报步骤
 
-1. mp 后台 → 功能 → 订阅消息 → 我的模板 → 从公共模板库选用上表两个模板，或申请自定义模板。
-2. 复制 `template_id`，通过运营配置页（或 `admin-action` 的 `config_set` → `sub_msg_templates`）写入：
+1. mp 后台 → 功能 → 订阅消息 → 我的模板 → 从公共模板库选用上表三个模板，或申请自定义模板。
+2. 复制 `template_id`，**通过运营配置页写入**（有 `config_history` 审计；不要用临时脚本直写 DB）：
    ```json
-   { "sub_msg_templates": { "demand_grab": { "tmpl_id": "…", "enabled": true }, "urge": { "tmpl_id": "…", "enabled": true } } }
+   { "sub_msg_templates": { "demand_grab": { "tmpl_id": "…", "enabled": true }, "demand_urge": { "tmpl_id": "…", "enabled": true }, "confirm_comm": { "tmpl_id": "…", "enabled": true } } }
    ```
 3. **`miniprogram_state` 保持 `trial`，正式发布日再切 `formal`**（T-7.12）。
 
@@ -114,12 +117,41 @@
 
 ---
 
+## F6 提审说明（支付 Mock 如实描述）
+
+> 决策（2026-10-21 用户拍板）：**支付侧保持 mock**，不做真实微信支付。提交审核时必须在「版本描述/测试说明」中如实说明，避免以「已接入支付」误导审核。
+
+**版本描述建议文案（可直接粘贴）**：
+
+```text
+本版本为生活服务撮合平台首版，仅提供信息发布与撮合、站内沟通、履约记录功能。
+当前版本的支付与结算均为平台内部记账演示（不调用微信支付、不产生真实扣款）：
+- 订单中的金额仅用于双方线下自行协商参考，平台不代收、不代付；
+- 页面内「支付/结算」类操作仅更新订单状态，不涉及资金流转；
+- 正式收款能力将在后续版本接入微信支付后开放，届时另行提交审核。
+请审核同学在体验时无需进行任何实际支付操作。
+```
+
+**测试路径（供审核复现）**：
+
+1. 登录 → 实名认证（证件信息仅加密存储，用于身份核验）；
+2. 发布需求 → 在广场查看 → 使用另一个账号接单；
+3. 订单详情内完成「确认开始/确认完成」等状态操作（全程无真实扣款）。
+
+**注意**：
+
+- 严禁在提审材料中写「已接入微信支付/支持在线支付」等与事实不符的表述；
+- `admin_config.global.mock_payment_enabled=true` 为当前既定状态，提审期间**不要改**（改后前端无真实支付通道可用，反而造成审核侧功能异常）；
+- 后续接入真实支付属独立版本：需商户号、支付资质、回调与对账链路，单独排期与提审。
+
+---
+
 ## 6. 提审前逐项验收（勾选）
 
 - [ ] F1 隐私保护指引已提交且**状态为「已通过」**
 - [ ] F1 指引勾选项 = 位置 / 相册摄像头 / 证件信息 / OpenID（**不含手机号**）
 - [ ] F2 位置接口权限显示「已开通」
-- [ ] F3 两个模板 `tmpl_id` 已写入 `sub_msg_templates` 且 `enabled=true`
+- [ ] F3 **三个**模板 `tmpl_id` 已写入 `sub_msg_templates` 且 `enabled=true`
 - [ ] F3 `miniprogram_state` 仍为 `trial`（正式发布日再切）
 - [ ] F4 request 域名含 `https://apis.map.qq.com`，开发者工具「不校验合法域名」**已关闭**并真机自测通过
 - [ ] F5 `admin_openids` 非空且为真实管理员 OPENID
