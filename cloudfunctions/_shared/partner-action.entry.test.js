@@ -108,4 +108,77 @@ test('route_plan 缺耍伴标识 → pa_no_target', async () => {
   assert.strictEqual(r.code, 'pa_no_target');
 });
 
+// ── 2026-10-21 接单资格探针 take_readiness(只读, 前端统一守卫依赖) ──
+test('take_readiness 未登录(无 user_account) → pa_no_user', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ user_account: {} }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'pa_no_user');
+});
+
+test('take_readiness 无资料无实名 → missing=[realname, apply], can_take=false', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.can_take, false);
+  assert.deepStrictEqual(r.data.missing, ['realname', 'apply']);
+  assert.strictEqual(r.data.has_profile, false);
+});
+
+test('take_readiness 待审核 → missing=[review_pending], 不回退为 apply', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['user'] } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'pending_review' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.deepStrictEqual(r.data.missing, ['review_pending']);
+  assert.strictEqual(r.data.profile_status, 'pending_review');
+});
+
+test('take_readiness 驳回 → missing=[reapply] 且带 review_note', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['user'] } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'rejected', review_note: '资料不清晰' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.deepStrictEqual(r.data.missing, ['reapply']);
+  assert.strictEqual(r.data.review_note, '资料不清晰');
+});
+
+test('take_readiness 已通过未考试 → missing=[base_exam](不误报 apply)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['partner'], partner_credit_score: 800 } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, exam_scores: {} } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.deepStrictEqual(r.data.missing, ['base_exam']);
+  assert.strictEqual(r.data.can_take, false);
+});
+
+test('take_readiness 已通过+考试+开关开 → can_take=true, missing=[]', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['partner'], partner_credit_score: 800 } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, exam_scores: { base: 100 } } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.data.can_take, true);
+  assert.deepStrictEqual(r.data.missing, []);
+});
+
+test('take_readiness 开关关闭 → missing 含 switch_off', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['partner'], partner_credit_score: 800 } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: false, exam_scores: { base: 100 } } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.deepStrictEqual(r.data.missing, ['switch_off']);
+  assert.strictEqual(r.data.can_take, false);
+});
+
 test.after(() => { Module._load = origLoad; });

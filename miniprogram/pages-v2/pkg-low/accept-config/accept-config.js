@@ -613,6 +613,9 @@ Page({
         return;
       }
 
+      // 资格探针缓存失效: 接单开关/偏好刚变更, 回到接单入口需立即用新值
+      try { require('../../../utils/take-order.js').invalidateTakeReadiness(); } catch (_) {}
+
       // 本地缓存(离线首屏兜底; 云端 profile 为 SSOT)
       try {
         wx.setStorageSync(STORAGE_KEY, {

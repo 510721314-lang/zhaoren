@@ -16,6 +16,141 @@ function _isNetUncertain(r) {
 let _grabInFlight = false;
 function _release() { _grabInFlight = false; }
 
+// 接单资格探针缓存(60s): 申请/考试/开关/实名成功后由调用方 invalidate
+let _readyCache = null;
+function invalidateTakeReadiness() { _readyCache = null; }
+function fetchTakeReadiness(scene, force) {
+  const now = Date.now();
+  if (!force && _readyCache && (now - _readyCache.at) < 60000 && _readyCache.scene === (scene || '')) {
+    return Promise.resolve(_readyCache.data);
+  }
+  return callCloud('partner-action', { action: 'take_readiness', scene: scene || '' }).then((r) => {
+    if (r && r.ok && r.data) {
+      _readyCache = { at: Date.now(), scene: scene || '', data: r.data };
+      return r.data;
+    }
+    return null;
+  }).catch(() => null);
+}
+
+// 按 missing 首项给出唯一出路(modal → 对应页面); 无出路项只做说明
+function _guideTakeMissing(rd, demand) {
+  const miss = (rd && rd.missing) || [];
+  const first = miss[0] || '';
+  const go = (url, failTab) => wx.navigateTo({ url, fail: () => { if (failTab) wx.switchTab({ url: failTab, fail: () => {} }); } });
+  if (first === 'realname') {
+    require('./bootstrap.js').showRealnameGuide('完成实名认证后即可接单。');
+    return;
+  }
+  if (first === 'review_pending') {
+    wx.showModal({
+      title: '申请审核中',
+      content: '你的耍伴入驻申请已提交，审核通过后将自动开通接单权限，通常 24 小时内完成。',
+      showCancel: false, confirmText: '我知道了'
+    });
+    return;
+  }
+  if (first === 'reapply') {
+    wx.showModal({
+      title: '申请未通过',
+      content: (rd.review_note ? '原因：' + rd.review_note + '\n' : '') + '可修改资料后重新提交申请。',
+      confirmText: '重新申请', cancelText: '稍后',
+      success: (r) => { if (r.confirm) go('/pages-v2/pkg-low/partner-apply/partner-apply', '/pages-v2/profile/profile'); }
+    });
+    return;
+  }
+  if (first === 'apply' || first === 'role') {
+    wx.showModal({
+      title: first === 'role' ? '开通接单权限' : '还不是耍伴',
+      content: first === 'role'
+        ? '你的资料已通过审核，重新提交一次即可激活接单权限。'
+        : '接单前需先申请成为耍伴：选择可接的场景与日常位置，提交后由平台审核。',
+      confirmText: '去申请', cancelText: '暂不',
+      success: (r) => { if (r.confirm) go('/pages-v2/pkg-low/partner-apply/partner-apply', '/pages-v2/profile/profile'); }
+    });
+    return;
+  }
+  if (first === 'base_exam') {
+    wx.showModal({
+      title: '需先通过基础考试',
+      content: `接单前需通过耍伴基础考试（满分 100，通过线 ${rd.base_pass_line || 100} 分），可多次重考。`,
+      confirmText: '去考试', cancelText: '稍后',
+      success: (r) => { if (r.confirm) go('/pages-v2/pkg-low/exam-status/exam-status', '/pages-v2/profile/profile'); }
+    });
+    return;
+  }
+  if (first === 'scene_exam') {
+    const nm = (demand && getScene(demand.scene_code) && getScene(demand.scene_code).name) || '该场景';
+    wx.showModal({
+      title: '需通过场景考试',
+      content: `接「${nm}」需求需先通过对应场景考试，可在考试认证页查看并参加。`,
+      confirmText: '去考试', cancelText: '稍后',
+      success: (r) => { if (r.confirm) go('/pages-v2/pkg-low/exam-status/exam-status', '/pages-v2/profile/profile'); }
+    });
+    return;
+  }
+  if (first === 'switch_off') {
+    wx.showModal({
+      title: '接单开关已关闭',
+      content: '你当前处于暂停接单状态，开启后可继续接单。',
+      confirmText: '去开启', cancelText: '稍后',
+      success: (r) => { if (r.confirm) go('/pages-v2/pkg-low/accept-config/accept-config', '/pages-v2/profile/profile'); }
+    });
+    return;
+  }
+  if (first === 'credit_low') {
+    wx.showModal({
+      title: '信用分不足',
+      content: `当前耍伴信用分 ${rd.credit_score || 0}，低于接单门槛 ${rd.min_credit || 600}，暂时无法接单。`,
+      showCancel: false, confirmText: '我知道了'
+    });
+    return;
+  }
+  wx.showModal({ title: '暂时无法接单', content: '请稍后重试，或前往「我的」查看入驻进度。', showCancel: false });
+}
+
+// 服务端拒绝码 → 引导; 手续类(code)重新探针后按 missing 分流, 配置类直达接单配置页
+function _guideByServerCode(r2, demand) {
+  const bs = require('./bootstrap.js');
+  const code = (r2 && r2.code) || '';
+  if (code === 'order_realname_required') { bs.showRealnameGuide(r2.msg); return; }
+  if (code === 'order_not_partner') {
+    _guideTakeMissing({ missing: ['apply'] }, demand);
+    return;
+  }
+  if (code === 'order_not_approved' || code === 'order_base_exam_required' || code === 'order_scene_exam_required') {
+    // 缓存可能陈旧(刚审核通过/刚考完): 强制刷新探针, 按真实缺项分流
+    fetchTakeReadiness(demand && demand.scene_code, true).then((rd) => {
+      if (rd && rd.can_take === false) { _guideTakeMissing(rd, demand); return; }
+      wx.showModal({ title: '无法接单', content: (r2 && r2.msg) || '接单失败,请稍后重试', showCancel: false });
+    }).catch(() => {
+      wx.showModal({ title: '无法接单', content: (r2 && r2.msg) || '接单失败,请稍后重试', showCancel: false });
+    });
+    return;
+  }
+  if (code === 'order_switch_off') {
+    _guideTakeMissing({ missing: ['switch_off'] }, demand);
+    return;
+  }
+  if (code === 'order_credit_low') {
+    _guideTakeMissing({ missing: ['credit_low'], credit_score: 0, min_credit: 600 }, demand);
+    return;
+  }
+  if (code === 'order_scene_not_accepted' || code === 'order_slot_not_covered' ||
+      code === 'order_rate_out_of_range' || code === 'order_total_out_of_range') {
+    wx.showModal({
+      title: '不符合你的接单偏好',
+      content: (r2.msg || '') + '\n可在接单配置中调整场景/时段/价格区间。',
+      confirmText: '去调整', cancelText: '知道了',
+      success: (r) => {
+        if (r.confirm) wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} }) });
+      }
+    });
+    return;
+  }
+  wx.showModal({ title: '无法接单', content: (r2 && r2.msg) || '接单失败,请稍后重试', showCancel: false });
+}
+
 function takeOrder(demand, opts) {
   if (_grabInFlight) return;
   if (!demand || !demand._id) {
@@ -28,8 +163,24 @@ function takeOrder(demand, opts) {
     if (!gateOnboard('take', '接单', { demand_id: demand._id, scene: demand.scene_code || '' })) return;
     if (!guardSwitch('access')) return;
   } catch (e) {}
+  // 接单资格探针(服务端权威): 待审核/驳回/未考试/开关关闭 在这里一次拦下并给出出路;
+  // 探针失败或超时 → fail-open 继续走原链路, 最终以 order-create 拒绝码兜底
+  _grabInFlight = true;
+  fetchTakeReadiness(demand.scene_code).then((rd) => {
+    if (rd && rd.can_take === false) {
+      _release();
+      _guideTakeMissing(rd, demand);
+      return;
+    }
+    _afterGate(demand, opts);
+  }).catch(() => { _afterGate(demand, opts); });
+}
+
+// 通过资格探针后的原接单链路(选单模式 → 免责 → 定位 → 建单)
+function _afterGate(demand, opts) {
   // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast
   if (demand.match_mode === 'select') {
+    _release();
     wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
     return;
   }
@@ -152,14 +303,8 @@ function _signThenCreate(demand, loc, opts) {
         // 写操作不重试, 超时/断链由 cloudCall resolve 成错误码 → 与旧直调 reject 同义, 走捞回
         _recoverTakeResult(demand, opts);
       } else {
-        // 服务端实名门禁(order_realname_required): 给「去实名」按钮引导
-        const bs = require('./bootstrap.js');
-        if (bs.isRealnameGateCode && bs.isRealnameGateCode(r2.code)) {
-          bs.showRealnameGuide(r2.msg);
-        } else {
-          // 拒绝原因以云函数 r.msg 为准(已被抢/距离超限/资料未审核/时间冲突等)
-          wx.showModal({ title: '无法接单', content: r2.msg || '接单失败,请稍后重试', showCancel: false });
-        }
+        // 服务端拒绝码兜底(前端探针缓存陈旧/被绕过时): 手续类给按钮, 其余只说明
+        _guideByServerCode(r2, demand);
         _release();
         if (opts && opts.onError) opts.onError(r2);
       }
@@ -193,4 +338,4 @@ function _recoverTakeResult(demand, opts) {
   });
 }
 
-module.exports = { takeOrder };
+module.exports = { takeOrder, fetchTakeReadiness, invalidateTakeReadiness };

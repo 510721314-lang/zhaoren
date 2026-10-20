@@ -35,6 +35,37 @@
   font-size: var(--font-md);
 }
 
+/* 耍伴入驻进度卡 */
+.pf__onboard {
+  margin-top: 12rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28rpx 32rpx;
+}
+.pf__onboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pf__onboard-title { font-size: var(--font-lg); font-weight: 600; color: var(--text-1); }
+.pf__onboard-step { font-size: var(--font-xs); color: var(--text-3); }
+.pf__onboard-bar { margin-top: 18rpx; }
+.pf__onboard-track { height: 10rpx; border-radius: 6rpx; background: var(--bg-subtle); overflow: hidden; }
+.pf__onboard-fill { height: 100%; border-radius: 6rpx; background: var(--brand-primary); transition: width .3s; }
+.pf__onboard-dots {
+  display: flex; justify-content: space-between; margin-top: 12rpx;
+}
+.pf__onboard-dot { font-size: var(--font-xs); color: var(--text-3); }
+.pf__onboard-dot.is-on { color: var(--brand-primary); font-weight: 600; }
+.pf__onboard-tip {
+  margin-top: 16rpx; font-size: var(--font-sm); color: var(--text-2); line-height: 1.5;
+}
+.pf__onboard-btn {
+  margin-top: 20rpx; height: 76rpx; line-height: 76rpx; text-align: center;
+  border-radius: var(--r-md); background: var(--brand-primary); color: #fff; font-size: var(--font-md);
+}
+
 /* U1 身份头部: 品牌浅底, 个人中心辨识度 */
 .pf__header {
   margin-top: 12rpx;

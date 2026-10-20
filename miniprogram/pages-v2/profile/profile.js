@@ -48,7 +48,9 @@ Page({
     userRecentDemands: [],
     version: CONFIG.VERSION,
     isRedline: false,
-    isGuest: false          // 未登录访客: 头部改为登录引导卡(2026-10-21 Q2 方案)
+    isGuest: false,         // 未登录访客: 头部改为登录引导卡(2026-10-21 Q2 方案)
+    // 耍伴入驻进度卡(2026-10-21): 未满足接单手续时展示, 四步=实名→申请→审核→考试
+    onboarding: null        // { step, status, rejectNote, basePassed, switchOff }
   },
   onShareAppMessage() {
     return {
@@ -70,6 +72,8 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 3 });
     }
+    // 入驻进度卡(独立于 fetchUser 30s 防抖, 审核通过/考完试返回即可见状态变化)
+    this.fetchOnboarding();
     // 防抖: 距上次 fetchUser > 30s 才刷新, 避免 onLoad+onShow 双拉 ≈10 次云调用
     const now = Date.now();
     if (!this.__lastFetch || (now - this.__lastFetch > 30000)) {
@@ -144,6 +148,56 @@ Page({
     }).catch(() => {
       wx.showToast({ title: '网络异常', icon: 'none' });
     });
+  },
+
+  // 耍伴入驻/接单资格进度: 服务端探针一次拿全(实名/申请/审核/考试/开关)
+  // 未登录或已可接单时不展示卡片(减少无效 UI)
+  fetchOnboarding() {
+    let logged = false;
+    try { logged = require('../../utils/bootstrap.js').isLoggedIn(); } catch (e) {}
+    if (!logged) { this.setData({ onboarding: null }); return; }
+    require('../../utils/take-order.js').fetchTakeReadiness('', true).then((rd) => {
+      if (!rd || rd.can_take === true) { this.setData({ onboarding: null }); return; }
+      const miss = rd.missing || [];
+      const first = miss[0] || '';
+      // 步骤: 1=实名 2=申请/重提 3=审核中 4=已通过待考试/开开关
+      let step = 4;
+      let status = 'todo';
+      if (first === 'realname') { step = 1; status = 'todo'; }
+      else if (first === 'apply' || first === 'reapply') { step = 2; status = first === 'reapply' ? 'rejected' : 'todo'; }
+      else if (first === 'review_pending') { step = 3; status = 'pending'; }
+      if (rd.profile_status === 'approved') { step = 4; status = 'approved'; }
+      this.setData({
+        onboarding: {
+          step,
+          status,
+          rejectNote: rd.review_note || '',
+          basePassed: rd.base_passed !== false,
+          switchOff: !rd.accept_switch,
+          sceneExam: (miss || []).indexOf('scene_exam') >= 0
+        }
+      });
+    }).catch(() => { this.setData({ onboarding: null }); });
+  },
+
+  // 进度卡按钮: 直达下一步所需页面
+  onOnboardingTap() {
+    const ob = this.data.onboarding || {};
+    const bs = require('../../utils/bootstrap.js');
+    if (ob.step === 1) { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
+    if (ob.step === 2) {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/partner-apply/partner-apply', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      return;
+    }
+    if (ob.status === 'pending') {
+      wx.showModal({ title: '申请审核中', content: '已提交，平台通常在 24 小时内完成审核，通过后会自动开通接单权限。', showCancel: false, confirmText: '我知道了' });
+      return;
+    }
+    if (ob.switchOff) {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      return;
+    }
+    wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
   },
 
   // 考试认证角标: 拉 exam_subjects 科目配置 + exam_scores, 通用计算已通过科数(含前置链)

@@ -9,7 +9,7 @@
   </view>
 
   <!-- U1 身份头部 -->
-  <view class="pf__header">
+  <view class="pf__header" wx:if="{{!isGuest}}">
     <view class="pf__avatar">
       <image wx:if="{{user.avatar}}" class="pf__avatar-img" src="{{user.avatar}}" mode="aspectFill" />
       <text wx:else>👤</text>
@@ -23,8 +23,32 @@
     </view>
   </view>
 
+  <!-- 耍伴入驻进度卡: 未完成接单手续时给出唯一「下一步」(2026-10-21) -->
+  <view class="pf__onboard" wx:if="{{onboarding && !isGuest}}" bindtap="onOnboardingTap">
+    <view class="pf__onboard-head">
+      <text class="pf__onboard-title">耍伴入驻进度</text>
+      <text class="pf__onboard-step">第 {{onboarding.step}} / 4 步</text>
+    </view>
+    <view class="pf__onboard-bar">
+      <view class="pf__onboard-track"><view class="pf__onboard-fill" style="width:{{onboarding.step * 25}}%"></view></view>
+      <view class="pf__onboard-dots">
+        <text class="pf__onboard-dot {{onboarding.step >= 1 ? 'is-on' : ''}}">实名</text>
+        <text class="pf__onboard-dot {{onboarding.step >= 2 ? 'is-on' : ''}}">申请</text>
+        <text class="pf__onboard-dot {{onboarding.step >= 3 ? 'is-on' : ''}}">审核</text>
+        <text class="pf__onboard-dot {{onboarding.step >= 4 ? 'is-on' : ''}}">考试</text>
+      </view>
+    </view>
+    <view class="pf__onboard-tip" wx:if="{{onboarding.status === 'pending'}}">审核中，通过后自动开通接单权限（通常 24 小时内）</view>
+    <view class="pf__onboard-tip" wx:elif="{{onboarding.status === 'rejected'}}">申请未通过{{onboarding.rejectNote ? '：' + onboarding.rejectNote : ''}}</view>
+    <view class="pf__onboard-tip" wx:elif="{{onboarding.switchOff}}">你已暂停接单，开启开关后即可接单</view>
+    <view class="pf__onboard-tip" wx:else>完成剩余手续后即可接单赚收入</view>
+    <view class="pf__onboard-btn">
+      {{onboarding.step === 1 ? '去实名' : (onboarding.step === 2 ? (onboarding.status === 'rejected' ? '查看原因并重新申请' : '去申请') : (onboarding.status === 'pending' ? '查看进度' : (onboarding.switchOff ? '去开启接单' : '去考试')))}}
+    </view>
+  </view>
+
   <!-- 身份切换卡 -->
-  <view class="pf__switch">
+  <view class="pf__switch" wx:if="{{!isGuest}}">
     <view class="pf__switch-item {{identity === 'user' ? 'is-on' : ''}}" data-role="user" bindtap="switchIdentity">
       <text class="pf__switch-ic">👤</text><text>我是用户</text>
     </view>
@@ -34,6 +58,9 @@
   </view>
 
   <!-- 地图找TA: 即时定位共享开关(双向对称) + 附近地图入口 -->
+
+  <!-- 访客只保留上方引导卡, 不展示空的个人中心区块 -->
+  <block wx:if="{{!isGuest}}">
 
   <!-- U2 双信用分卡（独立两栏, 交错入场） -->
   <view class="pf__scores fade-in-up">
@@ -187,6 +214,7 @@
   <view class="pf__logout pf__logout--exit" bindtap="onExitLogin">退出登录</view>
   <view class="pf__logout" bindtap="onLogout">注销账号</view>
   <view class="pf__version">版本号 {{version}}</view>
+  </block>
 
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

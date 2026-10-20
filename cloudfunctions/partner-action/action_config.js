@@ -326,6 +326,75 @@ async function subAuthorizeAction(ctx) {
       return { ok: true, data: { sub_msgs } };
 }
 
+    // 3.9 接单资格探针(只读, 2026-10-21 接单引导链): 前端统一守卫一次拿全「还差哪些手续」
+    // 判据与服务端 order-create/action_take.js 同源(base/场景考试线取 exam_bank, 信用线取 admin_config)
+    // 仅读不写; 前端缓存 60s, 申请/考试/开关/实名成功后主动失效
+async function takeReadinessAction(ctx) {
+  const { event, openid, col, getProfile, getExamBank, getConfig } = ctx;
+      const scene = String(event.scene || '');
+      const ua = await col('user_account').where({ openid }).limit(1).get().catch(() => ({ data: [] }));
+      const u = (ua.data && ua.data[0]) || null;
+      if (!u) return { ok: false, code: 'pa_no_user', msg: '请先登录' };
+
+      const profile = await getProfile(openid);
+      const bank = await getExamBank();
+      const cfg = await getConfig();
+      const scores = (profile && profile.exam_scores) || {};
+      // 信用分与服务端 order-create/action_take.js:60 同源: 取 user_account.partner_credit_score
+      const credit = Number(u.partner_credit_score || 800);
+      const minCredit = Number(cfg.min_credit_take_order || 600);
+
+      const realnameDone = !!u.is_realname_done;
+      const isPartner = (u.roles || []).indexOf('partner') >= 0;
+      const status = profile ? String(profile.status || '') : '';
+      const approved = status === 'approved';
+      const baseMeta = bank.base;
+      const baseLine = Number((baseMeta && baseMeta.pass_line) || 100);
+      const basePassed = !baseMeta || Number(scores.base || 0) >= baseLine;
+      const sceneMeta = scene ? bank[scene] : null;
+      const sceneReqMissing = [];
+      if (sceneMeta) {
+        for (const r of (sceneMeta.requires || [])) {
+          const rLine = Number((bank[r] && bank[r].pass_line) || 100);
+          if (Number(scores[r] || 0) < rLine) sceneReqMissing.push(r);
+        }
+      }
+      const scenePassed = !sceneMeta || (sceneReqMissing.length === 0 && Number(scores[scene] || 0) >= Number(sceneMeta.pass_line || 100));
+      const switchOn = !profile || profile.accept_switch !== false;
+      const creditLow = !!profile && credit > 0 && credit < minCredit;
+
+      // 还差什么(按办理先后): realname → apply/review_pending/reapply → role → base_exam → scene_exam → switch_off
+      const missing = [];
+      if (!realnameDone) missing.push('realname');
+      if (!profile) missing.push('apply');
+      else if (status === 'pending_review') missing.push('review_pending');
+      else if (status === 'rejected') missing.push('reapply');
+      else if (!approved) missing.push('apply');
+      if (approved && !isPartner) missing.push('role');
+      if (approved && !basePassed) missing.push('base_exam');
+      if (approved && !scenePassed) missing.push('scene_exam');
+      if (approved && !switchOn) missing.push('switch_off');
+      if (creditLow) missing.push('credit_low');
+
+      return {
+        ok: true,
+        data: {
+          realname_done: realnameDone,
+          is_partner: isPartner,
+          has_profile: !!profile,
+          profile_status: status,
+          review_note: (profile && profile.review_note) || '',
+          applied_at: (profile && profile.applied_at) || (profile && profile.created_at) || 0,
+          accept_switch: switchOn,
+          base_passed: basePassed, base_score: Number(scores.base || 0), base_pass_line: baseLine,
+          scene, scene_passed: scenePassed, scene_requires_missing: sceneReqMissing,
+          credit_low: creditLow, credit_score: credit, min_credit: minCredit,
+          can_take: missing.length === 0,
+          missing
+        }
+      };
+}
+
     // 3. 我的耍伴资料与接单统计
 async function myProfileAction(ctx) {
   const { event, openid, clientIp, device, _, col, getProfile } = ctx;
@@ -402,5 +471,6 @@ module.exports = {
   set_switch: setSwitchAction,
   update_config: updateConfigAction,
   sub_authorize: subAuthorizeAction,
+  take_readiness: takeReadinessAction,
   my_profile: myProfileAction,
 };

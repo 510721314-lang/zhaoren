@@ -13,6 +13,19 @@
   font-size: 26rpx; color: var(--text-4); margin-top: 12rpx;
 }
 
+.pa__banner {
+  margin-top: 16rpx; border-radius: 20rpx; padding: 24rpx 28rpx;
+  font-size: 26rpx; line-height: 1.5;
+}
+.pa__banner-title { font-size: 28rpx; font-weight: 600; margin-bottom: 6rpx; }
+.pa__banner-desc { color: var(--text-3); }
+.pa__banner--pending { background: var(--brand-primary-light); }
+.pa__banner--pending .pa__banner-title { color: var(--brand-primary); }
+.pa__banner--rejected { background: #FDF0F0; }
+.pa__banner--rejected .pa__banner-title { color: #C0392B; }
+.pa__banner--ok { background: #EFF9F1; }
+.pa__banner--ok .pa__banner-title { color: #1E8E3E; }
+
 .pa__card {
   background: var(--bg-card); border-radius: 20rpx; padding: 32rpx 28rpx;
   margin-top: 24rpx; box-shadow: var(--shadow-card);

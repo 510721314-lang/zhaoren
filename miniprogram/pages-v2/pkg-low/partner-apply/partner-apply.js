@@ -11,7 +11,10 @@ Page({
     scenes: [],        // [{ code, name, emoji, selected }]
     homeLocation: null, // { name, address, latitude, longitude } gcj02
     submitting: false,
-    alreadyPartner: false
+    alreadyPartner: false,
+    // 已提交状态回显(2026-10-21): 审核中/被驳回时不再让用户盲提交
+    applyStatus: '',   // '' | 'pending_review' | 'rejected' | 'approved'
+    rejectNote: ''
   },
   onShareAppMessage() {
     return {
@@ -33,6 +36,18 @@ Page({
       selected: false
     }));
     this.setData({ scenes, alreadyPartner: isPartner });
+  },
+
+  onShow() {
+    // 服务端权威状态: 审核中/驳回原因/已通过, 回显到顶部横幅
+    require('../../../utils/take-order.js').fetchTakeReadiness('', true).then((rd) => {
+      if (!rd || !rd.has_profile) return;
+      this.setData({
+        applyStatus: rd.profile_status || '',
+        rejectNote: rd.review_note || '',
+        alreadyPartner: rd.profile_status === 'approved' || rd.is_partner === true
+      });
+    }).catch(() => {});
   },
 
   onToggleScene(e) {
@@ -87,6 +102,8 @@ Page({
       wx.hideLoading();
       if (r.ok) {
         const d = r.data || {};
+        // 资格探针缓存失效(审核状态刚变)
+        try { require('../../../utils/take-order.js').invalidateTakeReadiness(); } catch (_) {}
         // 刷新用户态
         try {
           await callCloud('user-login', { action: 'peek_login' });

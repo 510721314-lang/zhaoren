@@ -87,6 +87,8 @@ Page({
     }).then((r) => {
       this.setData({ submitting: false });
       if (r.ok && r.data) {
+        // 资格探针缓存失效: 考完回到接单页时立即反映最新考试状态
+        try { require('../../../utils/take-order.js').invalidateTakeReadiness(); } catch (_) {}
         this.setData({ done: true, result: r.data });
       } else if (r.code === 'pa_exam_bank_changed') {
         // 题库已更新: 提示后自动重拉

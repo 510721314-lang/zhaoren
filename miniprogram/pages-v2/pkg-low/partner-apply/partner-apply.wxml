@@ -5,6 +5,20 @@
     <view class="pa__hero-sub">选择你能提供帮助的场景, 入驻后即刻接单</view>
   </view>
 
+  <!-- 已提交状态回显: 审核中不再鼓励重复提交; 驳回展示原因 -->
+  <view class="pa__banner pa__banner--pending" wx:if="{{applyStatus === 'pending_review'}}">
+    <view class="pa__banner-title">申请审核中</view>
+    <view class="pa__banner-desc">平台通常 24 小时内完成审核，通过后自动开通接单权限。可在此调整场景/位置后重新提交，不影响排队。</view>
+  </view>
+  <view class="pa__banner pa__banner--rejected" wx:elif="{{applyStatus === 'rejected'}}">
+    <view class="pa__banner-title">上次申请未通过</view>
+    <view class="pa__banner-desc">{{rejectNote ? '原因：' + rejectNote : '请检查资料后重新提交。'}}</view>
+  </view>
+  <view class="pa__banner pa__banner--ok" wx:elif="{{applyStatus === 'approved' || alreadyPartner}}">
+    <view class="pa__banner-title">已入驻</view>
+    <view class="pa__banner-desc">你已是认证耍伴，通过基础考试后即可接单。</view>
+  </view>
+
   <view class="pa__card">
     <view class="pa__card-title">日常位置 <text class="pa__required">*</text></view>
     <view class="pa__tip">注册时确定的常驻位置，用于向需求方展示你们之间的距离与到达耗时</view>
