@@ -24,10 +24,10 @@ Component({
         wx.showToast({ title: gate.msg, icon: 'none' });
         return;
       }
-      // 实名门禁: 未实名 -> 弹「去实名」(动态加载避免冷启动时序)
+      // 统一守卫(四态): 访客→登录引导; 已注册未实名→实名引导; 已实名→放行
       try {
-        const { requireRealname } = require('../utils/bootstrap.js');
-        if (!requireRealname('发布需求')) return;
+        const { gateOnboard } = require('../utils/bootstrap.js');
+        if (!gateOnboard('publish', '发布需求')) return;
       } catch (e) {}
       // P06 发布页在批次2实现，先保留跳转契约
       wx.navigateTo({

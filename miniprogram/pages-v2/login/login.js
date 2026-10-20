@@ -115,6 +115,36 @@ Page({
     }
     wx.setStorageSync('v2_login_ok', true);
     require('../../utils/report.js').report('login_success', {});
+    // 访客引导链: 有 pending intent 时继续下一步(未实名→实名; 已实名→回原动作), 不再一律回首页
+    try {
+      const bs = require('../../utils/bootstrap.js');
+      const it = bs.getOnboardIntent();
+      if (it) {
+        this.setData({ logging: false });
+        if (!user.is_realname_done) {
+          wx.showModal({
+            title: '还差一步',
+            content: `完成实名认证后即可${it.label || '继续操作'}。`,
+            confirmText: '去实名',
+            cancelText: '稍后',
+            success: (res) => {
+              if (res.confirm) {
+                wx.navigateTo({
+                  url: '/pages-v2/pkg-low/realname/realname',
+                  fail: () => { bs.clearOnboardIntent(); this.askUserType(); }
+                });
+              } else {
+                bs.clearOnboardIntent();
+                this.askUserType();
+              }
+            }
+          });
+          return;
+        }
+        bs.resumeOnboardIntentAfterReset();
+        return;
+      }
+    } catch (e) {}
     this.askUserType();
   },
 

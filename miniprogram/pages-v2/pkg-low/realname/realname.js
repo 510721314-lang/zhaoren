@@ -200,7 +200,13 @@ Page({
       this.setData({ done: true });
       this._refreshDoneState();
       wx.showToast({ title: '实名认证已通过', icon: 'success' });
-      setTimeout(() => wx.navigateBack({ fail: () => {} }), 1200);
+      // 访客引导链收尾: 有 pending intent 时回到原动作(发布/接单), 否则原路返回
+      const bs = require('../../../utils/bootstrap.js');
+      if (bs.getOnboardIntent()) {
+        setTimeout(() => bs.resumeOnboardIntentAfterReset(), 1000);
+      } else {
+        setTimeout(() => wx.navigateBack({ fail: () => {} }), 1200);
+      }
     } catch (e) {
       wx.hideLoading();
       this.setData({ submitting: false });

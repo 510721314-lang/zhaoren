@@ -250,6 +250,9 @@ Page({
     const p = act.jump_param || {};
     switch (act.jump_to) {
       case 'demand_publish': {
+        // 访客引导: 未登录先登录, 未实名先实名(2026-10-21 统一守卫)
+        const bs = require('../../utils/bootstrap.js');
+        if (!bs.gateOnboard('publish', '发布需求', { scene: p.scene || '' })) break;
         const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
         wx.navigateTo({ url });
         break;
@@ -405,10 +408,10 @@ Page({
       wx.showToast({ title: gate.msg, icon: 'none' });
       return;
     }
-    // 实名门禁: 动态加载 bootstrap 避免冷启动时序
+    // 统一守卫(四态): 访客→登录引导; 已注册未实名→实名引导; 已实名→放行
     try {
-      const { requireRealname } = require('../../utils/bootstrap.js');
-      if (!requireRealname('发布需求')) return;
+      const { gateOnboard } = require('../../utils/bootstrap.js');
+      if (!gateOnboard('publish', '发布需求', { scene: code })) return;
     } catch (e) {}
     wx.navigateTo({
       url: `/pages-v2/publish/publish?sceneCode=${code}`,

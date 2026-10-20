@@ -1013,9 +1013,12 @@ Page({
           }
         }, 800);
       } else {
-        // 服务端实名门禁(publish_not_realname): 给「去实名」按钮引导, 而非只弹 toast 无出路
+        // 服务端门禁兜底(前端守卫漏放/缓存陈旧时):
+        // 未登录/未注册 → 登录引导; 未实名 → 实名引导; 其余保持原 toast
         const bs = require('../../utils/bootstrap.js');
-        if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
+        if (r.code === 'publish_no_openid' || r.code === 'publish_no_user') {
+          bs.gateOnboard('publish', '发布需求', { scene: this.__pendingSceneCode || '' });
+        } else if (bs.isRealnameGateCode && bs.isRealnameGateCode(r.code)) {
           bs.showRealnameGuide(r.msg);
         } else {
           wx.showToast({ title: r.msg || '操作失败', icon: 'none', duration: 2500 });

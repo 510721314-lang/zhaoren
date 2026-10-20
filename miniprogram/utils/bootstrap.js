@@ -242,4 +242,97 @@ function clearRealnamePending() {
   wx.removeStorageSync('pending_realname');
 }
 
-module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending, switchOn, guardSwitch, showRealnameGuide, isRealnameGateCode, syncLoginUser };
+// ── 访客入驻引导(2026-10-21 Q2 方案: 四态 + 统一守卫) ──
+// 四态: 访客(未登录) → 已注册未实名 → 已实名(可发布) → 已入驻(可接单)。
+// 浏览永不阻断; 仅「发布需求 / 接单 / 申请入驻」三个动作在入口统一拦截并给出下一步引导。
+// intent 存本地: 登录/实名完成后据此回到原动作(TTL 24h), 避免「点发布→登录→回到首页」断链。
+const ONBOARD_INTENT_KEY = 'onboard_intent';
+const ONBOARD_INTENT_TTL = 24 * 3600 * 1000;
+
+function isLoggedIn() {
+  try {
+    const app = getApp();
+    const u = (app && app.globalData && app.globalData.userInfo) || wx.getStorageSync('userInfo');
+    return !!(u && u.openid);
+  } catch (e) { return false; }
+}
+
+function setOnboardIntent(intent) {
+  try { wx.setStorageSync(ONBOARD_INTENT_KEY, Object.assign({ ts: Date.now() }, intent || {})); } catch (e) {}
+}
+function getOnboardIntent() {
+  try {
+    const it = wx.getStorageSync(ONBOARD_INTENT_KEY);
+    if (!it || !it.kind) return null;
+    if (Date.now() - (Number(it.ts) || 0) > ONBOARD_INTENT_TTL) { clearOnboardIntent(); return null; }
+    return it;
+  } catch (e) { return null; }
+}
+function clearOnboardIntent() {
+  try { wx.removeStorageSync(ONBOARD_INTENT_KEY); } catch (e) {}
+}
+
+// 去登录页(带上原动作 intent)
+function goLogin(intent) {
+  if (intent) setOnboardIntent(intent);
+  wx.navigateTo({
+    url: '/pages-v2/login/login',
+    fail: () => wx.reLaunch({ url: '/pages-v2/login/login', fail: () => {} })
+  });
+}
+
+// 统一动作守卫: true=放行; false=已弹引导(调用方直接 return)
+// kind: 'publish' | 'take' | 'partner'; opts: { demand_id, scene, snapshot }
+function gateOnboard(kind, label, opts) {
+  opts = opts || {};
+  const text = label || '该操作';
+  if (!isLoggedIn()) {
+    wx.showModal({
+      title: '请先登录',
+      content: `当前为访客。登录并完成实名认证后即可${text}。`,
+      confirmText: '去登录',
+      cancelText: '暂不',
+      success: (res) => {
+        if (!res.confirm) return;
+        goLogin({
+          kind, label: text,
+          demand_id: opts.demand_id || '',
+          scene: opts.scene || '',
+          stage: 'login'
+        });
+      },
+      fail: () => {}
+    });
+    return false;
+  }
+  if (realnameDoneState() !== true) {
+    showRealnameGuide(`为保障双方权益，${text}前请先完成实名认证。`);
+    return false;
+  }
+  return true;
+}
+
+// 登录/实名页位于深栈时用: 先 switchTab 回首页清栈, 再跳原动作, 避免登录页残留在返回路径
+function resumeOnboardIntentAfterReset() {
+  const it = getOnboardIntent();
+  if (!it) return false;
+  clearOnboardIntent();
+  wx.switchTab({
+    url: '/pages-v2/index/index',
+    success: () => {
+      setTimeout(() => {
+        if (it.kind === 'publish') {
+          wx.navigateTo({ url: '/pages-v2/publish/publish' + (it.scene ? '?sceneCode=' + it.scene : ''), fail: () => {} });
+        } else if (it.kind === 'take' && it.demand_id) {
+          wx.navigateTo({ url: '/pages-v2/demand-detail/demand-detail?id=' + it.demand_id, fail: () => {} });
+        } else {
+          wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });
+        }
+      }, 120);
+    },
+    fail: () => {}
+  });
+  return true;
+}
+
+module.exports = { bootstrap, CLOUD_MAP, requireRealname, needsRealname, clearRealnamePending, switchOn, guardSwitch, showRealnameGuide, isRealnameGateCode, syncLoginUser, isLoggedIn, gateOnboard, setOnboardIntent, getOnboardIntent, clearOnboardIntent, goLogin, resumeOnboardIntentAfterReset };

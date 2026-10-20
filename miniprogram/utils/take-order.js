@@ -22,10 +22,10 @@ function takeOrder(demand, opts) {
     wx.showToast({ title: '需求数据异常', icon: 'none' });
     return;
   }
-  // 实名门禁 + 平台总开关: 动态加载避免冷启动时序
+  // 统一守卫(四态): 访客→登录引导; 未实名→实名引导; 再校验平台总开关
   try {
-    const { requireRealname, guardSwitch } = require('./bootstrap.js');
-    if (!requireRealname('接单')) return;
+    const { gateOnboard, guardSwitch } = require('./bootstrap.js');
+    if (!gateOnboard('take', '接单', { demand_id: demand._id, scene: demand.scene_code || '' })) return;
     if (!guardSwitch('access')) return;
   } catch (e) {}
   // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast

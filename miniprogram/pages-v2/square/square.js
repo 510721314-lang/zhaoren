@@ -118,10 +118,10 @@ Page({
       wx.showToast({ title: gate.msg, icon: 'none' });
       return;
     }
-    // 实名门禁: 未实名 -> 弹「去实名」(动态加载避免冷启动时序)
+    // 统一守卫(四态): 访客→登录引导; 已注册未实名→实名引导; 已实名→放行
     try {
-      const { requireRealname } = require('../../utils/bootstrap.js');
-      if (!requireRealname('发布需求')) return;
+      const { gateOnboard } = require('../../utils/bootstrap.js');
+      if (!gateOnboard('publish', '发布需求')) return;
     } catch (e) {}
     wx.navigateTo({
       url: '/pages-v2/publish/publish',
@@ -149,6 +149,8 @@ Page({
     const p = act.jump_param || {};
     switch (act.jump_to) {
       case 'demand_publish': {
+        const bs = require('../../utils/bootstrap.js');
+        if (!bs.gateOnboard('publish', '发布需求', { scene: p.scene || '' })) break;
         const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
         wx.navigateTo({ url });
         break;

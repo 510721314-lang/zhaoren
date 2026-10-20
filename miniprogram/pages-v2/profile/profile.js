@@ -47,7 +47,8 @@ Page({
     partnerRecentOrders: [],
     userRecentDemands: [],
     version: CONFIG.VERSION,
-    isRedline: false
+    isRedline: false,
+    isGuest: false          // 未登录访客: 头部改为登录引导卡(2026-10-21 Q2 方案)
   },
   onShareAppMessage() {
     return {
@@ -63,6 +64,9 @@ Page({
 
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    try {
+      this.setData({ isGuest: !require('../../utils/bootstrap.js').isLoggedIn() });
+    } catch (e) {}
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 3 });
     }
@@ -367,11 +371,27 @@ Page({
     }
   },
 
-  // 用户工作台空态 → 去发布
+  // 用户工作台空态 → 去发布(访客/未实名先走登录·实名引导)
   goPublish() {
+    try {
+      const { gateOnboard } = require('../../utils/bootstrap.js');
+      if (!gateOnboard('publish', '发布需求')) return;
+    } catch (e) {}
     wx.navigateTo({ url: '/pages-v2/publish/publish' });
   },
+  // 访客登录引导入口(头部卡片)
+  onGuestLogin() {
+    try {
+      require('../../utils/bootstrap.js').goLogin({ kind: 'partner', label: '使用个人中心', stage: 'login' });
+    } catch (e) {
+      wx.navigateTo({ url: '/pages-v2/login/login', fail: () => wx.reLaunch({ url: '/pages-v2/login/login' }) });
+    }
+  },
   becomePartner() {
+    try {
+      const { gateOnboard } = require('../../utils/bootstrap.js');
+      if (!gateOnboard('partner', '申请成为耍伴')) return;
+    } catch (e) {}
     wx.navigateTo({
       url: '/pages-v2/pkg-low/partner-apply/partner-apply',
       fail: () => wx.showToast({ title: '申请页暂不可用', icon: 'none' })

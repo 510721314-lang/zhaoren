@@ -4,6 +4,37 @@
   padding: 0 20rpx 160rpx;
 }
 
+/* 访客引导卡: 未登录时替代空的个人中心 */
+.pf__guest {
+  margin-top: 12rpx;
+  background: var(--brand-primary-light);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 40rpx 32rpx;
+  text-align: center;
+}
+.pf__guest-title {
+  font-size: var(--font-xxl);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.pf__guest-desc {
+  margin-top: 12rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.pf__guest-btn {
+  margin: 28rpx auto 0;
+  width: 420rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: var(--r-md);
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: var(--font-md);
+}
+
 /* U1 身份头部: 品牌浅底, 个人中心辨识度 */
 .pf__header {
   margin-top: 12rpx;

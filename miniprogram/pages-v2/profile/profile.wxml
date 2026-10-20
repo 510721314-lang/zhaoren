@@ -1,6 +1,13 @@
 <view class="v2 profile">
   <nav-bar title="我的" show-back="{{false}}"></nav-bar>
 
+  <!-- 访客引导卡: 未登录时不展示空的个人中心, 直接给出「登录后能做什么」(2026-10-21 Q2) -->
+  <view class="pf__guest" wx:if="{{isGuest}}">
+    <view class="pf__guest-title">登录后即可发布需求</view>
+    <view class="pf__guest-desc">微信一键登录，完成实名认证后即可发布需求、接单赚钱</view>
+    <view class="pf__guest-btn" bindtap="onGuestLogin">立即登录 / 注册</view>
+  </view>
+
   <!-- U1 身份头部 -->
   <view class="pf__header">
     <view class="pf__avatar">
