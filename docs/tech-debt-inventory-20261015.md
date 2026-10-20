@@ -50,7 +50,7 @@
 
 ---
 
-## P3 · 卫生级 / 已接受的债（7 项）
+## P3 · 卫生级 / 已接受的债（8 项）
 
 | # | 负债 | 决策与依据 |
 |---|---|---|
@@ -61,6 +61,7 @@
 | P3-5 | S2_5 存量兼容路径（历史 S3 发起的在途改期走旧逻辑，不再新增） | `.trae/rules.md §三.1` 红线载明，随存量订单自然消亡，不动 |
 | P3-6 | ~~**前端上传版本号 `1.6.21~1.6.26` 无仓库登记（台账缺口）**~~ **✅ 已收口（2026-10-19）**：mp 后台「版本管理→开发版本」实测**仅显示当前最新一条**（`1.6.27`：2026-10-19 17:26:47 / 李劲松 /「后台管理及G7修复」），微信不保留历史上传记录，逐版回溯**不可行** | 按用户批准以**区间口径**结案：deploy-log 新增 `1.6.21~1.6.26` 区间行（不臆造时间）、`1.6.27` 行补齐精确字段、HANDOFF §2.5 同步；仅台账卫生，无后续动作 |
 | P3-7 | **demand-publish 段测试「时段敏感性」（2026-10-19 新立，pre-existing 既有问题）**：6 例失败，actual 统一 `publish_redline`「00:00-06:00 为休息时段,请选择 06:00 后的服务时间」 | **涉及文件/证据**：`cloudfunctions/_shared/demand-publish.entry.test.js`（示例 L106 等用例传 `start_time: Date.now() + 3600000`）+ `cloudfunctions/demand-publish/action_publish.js:38`（`isServiceTimeAllowed` 时间红线**先于**标题/描述/座机等校验执行）。**根因**：用例把服务开始时间**派生自当前时钟**（now+1h），当 `now ∈ [23:00, 05:00)` 时该时间落入 00:00-06:00 休息区 → 时间红线先触发，期望错误码（`publish_proxy_phone`/`publish_title_long`/`publish_desc_long`/成功落库）被 `publish_redline` 提前拦截。**影响**：此 6 例每日 23:00-05:00 必红，**连带 `npm test` 整链红灯** → 深夜走 `predeploy`/`verify` 会误挡部署。**证据**：2026-10-19 23:11 `git stash` 隔离验证——clean baseline 同样 **13 pass / 6 fail**，与本批 P2-6 改动**零耦合**（P2-6 两脚本非测试依赖）。**建议修法（待方案确认后执行）**：测试内改用**固定安全窗口**（如「次日 10:00」或常量时间戳）替代 `now+1h`，使用例 24h 稳定；**不改业务红线**（红线本身正确）。**✅ 已偿还（2026-10-20，commit `a136f73`）**：`cloudfunctions/_shared/demand-publish.entry.test.js` 新增 `safeStart()`（now+1h，若落入 00:00-06:00 则顺延当日 10:00），替换 3 处 `start_time: Date.now()+3600000`（场景用例 L48 / 代发用例 L106 / `pubEvent` 夹具）；**不改业务红线**（`isServiceTimeAllowed` 与 `publish_start_time`/`publish_time_too_far` 均未动；未用字面常量，因业务要求 start_time 为未来且距发布 ≤30 天）；新增守护用例（注入 `now` 扫 24 个整点，断言「未来 + ≥06:00」，撤修即红）。**验证**：危险时区 `TZ=Etc/GMT-1`（本地 02:00）整链 `npm test` **546 pass / 0 fail** + A/B **437 EQUIVALENT** → **深夜不再误挡部署**；常规 `verify:offline` **EXIT=0** |
+| P3-8 | **系统自动转争议（order-timer）不写 `complaint` 集合**（2026-10-20 T-7.23 只读调查结案） | **根因**：`complaint` 集合唯一创建者＝用户/耍伴发起投诉（`order-action/action_dispute.js:58` `col('complaint').add`）；系统超时转 S10.5（`order-timer/action_timeout.js:89-91 / 124-126`，S2_6/S3_6 超时）**只改 `order_main` 字段**（`complaint_at/by/from_status/reason`），**不写集合**。**读方**：admin 纠纷**详情**依赖该集合（`admin-action/action_dispute_detail.js:13` → `:105` `complaint = 末条 / null`）＋用户端时间线（`order-action/action_timeline.js:65`）；**纠纷列表不依赖**（`admin-action/action_finance_dispute_views.js:20` 仅查 `order_main`）。**影响（低危·优雅兜底）**：自动转争议单详情时间线少 1 条 complaint 卡片、`detail.complaint` 恒 null（前端 `Dispute.vue` 未渲染该字段，仅用 `order.complaint_reason`）→ 无报错 / 无阻断 / **无提审风险**。**裁定＝方案 B（记已知边界·关闭 T-7.23；提审前不动）**：影响低危 ＋ 提审前 stability-first（T-7.22 禁未授权代码动作）＋ cost/risk 不对等。**复活路径（日后要修时）**：在 `order-timer/action_timeout.js:89-91 / 124-126` 补 1 条 `col('complaint').add`（`initiator_openid` 置空、`reason` 复用现有 `complaint_reason`、`status='pending'`），须配**幂等防重复 add** ＋ 单测 ＋ 全门禁部署链 |
 
 已偿还（本会话）：~~zz-seed-orders 文件头「验收视觉后删除」误导~~（已订正为「自测造数工具·保留·不部署·fail-closed·REGISTRY #34」，该目录有 6 例入口契约测试 + admin-web 种子代理分支，非孤儿）；~~payment-mock CRLF/LF 伪漂移~~（新增 `.gitattributes` 强制 cloudfunctions js/json eol=lf，工作区 w/crlf 实测归零，commit `ab9de38`）。
 
@@ -92,6 +93,6 @@
 2. **提审决策项**：版本号递增**已履行**——2026-10-17 上传 **`1.6.10`**（承载 #79-83 + #84/#85；1.6.7/1.6.8 曾分别用于 #72-75 与 #77；P0-2）；**2026-10-19 口径订正：当前上传版本 = `1.6.27`**（`1.6.10`~`1.6.20` 为历史值，`1.6.21~1.6.26` 无登记见 **P3-6**）；正式版发布当天按 runbook 把订阅两模板 trial→formal 并真机验送达。
 3. **真机窗口后的结构债主线**：~~P2-1 已偿还（2026-10-19）~~ ~~P2-5 已偿还（2026-10-19，题库收敛 `_shared/exam-fallback.js` + sync 脚本）~~ → P3-1（空 catch 窄类）可并入同批；**P2-6 已于 2026-10-19 提审前插队偿还 F3/F4/F6/F7+⑥（F5 留提审后）**；P2-2 页面单测续作路径见拆分方案 §5 条目 6
 4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）；~~P3-4（G3 超时前提醒）~~ **✅ 已实施（2026-10-20，REGISTRY #102 已验证）**。
-5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5。
+5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5/**P3-8（争议 complaint 留存边界，2026-10-20 裁定不修）**。
 6. **备份体系（B-1~B-6，2026-10-19 立）**：**B-1 ⏳ incr 自动路径已证、full/verify 待验**（2026-10-20 手动三链复跑 SUCCESS + verify 0 issue；**修复后首个自动窗口：incr 13:00 Result=0 成功**；full / verify 待明日 02:30 / 04:30——判据见 B-1 行 ⑥）；**B-6 ✅ 已处理（用户 2026-10-20 确认密钥已抄存至 H 盘之外）**；**B-2 ✅ 本期通过（verify 日志 lark=OK、无缺口，仍保留「过期即一步重登」口径）**；B-3/B-4 提审后择机；B-5 已接受不再列债。
 7. ~~**P3-7**（demand-publish 段测试时段敏感性，2026-10-19 新立）~~ **✅ 已偿还（2026-10-20，commit `a136f73`）**：改用固定安全窗口 `safeStart()` + 24 整点守护用例，危险时区 `TZ=Etc/GMT-1` 实跑 546 pass / 0 fail → 深夜不再误挡部署。
