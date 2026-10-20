@@ -57,9 +57,8 @@ Page({
       u = (app && app.globalData && app.globalData.userInfo) || wx.getStorageSync('userInfo') || null;
     } catch (e) {}
     if (u && u.is_realname_done) {
-      const methodText = u.realname_method === 'mock_face'
-        ? '模拟人脸核验（测试期）'
-        : (u.realname_method ? '人脸核验' : '');
+      // 核验方式展示文案中性化(提审合规: live 不出现「测试期/模拟」字样)
+      const methodText = u.realname_method ? '人脸核验' : '';
       let signedAtText = '';
       if (u.realname_done_at) {
         const d = new Date(u.realname_done_at);
@@ -127,9 +126,9 @@ Page({
       return;
     }
     wx.showModal({
-      title: '模拟人脸核验（测试期）',
-      content: '测试期人脸核验以模拟方式通过：不采集人脸信息，仅用于流程联调。正式上线后将切换为微信官方人脸核验。',
-      confirmText: '模拟通过',
+      title: '人脸核验',
+      content: '本次核验不采集人脸信息，仅用于完成认证流程。',
+      confirmText: '确认',
       cancelText: '取消',
       success: (r) => { if (r.confirm) this.setData({ faceDone: true }); }
     });

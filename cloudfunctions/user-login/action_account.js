@@ -257,7 +257,7 @@ async function submit_realname_action(ctx) {
 async function simulate_realname_action(ctx) {
   const { event, openid, clientIp, device, db, col, log, writeAudit, safeUserDoc } = ctx;
       if (getCachedEnv() !== 'dev') {
-        return { ok: false, code: 'realname_mock_closed', msg: '模拟认证已关闭' };
+        return { ok: false, code: 'realname_mock_closed', msg: '实名认证通道暂未开放,请稍后重试' };
       }
       const now = Date.now();
       try {

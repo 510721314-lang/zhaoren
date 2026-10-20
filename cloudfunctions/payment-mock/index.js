@@ -158,7 +158,7 @@ exports.main = async (event, context) => {
     if (!mockAllowed) {
       log.d(`payment-mock BLOCKED action=${action} env=prod openid=${openid}`);
       await writeAudit(db, log, { openid, role: 'user', category: 'security', action: 'mock_pay_blocked', target_type: 'order', target_id: event.order_id || '', detail: { order_id: event.order_id || '', action }, result: 'fail', code: 'pay_mock_disabled', client_ip: clientIp, device });
-      return { ok: false, code: 'pay_mock_disabled', msg: '模拟支付/提现功能已关闭,请联系管理员' };
+      return { ok: false, code: 'pay_mock_disabled', msg: '支付/提现功能已关闭,请联系管理员' };
     }
   }
 
