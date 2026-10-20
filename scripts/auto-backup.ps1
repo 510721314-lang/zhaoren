@@ -74,11 +74,39 @@ function Invoke-RoboCopy([string]$Dst) {
   try { robocopy $PROJECT $Dst /E /R:1 /W:1 /NFL /NDL /NJH /XD node_modules .git .tmp-tcb .backup-lark | Out-Null } finally { $ErrorActionPreference = $prev }
   if ($LASTEXITCODE -ge 8) { throw "robocopy 失败 exit=$LASTEXITCODE" }
 }
+function Invoke-WithRetry([scriptblock]$Job, [string]$What, [int]$Tries = 5, [int]$DelaySec = 1) {
+  # B1(2026-10-20): 网关间歇 504/400 必须重试(backup-restore runbook 早要求); 失败信息带 HTTP 状态与响应体, 便于区分「间歇」与「内容被拒」
+  # ⚠️ 陷阱(2026-10-20 实证): PS 变量名**大小写不敏感** → 参数名若叫 $Body, 会与脚本作用域的 $body(JSON 串)撞名;
+  #   脚本块内 `-Body $body` 会解析成**脚本块自身** → 请求体非 JSON → 网关 400(空响应体)。故参数名用 $Job, 禁用 $Body/$Body 类命名。
+  for ($i = 1; $i -le $Tries; $i++) {
+    try { return (& $Job) } catch {
+      $info = $_.Exception.Message
+      try {
+        $st = [int]$_.Exception.Response.StatusCode
+        $bd = (New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())).ReadToEnd()
+        if ($bd.Length -gt 300) { $bd = $bd.Substring(0, 300) }
+        $info = "HTTP $st $($_.Exception.Message) BODY=$bd"
+      } catch {}
+      if ($i -ge $Tries) { throw $info }
+      Write-Host ("[RETRY] $What 第 $i/$Tries 次失败, ${DelaySec}s 后重试: " + $info)
+      Start-Sleep -Seconds $DelaySec
+    }
+  }
+}
 function Invoke-RawExport([string]$RawDir, [switch]$Hot) {
   $p = Join-Path $PROJECT 'scripts\raw-export-encrypted.ps1'
-  if ($Hot) { & $p -OutDir $RawDir -Hot -EncKeyFile $ENC_KEY_FILE }
-  else      { & $p -OutDir $RawDir -EncKeyFile $ENC_KEY_FILE }
-  if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $RawDir 'enc-manifest.json'))) { throw "raw 加密导出失败: $RawDir" }
+  # B1(2026-10-20): raw 导出曾 exit=3(存在 failed 集合/致命错误) → 重试 3 次(间隔 15s); 子脚本的终止性错误也纳入重试(否则会绕过循环)
+  for ($i = 1; $i -le 3; $i++) {
+    $err = ''
+    try {
+      if ($Hot) { & $p -OutDir $RawDir -Hot -EncKeyFile $ENC_KEY_FILE }
+      else      { & $p -OutDir $RawDir -EncKeyFile $ENC_KEY_FILE }
+    } catch { $err = $_.Exception.Message }
+    if ($LASTEXITCODE -eq 0 -and -not $err -and (Test-Path (Join-Path $RawDir 'enc-manifest.json'))) { return }
+    if ($i -ge 3) { throw "raw 加密导出失败(重试 3 次): $RawDir (exit=$LASTEXITCODE err=$err)" }
+    Write-Host "[RETRY] raw 导出第 $i 次失败(exit=$LASTEXITCODE err=$err), 15s 后重试"
+    Start-Sleep -Seconds 15
+  }
 }
 function Invoke-LarkPush([string]$Dir, [string]$Bundle) {
   # 异地自动推送(lark-cli 镜像): staging=bundle+CHECKSUMS+raw\*(均<20MB; 2026-10-19 实测 28MB 被拒/16.8MB 过)
@@ -110,7 +138,7 @@ function Invoke-LarkPush([string]$Dir, [string]$Bundle) {
   } finally { $ErrorActionPreference = $prev }
 }
 function Test-DecryptProbe([string]$RawDir, [int]$Take) {
-  $mf = Get-Content (Join-Path $RawDir 'enc-manifest.json') -Raw | ConvertFrom-Json
+  $mf = Get-Content (Join-Path $RawDir 'enc-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
   $encPass = Read-KeyFile $ENC_KEY_FILE 'enc'
   $picked = @($mf.files | Get-Random -Count ([Math]::Min($Take, $mf.files.Count)))
   foreach ($f in $picked) {
@@ -173,7 +201,7 @@ if ($Mode -eq 'full') {
     if ($LASTEXITCODE -ne 0) { throw "manual-backup.ps1 exit=$LASTEXITCODE" }
     $srcBak = Get-ChildItem 'C:\zhaoren-bak' -Directory -Filter 'zhaoren_backup_*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $srcBak -or -not (Test-Path (Join-Path $srcBak.FullName 'manifest.json'))) { throw 'manual-backup 产物缺失 manifest.json' }
-    $mf = Get-Content (Join-Path $srcBak.FullName 'manifest.json') -Raw | ConvertFrom-Json
+    $mf = Get-Content (Join-Path $srcBak.FullName 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not $mf.total_tables -or $mf.total_tables -lt 37) { throw "manual-backup 表数异常: total_tables=$($mf.total_tables)" }
     Move-Item $srcBak.FullName (Join-Path $dir 'db_export')
     Write-Host "[L2-L7] 37 表脱敏链完成并搬入 db_export"
@@ -218,14 +246,18 @@ if ($Mode -eq 'incremental') {
     $ak = Read-KeyFile $ADMIN_KEY_FILE 'admin'
     $acDir = Join-Path $dir 'admin_config'
     New-Item -ItemType Directory -Force -Path $acDir | Out-Null
-    $body = '{"action":"export_admin_config","confirm":true}'
-    $resp = Invoke-RestMethod -Uri $GATEWAY_URL -Method Post -Headers @{ 'X-Admin-Key' = $ak; 'Content-Type' = 'application/json' } -Body $body -TimeoutSec 60
+    $body = (@{ action = 'export_admin_config'; confirm = $true } | ConvertTo-Json -Depth 20 -Compress)  # B1(2026-10-20): 改由 hashtable 构造, 与 manual-backup 已验证路径同构(消除手写 JSON 字面量差异面)
+    $resp = Invoke-WithRetry { Invoke-RestMethod -Uri $GATEWAY_URL -Method Post -Headers @{ 'X-Admin-Key' = $ak; 'Content-Type' = 'application/json' } -Body $body -TimeoutSec 60 } 'incremental export_admin_config 网关' 6 10
     if (-not $resp.ok) { throw "export_admin_config 返回异常: $($resp | ConvertTo-Json -Compress -Depth 3)" }
+    # A1(2026-10-20): git 输出为 UTF-8, PS5.1 默认按 GB2312 解码 → 乱码落盘后读端重解码会吞引号(02:30 full FAIL 根因); 仅包住 git 调用, 不改后续 cli 重定向文件编码
+    $prevOutEnc = [Console]::OutputEncoding
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     $gitHead  = (git -C $PROJECT rev-parse HEAD 2>$null).Trim()
     $gitShort = (git -C $PROJECT log --oneline -1 2>$null).Trim()
+    [Console]::OutputEncoding = $prevOutEnc
     $cfgData = @{ config = $resp.data.config; exported_at = $resp.data.exported_at; git_head = $gitHead; git_short = $gitShort }
     $acPath = Join-Path $acDir ((Get-Date -Format 'yyyyMMdd-HH') + '.json')
-    [System.IO.File]::WriteAllText($acPath, ($cfgData | ConvertTo-Json -Depth 30 -Compress), [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($acPath, ($cfgData | ConvertTo-Json -Depth 30 -Compress), (New-Object System.Text.UTF8Encoding($true)))  # A3: 带 BOM, 否则 PS5.1 按 GB2312 读乱码
     [System.IO.File]::WriteAllText("$acPath.sha256", (Get-FileHash $acPath -Algorithm SHA256).Hash.ToLower(), [System.Text.Encoding]::ASCII)
     # 4) 热集合 5 集合原值加密(tcb 直连)
     Invoke-RawExport (Join-Path $dir 'raw') -Hot

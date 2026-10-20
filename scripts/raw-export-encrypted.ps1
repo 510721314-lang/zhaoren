@@ -100,6 +100,6 @@ $encManifest = @{
   files      = $encFiles
 }
 $mfPath = Join-Path $OutDir 'enc-manifest.json'
-[System.IO.File]::WriteAllText($mfPath, ($encManifest | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($mfPath, ($encManifest | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($true)))  # A3: 带 BOM, 否则 PS5.1 按 GB2312 读乱码/吞引号
 [System.IO.File]::WriteAllText("$mfPath.sha256", (Get-FileHash $mfPath -Algorithm SHA256).Hash.ToLower(), [System.Text.Encoding]::ASCII)
 Write-Host "[DONE] 加密 $($encFiles.Count) 个文件 -> $OutDir"

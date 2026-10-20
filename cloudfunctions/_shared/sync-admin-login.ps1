@@ -1,4 +1,4 @@
-# Sync admin-login.js (canonical) -> local copies in the cloud functions that consume it
+﻿# Sync admin-login.js (canonical) -> local copies in the cloud functions that consume it
 # Usage: powershell -File cloudfunctions/_shared/sync-admin-login.ps1
 # Canonical source: _shared/admin-login.js ; run this script after ANY edit to it.
 # Consumers: admin-action(免鉴权前置组 admin_login/admin_logout) / admin-web(本地直调登录, 消除双冷启动 504)

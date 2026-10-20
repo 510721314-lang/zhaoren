@@ -32,7 +32,7 @@ Write-Host ""
 
 # ── 1. 校验备份存在 ──
 if (-not (Test-Path $BackupDir)) { throw "备份目录不存在: $BackupDir" }
-$manifest = Get-Content "$BackupDir\manifest.json" -Raw | ConvertFrom-Json
+$manifest = Get-Content "$BackupDir\manifest.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 Write-Host "[MANIFEST] git=$($manifest.git_short) tables=$($manifest.total_tables) backup_at=$($manifest.backup_at)" -ForegroundColor Cyan
 
 # ── 2. 校验 SHA256 ──
@@ -67,7 +67,7 @@ if ($confirm -ne 'YES') { Write-Host "已取消"; exit 0 }
 Write-Host "`n===== 恢复 admin_config =====" -ForegroundColor Yellow
 $cfgFiles = Get-ChildItem "$BackupDir\admin_config" -Filter '*.json' | Sort-Object LastWriteTime -Descending
 if ($cfgFiles.Count -gt 0) {
-  $cfgData = (Get-Content $cfgFiles[0].FullName -Raw | ConvertFrom-Json).config
+  $cfgData = (Get-Content $cfgFiles[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json).config
   $body = @{ action = 'config_restore'; config = $cfgData } | ConvertTo-Json -Depth 30 -Compress
   try {
     $resp = Invoke-RestMethod -Uri $GATEWAY_URL -Method Post `
@@ -84,7 +84,7 @@ if ($cfgFiles.Count -gt 0) {
 Write-Host "`n===== 恢复 DB 数据 =====" -ForegroundColor Yellow
 $okTables = 0; $failTables = 0
 foreach ($colFile in Get-ChildItem "$BackupDir\db" -Filter '*.json') {
-  $data = Get-Content $colFile.FullName -Raw | ConvertFrom-Json
+  $data = Get-Content $colFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
   $col = $data.collection
   $docs = @($data.list)
   Write-Host "  $col`: $($docs.Count) 条 (truncated=$($data.truncated))" -ForegroundColor Cyan

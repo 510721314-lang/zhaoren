@@ -72,12 +72,12 @@
 
 | # | 负债 | 证据 | 状态 / 处置口径 |
 |---|---|---|---|
-| B-1 | **全自动定时备份链未真跑**（三链手动实测通过，但计划任务自动触发路径未经验证） | 手动实测：incremental 136s SUCCESS（12464 文档）、full 全链 ~35 分钟（37 表+20 函数+raw 37 集合加密往返全过）、verify 53s（CHECKSUMS 1102 全过 + restore dry-run 39 OK/0 BAD + 解密探针 3 件 + lark 缺口检查） | **2026-10-20 凌晨为首次全自动真跑窗口**（02:30 full → 04:30 verify）；次日核对 `H:\zhaoren_bak_day\logs\backup-log.csv` 与产物目录即闭环；verify 任务本身即每日自动体检 |
+| B-1 | **全自动定时备份链未真跑**（三链手动实测通过，但计划任务自动触发路径未经验证） | 手动实测：incremental 136s SUCCESS（12464 文档）、full 全链 ~35 分钟（37 表+20 函数+raw 37 集合加密往返全过）、verify 53s（CHECKSUMS 1102 全过 + restore dry-run 39 OK/0 BAD + 解密探针 3 件 + lark 缺口检查） | **2026-10-20 首次全自动真跑已取证并闭环**：①**02:30 full FAIL**——根因＝PS5.1 编码三连环（`git log` 输出按 GB2312 解码→乱码；manifest/JSON 无 BOM；读端 `Get-Content -Raw` 默认 GB2312 → 某字节对吞掉闭合引号 → `ConvertFrom-Json` 报 `(239)`），连带 04:30 verify 报 4 项缺失；②**已修复**：A1 git 输出编码（取文本前后临时置 UTF8 再还原）、A2 读端补 `-Encoding UTF8`（auto-backup ×2 + restore ×3）、A3 写端带 BOM（manifest ×3 + 集合 JSON ×2 + enc-manifest）；并补 BOM 加固 5 个在库脚本（`.trae/predeploy.ps1` / 3 个 `sync-*.ps1` / `smoke-check.ps1`）；③**复跑取证**：手动 full **SUCCESS 2166s**（五项产物齐全、`git_short` 为可读中文、manifest first3bytes=239,187,191、源目录已搬入 db_export）、incremental **SUCCESS 150s**、**verify SUCCESS 0 issue（4 项缺失全消）**；④**B1 重试**：网关调用 6×10s、raw 导出 3×15s（含子脚本终止性错误纳入重试）；⑤**自伤回归已复盘**：B1 包装器参数 `$Body` 与脚本域 `$body` 大小写撞名 → 脚本块内 `-Body $body` 解析成脚本块自身 → 网关 400（空体），由「同点直连 vs 包装器」二分定位、改名为 `$Job`（规则 §25-J5）；⑥lark 异地推送 OK |
 | B-2 | **lark-cli 登录态过期无自动续期** | lark 异地推送依赖 `--as user` 登录态；auto-backup 设计为 lark=WARN **不阻断**本地备份，verify 每日跑 lark 缺口检查双向比对 | 若 verify 日志报 lark=WARN/缺口：`lark-cli auth login --domain drive` 重登（device-flow 二维码授权）；属可自愈的低危债 |
 | B-3 | **DB 集合名单三处硬编码，无一致性门禁** | `scripts/raw-export.js` `COLLECTIONS_37`（注释声明权威口径=admin-action）、`.predeploy/manual-backup.ps1` `$COLLECTIONS`（37）、服务端 `admin-action EXPORT_COLLECTIONS`（权威）；新增/下线集合需三处手工同步，漂移无自动校验 | 名单变更时三处同步 + 全链复跑；远期可加「三处名单一致性」断言门禁（owed，不阻断） |
 | B-4 | **飞书异地目录历史包无清理策略** | folder `RCsff3kGUlKhpud1KVFckJOhnGc` 已存 10-07/10-09 等 5 个历史节点包；auto-backup 每日 full 推送（镜像结构逐文件）将持续累积 | 人工定期清理或制定保留策略（如保留最近 N 份）；暂不阻塞 |
 | B-5 | **CHECKSUMS 豁免 `functions_code\`**（≈465MB 含 node_modules 数万小文件，全量哈希实测 >10 分钟不可用） | `auto-backup.ps1` `Get-CheckSums` 豁免规则 | **已接受的边界（2026-10-19 决策）**：functions_code 完整性由 L6「`cli cloud functions download` 云端实时下载」机制保证（产物来自云端而非本地沉淀）；云函数代码正确性另由部署链 download SHA 门禁证明 |
-| B-6 | **加密备份密钥仅存 C 盘单点**（`C:\zhaoren-bak\backup-enc-key.txt`） | raw 37 集合加密产物（ZRBE1 / AES-256-CBC / PBKDF2-SHA1 100k）恢复**完全依赖**此密钥；密钥丢失 = 加密备份全部不可恢复；C 盘故障时无第二副本 | **P0 级行动项（人为）**：立即抄存至 H 盘之外至少一处（纸质 / 密码管理器）；完成前，每日 verify 的解密探针仅证明「密钥本地可用」，不能证明「密钥有灾备」 |
+| B-6 | **加密备份密钥仅存 C 盘单点**（`C:\zhaoren-bak\backup-enc-key.txt`） | raw 37 集合加密产物（ZRBE1 / AES-256-CBC / PBKDF2-SHA1 100k）恢复**完全依赖**此密钥；密钥丢失 = 加密备份全部不可恢复；C 盘故障时无第二副本 | **✅ 已处理（2026-10-20 用户确认：密钥已抄存至 H 盘之外至少一处）**——本项 P0 行动项关闭；此后每日 verify 的解密探针验证「密钥本地可用」，**灾备副本由人工抄存件保证**（非 verify 可证） |
 
 ---
 
@@ -93,5 +93,5 @@
 3. **真机窗口后的结构债主线**：~~P2-1 已偿还（2026-10-19）~~ ~~P2-5 已偿还（2026-10-19，题库收敛 `_shared/exam-fallback.js` + sync 脚本）~~ → P3-1（空 catch 窄类）可并入同批；**P2-6 已于 2026-10-19 提审前插队偿还 F3/F4/F6/F7+⑥（F5 留提审后）**；P2-2 页面单测续作路径见拆分方案 §5 条目 6
 4. **独立立项、不与卫生债混做**：P3-3（两处手机号加密改造）、P3-4（G3 超时前提醒）。
 5. **持续不动**：P1 全组（兼容/挂起）、P2-3（基线）、P2-4（多副本，门禁已守）、P3-2/P3-5。
-6. **备份体系（B-1~B-6，2026-10-19 立）**：**B-6 密钥抄存为 P0 级行动项**（立即可做，无技术依赖）；B-1 于 2026-10-20 凌晨自动首验（次日核对 backup-log.csv 即闭环）；B-2 随 verify 每日自动暴露、处置仅一步重登；B-3/B-4 提审后择机；B-5 已接受不再列债。
+6. **备份体系（B-1~B-6，2026-10-19 立）**：**B-1 ✅ 已闭环（2026-10-20：首跑取证 → 编码事故修复 → full/incremental/verify 三链复跑 SUCCESS、verify 0 issue）**；**B-6 ✅ 已处理（用户 2026-10-20 确认密钥已抄存至 H 盘之外）**；**B-2 ✅ 本期通过（verify 日志 lark=OK、无缺口，仍保留「过期即一步重登」口径）**；B-3/B-4 提审后择机；B-5 已接受不再列债。
 7. **P3-7（低风险、可独立提前，2026-10-19 新立）**：demand-publish 段测试时段敏感性——修法＝测试内固定安全窗口使 24h 稳定；属测试代码改动，**须先出方案经确认后执行**（不触业务红线）。

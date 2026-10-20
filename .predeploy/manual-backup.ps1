@@ -47,14 +47,18 @@ function Invoke-AdminApi($Action, $Params = @{}) {
 
 function Save-JsonWithHash($Path, $Data) {
   $json = $Data | ConvertTo-Json -Depth 30 -Compress
-  [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
+  [System.IO.File]::WriteAllText($Path, $json, (New-Object System.Text.UTF8Encoding($true)))  # A3(2026-10-20): 集合 JSON 带 BOM, 与 manifest 同口径; 否则 PS5.1 按 GB2312 读会乱码/吞引号
   $sha = (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLower()
   [System.IO.File]::WriteAllText("$Path.sha256", $sha, [System.Text.Encoding]::ASCII)
   return $sha
 }
 
+# A1(2026-10-20): git 输出为 UTF-8, PS5.1 默认按 GB2312 解码 → 乱码写进 manifest 后, 读端重解码会吞掉闭合引号致 JSON 解析失败(02:30 full FAIL 根因); 仅包住 git 调用
+$prevOutEnc = [Console]::OutputEncoding
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $gitHead = (git -C $PROJECT_DIR rev-parse HEAD 2>$null).Trim()
 $gitShort = (git -C $PROJECT_DIR log --oneline -1 2>$null).Trim()
+[Console]::OutputEncoding = $prevOutEnc
 
 # L2: admin_config 快照
 Write-Host "`n===== L2 admin_config =====" -ForegroundColor Yellow
@@ -168,7 +172,7 @@ $manifest = @{
   has_functions_code = $fnCodeDir
   has_index_ledger   = $indexLedgerPath
 }
-[System.IO.File]::WriteAllText("$BackupDir\manifest.json", ($manifest | ConvertTo-Json -Depth 5), [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText("$BackupDir\manifest.json", ($manifest | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding($true)))  # A3: 带 BOM(同 CHECKSUMS.txt 口径), 否则 PS5.1 按 GB2312 读乱码/吞引号
 
 Write-Host "`n===== DONE =====" -ForegroundColor Green
 Write-Host "  Dir : $BackupDir"

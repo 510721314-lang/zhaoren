@@ -1,4 +1,4 @@
-# Sync exam-fallback.js (canonical) -> local copies in the cloud functions that consume it
+﻿# Sync exam-fallback.js (canonical) -> local copies in the cloud functions that consume it
 # Usage: powershell -File cloudfunctions/_shared/sync-exam-fallback.ps1
 # Canonical source: _shared/exam-fallback.js ; run this script after ANY edit to it.
 # Consumers: partner-action(exam_bank 读库失败兜底) / admin-action(exam_subject_* 兜底)

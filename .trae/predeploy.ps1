@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # zhaoren - Pre-deploy Syntax Gate
 # Runs `node --check` on EVERY cloud function before any deploy.
 # Bad syntax (e.g. duplicate const -> SyntaxError) blocks deploy.

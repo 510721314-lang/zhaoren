@@ -1,4 +1,4 @@
-# smoke-check.ps1 - gateway core-link smoke test (run after every cloud function deploy / key change)
+﻿# smoke-check.ps1 - gateway core-link smoke test (run after every cloud function deploy / key change)
 # usage: powershell -ExecutionPolicy Bypass -File .predeploy/smoke-check.ps1
 # all calls are read-only or idempotent probes; exit 0 = all pass
 $ErrorActionPreference = 'Continue'

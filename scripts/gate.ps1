@@ -1,4 +1,4 @@
-# gate.ps1 - One-command gate (B2)
+﻿# gate.ps1 - One-command gate (B2)
 # Runs all checks in docs/regression-checklist.md order: one command before delivery/commit
 # Usage:  powershell -File scripts/gate.ps1      (exit 0 = ALL PASS)
 # Preconditions: node on PATH (if absent after reboot: $env:Path += ';C:\Program Files\nodejs')
