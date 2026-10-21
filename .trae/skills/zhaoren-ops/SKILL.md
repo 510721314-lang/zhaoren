@@ -86,7 +86,8 @@ for ($i=0; $i -lt 5; $i++) {
 ```js
 async function resolveOrderId(rawId) {
   if (/^[0-9a-f]{32}$/.test(rawId)) return rawId;
-  if (/^ORD\d+$/.test(rawId)) {
+  // 订单号两种形态并存: 新=18 位纯数字(2026-10-21 起); 旧=ORD+yyyymmdd+hex
+  if (/^\d{16,20}$/.test(rawId) || /^ORD\d+$/.test(rawId)) {
     const r = await col('order_main').where({ order_no: rawId }).limit(1).get();
     return r.data[0]?._id || null;
   }

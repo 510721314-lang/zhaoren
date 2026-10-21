@@ -691,6 +691,8 @@ function normalize(v) {
     if (k === 'minutes_ago' && typeof val === 'number') return '<ago>';
     if (typeof val === 'number' && val > 1e12) return '<ts>';
     if (typeof val === 'string' && /^(REF|ORD|WD|TX|DR|PAY|TIP|AA|INS|POL)[0-9a-f]{6,}$/i.test(val)) return '<id>';
+    // 2026-10-21 订单号改纯数字(18 位): 随机单号两侧必然不同, 需一并掩码; 16-20 位数字串在本套用例中仅可能来自单号
+    if (typeof val === 'string' && /^\d{16,20}$/.test(val)) return '<id>';
     if (typeof val === 'string' && /^mock_id_/.test(val)) return '<id>';
     return val;
   }));

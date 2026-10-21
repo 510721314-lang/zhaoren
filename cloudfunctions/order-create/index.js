@@ -114,13 +114,16 @@ async function logReject(openid, demand_id, reason) {
   }
 }
 
-// 生成订单编号 ORD + yyyymmdd + 8字节密码学随机(16 hex, 防高并发碰撞, 兼容 /^ORD\d+$/ 反查)
+// 生成订单编号(2026-10-21 用户确认改为纯数字): yyyymmdd + 10 位密码学随机数字 = 18 位
+// - 唯一性: 单日随机空间 10^10, 另有唯一索引 uk_order_no 兜底;
+// - 兼容性: 历史订单仍为 ORD+yyyymmdd+16hex, 反查逻辑需同时支持两种形态
 function genOrderNo() {
   const d = new Date();
   const pad = (n) => n < 10 ? '0' + n : '' + n;
   const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-  const r = crypto.randomBytes(8).toString('hex');
-  return `ORD${ymd}${r}`;
+  let r = '';
+  for (let i = 0; i < 10; i++) r += String(crypto.randomInt(0, 10));
+  return `${ymd}${r}`;
 }
 
 // 云数据库文档 ID 校验:自动生成的 _id 为 32 位十六进制(拦截需求编号/占位符)
