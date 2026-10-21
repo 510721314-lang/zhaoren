@@ -114,15 +114,16 @@ async function logReject(openid, demand_id, reason) {
   }
 }
 
-// 生成订单编号(2026-10-21 用户确认改为纯数字): yyyymmdd + 10 位密码学随机数字 = 18 位
-// - 唯一性: 单日随机空间 10^10, 另有唯一索引 uk_order_no 兜底;
+// 生成订单编号(2026-10-21 用户确认改为纯数字): yyyymmdd + 12 位密码学随机数字 = 20 位
+// - 唯一性(2026-10-21 加固): 单日随机空间 10^12(40 bit), 另有唯一索引 uk_order_no 兜底;
+//   建单事务遇 E11000 会重新生成并重试(见 action_take.js), 避免碰撞直接抛给用户;
 // - 兼容性: 历史订单仍为 ORD+yyyymmdd+16hex, 反查逻辑需同时支持两种形态
 function genOrderNo() {
   const d = new Date();
   const pad = (n) => n < 10 ? '0' + n : '' + n;
   const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
   let r = '';
-  for (let i = 0; i < 10; i++) r += String(crypto.randomInt(0, 10));
+  for (let i = 0; i < 12; i++) r += String(crypto.randomInt(0, 10));
   return `${ymd}${r}`;
 }
 

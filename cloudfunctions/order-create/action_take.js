@@ -1,5 +1,15 @@
 // action_take.js — create_from_take 接单建单体, 从 index.js 物理抽出, 行为逐字不变
 // 共享符号经 ctx 注入, 禁止 require('./index') 以免循环依赖
+
+// 唯一索引冲突判定(2026-10-21): 仅本事务涉及的唯一索引是 order_main.uk_order_no
+// (order_confirmations / order_status_log / disclaimer_signature 均无唯一索引), 故任意 dup-key 均可安全重试
+function isDupKeyErr(e) {
+  if (!e) return false;
+  const code = String(e.errCode || e.code || '');
+  const msg = String(e.message || e.errMsg || '');
+  return code === '11000' || /E11000|duplicate key|duplicate_key|uk_order_no/i.test(msg);
+}
+
 async function createFromTakeAction(ctx) {
   const { event, openid, wxCtx, clientIp, device, crypto, db, _, col, log, writeAudit, BUSY_STATUS, acquireTakeLock, releaseTakeLock, getConfig, isServiceTimeAllowed, readRateRange, readTotalRange, slotCovers, cnDayStart, DAY_MS, suspendLeftDays, haversineKm, TAKE_MAX_DISTANCE_KM, splitOrderAmount, isTestPair, getUser, getPartnerProfile, getDemand, logReject, genOrderNo, isValidDocId, buildCheckboxEvidence } = ctx;
 
@@ -453,6 +463,11 @@ async function createFromTakeAction(ctx) {
   userEvidence.created_at = now;
   userEvidence.updated_at = now;
 
+  // 订单号唯一冲突自动重试(2026-10-21 加固): 唯一索引 uk_order_no 冲突时重新生成单号,
+  // 最多重试 2 次(共 3 次尝试); 事务原子, 失败尝试不会残留半成品。其余失败仍走补偿释放需求。
+  let created = false;
+  let txnErr = null;
+  for (let attempt = 0; attempt < 3 && !created; attempt++) {
   try {
     await db.runTransaction(async (t) => {
       const addRes = await t.collection('order_main').add({ data: orderData });
@@ -482,9 +497,21 @@ async function createFromTakeAction(ctx) {
       const ueRes = await t.collection('disclaimer_signature').add({ data: Object.assign({}, userEvidence, { order_id: orderId }) });
       userEvidenceId = (ueRes && ueRes._id) || '';
     });
+    created = true;
   } catch (e) {
+    txnErr = e;
+    if (isDupKeyErr(e) && attempt < 2) {
+      log.w(`order_no 冲突, 重试 #${attempt + 1}: ${orderNo} 作废重新生成`);
+      orderNo = genOrderNo();
+      orderData.order_no = orderNo;
+      continue;
+    }
+    break;
+  }
+  }
+  if (!created) {
     // 补偿: 事务失败则释放需求回 matching, 供其他耍伴再接(同时清 matched_openid)
-    log.d(`order txn fail: ${e.message}; compensating demand ${demand_id} → matching`);
+    log.d(`order txn fail: ${(txnErr && txnErr.message) || ''}; compensating demand ${demand_id} → matching`);
     await col('demand').where({ _id: demand_id, status: 'matched' }).update({
       data: { status: 'matching', matched_openid: null, matched_at: null, updated_at: Date.now() }
     }).catch((ce) => log.d(`demand compensate fail: ${ce.message}`));

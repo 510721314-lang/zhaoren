@@ -509,8 +509,8 @@ exports.main = async (event) => {
       const d = new Date();
       const p2 = (n) => String(n).padStart(2, '0');
       const demandNo = `DR${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-      // 订单号与线上一致: 纯数字 yyyymmdd + 10 位随机数字(2026-10-21 起)
-      const orderNo = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${String(Math.floor(Math.random() * 1e10)).padStart(10, '0')}`;
+      // 订单号与线上一致: 纯数字 yyyymmdd + 12 位随机数字 = 20 位(2026-10-21 起)
+      const orderNo = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${String(Math.floor(Math.random() * 1e12)).padStart(12, '0')}`;
       tasks.push({ crid, partner, i, scene, sub, tpl, duration_h, user, place, lat, lng, rate_fen, total_fen, fee_fen, partner_income_fen, svcStart, createdAt, demandNo, orderNo });
     });
     const skipped = allCrids.length - tasks.length;
