@@ -121,18 +121,25 @@ function Invoke-LarkPush([string]$Dir, [string]$Bundle) {
     Remove-Item $o.FullName -Force
     Write-Host "[LARK-WARN] 超限剔除(本地保留原件): $($o.Name)"
   }
+  # lark-cli 路径自解析(计划任务不继承 Trae 会话 PATH; 2026-10-22 实证自动 full 因此 WARN)
+  $larkCli = (Get-Command lark-cli -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+  if (-not $larkCli) {
+    $larkCli = Get-ChildItem (Join-Path $env:USERPROFILE '.trae-cn\plugins\trae-remote-official\lark\*\bin\lark-cli.exe') -ErrorAction SilentlyContinue |
+      Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+  }
+  if (-not $larkCli) { return @{ ok = $false; detail = 'lark-cli 未找到(计划任务 PATH 无插件目录)' } }
   $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'   # lark-cli stderr 在 Stop 模式会变终止错误(同 git 坑)
   try {
     $ok = $false; $detail = ''
     for ($i = 1; $i -le 2; $i++) {
-      $out = lark-cli drive +push --folder-token $script:LARK_FOLDER --as user --local-dir .backup-lark --if-exists overwrite --json 2>&1
+      $out = & $larkCli drive +push --folder-token $script:LARK_FOLDER --as user --local-dir .backup-lark --if-exists overwrite --json 2>&1
       if ($LASTEXITCODE -eq 0) { $ok = $true; break }
       $detail = (($out | Out-String) -replace '\s+', ' ')
       if ($detail.Length -gt 160) { $detail = $detail.Substring(0, 160) }
       if ($i -lt 2) { Start-Sleep -Seconds 30 }
     }
     if (-not $ok) { return @{ ok = $false; detail = 'push 失败: ' + $detail } }
-    $out2 = lark-cli drive +push --folder-token $script:LARK_FOLDER --as user --local-dir .backup-lark --if-exists smart --json 2>&1
+    $out2 = & $larkCli drive +push --folder-token $script:LARK_FOLDER --as user --local-dir .backup-lark --if-exists smart --json 2>&1
     if ($LASTEXITCODE -ne 0) { return @{ ok = $false; detail = 'push 成功但 smart 复核失败' } }
     return @{ ok = $true; detail = 'pushed+verified' }
   } finally { $ErrorActionPreference = $prev }
