@@ -131,7 +131,7 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 
 1. 串行部署云函数，等 90–120s，`functions info` 读回确认。
 2. `deploy` **只上传代码，不应用** `config.json` 的 timeout/triggers → 触发器须另经 miniprogram-ci（受 IP 白名单）或控制台。
-3. 跑 `quick_check`：核对 `scene_count` vs seed、`mock_gate{env, mock_payment_enabled, status}`。
+3. 跑 `quick_check`（**2026-10-22 起需管理员身份**：走 admin-web 网关 `init_db` 带 `X-Admin-Key`；云端测试面板无身份会返 `idb_forbidden`）：核对 `scene_count` vs seed、`mock_gate{env, mock_payment_enabled, status}`。
 4. 上线冻结自检：prod 且 `mock_payment_enabled=true` 时 `quick_check` 返回 `mock_gate.status=BLOCK`。
 5. 部署详情与历史见 [docs/deploy-log.md](file:///c:/zhaoren/docs/deploy-log.md)。
 

@@ -28,7 +28,7 @@ admin_config 集合 _id: global (SSOT)
 | 前端 | `pages-v2/index/index.js` 的 `sceneGroups` 是否直接用后端返回（应该是 `wx:for="{{sceneGroups}}"`，**无硬编码遍历**） |
 | home-action | `index.js` 中是否仍有硬编码 `SCENE_ORDER` / `SCENE_NAMES` 数组 |
 | demand-publish | `index.js` 中是否仍有硬编码 `SCENE_WHITELIST` |
-| 云端数据 | admin_config.scene_list 实际存了几个？跑 init-db quick_check 看 `scene_count` |
+| 云端数据 | admin_config.scene_list 实际存了几个？跑 init-db quick_check 看 `scene_count`（2026-10-22 起需管理员身份，走网关 `init_db`） |
 
 ### 根因模式
 
@@ -52,7 +52,7 @@ cli cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names home-action --
 cli cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names demand-publish --project .
 cli cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names init-db --project .
 
-# 2. 云端测试 init-db quick_check → 确认 scene_count == 预期数量
+# 2. 网关 init_db quick_check（2026-10-22 起需管理员身份，带 X-Admin-Key；云端测试面板返 idb_forbidden）→ 确认 scene_count == 预期数量
 #    预期返回: { scene_count: 5, seed_expected_codes: ["W1","W2","W8","W10","W11"] }
 
 # 3. 如有差异 → force_migrate_scenes 覆盖

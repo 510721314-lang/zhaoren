@@ -17,7 +17,7 @@
 |---|---|
 | `{}`（空事件） | 幂等初始化集合/索引/种子 + 差异检测迁移 |
 | `bootstrap` | **事务 CAS 机制，仅首次调用成功**（首作自动成为管理员） |
-| `quick_check` | 查最近 5 条 demand + admin_config 关键项 + scene_count vs seed 差异 + `mock_gate{env, mock_payment_enabled, status, hint}` |
+| `quick_check` | **需管理员身份（2026-10-22 起）**：查最近 5 条 demand + admin_config 关键项 + scene_count vs seed 差异 + `mock_gate{env, mock_payment_enabled, status, hint}` |
 | `lookup` | `{"action":"lookup","nicknames":["昵称1","昵称2"]}` 按昵称反查 openid |
 
 ```json
@@ -25,6 +25,7 @@
 {"action":"lookup","nicknames":["昵称"]}
 ```
 
+- **`quick_check` 调用通道（2026-10-22 起）**：已纳入 `ADMIN_ACTIONS`，云端测试面板无登录身份 → `idb_forbidden`；改走 admin-web 网关 `init_db`（带 `X-Admin-Key`）或 `scripts/tcb-exec.js` 只读查库。网关代理链路照常返回全量。
 - 上线冻结自检：prod 且 `mock_payment_enabled=true` 时 `quick_check` 返回 `mock_gate.status=BLOCK`（上线动作前跑一次 self check；`/debug` 端点已删除，排障由 quick_check 覆盖）
 
 ### 2. 环境切换 dev/prod

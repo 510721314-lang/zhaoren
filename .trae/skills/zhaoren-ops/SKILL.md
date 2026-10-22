@@ -104,6 +104,8 @@ async function resolveOrderId(rawId) {
 {"action":""}   // 空事件 = 创建集合 + 索引 + seed
 ```
 
+> 2026-10-22 起 `quick_check` 已纳入 `ADMIN_ACTIONS`：云端测试面板无登录身份会返 `idb_forbidden`，请改走 admin-web 网关 `init_db`（带 `X-Admin-Key`）或 `scripts/tcb-exec.js` 只读查库。
+
 ## 安全加固后的运维变更（2026-10-01）
 
 1. **generate_admin_web_key bootstrap 已封死网关路径**：`admin_web_key` 为空时网关代理因 fail-closed 无法生成（防竞态抢注，属预期）。首次生成必须走**微信开发者工具云端测试面板**，身份为真实 OPENID 且 `admin_openids` 为空（bootstrap 语义：首位调用者自动成为管理员）。key 仅一次明文返回，不落日志——**立即复制保存**。

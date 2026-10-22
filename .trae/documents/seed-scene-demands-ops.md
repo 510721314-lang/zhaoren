@@ -12,7 +12,7 @@
 
 mock 发布走 `resolveOpenid`，只有 `admin_config.env==='dev'` 才放行 mock_openid；prod 会 fail-closed。
 
-**操作**：云端测试面板，函数选 `init-db`，事件贴下面这段，运行，看返回里的 `env` 值。
+**操作**：2026-10-22 起 `quick_check` 需管理员身份——走 admin-web 网关 `init_db`（带 `X-Admin-Key`）或 `scripts/tcb-exec.js` 只读查库；云端测试面板无身份会返 `idb_forbidden`。事件如下，运行后看返回里的 `env` 值。
 
 ```json
 {"action":"quick_check"}

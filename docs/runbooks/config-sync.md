@@ -53,7 +53,7 @@ powershell -File cloudfunctions\_shared\sync-partner-audit.ps1
 ```powershell
 node scripts/check-shared-sync.js   # SHARED SYNC ALL OK；任一漏同步报 [DRIFT]
 node scripts/check-ssot.js          # 前端无新增硬编码阈值
-# 云端诊断：init-db quick_check → scene_count == 预期；有差异 force_migrate_scenes
+# 云端诊断：init-db quick_check（2026-10-22 起需管理员身份，走网关 init_db 带 X-Admin-Key；云端测试面板返 idb_forbidden）→ scene_count == 预期；有差异 force_migrate_scenes
 ```
 
 ## 坑

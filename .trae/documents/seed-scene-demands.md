@@ -10,7 +10,7 @@
 - 发布校验要点（demand-publish/index.js:276-300）：`scene` 必须在白名单、开始时间未来且≤30天、服务时段避开 00:00-06:00 红线、时长 1-12h、`rate_fen≥100分`。
 
 ## 执行步骤
-1. **用 init-db 的 `action=quick_check`（云端测试面板）确认当前云端 demand 清单与 scene_list**，核对待造场景与现有测试数据的真实 scene 值。
+1. **用 init-db 的 `action=quick_check`（2026-10-22 起需管理员身份：走网关 `init_db` 带 `X-Admin-Key` 或 `tcb-exec` 只读；云端测试面板返 `idb_forbidden`）确认当前云端 demand 清单与 scene_list**，核对待造场景与现有测试数据的真实 scene 值。
 2. **在云端测试面板，以 mock 发布者身份，用 demand-publish 生产式发布下列 seed 需求**（each `match_mode:'broadcast'`，`rate_fen` 用合理整数分值，开始时间取未来 2~14 天内、避开凌晨）、场景与标题示例（每场景 1 条，标题用真实业务示例，不用「测试」）：
    - W1 就医陪诊 → 「周末陪父亲去医院复查挂号排队」
    - W2 学习陪伴 → 「图书馆自习监督 + 英语口语陪练」
@@ -22,7 +22,7 @@
    - W10 出行陪伴 → 「高铁站接人 指引打车送到目的地」
    - W11 线上陪伴 → 「夜间线上陪你学习打卡相互督促」
 3. **下线/清理污染数据**：对那条标题「测试」、发布者「李**」的需求，置 `is_deleted:true`（走 admin-action 或直接云端改，避免再进大厅/首页展示）。**不做物理删除**（保审计留痕）。
-4. **复检**：云端测试面板 `quick_check` / 真机下拉刷新，确认每个场景都有需求、广场「全部」与各场景 chip 都能看到、测试数据不再出现。
+4. **复检**：网关 `init_db quick_check` / `tcb-exec` 只读核 / 真机下拉刷新，确认每个场景都有需求、广场「全部」与各场景 chip 都能看到、测试数据不再出现。
 
 ## 不改代码
 全程只写云端数据，**不触达任何已验收 tag 内文件**，无 git 改动、无部署。涉及文件仅只读参考：
@@ -31,5 +31,5 @@
 - cloudfunctions/home-action/index.js（广场/分组查询条件）
 
 ## 验证方式
-- 云端：`init-db action=quick_check` 返回的 demand 列表应含 9 场景；测试数据的 is_deleted=true。
+- 云端：网关 `init-db action=quick_check`（带 `X-Admin-Key`）返回的 demand 列表应含 9 场景；测试数据的 is_deleted=true。
 - 真机/开发者工具：首页「需求广场」左侧分类导航各场景显示 ≥1 条且卡片标题为业务示例；广场按场景 chip 筛选能出对应需求；「全部」下不再出现「测试」污染条目。
