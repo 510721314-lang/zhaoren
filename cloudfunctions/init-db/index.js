@@ -181,12 +181,12 @@ exports.main = async (event, context) => {
     }
   } catch (_) {}
 
-  // ── 鉴权: lookup/check_pp/force_migrate_scenes 需管理员; quick_check + 默认幂等种子补齐放行 ──
+  // ── 鉴权: 管理面动作 lookup/quick_check/check_pp/force_migrate_scenes/purge_test_data 需管理员; 默认幂等种子补齐由 L472 独立门控 ──
   const action = event && event.action;
   const openid = await resolveOpenid(cloud, event);
   // 管理身份(代理密钥 或 真实 OPENID), 供各管理面动作统一使用
   const adminIdentity = await resolveAdminIdentity(db, event, openid);
-  const ADMIN_ACTIONS = ['lookup', 'force_migrate_scenes', 'check_pp', 'purge_test_data'];
+  const ADMIN_ACTIONS = ['lookup', 'quick_check', 'force_migrate_scenes', 'check_pp', 'purge_test_data'];
   if (ADMIN_ACTIONS.indexOf(action) >= 0) {
     let cfg = null;
     try { cfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) {}
