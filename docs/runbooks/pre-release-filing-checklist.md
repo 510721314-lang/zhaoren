@@ -154,9 +154,9 @@
 - [ ] F3 **三个**模板 `tmpl_id` 已写入 `sub_msg_templates` 且 `enabled=true`
 - [ ] F3 `miniprogram_state` 仍为 `trial`（正式发布日再切）
 - [ ] F4 request 域名含 `https://apis.map.qq.com`，开发者工具「不校验合法域名」**已关闭**并真机自测通过
-- [ ] F5 `admin_openids` 非空且为真实管理员 OPENID
-- [ ] F5 `admin_web_key` 为 `AWK-`+64hex，未出现在任何前端文件
-- [ ] 冒烟 `smoke-check.ps1` = **SMOKE ALL PASS**
+- [x] F5 `admin_openids` 非空且为真实管理员 OPENID（2026-10-22 只读实测：2 条，`oLDJ***Tw9c`/`oLDJ***LPA4`，非 bootstrap 开放态）
+- [x] F5 `admin_web_key` 为 `AWK-`+64hex，未出现在任何前端文件（2026-10-22 实测：线上 68 字符；全仓 grep + `miniprogram/` + `admin-web/public/` + `admin-web-frontend/src|dist` 共 0 命中；明文仅存于仓库外 `C:\zhaoren-bak\admin-key-20261009.txt`）
+- [x] 冒烟 `smoke-check.ps1` = **SMOKE ALL PASS**（2026-10-22 复跑：6/6 PASS，`SMOKE_EXIT=0`，含 `config_public` 4 项 + `home_probe` 2 项）
 
 ## 7. 坑位速查（症状 → 根因）
 
