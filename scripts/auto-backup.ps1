@@ -214,6 +214,21 @@ if ($Mode -eq 'full') {
     Write-Host "[L2-L7] 37 表脱敏链完成并搬入 db_export"
     # 4) B 通道: tcb 直连原值加密
     Invoke-RawExport (Join-Path $dir 'raw')
+    # 4.5) 外部目录快照: Trae 会话记忆 + 交付物文档(2026-10-22 用户批准纳入; 容量<4MB, 日期子目录防覆盖)
+    $externalDefs = @(
+      @{ Name = 'trae-memory'; Src = (Join-Path $env:USERPROFILE '.trae-cn\memory') },
+      @{ Name = 'zhaoren_docs_MD'; Src = 'C:\zhaoren_docs_MD' }
+    )
+    foreach ($def in $externalDefs) {
+      if (-not (Test-Path $def.Src)) { throw "外部快照源不存在: $($def.Src)" }
+      $dst = Join-Path $dir ('external\' + $def.Name + '\' + (Get-Date -Format 'yyyyMMdd'))
+      New-Item -ItemType Directory -Force -Path $dst | Out-Null
+      & robocopy $def.Src $dst /MIR /NFL /NDL /NJH /NJS | Out-Null
+      if ($LASTEXITCODE -gt 7) { throw "外部快照 robocopy 失败 $($def.Name): exit=$LASTEXITCODE" }
+      $n = (Get-ChildItem $dst -Recurse -File).Count
+      if ($n -eq 0) { throw "外部快照为空 $($def.Name): $dst" }
+      Write-Host "[EXT] $($def.Name) -> $dst ($n files)"
+    }
     # 5) CHECKSUMS + 保留清理
     Get-CheckSums $dir
     Remove-OldFull
