@@ -393,6 +393,7 @@ Page({
       }
       const d = snap.data;
       // 与 restoreDraft 同一套 20 条叶子路径(草稿/快照结构同源, 保证回填一致)
+      // 同源维护: 字段与 utils/draft-store.js#restoreDraft 的 20 条路径保持一致——改一处必须改两处
       this.setData({
         'form.project_attr': d.project_attr || 'commercial',
         'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',

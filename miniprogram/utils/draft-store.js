@@ -70,6 +70,7 @@ function restoreDraft(page, e) {
   const d = draft.demand_data;
   page.__draftId = draft._id;  // 后续保存/自动保存更新同一条草稿
   // 拆分前置2(2026-10-16): form 整对象替换 → 20 条叶子路径(行为等价; 为阶段3组件 properties 切片保证变更可达)
+  // 同源维护: 与 pages-v2/publish/publish.js#_restorePublishSnapshot(P2-7 快照回填) 的 20 条路径保持一致——改一处必须改两处
   page.setData({
     'form.project_attr': d.project_attr || 'commercial',
     'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 老草稿无该字段 → 兜底 hourly
