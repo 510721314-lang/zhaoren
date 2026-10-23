@@ -89,6 +89,16 @@ function _guideTakeMissing(rd, demand) {
     });
     return;
   }
+  if (first === 'ec') {
+    // 批3b(2026-10-23): 接单链紧急联系人前置; 申请不拦(C-3.26)
+    wx.showModal({
+      title: '需完善紧急联系人',
+      content: '接单前需先填写紧急联系人信息，用于平台风控与 SOS 求助场景。',
+      confirmText: '去填写', cancelText: '稍后',
+      success: (r) => { if (r.confirm) go('/pages-v2/pkg-low/contacts/contacts', '/pages-v2/profile/profile'); }
+    });
+    return;
+  }
   if (first === 'switch_off') {
     wx.showModal({
       title: '接单开关已关闭',
@@ -116,6 +126,11 @@ function _guideByServerCode(r2, demand) {
   if (code === 'order_realname_required') { bs.showRealnameGuide(r2.msg); return; }
   if (code === 'order_not_partner') {
     _guideTakeMissing({ missing: ['apply'] }, demand);
+    return;
+  }
+  if (code === 'order_ec_required') {
+    // 批3b': 服务端 EC 硬门禁(3b 仅探针, 该码预留; 命中即按缺项分流)
+    _guideTakeMissing({ missing: ['ec'] }, demand);
     return;
   }
   if (code === 'order_not_approved' || code === 'order_base_exam_required' || code === 'order_scene_exam_required') {

@@ -161,7 +161,8 @@ Page({
       else if (first === 'apply' || first === 'reapply') { step = 2; status = first === 'reapply' ? 'rejected' : 'todo'; }
       else if (first === 'review_pending') { step = 3; status = 'pending'; }
       if (rd.profile_status === 'approved') { step = 4; status = 'approved'; }
-      this.setData({ onboardTip: { step, status, switchOff: !rd.accept_switch } });
+      // 批3b: EC 缺项优先展示为独立文案(不占 1~4 步序号, 避免与考试/开关争同一步)
+      this.setData({ onboardTip: { step, status, switchOff: !rd.accept_switch, first, ecTip: first === 'ec' } });
     }).catch(() => {});
   },
   // P2-8: 回发布页续作(带场景预选)
@@ -176,6 +177,10 @@ Page({
   onOnboardTipTap() {
     const t = this.data.onboardTip || {};
     const bs = require('../../utils/bootstrap.js');
+    if (t.ecTip) {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/contacts/contacts', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      return;
+    }
     if (t.step === 1) { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
     if (t.step === 2) {
       wx.navigateTo({ url: '/pages-v2/pkg-low/partner-apply/partner-apply', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });

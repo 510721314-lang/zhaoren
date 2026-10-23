@@ -385,6 +385,9 @@ async function takeReadinessAction(ctx) {
       if (!u) return { ok: false, code: 'pa_no_user', msg: '请先登录' };
 
       const profile = await getProfile(openid);
+      // 批3b(2026-10-23): EC(紧急联系人)存在性——仅接单链前置, 申请不因缺 EC 被拒(C-3.26)
+      const ecR = await col('emergency_contact').where({ openid, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
+      const hasEc = !!(ecR.data && ecR.data.length);
       const bank = await getExamBank();
       const cfg = await getConfig();
       const scores = (profile && profile.exam_scores) || {};
@@ -419,6 +422,7 @@ async function takeReadinessAction(ctx) {
       else if (status === 'rejected') missing.push('reapply');
       else if (!approved) missing.push('apply');
       if (approved && !isPartner) missing.push('role');
+      if (approved && !hasEc) missing.push('ec');   // 批3b: 接单前需填紧急联系人(申请不拦)
       if (approved && !basePassed) missing.push('base_exam');
       if (approved && !scenePassed) missing.push('scene_exam');
       if (approved && !switchOn) missing.push('switch_off');
@@ -434,6 +438,7 @@ async function takeReadinessAction(ctx) {
           review_note: (profile && profile.review_note) || '',
           applied_at: (profile && profile.applied_at) || (profile && profile.created_at) || 0,
           accept_switch: switchOn,
+          has_ec: hasEc,   // 批3b: 紧急联系人是否已填(接单链前置)
           base_passed: basePassed, base_score: Number(scores.base || 0), base_pass_line: baseLine,
           scene, scene_passed: scenePassed, scene_requires_missing: sceneReqMissing,
           credit_low: creditLow, credit_score: credit, min_credit: minCredit,

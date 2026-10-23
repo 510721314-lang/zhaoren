@@ -62,7 +62,8 @@
   <!-- 批2 P2-9: 入驻中断续作条（按 missing 首项推导步骤） -->
   <view class="home__tip" wx:if="{{!resumeTip && onboardTip}}" bindtap="onOnboardTipTap">
     <view class="home__tip-main">
-      <text class="home__tip-title">继续完成入驻（第 {{onboardTip.step}} 步）</text>
+      <text class="home__tip-title" wx:if="{{onboardTip.ecTip}}">继续完成入驻 · 补充紧急联系人</text>
+      <text class="home__tip-title" wx:else>继续完成入驻（第 {{onboardTip.step}} 步）</text>
       <text class="home__tip-sub">完成入驻后即可接单</text>
     </view>
     <text class="home__tip-go">去完成 ›</text>

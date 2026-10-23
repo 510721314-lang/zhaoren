@@ -151,7 +151,8 @@ test('take_readiness 驳回 → missing=[reapply] 且带 review_note', async () 
 test('take_readiness 已通过未考试 → missing=[base_exam](不误报 apply)', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore({
     user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['partner'], partner_credit_score: 800 } },
-    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, exam_scores: {} } }
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, exam_scores: {} } },
+    emergency_contact: { e1: { _id: 'e1', openid: USER, is_deleted: false, name: '张三', phone: '13800000000', relation: '家人' } }
   }) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
@@ -162,7 +163,8 @@ test('take_readiness 已通过未考试 → missing=[base_exam](不误报 apply)
 test('take_readiness 已通过+考试+开关开 → can_take=true, missing=[]', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore({
     user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['partner'], partner_credit_score: 800 } },
-    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, exam_scores: { base: 100 } } }
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, exam_scores: { base: 100 } } },
+    emergency_contact: { e1: { _id: 'e1', openid: USER, is_deleted: false, name: '张三', phone: '13800000000', relation: '家人' } }
   }) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
@@ -173,7 +175,8 @@ test('take_readiness 已通过+考试+开关开 → can_take=true, missing=[]', 
 test('take_readiness 开关关闭 → missing 含 switch_off', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore({
     user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['partner'], partner_credit_score: 800 } },
-    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: false, exam_scores: { base: 100 } } }
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: false, exam_scores: { base: 100 } } },
+    emergency_contact: { e1: { _id: 'e1', openid: USER, is_deleted: false, name: '张三', phone: '13800000000', relation: '家人' } }
   }) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
@@ -264,6 +267,47 @@ test('take_readiness draft 态 → missing 含 apply(不误判为可接单)', as
   const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
   assert.strictEqual(r.data.can_take, false);
   assert.ok(r.data.missing.indexOf('apply') >= 0);
+});
+
+// ── 2026-10-23 批3b: EC(紧急联系人)接单前置探针(C-3.26: 申请不拦) ──
+const APPROVED_PROFILE = { p1: { _id: 'p1', openid: USER, status: 'approved', is_deleted: false, accept_switch: true } };
+
+test('take_readiness approved 无 EC → missing 含 ec 且不可接单', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['user', 'partner'] } },
+    partner_profile: APPROVED_PROFILE,
+    emergency_contact: {}
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.has_ec, false);
+  assert.ok(r.data.missing.indexOf('ec') >= 0);
+  assert.strictEqual(r.data.can_take, false);
+});
+
+test('take_readiness approved 有 EC → 不含 ec 缺项', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['user', 'partner'] } },
+    partner_profile: APPROVED_PROFILE,
+    emergency_contact: { e1: { _id: 'e1', openid: USER, is_deleted: false, name: '张三', phone: '13800000000', relation: '家人' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.data.has_ec, true);
+  assert.strictEqual(r.data.missing.indexOf('ec'), -1);
+});
+
+test('take_readiness 未过审(draft) 不因缺 EC 多出 ec 项(申请不拦)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['user'] } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'draft', is_deleted: false, accept_switch: true } },
+    emergency_contact: {}
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.data.has_ec, false);
+  assert.strictEqual(r.data.missing.indexOf('ec'), -1);
 });
 
 test.after(() => { Module._load = origLoad; });
