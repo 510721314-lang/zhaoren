@@ -116,12 +116,59 @@ async function applyAction(ctx) {
       };
 }
 
+    // 0. 入驻草稿初始化(P2-10-a 批3a, 2026-10-23 用户批准): 八步入驻链先落 draft 档案;
+    //    partner 角色与 pending_review 仍在 apply 时授予/切换, draft 不参与任何接单判定
+    //    幂等: 已有任意状态档案原样返回, 绝不把 approved/pending_review 降级为 draft
+async function initDraftAction(ctx) {
+  const { openid, clientIp, device, db, col, log, writeAudit, suspendLeftDays } = ctx;
+      const ua = await col('user_account').where({ openid }).limit(1).get().catch(() => ({ data: [] }));
+      const u = (ua.data && ua.data[0]) || null;
+      if (!u) return { ok: false, code: 'pa_no_user', msg: '请先登录' };
+      const applySuspendDays = suspendLeftDays(u);
+      if (applySuspendDays > 0) {
+        return { ok: false, code: 'pa_suspended', msg: `账号停用中,${applySuspendDays}天后自动恢复` };
+      }
+
+      const ppCol = col('partner_profile');
+      // 宽查(不带 is_deleted, 与 apply 同口径): 早期文档可能漏写 is_deleted
+      const existing = await ppCol.where({ openid }).limit(100).get().catch(() => ({ data: [] }));
+      if (existing.data && existing.data.length) {
+        const rank = (s) => (s === 'approved' ? 0 : s === 'pending_review' ? 1 : s === 'draft' ? 2 : 3);
+        const best = existing.data.slice().sort((a, b) => rank(a.status) - rank(b.status))[0];
+        return { ok: true, data: { existed: true, profile_id: best._id, status: best.status } };
+      }
+
+      const now = Date.now();
+      const addR = await ppCol.add({ data: {
+        openid,
+        nick_name: u.nick_name || '新耍伴',
+        accept_scenes: [],
+        status: 'draft',
+        accept_switch: true,
+        credit_score: 800,
+        order_count: 0,
+        income_total_fen: 0,
+        is_deleted: false,
+        created_at: now,
+        updated_at: now
+      } });
+      log.d(`partner draft init: ${openid} id=${addR._id}`);
+      await writeAudit(db, log, {
+        openid, role: 'user', category: 'account', action: 'partner_draft_init',
+        target_type: 'partner_profile', target_id: addR._id,
+        detail: { profile_id: addR._id, status: 'draft' },
+        result: 'ok', client_ip: clientIp, device
+      });
+      return { ok: true, data: { existed: false, profile_id: addR._id, status: 'draft' } };
+}
+
     // 1. 接单开关切换
 async function setSwitchAction(ctx) {
   const { event, openid, clientIp, device, db, col, log, writeAudit, getProfile, hasBusyOrder } = ctx;
       const profile = await getProfile(openid);
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
-      if (profile.status !== 'approved') {
+      // 批3a: draft(八步入驻链草稿)允许预配置接单开关; pending_review 维持原拒绝口径(不放宽)
+      if (profile.status !== 'approved' && profile.status !== 'draft') {
         return { ok: false, code: 'pa_not_approved', msg: '耍伴资料未审核通过' };
       }
 
@@ -150,7 +197,8 @@ async function updateConfigAction(ctx) {
   const { event, openid, clientIp, device, db, _, col, log, writeAudit, getSceneCodes, sanitizeHomeLocation, sanitizeWeeklySlots, getConfig, getProfile } = ctx;
       const profile = await getProfile(openid);
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
-      if (profile.status !== 'approved') {
+      // 批3a: draft 允许预配置时薪/场景/时段; pending_review 维持原拒绝口径(不放宽)
+      if (profile.status !== 'approved' && profile.status !== 'draft') {
         return { ok: false, code: 'pa_not_approved', msg: '耍伴资料未审核通过' };
       }
 
@@ -467,6 +515,7 @@ async function myProfileAction(ctx) {
 }
 
 module.exports = {
+  init_draft: initDraftAction,
   apply: applyAction,
   set_switch: setSwitchAction,
   update_config: updateConfigAction,

@@ -1,6 +1,6 @@
 // 对应 PRD 章节：3.10.1 耍伴接单配置管理 / 5.1 B端后台RBAC / 3.2.2 进行中订单定义
 // partner-action 耍伴配置与接单动作 · 身份取自 getWXContext().OPENID
-// 7 个 action: apply / set_switch / update_config / my_profile / review / detail / route_plan
+// 8 个 action: init_draft / apply / set_switch / update_config / my_profile / review / detail / route_plan
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();

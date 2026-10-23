@@ -181,4 +181,89 @@ test('take_readiness 开关关闭 → missing 含 switch_off', async () => {
   assert.strictEqual(r.data.can_take, false);
 });
 
+// ── 2026-10-23 批3a: 入驻草稿 init_draft + draft 态预配置(P2-10-a) ──
+test('init_draft 未登录(无 user_account) → pa_no_user', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ user_account: {} }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'init_draft', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'pa_no_user');
+});
+
+test('init_draft 停用中 → pa_suspended', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, status: 'suspended', suspend_until: Date.now() + 86400000 } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'init_draft', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'pa_suspended');
+});
+
+test('init_draft 首次 → 建 draft 档案且不授予 partner 角色', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, roles: ['user'] } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'init_draft', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.existed, false);
+  assert.strictEqual(r.data.status, 'draft');
+  const added = (sdk.writes.partner_profile || []).filter((w) => w.add).map((w) => w.data);
+  assert.strictEqual(added.length, 1);
+  assert.strictEqual(added[0].status, 'draft');
+  assert.strictEqual(added[0].is_deleted, false);
+  // 关键断言: draft 阶段不得写 partner 角色(角色只在 apply 审核通过时授予)
+  assert.strictEqual(sdk.writes.user_account, undefined);
+});
+
+test('init_draft 幂等 → 已有 approved 档案原样返回, 不降级为 draft', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', is_deleted: false } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'init_draft', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.existed, true);
+  assert.strictEqual(r.data.status, 'approved');
+  assert.strictEqual(sdk.writes.partner_profile, undefined);   // 无任何写库
+});
+
+test('draft 态 set_switch 不再被 pa_not_approved 拦截', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'draft', is_deleted: false, accept_switch: true } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'set_switch', accept_switch: true, mock_openid: USER }, {});
+  assert.notStrictEqual(r.code, 'pa_not_approved');
+  assert.strictEqual(r.ok, true);
+});
+
+test('draft 态 update_config 不再被 pa_not_approved 拦截', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'draft', is_deleted: false, accept_switch: true } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'update_config', mock_openid: USER }, {});
+  assert.notStrictEqual(r.code, 'pa_not_approved');
+});
+
+test('pending_review 态 set_switch 仍被 pa_not_approved 拦截(不放宽)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'pending_review', is_deleted: false } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'set_switch', accept_switch: true, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'pa_not_approved');
+});
+
+test('take_readiness draft 态 → missing 含 apply(不误判为可接单)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true, roles: ['user'] } },
+    partner_profile: { p1: { _id: 'p1', openid: USER, status: 'draft', is_deleted: false, accept_switch: true } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'take_readiness', mock_openid: USER }, {});
+  assert.strictEqual(r.data.can_take, false);
+  assert.ok(r.data.missing.indexOf('apply') >= 0);
+});
+
 test.after(() => { Module._load = origLoad; });
