@@ -66,6 +66,13 @@ async function createFromTakeAction(ctx) {
     return { ok: false, code: 'order_switch_off', msg: '接单开关已关闭' };
   }
 
+  // ── 紧急联系人门禁(批3b', 2026-10-23 用户批准): 接单前必须已填 EC; 申请链不拦(C-3.26) ──
+  const ecR = await col('emergency_contact').where({ openid, is_deleted: false }).limit(1).get().catch(() => ({ data: [] }));
+  if (!(ecR.data && ecR.data.length)) {
+    await logReject(openid, demand_id, 'ec_missing');
+    return { ok: false, code: 'order_ec_required', msg: '接单前请先填写紧急联系人' };
+  }
+
   // ── 耍伴信用分 ──
   if ((partnerUser.partner_credit_score || 800) < (config.min_credit_take_order || 600)) {
     await logReject(openid, demand_id, 'partner_credit_low');

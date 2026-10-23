@@ -143,4 +143,28 @@ test('sign_disclaimer 已签 → idempotent', async () => {
   assert.strictEqual(r.data.idempotent, true);
 });
 
+// ── 2026-10-23 批3b': 紧急联系人(EC)接单硬门禁 ──
+const PARTNER_OK = {
+  user_account: { u1: { _id: 'u1', openid: USER, roles: ['user', 'partner'], is_realname_done: true, status: 'normal', partner_credit_score: 800 } },
+  partner_profile: { p1: { _id: 'p1', openid: USER, status: 'approved', accept_switch: true, is_deleted: false, exam_scores: { base: 100 } } },
+  demand: { [DID]: { _id: DID, status: 'open', is_deleted: false, accept_partner_openid: '' } }
+};
+
+test('已过审但缺 EC → order_ec_required', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore(Object.assign({}, PARTNER_OK, { emergency_contact: {} })) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'create_from_take', demand_id: DID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'order_ec_required');
+});
+
+test('已过审且有 EC → 不被 EC 门禁拦截(进入后续校验)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore(Object.assign({}, PARTNER_OK, {
+    emergency_contact: { e1: { _id: 'e1', openid: USER, is_deleted: false, name: '张三', phone: '13800000000', relation: '家人' } }
+  })) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'create_from_take', demand_id: DID, mock_openid: USER }, {});
+  assert.notStrictEqual(r.code, 'order_ec_required');
+});
+
 test.after(() => { Module._load = origLoad; });

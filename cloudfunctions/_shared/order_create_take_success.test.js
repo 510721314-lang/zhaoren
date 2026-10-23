@@ -38,6 +38,8 @@ function store() {
       ['s'.repeat(32)]: { _id: 's'.repeat(32), openid: USER, role: 'partner', scene: 'W1', is_deleted: false, signature_hash: 'abc123', docs: [] }
     },
     exam_bank: {},
+    // 批3b'（2026-10-23）: 接单硬门禁要求已填紧急联系人
+    emergency_contact: { ['e'.repeat(32)]: { _id: 'e'.repeat(32), openid: USER, name: '张三', phone: '13800000000', relation: '家人', is_deleted: false } },
     order_main: {}, order_confirmations: {}, order_status_log: {}, platform_event: {},
     system_notice: {}, audit_log: {}
   };
