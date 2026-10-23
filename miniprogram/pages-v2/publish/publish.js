@@ -26,6 +26,10 @@ const { fmtTime, saveDraftCloud, openDraftBox, closeDraftBox, restoreDraft, star
 
 // 2026-10-16 阶段2(文件2): reverseGeocode 已迁 utils/geo-wx.js(与文件1 addrOf 共置, 逐字搬迁)
 
+// P2-7(批1, 2026-10-23 用户批准): 访客发布中断表单快照——登录/实名回来或冷启动回发布页时回填; TTL 24h
+const PUBLISH_SNAPSHOT_KEY = 'publish_snapshot';
+const PUBLISH_SNAPSHOT_TTL = 24 * 3600 * 1000;
+
 Page({
   data: {
     statusBarHeight: 20,
@@ -289,6 +293,8 @@ Page({
     if (options.sceneCode) {
       this.__pendingSceneCode = options.sceneCode;
     }
+    // P2-7: 发布引导中断恢复(仅在 intent.kind=publish 且快照 ≤24h 时回填; 编辑模式跳过)
+    if (!this.__editMode) this._restorePublishSnapshot();
     // 定向邀约: 从耍伴详情"咨询/邀TA"携带 invitePartnerOpenid 进入
     if (options.invitePartnerOpenid) {
       this.invitePartnerOpenid = options.invitePartnerOpenid;
@@ -352,6 +358,69 @@ Page({
   // 表单 → 草稿存储结构(拆分阶段1 C3·B4: 纯映射外移 utils/publish-validate.js buildDraftData; 此薄代理保 this._buildDraftData() 调用点零改)
   _buildDraftData() {
     return buildDraftData(this.data.form);
+  },
+  // P2-7(批1): 提交前存本地快照(白名单字段与云端草稿同源 buildDraftData; 不含 openid, 访客可用)
+  _savePublishSnapshot() {
+    if (this.__editMode) return;
+    try {
+      wx.setStorageSync(PUBLISH_SNAPSHOT_KEY, { ts: Date.now(), data: buildDraftData(this.data.form) });
+    } catch (e) {}
+  },
+  // P2-7(批1): 发布成功/消费后清快照; 同步清 publish intent, 防重复回填
+  _clearPublishSnapshot() {
+    try { wx.removeStorageSync(PUBLISH_SNAPSHOT_KEY); } catch (e) {}
+    try {
+      const bs = require('../../utils/bootstrap.js');
+      const it = bs.getOnboardIntent();
+      if (it && it.kind === 'publish') bs.clearOnboardIntent();
+    } catch (e) {}
+  },
+  // P2-7(批1): onLoad 回填——仅 intent.kind=publish 且快照 ≤24h; 回填后立即清标记
+  _restorePublishSnapshot() {
+    try {
+      const bs = require('../../utils/bootstrap.js');
+      const it = bs.getOnboardIntent();
+      const snap = wx.getStorageSync(PUBLISH_SNAPSHOT_KEY);
+      if (!it || it.kind !== 'publish') {
+        if (snap) wx.removeStorageSync(PUBLISH_SNAPSHOT_KEY);  // 非发布引导中断的残留直接清
+        return false;
+      }
+      bs.clearOnboardIntent();  // intent 已消费, 防二次回填/二次跳转
+      if (!snap || !snap.data) return false;
+      if (Date.now() - (Number(snap.ts) || 0) > PUBLISH_SNAPSHOT_TTL) {
+        wx.removeStorageSync(PUBLISH_SNAPSHOT_KEY);
+        return false;
+      }
+      const d = snap.data;
+      // 与 restoreDraft 同一套 20 条叶子路径(草稿/快照结构同源, 保证回填一致)
+      this.setData({
+        'form.project_attr': d.project_attr || 'commercial',
+        'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',
+        'form.fixed_price': d.fixed_price != null ? String(d.fixed_price) : '',
+        'form.scene_code': d.scene_code || '',
+        'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
+        'form.title': d.title || '',
+        'form.description': d.description || '',
+        'form.service_date': d.service_date || '',
+        'form.service_time': d.service_time || '',
+        'form.duration_hours': d.duration_hours || 3,
+        'form.duration_custom': '',
+        'form.location_name': d.location ? (d.location.name || '') : '',
+        'form.latitude': (d.location && d.location.latitude) || 0,
+        'form.longitude': (d.location && d.location.longitude) || 0,
+        'form.headcount': d.headcount || 1,
+        'form.budget': d.budget ? String(d.budget) : '',
+        'form.aa_estimate': d.aa_estimate || '',
+        'form.aa_custom': '',
+        'form.gender_pref': d.gender_pref || '不限',
+        'form.match_mode': d.match_mode || 'broadcast',
+        titleCount: (d.title || '').length,
+        descCount: (d.description || '').length
+      });
+      wx.removeStorageSync(PUBLISH_SNAPSHOT_KEY);
+      wx.showToast({ title: '已恢复上次填写', icon: 'none' });
+      return true;
+    } catch (e) { return false; }
   },
   // 云端保存草稿(手动存草稿与自动保存共用; draft_id 存在则更新)
   // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js saveDraftCloud(经用户书面批准逐字搬迁)
@@ -978,10 +1047,14 @@ Page({
       client_request_id: this._clientRequestId
     };
 
+    // P2-7(批1): 提交前存本地快照——访客/未实名被云端拒后, 登录/实名回来或冷启动可回填
+    this._savePublishSnapshot();
+
     callCloud('demand-publish', params).then((r) => {
       if (r.ok && r.data) {
         const demandId = r.data._id;
         this.__draftId = null;
+        this._clearPublishSnapshot();  // 发布成功: 快照与 publish intent 一并清除
         this._clientRequestId = null;  // 发布成功清除幂等键, 下一单复用新 id
         this.invitePartnerOpenid = '';
         require('../../utils/report.js').report(this.__editMode ? 'demand_update' : 'demand_publish', {

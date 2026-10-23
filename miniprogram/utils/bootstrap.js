@@ -316,7 +316,8 @@ function gateOnboard(kind, label, opts) {
 function resumeOnboardIntentAfterReset() {
   const it = getOnboardIntent();
   if (!it) return false;
-  clearOnboardIntent();
+  // P2-7(批1): 发布链 intent 保留到发布页 onLoad 消费(_restorePublishSnapshot 需 kind=publish 才回填), 其余链照旧清标记
+  if (it.kind !== 'publish') clearOnboardIntent();
   wx.switchTab({
     url: '/pages-v2/index/index',
     success: () => {
