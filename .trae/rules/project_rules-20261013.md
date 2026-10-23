@@ -86,6 +86,12 @@ alwaysApply: true
 - 将本次新增/变更功能追加到 docs/FUNCTION-REGISTRY.md：功能｜涉及文件｜验收步骤｜状态（已验证/待验证）｜验证日期。
 - 将变更追加到 docs/CHANGELOG.md：日期｜变更内容｜可能影响的功能｜回归结论。
 - 提醒我：功能调通后立即 git commit，提交信息写清"新增/修复了什么"。
+- **会话存档纪律（2026-10-23 用户批准新增）**：每次会话收尾必须把内容落盘成 **docs 制品** 并单独 docs 提交，禁止只留在对话上下文或平台记忆里。落盘形态按会话性质择一：
+  1. 有代码/配置/部署/台账改动 → `docs/CHANGELOG.md` 追加一行 + 相关台账（REGISTRY / deploy-log / tech-debt）；
+  2. 跨会话交接 → `docs/HANDOFF-YYYYMMDD.md`（§11 技能产出）；
+  3. 纯咨询/确认/评审类会话 → `docs/session-log/YYYYMMDD-<topic>.md`（首次使用时创建目录），固定六段：目标｜结论｜证据（命令与实测值）｜改动与提交｜未决项｜下次入口。
+- **平台记忆只作旁证不作凭据**：`C:\Users\DC\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\YYYYMMDD\session_memory_*.jsonl` 当日存在，仅证明平台侧已写；缺失或内容被压缩时**以 docs + git 为准**，禁止向用户声称"已保存"而无 docs 凭据。
+- 存档提交沿用 §3/§9 纪律：单独 docs commit、不与代码混合、commit 与 push 分两步；一般会话不强制每次 push，收工日按备份六通道核对时一并 push。
 
 ## 10. 大型机械重构与 A/B 门禁纪律（2026-10-14 实证新增）
 - A/B「0 差异」≠ 行为正确。A/B 只比较**单次调用返回值**，以下三类盲区必须各补一道独立测试：
