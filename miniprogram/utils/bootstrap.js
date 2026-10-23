@@ -324,8 +324,12 @@ function resumeOnboardIntentAfterReset() {
       setTimeout(() => {
         if (it.kind === 'publish') {
           wx.navigateTo({ url: '/pages-v2/publish/publish' + (it.scene ? '?sceneCode=' + it.scene : ''), fail: () => {} });
-        } else if (it.kind === 'take' && it.demand_id) {
-          wx.navigateTo({ url: '/pages-v2/demand-detail/demand-detail?id=' + it.demand_id, fail: () => {} });
+        } else if (it.kind === 'take') {
+          // 批3c(2026-10-23): 登录/实名回来 → 直接续跑入驻链(按云端缺项定位), 定位失败再回原单
+          const chain = require('./onboard-chain.js');
+          chain.enterByReadiness().then((entered) => {
+            if (!entered && it.demand_id) wx.navigateTo({ url: '/pages-v2/demand-detail/demand-detail?id=' + it.demand_id, fail: () => {} });
+          });
         } else {
           wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });
         }
