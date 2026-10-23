@@ -113,6 +113,9 @@ Page({
       });
       return;
     }
+    // 评审修复(2026-10-23): 登录成功必须持久化登录态。此前只写 v2_login_ok,
+    // bootstrap.isLoggedIn() 恒 false → 我的页 isGuest=true → 点登录走 partner intent → 死循环
+    try { const app = getApp(); if (app && app.setLoginUser) app.setLoginUser(user); } catch (e) {}
     wx.setStorageSync('v2_login_ok', true);
     require('../../utils/report.js').report('login_success', {});
     // 访客引导链: 有 pending intent 时继续下一步(未实名→实名; 已实名→回原动作), 不再一律回首页
