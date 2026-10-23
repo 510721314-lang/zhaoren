@@ -27,23 +27,28 @@
   <view class="pf__onboard" wx:if="{{onboarding && !isGuest}}" bindtap="onOnboardingTap">
     <view class="pf__onboard-head">
       <text class="pf__onboard-title">耍伴入驻进度</text>
-      <text class="pf__onboard-step">第 {{onboarding.step}} / 4 步</text>
+      <text class="pf__onboard-step">第 {{onboarding.step8}} / {{onboarding.total}} 步</text>
     </view>
     <view class="pf__onboard-bar">
-      <view class="pf__onboard-track"><view class="pf__onboard-fill" style="width:{{onboarding.step * 25}}%"></view></view>
+      <view class="pf__onboard-track"><view class="pf__onboard-fill" style="width:{{onboarding.step8 * 100 / onboarding.total}}%"></view></view>
       <view class="pf__onboard-dots">
-        <text class="pf__onboard-dot {{onboarding.step >= 1 ? 'is-on' : ''}}">实名</text>
-        <text class="pf__onboard-dot {{onboarding.step >= 2 ? 'is-on' : ''}}">申请</text>
-        <text class="pf__onboard-dot {{onboarding.step >= 3 ? 'is-on' : ''}}">审核</text>
-        <text class="pf__onboard-dot {{onboarding.step >= 4 ? 'is-on' : ''}}">考试</text>
+        <text class="pf__onboard-dot is-on">登录</text>
+        <text class="pf__onboard-dot is-on">实名</text>
+        <text class="pf__onboard-dot {{onboarding.step8 >= 3 ? 'is-on' : ''}}">联系人</text>
+        <text class="pf__onboard-dot {{onboarding.step8 >= 4 ? 'is-on' : ''}}">资料</text>
+        <text class="pf__onboard-dot {{onboarding.step8 >= 5 ? 'is-on' : ''}}">配置</text>
+        <text class="pf__onboard-dot {{onboarding.step8 >= 6 ? 'is-on' : ''}}">考试</text>
+        <text class="pf__onboard-dot {{onboarding.step8 >= 7 ? 'is-on' : ''}}">申请</text>
+        <text class="pf__onboard-dot {{onboarding.step8 >= 8 ? 'is-on' : ''}}">审核</text>
       </view>
     </view>
     <view class="pf__onboard-tip" wx:if="{{onboarding.status === 'pending'}}">审核中，通过后自动开通接单权限（通常 24 小时内）</view>
     <view class="pf__onboard-tip" wx:elif="{{onboarding.status === 'rejected'}}">申请未通过{{onboarding.rejectNote ? '：' + onboarding.rejectNote : ''}}</view>
+    <view class="pf__onboard-tip" wx:elif="{{onboarding.status === 'draft'}}">资料未完成，继续填写后即可提交入驻申请</view>
     <view class="pf__onboard-tip" wx:elif="{{onboarding.switchOff}}">你已暂停接单，开启开关后即可接单</view>
     <view class="pf__onboard-tip" wx:else>完成剩余手续后即可接单赚收入</view>
     <view class="pf__onboard-btn">
-      {{onboarding.step === 1 ? '去实名' : (onboarding.step === 2 ? (onboarding.status === 'rejected' ? '查看原因并重新申请' : '去申请') : (onboarding.status === 'pending' ? '查看进度' : (onboarding.switchOff ? '去开启接单' : '去考试')))}}
+      {{onboarding.key === 'realname' ? '去实名' : (onboarding.status === 'rejected' ? '查看原因并重新申请' : (onboarding.status === 'pending' ? '查看进度' : (onboarding.switchOff ? '去开启接单' : '继续完成：' + onboarding.label)))}}
     </view>
   </view>
 

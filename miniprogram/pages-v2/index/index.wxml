@@ -63,7 +63,8 @@
   <view class="home__tip" wx:if="{{!resumeTip && onboardTip}}" bindtap="onOnboardTipTap">
     <view class="home__tip-main">
       <text class="home__tip-title" wx:if="{{onboardTip.ecTip}}">继续完成入驻 · 补充紧急联系人</text>
-      <text class="home__tip-title" wx:else>继续完成入驻（第 {{onboardTip.step}} 步）</text>
+      <text class="home__tip-title" wx:elif="{{onboardTip.status === 'pending'}}">入驻申请审核中</text>
+      <text class="home__tip-title" wx:else>继续完成入驻（第 {{onboardTip.step}}/{{onboardTip.total}} 步 · {{onboardTip.label}}）</text>
       <text class="home__tip-sub">完成入驻后即可接单</text>
     </view>
     <text class="home__tip-go">去完成 ›</text>

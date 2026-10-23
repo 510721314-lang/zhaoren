@@ -150,19 +150,13 @@ Page({
     let logged = false;
     try { logged = require('../../utils/bootstrap.js').isLoggedIn(); } catch (e) {}
     if (!logged) return;
-    // 步骤推导与我的页进度卡同源(profile.js#onOnboardingTap / _fetchOnboarding): 改一处必须改两处
+    // 批3c(2026-10-23): 步骤推导统一由 utils/onboard-chain.js 提供(与我的页进度卡同源)
     require('../../utils/take-order.js').fetchTakeReadiness('', false).then((rd) => {
       if (!rd || rd.can_take === true) return;
-      const miss = rd.missing || [];
-      const first = miss[0] || '';
-      let step = 4;
-      let status = 'todo';
-      if (first === 'realname') { step = 1; }
-      else if (first === 'apply' || first === 'reapply') { step = 2; status = first === 'reapply' ? 'rejected' : 'todo'; }
-      else if (first === 'review_pending') { step = 3; status = 'pending'; }
-      if (rd.profile_status === 'approved') { step = 4; status = 'approved'; }
-      // 批3b: EC 缺项优先展示为独立文案(不占 1~4 步序号, 避免与考试/开关争同一步)
-      this.setData({ onboardTip: { step, status, switchOff: !rd.accept_switch, first, ecTip: first === 'ec' } });
+      const chain = require('../../utils/onboard-chain.js');
+      const key = chain.entryKey(rd);
+      const st = chain.stepOf(key) || { index: 1, total: chain.TOTAL, label: '' };
+      this.setData({ onboardTip: { key, step: st.index, total: st.total, label: st.label, status: (rd.missing || [])[0] === 'review_pending' ? 'pending' : 'todo', switchOff: !rd.accept_switch, ecTip: key === 'ec' } });
     }).catch(() => {});
   },
   // P2-8: 回发布页续作(带场景预选)
@@ -173,28 +167,18 @@ Page({
       fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' })
     });
   },
-  // P2-9: 按步骤直达断点页(路由口径照抄 profile.js#onOnboardingTap, 保持同源)
+  // P2-9 / 批3c: 按首缺步直达(路由与我的页进度卡同源: utils/onboard-chain.js)
   onOnboardTipTap() {
     const t = this.data.onboardTip || {};
     const bs = require('../../utils/bootstrap.js');
-    if (t.ecTip) {
-      wx.navigateTo({ url: '/pages-v2/pkg-low/contacts/contacts', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-      return;
-    }
-    if (t.step === 1) { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
-    if (t.step === 2) {
-      wx.navigateTo({ url: '/pages-v2/pkg-low/partner-apply/partner-apply', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-      return;
-    }
+    if (t.key === 'realname') { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
     if (t.status === 'pending') {
       wx.showModal({ title: '申请审核中', content: '已提交，平台通常在 24 小时内完成审核，通过后会自动开通接单权限。', showCancel: false, confirmText: '我知道了' });
       return;
     }
-    if (t.switchOff) {
-      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-      return;
+    if (!require('../../utils/onboard-chain.js').open(t.key)) {
+      wx.showToast({ title: '页面暂不可用', icon: 'none' });
     }
-    wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
   },
 
   onShow() {

@@ -160,16 +160,20 @@ Page({
       if (!rd || rd.can_take === true) { this.setData({ onboarding: null }); return; }
       const miss = rd.missing || [];
       const first = miss[0] || '';
-      // 步骤: 1=实名 2=申请/重提 3=审核中 4=已通过待考试/开开关
-      let step = 4;
+      // 批3c(2026-10-23): 进度卡改为八步链口径(与 utils/onboard-chain.js 同源), 直达首缺步
+      const chain = require('../../utils/onboard-chain.js');
+      const key = chain.entryKey(rd);
+      const st = chain.stepOf(key) || { index: 1, total: chain.TOTAL, label: '' };
       let status = 'todo';
-      if (first === 'realname') { step = 1; status = 'todo'; }
-      else if (first === 'apply' || first === 'reapply') { step = 2; status = first === 'reapply' ? 'rejected' : 'todo'; }
-      else if (first === 'review_pending') { step = 3; status = 'pending'; }
-      if (rd.profile_status === 'approved') { step = 4; status = 'approved'; }
+      if (first === 'reapply') status = 'rejected';
+      else if (first === 'review_pending' || key === 'review') status = 'pending';
+      else if (rd.profile_status === 'draft') status = 'draft';
       this.setData({
         onboarding: {
-          step,
+          key,
+          step8: st.index,
+          total: st.total,
+          label: st.label,
           status,
           rejectNote: rd.review_note || '',
           basePassed: rd.base_passed !== false,
@@ -180,24 +184,18 @@ Page({
     }).catch(() => { this.setData({ onboarding: null }); });
   },
 
-  // 进度卡按钮: 直达下一步所需页面
+  // 进度卡按钮: 批3c 起统一走进驻链(直达首缺步)
   onOnboardingTap() {
     const ob = this.data.onboarding || {};
     const bs = require('../../utils/bootstrap.js');
-    if (ob.step === 1) { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
-    if (ob.step === 2) {
-      wx.navigateTo({ url: '/pages-v2/pkg-low/partner-apply/partner-apply', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-      return;
-    }
-    if (ob.status === 'pending') {
+    if (ob.key === 'realname') { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
+    if (ob.key === 'review' || ob.status === 'pending') {
       wx.showModal({ title: '申请审核中', content: '已提交，平台通常在 24 小时内完成审核，通过后会自动开通接单权限。', showCancel: false, confirmText: '我知道了' });
       return;
     }
-    if (ob.switchOff) {
-      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
-      return;
+    if (!require('../../utils/onboard-chain.js').open(ob.key)) {
+      wx.showToast({ title: '页面暂不可用', icon: 'none' });
     }
-    wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
   },
 
   // 考试认证角标: 拉 exam_subjects 科目配置 + exam_scores, 通用计算已通过科数(含前置链)
