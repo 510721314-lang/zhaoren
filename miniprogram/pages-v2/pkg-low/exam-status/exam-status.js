@@ -4,13 +4,18 @@ const { callCloud } = require('../../../utils/cloud.js');
 
 Page({
   data: {
+    chainBar: null,     // 批3c: 入驻链条(第 x/8 步); 非链内进入为 null
     loading: true,
     loadError: false,
     noProfile: false,   // 非耍伴: 展示引导成为耍伴
     subjects: []
   },
 
-  onLoad() {
+  onLoad(query) {
+    // 批3c(2026-10-23): 从入驻链进入时展示步骤条(第 6/8 步)
+    const chain = require('../../../utils/onboard-chain.js');
+    this.setData({ chainBar: chain.barOf('exam', (query && query.from) || '') });
+    if ((query && query.from) === 'chain') chain.ensureDraft();
     this.fetchStatus();
   },
 
@@ -60,6 +65,11 @@ Page({
       });
     });
     this.setData({ loading: false, loadError: false, noProfile: false, subjects });
+    // 批3c(2026-10-23): 链内且所有科目已通过 → 自动进下一步(提交申请), 仅触发一次
+    if (this.data.chainBar && subjects.length > 0 && subjects.every((s) => s.passed) && !this._chainJumped) {
+      this._chainJumped = true;
+      setTimeout(() => require('../../../utils/onboard-chain.js').next('exam'), 600);
+    }
     return true;
   },
 

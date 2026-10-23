@@ -1,4 +1,6 @@
 <view class="ppe">
+  <!-- 批3c: 入驻链步骤条(仅 from=chain 进入时展示) -->
+  <view class="ppe__stepbar" wx:if="{{chainBar}}">入驻进度 {{chainBar.index}}/{{chainBar.total}} · {{chainBar.label}}</view>
   <!-- 审核状态提示 -->
   <view class="ppe__banner ppe__banner--pending" wx:if="{{auditStatus === 'pending'}}">
     资料审核中，通过后将自动展示。审核期间不可重复提交。

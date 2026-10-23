@@ -8,6 +8,7 @@ const { callCloud } = require('../../../utils/cloud.js');
 
 Page({
   data: {
+    chainBar: null,    // 批3c: 入驻链条(第 x/8 步); 非链内进入为 null
     scenes: [],        // [{ code, name, emoji, selected }]
     homeLocation: null, // { name, address, latitude, longitude } gcj02
     submitting: false,
@@ -24,7 +25,11 @@ Page({
   },
 
 
-  onLoad() {
+  onLoad(query) {
+    // 批3c(2026-10-23): 从入驻链进入时展示步骤条(第 7/8 步), 并确保草稿档存在
+    const chain = require('../../../utils/onboard-chain.js');
+    this.setData({ chainBar: chain.barOf('apply', (query && query.from) || '') });
+    if ((query && query.from) === 'chain') chain.ensureDraft();
     const user = wx.getStorageSync('user_info') || {};
     const roles = user.roles || [];
     const isPartner = roles.includes('partner');
@@ -115,13 +120,16 @@ Page({
             content: '耍伴入驻需管理员审核,审核通过后将自动开通接单权限,请耐心等待。',
             showCancel: false,
             confirmText: '我知道了',
-            success: () => { wx.switchTab({ url: '/pages-v2/profile/profile' }); }
+            success: () => { this._afterApply(); }
           });
         } else {
           // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
           wx.switchTab({
             url: '/pages-v2/profile/profile',
-            success: () => wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' }),
+            success: () => {
+              wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' });
+              if ((this.data.chainBar || {}).index) require('../../../utils/onboard-chain.js').invalidateDraft();
+            },
             fail: (err) => {
               console.error('[partner-apply] switchTab profile fail:', err && err.errMsg);
               wx.showToast({ title: '申请成功,已开通耍伴身份', icon: 'success' });
@@ -147,5 +155,10 @@ Page({
     }
   },
 
+  // 批3c(2026-10-23): 链内提交成功后 → 第 8 步「等待审核」(我的页); 同时失效草稿缓存
+  _afterApply() {
+    if ((this.data.chainBar || {}).index) require('../../../utils/onboard-chain.js').invalidateDraft();
+    wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });
+  },
   onBack() { wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages-v2/profile/profile' }) }); }
 });

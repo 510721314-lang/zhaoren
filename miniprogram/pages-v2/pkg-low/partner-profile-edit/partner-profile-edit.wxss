@@ -1,6 +1,8 @@
 @import "../../../styles/tokens.wxss";
 
 .ppe { padding: 24rpx; color: var(--text-1); }
+/* 批3c: 入驻链步骤条 */
+.ppe__stepbar { margin-bottom: 16rpx; padding: 12rpx 20rpx; border-radius: 12rpx; background: var(--brand-primary-light); color: var(--brand-primary); font-size: 24rpx; }
 /* input/textarea placeholder: 深灰, 深色模式下仍可见 */
 .ppe__ph { color: var(--text-5); }
 .ppe__banner { padding: 20rpx 24rpx; border-radius: 16rpx; font-size: 26rpx; margin-bottom: 24rpx; }

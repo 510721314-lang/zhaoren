@@ -1,4 +1,6 @@
 .pa { padding: 32rpx 28rpx 200rpx; }
+/* 批3c: 入驻链步骤条 */
+.pa__stepbar { margin-bottom: 20rpx; padding: 12rpx 20rpx; border-radius: 12rpx; background: var(--brand-primary-light); color: var(--brand-primary); font-size: 24rpx; }
 
 .pa__hero {
   text-align: center;

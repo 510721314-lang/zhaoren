@@ -1,4 +1,6 @@
 <view class="pa">
+  <!-- 批3c: 入驻链步骤条(仅 from=chain 进入时展示) -->
+  <view class="pa__stepbar" wx:if="{{chainBar}}">入驻进度 {{chainBar.index}}/{{chainBar.total}} · {{chainBar.label}}</view>
   <view class="pa__hero">
     <view class="pa__hero-emoji">🧑‍🤝‍🧑</view>
     <view class="pa__hero-title">申请成为耍伴</view>

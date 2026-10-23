@@ -1,5 +1,7 @@
 .ac { min-height: 100vh; background: var(--bg-page); padding: 0 20rpx 160rpx; }
 .ac__body { padding-top: 20rpx; }
+/* 批3c: 入驻链步骤条 */
+.ac__stepbar { margin: 16rpx 0 0; padding: 12rpx 20rpx; border-radius: var(--r-sm, 12rpx); background: var(--brand-primary-light); color: var(--brand-primary); font-size: 24rpx; }
 .ac__card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 28rpx; box-shadow: var(--shadow-card); margin-bottom: 20rpx; }
 .ac__card-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); }
 .ac__required { color: var(--func-danger); }

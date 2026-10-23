@@ -16,6 +16,7 @@ const { callCloud } = require('../../../utils/cloud.js');
 Page({
   data: {
     bio: '',
+    chainBar: null,      // 批3c: 入驻链条(第 x/8 步); 非链内进入为 null
     currentBio: '',      // 已审核生效的简介(只读态展示)
     isBioEditing: false, // 简介编辑态开关: 默认只读展示生效简介
     skills: [],
@@ -44,7 +45,11 @@ Page({
     limits: { ...LIMITS_FALLBACK }
   },
 
-  onLoad() {
+  onLoad(query) {
+    // 批3c(2026-10-23): 从入驻链进入时展示步骤条(第 4/8 步)
+    const chain = require('../../../utils/onboard-chain.js');
+    this.setData({ chainBar: chain.barOf('profile', (query && query.from) || '') });
+    if ((query && query.from) === 'chain') chain.ensureDraft();
     // 并行拉取后台可配的资料限制(config_public.partner_profile), 失败走默认不漂移
     callCloud('admin-action', { action: 'config_public' }).then((r) => {
       const p = r && r.ok && r.data && r.data.partner_profile;
@@ -309,6 +314,8 @@ Page({
         // 提交成功退出简介编辑态, 生效简介待审核通过后由下次加载刷新
         this.setData({ auditStatus: 'pending', isBioEditing: false, currentBio: this.data.bio || '' });
         wx.showToast({ title: '已提交审核', icon: 'success' });
+        // 批3c(2026-10-23): 链内 → 自动进下一步(接单配置)
+        if ((this.data.chainBar || {}).index) setTimeout(() => require('../../../utils/onboard-chain.js').next('profile'), 600);
       } else {
         wx.showToast({ title: res.msg || '提交失败', icon: 'none' });
       }

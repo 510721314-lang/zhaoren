@@ -1,6 +1,9 @@
 <view class="v2 ac">
   <nav-bar title="接单配置"></nav-bar>
 
+  <!-- 批3c: 入驻链步骤条(仅 from=chain 进入时展示) -->
+  <view class="ac__stepbar" wx:if="{{chainBar}}">入驻进度 {{chainBar.index}}/{{chainBar.total}} · {{chainBar.label}}</view>
+
   <!-- 加载态 -->
   <view class="ac__loading" wx:if="{{loading}}">
     <view class="ac__skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>

@@ -12,6 +12,7 @@ const STORAGE_KEY = 'partner_local_cfg';
 
 Page({
   data: {
+    chainBar: null,           // 批3c: 入驻链条(第 x/8 步); 非链内进入为 null
     certifiedScenes: [],
     baseExam: { score: 0, passed: false, passLine: 60 },  // 基础科目(耍伴考试)状态
     w1Exam: { score: 0, passed: false, passLine: 80 },   // 提升科目(陪诊考试)状态, 仅就医陪诊场景需要
@@ -84,7 +85,11 @@ Page({
   },
 
 
-  onLoad() {
+  onLoad(query) {
+    // 批3c(2026-10-23): 从入驻链进入时展示步骤条(第 5/8 步)
+    const chain = require('../../../utils/onboard-chain.js');
+    this.setData({ chainBar: chain.barOf('config', (query && query.from) || '') });
+    if ((query && query.from) === 'chain') chain.ensureDraft();
     this.fetchData();
   },
 
@@ -630,6 +635,11 @@ Page({
       } catch (e) {}
 
       wx.showToast({ title: '配置已生效', icon: 'success' });
+      // 批3c(2026-10-23): 链内 → 自动进下一步(考试认证); 非链内保持原 navigateBack
+      if ((this.data.chainBar || {}).index) {
+        setTimeout(() => require('../../../utils/onboard-chain.js').next('config'), 700);
+        return;
+      }
       setTimeout(() => wx.navigateBack({ fail: () => {} }), 800);
     } catch (e) {
       wx.hideLoading();

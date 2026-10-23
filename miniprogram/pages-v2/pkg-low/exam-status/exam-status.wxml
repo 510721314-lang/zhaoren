@@ -1,6 +1,9 @@
 <view class="v2 exam-status">
   <nav-bar title="考试认证"></nav-bar>
 
+  <!-- 批3c: 入驻链步骤条(仅 from=chain 进入时展示) -->
+  <view class="es__stepbar" wx:if="{{chainBar}}">入驻进度 {{chainBar.index}}/{{chainBar.total}} · {{chainBar.label}}</view>
+
   <!-- 加载中 -->
   <view wx:if="{{loading}}">
     <view class="skeleton sk-card" style="height:200rpx;margin-bottom:20rpx;"></view>
