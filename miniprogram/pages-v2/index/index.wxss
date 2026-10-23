@@ -144,6 +144,41 @@
   line-height: 1;
 }
 
+/* 批2 P2-8/P2-9: 续作条件条（发布 / 入驻，互斥只出现其一） */
+.home__tip {
+  margin: 20rpx 20rpx 0;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-float);
+  border-left: 6rpx solid var(--brand-primary);
+  padding: 22rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home__tip-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.home__tip-title {
+  font-size: var(--font-md);
+  color: var(--text-1);
+  font-weight: 600;
+}
+.home__tip-sub {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-3);
+}
+.home__tip-go {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  font-size: var(--font-sm);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
 /* H2b 运营 banner 轮播(后台 home_activity 管理) */
 .home__banner-wrap {
   margin: 16rpx 20rpx 0;

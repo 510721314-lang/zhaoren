@@ -80,7 +80,10 @@ Page({
     isRedline: false,
     redlineOpen: CONFIG.TIME_REDLINE.open,
     redlineClose: redline.DISPLAY_CLOSE,
-    favorited: false   // 首页收藏态(轻提示, 暂无服务端收藏对象)
+    favorited: false,   // 首页收藏态(轻提示, 暂无服务端收藏对象)
+    // 批2(2026-10-23 用户批准): 首页顶部续作条件条——发布中断(P2-8) / 入驻中断(P2-9)
+    resumeTip: null,       // { sceneCode } 有值=显示「继续完成发布」
+    onboardTip: null       // { step, status, switchOff } 有值=显示「继续完成入驻（第 x 步）」
   },
   onShareAppMessage() {
     return {
@@ -134,8 +137,65 @@ Page({
     });
   },
 
+  // 批2 P2-8/P2-9: 顶部续作条计算。互斥优先级——发布中断 > 入驻中断;
+  // 发布条纯本地 intent 读取, 有它时不发入驻探针(省一次云调用)
+  _refreshGuides() {
+    let resumeTip = null;
+    try {
+      const it = require('../../utils/bootstrap.js').getOnboardIntent();
+      if (it && it.kind === 'publish') resumeTip = { sceneCode: it.scene || '' };
+    } catch (e) {}
+    this.setData({ resumeTip, onboardTip: null });   // 先清入驻条, 防上一轮残留
+    if (resumeTip || this.data.isPartner) return;     // 已是耍伴/在续作发布 → 不显示入驻条
+    let logged = false;
+    try { logged = require('../../utils/bootstrap.js').isLoggedIn(); } catch (e) {}
+    if (!logged) return;
+    // 步骤推导与我的页进度卡同源(profile.js#onOnboardingTap / _fetchOnboarding): 改一处必须改两处
+    require('../../utils/take-order.js').fetchTakeReadiness('', false).then((rd) => {
+      if (!rd || rd.can_take === true) return;
+      const miss = rd.missing || [];
+      const first = miss[0] || '';
+      let step = 4;
+      let status = 'todo';
+      if (first === 'realname') { step = 1; }
+      else if (first === 'apply' || first === 'reapply') { step = 2; status = first === 'reapply' ? 'rejected' : 'todo'; }
+      else if (first === 'review_pending') { step = 3; status = 'pending'; }
+      if (rd.profile_status === 'approved') { step = 4; status = 'approved'; }
+      this.setData({ onboardTip: { step, status, switchOff: !rd.accept_switch } });
+    }).catch(() => {});
+  },
+  // P2-8: 回发布页续作(带场景预选)
+  onResumePublishTap() {
+    const t = this.data.resumeTip || {};
+    wx.navigateTo({
+      url: '/pages-v2/publish/publish' + (t.sceneCode ? '?sceneCode=' + t.sceneCode : ''),
+      fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' })
+    });
+  },
+  // P2-9: 按步骤直达断点页(路由口径照抄 profile.js#onOnboardingTap, 保持同源)
+  onOnboardTipTap() {
+    const t = this.data.onboardTip || {};
+    const bs = require('../../utils/bootstrap.js');
+    if (t.step === 1) { bs.showRealnameGuide('完成实名认证后即可继续申请耍伴。'); return; }
+    if (t.step === 2) {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/partner-apply/partner-apply', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      return;
+    }
+    if (t.status === 'pending') {
+      wx.showModal({ title: '申请审核中', content: '已提交，平台通常在 24 小时内完成审核，通过后会自动开通接单权限。', showCancel: false, confirmText: '我知道了' });
+      return;
+    }
+    if (t.switchOff) {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+      return;
+    }
+    wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: () => wx.showToast({ title: '页面暂不可用', icon: 'none' }) });
+  },
+
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
+    // 批2 P2-8/P2-9: 每次显示刷新续作条(发布条纯本地读取; 入驻条走 60s 缓存探针)
+    this._refreshGuides();
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 });
     }

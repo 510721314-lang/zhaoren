@@ -51,6 +51,23 @@
     </view>
   </view>
 
+  <!-- 批2 P2-8: 发布中断续作条（与入驻条互斥，发布优先） -->
+  <view class="home__tip" wx:if="{{resumeTip}}" bindtap="onResumePublishTap">
+    <view class="home__tip-main">
+      <text class="home__tip-title">继续完成发布</text>
+      <text class="home__tip-sub">上次填写的内容已为你保存</text>
+    </view>
+    <text class="home__tip-go">去完成 ›</text>
+  </view>
+  <!-- 批2 P2-9: 入驻中断续作条（按 missing 首项推导步骤） -->
+  <view class="home__tip" wx:if="{{!resumeTip && onboardTip}}" bindtap="onOnboardTipTap">
+    <view class="home__tip-main">
+      <text class="home__tip-title">继续完成入驻（第 {{onboardTip.step}} 步）</text>
+      <text class="home__tip-sub">完成入驻后即可接单</text>
+    </view>
+    <text class="home__tip-go">去完成 ›</text>
+  </view>
+
   <!-- H4 场景宫格（常用场景 + 「更多场景」折叠, 搜索实时过滤, 交错入场） -->
   <view class="home__grid" wx:if="{{!loading && gridScenes.length > 0}}">
     <view class="home__cell {{item.isMore ? 'home__cell--more' : ''}} fade-in-up" style="animation-delay:{{index * 0.03}}s;" wx:for="{{gridScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
