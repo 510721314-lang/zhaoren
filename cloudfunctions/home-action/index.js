@@ -89,6 +89,16 @@ function sceneGroupsCacheKey(openid, vRange) {
   return 'sg|' + (openid || 'guest') + '|' + (vRange ? vRange[0] + '-' + vRange[1] : 'all');
 }
 
+// 合法 jump_to 白名单 + 必填参数校验
+// demand_publish → 可选 scene (jump_param.scene 无兜底也 ok, 前端有守卫)
+// scene_list     → 可选 scene_code (无参数也能跳广场)
+// activity_detail → 必填 id (jump_param.id 或顶层 id, 缺则前端 toast)
+const VALID_JUMP_TO = {
+  demand_publish: (a, p) => true,
+  scene_list: (a, p) => true,
+  activity_detail: (a, p) => !!(a.id || p.id)
+};
+
 // 活动配置过滤(首页 banner / 卡片), 与原 home_activity_list 口径一致
 function pickActivities(raw, sceneCode) {
   const now = Date.now();
@@ -97,6 +107,11 @@ function pickActivities(raw, sceneCode) {
     if (a.start_at && now < a.start_at) return false;
     if (a.end_at && now > a.end_at) return false;
     if (sceneCode && a.scene_code && a.scene_code !== sceneCode) return false;
+    // jump_to 白名单 + 必填参数校验(服务端过滤坏配置, 前端 banners/cards 空则整块不渲染)
+    const jt = a.jump_to;
+    if (!jt || !VALID_JUMP_TO[jt]) return false;
+    const p = a.jump_param || {};
+    if (!VALID_JUMP_TO[jt](a, p)) return false;
     return true;
   }).sort((a, b) => (b.priority || 0) - (a.priority || 0)).map((a) => ({
     id: a.id,

@@ -77,9 +77,9 @@ const haStore = (over) => Object.assign({
       { code: 'W8', name: '生活协助', options: ['代购'], visible: false, builtin: true }
     ],
     home_activities: [
-      { id: 'act_banner', type: 'both', status: 'active', title: '首页横幅', priority: 5, jump_to: 'page_x', jump_param: {} },
-      { id: 'act_card', type: 'card', status: 'active', title: '  卡片  ', priority: 3, scene_code: 'W1', subtitle: '副标题' },
-      { id: 'act_off', type: 'card', status: 'inactive', title: '停用' }
+      { id: 'act_banner', type: 'both', status: 'active', title: '首页横幅', priority: 5, jump_to: 'demand_publish', jump_param: {} },
+      { id: 'act_card', type: 'card', status: 'active', title: '  卡片  ', priority: 3, scene_code: 'W1', subtitle: '副标题', jump_to: 'scene_list', jump_param: {} },
+      { id: 'act_off', type: 'card', status: 'inactive', title: '停用', jump_to: 'scene_list', jump_param: {} }
     ]
   } },
   user_account: {
