@@ -174,7 +174,7 @@ exports.main = async (event, context) => {
     const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
     const device = String(event.device || '').slice(0, 200);
     if (!order_id) return { ok: false, code: 'ev_no_order', msg: '缺少订单 ID' };
-    if (!isValidDocId(order_id)) return { ok: false, code: 'ev_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)' };
+    if (!isValidDocId(order_id)) return { ok: false, code: 'ev_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号' };
     if (!Number.isInteger(star) || star < 1 || star > 5) return { ok: false, code: 'ev_star_invalid', msg: '评分需在 1-5 之间' };
 
     const order = await getOrder(order_id);

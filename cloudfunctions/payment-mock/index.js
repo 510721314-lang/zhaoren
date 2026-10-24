@@ -164,7 +164,7 @@ exports.main = async (event, context) => {
 
   // 订单 _id 格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   if (['cashier_info', 'mock_pay', 'mock_refund', 'mock_tip', 'mock_ins', 'aa_record'].indexOf(action) >= 0 && !isValidDocId(event.order_id)) {
-    return { ok: false, code: 'pay_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号(ORD 开头)或支付流水号(PAY 开头)' };
+    return { ok: false, code: 'pay_bad_order_id', msg: '订单 ID 格式不正确:请传入订单 _id(32位十六进制),不是订单号或支付流水号' };
   }
 
   // 物理拆分分发: 命中 HANDLERS 的 action 走同级 handler(等价于原内联 case, 行为逐字不变)
