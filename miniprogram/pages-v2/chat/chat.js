@@ -583,7 +583,6 @@ Page({
   __sendMissingConfirmCards() {
     const missing = Object.keys(TM_FIELD).filter((tmId) =>
       !this.data.messages.some((m) => m && m.msg_type === 'template' && m.tm_id === tmId));
-    console.log('[chat] missing cards:', JSON.stringify(missing), '| have:', JSON.stringify(this.data.messages.filter((m) => m && m.msg_type === 'template').map((m) => m.tm_id)));
     if (!missing.length) return Promise.resolve();
     return missing.reduce((chain, tmId) => chain
       .then(() => new Promise((r) => setTimeout(r, 300))) // 等 confirm_all 落库, 补卡状态取最新 items
@@ -808,7 +807,6 @@ Page({
   // ───────── 待支付横幅 ─────────
   goPay() {
     if (this.data.orderStatus !== 'S0') return;
-    console.log('[goPay-debug] navigToPay orderId=', this.data.orderId, 'status=', this.data.orderStatus);
     wx.navigateTo({
       url: `/pages-v2/pay/pay?orderId=${this.data.orderId}`,
       fail: () => wx.showToast({ title: '打开失败，请稍后重试', icon: 'none' })

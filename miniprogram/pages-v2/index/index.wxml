@@ -95,8 +95,8 @@
     <view class="skeleton sk-card" style="height:180rpx;"></view>
   </view>
 
-  <!-- H5 新人福利 -->
-  <view class="home__welfare" wx:if="{{showWelfare && user.new_user && !user.first_order_used}}" bindtap="onWelfareReceive">
+  <!-- H5 新人福利(提审前隐藏: 发券/立减抵扣逻辑未接; 支付通道+营销体系就绪后 showWelfare 改 true) -->
+  <view class="home__welfare" wx:if="{{showWelfare && user.new_user && !user.first_order_used && false}}" bindtap="onWelfareReceive">
     <view>
       <view class="home__welfare-title">{{welfare.welfareTitle}}</view>
       <view class="home__welfare-sub">{{welfare.welfareSub}}</view>
