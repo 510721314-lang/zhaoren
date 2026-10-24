@@ -143,7 +143,8 @@ Page({
 
   // W3 时间轴操作
   onNavigate() {
-    wx.showToast({ title: '导航功能即将上线', icon: 'none' });
+    // 占位处理: 订单数据结构接经纬度后改为 wx.openLocation; 当前路径被 todayOrders.length wx:if 保护不可达
+    wx.showToast({ title: '导航暂不可用', icon: 'none' });
   },
   onContactUser() {
     wx.showToast({ title: '请从消息列表进入沟通', icon: 'none' });

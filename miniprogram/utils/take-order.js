@@ -196,7 +196,7 @@ function _afterGate(demand, opts) {
   // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast
   if (demand.match_mode === 'select') {
     _release();
-    wx.showToast({ title: '选单需求请通过报名流程接单(即将上线)', icon: 'none' });
+    wx.showToast({ title: '选单需求暂不可用', icon: 'none' });
     return;
   }
   const scene = getScene(demand.scene_code);

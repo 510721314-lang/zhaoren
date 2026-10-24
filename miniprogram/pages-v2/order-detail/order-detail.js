@@ -1198,7 +1198,7 @@ Page({
   onEvaluate() {
     wx.navigateTo({
       url: `/pages-v2/pkg-low/evaluate/evaluate?orderId=${this.data.order._id}`,
-      fail: () => wx.showToast({ title: '评价页待接入', icon: 'none' })
+      fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' })
     });
   },
 
@@ -1340,7 +1340,7 @@ Page({
         if (!res.confirm) return; // 放弃支付 → 留在当前页
         wx.navigateTo({
           url: `/pages-v2/pay/pay?orderId=${that.data.order._id}`,
-          fail: () => wx.showToast({ title: '支付页待接入', icon: 'none' })
+          fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' })
         });
       }
     });
@@ -1355,7 +1355,7 @@ Page({
   goChat() {
     wx.redirectTo({
       url: `/pages-v2/chat/chat?orderId=${this.data.order._id}`,
-      fail: () => wx.showToast({ title: '聊天页待接入', icon: 'none' })
+      fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' })
     });
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }

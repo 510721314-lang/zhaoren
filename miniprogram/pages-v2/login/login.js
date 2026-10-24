@@ -63,9 +63,9 @@ Page({
   openAgreement(e) {
     const key = e.currentTarget.dataset.key;
     if (key === 'user') {
-      wx.navigateTo({ url: '/pages-v2/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
+      wx.navigateTo({ url: '/pages-v2/agreement/agreement', fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' }) });
     } else if (key === 'privacy') {
-      wx.navigateTo({ url: '/pages-v2/privacy/privacy', fail: () => wx.showToast({ title: '隐私页待接入', icon: 'none' }) });
+      wx.navigateTo({ url: '/pages-v2/privacy/privacy', fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' }) });
     } else {
       wx.showModal({
         title: '人脸信息处理声明',

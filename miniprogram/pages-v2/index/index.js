@@ -315,13 +315,11 @@ Page({
         const id = p.id || act.id;
         if (id) {
           wx.navigateTo({ url: '/pages-v2/pkg-low/activity-detail/activity-detail?id=' + id });
-        } else {
-          wx.showToast({ title: '活动详情待配置', icon: 'none' });
         }
         break;
       }
       default: {
-        wx.showToast({ title: '敬请期待', icon: 'none' });
+        // 服务端 pickActivities 已过滤非法 jump_to, 此处纯防御(不可达)
       }
     }
   },

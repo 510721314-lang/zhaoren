@@ -171,7 +171,7 @@ Page({
   },
 
   openAgreement() {
-    wx.navigateTo({ url: '/pages-v2/agreement/agreement', fail: () => wx.showToast({ title: '协议页待接入', icon: 'none' }) });
+    wx.navigateTo({ url: '/pages-v2/agreement/agreement', fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' }) });
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });
