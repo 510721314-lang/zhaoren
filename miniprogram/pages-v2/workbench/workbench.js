@@ -172,10 +172,10 @@ Page({
     wx.showModal({
       title: '确认报警？',
       content: '将向平台安全中心上报并拨打110报警电话（可选）',
-      confirmText: '拨号并上报',
+      confirmText: '拨号上报',   // wx.showModal confirmText 限 ≤4 字符; 完整语义见 title/content
       cancelText: '仅上报',
       confirmColor: '#fa5151',
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      fail: () => wx.showToast({ title: '弹窗加载失败', icon: 'none' }),
       success: (res) => {
         if (!res.confirm && !res.cancel) return;
         // 上报云端 safety-report
