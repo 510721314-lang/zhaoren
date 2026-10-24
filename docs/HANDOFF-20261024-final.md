@@ -1,7 +1,7 @@
 # 【衔接提示词 · 自包含终版】找人帮忙小程序 · 2026-10-24
 
 > ⚠️ **直接粘贴本文件全文到新会话首条消息即可开工**。本文件已经合并 v7 → v8 → v9 全部有效条目 + §十三/十四/十五/§十11-15 规则沉淀，是**唯一现行版**，无需再链式读取其他 HANDOFF 文件。
-> 基线 = HEAD `ec2da29`；ahead origin = 0（完全同步）。生成时间 2026-10-24 下午。
+> 基线 = HEAD `c032bc5`；ahead origin = 0（完全同步）。生成时间 2026-10-24 下午；最后更新 2026-10-24 晚（v1.6.37 上传后）。
 
 ---
 
@@ -10,14 +10,14 @@
 | 编号 | 校验项 | 期望值 | 实测 |
 |---|---|---|---|
 | T0.0 | 工作目录 | `C:\zhaoren` | |
-| T0.1 | HEAD | `git rev-parse HEAD` = **`ec2da29`** | |
-| T0.2 | origin/master | `git rev-parse origin/master` = **`ec2da29`** | |
+| T0.1 | HEAD | `git rev-parse HEAD` = **`c032bc5`** | |
+| T0.2 | origin/master | `git rev-parse origin/master` = **`c032bc5`** | |
 | T0.3 | ahead | `git rev-list --count origin/master..HEAD` = **0**（完全同步） | |
 | T0.4 | 工作区 | 0 M + 5 ?? 用户 SOP 文档；**禁 git add 5 份用户 SOP** | |
-| T0.5 | 门禁 | `npm run test` → **521/521 全绿**；A/B **439**；SYNTAX 250 全过；SSOT 硬编码 0 | |
+| T0.5 | 门禁 | `npm run test` → **581/581 全绿**；A/B **439**；SYNTAX 250 全过；SSOT 硬编码 0 | |
 | T0.6 | appID/env | `wxbc4a4afacdf234f5` / `cloud1-d9gkefwcp5c777088` | |
 | T0.7 | admin_config.global | `env=prod` / `mock_payment_enabled=true` / **`realname_face_mode=wx`** / `admin_openids=[2]` | |
-| T0.8 | 当前上传版本 | 体验版 **v1.6.36**；下一版 **v1.6.37** 待上传 | |
+| T0.8 | 当前上传版本 | 体验版 **v1.6.37**；提审请选 v1.6.37；下一版 **v1.6.38** 待上传 | |
 | T0.9 | 必读文件 | `.trae/rules/project_rules-20261013.md` / `.trae/rules.md` / `docs/tech-debt-inventory-20261015.md` / `docs/pre-release-filing-checklist.md` | |
 
 回执格式：
@@ -83,7 +83,7 @@
 
 | 编号 | 实证 | 可操作结论 |
 |---|---|---|
-| E1 | 门禁 521/521 全绿（实跑） | 基线取实跑结果，不取旧 HANDOFF 数字 |
+| E1 | 门禁 581/581 全绿（实跑） | 基线取实跑结果，不取旧 HANDOFF 数字 |
 | E2 | A/B equivalence 439 case（不变） | 本轮只加测试基础设施，业务零改动 → 无漂移 |
 | E3 | E2E 6 核心页 MCP navigate 全通 | ①首页 switchTab ②广场 switchTab ③消息 switchTab ④我的 switchTab ⑤发布 navigateTo ⑥工作台 navigateTo |
 | E4 | workbench 不是 tabBar | 误判用 switchTab 报 `Uncaught [object Object]`，必须 navigateTo |
@@ -176,7 +176,7 @@ Step 4: 操作   navigate → assert → screenshot → close
 
 | # | 事项 | 谁做 | 状态 | 阻塞 |
 |---|---|---|---|---|
-| 1 | 逻辑单测 521/521 全绿 | AI | ✅ 已通过 | — |
+| 1 | 逻辑单测 581/581 全绿 | AI | ✅ 已通过 | — |
 | 2 | A/B 等价 439 case | AI | ✅ 已通过 | — |
 | 3 | 静态门禁（语法 250 / SSOT 0 / shared-sync） | AI | ✅ 已通过 | — |
 | 4 | E2E 6 核心页 MCP navigate 通过 | AI | ✅ 已通过 | — |
@@ -187,9 +187,9 @@ Step 4: 操作   navigate → assert → screenshot → close
 | 9 | **mp 后台 F1：隐私保护指引 5 项 + 用途**（位置/相册/证件/OpenID，**不勾手机号**） | user | ⚠️ 待做 | P0 阻塞 |
 | 10 | **mp 后台 F2：getLocation + chooseLocation 权限申请**（1-3 天审核） | user | ⚠️ **先提交抢时间** | P0 阻塞最长 |
 | 11 | **mp 后台 F4：合法域名（apis.map.qq.com）+ lbs.qq.com AppID 白名单** | user | ⚠️ 待做 | P0 阻塞 |
-| 12 | v1.6.37 上传 + 选版本提交审核 | user + AI | ⚠️ T-7.31 + T-7.35 | — |
+| 12 | **v1.6.37 已上传；提审选版本 → v1.6.37** | user + AI | ⚠️ 等待 F1+F2+F4 完成后提交 | — |
 
-**阻塞倒计时**：F2 位置权限 1-3 天最长 → **先提交 F2 → 同步配 F1+F4 → 等 F2 → 上传 1.6.37 → 选版本提审**。
+**阻塞倒计时**：F2 位置权限 1-3 天最长 → **先提交 F2 → 同步配 F1+F4 → 等 F2 → 选 1.6.37 提交审核**。
 
 ---
 
@@ -219,7 +219,7 @@ Step 4: 操作   navigate → assert → screenshot → close
 | T8 | 备份自动链收口核对（`backup-log.csv` 行含 `lark=OK`） | 低 |
 | T9 | home_probe_square FAIL 根因定性（种子需求 8 vs 阈值 10） | 低 |
 | T10 | index 索引 T-7.6 P3-12 大清理 | 独立立项 |
-| T11 | **git push 全部完成** | ✅ 已推至 ec2da29 |
+| T11 | **git push 全部完成** | ✅ 已推至 `c032bc5`（v1.6.37 上传后 HEAD） |
 
 ---
 
@@ -266,7 +266,7 @@ Step 4: 操作   navigate → assert → screenshot → close
 ### 9.1 Gate
 
 ```powershell
-npm run test                      # 521 tests
+npm run test                      # 581 tests
 node scripts/check-syntax.js      # 250 files
 node scripts/check-ssot.js        # 硬编码 0
 node scripts/check-shared-sync.js # 场景一致
