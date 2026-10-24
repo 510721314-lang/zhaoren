@@ -1,0 +1,10 @@
+{
+  "cliPath": "/path/to/wechat/devtools/cli",
+  "projectPath": "/path/to/miniprogram/root",
+  "port": 9420,
+  "capabilities": ["core", "assert", "snapshot", "record", "network"],
+  "timeout": 30000,
+  "launchTimeout": 60000,
+  "connectTimeout": 30000,
+  "screenshotTimeout": 10000
+}

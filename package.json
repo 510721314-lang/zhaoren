@@ -7,7 +7,18 @@
     "test": "node --test \"cloudfunctions/_shared/*.test.js\" && node cloudfunctions/_shared/ab_equivalence.js",
     "test:unit": "node --test \"cloudfunctions/_shared/*.test.js\"",
     "test:ab": "node cloudfunctions/_shared/ab_equivalence.js",
+    "test:jest": "jest",
+    "test:e2e": "node scripts/e2e-smoke.js",
+    "check:devtools": "node -e \"const {devtools,validateDevtools}=require('./scripts/load-env.cjs');const r=validateDevtools();if(r.ok){console.log('CLI OK:',devtools.cliPath);console.log('Project:',devtools.projectPath);console.log('autoPort:',devtools.autoPort||'(auto)');if(devtools.servicePort)console.log('servicePort:',devtools.servicePort);}else{console.error('FAIL:',r.problems.join('; '));process.exit(1);}\"",
     "verify": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-require-scope.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js && node scripts/check-manual-links.js && npm test",
     "verify:offline": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-require-scope.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js --offline && node scripts/check-manual-links.js && npm test"
+  },
+  "devDependencies": {
+    "@creatoria/miniapp-mcp": "^0.2.3",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "jest": "^30.5.2",
+    "miniprogram-automator": "^0.13.0",
+    "miniprogram-simulate": "^1.6.2",
+    "wx-server-sdk": "^4.0.2"
   }
 }

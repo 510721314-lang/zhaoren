@@ -37,3 +37,10 @@ zhaoren_backup_*/
 
 # html 分享包（一次性会话产物，不入库）
 .trae-html-share-packages/
+
+# 本地私有环境变量（含本机绝对路径，不入仓库；.env.example 作为模板入库）
+.env
+.env.local
+
+# MCP server 本地私有配置（含本机 CLI 绝对路径；.mcp.example.json 模板入库）
+.mcp.json
