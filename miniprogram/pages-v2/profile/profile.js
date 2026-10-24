@@ -465,6 +465,8 @@ Page({
           wx.removeStorageSync('partner_local_cfg');
           wx.removeStorageSync('current_identity');
         } catch (e) {}
+        // 同步 globalData, 避免退出后 bootstrap.isLoggedIn() 短暂仍返回 true (clearLoginUser 已存在于 app.js L120)
+        try { getApp().clearLoginUser(); } catch (e) {}
         // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
         wx.reLaunch({
           url: '/pages-v2/login/login',
@@ -498,6 +500,8 @@ Page({
               wx.removeStorageSync('partner_local_cfg');
               wx.removeStorageSync('current_identity');
             } catch (e) {}
+            // 同步 globalData, 避免注销后 bootstrap.isLoggedIn() 短暂仍返回 true
+            try { getApp().clearLoginUser(); } catch (e) {}
             // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
             wx.reLaunch({
               url: '/pages-v2/login/login',

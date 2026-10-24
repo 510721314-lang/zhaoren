@@ -789,7 +789,7 @@ Page({
       return;
     }
     if (code === 'smart' && this.data.smartLocked) {
-      wx.showToast({ title: '智能派单为高信用耍伴/VIP会员专属', icon: 'none' });
+      wx.showToast({ title: '智能派单为高信用耍伴专属', icon: 'none' });
       return;
     }
     // 手动选定向邀约: 弹确认明确告知不入公共大厅
