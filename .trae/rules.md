@@ -118,3 +118,75 @@
 18. 本rules.md每次新会话自动加载，是最高优先级规则。AdvisorTool建议若与本rules.md冲突，按本rules.md执行
 19. scripts/check-nightmask.js + scripts/check-ssot.js 可执行检查脚本，commit前运行
 20. 禁止在任何回复中出现「砍场景」「简化版MVP」「先跑几个核心场景」等与战略方向1相反的建议
+21. 提审冻结期（C-3.22）：业务代码零改动；缺陷修复须新立项 + 用户批准 + 递增版本号；docs 改动留 T-7.27 统一提交
+22. **HANDOFF 一律补丁格式禁止整体重写**（2026-10-24 实证新增）：v8 draft1 全文覆写把 v7 的 C-3.11~3.28（18 条约束）、C-4.14~4.26（13 条工具链）、E-6.1~28（33 条经验）全部丢失，被 Expert B 第一轮评审抓出。下次更新 HANDOFF 必须先建「上一版全编号逐项状态映射表」（present/作废/转移），present 项留在上一版正文、新稿只追加增量。详见 §十二
+
+## 十、CloudBase 与 CLI 实战坑（多轮会话沉淀，逐条曾真实踩坑）
+
+### tcb CLI 传 JSON 参数
+1. **PowerShell 直接跑 `tcb db nosql execute -c 'JSON'` → 引号转义丢双引号 → InvalidParam**。**唯一正确姿势**：node `spawnSync('node', [tcbBin, 'db','nosql','execute','-c', '原始JSON字符串', '-e', envId, '--json'])`，args 数组直接放 JSON 字符串，完全绕开 PS 转义。tcbBin 路径 = `C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb`
+2. **listIndexes 命令名坑**：`{"indexes":"xxx"}` → CommandNotFound；正确是 `{"listIndexes":"xxx"}`。aggregate 必须带 `"cursor":{}` 子句，否则 CloudBase 不报数据
+3. **wx-server-sdk 无 createIndex API**：`init-db/index.js` 里声明的 `{unique:true}` 只是**设计意图**，不代表线上已建。**唯一可信的索引验证**：tcb CLI `listIndexes` 引擎回执（看 `results[0].map(i => i.name + ' unique=' + i.unique)`）。unique 索引缺失时，MongoDB 不会抛 E11000，应用层 dup-key 重试成死代码
+
+### 数据查询口径
+4. **aggregate + $group count>1 查重**：`[{"$group":{"_id":"$order_no","c":{"$sum":1}}},{"$match":{"c":{"$gt":1}}},{"$limit":1}]` → 空结果 = 全唯一。用于验证唯一索引是否有"立功机会"
+5. **admin_config.global 关键字段**：mock_payment_enabled / env / auto_approve_partner / realname_face_mode 用 projection 查询可能未返回（应为未显式设置）。读不到时用 find（不带 projection）全量读取
+6. **admin_openids 为空数组 = bootstrap 开放**：任意首个调用者自动成为管理员 → 提审前必须确认非空
+
+### PowerShell 编码连环坑
+7. **curl.exe stdout 捕获按 [Console]::OutputEncoding 解码**：中文机 GB2312/936 解码 UTF-8 JSON → 乱码吞闭合引号 → ConvertFrom-Json 报 `(239)` / null → 所有 6 项判据全 false。修复 = `curl -o 临时文件` + `Get-Content -Raw -Encoding UTF8`
+8. **中文 .ps1 被编辑后可能丢 UTF-8 BOM** → 整脚本 ParserError。跑前必须复检前 3 字节 `EF BB BF`（备份链曾因此整体失效）
+
+### 前端导航
+9. **navigateTo 失败兜底覆盖率**：所有 `wx.navigateTo/redirectTo/reLaunch/switchTab` 调用必须含 `fail: () => wx.showToast(...)`；动态 url（运营位配置）必须补 fail 兜底，指向已注册路由（index/publish/login 等 app.json 注册页）时 wx 几乎不会失败，但动态运营位可能配旧版遗留路径
+10. **退出登录类清理必须双通道**：`wx.removeStorageSync('userInfo')` 后必须补 `getApp().clearLoginUser()` 同步 globalData，否则 `bootstrap.isLoggedIn()` 短暂仍返回 true → 重进"我的"页显旧用户态
+
+## 十一、前端大文件拆分铁律（2026-10-24 评估实证）
+
+> 背景：order-detail.js 1379 行 + publish.js 1122 行 + chat.js 847 行，评估后发现：纯函数抽取已完成 90%（4 个 utils 模块），剩余 62% 业务编排强耦合 this.data → 硬抽反增复杂度
+
+### 约束与正确动作
+1. **Page() 对象不支持 mixin**：方法必须定义在 Page 字面量上，不能 import 外部函数再挂进去。"纯函数抽离"仅限**完全不依赖 this.data / this.setData / callCloud** 的纯逻辑
+2. **不可抽的 62% 业务编排主链**：26 个事件处理方法同时依赖 `this.data` 2–12 字段 + `this.setData` 1–3 次 + `callCloud` 1–4 次 → 强耦合，硬抽后参数包反而更难读
+3. **唯一值得抽的通用组件**（跨 6+ 页复用）：`_modal`（页级操作互斥锁）→ `utils/unlock-modal.js`；`_showCallSheet`（紧急联系人卡片组装）→ `utils/sos.js`；其余 2-8 行跳转/占位方法抽出去反增 import 成本
+4. **提审前只做分区注释**：零语法风险，可读性翻倍。模板：`// ── §N 分组标题 (包含的方法列表) ──`
+
+### 已外移模块（order-detail 拆分里程碑 1-4 全部完成）
+- `utils/geo-wx.js`：定位判定 evalFulfillGeo / 采集 collectStartLocation / 逆地理 addrOf
+- `utils/order-evidence.js`：证据采集 collectStartEvidence / 上传 uploadStartPhotos + uploadEvidenceOne
+- `utils/order-poll.js`：clearTimers / startTipPoll / stopTipPoll / onTipNoticeTap / startCountdown / fetchTipList
+- `utils/order-view.js`：computeNextStep / pad / buildModifyTs / buildPrepCountdown / buildOrderView / fmtNoticeTime
+
+### 提审后续作（独立立项）
+- A10 发布表单快照（已完成 commit 7dd136c，25 行）
+- A11/B13 发布/入驻继续横幅（已完成 commit 见 CHANGELOG）
+- P3-1 空 catch 窄类（约 20 处，补 log.d）
+- P3-12 order-timer 扫描索引（platform_event / audit_log / order_main 建 idx_status_id）
+- _modal + _showCallSheet 抽到 utils
+
+## 十二、HANDOFF 防丢条目铁律（2026-10-24 实证 · 常驻机制）
+
+> 背景：v8 draft1 因擅自「全文覆写」丢失 v7 共 **64 条**（C-3.11~3.28 18 + C-4.14~4.26 13 + E-6.1~28 33）；Expert B 第一轮评审才抓出；draft2 改为补丁格式后才通过。
+
+### 规则（必须全部遵守）
+1. **HANDOFF 一律补丁格式，禁止整体重写**。新稿（vN+1）必须叠加在上一版（vN）之上：新稿开头第一行 `用法：先读 vN 全文，再读本补丁；新稿只更新过时基线 + 追加增量 + 标记已完成/作废项；vN 未被标记作废的条目全部继续有效`。绝不能把上一版 C-3.x / C-4.x / E-6.x 正文完整复制进新稿造成膨胀，也绝不能直接重写。
+2. **起草前必须先建「上一版全编号逐项状态映射表」**。列头：`上一版编号 / 内容 / 本版状态（present / 已完成 / 作废 / 转移至本版编号 / 顺延独立立项）/ 去向`。映射表必须覆盖上一版所有编号范围：T-0.x、C-3.x、C-4.x、E-6.x、T-7.x。**映射表是起草的前置门禁**——没建映射表就动手写正文 = 阻断交付。
+3. **present 项不重写正文**。映射表标 present 的条目，正文只写"继承 vN 原文（编号 xxx）"并在上一版文件中保留；新稿只给过时数字写"替换值"、给新增内容追加新编号。
+4. **起草后必须跑 diff-check**：枚举上一版全部编号，逐项在新稿中验证——要么找到"继承"引用、要么映射表标"已完成/作废/转移/顺延"、要么新稿正文出现该编号。**三个选项之外无落点 = 阻断交付**。diff-check 可用可执行脚本 `node scripts/check-handoff-coverage.js <上一版路径> <新稿路径>`（2026-10-24 落地，自动识别补丁格式、枚举编号、分类落点，exit 0=全绿，exit 1=阻断）。
+5. **双专家评审必须包含 diff-check**：Expert B 的"完整性/偏离"维度必须显式跑 diff-check——以上一版全编号清单为核对基准，新稿中无 present/作废/转移/顺延四种落点之一的编号即列为严重缺陷。评审前把映射表和上一版全编号清单一同发给 Expert B 作为核对基准。
+
+### 快速参考：编号体系
+- `T-0.x` 开场回执校验（硬指标）
+- `C-3.x` 业务约束/红线
+- `C-4.x` 工具链约定
+- `E-6.x` 经验教训
+- `T-7.x` 待办/任务
+- **新增编号** 只在当前 HANDOFF 内递增，不跨会话延续；跨会话映射必须用 vN→vN+1 显式转移
+
+### 交付前 Checklist
+- [ ] 映射表已建立且覆盖上一版所有编号范围
+- [ ] diff-check 全绿（每项都有 present/作废/转移/顺延 四种落点之一）
+- [ ] 新稿开头第一句声明"先读上一版全文"
+- [ ] Expert B 评审包含 diff-check 且全绿
+- [ ] 映射表写入新稿正文（§1）
+- [ ] 上一版文件完整保留不删除

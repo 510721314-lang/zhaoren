@@ -21,6 +21,7 @@ const { collectStartEvidence, uploadStartPhotos, uploadEvidenceOne } = require('
 const { clearTimers, startTipPoll, stopTipPoll, onTipNoticeTap, startCountdown, fetchTipList } = require('../../utils/order-poll.js');
 
 Page({
+  // ── §0 生命周期 & 启动加载 (onLoad / fetchData / refreshOrder / reload / onShow / onHide / onUnload) ──
   data: {
     order: null,
     scene: null,
@@ -118,6 +119,7 @@ Page({
     });
   },
 
+  // ── §3 工具函数 (_modal / _handleConflict: 页级操作互斥锁 + 状态冲突收敛) ──
   // 2026-10-15 F1 页级操作互斥锁: 替代裸 wx.showModal——连点会在弹窗渲染空窗堆叠两个 modal,
   // 首请求改状态+刷新换按钮后, 第二个 modal 的确认对新状态二次请求(被服务端 oa_*_status 拒绝)。
   // 入口(弹窗前)即拦; 取消/弹窗失败/业务 Promise 链结算后自动放锁。success 回调必须 return 其 Promise 链。
@@ -146,6 +148,7 @@ Page({
     return false;
   },
 
+  // ── §1 状态子拉取 (fetchSafety / fetchNoShow / fetchTimeline: detail 返回后并行拉取三个维度) ──
   // 拉取安全中心状态(safety-report status: 仅订单参与方可读)
   fetchSafety() {
     callCloud('safety-report', { action: 'status', order_id: this.__orderId }).then((r) => {
@@ -238,6 +241,7 @@ Page({
     }).catch(() => {});
   },
 
+  // ── §2 爽约上报 & 申诉操作 (onNoShowReport / onNoShowDefense / onNoShowWithdraw / onComplaintWithdraw / onPreviewEvidence) ──
   // 发起爽约申诉(跳提交页; 服务端二次校验)
   onNoShowReport() {
     wx.navigateTo({
@@ -375,6 +379,7 @@ Page({
     if (order.tip_total_fen > 0) this.fetchTipList();
   },
 
+  // ── §4 计时器 & 通知轮询 (clearTimers / startTipPoll / startCountdown / fetchTipList) ──
   clearTimers() {
     // 拆分阶段2c(2026-10-16): 定时器清理外移 utils/order-poll.js(经用户书面批准逐字搬迁); 薄代理保 onUnload/onHide 等调用点不变
     return clearTimers(this);
@@ -417,6 +422,7 @@ Page({
     return fetchTipList(this);
   },
 
+  // ── §5 履约准备 & 定位判定 (onViewPrep / onStartService / onStartConfirm / _evalFulfillGeo / _collectStartLocation) ──
   // O3 操作区
   // 用户端 S2: 查看履约准备 (弹窗展示履约信息 + 可选操作)
   onViewPrep() {
@@ -598,6 +604,7 @@ Page({
     });
   },
 
+  // ── §6 用户确认 & 证据采集 (onUserConfirm / _collectStartEvidence / _addrOf / _uploadEvidenceOne) ──
   // 需求B 二期(2026-10-14): 需求方到场定位确认(仅"确认"时要求定位; 不点不拦主流程)
   onUserConfirm() {
     const that = this;
@@ -660,6 +667,7 @@ Page({
     return uploadEvidenceOne(job);
   },
 
+  // ── §7 安全中心 & SOS (onSafety / onSos / _submitSos / _showCallSheet) ──
   onSafety() {
     // 安全报备(打卡报平安/定位追踪)仅在履约中开放; S2 待履约阶段引导先开始履约
     const st = this.data.order && this.data.order.status;
@@ -782,6 +790,7 @@ Page({
     });
   },
 
+  // ── §8 里程碑证据 (onMilestoneSubmit: 30% → 60% → 100% 逐步提交) ──
   // 里程碑提交: 耍伴在 S3 履约中逐步提交 30%→60%→100%
   onMilestoneSubmit() {
     const order = this.data.order;
@@ -818,6 +827,7 @@ Page({
     });
   },
 
+  // ── §9 加时 (onAddTime / submitExtend / onExtendConfirm + 面板辅助) ──
   // 加时申请: 内联时长选择 + 云函数算价 + showModal 二次确认
   onAddTime() {
     const order = this.data.order;
@@ -912,6 +922,7 @@ Page({
     });
   },
 
+  // ── §10 改期 (onModify / submitModify / onModifyConfirm / onModifyReject + 面板辅助) ──
   // O4 改期: 内联卡(原生 date/time picker) + showModal 二次确认, 替代 bottom-sheet
   onModify() {
     // 2026-10-07 口径: 仅 S2(已支付待履约)可发起改期; S3 履约中/S3.5 中断均不可
@@ -1052,6 +1063,7 @@ Page({
     });
   },
 
+  // ── §11 完成 / 部分履约 / 恢复 (onFinishService / onToPartial / onResumeService / onRatioConfirm) ──
   // 阶段F(2026-10-15, 规范 §2.3): 耍伴「发起履约完毕确认」→ 先采集完成照片+定位(凭证前置), 再 S3→S3_6
   // 水印时间取服务端时间戳(规范 §F3); 旧 complete_service(no.13 直连 S3→S5)停用, 保留共存待收口
   onFinishService() {
@@ -1194,6 +1206,7 @@ Page({
     });
   },
 
+  // ── §12 评价 & 打赏 (onEvaluate / onTip / __doTip) ──
   // S5 评价
   onEvaluate() {
     wx.navigateTo({
@@ -1240,6 +1253,7 @@ Page({
     }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常，请重试', icon: 'none' }); });
   },
 
+  // ── §13 爽约申诉 & 售后纠纷 (onComplaint) ──
   // S8 售后
   onComplaint() {
     const that = this;
@@ -1267,6 +1281,7 @@ Page({
     });
   },
 
+  // ── §14 取消订单 & 梯度退款 (onCancel) ──
   // O5 取消(wx.showModal 展示梯度退款规则, 替代 bottom-sheet)
   onCancel() {
     const that = this;
@@ -1301,6 +1316,7 @@ Page({
     });
   },
 
+  // ── §15 快捷跳转 (支付/聊天/电话/预约/下一步操作) ──
   // 跳支付
   // 引导横幅主操作: 把 computeNextStep 返回的 action.key 路由到已有 handler
   onNextStepTap() {
