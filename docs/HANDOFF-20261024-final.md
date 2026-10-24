@@ -1,7 +1,7 @@
 # 【衔接提示词 · 自包含终版】找人帮忙小程序 · 2026-10-24
 
-> ⚠️ **直接粘贴本文件全文到新会话首条消息即可开工**。本文件已经合并 v7 → v8 → v9 全部有效条目，是**唯一现行版**，无需再链式读取其他 HANDOFF 文件。
-> 基线 = HEAD `d1a5320`；ahead origin = 1（v9 HANDOFF 待推，网络恢复后一次 push）。
+> ⚠️ **直接粘贴本文件全文到新会话首条消息即可开工**。本文件已经合并 v7 → v8 → v9 全部有效条目 + §十三/十四/十五/§十11-15 规则沉淀，是**唯一现行版**，无需再链式读取其他 HANDOFF 文件。
+> 基线 = HEAD `ec2da29`；ahead origin = 0（完全同步）。生成时间 2026-10-24 下午。
 
 ---
 
@@ -10,9 +10,9 @@
 | 编号 | 校验项 | 期望值 | 实测 |
 |---|---|---|---|
 | T0.0 | 工作目录 | `C:\zhaoren` | |
-| T0.1 | HEAD | `git rev-parse HEAD` = **`d1a5320`** | |
-| T0.2 | origin/master | `git rev-parse origin/master` = **`19b8d98`** | |
-| T0.3 | ahead | `git rev-list --count origin/master..HEAD` ∈ **{0, 1}**（0 = v9 已推；1 = 待推） | |
+| T0.1 | HEAD | `git rev-parse HEAD` = **`ec2da29`** | |
+| T0.2 | origin/master | `git rev-parse origin/master` = **`ec2da29`** | |
+| T0.3 | ahead | `git rev-list --count origin/master..HEAD` = **0**（完全同步） | |
 | T0.4 | 工作区 | 0 M + 5 ?? 用户 SOP 文档；**禁 git add 5 份用户 SOP** | |
 | T0.5 | 门禁 | `npm run test` → **521/521 全绿**；A/B **439**；SYNTAX 250 全过；SSOT 硬编码 0 | |
 | T0.6 | appID/env | `wxbc4a4afacdf234f5` / `cloud1-d9gkefwcp5c777088` | |
@@ -110,6 +110,11 @@
 | P11 | git push 本机默认代理死 7890 | `-c http.proxy= -c https.proxy=` 绕开 |
 | P12 | deploy-cloud.ps1 deploy 后 SHA256 核验 | 必须比本地 dist hash |
 | P13 | npm publish / 运行 node 脚本 / git push 终端挂起 | **避免交互式命令**；不调用 Read-Host / git rebase -i |
+| P14 | E2E tabBar vs navigateTo 方法不同 | tabBar 页（index/square/message/profile）用 `switchTab`；非 tabBar 页（publish/workbench）必须 `navigateTo`。workbench 误判 switchTab 报 `Uncaught [object Object]` |
+| P15 | nosql UPDATE 是全量文档匹配 | `update: admin_config` + `q: {}` 匹配集合所有文档；集合多条时必须指定具体 q，禁止 `q: {}` 全量更新 |
+| P16 | 门禁基线取实跑结果 | HANDOFF 里的 pass 数字可能是子集（v8 写 44 实际全量 521）；每次 commit 前必须 `npm run test` + check-syntax + check-ssot + check-shared-sync 三静态门禁 |
+| P17 | GitHub 网络层断连先测连通性 | `try { (Invoke-WebRequest -Uri https://github.com -UseBasicParsing -TimeoutSec 10).StatusCode } catch { "NET_FAIL" }` → 失败 = 网络问题，不是代理/凭据 |
+| P18 | nosql execute 是 .cjs spawnSync 姿势 | **不能** PowerShell 直接 `cli db nosql execute -c 'JSON'`（引号必炸）；必须 `.cjs` 里 `spawnSync(cliFullPath, argsArray, {shell:false})` |
 
 ---
 
@@ -214,7 +219,7 @@ Step 4: 操作   navigate → assert → screenshot → close
 | T8 | 备份自动链收口核对（`backup-log.csv` 行含 `lark=OK`） | 低 |
 | T9 | home_probe_square FAIL 根因定性（种子需求 8 vs 阈值 10） | 低 |
 | T10 | index 索引 T-7.6 P3-12 大清理 | 独立立项 |
-| T11 | **git push 待网络恢复**（当前 ahead origin = 1，v9 HANDOFF 未推） | GitHub 网络层 |
+| T11 | **git push 全部完成** | ✅ 已推至 ec2da29 |
 
 ---
 
@@ -223,7 +228,7 @@ Step 4: 操作   navigate → assert → screenshot → close
 | 文件 | 用途 | 入库 |
 |---|---|---|
 | `.trae/rules/project_rules-20261013.md` | 项目级红线（§0-§28） | ✅ |
-| `.trae/rules.md` | CloudBase 实战坑 + 大文件铁律 | ✅ |
+| `.trae/rules.md` | CloudBase §十 + MCP/E2E §十三 + commit隔离 §十四 + Git代理 §十五 + 备份 + 提审 | ✅ |
 | `docs/tech-debt-inventory-20261015.md` | 技术债台账 | ✅ |
 | `docs/pre-release-filing-checklist.md` | 提审前清单 | ✅ |
 | `docs/deploy-log.md` | 每次上传登记 | ✅ |
@@ -305,7 +310,7 @@ spawnSync(cli, ['db','nosql','execute','--env-id',envId,'--command',updateCmd,'-
 |---|---|---|
 | §0 基线校验 | 10 条（所有实时数字） | ✅ 自包含 |
 | §2 红线 + 硬约束 | 11 条 | ✅ 可执行 |
-| §3 经验库（R1-R7 + E1-E9 + P1-P13） | 29 条实证 | ✅ 全是踩过的坑 |
+| §3 经验库（R1-R7 + E1-E9 + P1-P18） | 34 条实证 | ✅ 全是踩过的坑 |
 | §4 工具链配置 | 4 段（可直接重建） | ✅ 含 JSON/shell/args |
 | §5 提审 Checklist | 12 条（含阻塞倒计时） | ✅ AI6 + User6 分工 |
 | §6 待办清单 | 11 条（P0/P1/P2 分级） | ✅ 清晰 |
