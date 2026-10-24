@@ -115,8 +115,8 @@
       </view>
     </view>
 
-    <!-- V6 工具行 -->
-    <view class="wt__tools">
+    <!-- V6 工具行（发票/完税/冻结资金/银行卡管理均依赖真实支付资质, 提审期隐藏） -->
+    <view class="wt__tools" wx:if="{{showTools}}">
       <view class="wt__tool" data-name="发票管理" bindtap="onToolTap">发票管理</view>
       <view class="wt__tool" data-name="完税证明" bindtap="onToolTap">完税证明</view>
       <view class="wt__tool" data-name="冻结资金" bindtap="onToolTap">冻结资金</view>

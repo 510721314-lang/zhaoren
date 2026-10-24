@@ -44,6 +44,8 @@ const RANGE_TABS = [
 
 Page({
   data: {
+    // V6 工具行提审期隐藏(依赖真实支付资质, 支付通道上线后改 true)
+    showTools: false,
     balanceYuan: '0.00',
     monthIncomeYuan: '0.00',
     totalIncomeYuan: '0.00',
