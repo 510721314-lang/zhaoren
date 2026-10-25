@@ -2,7 +2,7 @@
 // 背景(2026-10-19): export_collection 网关通道为展示级脱敏(手机号/证件/姓名打码)，恢复后敏感原值无法找回；
 //   本脚本用已打通的 tcb 直连(tcb-exec.js)逐集合分页 find(sort _id) 拉原值 → JSONL(extended JSON 原样保留 $numberLong)。
 // 用法: node scripts/raw-export.js --collections a,b,c --outdir <dir> [--manifest <path>]
-//       --collections 省略 = 37 表全集(权威口径 = admin-action EXPORT_COLLECTIONS，两处名单须同步维护)
+//       --collections 省略 = 38 表全集(权威口径 = admin-action EXPORT_COLLECTIONS，两处名单须同步维护)
 // 分页: limit 500/批，最后一批 < 500 即止(不依赖 count，规避 MgoQuery count 响应结构不确定性)
 // 幽灵集合(云端 NamespaceNotFound)记为 ghost 空集，不算失败；其他查询错误记 failed 继续其余集合
 const { execTcbCommands } = require('./tcb-exec');
@@ -11,7 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const BATCH = 500;
-const COLLECTIONS_37 = [
+const COLLECTIONS_ALL = [
   'admin_config', 'admin_web_sessions',
   'user_account', 'partner_profile',
   'demand', 'demand_draft',
@@ -28,7 +28,9 @@ const COLLECTIONS_37 = [
   'exam_bank',
   'config_history',
   'no_show_report',
-  'complaint'
+  'complaint',
+  // 批1a(2026-10-25): 法律文档版本库
+  'legal_doc'
 ];
 const HOT_COLLECTIONS = ['audit_log', 'order_main', 'order_status_log', 'platform_event', 'im_message'];
 
@@ -78,7 +80,7 @@ async function main() {
   let colls;
   if (a.hot) colls = HOT_COLLECTIONS;
   else if (a.collections) colls = a.collections.split(',').map(s => s.trim()).filter(Boolean);
-  else colls = COLLECTIONS_37;
+  else colls = COLLECTIONS_ALL;
   const results = [];
   for (const c of colls) {
     process.stdout.write('[export] ' + c + ' ... ');

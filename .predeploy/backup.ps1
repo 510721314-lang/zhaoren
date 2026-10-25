@@ -1,4 +1,4 @@
-﻿# zhaoren Cloud Backup Script L2+L3+L5
+# zhaoren Cloud Backup Script L2+L3+L5
 # Usage: .\backup.ps1 [-BackupDir C:\zhaoren_backup_YYYYMMDD] [-AdminKey AWK-...]
 #        or set $env:ADMIN_WEB_KEY before running
 param(
@@ -33,7 +33,9 @@ $COLLECTIONS = @(
   # ── 旧表/低频(不存在自动 SKIP) ──
   'user_profile', 'partner_exam', 'partner_apply',
   'dispute', 'withdraw_request', 'credit_log',
-  'insurance_record', 'report', 'sms_log', 'device_bind'
+  'insurance_record', 'report', 'sms_log', 'device_bind',
+  # ── 批1a(2026-10-25): 法律文档版本库 ──
+  'legal_doc'
 )
 
 # Find cli.bat (glob 桌面一级目录找 cli.bat, 避免中文字面量被 PS5 GBK 读取乱码 + 避免全盘扫描)

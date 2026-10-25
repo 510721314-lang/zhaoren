@@ -1,4 +1,4 @@
-﻿# 手动完整备份(等价 backup.ps1 的 L2+L3): admin_config 快照 + DB 全量导出 + manifest
+# 手动完整备份(等价 backup.ps1 的 L2+L3): admin_config 快照 + DB 全量导出 + manifest
 # 用法: & 'c:\zhaoren\.predeploy\manual-backup.ps1' -AdminKey "<key>"
 param([string]$AdminKey = '')
 $ErrorActionPreference = 'Stop'
@@ -24,7 +24,9 @@ $COLLECTIONS = @(
   'exam_bank',
   'config_history',
   'no_show_report',
-  'complaint'
+  'complaint',
+  # 批1a(2026-10-25): 法律文档版本库
+  'legal_doc'
 )
 
 $BackupDir = "C:\zhaoren-bak\zhaoren_backup_$(Get-Date -Format 'yyyyMMdd-HHmm')"

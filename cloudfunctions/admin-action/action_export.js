@@ -18,7 +18,9 @@ const EXPORT_COLLECTIONS = new Set([
   'complaint',
   'user_profile', 'partner_exam', 'partner_apply',
   'dispute', 'withdraw_request', 'credit_log',
-  'insurance_record', 'report', 'sms_log', 'device_bind'
+  'insurance_record', 'report', 'sms_log', 'device_bind',
+  // 批1a(2026-10-25): 法律文档版本库
+  'legal_doc'
 ]);
 
 async function export_admin_config(ctx) {

@@ -5,7 +5,7 @@
 // ⚠️ 破坏性: import_collection 默认 mode='replace'，会先清空目标集合再回灌，慎用。
 // 注: 备份为「展示级脱敏」产物，回灌的是脱敏值；admin_config 含密钥，请走 config_restore 且用未脱敏快照。
 
-// 与 action_export.js 的 EXPORT_COLLECTIONS 保持同一白名单（37 集合）
+// 与 action_export.js 的 EXPORT_COLLECTIONS 保持同一白名单（38 集合）
 const IMPORT_COLLECTIONS = new Set([
   'admin_config', 'admin_web_sessions',
   'user_account', 'partner_profile',
@@ -23,7 +23,9 @@ const IMPORT_COLLECTIONS = new Set([
   'complaint',
   'user_profile', 'partner_exam', 'partner_apply',
   'dispute', 'withdraw_request', 'credit_log',
-  'insurance_record', 'report', 'sms_log', 'device_bind'
+  'insurance_record', 'report', 'sms_log', 'device_bind',
+  // 批1a(2026-10-25): 法律文档版本库
+  'legal_doc'
 ]);
 
 const INSERT_CHUNK = 500; // 云端单次 add 批量上限内
