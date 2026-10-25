@@ -101,6 +101,10 @@ doc_type ∈ { service_agreement | privacy_policy | disclaimer | aa_promise | pe
 | **批 2（治理面）** | 举报处理工作台（safety_report 后台处理流+结论归档）+ 实名/人脸授权同意取证 + 人工审核工作台（配合 P1-7 关闸） | 运营治理，依赖提审结果 |
 | **批 3（增强面）** | 纠纷处理结论归档、内容审核台、平台资质展示页、投诉渠道公示 | 商业化批次 |
 
+> **实施状态（2026-10-25 更新）**：批 1 实际按审核可见面拆为两段执行。
+> - **1a（已完成）**：`legal_doc` 集合 + `legal_doc_list/publish/rollback/seed` + `config_public` 补 privacy_policy/disclaimer_text/versions + admin-web 版本化管理页（保留紧急热修通道）+ 存量五类迁移为 v1 + 六处备份名单同步。生产实测：list count=5 / versions 快照五类=1 / export_collection total=5。授权与风险知悉见 [legal-compliance-1a-authorization-20261025.md](legal-compliance-1a-authorization-20261025.md)。
+> - **1b（待提审通过后）**：`user-login` 版本下发 + 重签机制、C 端 agreement/privacy 动态化、通用免责接通 —— 会改变审核员可见行为，须递增小程序版本号（v1.6.38）。
+
 ### 5.1 批 1 存量迁移与兼容步骤（v2 新增 · 自含性修复）
 
 1. **存量文本初始化**：上线脚本从 `admin_config.legal` 当前 6 字段各生成一条 `legal_doc` v1（status=published，effective_at=上线时刻，remark='存量迁移'）
