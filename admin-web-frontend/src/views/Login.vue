@@ -48,10 +48,11 @@ async function onLogin() {
   loading.value = true;
   let r;
   if (mode.value === 'account') {
-    r = await call('admin_login', { account: account.value.trim(), password: password.value });
+    r = await call('admin_login', { account: account.value.trim(), password: password.value.trim() });
   } else {
     // 密钥登录: 显式传 key 验证(避免 localStorage 覆盖)
-    r = await call('config_get', {}, key.value);
+    // 2026-10-25 修复: 粘贴常带行尾空格/换行/全角字符 → 必须先 trim, 否则网关 bad_key 直接 401
+    r = await call('config_get', {}, key.value.trim());
   }
   loading.value = false;
   if (r.ok) {
@@ -61,13 +62,17 @@ async function onLogin() {
       localStorage.setItem('admin_account', r.data.account || '');
       localStorage.removeItem('admin_web_key'); // 账号登录后清理旧 key, 统一走 token
     } else {
-      localStorage.setItem('admin_web_key', key.value);
+      localStorage.setItem('admin_web_key', key.value.trim());
       localStorage.removeItem('admin_token');   // 切回 key 模式则清 token
       localStorage.removeItem('admin_role');
     }
     window.location.hash = '#/config';
   } else {
-    alert('登录失败: ' + (r.msg || r.code));
+    // 401 是网关层拒绝(密钥不符), axios 只回原始英文消息, 这里换成可操作的提示
+    const msg = r.code === 'http_401'
+      ? '密钥不正确(401)：请确认粘贴的是 admin_web_key 本体（不含 "AWK_KEY=" 前缀、不含空格或换行）'
+      : (r.msg || r.code);
+    alert('登录失败: ' + msg);
   }
 }
 </script>

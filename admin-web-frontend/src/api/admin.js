@@ -40,8 +40,9 @@ http.interceptors.request.use((config) => {
     }
   }
   // 只在 headers 里没显式传 X-Admin-Key 时才从 localStorage 读(密钥模式兜底)
+  // 2026-10-25 修复: localStorage 里的 key 可能带行尾空格/换行(粘贴残留) → 必须 trim 后使用
   if (!config.headers['X-Admin-Key']) {
-    const key = localStorage.getItem('admin_web_key') || '';
+    const key = (localStorage.getItem('admin_web_key') || '').trim();
     if (key) config.headers['X-Admin-Key'] = key;
   }
   return config;
