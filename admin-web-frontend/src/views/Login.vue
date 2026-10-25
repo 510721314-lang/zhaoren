@@ -36,7 +36,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { call } from '../api/admin.js';
+import { call, normalizeKey } from '../api/admin.js';
 
 const mode = ref('account');
 const account = ref('');
@@ -51,8 +51,11 @@ async function onLogin() {
     r = await call('admin_login', { account: account.value.trim(), password: password.value.trim() });
   } else {
     // 密钥登录: 显式传 key 验证(避免 localStorage 覆盖)
-    // 2026-10-25 修复: 粘贴常带行尾空格/换行/全角字符 → 必须先 trim, 否则网关 bad_key 直接 401
-    r = await call('config_get', {}, key.value.trim());
+    // 2026-10-25 实测: 真正的 401 真凶是「整行粘贴带 AWK_KEY= 前缀」; 半角首尾空白由 HTTP 头自行剥离。
+    // 故统一走 normalizeKey: 剥前缀 + trim(兼防全角空格 U+3000 导致的浏览器非法头字符异常)
+    const k = normalizeKey(key.value);
+    if (!k) { loading.value = false; alert('请输入 admin_web_key'); return; }
+    r = await call('config_get', {}, k);
   }
   loading.value = false;
   if (r.ok) {
@@ -62,7 +65,7 @@ async function onLogin() {
       localStorage.setItem('admin_account', r.data.account || '');
       localStorage.removeItem('admin_web_key'); // 账号登录后清理旧 key, 统一走 token
     } else {
-      localStorage.setItem('admin_web_key', key.value.trim());
+      localStorage.setItem('admin_web_key', normalizeKey(key.value));
       localStorage.removeItem('admin_token');   // 切回 key 模式则清 token
       localStorage.removeItem('admin_role');
     }

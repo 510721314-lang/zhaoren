@@ -30,6 +30,17 @@ const BASE_URL = PROD_ROOT;
 
 const http = axios.create({ baseURL: BASE_URL, timeout: 15000 });
 
+// 密钥归一（2026-10-25 实测结论）：
+// ① 首尾**半角**空白 HTTP 头会自行剥离（实测 key+' ' 与 '\t'+key 均返回 200），故 trim 主要防「浏览器抛非法头字符」类异常；
+// ② 真正的 401 真凶是**带前缀整行**（AWK_KEY=<key> 实测必 401）→ 这里主动剥离已知前缀，避免用户手工裁切；
+// ③ 全角空格 U+3000 等 Unicode 空白不会被 HTTP 剥离，trim 恰好覆盖（JS trim 会移除 U+3000）。
+export function normalizeKey(raw) {
+  let s = String(raw == null ? '' : raw).trim();
+  const m = s.match(/^AWK_KEY\s*=\s*([\s\S]*)$/i);
+  if (m) s = m[1].trim();
+  return s;
+}
+
 http.interceptors.request.use((config) => {
   // 账号会话(批4.2): 若已登录账号, 注入 X-Admin-Token 供网关会话校验, 无需每次携带长期静态 key
   const token = localStorage.getItem('admin_token') || '';
@@ -40,9 +51,9 @@ http.interceptors.request.use((config) => {
     }
   }
   // 只在 headers 里没显式传 X-Admin-Key 时才从 localStorage 读(密钥模式兜底)
-  // 2026-10-25 修复: localStorage 里的 key 可能带行尾空格/换行(粘贴残留) → 必须 trim 后使用
+  // 2026-10-25 修复: localStorage 里的 key 可能带行尾空格/换行/前缀(粘贴残留) → 统一走 normalizeKey
   if (!config.headers['X-Admin-Key']) {
-    const key = (localStorage.getItem('admin_web_key') || '').trim();
+    const key = normalizeKey(localStorage.getItem('admin_web_key'));
     if (key) config.headers['X-Admin-Key'] = key;
   }
   return config;
