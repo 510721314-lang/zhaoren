@@ -661,6 +661,7 @@ function loadWith(dir, file, sdk) {
     'auto_pa_take_readiness', // 2026-10-21 接单引导链: 新增 take_readiness 只读探针(原 pa_unknown_action); 行为由 partner-action.entry.test.js 新增 7 例独立守护
     'auto_pa_init_draft',     // 2026-10-23 批3a P2-10-a: 新增 init_draft 入驻草稿初始化(原 pa_unknown_action, 基线无此 action); draft 不授角色/不进审核队列/不可接单, 行为由 partner-action.entry.test.js 新增 8 例独立守护
     'ul_simulate_realname', 'auto_ul_simulate_realname', // 2026-10-21 修复拆分遗留作用域缺陷: action_account.js 引用本文件不存在的 getCachedEnv → 基线恒 login_server_error; 提审期方案A 改为读 config.env 后 dev 正常返回 ok(守卫与 simulate 行为由 user-login.entry.test.js 新增 4 例独立守护)
+    'auto_admin_legal_doc_list', 'auto_admin_legal_doc_publish', 'auto_admin_legal_doc_rollback', 'auto_admin_legal_doc_seed', // 2026-10-25 批1a: 新增法律文档版本库 4 个 action(基线 admin_unknown_action); 授权见 docs/legal-compliance-1a-authorization-20261025.md, 行为由 admin-action.entry.test.js 新增 5 例独立守护
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

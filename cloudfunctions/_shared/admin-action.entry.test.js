@@ -292,4 +292,68 @@ test('proxy: 密钥不匹配 → fail-closed 回落正常解析(prod 拒绝 mock
   assert.strictEqual(r.code, 'admin_no_openid');
 });
 
+// ── 批1a(2026-10-25): 法律文档版本库（legal_doc_*），授权见 docs/legal-compliance-1a-authorization-20261025.md ──
+test('legal_doc_publish: 合法 → ok 且版本 v1、双写 admin_config 旧字段+版本快照', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_publish', doc_type: 'service_agreement', content: '协议正文', remark: '首次发布' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.version, 1, '空库首次发布应为 v1');
+  const addW = (sdk.writes.legal_doc || []).find((w) => w.add);
+  assert.ok(addW, '应写入 legal_doc');
+  assert.strictEqual(addW.data.status, 'published');
+  assert.strictEqual(addW.data.content, '协议正文');
+  const cfgW = (sdk.writes.admin_config || []).find((w) => w.where && w.data && w.data.legal_service_agreement);
+  assert.ok(cfgW, '应双写 admin_config.legal_service_agreement');
+  assert.strictEqual(cfgW.data.legal_service_agreement, '协议正文');
+  assert.strictEqual(cfgW.data.legal_versions.service_agreement, 1, '应写版本快照供 config_public 暴露');
+});
+
+test('legal_doc_publish: 空内容/非法类型/超长 → 对应错误码且不落库', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r1 = await main({ action: 'legal_doc_publish', doc_type: 'service_agreement', content: '   ' }, {});
+  assert.strictEqual(r1.code, 'legal_empty_content');
+  const r2 = await main({ action: 'legal_doc_publish', doc_type: 'not_a_doc', content: 'x' }, {});
+  assert.strictEqual(r2.code, 'legal_bad_type');
+  const r3 = await main({ action: 'legal_doc_publish', doc_type: 'disclaimer', content: 'x'.repeat(8001) }, {});
+  assert.strictEqual(r3.code, 'legal_too_long');
+  assert.ok(!sdk.writes.legal_doc, '校验失败不应写 legal_doc');
+  assert.ok(!sdk.writes.admin_config, '校验失败不应写 admin_config');
+});
+
+test('legal_doc_rollback: 版本不存在 → legal_version_not_found', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_rollback', doc_type: 'service_agreement', version: 9 }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'legal_version_not_found');
+});
+
+test('legal_doc_rollback: 历史存在 → 以旧内容生成新版本(不复用版本号)', async () => {
+  const st = store('prod', [ADMIN]);
+  st.legal_doc = {
+    d1: { _id: 'd1', doc_type: 'service_agreement', version: 1, content: '旧正文', status: 'archived', is_deleted: false }
+  };
+  const sdk = makeSdk({ openid: ADMIN, store: st });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_rollback', doc_type: 'service_agreement', version: 1 }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.version, 2, '回滚应生成新版本号');
+  const addW = (sdk.writes.legal_doc || []).find((w) => w.add);
+  assert.strictEqual(addW.data.content, '旧正文');
+  assert.strictEqual(addW.data.rolled_back_from, 1);
+});
+
+test('config_public: legal_public 补齐隐私政策/通用免责/版本号快照', async () => {
+  const sdk = makeSdk({ openid: STRANGER, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'config_public' }, {});
+  assert.strictEqual(r.ok, true);
+  const lp = r.data.legal_public || {};
+  assert.ok('privacy_policy' in lp, '应含 privacy_policy');
+  assert.ok('disclaimer_text' in lp, '应含 disclaimer_text');
+  assert.ok('versions' in lp, '应含 versions 快照');
+});
+
 test.after(() => { Module._load = origLoad; });
