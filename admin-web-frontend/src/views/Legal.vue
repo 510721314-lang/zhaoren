@@ -52,20 +52,41 @@
       <template #header>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <b>场景专属免责声明</b>
-          <el-button
-            size="small" type="primary" plain
-            :disabled="availableScenes.length === 0"
-            @click="addSceneRow">+ 新增场景</el-button>
+          <el-tooltip
+            :disabled="availableScenes.length > 0"
+            placement="top"
+            :content="allScenesConfigured
+              ? '全部 ' + (sceneOptions || []).length + ' 个场景均已配置免责声明；如需重新起一条，请先在该行点「删除（停用）」'
+              : '新增行已占用剩余可选场景，先取消一行再新增'">
+            <span>
+              <el-button
+                size="small" type="primary" plain
+                :disabled="availableScenes.length === 0"
+                @click="addSceneRow">+ 新增场景</el-button>
+            </span>
+          </el-tooltip>
         </div>
       </template>
       <el-alert type="info" :closable="false" style="margin-bottom:12px">
         「新增场景」仅列出<b>尚未配置</b>免责声明的场景；已配置行的场景固定不可改（如需换场景请删除后重新新增）。单场景最多 4000 字。
       </el-alert>
-      <div v-if="availableScenes.length === 0 && sceneRows.length > 0" style="color:#909399;font-size:13px;margin-bottom:8px">
-        所有场景均已配置免责声明。
-      </div>
-      <div v-if="(sceneOptions || []).length === 0" style="color:#e6a23c;font-size:13px;margin-bottom:8px">
-        当前没有任何场景，请先到「运营配置」创建场景。
+      <!-- 2026-10-25 反馈修复: 满态原因由「灰色小字」改为醒目提示条 + 说明出路；条件改为「配置数==场景数」防误报 -->
+      <el-alert v-if="allScenesConfigured" type="success" :closable="false" show-icon style="margin-bottom:10px">
+        <template #title>
+          全部 {{ (sceneOptions || []).length }} 个场景均已配置免责声明
+        </template>
+        <div style="font-size:13px;line-height:1.7">
+          因此「新增场景」不可用（这是正常的满态，不是故障）。<br>
+          ① 要<b>修改已有场景</b>文案：直接在该行编辑后点「保存」；<br>
+          ② 要<b>重新起一条</b>记录：先在该行点「停用」，该场景随即回到可选列表。
+        </div>
+      </el-alert>
+      <el-alert v-else-if="(sceneOptions || []).length === 0" type="warning" :closable="false" show-icon style="margin-bottom:10px">
+        <template #title>当前没有任何场景</template>
+        <div style="font-size:13px">请先到「运营配置」创建场景，再回来配置场景免责声明。</div>
+      </el-alert>
+      <div v-else-if="availableScenes.length === 0" style="color:#909399;font-size:13px;margin-bottom:8px">
+        新增行已占用剩余可选场景，请先取消其中一行。
       </div>
 
       <div v-for="(row, idx) in sceneRows" :key="row.code || ('new-' + idx)"
@@ -89,7 +110,7 @@
             <el-button size="small" type="primary" :loading="row.saving"
                        :disabled="!row.text.trim() || !rowDirty(row) || (row.isNew && !row.code)"
                        @click="saveSceneRow(row)">保存</el-button>
-            <el-button size="small" type="danger" plain :loading="row.saving" @click="removeSceneRow(row)">{{ row.isNew ? '取消' : '删除' }}</el-button>
+            <el-button size="small" type="danger" plain :loading="row.saving" @click="removeSceneRow(row)">{{ row.isNew ? '取消' : '停用' }}</el-button>
           </div>
         </div>
         <el-input v-model="row.text" type="textarea" :rows="4" :maxlength="4000" show-word-limit
@@ -259,6 +280,12 @@ const pendingSceneCodes = computed(() =>
 const availableScenes = computed(() =>
   (sceneOptions.value || []).filter((s) =>
     !configuredSceneCodes.value.includes(s.code) && !pendingSceneCodes.value.includes(s.code)));
+
+// 满态判定（2026-10-25 反馈修复）：用「已配置数 >= 场景总数」判定，避免「新增行占满候选」时误报为全部已配置
+const allScenesConfigured = computed(() => {
+  const total = (sceneOptions.value || []).length;
+  return total > 0 && configuredSceneCodes.value.length >= total;
+});
 
 // 单行可用候选（排除本行已选，避免与其他新增行重复）
 function availableScenesFor(row) {
@@ -466,8 +493,8 @@ async function removeSceneRow(row) {
   }
   try {
     await ElMessageBox.confirm(
-      `将停用场景「${row.name || row.code}」的免责声明：写入一个「已停用」版本并从配置移除（历史保留）。是否继续？`,
-      '确认删除',
+      `将停用场景「${row.name || row.code}」的免责声明：写入一个「已停用」版本并从配置移除（历史保留，可回滚恢复）。是否继续？`,
+      '确认停用',
       { type: 'warning', confirmButtonText: '停用', cancelButtonText: '取消' }
     );
   } catch (e) { return; }
