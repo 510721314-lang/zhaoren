@@ -62,8 +62,10 @@ Page({
     Promise.all([
       callCloud('payment-mock', { action: 'balance_info' }).catch(() => ({ ok: false })),
       callCloud('payment-mock', { action: 'income_list', limit: Number(CONFIG.WORKBENCH.incomeShow) || 5 }).catch(() => ({ ok: false })),
-      callCloud('partner-action', { action: 'my_profile' }).catch(() => ({ ok: false }))
-    ]).then(([balR, incR, prfR]) => {
+      callCloud('partner-action', { action: 'my_profile' }).catch(() => ({ ok: false })),
+      // P2-11: 取耍伴最近进行中订单, 供 SOS 上报填 orderId
+      callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'doing', page_size: 1 }).catch(() => ({ ok: false }))
+    ]).then(([balR, incR, prfR, ordR]) => {
       const d = {};
       if (prfR.ok && prfR.data && prfR.data.profile) {
         // 接单开关初始值:从云端拿真实状态
@@ -93,6 +95,10 @@ Page({
       } else {
         d.incomeList = [];
       }
+      // P2-11: 最近进行中订单, 供 SOS 上报 & 时间轴占位
+      const doingList = (ordR.ok && ordR.data && ordR.data.list) || [];
+      d.todayOrders = doingList;
+      d.currentOrderId = doingList.length > 0 ? doingList[0].order_id : '';
       d.todaySummary = {
         count: d.todayCount,
         upcoming: d.incomeList && d.incomeList.length ? `${d.incomeList[0].scene || ''} 待处理` : '暂无进行中订单'
@@ -179,13 +185,21 @@ Page({
       fail: () => wx.showToast({ title: '弹窗加载失败', icon: 'none' }),
       success: (res) => {
         if (!res.confirm && !res.cancel) return;
-        // 上报云端 safety-report
-        // orders 未加载时判空兜底(undefined[0] 会抛 TypeError 中断后续拨号)
-        const activeOrders = this.data.orders || this.data.todayOrders || [];
-        const orderId = this.data.currentOrderId || (activeOrders[0] && activeOrders[0].order_id) || '';
-        if (orderId) {
+        // P2-11: 取最近进行中订单 orderId, 兜底为空串
+        // currentOrderId 由 fetchData 中 my_orders(doing) 赋值; todayOrders 同样来自该源
+        const orderId = this.data.currentOrderId || '';
+        if (!orderId) {
+          // 无进行中订单 —— 仍允许用户直接拨号 110, 仅提示无法关联订单上报
+          wx.showToast({ title: '当前无进行中订单, 上报时无法关联', icon: 'none' });
+        } else {
           callCloud('safety-report', { action: 'sos', order_id: orderId, source: 'workbench' })
-            .catch(() => {});  // 上报失败不阻塞拨号
+            .then((r) => {
+              if (!r.ok) {
+                wx.showToast({ title: '上报失败, 请直接拨打110', icon: 'none' });
+              }
+            }).catch(() => {
+              wx.showToast({ title: '网络异常, 请直接拨打110', icon: 'none' });
+            });
         }
         // 拨号 110
         if (res.confirm) {
