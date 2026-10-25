@@ -1,8 +1,9 @@
-# 找人帮忙小程序 · 工作衔接提示词（2026-10-25 · admin-web 登录收尾版）
+# 找人帮忙小程序 · 工作衔接提示词（2026-10-25 · 学习考试中心立项版 V2）
 
 > **用途**：新任务首条消息整段投喂，使无上下文的新 Agent 零偏差接手。
 > **生成依据**：技能 `.trae/skills/zhaoren-handoff-prompt`（实测取证 → 双专家评审 → 修正 → 落盘）。
-> **取证时点**：2026-10-25 17:3x。文中所有可核查值均当场命令实测；评审修正见文末「验证者修正」。
+> **版本**：V2「学习考试中心立项版」（2026-10-25 晚）。V1「admin-web 登录收尾版」同日早间（git 历史可溯）；V2 增量 = 用户战略决策（**暂缓提审**）+ **学习考试中心立项**，git 基线全部重测。
+> **取证时点**：2026-10-25 晚。文中所有可核查值均当场命令实测；评审修正见文末「验证者修正」。
 > **清点边界**：`T-*` / `C-*` / `E-*` 为**清点项**，必须逐条回执；**§1 / §2 / §5 / §8 为参考用，非清点项**。
 
 ---
@@ -10,19 +11,20 @@
 ## §0 开场回执校验（先回执，再等派活）
 
 **T-0.1**（硬指标）工作目录唯一可信 = `C:\zhaoren`。所有 git 命令一律写 `git -C C:\zhaoren ...`，不依赖当前 cwd。
-**T-0.2**（硬指标）`git -C C:\zhaoren rev-parse --short HEAD` → 应为 **`e6e5a52` 或其后的仅含 docs 类提交**（本文件落盘时 HEAD = **`9a08e3e`**）。请用 `git log --oneline -6` 核对提交性质。
-**T-0.3**（硬指标）`origin/master` 应与 HEAD **一致**、`rev-list --count origin/master..HEAD` = **`0`**。本会话已完成推送 4 个 commit：`692622c`（代码）、`5750405`（文档）、`e6e5a52`（代码）、`9a08e3e`（文档）。若 ahead≠0，先按 T-7.2 补推。
+**T-0.2**（硬指标·V2 重测）`git -C C:\zhaoren rev-parse --short HEAD` → 本更新实测 = **`45941c6`**；应为 `45941c6` 或其后的仅含 docs 类提交。请用 `git log --oneline -6` 核对提交性质。
+**T-0.3**（硬指标·V2 重测）`origin/master` 应与 HEAD **一致**、`rev-list --count origin/master..HEAD` = **`0`**（本更新实测 `45941c6` = origin，ahead=0）。若 ahead≠0，先按 T-7.2 补推；若工作区存在未入库的 `docs/exam-center-plan-20261025.md`，按 T-8.1 走用户确认后单独 docs 提交。
 **T-0.3.1**（硬指标·修正）推送失败**不是 GitHub 不可达**：实测 `github.com:443` TCP 可连，`git -c http.proxy= -c https.proxy= ls-remote --heads origin` 成功；故障在**本机默认代理 `127.0.0.1:7890` 的 TLS 链路**（`schannel: server closed abruptly`）。→ 一律绕代理推送。
-**T-0.4**（硬指标）`git -C C:\zhaoren status --short` 应为 **0 个 `M` + 仅 6 项 `??`**（用户文档，见 C-3.5）：
-- `??` `线上耍伴SOP与岗前考试题库_合订本.md`、`线上耍伴上岗培训考试题库.md`、`线上耍伴业务标准作业流程（SOP）.docx`、`线下客户外耍伴SOP与岗前考试题库_合订本.md`、`陪诊SOP与岗前考试题库_合订本20261020.md`、`陪诊业务标准作业流程（SOP）.docx`
-- **任何 `M` 都是异常**（T-7.1 已收尾，工作区本应干净）
+**T-0.4**（硬指标·V2 重测）`git -C C:\zhaoren status --short` 应为 **0 个 `M` + 7 项 `??`**：
+- 6 份**用户文档**（C-3.5 永不入库）：`docs/` 下 `线上陪伴SOP与岗前考试题库_合订本.md`、`线上陪伴上岗培训考试题库.md`、`线上陪伴业务标准作业流程（SOP）.docx`、`线下户外陪伴SOP与岗前考试题库_合订本.md`、`陪诊SOP与岗前考试题库_合订本20261020.md`、`陪诊业务标准作业流程（SOP）.docx`（以 `git status --short` 实际输出为准）
+- 1 份**项目文档**：`docs/exam-center-plan-20261025.md`（学习考试中心实施方案，**不属于** C-3.5 禁令，待用户审核后按 T-8.1 入库）
+- **除本衔接文件自身外，任何 `M` 都是异常**（T-7.1 已收尾）：本文件 V2 修订待按 T-8.1 入库，期间其 `M` 属预期（双评审实测恰为 1 个 M = 本文件）；本文件入库后应回到 **0 个 M**
 
 **T-0.5**（硬指标）云环境 `cloud1-d9gkefwcp5c777088`；AppID `wxbc4a4afacdf234f5`。
 **T-0.6**（硬指标）工具路径：密钥文件 `C:\zhaoren-bak\admin-key-20261006.txt`（True）；云开发 CLI `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd`（True）。
 **T-0.6.1**（硬指标·修正）IDE CLI **两个路径都存在**：桌面 `C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat`（本会话 v1.6.39 上传实测可用）与 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`。**必须用当前实际打开的 IDE 对应的那份**；不确定时先跑 `islogin` / `upload -h` 试通，勿两份混用。
 **T-0.7**（硬指标）线上 admin-web 构建 = **`index-BxlCgeAe.js`**（实测托管域 HTML 引用；主 bundle 引 `admin-DaH-EOZU.js` 52393 B）。该构建**已含**「剔除不可见字符」**与**「64→68 补前缀」双加固（`e6e5a52`，2026-10-25 部署）。
-**T-0.8**（硬指标）当前体验版 = **v1.6.39**（`docs/deploy-log.md` **第 210 行 / 倒数第 6 行**）。提审选 1.6.39。
-**T-0.9**（硬指标）**开工前必读顺序**：`.trae/rules.md` → 项目记忆 `project_memory.md` → `docs/runbooks/pre-release-filing-checklist.md`（涉及提审时）→ 本文件。`rules.md` 为 alwaysApply 级约束，优先级高于本文件。
+**T-0.8**（硬指标·V2 修订）当前体验版 = **v1.6.39**（`docs/deploy-log.md` **第 210 行**；现文件 216 行即倒数第 7 行，评审实测）。恢复提审时选 1.6.39（现为已上传快照，暂缓不影响其有效性）。
+**T-0.9**（硬指标）**开工前必读顺序**：`.trae/rules.md` → 项目记忆 `project_memory.md` → `docs/exam-center-plan-20261025.md`（**当前主线方案**）→ `docs/runbooks/pre-release-filing-checklist.md`（恢复提审时）→ 本文件。`rules.md` 为 alwaysApply 级约束，优先级高于本文件。
 **T-0.10**（约束红线）**禁止破坏性 git 命令**：`git clean -fd`、`git reset --hard`、`git checkout -- .`、`git stash drop` 一律禁止（会同时抹掉 6 份用户文档与 T-7.1 的唯一修复副本）。
 **T-0.11**（约束红线）**禁止 `git add -A` / `git add .` / `git add docs/`**：必须按文件名精确 `git add`。
 **T-0.12**（接收清点契约 RIC）首次回复先产出清点表，逐条覆盖 `T-* ∪ C-* ∪ E-*` 集合（含嵌套叶子编号），差集必须为空：
@@ -30,10 +32,10 @@
 ```text
 | 编号 | 原文要点(≤20字) | 我的理解/落点 | 状态(接收/存疑/不符/缺失) |
 |------|----------------|--------------|------------------------|
-| T-0.2 | HEAD=5750405 | 实测 … | 接收 |
+| T-0.2 | HEAD=45941c6 | 实测 … | 接收 |
 ```
 
-**T-0.13**（硬指标）清点通过后再等用户派活；不要自行开工 T-7.x。
+**T-0.13**（硬指标）清点通过后再等用户派活；当前主线 = **学习考试中心**（T-8.x：方案待用户审核 + D1–D6 待拍板，拍板后才开工 S2）；提审线 T-7.3~T-7.7 **全部暂缓**，勿自行开工。
 
 ---
 
@@ -58,15 +60,17 @@
 | P2-11 SOS 闭环 | `c88c5c1` | `workbench.js` +22/−8：`my_orders(partner,doing)` 填 `currentOrderId/todayOrders`；无单 toast；静默 catch 改显式 | 已上传 v1.6.39，**真机未验** |
 | 技术债清单刷新 | — | `docs/tech-debt-inventory-20261015.md`：P1 **8** / P2 **13** / P3 **17**（实测行数） | 已入库；头部已漂移（T-7.9） |
 | admin-web 登录 401 排查 | `9a789fb`（补部署）、`692622c` + `e6e5a52`（代码）、`5750405`（**仅文档登记**） | 见 E-6.1~E-6.5 | **已上线**（`index-BxlCgeAe.js`；64 裸 body 现已自动补 `AWK-`） |
+| 学习考试中心评估 + 实施方案 | —（**未入库**，工作区 `??`） | `docs/exam-center-plan-20261025.md`：双专家同步评估定稿（地基优先 / 独立 exam 云函数 / cert_status 派生状态机 / 内容灰度）+ S1–S6 路线 + 4 集合 schema + cutover 五步 + D1–D6 决策点 | **待用户审核** |
 
 **门禁实跑（取证时点）**：`npm.cmd test` → **tests 593 / pass 593 / fail 0**；A/B **444 EQUIVALENT**（241 explicit + 203 auto；**43** known-evolution）；`check-syntax` **251 files ALL OK**；`check-ssot` 0；`check-shared-sync` ALL OK（含 2 项 known-drift owed）。
 **口径提醒**：deploy-log 里 v1.6.39 那次写的 `581` 是当时值；**以 593 为准，每次 commit 前必须实跑**。技术债台账里的「38/41」A/B 口径也已落后（现为 43），下次 docs 批次一并订正。
+**V2 提示**：593 / 444 / 43 为 17:3x 时点实测；V2 会话（学习考试中心立项）**零代码改动、未重跑门禁**——任何 commit 前仍须实跑（E-6.12）。
 
 ---
 
 ## §3 约束（C-3.x，红线）
 
-**C-3.1**（约束红线）**提审冻结期**：`miniprogram/` 与 `cloudfunctions/` 业务代码**零改动**；`admin-web-frontend/`、静态托管**可改**。改 `cloudfunctions/` 需用户书面授权（先例 `docs/legal-compliance-u2-authorization-20261025.md`）。
+**C-3.1**（约束红线·V2 修订）**提审暂缓**（用户 2026-10-25 决策：不考虑提审时间，冻结期由项目实际情况确定）→ 当前为**解冻工作态**，但仍须「**先方案后动手**」：任何 `miniprogram/` / `cloudfunctions/` 业务改动须有用户审核通过的方案文档先行（先例 `docs/exam-center-plan-20261025.md`）；改 `cloudfunctions/` 需用户明确授权（先例 `docs/legal-compliance-u2-authorization-20261025.md`）。**恢复提审时**按技能 `zhaoren-frequent-flows` 冻结期纪律切换，届时本条回到 V1 口径（业务代码零改动）。
 **C-3.2**（约束红线）云函数改动**必须重新部署才生效**；部署前完成备份链（见 C-3.2.1），部署后在 `docs/deploy-log.md` 登记回滚点。
 **C-3.2.1**（约束红线）**三重备份**：git bundle + robocopy 热备 + 云端 DB 导出，全部落 `C:\zhaoren-bak`；用 `.predeploy/manual-backup.ps1`（含云函数代码 `meta/functions_code`、索引台账 `meta/index_ledger.json`）；异地同步飞书云空间 `zhaoren-backup`。细节走技能 `cloud-backup-restore`。
 **C-3.3**（约束红线）**commit 三类严格隔离**：①业务代码+规则 ②docs/台账 ③测试基础设施；禁止混批。
@@ -74,7 +78,7 @@
 **C-3.5**（约束红线）**用户文档永不入库**：`docs/*SOP*.md`、`docs/*SOP*.docx`、`docs/*题库*.md`、`docs/xuexikaoshi/`。命中即停手并告知用户。
 **C-3.6**（约束红线）凭据只写**路径**，不写内容；正文引用密钥一律脱敏为 `AWK-****（68 位）`。
 **C-3.7**（约束红线）已验收基线内容修改须先经用户同意；涉及金额/状态机改动，先读码再改，禁止臆造字段。
-**C-3.8**（约束红线·修正）提审期 `admin_config.global` **配置冻结表**（禁改，除用户明确指令）：
+**C-3.8**（约束红线·修正）**恢复提审时生效**的 `admin_config.global` **配置冻结表**（禁改，除用户明确指令；当前解冻态下变更走 C-3.9 口径）：
 
 | 键（云端扁平键名） | 提审期现值 | 说明 |
 |---|---|---|
@@ -137,6 +141,7 @@ const cmd = JSON.stringify([{ TableName: 'admin_config', CommandType: 'QUERY',
 **台账与文档**
 - `docs/deploy-log.md`（最新 3 行为本会话产物）、`docs/tech-debt-inventory-20261015.md`
 - `docs/legal-compliance-redesign-20261025.md`、`docs/legal-compliance-u2-authorization-20261025.md`
+- `docs/exam-center-plan-20261025.md`（**当前主线**：学习考试中心实施方案，S1–S6 + 4 集合 schema + cutover + D1–D6）；原型蓝本 `C:\tmp\gen_md.py` 在仓库外可能不持久，其取舍已固化进方案 §8
 - 项目记忆：`c:\Users\Administrator\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\project_memory.md`
 
 **上一版资产处置**（`docs/onboarding-prompt-20261010.md`）
@@ -178,7 +183,9 @@ const cmd = JSON.stringify([{ TableName: 'admin_config', CommandType: 'QUERY',
 
 ---
 
-## §7 待办（T-7.x，标注谁做；★ 为时序硬约束）
+## §7 待办（T-7.x 提审线 + T-8.x 考试中心线；标注谁做；★ 为时序硬约束）
+
+> **V2 状态**：提审线 T-7.3~T-7.7 **整体暂缓**（用户 2026-10-25 决策不考虑提审，恢复提审时再执行）；当前活跃线 = **T-8.x 学习考试中心**。v1.6.39 体验版为已上传快照，暂缓不影响其有效性。
 
 **T-7.1**（✅ 已完成 2026-10-25，commit `e6e5a52` + 部署 + deploy-log 末行）**64→68 补前缀修复已上线**，以下子项保留作为**回滚/复现手册**：
 **T-7.1.1** 补丁留档：`C:\zhaoren-bak\admin-js-20261025.patch`（845 B，已生成）。
@@ -195,24 +202,24 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 **T-7.1.7** 分两批提交：代码与 docs（**均需用户确认**）。
 **T-7.1.8** 完成后重跑 T-0.2 / T-0.3 / T-0.4 / T-0.7 并更新本文件（已执行）。
 
-**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。本会话 4 个 commit **已全部推送完成**（T-0.3）。
+**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。V1 会话 4 个 commit（`692622c` 代码 / `5750405` 文档 / `e6e5a52` 代码 / `9a08e3e` 文档）**已推送完成**；当前 HEAD = `45941c6` = origin（T-0.2/T-0.3）。
 
-**T-7.3**（待办·用户真机）**验证 v1.6.39 的 P2-11 SOS**：
+**T-7.3**（**暂缓**·用户真机·恢复提审后执行）**验证 v1.6.39 的 P2-11 SOS**：
 **T-7.3.1** 有进行中订单 → 「仅上报」→ `safety_report` 新增 `sos` 且 `order_main.help_flag=true`。
 **T-7.3.2** 无进行中订单 → toast「当前无进行中订单」且**不落库**（这是**已接受的产品边界**：`safety-report` 要求 `order_id` 存在，**禁止**为它改后端）。
 **T-7.3.3** 断网（前置：必须有 doing 单）→ toast「网络异常，请直接拨打110」。
 
-**T-7.4**（待办·用户手动）**提审前置**：按 `docs/runbooks/pre-release-filing-checklist.md` §6 逐项勾选（F1 隐私指引**状态须为已通过**、F2 位置权限、F3 三个订阅模板 + `miniprogram_state=trial`、F4 合法域名、F5 `admin_openids`、F6 提审说明）。
+**T-7.4**（**暂缓**·用户手动·恢复提审后执行）**提审前置**：按 `docs/runbooks/pre-release-filing-checklist.md` §6 逐项勾选（F1 隐私指引**状态须为已通过**、F2 位置权限、F3 三个订阅模板 + `miniprogram_state=trial`、F4 合法域名、F5 `admin_openids`、F6 提审说明）。
 
-**T-7.5**（待办·用户）提审选 **v1.6.39**（`1.6.38` 已被取代）。
+**T-7.5**（**暂缓**·用户·恢复提审后执行）提审选 **v1.6.39**（`1.6.38` 已被取代）。
 **T-7.5.1 ★**（约束红线）**T-7.3 未全绿前不得执行 T-7.5**。若真机失败：二选一 —— ①回退用 `1.6.38` 提审（源码等价，无 SOS 修复）；②取得用户**书面解冻授权**后再改 `miniprogram/` 并递增版本。
 
-**T-7.6**（待办·提审后·AI）P1-7 + P1-6②：
+**T-7.6**（**暂缓**·提审后·AI）P1-7 + P1-6②：
 **T-7.6.1** `auto_approve_partner → false`，必须走后台 `config_set`（留 `config_history`），禁用 nosql 直改。
 **T-7.6.2** 清理自动通过档案：先只读 dump `partner_profile` 留底，按 `created_at` 窗口 + 实名/审核字段筛出测试期自动通过者，再批量软删。
 **T-7.6.3** `realname_reset_simulated` 清理模拟实名。
 
-**T-7.7**（待办·提审后·AI）批 1b：user-login 版本下发 + 重签机制 + C 端 agreement/privacy 动态化；**版本号由用户确认**（建议 1.6.40），上传流程走 `zhaoren-frequent-flows` 流程 2。
+**T-7.7**（**暂缓**·提审后·AI）批 1b：user-login 版本下发 + 重签机制 + C 端 agreement/privacy 动态化；**版本号由用户确认**（建议 1.6.40），上传流程走 `zhaoren-frequent-flows` 流程 2。
 
 **T-7.8**（待办·提审后·AI）技术债：P2-12/13（工作台「今日待履约」/「本周收入」口径）、P3-15（legal_doc 并发写 + 列表不带 content + 角色门控）、P3-12（order-timer 三表扫描索引）。
 
@@ -220,19 +227,36 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 
 **T-7.10**（约束红线）未获用户明确指令前**禁止开工**任何 `miniprogram/` / `cloudfunctions/` / `admin_config` 生产变更（含为 T-7.3.2 而改后端）。
 
+**T-8.1**（待办·AI·**需用户确认**）将 `docs/exam-center-plan-20261025.md` 按 **docs 批次**单独提交入库（C-3.3 三类隔离 / C-3.4 先确认）；提交前实跑门禁（E-6.12）；顺手完成 T-7.9 台账口径订正。
+
+**T-8.2**（待办·用户）**审核方案 + 拍板 D1–D6**（方案 §5；推荐值：D1 base 证书永久 / D2 cutover 日回填 365d / D3 S6 验证后才开闸 / D4 study_content 集合 / D5 保持现行为 / D6 本地缓存批量写）。T-8.1 文档入库与 T-8.2 拍板**可并行，两者齐备 = S1 收口**。
+
+**T-8.3**（待办·AI·T-8.2 后开工）**S2 后端落地**（方案 §4-S2）：新建 `exam-action` + `exam-admin-action` 两云函数；`_shared/cert_state.js` + `sync-cert-state.ps1` + 单测；4 新集合（questions / exam_sessions / certificates / study_records）+ 索引台账登记；admin_config 3 新键（`cert_gate_enabled` 默认 false / `w1_cert_valid_days` 365 / `base_cert_permanent` true，走 CONFIG_SCHEMA）；多选题判分 + exam_sessions 留痕 + 发证；partner-apply 门禁切换（**开关关闸 = 行为不变**）；partner-action/admin-action 旧考试 action 改薄别名（S6 才移除）。
+
+**T-8.4**（待办·AI·与 T-8.3 并行启动）**S3 内容工程**（方案 §4-S3）：**第一件事 = W1 医疗表述合规审**（不出现指令式「给药/执行医嘱/诊断」措辞，产出合规审记录归档）；base+W1 课程内容入 `study_content`（draft → admin 预览 → published）。
+
+**T-8.5 ★**（约束红线·时序）`cert_gate_enabled` **默认 false**；S6 云端 mock 回归 + 真机验证通过并经用户确认前，**禁止**任何途径开闸（含 nosql 直改——本就违反 C-3.9）。
+
 ---
 
 ## §8 用户核对要点（参考用，非清点项；约束已并入 C-3.x）
 
 1. 先按 T-0.12 出清点表，差集为空再等派活。
 2. admin-web 登录修复**已全部上线**（`e6e5a52`）：68 位完整 key、64 位裸 body、整行 `AWK_KEY=`、含零宽字符均可登录。
-3. 任何 commit / push 前必须先问用户（C-3.4）；本会话 4 个 commit 已推送，当前 ahead=0。
+3. 任何 commit / push 前必须先问用户（C-3.4）；当前 ahead=0，工作区仅 7 项 `??`（6 用户文档 + 待入库的考试中心方案）。
 4. 涉及生产数据、已验收功能、提审状态的动作，先说方案再动手。
+5. **本会话主线变更**：提审暂缓（无时间要求）；学习考试中心已立项——方案 `docs/exam-center-plan-20261025.md` 待审核，D1–D6 待拍板，拍板后开工 S2（T-8.3）。
+6. `admin_config` 冻结表（C-3.8）在提审暂缓期**不生效**，任何配置变更仍须走 C-3.9 口径 + 用户明确指令。
 
 ---
 
-## 验证者修正（双评审留痕，2026-10-25）
+## 验证者修正（双评审留痕）
 
+### V1 时点（2026-10-25 早）
 **A 事实核验抓出 6 处不符（已全部修正）**：①GitHub 443 实际可达，故障在本机默认代理 TLS（原稿误写「GitHub 连不通」）；②`??` 实为 7 项非 6 项；③v1.6.39 在倒数第 6 行非第 5 行；④用户 SOP 实为 **6 份**非 5 份；⑤T-7.1 后共 4 个待推非 3 个；⑥当前未推 2 个非 3 个。
 **B 完整性审查抓出高危 10 项、中危 18 项、低危 11 项（已并入正文）**，其中影响可执行性的关键项：受保护配置文件缺失、破坏性 git 命令无禁令、提审期配置冻结表缺失、`realname_face_mode` 键路径写错（扁平键）、`verify:offline` 实为 9 段非 4 段、云函数部署命令缺 `--env/--project`、T-7.1 未写「允许带未提交改动部署」例外、嵌套待办未编号。
 **保留待确认项**：W8 当前版本号（本稿原记 v4，deploy-log 记 v3）→ 以云端 `legal_doc` 实测为准。
+
+### V2 时点（2026-10-25 晚，增量评审：A 13 项 + B 8 项，均已并入正文）
+- **A 事实核验**：11 项属实、2 项修正——①T-0.4「0 个 M」在 V2 未入库窗口自指失效（实测 1 个 M = 本文件）→ 补本文件 M 豁免口径；②T-0.8「倒数第 6 行」因 deploy-log 增至 216 行漂移 → 改「第 210 行 / 倒数第 7 行」。另确认：6 份用户文档文件名逐字节一致（V1「耍伴/线下客户外耍伴」系误记，V2 已纠）、方案文档 §4-S2/§4-S3/§5/§8 与 T-8.2/T-8.3/T-8.4 引用逐项吻合、deploy-log 第 210 行门禁数 581 属实、全文 0 处凭据明文。
+- **B 完整性/偏离**：高危 0 / 中危 2（T-7.2 孤儿引用「本会话 4 个 commit」→ 改写为 V1 会话；T-0.4 同 A）/ 低危 6（T-0.12 示例值残留 `5750405`→改 `45941c6`；T-7.6/T-7.7 补暂缓标签；T-0.8 补暂缓语境；本段 V1/V2 分层；§8 增冻结表暂缓期提示；T-8.1/T-8.2 收口口径改「可并行，两者齐备 = S1 收口」）。**B 确认：V1 资产零意外丢失、危险操作防线完整、T-8.x 与方案文档口径一致、自含性合格。**

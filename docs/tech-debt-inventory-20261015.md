@@ -1,6 +1,6 @@
 # 找人帮忙项目技术负债清单（刷新版）
 
-> 盘点日期：2026-10-15　**刷新：2026-10-25 三次刷新（HEAD `21cde8a`，本地=origin/master MATCH，工作区干净）**
+> 盘点日期：2026-10-15　**刷新：2026-10-25 四次刷新（HEAD `45941c6`，本地=origin/master MATCH ahead 0；本批 docs 入库后 HEAD 前移一档，届时工作区仅余 6 份用户文档 `??`）**
 > 基线：HEAD `ab9de38`（本地=origin/master，分叉 0/0，工作区干净）
 > 数据来源：FUNCTION-REGISTRY/CHANGELOG/deploy-log 实测 + 代码扫描（空 catch、文件行数、eol、引用关系均当场命令核实）；2026-10-16 刷新项：待验证 ID 全集、两巨页行数、单测数、空 catch 净口径（163）、P2-5 题库深比（0 漂移）均当场命令重测
 > 继承：`docs/tech-debt-delivery-report-20261012.md`（10-09～10-12 六批整改已偿还项不在本单重复列）
@@ -105,7 +105,7 @@
 
 ## 治理成本（非缺陷，登记备查）
 
-- **KNOWN_EVOLUTION 口径（2026-10-20 实测定案）**：**声明 41 条 / 运行时命中 38 例**——`ab_equivalence.js` 输出 `439 cases (241 explicit + 198 auto; 38 known-evolution)`，故**引用一律以运行时「38」为准**；声明表比运行时多 3 条 stale（不命中），已登记 **P3-10** 待提审后清理。每登记一例均配独立行为断言，符合 project_rules §10。
+- **KNOWN_EVOLUTION 口径（2026-10-25 晚 verify:offline 实测刷新）**：运行时命中 **43 例**——`ab_equivalence.js` 输出 `444 cases (241 explicit + 203 auto; 43 known-evolution)`，故**引用一律以运行时「43」为准**（2026-10-20 旧口径「声明 41 / 运行时 38 · 439 cases」已过时）；声明表与运行时的差集口径仍归 **P3-10** 跟踪。每登记一例均配独立行为断言，符合 project_rules §10。
 - **三个挂起项**（#61 旧 start_service、#65 start_photo、**#63 user_confirm_start**）：服务端保留无入口，验收口径=确认前端无残留调用（**2026-10-20 REGISTRY 待验证已清零**，本条仅作口径备忘）。
 
 ## 建议处置优先级
