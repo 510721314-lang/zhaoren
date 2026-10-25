@@ -38,6 +38,9 @@ export function normalizeKey(raw) {
   let s = String(raw == null ? '' : raw).trim();
   const m = s.match(/^AWK_KEY\s*=\s*([\s\S]*)$/i);
   if (m) s = m[1].trim();
+  // 2026-10-25 追加: trim() 清不掉零宽空格(U+200B)/软连字符等不可见字符, 从网页复制常带入。
+  // 密钥本体只含 [A-Za-z0-9_-]（实测生产 key = "AWK-" + 64 位）, 故直接剔除其余字符。
+  s = s.replace(/[^A-Za-z0-9_-]/g, '');
   return s;
 }
 

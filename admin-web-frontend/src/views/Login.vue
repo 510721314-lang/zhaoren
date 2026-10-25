@@ -47,14 +47,16 @@ const loading = ref(false);
 async function onLogin() {
   loading.value = true;
   let r;
+  let sentKey = '';
   if (mode.value === 'account') {
     r = await call('admin_login', { account: account.value.trim(), password: password.value.trim() });
   } else {
     // 密钥登录: 显式传 key 验证(避免 localStorage 覆盖)
     // 2026-10-25 实测: 真正的 401 真凶是「整行粘贴带 AWK_KEY= 前缀」; 半角首尾空白由 HTTP 头自行剥离。
-    // 故统一走 normalizeKey: 剥前缀 + trim(兼防全角空格 U+3000 导致的浏览器非法头字符异常)
+    // 故统一走 normalizeKey: 剥前缀 + trim + 剔除非密钥字符(零宽空格等), 兼防全角空格导致的浏览器非法头字符异常
     const k = normalizeKey(key.value);
     if (!k) { loading.value = false; alert('请输入 admin_web_key'); return; }
+    sentKey = k;
     r = await call('config_get', {}, k);
   }
   loading.value = false;
@@ -72,8 +74,10 @@ async function onLogin() {
     window.location.hash = '#/config';
   } else {
     // 401 是网关层拒绝(密钥不符), axios 只回原始英文消息, 这里换成可操作的提示
+    // 并把「实际发出去的密钥特征」回显, 便于一眼看出长度/首尾是否异常(不泄露完整密钥)
     const msg = r.code === 'http_401'
       ? '密钥不正确(401)：请确认粘贴的是 admin_web_key 本体（不含 "AWK_KEY=" 前缀、不含空格或换行）'
+        + (sentKey ? `［实际发送: 长度 ${sentKey.length}, ${sentKey.slice(0, 4)}…${sentKey.slice(-4)}］` : '')
       : (r.msg || r.code);
     alert('登录失败: ' + msg);
   }
