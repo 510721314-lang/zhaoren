@@ -10,18 +10,17 @@
 ## §0 开场回执校验（先回执，再等派活）
 
 **T-0.1**（硬指标）工作目录唯一可信 = `C:\zhaoren`。所有 git 命令一律写 `git -C C:\zhaoren ...`，不依赖当前 cwd。
-**T-0.2**（硬指标）`git -C C:\zhaoren rev-parse --short HEAD` → 实测 **`5750405`**。
-**T-0.3**（硬指标）`origin/master` = **`9a789fb`**；`rev-list --count origin/master..HEAD` = **`2`**（未推送：`692622c` 代码、`5750405` 文档）。
-**T-0.3.1**（硬指标·修正）未推送原因**不是 GitHub 不可达**：实测 `github.com:443` TCP 可连，`git -c http.proxy= -c https.proxy= ls-remote --heads origin` **成功**返回 `9a789fb`；故障在**本机默认代理 `127.0.0.1:7890` 的 TLS 链路**（`schannel: server closed abruptly`）。→ push 前置条件**当前已具备**。
-**T-0.4**（硬指标）`git -C C:\zhaoren status --short` 应为 **1 个 `M` + 7 项 `??`**：
-- `M admin-web-frontend/src/api/admin.js`（3 行未部署改动，见 T-7.1）
-- `??` 6 份用户文档：`线上耍伴SOP与岗前考试题库_合订本.md`、`线上耍伴上岗培训考试题库.md`、`线上耍伴业务标准作业流程（SOP）.docx`、`线下客户外耍伴SOP与岗前考试题库_合订本.md`、`陪诊SOP与岗前考试题库_合订本20261020.md`、`陪诊业务标准作业流程（SOP）.docx`
-- `?? docs/xuexikaoshi/`（目录）
+**T-0.2**（硬指标）`git -C C:\zhaoren rev-parse --short HEAD` → 应为 **`e6e5a52` 或其后的仅含 docs 类提交**（本文件落盘时 HEAD = **`9a08e3e`**）。请用 `git log --oneline -6` 核对提交性质。
+**T-0.3**（硬指标）`origin/master` 应与 HEAD **一致**、`rev-list --count origin/master..HEAD` = **`0`**。本会话已完成推送 4 个 commit：`692622c`（代码）、`5750405`（文档）、`e6e5a52`（代码）、`9a08e3e`（文档）。若 ahead≠0，先按 T-7.2 补推。
+**T-0.3.1**（硬指标·修正）推送失败**不是 GitHub 不可达**：实测 `github.com:443` TCP 可连，`git -c http.proxy= -c https.proxy= ls-remote --heads origin` 成功；故障在**本机默认代理 `127.0.0.1:7890` 的 TLS 链路**（`schannel: server closed abruptly`）。→ 一律绕代理推送。
+**T-0.4**（硬指标）`git -C C:\zhaoren status --short` 应为 **0 个 `M` + 仅 6 项 `??`**（用户文档，见 C-3.5）：
+- `??` `线上耍伴SOP与岗前考试题库_合订本.md`、`线上耍伴上岗培训考试题库.md`、`线上耍伴业务标准作业流程（SOP）.docx`、`线下客户外耍伴SOP与岗前考试题库_合订本.md`、`陪诊SOP与岗前考试题库_合订本20261020.md`、`陪诊业务标准作业流程（SOP）.docx`
+- **任何 `M` 都是异常**（T-7.1 已收尾，工作区本应干净）
 
 **T-0.5**（硬指标）云环境 `cloud1-d9gkefwcp5c777088`；AppID `wxbc4a4afacdf234f5`。
 **T-0.6**（硬指标）工具路径：密钥文件 `C:\zhaoren-bak\admin-key-20261006.txt`（True）；云开发 CLI `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd`（True）。
 **T-0.6.1**（硬指标·修正）IDE CLI **两个路径都存在**：桌面 `C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat`（本会话 v1.6.39 上传实测可用）与 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`。**必须用当前实际打开的 IDE 对应的那份**；不确定时先跑 `islogin` / `upload -h` 试通，勿两份混用。
-**T-0.7**（硬指标）线上 admin-web 构建 = **`index-CAlNJAbc.js`**（实测托管域 HTML 引用）。该构建**已含**「剔除不可见字符」，**不含** 64→68 补前缀（即 T-7.1 尚未上线）。
+**T-0.7**（硬指标）线上 admin-web 构建 = **`index-BxlCgeAe.js`**（实测托管域 HTML 引用；主 bundle 引 `admin-DaH-EOZU.js` 52393 B）。该构建**已含**「剔除不可见字符」**与**「64→68 补前缀」双加固（`e6e5a52`，2026-10-25 部署）。
 **T-0.8**（硬指标）当前体验版 = **v1.6.39**（`docs/deploy-log.md` **第 210 行 / 倒数第 6 行**）。提审选 1.6.39。
 **T-0.9**（硬指标）**开工前必读顺序**：`.trae/rules.md` → 项目记忆 `project_memory.md` → `docs/runbooks/pre-release-filing-checklist.md`（涉及提审时）→ 本文件。`rules.md` 为 alwaysApply 级约束，优先级高于本文件。
 **T-0.10**（约束红线）**禁止破坏性 git 命令**：`git clean -fd`、`git reset --hard`、`git checkout -- .`、`git stash drop` 一律禁止（会同时抹掉 6 份用户文档与 T-7.1 的唯一修复副本）。
@@ -58,7 +57,7 @@
 | 满态 UI 改进 | `d23fadc` | 提示条 + tooltip + `配置数>=场景数` + 删除→停用 | 已部署 |
 | P2-11 SOS 闭环 | `c88c5c1` | `workbench.js` +22/−8：`my_orders(partner,doing)` 填 `currentOrderId/todayOrders`；无单 toast；静默 catch 改显式 | 已上传 v1.6.39，**真机未验** |
 | 技术债清单刷新 | — | `docs/tech-debt-inventory-20261015.md`：P1 **8** / P2 **13** / P3 **17**（实测行数） | 已入库；头部已漂移（T-7.9） |
-| admin-web 登录 401 排查 | `9a789fb`（补部署）、`692622c`（代码）、`5750405`（**仅文档登记**） | 见 E-6.1~E-6.5 | **第 3 轮代码修复仍在工作区，未提交未上线**（T-7.1） |
+| admin-web 登录 401 排查 | `9a789fb`（补部署）、`692622c` + `e6e5a52`（代码）、`5750405`（**仅文档登记**） | 见 E-6.1~E-6.5 | **已上线**（`index-BxlCgeAe.js`；64 裸 body 现已自动补 `AWK-`） |
 
 **门禁实跑（取证时点）**：`npm.cmd test` → **tests 593 / pass 593 / fail 0**；A/B **444 EQUIVALENT**（241 explicit + 203 auto；**43** known-evolution）；`check-syntax` **251 files ALL OK**；`check-ssot` 0；`check-shared-sync` ALL OK（含 2 项 known-drift owed）。
 **口径提醒**：deploy-log 里 v1.6.39 那次写的 `581` 是当时值；**以 593 为准，每次 commit 前必须实跑**。技术债台账里的「38/41」A/B 口径也已落后（现为 43），下次 docs 批次一并订正。
@@ -181,9 +180,9 @@ const cmd = JSON.stringify([{ TableName: 'admin_config', CommandType: 'QUERY',
 
 ## §7 待办（T-7.x，标注谁做；★ 为时序硬约束）
 
-**T-7.1**（待办·AI·**需用户确认**·最高优先）**上线 64→68 补前缀修复**（健壮性收尾：68 位完整 key 现已可登录，仅粘贴 64 位裸 body 才 401）。
-**T-7.1.1** 先留档：`git -C C:\zhaoren diff admin-web-frontend/src/api/admin.js > C:\zhaoren-bak\admin-js-20261025.patch`。
-**T-7.1.2** 允许**带未提交改动**走静态托管部署（admin-web 例外；deploy-log 须注明「承载未提交改动」）。
+**T-7.1**（✅ 已完成 2026-10-25，commit `e6e5a52` + 部署 + deploy-log 末行）**64→68 补前缀修复已上线**，以下子项保留作为**回滚/复现手册**：
+**T-7.1.1** 补丁留档：`C:\zhaoren-bak\admin-js-20261025.patch`（845 B，已生成）。
+**T-7.1.2** admin-web 静态托管**允许带未提交改动部署**（全项目唯一例外；deploy-log 须注明「承载未提交改动」）。
 **T-7.1.3** 清缓存 + 断言 + 重建 + 本地产物 grep（须命中 `[^A-Za-z0-9_-]` 与 `[0-9a-fA-F]{64}`）。
 **T-7.1.4** `hosting deploy --safe`。
 **T-7.1.5** 远端复核（必须带 cache-buster，再取主 bundle 内 chunk 名）：
@@ -193,10 +192,10 @@ $html=(Invoke-WebRequest "$base/?v=$((Get-Random))" -UseBasicParsing).Content
 $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 ```
 **T-7.1.6** 用户浏览器 Ctrl+F5 复测登录（粘贴 64 位裸 body 也应成功）。
-**T-7.1.7** 分两批提交：`fix(admin-web): …`（代码）与 `docs: deploy-log …`（文档），**均需用户确认**。
-**T-7.1.8** 完成后**重跑 T-0.2 / T-0.3 / T-0.4 / T-0.7 并更新本文件**（届时 HEAD、ahead、status、线上 `index-*` 都会变，原硬指标过期）。
+**T-7.1.7** 分两批提交：代码与 docs（**均需用户确认**）。
+**T-7.1.8** 完成后重跑 T-0.2 / T-0.3 / T-0.4 / T-0.7 并更新本文件（已执行）。
 
-**T-7.2**（待办·AI·**需用户确认**）**补推 commit**：当前 ahead=**2**（`692622c`、`5750405`）；T-7.1 完成后再 +2，共 **4** 个。命令 `git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。前置条件已具备（T-0.3.1）。
+**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。本会话 4 个 commit **已全部推送完成**（T-0.3）。
 
 **T-7.3**（待办·用户真机）**验证 v1.6.39 的 P2-11 SOS**：
 **T-7.3.1** 有进行中订单 → 「仅上报」→ `safety_report` 新增 `sos` 且 `order_main.help_flag=true`。
@@ -226,8 +225,8 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 ## §8 用户核对要点（参考用，非清点项；约束已并入 C-3.x）
 
 1. 先按 T-0.12 出清点表，差集为空再等派活。
-2. T-7.1 是唯一「代码已改但没上线」的悬空项；它不修也能用 68 位完整 key 登录，修的是粘贴容错。
-3. 任何 commit / push 前必须先问用户（C-3.4）；当前 2 个 commit 未推，push 链路已恢复。
+2. admin-web 登录修复**已全部上线**（`e6e5a52`）：68 位完整 key、64 位裸 body、整行 `AWK_KEY=`、含零宽字符均可登录。
+3. 任何 commit / push 前必须先问用户（C-3.4）；本会话 4 个 commit 已推送，当前 ahead=0。
 4. 涉及生产数据、已验收功能、提审状态的动作，先说方案再动手。
 
 ---
