@@ -362,7 +362,7 @@ npm.cmd run build
 Invoke-RestMethod -Uri ".../api" -Method Post -Headers @{'X-Admin-Key'=$k;'Content-Type'='application/json'} -Body '{"action":"event_list","limit":15}'
 ```
 
-- 密钥文件 `C:\zhaoren-bak\admin-key-*.txt` 首行是 `AWK_KEY=<68位>`，输入框只填**本体**（不含 `AWK_KEY=`、不含空格/换行）
+- 密钥文件 `C:\zhaoren-bak\admin-key-*.txt` 首行是 `AWK_KEY=<68位>`。**实测口径**（2026-10-25）：整行粘贴 `AWK_KEY=<key>` → **HTTP 401 `bad_key`**（真凶）；`key+' '` 或 `'\t'+key` → **200**（首尾半角空白被 HTTP 头剥离）；全角空格 U+3000 → 浏览器抛非法头字符异常。已实现 `normalizeKey`（trim + 剥离 `AWK_KEY=` 前缀），整行粘贴也能登录；仍建议只填本体。
 
 ---
 
@@ -378,5 +378,5 @@ Invoke-RestMethod -Uri ".../api" -Method Post -Headers @{'X-Admin-Key'=$k;'Conte
 | npm 报 CommandNotFoundException | PowerShell 默认 alias 指向 `.cmd` 但 exit code 传递不稳 | 显式 `npm.cmd test` |
 | GitHub 测连通 `NET_FAIL` | 网络层断连，不是代理/凭据 | 等几秒重测，勿改代码 |
 | push 报 `Connection was reset` 且代理端口 7890 在监听 | 代理端口活着但**路由不通**（与「死端口」不同形态） | 仍用 `-c http.proxy= -c https.proxy=` 直连重试；先 `Test-NetConnection github.com -Port 443/22` 判层 |
-| 后台登录 `401 Request failed with status code 401` | 粘贴的密钥带 `AWK_KEY=` 前缀/空格/换行（网关 `bad_key`） | 只填密钥本体；已修 `trim`，仍失败则查 `gateway_bad_key` 事件 |
+| 后台登录 `401 Request failed with status code 401` | **整行粘贴带 `AWK_KEY=` 前缀**（实测必 401；半角首尾空白会被 HTTP 剥离、不是真凶；全角空格会在浏览器抛非法头异常） | 已实现 `normalizeKey` 自动剥前缀+trim；仍失败则查 `gateway_bad_key` 事件 |
 | 后台页面看不到新改动 | 开的是网关域（CDN 旧构建） | 换托管域 `tcloudbaseapp.com` + Ctrl+F5 |
