@@ -356,4 +356,89 @@ test('config_public: legal_public 补齐隐私政策/通用免责/版本号快�
   assert.ok('versions' in lp, '应含 versions 快照');
 });
 
+// ── U2(2026-10-25): 场景免责版本化（scope）—— 授权见 docs/legal-compliance-u2-authorization-20261025.md ──
+function legalSceneStore(extra) {
+  const g = Object.assign({
+    env: 'prod', admin_openids: [ADMIN],
+    scene_list: [{ code: 'W1', name: '就医陪诊' }, { code: 'W9', name: '宠物陪伴' }],
+    legal_scene_disclaimers: { W1: '旧文案A' }
+  }, extra || {});
+  return { admin_config: { global: g } };
+}
+
+test('legal_doc_publish: 场景免责缺 scope → legal_bad_scope 且不落库', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: legalSceneStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_publish', doc_type: 'scene_disclaimer', content: 'x' }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'legal_bad_scope');
+  assert.ok(!sdk.writes.legal_doc, '校验失败不应写 legal_doc');
+});
+
+test('legal_doc_publish: 非 scoped 类型传 scope → legal_bad_scope', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_publish', doc_type: 'service_agreement', scope: 'W1', content: 'x' }, {});
+  assert.strictEqual(r.code, 'legal_bad_scope');
+});
+
+test('legal_doc_publish: 场景免责带 scope → v1 + 合并写入 legal_scene_disclaimers 与版本快照', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: legalSceneStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_publish', doc_type: 'scene_disclaimer', scope: 'W9', content: '宠物免责', remark: '首次' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.version, 1);
+  assert.strictEqual(r.data.scope, 'W9');
+  const addW = (sdk.writes.legal_doc || []).find((w) => w.add);
+  assert.strictEqual(addW.data.scope, 'W9');
+  assert.strictEqual(addW.data.status, 'published');
+  const cfgW = (sdk.writes.admin_config || []).find((w) => w.where && w.data && w.data.legal_scene_disclaimers);
+  assert.ok(cfgW, '应写 legal_scene_disclaimers');
+  assert.strictEqual(cfgW.data.legal_scene_disclaimers.W9, '宠物免责');
+  assert.strictEqual(cfgW.data.legal_scene_disclaimers.W1, '旧文案A', '既有场景必须保留（map 合并而非覆盖）');
+  assert.strictEqual(cfgW.data.legal_scene_versions.W9, 1);
+});
+
+test('legal_doc_retire: 场景停用 → 版本 retired + 从 map 移除该 key', async () => {
+  const st = legalSceneStore();
+  st.legal_doc = { d1: { _id: 'd1', doc_type: 'scene_disclaimer', scope: 'W1', version: 1, content: '旧文案A', status: 'published', is_deleted: false } };
+  const sdk = makeSdk({ openid: ADMIN, store: st });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_retire', doc_type: 'scene_disclaimer', scope: 'W1' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.version, 2, '停用应生成新版本号');
+  assert.strictEqual(r.data.status, 'retired');
+  const addW = (sdk.writes.legal_doc || []).find((w) => w.add);
+  assert.strictEqual(addW.data.content, '');
+  const cfgW = (sdk.writes.admin_config || []).find((w) => w.where && w.data && w.data.legal_scene_disclaimers);
+  assert.ok(cfgW, '应写 legal_scene_disclaimers');
+  assert.strictEqual(cfgW.data.legal_scene_disclaimers.W1, undefined, '停用后该 key 应被移除');
+});
+
+test('legal_doc_retire: 非 scoped 类型 → legal_retire_unsupported', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_retire', doc_type: 'service_agreement' }, {});
+  assert.strictEqual(r.code, 'legal_retire_unsupported');
+});
+
+test('legal_doc_seed: 场景免责按 map 各补 v1（已存在版本的 scope 跳过）', async () => {
+  const st = legalSceneStore({ legal_scene_disclaimers: { W1: '文案A', W9: '文案B' } });
+  st.legal_doc = { d1: { _id: 'd1', doc_type: 'scene_disclaimer', scope: 'W1', version: 1, content: '文案A', status: 'published', is_deleted: false } };
+  const sdk = makeSdk({ openid: ADMIN, store: st });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_seed', doc_type: 'scene_disclaimer' }, {});
+  assert.strictEqual(r.ok, true);
+  const seeded = r.data.seeded || [];
+  assert.strictEqual(seeded.length, 1, '仅 W9 应被补 v1（W1 已有版本）');
+  assert.strictEqual(seeded[0].scope, 'W9');
+});
+
+test('legal_doc_rollback: 场景版本不存在 → legal_version_not_found（带 scope 口径）', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: legalSceneStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'legal_doc_rollback', doc_type: 'scene_disclaimer', scope: 'W9', version: 5 }, {});
+  assert.strictEqual(r.code, 'legal_version_not_found');
+});
+
 test.after(() => { Module._load = origLoad; });
