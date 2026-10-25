@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { call } from '../api/admin.js';
@@ -220,6 +220,14 @@ const patch = reactive({
   legal_disclaimer_text: '', legal_service_agreement: '', legal_privacy_policy: '',
   legal_aa_promise: '', legal_pet_authorization: ''
 });
+// 2026-10-25 评审 P1 修复: 记录热修区加载时的基线，用于判断「热修区是否有未保存改动」
+const hotfixOrig = reactive({
+  legal_disclaimer_text: '', legal_service_agreement: '', legal_privacy_policy: '',
+  legal_aa_promise: '', legal_pet_authorization: ''
+});
+function hotfixDirty() {
+  return Object.keys(patch).some((k) => String(patch[k] || '') !== String(hotfixOrig[k] || ''));
+}
 const savingHotfix = ref(false);
 
 const editVisible = ref(false);
@@ -284,18 +292,24 @@ function rebuildDocs() {
 function rebuildScenes() {
   const map = (cfgData.value && cfgData.value.legal && cfgData.value.legal.scene_disclaimers) || {};
   const list = sceneOptions.value || [];
-  // 保留已存在的"新增中"行（未保存的草稿），避免刷新丢失
+  // 新增中的空行（未保存草稿）保留
   const pending = sceneRows.value.filter((r) => r.isNew);
+  // 2026-10-25 评审 P1 修复: 保存后 load() 重建时，**其它行未保存的改动不得被覆盖**（验收 A13）。
+  // 口径: text 保留脏值、orig 刷新为最新线上值 → 该行仍判脏、保存按钮仍亮，但基准不残留旧线上值。
+  const prev = new Map(sceneRows.value.filter((r) => !r.isNew && r.code).map((r) => [r.code, r]));
   const rows = Object.keys(map).map((code) => {
     const s = list.find((x) => x.code === code);
     const vs = versions.value.filter((v) => v.doc_type === 'scene_disclaimer' && v.scope === code);
     const pub = vs.find((v) => v.status === 'published') || null;
+    const fresh = map[code] || '';
+    const old = prev.get(code);
+    const keepText = (old && rowDirty(old)) ? old.text : fresh;
     return {
       code,
       name: s ? s.name : '已下线场景',
       online: !!s,
-      text: map[code] || '',
-      orig: map[code] || '',
+      text: keepText,
+      orig: fresh,
       version: pub ? pub.version : 0,
       isNew: false,
       saving: false
@@ -318,6 +332,7 @@ async function load() {
     patch.legal_privacy_policy = lg.privacy_policy || '';
     patch.legal_aa_promise = lg.aa_promise || '';
     patch.legal_pet_authorization = lg.pet_authorization || '';
+    Object.keys(hotfixOrig).forEach((k) => { hotfixOrig[k] = patch[k]; });
   } else {
     ElMessage.error(rc.msg || '配置加载失败');
   }
@@ -529,13 +544,31 @@ async function saveHotfix() {
 }
 
 // R3-4：有未保存改动时离开需确认
-const hasUnsaved = computed(() =>
-  sceneRows.value.some((r) => rowDirty(r)) || (editVisible.value && editForm.content !== editForm.orig));
+// 2026-10-25 评审 P1 修复: 覆盖范围扩至「场景行 / 文档弹窗正文+标题+变更说明 / 热修区」，
+// 并补 beforeunload（刷新、关闭标签页）——原实现只有路由守卫，F5 会静默丢改动。
+const hasUnsaved = computed(() => {
+  if (sceneRows.value.some((r) => rowDirty(r))) return true;
+  if (editVisible.value && (editForm.content !== editForm.orig
+    || String(editForm.title || '').trim() !== ''
+    || String(editForm.remark || '').trim() !== '')) return true;
+  return hotfixDirty();
+});
 
 onBeforeRouteLeave(() => {
   if (!hasUnsaved.value) return true;
   return window.confirm('存在未保存的修改，确定离开？');
 });
 
-onMounted(load);
+function onBeforeUnload(e) {
+  if (!hasUnsaved.value) return;
+  e.preventDefault();
+  e.returnValue = '';   // 部分浏览器需设置该字段才弹原生确认
+}
+
+onMounted(() => {
+  load();
+  window.addEventListener('beforeunload', onBeforeUnload);
+});
+onUnmounted(() => window.removeEventListener('beforeunload', onBeforeUnload));
+
 </script>
