@@ -57,7 +57,7 @@
 
 ---
 
-## P3 · 卫生级 / 已接受的债（11 项）
+## P3 · 卫生级 / 已接受的债（15 项）
 
 | # | 负债 | 决策与依据 |
 |---|---|---|
@@ -77,6 +77,9 @@
 已偿还（本会话）：~~zz-seed-orders 文件头「验收视觉后删除」误导~~（已订正为「自测造数工具·保留·不部署·fail-closed·REGISTRY #34」，该目录有 6 例入口契约测试 + admin-web 种子代理分支，非孤儿）；~~payment-mock CRLF/LF 伪漂移~~（新增 `.gitattributes` 强制 cloudfunctions js/json eol=lf，工作区 w/crlf 实测归零，commit `ab9de38`）。
 | P3-13 | **提审后前端异常批次（2026-10-22 路由审计登记；冻结期不修，解冻后一次评审、分批修）** | 来源：全量扫描 126 处跳转 / 86 条组件引用 / 事件配对 0 缺失（方法与证据见交付文档《页面与组件调用关系》§5，`C:\zhaoren_docs_MD\jishukaifaweihu\`）。五项：① **A2 中危**——[index.js L262](file:///c:/zhaoren/miniprogram/pages-v2/index/index.js#L260-L263) 与 [square.js L160](file:///c:/zhaoren/miniprogram/pages-v2/square/square.js#L157-L161) 运营位 `scene_list` 分支 `redirectTo` 指向 tabBar 页 square（官方限制必失败，无 fail 兜底）；**线上未配置该运营位**（2026-10-22 只读实测 `home_activities` 仅 1 条、`jump_to=activity_detail` 且不在生效时间窗）→ 暂不暴露，修复须等解冻（改 `switchTab`，scene_code 参数改经 storage/globalData 传递）；② **A1**——[admin/users.js L31](file:///c:/zhaoren/miniprogram/pages-v2/admin/users.js#L29-L32) 跳未注册路由 `pages-v2/admin/user-detail`（无 fail 兜底，点击静默无反应）；③ **A3**——workbench 注册页全代码零入口（疑似被 `orders?role=partner` 取代）；④ **A4**——pkgAdmin 整包 7 页 C 端零引用（与 Web 运营后台功能重叠，待裁定去留/下线）；⑤ **A5**——孤立组件 ui-button（0 引用）/section-card/ui-tag（仅自身文件提及）。附观测：线上唯一运营位标题为纯空格（历史脏数据，仅影响展示）；navigateTo 型互跳 3 处栈累积（exam⇄accept-config、blog⇄blog-detail、exam 自跳）随批次一并裁定 | 审核员当前均不可达，不影响提审；修复为纯前端改动，不涉及云函数/配置 |
 | P3-14 | **`resumeOnboardIntentAfterReset` 的 `navigateTo` 静默吞错，intent 悬挂 24h**（2026-10-23 批1 P2-7 复核时登记，P3 级·不在本批修） | **证据**：[bootstrap.js L326](file:///c:/zhaoren/miniprogram/utils/bootstrap.js#L326) `wx.navigateTo({ url: '/pages-v2/publish/publish' + ..., fail: () => {} })`——跳发布页失败（页面栈满 10 层 / 路由失效 / 冷启动异常）时无任何提示与兜底，用户静默停在首页 Tab，而 `onboard_intent` 仍存续至 24h TTL。**现状性质**：既有问题（非 P2-7 引入），但 P2-7 把它放大——快照只在发布页 `onLoad` 消费，跳转失败则 `publish_snapshot` 也无法回填且不清理（虽因 TTL 24h 最终自愈，且下次正常进发布页会按「无 publish intent」分支清理）。**触发条件**：`navigateTo` 失败（栈深 ≥10、目标路由被裁、基础库异常）。**影响**：低（fail-silent，不阻断主流程，无数据错误）。**日后修法（提审后，需批准）**：`fail` 分支改为 `wx.showToast({title:'请从首页重新进入发布', icon:'none'})` + 保留 intent（不清），或降级 `reLaunch` 到发布页；不得改为 switchTab（publish 非 tabBar 页）。**纪律**：涉及 intent 生命周期改动须配真机栈深用例 |
+
+| P3-15 | **法律合规 U2 双评审遗留（P2/P3 未修，2026-10-25 登记）**：P1 两条已当日修复（脏值覆盖 / beforeunload 与脏值判定范围），以下为评审确认但本轮不改的项 | ①**并发写**：`writeVersion` 用入口 `ctx.config` 快照合并 `legal_scene_disclaimers`，且版本号 `max+1` 无唯一索引/乐观锁 → 两管理员或双标签页同时保存会「后写覆盖前者 scope」并可能产生重复版本（单管理员顺序操作安全）；修法＝库内重读后局部更新 + `legal_doc(doc_type,scope,version)` 唯一索引（CLI 不能建，需控制台）+ 可选 `expected_version` CAS。②**双写漂移无告警**：规格 §4 要求的「发布后回读比对 + 漂移写 `platform_event`」未实现；`config_set` 热修仍可整块改/删 map 且不产生版本。③**列表上限**：`legal_doc_list` 固定 `limit 200` 且携带全量 `content`，版本累积后尾部场景会显示「未发布」、响应体膨胀 → 改分页或列表不带 content。④**角色门控**：R3 可读但前端未按 `admin_role` 隐藏写按钮（点了才报 `role_forbidden`）。⑤**重置回填源**：版本库不可用时 `fieldFallback` 读热修表单 `patch`（可能是未保存脏值）。⑥**文案**：「删除」实为「停用」（retire），三处措辞不统一。⑦**条件提示**：`availableScenes===0 && 行>0` 在「新增行占满剩余候选」时会误报「全部已配置」。⑧**批量发布快照完整性**：专家提出「单次调用内连续 publish 会让 `legal_versions`/`legal_scene_versions` 只剩最后一项」——生产实测**未复现**（5 项/9 项均完整），逻辑上仍有风险 → 需专项验证后再定 | 处置口径：**提审期不修**（涉及 admin-action 或需控制台建索引）；提审通过后按 ①③④ 优先立项，②随备份/一致性专项。①属数据正确性，若届时出现多人协作需求须先做 |
+
 
 ---
 
