@@ -83,6 +83,7 @@
 | demand | idx_expire_at | expire_at↑ | |
 | demand | idx_hall_broadcast_status_created | is_deleted↑, status↑, broadcast↑, created_at↓, expire_at↑ | |
 | demand | idx_hall_scene_status_created | is_deleted↑, status↑, broadcast↑, scene↑, created_at↓, expire_at↑ | |
+| demand | grab_pending_scan † | grab_notify_pending↑, status↑, created_at↓ | |
 | order_main | uk_order_no | order_no↑ | ✅ |
 | order_main | idx_demand_id | demand_id↑ | |
 | order_main | idx_partner_status | partner_openid↑, status↑ | |
@@ -110,6 +111,8 @@
 | credit_score_log | idx_openid_type_created | openid↑, type↑, created_at↓ | |
 
 **关键约束**：`im_conversation.uk_order_id` 唯一索引 —— 客服会话用**按用户唯一占位** `order_id: 'kefu_' + openid` 复用同一唯一索引（每用户一条客服会话）；原空串占位（全局仅容一条）的多用户并发冲突已于 2026-10-12 修复（见 [05-redlines.md](file:///c:/zhaoren/docs/dev-manual/05-redlines.md) §5.6）。
+
+**† 补登注记（2026-10-25，P3-12 owed）**：`demand.grab_pending_scan` 为**云端实有**索引（2026-10-09 控制台人工建，凭证见 deploy-log 2026-10-09 行），但 **init-db `INDEXES` 暂未声明**——提审冻结期不动 `cloudfunctions/` 代码，本行为**文档级补登**。含义与风险：① `dump-index-ledger.js` 生成的设计台账（33 条）**不含此条**，恢复/重建环境时须按本表人工补建；② 门禁 `check-index-ledger` 只比对「init-db 声明 → 云端缺失」单向，抓不到此类「云端实有·设计未声明」。**解冻后动作**：init-db `INDEXES` 补声明该条 + 部署 init-db + 重跑 `dump-index-ledger`（33→34）+ `tcb-scan-indexes` 复核，然后删除本注记。
 
 ## 3.5 admin_config 与 CONFIG_SCHEMA
 
