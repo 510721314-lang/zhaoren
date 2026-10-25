@@ -1,11 +1,11 @@
 ---
 name: zhaoren-frequent-flows
-description: 找人帮忙项目高频开发运维流程固化。Use when 需要门禁验证、体验版上传、nosql 查询/更新、Git push 绕代理、admin_config 配置变更、或提审冻结期切换。Do not use for 云函数部署（wx-cloud-deploy）、提审审计（zhaoren-audit/mp-pre-release-audit）、经验沉淀（zhaoren-experience-sedimentation）。
+description: 找人帮忙项目高频开发运维流程固化。Use when 需要门禁验证、体验版上传、nosql 查询/更新、Git push 绕代理、admin_config 配置变更、提审冻结期切换、或 admin-web 构建发布与后台登录 401 排障。Do not use for 云函数部署（wx-cloud-deploy）、提审审计（zhaoren-audit/mp-pre-release-audit）、经验沉淀（zhaoren-experience-sedimentation）。
 ---
 
 # Zhaoren 高频流程固化
 
-找人帮忙项目日常开发运维反复执行的 6 条高频链路。每条含触发时机、可复制命令、前置条件、验证方法、踩过的坑。
+找人帮忙项目日常开发运维反复执行的 7 条高频链路。每条含触发时机、可复制命令、前置条件、验证方法、踩过的坑。
 
 ## 全局常量（勿再探测）
 
@@ -325,6 +325,47 @@ node scripts/check-ssot.js                # 硬编码 0
 
 ---
 
+## 流程 7：后台（admin-web）构建发布与登录排障
+
+### 触发时机
+
+- 改完 `admin-web-frontend/` 后要让真实地址生效
+- 后台登录报 401 / 页面看不到新改动
+
+### 两个域名别混用
+
+| 用途 | 地址 |
+|---|---|
+| **静态托管（SPA，测试/使用走这个）** | `https://cloud1-d9gkefwcp5c777088-1482004365.tcloudbaseapp.com/` |
+| **HTTP 网关（云函数 /api）** | `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api` |
+
+网关域的 `/` 也返回 SPA HTML，但**走 CDN 缓存**，部署后仍是旧构建（实测托管域 `index-CNRxHc88.js` vs 网关域 `index-DG37DiD9.js`）。
+
+### 命令
+
+```powershell
+# 构建 + 发布（默认单行写法：先 build 再 deploy）
+npm.cmd run build
+& "C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd" hosting deploy ./dist -e cloud1-d9gkefwcp5c777088 --safe
+# 验证生效（比对 assets/index-*.js 哈希）
+(Invoke-WebRequest "https://cloud1-d9gkefwcp5c777088-1482004365.tcloudbaseapp.com/?v=$((Get-Random))" -Headers @{'Cache-Control'='no-cache'} -UseBasicParsing).Content -match 'assets/index-[A-Za-z0-9_\-]+\.js'
+```
+
+### 纪律
+
+- **禁用 `--prune`**：会删除云端既有 `__auth/*`、`cloud-admin/index.html`
+- 回滚口径 = 按指定 commit 重建 dist 再发布（dist 可由源码重建，不单独备份）
+- 登录 401 排查顺序：先看 `platform_event` 是否有 `gateway_bad_key`（有 = 密钥值不符；`admin_login` 免 key 不产生该事件，可据此排除账号密码错）
+
+```powershell
+# 取证：带有效 key 读最近事件
+Invoke-RestMethod -Uri ".../api" -Method Post -Headers @{'X-Admin-Key'=$k;'Content-Type'='application/json'} -Body '{"action":"event_list","limit":15}'
+```
+
+- 密钥文件 `C:\zhaoren-bak\admin-key-*.txt` 首行是 `AWK_KEY=<68位>`，输入框只填**本体**（不含 `AWK_KEY=`、不含空格/换行）
+
+---
+
 ## 错误速查表
 
 | 现象 | 根因 | 正确姿势 |
@@ -336,3 +377,6 @@ node scripts/check-ssot.js                # 硬编码 0
 | CLI upload 报 `credential invalid` | 开发者工具登录态过期 | `cli login -f image` 扫码重新登录 |
 | npm 报 CommandNotFoundException | PowerShell 默认 alias 指向 `.cmd` 但 exit code 传递不稳 | 显式 `npm.cmd test` |
 | GitHub 测连通 `NET_FAIL` | 网络层断连，不是代理/凭据 | 等几秒重测，勿改代码 |
+| push 报 `Connection was reset` 且代理端口 7890 在监听 | 代理端口活着但**路由不通**（与「死端口」不同形态） | 仍用 `-c http.proxy= -c https.proxy=` 直连重试；先 `Test-NetConnection github.com -Port 443/22` 判层 |
+| 后台登录 `401 Request failed with status code 401` | 粘贴的密钥带 `AWK_KEY=` 前缀/空格/换行（网关 `bad_key`） | 只填密钥本体；已修 `trim`，仍失败则查 `gateway_bad_key` 事件 |
+| 后台页面看不到新改动 | 开的是网关域（CDN 旧构建） | 换托管域 `tcloudbaseapp.com` + Ctrl+F5 |

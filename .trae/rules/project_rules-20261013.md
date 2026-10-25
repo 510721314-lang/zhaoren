@@ -291,3 +291,17 @@ alwaysApply: true
 - **L3「预期态」必须显式入账**：诊断/门禁输出中**已知且可接受的告警**（如线上 `quick_check.mock_gate=BLOCK`）必须在 `tech-debt`/`CHANGELOG` 显式登记为预期态并写依据与**真实处置时机**；否则每轮诊断都会把它重新当待办，造成「修也不是、不修也不是」的空转。实证同上：`BLOCK` 的正确处置时机是**接入真实支付的独立版本上线前**，不是提审期。
 - **L4 无 CLI `invoke` 通道时的云函数三通道冒烟法**：`cli cloud functions` 仅提供 list/deploy/inc-deploy/download，**没有 invoke** → 函数级验证只能三选一配合使用：① **网关**（带 `X-Admin-Key` 或管理员会话，验真实线上链路）；② **`_mock_sdk` 注入实跑**（复用 `cloudfunctions/_shared/<fn>.entry.test.js` 的 `Module._load` 拦截 `wx-server-sdk`，临时脚本写 `$env:TEMP\zz-*` 跑完即删，可一次覆盖「无身份 / 管理员 / 正确代理密钥 / 错误密钥」四分支）；③ **云端测试面板**（无身份，只适合验 fail-closed 分支）。三者组合才等于端到端实证；仅用 ② 会漏掉网关层鉴权，仅用 ③ 会误判「管理员通道也不可用」。
 - 与既有规则关系：L1 承接 §3（先说后做）与 §12（上线核验）；L2 承接 §20（文档编辑防误删：误引同样须回读订正）；L3 承接 §23-H5（线上配置污染收尾）与 §10（白名单须配 owed）；L4 补充 §23-H2（调用通道/身份矩阵）与 §27-D1（先认工具集能力），并与 §16「成功回执误导」同向。
+
+## 29. 凭据类输入边界 · 后台双域名口径 · 鉴权拒绝的审计反查（2026-10-25 登录 401 实证新增）
+
+- **M1 凡「人手工粘贴」的凭据，入口必须 `trim`**：密钥 / Token / 密码这类由复制粘贴进入的字符串，一律在**使用点 `trim()`**（不是只在 UI 层）；同时**禁止**接受带前缀的整行（如文件里写 `AWK_KEY=<key>`，输入框只应填 `<key>` 本体）。实证（2026-10-25）：后台登录页 `call('config_get', {}, key.value)` 未 `trim`，粘贴带行尾空格/换行即被网关判 `bad_key` 并返回 **HTTP 401**，用户侧只看到 axios 原文「Request failed with status code 401」，无任何可操作信息。
+- **M2 鉴权失败必须给「可操作」提示，不得透传 HTTP 客户端原文**：401/403 在网关层是「凭据不匹配」，业务语义应转成「密钥不正确：请确认不含前缀与空格 / 请重新登录」。前端拦截器的 `msg: e.message` 会把排障成本全部转嫁给用户。
+- **M3 后台存在两个域名，职责不同，勿混用**：
+  | 用途 | 地址 | 说明 |
+  |---|---|---|
+  | **静态托管（SPA 入口，测试/使用走这个）** | `https://<env>-<appid>.tcloudbaseapp.com/` | `cloudbase hosting deploy ./dist` 的落点，实测立即生效 |
+  | **HTTP 网关（云函数 /api）** | `https://<env>-<id>.ap-shanghai.app.tcloudbase.com/api` | SPA 里 `BASE_URL` 硬编码指向它；其**根路径 `/` 也会返回 SPA HTML，但走 CDN 缓存**，部署后仍可能是旧构建（实测：托管域 `index-CNRxHc88.js` vs 网关域 `index-DG37DiD9.js`） |
+  → 「页面没更新」先按 **M3 判域名**，再谈缓存；验证部署用 `GET /?v=<random>` + `Cache-Control: no-cache` 取 `assets/index-*.js` 哈希比对。
+- **M4 鉴权拒绝有审计，排障先查库再猜**：`admin-web` 网关对密钥失败写 `platform_event`（`type=gateway_bad_key`, `payload.reason=bad_key|missing_key`, `path=/api`）。**判据**：出现该事件＝请求确实到达网关且密钥不符（不是网络/CORS）；账号登录端点免 key，因此**不会**产生该事件 → 有该事件即可排除「账号模式密码错」。取证方式：带有效 `X-Admin-Key` 调 `{"action":"event_list","limit":15}` 读最近事件。实证：7 条 `gateway_bad_key` 直接定位到「粘贴的是错值」而非「网关故障」。
+- **M5 托管发布必须避开 `--prune`**：`cloudbase hosting deploy ./dist --safe` 足够；加 `--prune` 会删除本次产物之外的远端文件（本项目托管内既有 `__auth/*`、`cloud-admin/index.html`），属自毁。回滚口径＝按指定 commit 重建 `dist` 再发布（dist 可由源码重建，无需备份静态产物）。
+- 与既有规则关系：M1/M2 承接 §14（前端输入边界）与 §12（上线核验）；M3 补充 §23-H2（调用通道矩阵）与 §28-L4（网关通道验证）；M4 承接 §7（一次只验证一个假设：先取证再改代码）；M5 承接 §3（先说后做：破坏性参数需显式确认）。
