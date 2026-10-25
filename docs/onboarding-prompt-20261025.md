@@ -1,0 +1,239 @@
+# 找人帮忙小程序 · 工作衔接提示词（2026-10-25 · admin-web 登录收尾版）
+
+> **用途**：新任务首条消息整段投喂，使无上下文的新 Agent 零偏差接手。
+> **生成依据**：技能 `.trae/skills/zhaoren-handoff-prompt`（实测取证 → 双专家评审 → 修正 → 落盘）。
+> **取证时点**：2026-10-25 17:3x。文中所有可核查值均当场命令实测；评审修正见文末「验证者修正」。
+> **清点边界**：`T-*` / `C-*` / `E-*` 为**清点项**，必须逐条回执；**§1 / §2 / §5 / §8 为参考用，非清点项**。
+
+---
+
+## §0 开场回执校验（先回执，再等派活）
+
+**T-0.1**（硬指标）工作目录唯一可信 = `C:\zhaoren`。所有 git 命令一律写 `git -C C:\zhaoren ...`，不依赖当前 cwd。
+**T-0.2**（硬指标）`git -C C:\zhaoren rev-parse --short HEAD` → 实测 **`5750405`**。
+**T-0.3**（硬指标）`origin/master` = **`9a789fb`**；`rev-list --count origin/master..HEAD` = **`2`**（未推送：`692622c` 代码、`5750405` 文档）。
+**T-0.3.1**（硬指标·修正）未推送原因**不是 GitHub 不可达**：实测 `github.com:443` TCP 可连，`git -c http.proxy= -c https.proxy= ls-remote --heads origin` **成功**返回 `9a789fb`；故障在**本机默认代理 `127.0.0.1:7890` 的 TLS 链路**（`schannel: server closed abruptly`）。→ push 前置条件**当前已具备**。
+**T-0.4**（硬指标）`git -C C:\zhaoren status --short` 应为 **1 个 `M` + 7 项 `??`**：
+- `M admin-web-frontend/src/api/admin.js`（3 行未部署改动，见 T-7.1）
+- `??` 6 份用户文档：`线上耍伴SOP与岗前考试题库_合订本.md`、`线上耍伴上岗培训考试题库.md`、`线上耍伴业务标准作业流程（SOP）.docx`、`线下客户外耍伴SOP与岗前考试题库_合订本.md`、`陪诊SOP与岗前考试题库_合订本20261020.md`、`陪诊业务标准作业流程（SOP）.docx`
+- `?? docs/xuexikaoshi/`（目录）
+
+**T-0.5**（硬指标）云环境 `cloud1-d9gkefwcp5c777088`；AppID `wxbc4a4afacdf234f5`。
+**T-0.6**（硬指标）工具路径：密钥文件 `C:\zhaoren-bak\admin-key-20261006.txt`（True）；云开发 CLI `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd`（True）。
+**T-0.6.1**（硬指标·修正）IDE CLI **两个路径都存在**：桌面 `C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat`（本会话 v1.6.39 上传实测可用）与 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`。**必须用当前实际打开的 IDE 对应的那份**；不确定时先跑 `islogin` / `upload -h` 试通，勿两份混用。
+**T-0.7**（硬指标）线上 admin-web 构建 = **`index-CAlNJAbc.js`**（实测托管域 HTML 引用）。该构建**已含**「剔除不可见字符」，**不含** 64→68 补前缀（即 T-7.1 尚未上线）。
+**T-0.8**（硬指标）当前体验版 = **v1.6.39**（`docs/deploy-log.md` **第 210 行 / 倒数第 6 行**）。提审选 1.6.39。
+**T-0.9**（硬指标）**开工前必读顺序**：`.trae/rules.md` → 项目记忆 `project_memory.md` → `docs/runbooks/pre-release-filing-checklist.md`（涉及提审时）→ 本文件。`rules.md` 为 alwaysApply 级约束，优先级高于本文件。
+**T-0.10**（约束红线）**禁止破坏性 git 命令**：`git clean -fd`、`git reset --hard`、`git checkout -- .`、`git stash drop` 一律禁止（会同时抹掉 6 份用户文档与 T-7.1 的唯一修复副本）。
+**T-0.11**（约束红线）**禁止 `git add -A` / `git add .` / `git add docs/`**：必须按文件名精确 `git add`。
+**T-0.12**（接收清点契约 RIC）首次回复先产出清点表，逐条覆盖 `T-* ∪ C-* ∪ E-*` 集合（含嵌套叶子编号），差集必须为空：
+
+```text
+| 编号 | 原文要点(≤20字) | 我的理解/落点 | 状态(接收/存疑/不符/缺失) |
+|------|----------------|--------------|------------------------|
+| T-0.2 | HEAD=5750405 | 实测 … | 接收 |
+```
+
+**T-0.13**（硬指标）清点通过后再等用户派活；不要自行开工 T-7.x。
+
+---
+
+## §1 项目身份（参考用，非清点项）
+
+- 技术栈：微信原生小程序 + 云开发（CloudBase）；后台 = Vue3 + Vite SPA（`admin-web-frontend/`）+ 网关云函数 `admin-action`。
+- 仓库：`https://github.com/510721314-lang/zhaoren.git`，分支 `master`。
+- 云函数实测 **20** 个（不含 `_shared`）：user-login / demand-publish / demand-match / partner-apply / partner-action / order-create / order-action / order-timer / payment-mock / safety-report / im-conv / im-send / evaluation-submit / admin-action / init-db / home-action / blog-action / admin-web / zz-seed-orders / zz-warmup。**`zz-*` 为临时自测，勿动勿部署。**
+- **后台双域名职责不同**：SPA 使用/测试 = `https://cloud1-d9gkefwcp5c777088-1482004365.tcloudbaseapp.com/`；云函数网关 `/api` = `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api`。网关域 `/` 也返回 SPA HTML 但走 CDN 旧缓存 → 「页面没更新」先判域名。
+- 测试标识（**非凭据**）：发布者 openid `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`；耍伴 `test_partner_001`。
+
+---
+
+## §2 本会话基线（参考用，非清点项）
+
+| 交付 | commit | 改动面 | 状态 |
+|---|---|---|---|
+| 法律合规批1a | `9c52603` | `admin-action` 新增 `legal_doc_list/publish/rollback/seed`；`config_public` 补 privacy/disclaimer/versions；Legal.vue 版本化页 | 已部署 |
+| 法律合规 U2 | `a5195b4` | `scene_disclaimer` + `scope` + `legal_doc_retire` + map 合并 + R1/R2/R3 | 已部署；9 场景全 v1。**W8 版本号存疑**：本稿原写 v4，deploy-log 该次部署行记「v3(生效)/v1(归档)」→ 以云端 `legal_doc` 实测为准（待确认项） |
+| 双评审 P1 修复 | `a9705b9` | `rebuildScenes()` 保留脏值 + `beforeunload` + 非 scoped 查询改 `{doc_type}` | 已部署；行为验证 3/3 |
+| 满态 UI 改进 | `d23fadc` | 提示条 + tooltip + `配置数>=场景数` + 删除→停用 | 已部署 |
+| P2-11 SOS 闭环 | `c88c5c1` | `workbench.js` +22/−8：`my_orders(partner,doing)` 填 `currentOrderId/todayOrders`；无单 toast；静默 catch 改显式 | 已上传 v1.6.39，**真机未验** |
+| 技术债清单刷新 | — | `docs/tech-debt-inventory-20261015.md`：P1 **8** / P2 **13** / P3 **17**（实测行数） | 已入库；头部已漂移（T-7.9） |
+| admin-web 登录 401 排查 | `9a789fb`（补部署）、`692622c`（代码）、`5750405`（**仅文档登记**） | 见 E-6.1~E-6.5 | **第 3 轮代码修复仍在工作区，未提交未上线**（T-7.1） |
+
+**门禁实跑（取证时点）**：`npm.cmd test` → **tests 593 / pass 593 / fail 0**；A/B **444 EQUIVALENT**（241 explicit + 203 auto；**43** known-evolution）；`check-syntax` **251 files ALL OK**；`check-ssot` 0；`check-shared-sync` ALL OK（含 2 项 known-drift owed）。
+**口径提醒**：deploy-log 里 v1.6.39 那次写的 `581` 是当时值；**以 593 为准，每次 commit 前必须实跑**。技术债台账里的「38/41」A/B 口径也已落后（现为 43），下次 docs 批次一并订正。
+
+---
+
+## §3 约束（C-3.x，红线）
+
+**C-3.1**（约束红线）**提审冻结期**：`miniprogram/` 与 `cloudfunctions/` 业务代码**零改动**；`admin-web-frontend/`、静态托管**可改**。改 `cloudfunctions/` 需用户书面授权（先例 `docs/legal-compliance-u2-authorization-20261025.md`）。
+**C-3.2**（约束红线）云函数改动**必须重新部署才生效**；部署前完成备份链（见 C-3.2.1），部署后在 `docs/deploy-log.md` 登记回滚点。
+**C-3.2.1**（约束红线）**三重备份**：git bundle + robocopy 热备 + 云端 DB 导出，全部落 `C:\zhaoren-bak`；用 `.predeploy/manual-backup.ps1`（含云函数代码 `meta/functions_code`、索引台账 `meta/index_ledger.json`）；异地同步飞书云空间 `zhaoren-backup`。细节走技能 `cloud-backup-restore`。
+**C-3.3**（约束红线）**commit 三类严格隔离**：①业务代码+规则 ②docs/台账 ③测试基础设施；禁止混批。
+**C-3.4**（约束红线）**AI 不主动 commit / push**：所有 commit / push 必须**先经用户明确确认**后执行（T-7.1、T-7.2 同样适用）。
+**C-3.5**（约束红线）**用户文档永不入库**：`docs/*SOP*.md`、`docs/*SOP*.docx`、`docs/*题库*.md`、`docs/xuexikaoshi/`。命中即停手并告知用户。
+**C-3.6**（约束红线）凭据只写**路径**，不写内容；正文引用密钥一律脱敏为 `AWK-****（68 位）`。
+**C-3.7**（约束红线）已验收基线内容修改须先经用户同意；涉及金额/状态机改动，先读码再改，禁止臆造字段。
+**C-3.8**（约束红线·修正）提审期 `admin_config.global` **配置冻结表**（禁改，除用户明确指令）：
+
+| 键（云端扁平键名） | 提审期现值 | 说明 |
+|---|---|---|
+| `realname_face_mode` | `wx` | 注意是**扁平键**；`config_public` 对外输出才是嵌套 `realname.face_mode` |
+| `auto_approve_partner` | `true` | 用户 2026-10-21 批准临时开；提审后回 `false`（T-7.6） |
+| `mock_payment_enabled` | `true` | 真实支付未上线；提审期**勿关** |
+| `admin_openids` | 2 个管理员 | 勿增删 |
+
+**C-3.9**（约束红线）`admin_config` 变更口径统一：**可改但必须**①用户明确指令 ②走后台 `config_set` 留 `config_history` ③docs 登记。nosql 直改仅限**只读**查询。
+**C-3.10**（约束红线）受保护文件禁改/禁删/禁改名：`project.config.json`（**无 version 字段**，上传版本号只走 CLI `-v`）、`project.private.config.json`、`app.json`、`sitemap.json`；禁止新建 `ext.json`；`_orig_baseline.js` 类基线文件禁删。
+**C-3.11**（约束红线）未获用户明确指令前，**禁止**改动 `miniprogram/`、`cloudfunctions/`、`admin_config` 生产值。
+
+---
+
+## §4 约定与工具链（C-4.x）
+
+**C-4.1**（依赖配置）门禁：优先整跑 `npm.cmd run verify:offline`（实测含 9 段：check-syntax / check-ssot / check-shared-sync / check-require-scope / check-handlers / check-index-ledger / check-deploy-config --offline / check-manual-links / npm test）。回执必须给出四项硬指标：tests/pass/fail、A/B 例数、SYNTAX 文件数、SSOT 0。
+
+**C-4.2**（依赖配置）admin-web 发布**必须清缓存重建**，且删除后要断言（避免静默失败复用旧 dist）：
+```powershell
+Remove-Item -Recurse -Force C:\zhaoren\admin-web-frontend\dist, C:\zhaoren\admin-web-frontend\node_modules\.vite -ErrorAction SilentlyContinue
+if (Test-Path C:\zhaoren\admin-web-frontend\dist) { throw 'dist 未删除：先释放占用句柄' }
+cd C:\zhaoren\admin-web-frontend; npm.cmd run build
+& "C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd" hosting deploy "C:\zhaoren\admin-web-frontend\dist" -e cloud1-d9gkefwcp5c777088 --safe
+```
+**禁用 `--prune`**（会删云端 `__auth/*`、`cloud-admin/index.html`）。
+
+**C-4.3**（依赖配置）云函数部署（串行、单函数）：
+```powershell
+& "C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat" cloud functions deploy `
+  --env cloud1-d9gkefwcp5c777088 --names <单个函数名> --project C:\zhaoren --remote-npm-install
+```
+**C-4.3.1**（依赖配置）部署后**必须**：①`cloud functions download` 到独立目录逐文件 SHA256 比对；②等 90–120 秒再冒烟；③deploy-log 登记。
+**C-4.3.2**（依赖配置）`config.json` 的 `timeout` / `triggers` **CLI 部署不生效**，须控制台手动改，再用 `cloud functions info` 读回核验。
+
+**C-4.4**（依赖配置）nosql 查询/更新：**必须** `.cjs` + `spawnSync(cli, argsArray, { shell: true })`，禁止 PowerShell 直接拼双层 JSON：
+```js
+const cmd = JSON.stringify([{ TableName: 'admin_config', CommandType: 'QUERY',
+  Command: JSON.stringify({ find: 'admin_config', filter: { _id: 'global' }, limit: 1 }) }]);
+```
+批量只读用 `cloudbase.cmd db nosql dump ... --output-dir <dir> --json`（产物 **NDJSON**，按 `\n` 逐行 parse）。
+
+**C-4.5**（依赖配置）push 必绕死代理：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；网络类失败重试 1–2 次即停，禁止死循环。
+
+**C-4.6**（依赖配置）读密钥：`Get-Content <keyfile> -First 1` → trim → 正则 `^AWK_KEY\s*=\s*(.+)$` 取捕获组 → 应得 **68 位**（`AWK-` + 64 hex）。
+
+**C-4.7**（依赖配置）云端测试口径：入参必须带 `mock_openid`；订单/需求标识用 **32 位文档 `_id`**（不是 `ORD…` / `DR…` 业务单号）；部分函数有 `isValidDocId` 预检。中文入参**不要**走 PowerShell（见 E-6.6）。
+
+**C-4.8**（依赖配置）MCP 限制：`.trae/mcp.json` 是**受限文件**（Agent 不能写，只能用户 GUI 粘贴）；调用名必须是 **`mcp_weapp-test`**；入口必须 `dist/cli.js`（`dist/index.js` 为空模块会立即退出）。
+
+---
+
+## §5 资产索引（参考用，非清点项）
+
+**规则与提审权威（开工前必读）**
+- `.trae/rules.md`（alwaysApply；优先级最高）
+- `docs/runbooks/`（实测 **12** 个文件；提审权威 = `pre-release-filing-checklist.md`、审计 = `audit-checklist.md`）
+- `docs/CHANGELOG.md`、`docs/FUNCTION-REGISTRY.md`、`.trae/predeploy.ps1`
+
+**台账与文档**
+- `docs/deploy-log.md`（最新 3 行为本会话产物）、`docs/tech-debt-inventory-20261015.md`
+- `docs/legal-compliance-redesign-20261025.md`、`docs/legal-compliance-u2-authorization-20261025.md`
+- 项目记忆：`c:\Users\Administrator\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\project_memory.md`
+
+**上一版资产处置**（`docs/onboarding-prompt-20261010.md`）
+- **继承**：反代 push、`config.json` 不生效、云调用 `-501001`、备份六步、`mock_openid` + 32 位 `_id`、订阅 `trial` 状态 → 分别落在 C-4.5 / C-4.3.2 / E-6.10 / C-3.2.1 / C-4.7 / §1。
+- **修正**：HEAD / 版本 / 技能数 / CLI 路径 / 用户名（`DC` → `Administrator`）全部按本文件实测值。
+- **废弃**：`gate.ps1` 8 步口径（现用 `verify:offline`）、`tcb-exec.js` 旧封装说明（现用 C-4.4 模板）。
+
+**技能**（`c:\zhaoren\.trae\skills\`，实测 **25** 个）
+
+| 场景 | 技能 |
+|---|---|
+| 高频流程（门禁/上传/nosql/push/配置/冻结期/后台发布） | **`zhaoren-frequent-flows`** |
+| 云函数部署排障 | `wx-cloud-deploy`、`wechat-cloudfunction-deploy`、`cloud-console-test-driver`、`error-message-tracing` |
+| 运维/身份/补丁 | `zhaoren-ops` |
+| 备份还原 | `cloud-backup-restore` |
+| 提审审计 | `zhaoren-audit`、`miniprogram-audit`、`mp-pre-release-audit`、`mp-privacy-release`、`zhaoren-config-sync` |
+| 管理端 | `admin-web-remote-access`、`admin-web-write-ui-pattern` |
+| 小程序 UI | `wxapp-ui-polish`、`mini-ui-beautify`、`mini-a11y-perf-check`、`mini-interaction-motion` |
+| 沉淀 / 衔接 / 评审 | `zhaoren-experience-sedimentation`、`zhaoren-handoff-prompt`、`zhaoren-tech-review`、`zhaoren-perf-baseline` |
+| 拆分 / 契约测试 | `cloud-function-split`、`cloud-entry-contract-test` |
+| Windows 坑 | `powershell-windows-traps` |
+
+---
+
+## §6 经验教训（E-6.x，只列不读会犯错的）
+
+**E-6.1**（硬指标）**后台密钥格式定论**：网关只认 `AWK-` + **64 位 hex**（共 68 位）。实测 **64 位裸 body → 401**；补 `AWK-` 后 → **200**。密钥文件首行 `AWK_KEY=AWK-****（68 位）`。
+**E-6.2**（硬指标）**401 取证顺序**：先查 `platform_event` 的 `gateway_bad_key`（真实字段在 `payload` 内：`{"reason":"bad_key|missing_key","path":"/api"}`，顶层 `reason/path` 为空）。`bad_key` = 带了值但不对；`missing_key` = 没带。带有效 key 调 `{"action":"event_list","limit":30}` 取时间线，可判定「用户失败是否晚于某次部署」。
+**E-6.3**（硬指标）**报错文案不能反证前端版本**：`密钥不正确(401)…` 文案出自 `1e48662`（仅 trim 版），新老构建都有。
+**E-6.4**（硬指标）**admin-web 多次部署必须清 `dist` + `node_modules/.vite`**：本会话实测，Legal UI 批部署沿用残留 dist，把已上线的 Login/api chunk 覆盖回旧版 → 登录 401 反复。
+**E-6.5**（硬指标）**验证前端改动要看主 bundle 的 import map**：`index.html → index-*.js`，主 bundle 内引用的 chunk 名才决定实际加载哪个 `admin-*.js` / `Login-*.js`；只比对单一 chunk 哈希会漏。
+**E-6.6**（硬指标）**编码铁律**：PowerShell 5 传中文 JSON 会被转成 `?` → 云端 HTTP 测试一律 ASCII payload，中文走浏览器 UI；`.ps1` 必须 **UTF-8 BOM**，`config.json` / JSON 必须 **UTF-8 无 BOM**（两者相反）。临时脚本放 `$env:TEMP` 用完即删。
+**E-6.7**（硬指标）**MCP weapp-test 连不上时的回退**：用 `nosql dump` 取 `order_main` / `safety_report` 证据验证后端契约，再给用户「可勾选的真机走查清单」；不要反复重启 IDE（本会话已耗 6+ 次无果）。
+**E-6.8**（硬指标）**nosql dump 是 NDJSON**：不能整体 `JSON.parse`，必须按行解析。
+**E-6.9**（硬指标）**push 默认代理死在 7890**：必须 `-c http.proxy= -c https.proxy=`；`Connection reset` / `schannel: server closed abruptly` 属代理链路问题，重试 1–2 次即停。
+**E-6.10**（硬指标）**`cloud.openapi.*` 只在「小程序调用触发的云函数」里可用**：定时器 / HTTP 网关 / 控制台 / CLI 触发必然 `-501001`（历史定论，勿重复立项）。
+**E-6.11**（硬指标）**IDE 登录态会过期**：`cli islogin` 可能假阳性；以 `upload` / `deploy` success 为准；过期用 `cli login -f image` 扫码。
+**E-6.12**（硬指标）**禁止凭记忆写数字**：门禁 pass 数、commit 数、技能数、台账条数一律当场实测；旧台账数字会漂移（实测 593 ≠ 旧 581；A/B 43 ≠ 台账 38/41）。
+
+---
+
+## §7 待办（T-7.x，标注谁做；★ 为时序硬约束）
+
+**T-7.1**（待办·AI·**需用户确认**·最高优先）**上线 64→68 补前缀修复**（健壮性收尾：68 位完整 key 现已可登录，仅粘贴 64 位裸 body 才 401）。
+**T-7.1.1** 先留档：`git -C C:\zhaoren diff admin-web-frontend/src/api/admin.js > C:\zhaoren-bak\admin-js-20261025.patch`。
+**T-7.1.2** 允许**带未提交改动**走静态托管部署（admin-web 例外；deploy-log 须注明「承载未提交改动」）。
+**T-7.1.3** 清缓存 + 断言 + 重建 + 本地产物 grep（须命中 `[^A-Za-z0-9_-]` 与 `[0-9a-fA-F]{64}`）。
+**T-7.1.4** `hosting deploy --safe`。
+**T-7.1.5** 远端复核（必须带 cache-buster，再取主 bundle 内 chunk 名）：
+```powershell
+$base='https://cloud1-d9gkefwcp5c777088-1482004365.tcloudbaseapp.com'
+$html=(Invoke-WebRequest "$base/?v=$((Get-Random))" -UseBasicParsing).Content
+$html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
+```
+**T-7.1.6** 用户浏览器 Ctrl+F5 复测登录（粘贴 64 位裸 body 也应成功）。
+**T-7.1.7** 分两批提交：`fix(admin-web): …`（代码）与 `docs: deploy-log …`（文档），**均需用户确认**。
+**T-7.1.8** 完成后**重跑 T-0.2 / T-0.3 / T-0.4 / T-0.7 并更新本文件**（届时 HEAD、ahead、status、线上 `index-*` 都会变，原硬指标过期）。
+
+**T-7.2**（待办·AI·**需用户确认**）**补推 commit**：当前 ahead=**2**（`692622c`、`5750405`）；T-7.1 完成后再 +2，共 **4** 个。命令 `git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。前置条件已具备（T-0.3.1）。
+
+**T-7.3**（待办·用户真机）**验证 v1.6.39 的 P2-11 SOS**：
+**T-7.3.1** 有进行中订单 → 「仅上报」→ `safety_report` 新增 `sos` 且 `order_main.help_flag=true`。
+**T-7.3.2** 无进行中订单 → toast「当前无进行中订单」且**不落库**（这是**已接受的产品边界**：`safety-report` 要求 `order_id` 存在，**禁止**为它改后端）。
+**T-7.3.3** 断网（前置：必须有 doing 单）→ toast「网络异常，请直接拨打110」。
+
+**T-7.4**（待办·用户手动）**提审前置**：按 `docs/runbooks/pre-release-filing-checklist.md` §6 逐项勾选（F1 隐私指引**状态须为已通过**、F2 位置权限、F3 三个订阅模板 + `miniprogram_state=trial`、F4 合法域名、F5 `admin_openids`、F6 提审说明）。
+
+**T-7.5**（待办·用户）提审选 **v1.6.39**（`1.6.38` 已被取代）。
+**T-7.5.1 ★**（约束红线）**T-7.3 未全绿前不得执行 T-7.5**。若真机失败：二选一 —— ①回退用 `1.6.38` 提审（源码等价，无 SOS 修复）；②取得用户**书面解冻授权**后再改 `miniprogram/` 并递增版本。
+
+**T-7.6**（待办·提审后·AI）P1-7 + P1-6②：
+**T-7.6.1** `auto_approve_partner → false`，必须走后台 `config_set`（留 `config_history`），禁用 nosql 直改。
+**T-7.6.2** 清理自动通过档案：先只读 dump `partner_profile` 留底，按 `created_at` 窗口 + 实名/审核字段筛出测试期自动通过者，再批量软删。
+**T-7.6.3** `realname_reset_simulated` 清理模拟实名。
+
+**T-7.7**（待办·提审后·AI）批 1b：user-login 版本下发 + 重签机制 + C 端 agreement/privacy 动态化；**版本号由用户确认**（建议 1.6.40），上传流程走 `zhaoren-frequent-flows` 流程 2。
+
+**T-7.8**（待办·提审后·AI）技术债：P2-12/13（工作台「今日待履约」/「本周收入」口径）、P3-15（legal_doc 并发写 + 列表不带 content + 角色门控）、P3-12（order-timer 三表扫描索引）。
+
+**T-7.9**（待办·AI·低风险）两份台账口径订正（下次 docs 批次顺手做）：①`tech-debt-inventory` 头部仍写「HEAD `21cde8a`、origin MATCH、工作区干净」（实际 `5750405`、ahead 2、1 个 M）；②其 A/B「38/41」口径落后（现为 43）。
+
+**T-7.10**（约束红线）未获用户明确指令前**禁止开工**任何 `miniprogram/` / `cloudfunctions/` / `admin_config` 生产变更（含为 T-7.3.2 而改后端）。
+
+---
+
+## §8 用户核对要点（参考用，非清点项；约束已并入 C-3.x）
+
+1. 先按 T-0.12 出清点表，差集为空再等派活。
+2. T-7.1 是唯一「代码已改但没上线」的悬空项；它不修也能用 68 位完整 key 登录，修的是粘贴容错。
+3. 任何 commit / push 前必须先问用户（C-3.4）；当前 2 个 commit 未推，push 链路已恢复。
+4. 涉及生产数据、已验收功能、提审状态的动作，先说方案再动手。
+
+---
+
+## 验证者修正（双评审留痕，2026-10-25）
+
+**A 事实核验抓出 6 处不符（已全部修正）**：①GitHub 443 实际可达，故障在本机默认代理 TLS（原稿误写「GitHub 连不通」）；②`??` 实为 7 项非 6 项；③v1.6.39 在倒数第 6 行非第 5 行；④用户 SOP 实为 **6 份**非 5 份；⑤T-7.1 后共 4 个待推非 3 个；⑥当前未推 2 个非 3 个。
+**B 完整性审查抓出高危 10 项、中危 18 项、低危 11 项（已并入正文）**，其中影响可执行性的关键项：受保护配置文件缺失、破坏性 git 命令无禁令、提审期配置冻结表缺失、`realname_face_mode` 键路径写错（扁平键）、`verify:offline` 实为 9 段非 4 段、云函数部署命令缺 `--env/--project`、T-7.1 未写「允许带未提交改动部署」例外、嵌套待办未编号。
+**保留待确认项**：W8 当前版本号（本稿原记 v4，deploy-log 记 v3）→ 以云端 `legal_doc` 实测为准。
