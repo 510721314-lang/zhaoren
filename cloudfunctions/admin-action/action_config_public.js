@@ -75,7 +75,12 @@ function config_public(ctx) {
     legal_public: {
       service_agreement: cfgRaw.legal_service_agreement || '',
       aa_promise: cfgRaw.legal_aa_promise || '',
-      pet_authorization: cfgRaw.legal_pet_authorization || ''
+      pet_authorization: cfgRaw.legal_pet_authorization || '',
+      // 批1a(2026-10-25): 补齐隐私政策/通用免责 + 各文档生效版本号。
+      // 版本号由 legal_doc_publish 双写维护(admin_config.legal_versions)，旧客户端忽略未知字段，行为不变。
+      privacy_policy: cfgRaw.legal_privacy_policy || '',
+      disclaimer_text: cfgRaw.legal_disclaimer_text || '',
+      versions: cfgRaw.legal_versions || {}
     },
     partner_profile: {
       skills_max: cfgRaw.p_skills_max !== undefined ? cfgRaw.p_skills_max : 10,

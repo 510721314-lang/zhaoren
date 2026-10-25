@@ -38,6 +38,8 @@ const ROLE_GRANTS = {
   // ── R3 运营 ──
   'dashboard': ['R3'],
   'config_get': ['R3'], 'config_log_list': ['R3'],
+  // 法律文档版本库(批1a): 只读列表放开 R3; 发布/回滚/存量初始化属敏感写, 未列出即仅 R1
+  'legal_doc_list': ['R3'],
   'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'], 'upload_image': ['R3'],
   'notice_send': ['R3'],
   'kefu_conv_list': ['R3'], 'kefu_conv_reply': ['R3'],
@@ -477,7 +479,8 @@ const HANDLERS = Object.assign(
   require('./action_dispute_handle'),
   require('./action_audit'),
   require('./action_config_set'),
-  require('./action_audit_verify')
+  require('./action_audit_verify'),
+  require('./action_legal_doc')
 );
 // 免鉴权前置分组(统一鉴权门之前): claim_admin / config_public / admin_login / admin_logout
 const HANDLERS_PRE = Object.assign(
