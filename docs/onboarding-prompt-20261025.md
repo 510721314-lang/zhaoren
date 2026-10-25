@@ -2,7 +2,7 @@
 
 > **用途**：新任务首条消息整段投喂，使无上下文的新 Agent 零偏差接手。
 > **生成依据**：技能 `.trae/skills/zhaoren-handoff-prompt`（实测取证 → 双专家评审 → 修正 → 落盘）。
-> **版本**：V2「学习考试中心立项版」（2026-10-25 晚）。V1「admin-web 登录收尾版」同日早间（git 历史可溯）；V2 增量 = 用户战略决策（**暂缓提审**）+ **学习考试中心立项**，git 基线全部重测。
+> **版本**：V2「学习考试中心立项版」（2026-10-25 晚）。V1「admin-web 登录收尾版」同日早间（git 历史可溯）；V2 增量 = 用户战略决策（**暂缓提审**）+ **学习考试中心立项**，git 基线全部重测。**V2.1（同日深夜）**= 纯值刷新（HEAD/origin=`4eaf157`、`??` 6 项）+ T-8.1 完成回填 + T-0.3.1 直连 reset 探活重试经验，结构零改动。
 > **取证时点**：2026-10-25 晚。文中所有可核查值均当场命令实测；评审修正见文末「验证者修正」。
 > **清点边界**：`T-*` / `C-*` / `E-*` 为**清点项**，必须逐条回执；**§1 / §2 / §5 / §8 为参考用，非清点项**。
 
@@ -11,13 +11,13 @@
 ## §0 开场回执校验（先回执，再等派活）
 
 **T-0.1**（硬指标）工作目录唯一可信 = `C:\zhaoren`。所有 git 命令一律写 `git -C C:\zhaoren ...`，不依赖当前 cwd。
-**T-0.2**（硬指标·V2 重测）`git -C C:\zhaoren rev-parse --short HEAD` → 本更新实测 = **`45941c6`**；应为 `45941c6` 或其后的仅含 docs 类提交。请用 `git log --oneline -6` 核对提交性质。
-**T-0.3**（硬指标·V2 重测）`origin/master` 应与 HEAD **一致**、`rev-list --count origin/master..HEAD` = **`0`**（本更新实测 `45941c6` = origin，ahead=0）。若 ahead≠0，先按 T-7.2 补推；若工作区存在未入库的 `docs/exam-center-plan-20261025.md`，按 T-8.1 走用户确认后单独 docs 提交。
-**T-0.3.1**（硬指标·修正）推送失败**不是 GitHub 不可达**：实测 `github.com:443` TCP 可连，`git -c http.proxy= -c https.proxy= ls-remote --heads origin` 成功；故障在**本机默认代理 `127.0.0.1:7890` 的 TLS 链路**（`schannel: server closed abruptly`）。→ 一律绕代理推送。
-**T-0.4**（硬指标·V2 重测）`git -C C:\zhaoren status --short` 应为 **0 个 `M` + 7 项 `??`**：
+**T-0.2**（硬指标·V2.1 重测）`git -C C:\zhaoren rev-parse --short HEAD` → 本更新实测 = **`4eaf157`**；应为 `4eaf157` 或其后的仅含 docs 类提交。请用 `git log --oneline -6` 核对提交性质。
+**T-0.3**（硬指标·V2.1 重测）`origin/master` 应与 HEAD **一致**、`rev-list --count origin/master..HEAD` = **`0`**（本更新实测 `4eaf157` = origin，ahead=0）。若 ahead≠0，先按 T-7.2 补推；`docs/exam-center-plan-20261025.md` **已入库（`63280a2`）**，若它再出现 `??` 或 `M` 属异常。
+**T-0.3.1**（硬指标·修正）推送失败**不是 GitHub 不可达**：实测 `github.com:443` TCP 可连，`git -c http.proxy= -c https.proxy= ls-remote --heads origin` 成功；故障在**本机默认代理 `127.0.0.1:7890` 的 TLS 链路**（`schannel: server closed abruptly`）。→ 一律绕代理推送。**绕代理直连也可能间歇 `Connection was reset`**（2026-10-25 深夜实证：push 连续 2 次 reset，`ls-remote` 探活通过后第 3 次重试即成功）→ 失败时先 `ls-remote` 探活，通则立即重试，勿改配置勿猜因。
+**T-0.4**（硬指标·V2.1 重测）`git -C C:\zhaoren status --short` 应为 **0 个 `M` + 6 项 `??`**：
 - 6 份**用户文档**（C-3.5 永不入库）：`docs/` 下 `线上陪伴SOP与岗前考试题库_合订本.md`、`线上陪伴上岗培训考试题库.md`、`线上陪伴业务标准作业流程（SOP）.docx`、`线下户外陪伴SOP与岗前考试题库_合订本.md`、`陪诊SOP与岗前考试题库_合订本20261020.md`、`陪诊业务标准作业流程（SOP）.docx`（以 `git status --short` 实际输出为准）
-- 1 份**项目文档**：`docs/exam-center-plan-20261025.md`（学习考试中心实施方案，**不属于** C-3.5 禁令，待用户审核后按 T-8.1 入库）
-- **除本衔接文件自身外，任何 `M` 都是异常**（T-7.1 已收尾）：本文件 V2 修订待按 T-8.1 入库，期间其 `M` 属预期（双评审实测恰为 1 个 M = 本文件）；本文件入库后应回到 **0 个 M**
+- ~~1 份项目文档~~：`docs/exam-center-plan-20261025.md`（学习考试中心实施方案）**已随 `63280a2` 入库**——若再出现 `??` 或 `M` 属异常
+- **除本衔接文件自身外，任何 `M` 都是异常**（T-7.1 已收尾）：本文件 V2.1 值刷新待入库期间其 `M` 属预期；入库后应回到 **0 个 M**
 
 **T-0.5**（硬指标）云环境 `cloud1-d9gkefwcp5c777088`；AppID `wxbc4a4afacdf234f5`。
 **T-0.6**（硬指标）工具路径：密钥文件 `C:\zhaoren-bak\admin-key-20261006.txt`（True）；云开发 CLI `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd`（True）。
@@ -32,7 +32,7 @@
 ```text
 | 编号 | 原文要点(≤20字) | 我的理解/落点 | 状态(接收/存疑/不符/缺失) |
 |------|----------------|--------------|------------------------|
-| T-0.2 | HEAD=45941c6 | 实测 … | 接收 |
+| T-0.2 | HEAD=4eaf157 | 实测 … | 接收 |
 ```
 
 **T-0.13**（硬指标）清点通过后再等用户派活；当前主线 = **学习考试中心**（T-8.x：方案待用户审核 + D1–D6 待拍板，拍板后才开工 S2）；提审线 T-7.3~T-7.7 **全部暂缓**，勿自行开工。
@@ -202,7 +202,7 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 **T-7.1.7** 分两批提交：代码与 docs（**均需用户确认**）。
 **T-7.1.8** 完成后重跑 T-0.2 / T-0.3 / T-0.4 / T-0.7 并更新本文件（已执行）。
 
-**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。V1 会话 4 个 commit（`692622c` 代码 / `5750405` 文档 / `e6e5a52` 代码 / `9a08e3e` 文档）**已推送完成**；当前 HEAD = `45941c6` = origin（T-0.2/T-0.3）。
+**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。V1 会话 4 个 commit（`692622c` 代码 / `5750405` 文档 / `e6e5a52` 代码 / `9a08e3e` 文档）**已推送完成**；当前 HEAD = `4eaf157` = origin（T-0.2/T-0.3）。
 
 **T-7.3**（**暂缓**·用户真机·恢复提审后执行）**验证 v1.6.39 的 P2-11 SOS**：
 **T-7.3.1** 有进行中订单 → 「仅上报」→ `safety_report` 新增 `sos` 且 `order_main.help_flag=true`。
@@ -227,7 +227,7 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 
 **T-7.10**（约束红线）未获用户明确指令前**禁止开工**任何 `miniprogram/` / `cloudfunctions/` / `admin_config` 生产变更（含为 T-7.3.2 而改后端）。
 
-**T-8.1**（待办·AI·**需用户确认**）将 `docs/exam-center-plan-20261025.md` 按 **docs 批次**单独提交入库（C-3.3 三类隔离 / C-3.4 先确认）；提交前实跑门禁（E-6.12）；顺手完成 T-7.9 台账口径订正。
+**T-8.1**（✅ 已执行 2026-10-25 深夜）`docs/exam-center-plan-20261025.md` 已按 docs 批次单独提交入库 = **`63280a2`**（含 T-7.9 台账口径订正；提交前实跑门禁 593/593 全绿）。**无需再做。**
 
 **T-8.2**（待办·用户）**审核方案 + 拍板 D1–D6**（方案 §5；推荐值：D1 base 证书永久 / D2 cutover 日回填 365d / D3 S6 验证后才开闸 / D4 study_content 集合 / D5 保持现行为 / D6 本地缓存批量写）。T-8.1 文档入库与 T-8.2 拍板**可并行，两者齐备 = S1 收口**。
 
@@ -243,7 +243,7 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 
 1. 先按 T-0.12 出清点表，差集为空再等派活。
 2. admin-web 登录修复**已全部上线**（`e6e5a52`）：68 位完整 key、64 位裸 body、整行 `AWK_KEY=`、含零宽字符均可登录。
-3. 任何 commit / push 前必须先问用户（C-3.4）；当前 ahead=0，工作区仅 7 项 `??`（6 用户文档 + 待入库的考试中心方案）。
+3. 任何 commit / push 前必须先问用户（C-3.4）；当前 ahead=0，工作区仅 6 项 `??`（6 用户文档；考试中心方案已入库）。
 4. 涉及生产数据、已验收功能、提审状态的动作，先说方案再动手。
 5. **本会话主线变更**：提审暂缓（无时间要求）；学习考试中心已立项——方案 `docs/exam-center-plan-20261025.md` 待审核，D1–D6 待拍板，拍板后开工 S2（T-8.3）。
 6. `admin_config` 冻结表（C-3.8）在提审暂缓期**不生效**，任何配置变更仍须走 C-3.9 口径 + 用户明确指令。
