@@ -67,6 +67,12 @@ async function warmOne(target) {
 
 exports.main = async (event) => {
   const manual = !!(event && event.action === 'run');
+  // 2026-10-26 用量治理熔断: 定时触发直接空转(每次仅 1 次自身调用, 不再唤起 2 个目标函数)
+  //   触发次数 480/天 × 3 调用 = 1,440/天 → 480/天; 控制台触发器删除受限, 以此为保底
+  //   恢复上线: 置 false 并重建单个触发器(cron `0 */15 7-22 * * * *`)
+  if (!manual) {
+    return { ok: true, skipped: true, reason: 'trigger_disabled_20261026', ts: Date.now() };
+  }
   const hour = bjHour();
   const inWindow = hour >= ACTIVE_START && hour < ACTIVE_END;
 
