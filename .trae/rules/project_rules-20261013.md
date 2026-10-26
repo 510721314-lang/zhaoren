@@ -327,3 +327,9 @@ alwaysApply: true
 - **N5「文件完整性校验」≠「业务有效性校验」**：PNG 魔数/体积/SHA-256 只能证明文件存在且未被篡改，**不能证明签名可辨认、协议已理解或身份匹配**。凡提审/合规链路必须另设业务有效性门并给出用户可见的成功/失败反馈；「是否落笔」布尔不能替代「签名质量识别」（墨迹像素/占比/包围盒/单点检测）。实证（2026-10-26 测试反馈）：现存签名链路仅 `hasInk` 布尔 + 服务端 PNG/SHA-256 校验，无识别环节 → 已登记 tech-debt P0-4。
 - **N6 提审前清零项必须台账化，并区分「已实施 / 仅登记」**：在 `tech-debt` P0 区按「问题｜根因｜已做｜测算｜提审前 owed｜状态」登记；用户明确「暂时不动代码」时**只改台账、零代码**；纯登记无版本变更时**不新增 CHANGELOG 变更行**（同一事实不双写），实施后再补 CHANGELOG 并订正台账状态。提交与 push 分离：提交前 `git status --short` 取证、排除用户 SOP 未跟踪文件；push 需用户明确指示（承接 §15）。
 - 与既有规则关系：N1/N2 补充 §10（CloudBase 实战坑）与 §12（上线核验：改完取证）；N3 补充 §13（前端写操作提示时序）与 §23-H2（调用通道/身份矩阵）；N4 承接 §10 与 §23-H2；N5 承接 §12 与 §28-L3（预期态/有效性口径）；N6 承接 §9（收尾沉淀）、§14（commit 三类隔离）与 §15（Git push 绕代理）。
+
+## 31. TCB CLI 数据脚本幂等与凭据重试纪律（2026-10-26 OUTDOOR 灌库实证新增）
+
+- **L1 TCB CLI 回读数字字段必须先解码再比对，否则幂等脚本会误刷 `updated_at`/`bank_ver`**：CLI 读 MongoDB 返回 Extended JSON 包装对象（`{"$numberInt":"1"}` / `{"$numberLong":...}` / `{"$numberDouble":...}`），与本地原生数字做 `JSON.stringify` 比较**永远不等** → 幂等脚本每跑一次都把"同值"判为 update、刷新 `updated_at`；对 `bank_ver = max(updated_at)` 的考试科目，这会让正在进行的考试提交被 `pa_exam_bank_changed` 拒绝。纪律：①凡从 CLI 读回的数字字段（含嵌套数组里的数字，如 `answer_idx`）比对前统一 `decNum()` 解码；②dry-run 报全量 diff 时先怀疑"未解码包装对象"，别误判"数据被改过"。实证（2026-10-26 OUTDOOR 灌库）：`seed-outdoor-exam.js` 初版未解码，dry-run 报 30 题 `answer_idx,score` 全量 diff，`--apply` 后 30 题同值重写、`updated_at` 全部刷新；补 `decNum()` 后 dry-run 直接 `skip=30`。跨引用：`project_memory.md`「云数据库 Extended JSON 格式需解包」是**写时**防 NaN，本条目是其**读回比对**对偶情形。
+- **L2 TCB CLI 凭据读取偶发 `EEXIST` 必须重试，首次失败不直接抛**：`tcb-exec.js` 调 CLI 时偶发读 `cloudbaserc.json` 报 `EEXIST: file already exists`（非真实凭据问题），直接抛错会让批量脚本半途中断。纪律：凭据读取/CLI 调用封装 `readCredsWithRetry`（≤3 次、200ms 起指数退避），3 次仍失败才抛。实证（2026-10-26）：未加重试时连续多次 `EEXIST` 中断 OUTDOOR 灌库，加重试后稳定通过。
+- 与既有规则关系：L1 补充 §24-I1（TCB 过滤口径）与 §23-H6（只读查库通道）；L2 补充 §29-M1（凭据输入归一）的"凭据文件读取"侧；二者均承接 §9（收尾沉淀：幂等脚本必须能重复跑、无副作用）。
