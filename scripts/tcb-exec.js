@@ -31,12 +31,13 @@ function findEnvId() {
 }
 
 // 执行 MgoCommands(数组或 JSON 字符串), 返回 { status, stdout, stderr, parsed }
-function execTcbCommands(command, extraArgs) {
-  const tcbJs = findTcbJs();
-  if (!tcbJs) return { status: 2, stdout: '', stderr: 'TCB JS 入口未找到(安装 @cloudbase/cli 或用 TCB_JS_PATH 指定)' };
-  const envId = findEnvId();
-  if (!envId) return { status: 2, stdout: '', stderr: 'envId 未找到(从 miniprogram/envList.js 读取或用 TCB_ENV_ID 指定)' };
-  const cmd = typeof command === 'string' ? command : JSON.stringify(command);
+// 2026-10-26: tcb CLI 读本地凭据偶发失败(同一命令交替返回「无有效身份信息」), 命中该错误时重试;
+//            凭据读取失败发生在真正下发命令之前, 重试不会产生重复写入。
+const AUTH_ERR = '无有效身份信息';
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function execOnce(tcbJs, envId, cmd, extraArgs) {
   const args = [tcbJs, 'db', 'nosql', 'execute', '--command', cmd, '--env-id', envId, ...(extraArgs || [])];
   const r = spawnSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 180000 });
   let parsed = null;
@@ -47,6 +48,21 @@ function execTcbCommands(command, extraArgs) {
     try { parsed = JSON.parse(outText.slice(start, end + 1)); } catch (e) {}
   }
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '', parsed };
+}
+function execTcbCommands(command, extraArgs) {
+  const tcbJs = findTcbJs();
+  if (!tcbJs) return { status: 2, stdout: '', stderr: 'TCB JS 入口未找到(安装 @cloudbase/cli 或用 TCB_JS_PATH 指定)' };
+  const envId = findEnvId();
+  if (!envId) return { status: 2, stdout: '', stderr: 'envId 未找到(从 miniprogram/envList.js 读取或用 TCB_ENV_ID 指定)' };
+  const cmd = typeof command === 'string' ? command : JSON.stringify(command);
+  let last = null;
+  for (let i = 0; i < 5; i++) {
+    last = execOnce(tcbJs, envId, cmd, extraArgs);
+    const text = (last.stdout || '') + (last.stderr || '');
+    if (last.status === 0 || text.indexOf(AUTH_ERR) < 0) break;
+    sleepSync(800);
+  }
+  return last;
 }
 
 module.exports = { execTcbCommands, findTcbJs, findEnvId };

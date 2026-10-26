@@ -76,7 +76,7 @@ for (const f of files) {
     const title = d.meta.title;
     const sort = num(d.meta.sort, NaN);
     const label = `${f}:${subject}/${moduleId}/${chapterId}`;
-    if (!['base', 'W1'].includes(subject)) errors.push(`${label} subject 非法`);
+    if (!['base', 'W1', 'OUTDOOR'].includes(subject)) errors.push(`${label} subject 非法`);
     if (!/^[A-Za-z0-9_]{1,12}$/.test(moduleId || '')) errors.push(`${label} module_id 非法`);
     if (!/^[A-Za-z0-9_-]{1,20}$/.test(chapterId || '')) errors.push(`${label} chapter_id 非法`);
     if (!Number.isInteger(sort) || sort < 1) errors.push(`${label} sort 非法`);
