@@ -427,16 +427,20 @@ Page({
       .then((r) => { if (r.ok) this.renderMessages(r.data.messages); });
   },
 
-  // ───────── 轮询(5s) ─────────
+  // ───────── 轮询(8s, 2026-10-26 用量治理: 5s→8s + 通知隔轮) ─────────
+  // 用量账: 原 3 次/5s = 0.60 次/s(2,160 次/小时); 现平均 2.5 次/8s = 0.31 次/s(1,125 次/小时), 降约 48%
   startPolling() {
     this.stopPolling();
     if (!this.__orderId) return;
+    this.__pollTick = 0;
     this.__pollTimer = setInterval(() => {
       if (this.data.loading || this.data.loadError) return;
+      this.__pollTick += 1;
       this.refreshMessages();
       this.refreshConfirmation();
-      this.pollNotices();
-    }, 5000);
+      // 通知隔轮(≤16s 延迟): 通知本身有本地去重与横幅兜底, 不追求秒级
+      if (this.__pollTick % 2 === 1) this.pollNotices();
+    }, 8000);
   },
   stopPolling() {
     if (this.__pollTimer) { clearInterval(this.__pollTimer); this.__pollTimer = null; }

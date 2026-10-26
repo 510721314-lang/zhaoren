@@ -70,7 +70,7 @@ function startTipPoll(page) {
       // 静默刷新同步最新状态/时间(不闪 loading)
       page.fetchData({ orderId: page.__orderId }, true);
     }).catch(() => {});
-  }, 8000);
+  }, 15000); // 2026-10-26 用量治理: 通知轮询 8s→15s(调用量降约 47%), 通知延迟上限 15s 可接受
 }
 
 // 迁自 order-detail.js stopTipPoll
