@@ -23,7 +23,10 @@ function baseStore(extra = {}) {
   return Object.assign({
     admin_config: { global: { env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000 } },
     user_account: { u1: { _id: 'u1', openid: USER } },
-    partner_profile: {}, exam_bank: {}
+    partner_profile: {},
+    // S4: 题目 SSOT = questions；exam_bank 仅 meta。take_readiness 依赖 bank.base 存在 → 需同时种子题目
+    exam_bank: { b_base: { _id: 'b_base', code: 'base', title: '基础考试', desc: '', pass_line: 100, requires: [], enabled: true, is_deleted: false, updated_at: 1000 } },
+    questions: { bq1: { _id: 'base_A-01', subject: 'base', paper: 'A', qid: 'A-01', type: 'single', stem: '题干', options: ['a', 'b'], answer_idx: 0, score: 1, status: 'published', version: 'V1', is_deleted: false, created_at: 100, updated_at: 1000 } }
   }, extra);
 }
 

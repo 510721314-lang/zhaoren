@@ -663,6 +663,19 @@ function loadWith(dir, file, sdk) {
     'ul_simulate_realname', 'auto_ul_simulate_realname', // 2026-10-21 修复拆分遗留作用域缺陷: action_account.js 引用本文件不存在的 getCachedEnv → 基线恒 login_server_error; 提审期方案A 改为读 config.env 后 dev 正常返回 ok(守卫与 simulate 行为由 user-login.entry.test.js 新增 4 例独立守护)
     'auto_admin_legal_doc_list', 'auto_admin_legal_doc_publish', 'auto_admin_legal_doc_rollback', 'auto_admin_legal_doc_seed', // 2026-10-25 批1a: 新增法律文档版本库 4 个 action(基线 admin_unknown_action); 授权见 docs/legal-compliance-1a-authorization-20261025.md, 行为由 admin-action.entry.test.js 新增 5 例独立守护
     'auto_admin_legal_doc_retire', // 2026-10-25 U2: 新增场景停用 action(基线 admin_unknown_action); 授权见 docs/legal-compliance-u2-authorization-20261025.md, 行为由 admin-action.entry.test.js 新增 7 例(scoped)独立守护
+    'auto_pa_submit_exam', // 2026-10-26 S2: submit_exam 响应新增 session_id/cert_expires_at/cert_issued 且写 exam_sessions/证书(判分与响应码不变); 行为由 partner-action.s2-exam.test.js 新增 10 例独立守护
+    // 2026-10-26 S4: 题库写入口迁至 questions + 学习内容只读预览, 新增 10 个 admin action(基线 admin_unknown_action);
+    // 行为由 admin-action.question.test.js(13 例) 与 admin-action.study.test.js(3 例) 独立守护。
+    'auto_admin_exam_subject_overview', 'auto_admin_exam_subject_meta_update',
+    'auto_admin_question_list', 'auto_admin_question_detail', 'auto_admin_question_upsert',
+    'auto_admin_question_delete', 'auto_admin_question_bulk_status', 'auto_admin_question_import_markdown',
+    'auto_admin_content_list', 'auto_admin_content_detail',
+    // 2026-10-26 S4 阶段 B: 旧科目写入口退役(基线成功 → exam_write_retired); 行为由 admin-action.question.test.js 守护
+    'exam_create_ok', 'exam_update_ok', 'exam_delete_ok',
+    'auto_admin_exam_subject_create', 'auto_admin_exam_subject_update', 'auto_admin_exam_subject_delete',
+    'auto_admin_exam_bank_seed',
+    // 2026-10-26 S4 阶段 B: partner-action fallback 退役(exam_bank 无题目 → fail-closed); 行为由 partner-action.s3-questions.test.js 守护
+    'auto_pa_get_exam_questions', 'auto_pa_exam_subjects',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

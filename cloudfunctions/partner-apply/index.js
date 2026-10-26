@@ -10,6 +10,9 @@ const col = (n) => db.collection(n);
 const log = require('./logger');
 // D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步各函数)
 const { suspendLeftDays } = require('./take_rules');
+// 证书门禁(2026-10-26 S2): 规范源 _shared/cert_state.js(修改后跑 sync-cert-state.ps1 同步各函数)
+// cert_gate_enabled=false(默认) 走旧 exam_scores.W1>=80; true 走场景证书 requireCertForApply
+const { readCertConfig, requireCertForApply, loadCerts } = require('./cert_state');
 
 // 场景白名单: 从 admin_config.scene_list 动态读取(SSOT), 兜底 5 场景
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
@@ -43,6 +46,29 @@ async function getUser(openid) {
   return (r.data && r.data[0]) || null;
 }
 
+async function getPartnerProfile(openid) {
+  const r = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
+  return (r.data && r.data[0]) || null;
+}
+
+// 当前有考试的科目(code) + 标题, 仅证书门禁开闸时读取; 读失败回退 base/W1
+async function getExamMeta() {
+  try {
+    const r = await col('exam_bank').where({ is_deleted: _.neq(true), enabled: true }).limit(100).get();
+    const docs = (r.data || []).filter((d) => d && d.code);
+    if (docs.length > 0) {
+      const subjects = [];
+      const titles = {};
+      for (const d of docs) {
+        subjects.push(d.code);
+        titles[d.code] = d.title || d.code;
+      }
+      return { subjects, titles };
+    }
+  } catch (e) { /* 读失败走兜底 */ }
+  return { subjects: ['base', 'W1'], titles: {} };
+}
+
 async function hasEmergencyContact(openid) {
   const r = await col('emergency_contact').where({ openid, is_deleted: false }).limit(1).get();
   return r.data && r.data.length > 0;
@@ -65,7 +91,7 @@ exports.main = async (event, context) => {
 
   if (action !== 'apply') return { ok: false, code: 'apply_unknown_action', msg: '未知动作' };
 
-  const { accept_scenes, scene_rates, exam_scores } = event;
+  const { accept_scenes, scene_rates } = event;
 
   // ── 校验场景:非空 + 白名单(动态从 admin_config.scene_list 读取) ──
   if (!Array.isArray(accept_scenes) || accept_scenes.length === 0) {
@@ -78,9 +104,24 @@ exports.main = async (event, context) => {
     }
   }
 
-  // ── W1 就医陪诊专项考核:国标考核分需 >= 80 ──
-  if (accept_scenes.indexOf('W1') >= 0) {
-    const score = Number(exam_scores && exam_scores.W1);
+  // ── 预取配置 + 服务端档案(P0, 2026-10-26): 考试分数只认服务端 partner_profile.exam_scores ──
+  // 客户端 event.exam_scores 一律忽略, 防止伪造分数/重提交时清空档案分数(R10)
+  const config = await getConfig();
+  const profile = await getPartnerProfile(openid);
+  const certCfg = readCertConfig(config);
+
+  // ── W1 就医陪诊专项考核 / 场景证书门禁 ──
+  // 门禁关(默认): 逐字保留旧口径 exam_scores.W1 >= 80
+  // 门禁开: 按场景证书校验(apply 只校场景证书; 证书发放已按 pass_line=100 把住 80→100)
+  if (certCfg.enabled) {
+    const meta = await getExamMeta();
+    const certs = await loadCerts(col, openid);
+    const gate = requireCertForApply(profile, accept_scenes, {
+      certs, examSubjects: meta.subjects, titles: meta.titles
+    });
+    if (gate.locked) return { ok: false, code: gate.code, msg: gate.msg };
+  } else if (accept_scenes.indexOf('W1') >= 0) {
+    const score = Number(profile && profile.exam_scores && profile.exam_scores.W1);
     if (!score || score < 80) {
       return { ok: false, code: 'apply_w1_exam_failed', msg: '就医陪诊场景需通过国标专项考核(>=80分)' };
     }
@@ -91,7 +132,6 @@ exports.main = async (event, context) => {
   if (!scene_rates || typeof scene_rates !== 'object') {
     return { ok: false, code: 'apply_rates_empty', msg: '请为每个场景设置时薪' };
   }
-  const config = await getConfig();
   const rateMin = config.rate_min_fen || 3000;
   const rateMax = config.rate_max_fen || 10000;
   // scene_rates 的 keys 必须与 accept_scenes 一一对应
@@ -150,7 +190,7 @@ exports.main = async (event, context) => {
     avatar: user.avatar || '',
     accept_scenes,
     scene_rates,
-    exam_scores: exam_scores || {},
+    exam_scores: {},
     city: ['成都'],
     accept_switch: true,
     status,
@@ -160,13 +200,12 @@ exports.main = async (event, context) => {
   };
 
   try {
-    const exist = await col('partner_profile').where({ openid, is_deleted: false }).limit(1).get();
-    if (exist.data && exist.data.length > 0) {
+    if (profile) {
       // 已审核通过的耍伴保留 approved; 其余状态按自动开关决定
-      if (exist.data[0].status === 'approved') status = 'approved';
-      // 已是耍伴:仅更新可改字段
-      await col('partner_profile').doc(exist.data[0]._id).update({ data: {
-        accept_scenes, scene_rates, exam_scores: exam_scores || {}, city: ['成都'], status,
+      if (profile.status === 'approved') status = 'approved';
+      // 已是耍伴:仅更新可改字段; exam_scores 只由考试判分写回, 此处绝不覆盖/清空(R10)
+      await col('partner_profile').doc(profile._id).update({ data: {
+        accept_scenes, scene_rates, city: ['成都'], status,
         updated_at: now
       }});
       log.d(`partner profile updated: ${openid}`);

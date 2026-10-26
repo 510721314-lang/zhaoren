@@ -38,6 +38,7 @@ function store() {
       ['s'.repeat(32)]: { _id: 's'.repeat(32), openid: USER, role: 'partner', scene: 'W1', is_deleted: false, signature_hash: 'abc123', docs: [] }
     },
     exam_bank: {},
+    certificates: {},
     // 批3b'（2026-10-23）: 接单硬门禁要求已填紧急联系人
     emergency_contact: { ['e'.repeat(32)]: { _id: 'e'.repeat(32), openid: USER, name: '张三', phone: '13800000000', relation: '家人', is_deleted: false } },
     order_main: {}, order_confirmations: {}, order_status_log: {}, platform_event: {},
@@ -92,3 +93,90 @@ test('create_from_take 成功路径: 建单三表 + demand CAS matched + 审计 
   assert.equal((sdk.writes.system_notice || []).length, 1, '接单通知写入 1 条');
   assert.equal(sdk.writes.system_notice[0].data.to_openid, PARTNER);
 });
+
+// ── 2026-10-26 S2: cert_gate_enabled 分支 ──
+function gateOn(s) {
+  s.admin_config.global.cert_gate_enabled = true;
+  return s;
+}
+function cert(subject, over) {
+  return Object.assign({
+    _id: 'c_' + subject, openid: USER, subject, issued_at: Date.now() - 1000,
+    expires_at: 0, status: 'active', is_deleted: false
+  }, over || {});
+}
+async function take(sdk) {
+  const mod = loadOrderCreate(sdk);
+  return mod.main({
+    action: 'create_from_take', demand_id: DEM,
+    partner_location: { latitude: 30.5, longitude: 104.0 },
+    mock_openid: USER, device: 'test'
+  }, {});
+}
+
+test('门禁关(默认): 无 base 分数 → order_base_exam_required(旧路径不变)', async () => {
+  const s = store();
+  s.partner_profile['p'.repeat(32)].exam_scores = {};
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_base_exam_required');
+});
+
+// ── 2026-10-26 S4: 接单门禁改按 exam_bank meta(题目 SSOT 已迁 questions, meta 无 questions 字段) ──
+function bankMeta(code, over) {
+  return Object.assign({
+    _id: 'b_' + code, code, title: code, desc: '', pass_line: 100,
+    requires: [], enabled: true, is_deleted: false, updated_at: 1000
+  }, over || {});
+}
+
+test('门禁关: exam_bank meta 生效(无 questions 字段) → W1 按 pass_line=90 放行', async () => {
+  const s = store();
+  s.exam_bank = { b_base: bankMeta('base'), b_W1: bankMeta('W1', { pass_line: 90, requires: ['base'] }) };
+  s.partner_profile['p'.repeat(32)].exam_scores = { base: 100, W1: 90 };
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+});
+
+test('门禁关: exam_bank meta 生效 → W1 89 分被拒(order_scene_exam_required)', async () => {
+  const s = store();
+  s.exam_bank = { b_base: bankMeta('base'), b_W1: bankMeta('W1', { pass_line: 90, requires: ['base'] }) };
+  s.partner_profile['p'.repeat(32)].exam_scores = { base: 100, W1: 89 };
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_scene_exam_required');
+});
+
+test('门禁开: 无证书(即使 exam_scores 满分) → order_base_exam_required', async () => {
+  const s = gateOn(store());
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_base_exam_required');
+});
+
+test('门禁开: 仅 base 证书, W1 场景 → order_scene_exam_required', async () => {
+  const s = gateOn(store());
+  s.certificates = { c_base: cert('base') };
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_scene_exam_required');
+});
+
+test('门禁开: base + W1 有效证书(不看 exam_scores) → 接单成功', async () => {
+  const s = gateOn(store());
+  s.partner_profile['p'.repeat(32)].exam_scores = {};
+  s.certificates = {
+    c_base: cert('base'),
+    c_W1: cert('W1', { expires_at: Date.now() + 365 * 86400000 })
+  };
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.data.status, 'S1');
+});
+
+test('门禁开: W1 证书过期 → order_scene_exam_required', async () => {
+  const s = gateOn(store());
+  s.certificates = {
+    c_base: cert('base'),
+    c_W1: cert('W1', { expires_at: Date.now() - 1 })
+  };
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_scene_exam_required');
+});
+

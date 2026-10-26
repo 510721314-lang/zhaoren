@@ -47,8 +47,10 @@ const SYNC_MAP = {
   // 补登记(2026-10-19, M1): canonical _shared/heal.js 含 healAuditLock(审核死锁治愈), partner-action 副本一致;
   // demand-match/order-create 为旧版副本(缺该函数) → 依 §10「只登记不手修」登记 KNOWN_DRIFT
   'heal.js': ['partner-action', 'demand-match', 'order-create'],
-  // 题库单一规范源(2026-10-19 P2-5 重做): partner-action + admin-action 各持本地副本, require('./exam-fallback')
-  'exam-fallback.js': ['partner-action', 'admin-action'],
+  // 题库兜底已在 S4 退役(2026-10-26)：题目 SSOT = questions 集合，exam_bank 仅保留科目 meta
+  // 证书派生状态机/门禁单一规范源(2026-10-26 S2): partner-apply/order-create 做门禁, partner-action 发证;
+  // S5 建 exam-action 后再加该消费方(同步改 sync-cert-state.ps1)
+  'cert_state.js': ['partner-apply', 'order-create', 'partner-action'],
   // admin 登录单一规范源(2026-10-19 P2-6 重做): admin-web 本地直调(消除双冷启动 504) + admin-action 前置组;
   // 本模块内部 require('./security_policy') -> 两消费方均需 security_policy.js 副本(见上一项)
   'admin-login.js': ['admin-action', 'admin-web']

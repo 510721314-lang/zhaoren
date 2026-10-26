@@ -17,7 +17,9 @@ const COLLECTIONS = [
   // 第三批 3B: 爽约申诉记录(用户举证 + 管理端裁定, 状态 received/defense/decided)
   'no_show_report',
   // 2026-10-10 补登记: 投诉记录(order-action complaint 写入, 后台纠纷处理详情时间线数据源)
-  'complaint'
+  'complaint',
+  // 2026-10-26 学习考试中心 S2(26→31): 题目 SSOT / 考试留痕 / 证书 / 学习进度 / 学习内容
+  'questions', 'exam_sessions', 'certificates', 'study_records', 'study_content'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -69,7 +71,16 @@ const INDEXES = [
   { coll: 'no_show_report', name: 'idx_status_created', keys: { status: 1, created_at: -1 } },
   { coll: 'no_show_report', name: 'idx_target_created', keys: { target_openid: 1, created_at: -1 } },
   // credit_score_log 裁定聚合核心索引: 滚动窗口内"第 N 次爽约"(openid+type+created_at)
-  { coll: 'credit_score_log', name: 'idx_openid_type_created', keys: { openid: 1, type: 1, created_at: -1 } }
+  { coll: 'credit_score_log', name: 'idx_openid_type_created', keys: { openid: 1, type: 1, created_at: -1 } },
+  // 学习考试中心 S2(2026-10-26, 33→40): 题目拉取/题号唯一; 考试留痕按人/科目倒序;
+  // 证书按人+科目取最新; 学习进度 upsert 键唯一; 学习内容按科目章节排序
+  { coll: 'questions', name: 'idx_subject_status_paper', keys: { subject: 1, status: 1, paper: 1 } },
+  { coll: 'questions', name: 'uk_subject_qid', keys: { subject: 1, qid: 1 }, unique: true },
+  { coll: 'exam_sessions', name: 'idx_openid_submitted', keys: { openid: 1, submitted_at: -1 } },
+  { coll: 'exam_sessions', name: 'idx_subject_submitted', keys: { subject: 1, submitted_at: -1 } },
+  { coll: 'certificates', name: 'idx_openid_subject_issued', keys: { openid: 1, subject: 1, issued_at: -1 } },
+  { coll: 'study_records', name: 'uk_openid_subject_chapter', keys: { openid: 1, subject: 1, chapter_id: 1 }, unique: true },
+  { coll: 'study_content', name: 'idx_subject_module_chapter_sort', keys: { subject: 1, module_id: 1, chapter_id: 1, sort: 1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)
@@ -96,6 +107,10 @@ const SEED_CONFIG = {
   rate_max_fen: 10000,
   // 耍伴默认时薪(可运营, accept-config 首次接场景时补默认值用)
   scene_default_rate_fen: 5000,
+  // 学习考试证书(2026-10-26 S2): 只补缺失键不覆盖已有值; 开闸走 config_set 显式留痕
+  cert_gate_enabled: false,
+  w1_cert_valid_days: 365,
+  base_cert_permanent: true,
   // 距离校验(公里, 可运营): 发布位置↔履约地 / 耍伴接单位置↔履约地
   publish_distance_max_km: 50,
   take_distance_max_km: 50,

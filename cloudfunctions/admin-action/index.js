@@ -51,7 +51,14 @@ const ROLE_GRANTS = {
   // ── 认证考试管理(题库/通过规则, 配置化) ──
   'exam_subject_list': ['R3'], 'exam_subject_detail': ['R3'],
   'exam_subject_create': ['R3'], 'exam_subject_update': ['R3'], 'exam_subject_delete': ['R3'],
-  'exam_bank_seed': ['R1', 'R3']
+  'exam_bank_seed': ['R1', 'R3'],
+  // S4: 题库写入口迁至 questions（新增/编辑/删除/批量/导入）
+  'exam_subject_overview': ['R3'], 'exam_subject_meta_update': ['R3'],
+  'question_list': ['R3'], 'question_detail': ['R3'],
+  'question_upsert': ['R3'], 'question_delete': ['R3'],
+  'question_bulk_status': ['R3'], 'question_import_markdown': ['R3'],
+  // S4: 学习内容只读预览
+  'content_list': ['R3'], 'content_detail': ['R3']
 };
 // 后台账号密码 hash(SHA256(salt+pwd+salt), 与 user-login hashPassword 同构)
 function hashAdminPassword(password, salt) {
@@ -252,7 +259,11 @@ const CONFIG_SCHEMA = [
   { f: 'eval_reward_user_fen', t: 'int', g: '评价激励', label: '用户评价激励(现金)', unit: '分', min: 0, max: 100000, def: 0, d: '用户完成评价后按其配置发放的现金激励（mock，禁真实打款）；0=不发' },
   { f: 'eval_reward_user_credit', t: 'int', g: '评价激励', label: '用户评价激励(信用分)', unit: '分', min: 0, max: 100, def: 0, d: '用户完成评价后增加的信用分；0=不加' },
   { f: 'eval_reward_partner_fen', t: 'int', g: '评价激励', label: '耍伴评价激励(现金)', unit: '分', min: 0, max: 100000, def: 0, d: '评价完成后按耍伴配置发放的现金激励（mock）；0=不发' },
-  { f: 'eval_reward_partner_credit', t: 'int', g: '评价激励', label: '耍伴评价激励(信用分)', unit: '分', min: 0, max: 100, def: 0, d: '评价完成后给耍伴增加的信用分；0=不加' }
+  { f: 'eval_reward_partner_credit', t: 'int', g: '评价激励', label: '耍伴评价激励(信用分)', unit: '分', min: 0, max: 100, def: 0, d: '评价完成后给耍伴增加的信用分；0=不加' },
+  // ── 学习考试证书(2026-10-26 S2): 门禁开关默认关, S6 验证后开闸; 配置变更走 config_set 留痕 ──
+  { f: 'cert_gate_enabled', t: 'bool', g: '学习考试', label: '证书接单门禁', def: false, d: '开启后入驻/接单按证书校验（默认关闭走旧考试分数口径）' },
+  { f: 'w1_cert_valid_days', t: 'int', g: '学习考试', label: '场景证书有效期', unit: '天', min: 1, max: 3650, def: 365, d: '非 base 科目证书有效期（天）' },
+  { f: 'base_cert_permanent', t: 'bool', g: '学习考试', label: 'base 证书永久有效', def: true, d: '开启=base 证书不过期；关闭后按场景证书有效期计' }
 ];
 
 // 按 schema 组装 operations 块(缺失走 def), 供 config_get 与前端表单使用
@@ -476,6 +487,9 @@ const HANDLERS = Object.assign(
   require('./action_dispute_detail'),
   require('./action_noshow_decide'),
   require('./action_exam'),
+  // S4: questions 写入口 + 学习内容只读预览（旧 exam_subject_* 写动作见 action_exam 退役注释）
+  require('./action_question'),
+  require('./action_study'),
   require('./action_dispute_handle'),
   require('./action_audit'),
   require('./action_config_set'),

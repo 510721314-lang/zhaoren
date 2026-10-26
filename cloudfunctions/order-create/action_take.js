@@ -1,5 +1,7 @@
 // action_take.js — create_from_take 接单建单体, 从 index.js 物理抽出, 行为逐字不变
 // 共享符号经 ctx 注入, 禁止 require('./index') 以免循环依赖
+// 证书门禁(2026-10-26 S2): 规范源 _shared/cert_state.js(修改后跑 sync-cert-state.ps1)
+const { readCertConfig, requireCertForTake, loadCerts } = require('./cert_state');
 
 // 唯一索引冲突判定(2026-10-21): 仅本事务涉及的唯一索引是 order_main.uk_order_no
 // (order_confirmations / order_status_log / disclaimer_signature 均无唯一索引), 故任意 dup-key 均可安全重试
@@ -85,40 +87,53 @@ async function createFromTakeAction(ctx) {
     return { ok: false, code: 'order_demand_not_found', msg: '需求不存在' };
   }
 
-  // ── 接单考试校验(需求存在后才校验): 动态读 exam_bank(admin-action 管理), FALLBACK 兜底 ──
+  // ── 接单考试校验(需求存在后才校验): 动态读 exam_bank meta(admin-action 管理), 读失败兜底 ──
   // 通用规则: 科目 code='base' 全员前置; 场景 code 若存在同名科目则按该科目 requires+pass_line 校验
-  // SSOT: FALLBACK 与 partner-action EXAM_BANK_FALLBACK / admin-action EXAM_BANK_FALLBACK 同源
+  // 2026-10-26 S4: 题目 SSOT 已迁至 questions, exam_bank 仅保留科目 meta —— 不再以 questions 字段判活跃
   const EXAM_FALLBACK = { base: { pass_line: 100 }, W1: { pass_line: 100, requires: ['base'] } };
   let examBank = null;
   try {
     const er = await col('exam_bank').where({ is_deleted: _.neq(true), enabled: true }).limit(100).get();
-    const docs = (er.data || []).filter((d) => Array.isArray(d.questions) && d.questions.length > 0);
+    const docs = (er.data || []).filter((d) => d && d.code);
     if (docs.length > 0) {
       examBank = {};
       for (const d of docs) examBank[d.code] = { pass_line: Number(d.pass_line) || 100, requires: Array.isArray(d.requires) ? d.requires : [] };
     }
   } catch (e) { /* 读失败走 FALLBACK */ }
   const bank = examBank || EXAM_FALLBACK;
-  const passGate = (code) => Number((profile.exam_scores && profile.exam_scores[code]) || 0) >= (bank[code] ? bank[code].pass_line : 100);
-  // base 通用前置
-  const baseMeta = bank.base;
-  if (baseMeta && !passGate('base')) {
-    await logReject(openid, demand_id, 'base_exam_failed');
-    return { ok: false, code: 'order_base_exam_required', msg: '需先通过耍伴基础考试(接单配置页可去考试)' };
-  }
-  // 场景同名科目专项前置(通用化: W1→陪诊, 新增场景科目自动生效)
-  const sceneMeta = bank[demand.scene];
-  if (sceneMeta && (sceneMeta.requires || []).length > 0) {
-    for (const r of sceneMeta.requires) {
-      if (!passGate(r)) {
-        await logReject(openid, demand_id, `${demand.scene}_exam_prereq_failed`);
-        return { ok: false, code: 'order_scene_exam_required', msg: `该场景接单需先通过「${r}」考试` };
+  const certCfg = readCertConfig(config);
+  if (certCfg.enabled) {
+    // 证书门禁开闸: take 校 base + 场景证书(与旧双门禁语义对齐)
+    const certs = await loadCerts(col, openid);
+    const gate = requireCertForTake(profile, [demand.scene], bank.base ? 'base' : null, {
+      certs, examSubjects: Object.keys(bank)
+    });
+    if (gate.locked) {
+      await logReject(openid, demand_id, gate.code === 'order_base_exam_required' ? 'base_cert_required' : `${demand.scene}_cert_required`);
+      return { ok: false, code: gate.code, msg: gate.msg };
+    }
+  } else {
+    const passGate = (code) => Number((profile.exam_scores && profile.exam_scores[code]) || 0) >= (bank[code] ? bank[code].pass_line : 100);
+    // base 通用前置
+    const baseMeta = bank.base;
+    if (baseMeta && !passGate('base')) {
+      await logReject(openid, demand_id, 'base_exam_failed');
+      return { ok: false, code: 'order_base_exam_required', msg: '需先通过耍伴基础考试(接单配置页可去考试)' };
+    }
+    // 场景同名科目专项前置(通用化: W1→陪诊, 新增场景科目自动生效)
+    const sceneMeta = bank[demand.scene];
+    if (sceneMeta && (sceneMeta.requires || []).length > 0) {
+      for (const r of sceneMeta.requires) {
+        if (!passGate(r)) {
+          await logReject(openid, demand_id, `${demand.scene}_exam_prereq_failed`);
+          return { ok: false, code: 'order_scene_exam_required', msg: `该场景接单需先通过「${r}」考试` };
+        }
       }
     }
-  }
-  if (sceneMeta && !passGate(demand.scene)) {
-    await logReject(openid, demand_id, `${demand.scene}_exam_failed`);
-    return { ok: false, code: 'order_scene_exam_required', msg: `该场景接单需通过对应考试(${sceneMeta.pass_line}分)` };
+    if (sceneMeta && !passGate(demand.scene)) {
+      await logReject(openid, demand_id, `${demand.scene}_exam_failed`);
+      return { ok: false, code: 'order_scene_exam_required', msg: `该场景接单需通过对应考试(${sceneMeta.pass_line}分)` };
+    }
   }
 
   // 不能接自己的单

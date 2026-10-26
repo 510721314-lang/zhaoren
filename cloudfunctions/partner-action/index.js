@@ -87,12 +87,31 @@ async function getSceneCodes() {
 // ── 耍伴接单考试题库(云端判分, 防作弊) ──
 // subject: base=基础科目(耍伴考试, 全员接单前置) / W1=提升科目(陪诊考试, 就医陪诊专项)
 // 每题单选 4 选项; answer_idx 仅云端持有, 下发题库时剥离
-// 2026-10-03 后台化: 题库/通过线/前置规则迁至 exam_bank 集合(admin-action 管理), 此处仅读库失败兜底(FALLBACK)
-// SSOT: 题库已收敛为 _shared/exam-fallback.js 单一规范源, 经 sync-exam-fallback.ps1 复制为本函数本地副本
-const { EXAM_BANK_FALLBACK } = require('./exam-fallback');
+// 2026-10-26 S4: 题目 SSOT 收敛为 questions 集合, exam_bank 仅保留科目 meta;
+// 旧 exam_bank.questions 与 exam-fallback 兜底已退役, 读不到题目时 fail-closed(科目不存在)
 
-// 考试题库动态读取: 优先 exam_bank 集合(admin-action 管理), 读不到走 FALLBACK(fail-closed)
-// 缓存 5 分钟(后台改题后 ≤5min 生效); 读失败不缓存空值
+// 题目 SSOT(S3 读切换): questions 一题一文档, 仅 published + A 卷参与拉题
+// 返回 { subject: [ {question, options, answer_idx, type, _ver} ] }; 无数据返回 null
+async function loadQuestionsBank() {
+  const r = await col('questions').where({ status: 'published', paper: 'A', is_deleted: _.neq(true) }).orderBy('qid', 'asc').limit(1000).get();
+  const bySubject = {};
+  for (const d of (r.data || [])) {
+    if (!d || !d.subject || !Array.isArray(d.options) || d.options.length < 2) continue;
+    const list = bySubject[d.subject] || (bySubject[d.subject] = []);
+    list.push({
+      question: String(d.stem || ''),
+      options: d.options,
+      answer_idx: d.answer_idx,
+      type: d.type || (Array.isArray(d.answer_idx) ? 'multi' : 'single'),
+      _ver: Number(d.updated_at) || 0
+    });
+  }
+  return Object.keys(bySubject).length ? bySubject : null;
+}
+
+// 考试题库动态读取(单源): exam_bank 取科目 meta + questions 取题目
+// 缓存 5 分钟(后台改题后 ≤5min 生效); 读失败/无题目返回 {} 且不缓存(fail-closed)
+// bank_ver: 该科目 max(questions.updated_at)
 let _examBankCache = null;
 let _examBankCacheUntil = 0;
 async function getExamBank() {
@@ -100,26 +119,35 @@ async function getExamBank() {
   if (_examBankCache !== null && now < _examBankCacheUntil) return _examBankCache;
   try {
     const r = await col('exam_bank').where({ is_deleted: _.neq(true), enabled: true }).limit(100).get();
-    const docs = (r.data || []).filter((d) => Array.isArray(d.questions) && d.questions.length > 0);
-    if (docs.length > 0) {
-      const bank = {};
-      for (const d of docs) {
-        bank[d.code] = {
-          title: d.title || d.code,
-          desc: d.desc || '',
-          pass_line: Number(d.pass_line) || 100,
-          requires: Array.isArray(d.requires) ? d.requires : [],
-          questions: d.questions,
-          bank_ver: d.updated_at || 0
-        };
-      }
+    const docs = r.data || [];
+    let qBank = null;
+    try { qBank = await loadQuestionsBank(); } catch (e) { /* questions 读失败 → 空题库, 不缓存 */ }
+    const bank = {};
+    for (const d of docs) {
+      if (!d || !d.code) continue;
+      const newQs = qBank && qBank[d.code];
+      if (!newQs || newQs.length === 0) continue;
+      let ver = 0;
+      const questions = newQs.map((q) => {
+        if (q._ver > ver) ver = q._ver;
+        return { question: q.question, options: q.options, answer_idx: q.answer_idx, type: q.type };
+      });
+      bank[d.code] = {
+        title: d.title || d.code,
+        desc: d.desc || '',
+        pass_line: Number(d.pass_line) || 100,
+        requires: Array.isArray(d.requires) ? d.requires : [],
+        questions, bank_ver: ver
+      };
+    }
+    if (Object.keys(bank).length > 0) {
       _examBankCache = bank;
       _examBankCacheUntil = now + 5 * 60 * 1000;
       return bank;
     }
-  } catch (e) { /* 读失败走 FALLBACK, 不缓存 */ }
-  _examBankCache = null; // 集合无数据/读失败: 用 FALLBACK, 下次调用重试
-  return EXAM_BANK_FALLBACK;
+  } catch (e) { /* 读失败: 返回空题库, 不缓存 */ }
+  _examBankCache = null; // 集合无数据/读失败: 下次调用重试
+  return {};
 }
 
 // 题库前置门禁(通用): 逐 requires 查 exam_scores, 未通过返回 { locked, code, msg }
@@ -127,7 +155,7 @@ function examRequiresGate(profile, subject, bank) {
   const reqs = subject.requires || [];
   for (const r of reqs) {
     const score = Number((profile.exam_scores && profile.exam_scores[r]) || 0);
-    const reqSubject = (bank && bank[r]) || EXAM_BANK_FALLBACK[r];
+    const reqSubject = bank && bank[r];
     const passLine = reqSubject ? Number(reqSubject.pass_line) || 100 : 100;
     if (score < passLine) {
       return { locked: true, code: 'pa_exam_prereq_not_passed', msg: `需先通过「${reqSubject ? reqSubject.title : r}」考试（${passLine} 分）` };
@@ -316,7 +344,7 @@ exports.main = async (event, context) => {
       getTencentMapKey, getPartnerLimits, sanitizeHomeLocation, sanitizeWeeklySlots,
       haversineMeters, estimateMinutes, httpsGetJson, fetchTencentRoute,
       getConfig, getProfile, hasBusyOrder, formatTimeAgo,
-      BUSY_STATUS, CREDIT_LEVELS, SCENE_CODES_FALLBACK, EXAM_BANK_FALLBACK,
+      BUSY_STATUS, CREDIT_LEVELS, SCENE_CODES_FALLBACK,
       ROUTE_TIMEOUT_MS, PARTNER_LIMITS_FALLBACK, WEEK_KEYS, SLOT_DEFAULT
     };
     return await HANDLERS[action](ctx);

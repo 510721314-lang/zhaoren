@@ -14,7 +14,9 @@ const COLLECTIONS = [
   'admin_config', 'admin_web_sessions', 'platform_event', 'disclaimer_signature',
   'blog_post', 'blog_like', 'blog_comment', 'emergency_contact', 'user_profile',
   'partner_exam', 'partner_apply', 'dispute', 'withdraw_request', 'credit_log',
-  'insurance_record', 'report', 'sms_log', 'device_bind', 'exam_bank', 'config_history'
+  'insurance_record', 'report', 'sms_log', 'device_bind', 'exam_bank', 'config_history',
+  // 2026-10-26 学习考试中心 S2 新增集合(纳入实际索引复核)
+  'questions', 'exam_sessions', 'certificates', 'study_records', 'study_content'
 ];
 const outFile = process.argv[2] || path.join(__dirname, '..', '.tmp-tcb', 'indexes-actual.json');
 
