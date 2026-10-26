@@ -143,9 +143,9 @@
 
 ### nosql execute / dump 进阶（2026-10-24 实证追加）
 11. **nosql dump 返回 NDJSON**：每行一个 JSON 对象 → 必须按 `\n` split 后每行 parse（`lines.map(l => JSON.parse(l))`）；直接 `JSON.parse(content)` 必炸 `Unexpected non-whitespace character after JSON at position X`
-12. **nosql execute 最稳姿势（v8 C-4.27 强化）**：**在 `.cjs` 脚本里 `spawnSync(cliFullPath, argsArray, {shell:false})`**，args 数组直接放 JSON 字符串（不是拼 shell 命令）。cliFullPath = `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd`。PowerShell 引号吞 stdin 必炸，shell:false + args array 是唯一正确姿势
+12. **nosql execute 最稳姿势（2026-10-26 实测修正）**：**在 `.cjs` 脚本里 `spawnSync(cliFullPath, argsArray, {shell:true})`**，args 数组直接放 JSON 字符串（不是拼 shell 命令）。cliFullPath = `C:\Users\DC\AppData\Roaming\npm\cloudbase.cmd`（Test-Path=True；`Administrator` 旧路径已不存在）。**实测：`shell:false` 对 `.cmd` 直接抛 EINVAL，`shell:true` 才可执行（CLI 3.8.3）**。PowerShell 引号吞 stdin 必炸，`.cjs` + args array 是唯一正确姿势
 13. **nosql UPDATE 是全量文档匹配**：`update: admin_config` + `q: {}` 匹配集合中所有文档；admin_config 集合只有 1 条 `_id: "global"` → 安全。集合有多条时必须指定具体 q，禁止 `q: {}` 全量更新
-14. **cloudbase CLI 3.8.5 用 `--env-id`（带连字符）**：旧 `--envId` 打 warning 但还能跑；统一用 `--env-id`
+14. **cloudbase CLI 3.8.x 用 `--env-id`（带连字符，本机实测 3.8.3）**：旧 `--envId` 打 warning 但还能跑；统一用 `--env-id`
 15. **wx-server-sdk 本地装后无凭据**：`cloud.init()` 后 `db.collection().get()` 抛 `missing secretId or secretKey`；**CLI 自带已登录凭据**，用 dump/nosql execute 绕开，不需要 tcb login 再调 sdk
 16. **用量治理与业务有效性门（2026-10-26）**：触发器可能「标准 + 微信云开发」双份并存（`config.json` 置空不删线上）、轮询应「聚合 + 增量 + 省写」、文件完整性校验不等于签名有效性 → **详见 `project_rules-20261013.md` §30（单一事实源，本节不重复）**
 
