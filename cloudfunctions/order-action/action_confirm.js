@@ -345,4 +345,26 @@ async function confirm_all(ctx) {
   return { ok: true, data: { role, confirmed_count: cnt, total_count: 8, all_confirmed: done, status: newStatus } };
 }
 
-module.exports = { get_confirmation, update_item, confirm_item, confirm_all };
+// 2026-10-26 用量治理: 聊天页轮询聚合 —— 四确认 + 订单通知合并为 1 次调用
+// 客户端每 4 轮(60s)调用一次; 消息由 im-conv.messages(after_ts) 单独增量拉取
+async function chat_poll(ctx) {
+  const { event, openid, order_id, col } = ctx;
+  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
+  const out = {};
+  if (event.with_confirm === true) {
+    const c = await get_confirmation(ctx);
+    if (c.ok) out.confirmation = c.data;
+  }
+  if (event.with_notice === true) {
+    const r = await col('system_notice')
+      .where({ to_openid: openid, order_id, read: false })
+      .orderBy('created_at', 'desc').limit(20).get().catch(() => ({ data: [] }));
+    const list = (r.data || []).map((n) => ({
+      id: n._id, type: n.type || '', title: n.title || '', body: n.body || '', created_at: n.created_at || 0
+    }));
+    out.notices = { has_new: list.length > 0, list };
+  }
+  return { ok: true, data: out };
+}
+
+module.exports = { get_confirmation, update_item, confirm_item, confirm_all, chat_poll };

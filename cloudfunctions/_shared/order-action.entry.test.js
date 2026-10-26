@@ -503,5 +503,30 @@ test('update_item: 未配 confirm_comm → 静默降级不发订阅消息', asyn
   assert.strictEqual(sent, 0, '未配模板不应调用订阅发送');
 });
 
+// 26. chat_poll(2026-10-26 用量治理): 四确认 + 未读通知合并为 1 次调用, 供聊天页 60s 轮询
+test('chat_poll: with_confirm+with_notice → 一次返回确认单与未读通知', async () => {
+  const store = commStore();
+  store.system_notice = {
+    n1: { _id: 'n1', to_openid: USER, order_id: OID, read: false, type: 'paid', title: '对方已支付', body: '', created_at: 100, is_deleted: false },
+    n2: { _id: 'n2', to_openid: USER, order_id: OID, read: true, type: 'tip', title: '旧通知', body: '', created_at: 90, is_deleted: false }
+  };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'chat_poll', order_id: OID, with_confirm: true, with_notice: true, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.confirmation.order_id, OID, '应带回四确认数据');
+  assert.strictEqual(r.data.notices.has_new, true);
+  assert.strictEqual(r.data.notices.list.length, 1, '只返回未读通知');
+  assert.strictEqual(r.data.notices.list[0].id, 'n1');
+});
+
+test('chat_poll: 不带开关 → 不查确认单/通知, 返回空 data', async () => {
+  const sdk = makeSdk({ openid: USER, store: commStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'chat_poll', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.data, {});
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

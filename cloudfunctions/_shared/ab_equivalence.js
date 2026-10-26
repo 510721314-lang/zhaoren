@@ -674,6 +674,8 @@ function loadWith(dir, file, sdk) {
     'exam_create_ok', 'exam_update_ok', 'exam_delete_ok',
     'auto_admin_exam_subject_create', 'auto_admin_exam_subject_update', 'auto_admin_exam_subject_delete',
     'auto_admin_exam_bank_seed',
+    // 2026-10-26 用量治理: chat_poll 为新增聚合动作(四确认+通知合并), 基线无此动作
+    'auto_order_chat_poll',
     // 2026-10-26 S4 阶段 B: partner-action fallback 退役(exam_bank 无题目 → fail-closed); 行为由 partner-action.s3-questions.test.js 守护
     'auto_pa_get_exam_questions', 'auto_pa_exam_subjects',
   ]);

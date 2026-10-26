@@ -124,7 +124,11 @@ Page({
           callCloud('im-conv', { action: 'messages', conv_id: d.conv_id })
         ]).then(([conf, msgs]) => {
           if (conf.ok) this.applyConfirmation(conf.data);
-          if (msgs.ok) this.renderMessages(msgs.data.messages);
+          if (msgs.ok) {
+            this.renderMessages(msgs.data.messages);
+            // 首次全量拉取后落增量游标(取已返回消息的最大 created_at, 避免用响应时间跳过并发新消息)
+            this.__bumpMsgTs(msgs.data.messages);
+          }
           this.scrollBottom();
           this.__maybeGuideConfirm(conf, msgs);
           this.__loadCommTmpl();
@@ -171,7 +175,7 @@ Page({
   reload() { this.fetchData(); },
 
   // 2026-10-17: 耍伴端「对方发起沟通」订阅消息(一次性订阅, 离端即时提醒): 进页静默拉模板 ID, 用户点按确认动作时再请求授权并落库
-  // 未配模板/未授权一律静默降级 —— 端内弹窗(见 pollNotices)始终生效, 订阅消息仅作离端补充通道
+  // 未配模板/未授权一律静默降级 —— 端内弹窗(见 applyNotices)始终生效, 订阅消息仅作离端补充通道
   __loadCommTmpl() {
     if (this.data.role !== 'partner' || this.data.orderStatus !== 'S1') return;
     callCloud('admin-action', { action: 'config_public' }).then((r) => {
@@ -423,12 +427,39 @@ Page({
 
   refreshMessages() {
     if (!this.__convId) return Promise.resolve();
-    return callCloud('im-conv', { action: 'messages', conv_id: this.__convId })
-      .then((r) => { if (r.ok) this.renderMessages(r.data.messages); });
+    return callCloud('im-conv', {
+      action: 'messages', conv_id: this.__convId, after_ts: this.__lastMsgTs || 0
+    })
+      .then((r) => {
+        if (r.ok) {
+          this.renderMessages(r.data.messages);
+          this.__bumpMsgTs(r.data.messages);
+        }
+      });
   },
 
-  // ───────── 轮询(8s, 2026-10-26 用量治理: 5s→8s + 通知隔轮) ─────────
-  // 用量账: 原 3 次/5s = 0.60 次/s(2,160 次/小时); 现平均 2.5 次/8s = 0.31 次/s(1,125 次/小时), 降约 48%
+  // 增量游标: 取本批消息最大 created_at(服务端 messages 支持 after_ts)
+  __bumpMsgTs(list) {
+    const max = (list || []).reduce((a, m) => Math.max(a, Number(m && m.created_at) || 0), this.__lastMsgTs || 0);
+    if (max > (this.__lastMsgTs || 0)) this.__lastMsgTs = max;
+  },
+
+  // 订单侧低频轮询(四确认 + 通知合并 1 次调用), 由 startPolling 每 4 轮触发
+  pollOrderChat() {
+    if (!this.__orderId) return Promise.resolve();
+    return callCloud('order-action', {
+      action: 'chat_poll', order_id: this.__orderId, with_confirm: true, with_notice: true
+    }).then((r) => {
+      if (!r || !r.ok) return;
+      const d = r.data || {};
+      if (d.confirmation) this.applyConfirmation(d.confirmation);
+      if (d.notices) this.applyNotices(d.notices);
+    }).catch(() => {});
+  },
+
+  // ───────── 轮询(15s, 2026-10-26 用量治理第二轮) ─────────
+  // 用量账: 消息 1 次/15s(240/时) + 四确认&通知 1 次/60s(60/时) = 300 次/时
+  //   对比: 原 3 次/8s 平均(1,125/时) → 降约 73%; DB 读约 660/时(原约 2,025/时, 降 67%)
   startPolling() {
     this.stopPolling();
     if (!this.__orderId) return;
@@ -437,21 +468,19 @@ Page({
       if (this.data.loading || this.data.loadError) return;
       this.__pollTick += 1;
       this.refreshMessages();
-      this.refreshConfirmation();
-      // 通知隔轮(≤16s 延迟): 通知本身有本地去重与横幅兜底, 不追求秒级
-      if (this.__pollTick % 2 === 1) this.pollNotices();
-    }, 8000);
+      // 四确认/通知降频至 60s(首轮即拉): 通知有本地去重与横幅兜底, 确认状态 60s 内同步可接受
+      if (this.__pollTick % 4 === 1) this.pollOrderChat();
+    }, 15000);
   },
   stopPolling() {
     if (this.__pollTimer) { clearInterval(this.__pollTimer); this.__pollTimer = null; }
   },
 
-  // ───────── 订单动态通知轮询: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
-  // 幂等去重: 已提示过的通知 id 不再重复(本地 Map 记忆); 状态刷新由 refreshConfirmation 每 5s 同步
-  pollNotices() {
+  // ───────── 订单动态通知展示: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
+  // 幂等去重: 已提示过的通知 id 不再重复(本地 Map 记忆); 数据源为 chat_poll.notices(60s 一轮)
+  applyNotices(d) {
     this.__shownNoticeIds = this.__shownNoticeIds || {};
-    callCloud('order-action', { action: 'notice_poll', order_id: this.__orderId }).then((r) => {
-      const d = r && r.ok && r.data;
+    {
       if (!d || !d.list || !d.list.length) return;
       const fresh = d.list.filter((n) => n && n.id && !this.__shownNoticeIds[n.id]);
       if (!fresh.length) return;
@@ -506,8 +535,8 @@ Page({
         const t = TITLE_OF[key.type] || key.title || '订单有新动态';
         if (t && t !== '订单沟通') wx.showToast({ title: String(t).slice(0, 12), icon: 'none', duration: 2500 });
       }
-      this.refreshConfirmation();
-    }).catch(() => {});
+      // 同一轮 chat_poll 已带回最新四确认数据, 不再额外调用
+    }
   },
 
   // ───────── C4 模板卡选项点击 ─────────
