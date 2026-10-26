@@ -1,0 +1,75 @@
+.study {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 0 24rpx 48rpx;
+}
+
+/* 头部 */
+.study__head { padding: 28rpx 8rpx 8rpx; }
+.study__title { display: block; font-size: var(--font-xl); font-weight: 700; color: var(--text-1); }
+.study__sub { margin-top: 8rpx; display: block; font-size: var(--font-xs); color: var(--text-4); }
+
+/* 科目筛选 chips */
+.study__chips { white-space: nowrap; padding: 16rpx 0 8rpx; }
+.study__chip {
+  display: inline-block;
+  margin-right: 16rpx;
+  padding: 10rpx 28rpx;
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  background: var(--bg-card);
+  border: 2rpx solid transparent;
+  border-radius: var(--r-full);
+}
+.study__chip.is-on {
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  border-color: var(--brand-primary);
+  font-weight: 600;
+}
+
+/* 状态提示 */
+.study__tip { padding: 160rpx 0; text-align: center; font-size: var(--font-sm); color: var(--text-4); }
+
+/* 模块分组 */
+.study__group { margin-top: 20rpx; }
+.study__group-title {
+  padding: 8rpx 8rpx 12rpx;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-4);
+}
+.study__chapter {
+  margin-bottom: 12rpx;
+  padding: 22rpx 24rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+}
+.study__chapter.is-open { padding-bottom: 8rpx; }
+.study__chapter-row { display: flex; align-items: center; }
+.study__chapter-name {
+  flex: 1;
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+.study__chapter-arrow { margin-left: 16rpx; font-size: var(--font-sm); color: var(--text-4); }
+
+/* 正文展开区 */
+.study__detail-tip { margin-top: 16rpx; font-size: var(--font-xs); color: var(--text-4); }
+.study__blk {
+  margin-top: 14rpx;
+  font-size: var(--font-sm);
+  color: var(--text-2);
+  line-height: 1.75;
+}
+.study__blk.is-h {
+  margin-top: 22rpx;
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.study__blk.is-li { padding-left: 20rpx; position: relative; }
+.study__blk.is-li::before { content: '·'; position: absolute; left: 4rpx; color: var(--text-4); }

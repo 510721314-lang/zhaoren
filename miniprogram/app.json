@@ -66,6 +66,7 @@
         "evaluate/evaluate",
         "exam/exam",
         "exam-status/exam-status",
+        "study/study",
         "kefu/kefu",
         "no-show-report/no-show-report"
       ]

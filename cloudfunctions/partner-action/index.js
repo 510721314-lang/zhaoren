@@ -17,6 +17,7 @@ const HANDLERS = Object.assign({},
   require('./action_exam'),
   require('./action_profile'),
   require('./action_public'),
+  require('./action_study_content'),
 );
 
 // 耍伴审核通知推送(system_notice): 提交/通过/驳回都主动推给耍伴

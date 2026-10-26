@@ -129,6 +129,7 @@ Page({
           { key: 'myBlog', icon: '📝', name: '我的动态' },
           ...(identity === 'partner'
             ? [
+                { key: 'study', icon: '📚', name: '学习中心' },
                 { key: 'emergency', icon: '🆘', name: '紧急联系人' },
                 { key: 'help', icon: '🎧', name: '联系客服' },
                 { key: 'about', icon: 'ℹ️', name: '关于我们' }
@@ -369,6 +370,8 @@ Page({
       wx.navigateTo({ url: '/pages-v2/pkg-low/realname/realname', fail: modalFail });
     } else if (key === 'examCert') {
       wx.navigateTo({ url: '/pages-v2/pkg-low/exam-status/exam-status', fail: modalFail });
+    } else if (key === 'study') {
+      wx.navigateTo({ url: '/pages-v2/pkg-low/study/study', fail: modalFail });
     } else if (key === 'myBlog') {
       wx.navigateTo({ url: '/pages-v2/blog/blog?scope=my', fail: modalFail });
     } else if (key === 'myPublish') {

@@ -678,6 +678,8 @@ function loadWith(dir, file, sdk) {
     'auto_order_chat_poll',
     // 2026-10-26 S4 阶段 B: partner-action fallback 退役(exam_bank 无题目 → fail-closed); 行为由 partner-action.s3-questions.test.js 守护
     'auto_pa_get_exam_questions', 'auto_pa_exam_subjects',
+    // 2026-10-27 学习中心: 新增 C 端只读 action(基线无), 行为由 partner-action.study.test.js 守护
+    'auto_pa_study_list', 'auto_pa_study_detail',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {
