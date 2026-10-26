@@ -121,4 +121,27 @@ test('my_convs: 会话关联订单 → demand.remark 拆为 demand_title/demand_
   assert.strictEqual(c.order_id, OID, '既有字段不受影响');
 });
 
+// 2026-10-26 用量治理：未读已为 0 时不写库（每次轮询省 1 次写操作）
+test('messages: 未读=0 → 不清零写库', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    im_conversation: { [CID]: { _id: CID, order_id: OID, user_openid: USER, partner_openid: OTHER, is_deleted: false, user_unread: 0, partner_unread: 0 } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'messages', conv_id: CID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual((sdk.writes.im_conversation || []).length, 0, '未读为 0 不应产生更新');
+});
+
+test('messages: 未读=3 → 清零写库', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    im_conversation: { [CID]: { _id: CID, order_id: OID, user_openid: USER, partner_openid: OTHER, is_deleted: false, user_unread: 3, partner_unread: 0 } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'messages', conv_id: CID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.im_conversation || []).find((x) => x.doc === CID);
+  assert.ok(w, '应写一次清零');
+  assert.strictEqual(w.data.user_unread, 0);
+});
+
 test.after(() => { Module._load = origLoad; });

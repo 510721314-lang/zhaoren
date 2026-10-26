@@ -131,7 +131,10 @@ async function getOrCreateConv(order, role) {
 }
 
 // 清零本方未读
-async function clearUnread(convId, role) {
+// 2026-10-26 用量治理: 已为 0 时直接返回, 不写库(每次轮询省 1 次写操作)
+async function clearUnread(convId, role, conv) {
+  const cur = role === 'user' ? conv && conv.user_unread : conv && conv.partner_unread;
+  if (!cur) return;
   const patch = role === 'user' ? { user_unread: 0 } : { partner_unread: 0 };
   try {
     await col('im_conversation').doc(convId).update({ data: Object.assign({ updated_at: Date.now() }, patch) });
@@ -212,7 +215,7 @@ exports.main = async (event, context) => {
     }
     const listR = await col('im_message')
       .where({ conv_id: convId, is_deleted: false }).orderBy('created_at', 'asc').limit(100).get().catch(() => ({ data: [] }));
-    await clearUnread(convId, 'user').catch(() => {});
+    await clearUnread(convId, 'user', conv).catch(() => {});
     return { ok: true, data: { conv, list: listR.data || [] } };
   }
 
@@ -229,7 +232,7 @@ exports.main = async (event, context) => {
 
     const config = await getConfig();
     const conv = await getOrCreateConv(order, role);
-    await clearUnread(conv._id, role);
+    await clearUnread(conv._id, role, conv);
 
     const peer = peerOf(order, role);
     const userMap = await getUserMap([openid, peer.openid]);
@@ -274,10 +277,14 @@ exports.main = async (event, context) => {
     );
     if (!role) return { ok: false, code: 'im_not_participant', msg: '你不是该会话参与方' };
 
-    await clearUnread(conv_id, role);
+    await clearUnread(conv_id, role, conv);
 
+    // 2026-10-26 用量治理: 传入 after_ts 时只取增量消息(客户端尚未启用, 接口向后兼容)
+    const afterTs = Number(event.after_ts) || 0;
+    const whereMsg = { conv_id, is_deleted: false };
+    if (afterTs > 0) whereMsg.created_at = _.gt(afterTs);
     const r = await col('im_message')
-      .where({ conv_id, is_deleted: false })
+      .where(whereMsg)
       .orderBy('created_at', 'asc')
       .limit(100)
       .get();
@@ -299,7 +306,8 @@ exports.main = async (event, context) => {
         conv_id,
         order_id: conv.order_id,
         role,
-        messages
+        messages,
+        server_ts: Date.now()
       }
     };
   }
