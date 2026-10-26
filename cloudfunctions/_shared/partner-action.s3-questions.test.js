@@ -76,8 +76,10 @@ test('questions 优先: 拉题取 published+A 题目, 剥答案, bank_ver=max(up
   assert.deepStrictEqual(r.data.requires, []);
   assert.strictEqual(r.data.bank_ver, 5000, '取该科目已发布题目的 max(updated_at)');
   assert.strictEqual(r.data.questions.length, 2);
-  assert.deepStrictEqual(Object.keys(r.data.questions[0]).sort(), ['options', 'question']);
+  assert.deepStrictEqual(Object.keys(r.data.questions[0]).sort(), ['options', 'question', 'type']);
   assert.strictEqual(r.data.questions[0].question, 'A-01 题干');
+  assert.strictEqual(r.data.questions[0].type, 'multi', '多选 type 透传');
+  assert.strictEqual(r.data.questions[1].type, 'single', '单选 type 透传');
 });
 
 test('questions 路径判分等价: 多选去重升序全对 → 100 分, session bank_ver=5000', async () => {

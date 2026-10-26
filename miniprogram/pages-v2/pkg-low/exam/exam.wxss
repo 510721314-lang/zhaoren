@@ -12,6 +12,19 @@
 /* 题目卡 */
 .exam__q { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx; margin-top: 16rpx; box-shadow: var(--shadow-card); }
 .exam__q-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); line-height: 1.5; }
+.exam__q-tag {
+  display: inline-block;
+  margin-left: 12rpx;
+  padding: 2rpx 14rpx;
+  font-size: var(--font-xs);
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--text-4);
+  background: var(--bg-segment);
+  border-radius: var(--r-full);
+  vertical-align: 2rpx;
+}
+.exam__q-tag.is-multi { color: var(--brand-primary); background: var(--brand-primary-light); }
 .exam__opt {
   margin-top: 16rpx;
   padding: 18rpx 20rpx;

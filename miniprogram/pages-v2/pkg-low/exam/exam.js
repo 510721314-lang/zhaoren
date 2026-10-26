@@ -28,10 +28,13 @@ Page({
   fetchQuestions() {
     callCloud('partner-action', { action: 'get_exam_questions', subject: this.data.subject }).then((r) => {
       if (r.ok && r.data) {
-        const questions = r.data.questions || [];
+        const questions = (r.data.questions || []).map((q) => Object.assign({}, q, {
+          // 多选选中态镜像(纯展示): WXML 不支持方法调用, 用 sel[oi] 布尔下标判断高亮
+          sel: (q.options || []).map(() => false)
+        }));
         this.setData({
           questions,
-          answers: questions.map(() => -1),
+          answers: questions.map((q) => (q.type === 'multi' ? [] : -1)),
           passLine: r.data.pass_line || 100,
           bankVer: r.data.bank_ver || 0,
           title: r.data.title || this.data.title,
@@ -63,17 +66,34 @@ Page({
     wx.navigateTo({ url: '/pages-v2/pkg-low/exam/exam?subject=' + code, fail: () => {} });
   },
 
-  // 选择答案
+  // 选择答案: 单选覆盖; 多选累加/取消
   onChoose(e) {
     const { q, i } = e.currentTarget.dataset;
-    this.setData({ [`answers[${q}]`]: Number(i) });
+    const idx = Number(i);
+    const isMulti = this.data.questions[q] && this.data.questions[q].type === 'multi';
+    if (isMulti) {
+      const cur = this.data.answers[q] || [];
+      const has = cur.indexOf(idx) >= 0;
+      const nextSel = (this.data.questions[q].sel || []).slice();
+      nextSel[idx] = !has;
+      this.setData({
+        [`answers[${q}]`]: has ? cur.filter((x) => x !== idx) : cur.concat(idx),
+        [`questions[${q}].sel`]: nextSel
+      });
+    } else {
+      this.setData({ [`answers[${q}]`]: idx });
+    }
   },
 
   // 提交答卷(云端判分)
   onSubmit() {
     const { answers, questions, submitting, bankVer } = this.data;
     if (submitting) return;
-    const unanswered = answers.indexOf(-1);
+    // 未答检测: 单选 -1; 多选空数组
+    const unanswered = answers.findIndex((a, i) => {
+      if (questions[i] && questions[i].type === 'multi') return !Array.isArray(a) || a.length === 0;
+      return a === -1 || a === undefined;
+    });
     if (unanswered >= 0) {
       wx.showToast({ title: `请完成第 ${unanswered + 1} 题`, icon: 'none' });
       return;

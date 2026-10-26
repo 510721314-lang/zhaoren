@@ -52,9 +52,11 @@
     </view>
 
     <view class="exam__q" wx:for="{{questions}}" wx:key="index">
-      <view class="exam__q-title">{{index + 1}}. {{item.question}}</view>
+      <view class="exam__q-title">{{index + 1}}. {{item.question}}
+        <text class="exam__q-tag {{item.type === 'multi' ? 'is-multi' : ''}}">{{item.type === 'multi' ? '多选' : '单选'}}</text>
+      </view>
       <view
-        class="exam__opt {{answers[index] === oi ? 'is-on' : ''}}"
+        class="exam__opt {{item.type === 'multi' ? (item.sel[oi] ? 'is-on' : '') : (answers[index] === oi ? 'is-on' : '')}}"
         wx:for="{{item.options}}"
         wx:for-item="opt"
         wx:for-index="oi"

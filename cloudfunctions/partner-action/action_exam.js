@@ -30,7 +30,11 @@ async function getExamQuestionsAction(ctx) {
       // 前置门禁(通用): 逐 requires 查 exam_scores, 防止绕过前端锁定直接进考试页
       const gate = examRequiresGate(profile, sub, bank);
       if (gate.locked) return { ok: false, code: gate.code, msg: gate.msg };
-      const questions = sub.questions.map((q) => ({ question: q.question, options: q.options }));
+      const questions = sub.questions.map((q) => ({
+        question: q.question,
+        options: q.options,
+        type: q.type || (Array.isArray(q.answer_idx) ? 'multi' : 'single')
+      }));
       return {
         ok: true,
         data: {
