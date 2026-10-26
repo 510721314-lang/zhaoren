@@ -67,20 +67,15 @@
   <!-- 访客只保留上方引导卡, 不展示空的个人中心区块 -->
   <block wx:if="{{!isGuest}}">
 
-  <!-- U2 双信用分卡（独立两栏, 交错入场） -->
+  <!-- U2 信用分卡（仅当前身份, 切换身份查看另一身份） -->
   <view class="pf__scores fade-in-up">
-    <view class="pf__score" data-role="user" bindtap="onScoreDetail">
-      <view class="pf__score-num">{{user.user_credit_score}}</view>
-      <view class="pf__score-label">用户信用分</view>
-      <view class="pf__score-level">{{userLevel}}</view>
-    </view>
-    <view class="pf__score-divider"></view>
-    <view class="pf__score" data-role="partner" bindtap="onScoreDetail">
-      <view class="pf__score-num">{{user.partner_credit_score || '--'}}</view>
-      <view class="pf__score-label">耍伴信用分</view>
-      <view class="pf__score-level">{{partnerLevel}}</view>
+    <view class="pf__score" data-role="{{identity}}" bindtap="onScoreDetail">
+      <view class="pf__score-num">{{identity === 'partner' ? (user.partner_credit_score || '--') : user.user_credit_score}}</view>
+      <view class="pf__score-label">{{identity === 'partner' ? '耍伴信用分' : '用户信用分'}}</view>
+      <view class="pf__score-level">{{identity === 'partner' ? partnerLevel : userLevel}}</view>
     </view>
   </view>
+  <view class="pf__score-hint">切换身份可查看另一身份的信用分</view>
 
   <!-- U3 订单四宫格（交错入场） -->
   <view class="pf__orders fade-in-up" style="animation-delay:0.05s;">
@@ -193,10 +188,10 @@
       <text class="pf__link-arrow">›</text>
     </view>
   </view>
-  <!-- 工具与设置(组件化示范: ui-card 容器 + ui-cell 列表行) -->
-  <ui-card ext-class="pf__card-wrap">
-    <view class="pf__card-sub-title">工具与设置</view>
-    <block wx:for="{{funcList}}" wx:key="key">
+  <!-- 分组菜单: 学习与资质(仅耍伴) / 服务与设置 -->
+  <ui-card ext-class="pf__card-wrap" wx:for="{{menuGroups}}" wx:key="key" wx:for-item="g">
+    <view class="pf__card-sub-title">{{g.title}}</view>
+    <block wx:for="{{g.items}}" wx:key="key" wx:for-item="item">
       <ui-cell
         wx:if="{{item.key === 'help'}}"
         icon="{{item.icon}}"
@@ -215,7 +210,8 @@
     </block>
   </ui-card>
 
-  <!-- U6 -->
+  <!-- U6 账号与安全 -->
+  <view class="pf__acct-title">账号与安全</view>
   <view class="pf__logout pf__logout--exit" bindtap="onExitLogin">退出登录</view>
   <view class="pf__logout" bindtap="onLogout">注销账号</view>
   <view class="pf__version">版本号 {{version}}</view>

@@ -18,6 +18,33 @@ function getLevel(score) {
   return lv ? `${lv.level} ${lv.name}` : '未评级';
 }
 
+// 菜单单一数据源(2026-10-27 归类改版): 按身份生成分组菜单, 消除多处硬编码漂移
+// C 段「学习与资质」仅耍伴可见: 学习中心 → 考试认证 → 实名认证(形成 学习→考试→资质 链路)
+function buildMenu(identity, opts) {
+  const o = opts || {};
+  const items = {
+    notices: { key: 'notices', icon: '🔔', name: '消息通知', badge: o.unread > 0 ? o.unread : '' },
+    study: { key: 'study', icon: '📚', name: '学习中心' },
+    examCert: { key: 'examCert', icon: '🎓', name: '考试认证', badge: o.examBadge || '' },
+    realname: { key: 'realname', icon: '🪪', name: '实名认证', badge: o.realnameDone ? '' : '待认证' },
+    myBlog: { key: 'myBlog', icon: '📝', name: '我的动态' },
+    emergency: { key: 'emergency', icon: '🆘', name: '紧急联系人' },
+    help: { key: 'help', icon: '🎧', name: '联系客服' },
+    about: { key: 'about', icon: 'ℹ️', name: '关于我们' }
+  };
+  if (identity === 'partner') {
+    return [
+      { key: 'growth', title: '学习与资质', items: [items.study, items.examCert, items.realname] },
+      { key: 'tools', title: '服务与设置', items: [items.notices, items.myBlog, items.emergency, items.help, items.about] }
+    ];
+  }
+  return [
+    { key: 'tools', title: '服务与设置', items: [items.notices, items.realname, items.myBlog, items.emergency, items.help, items.about] }
+  ];
+}
+
+// 重建菜单(角标变化/身份切换时统一走这里)
+
 Page({
   data: {
     // 初始空壳, onLoad 调云端后覆盖
@@ -33,12 +60,7 @@ Page({
       { key: 'eval', icon: '⭐', name: '待评价', count: 0 },
       { key: 'after', icon: '🛟', name: '售后', count: 0 }
     ],
-    funcList: [
-      { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-      { key: 'myPublish', icon: '📋', name: '我的发布' },
-      { key: 'help', icon: '🎧', name: '联系客服' },
-      { key: 'about', icon: 'ℹ️', name: '关于我们' }
-    ],
+    menuGroups: [],          // 分组菜单: [{ key, title, items[] }], 由 buildMenu(identity) 生成
     partnerEntries: [
       { key: 'accept-config', icon: '⚙️', name: '接单配置' },
       { key: 'partner-profile-edit', icon: '📝', name: '资料维护' },
@@ -118,29 +140,12 @@ Page({
         identity,
         userLevel: getLevel(u.user_credit_score),
         partnerLevel: getLevel(u.partner_credit_score),
-        // "我的发布" 仅用户身份有意义(耍伴是接单方)
-        funcList: [
-          { key: 'notices', icon: '🔔', name: '消息通知', badge: '' },
-          // 实名认证入口(badge 提示未认证; 完成认证后无 badge)
-          { key: 'realname', icon: '🪪', name: '实名认证', badge: uiUser.is_realname_done ? '' : '待认证' },
-          // 考试认证入口(耍伴考试通过状态查询, badge 由 fetchExamBadge 更新)
-          { key: 'examCert', icon: '🎓', name: '考试认证', badge: this.data.examBadge },
-          // 我的动态入口(服务动态信息流, 双身份均可见)
-          { key: 'myBlog', icon: '📝', name: '我的动态' },
-          ...(identity === 'partner'
-            ? [
-                { key: 'study', icon: '📚', name: '学习中心' },
-                { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-                { key: 'help', icon: '🎧', name: '联系客服' },
-                { key: 'about', icon: 'ℹ️', name: '关于我们' }
-              ]
-            : [
-                { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-                { key: 'myPublish', icon: '📋', name: '我的发布' },
-                { key: 'help', icon: '🎧', name: '联系客服' },
-                { key: 'about', icon: 'ℹ️', name: '关于我们' }
-              ])
-        ]
+        // 分组菜单(单一数据源): 学习与资质(仅耍伴) + 服务与设置
+        menuGroups: buildMenu(identity, {
+          unread: this.data.notice_unread,
+          realnameDone: uiUser.is_realname_done,
+          examBadge: this.data.examBadge
+        })
       });
       // 并行拉订单计数(按当前身份过滤)
       this.loadCounts();
@@ -221,8 +226,14 @@ Page({
         if (prereqOk && passedOf(d.code)) passed++;
       }
       const examBadge = passed > 0 ? `已过${passed}科` : '待考试';
-      const funcList = this.data.funcList.map((f) => f.key === 'examCert' ? { ...f, badge: examBadge } : f);
-      this.setData({ examBadge, funcList });
+      this.setData({
+        examBadge,
+        menuGroups: buildMenu(this.data.identity, {
+          unread: this.data.notice_unread,
+          realnameDone: !!(this.data.user && this.data.user.is_realname_done),
+          examBadge
+        })
+      });
     }).catch(() => {});
   },
 
@@ -295,8 +306,14 @@ Page({
     callCloud('order-action', { action: 'notice_list', limit: 1 }).then((nr) => {
       if (!nr || !nr.ok) return;
       const unread = nr.data ? nr.data.unread : 0;
-      const funcList = this.data.funcList.map((f) => f.key === 'notices' ? { ...f, badge: unread > 0 ? unread : '' } : f);
-      this.setData({ notice_unread: unread, funcList });
+      this.setData({
+        notice_unread: unread,
+        menuGroups: buildMenu(this.data.identity, {
+          unread,
+          realnameDone: !!(this.data.user && this.data.user.is_realname_done),
+          examBadge: this.data.examBadge
+        })
+      });
       // 轻量弹窗提示有新通知 (仅首次从 tabBar 进入"我的"时触发)
       if (unread > 0 && !this._toastNotified) {
         this._toastNotified = true;
@@ -316,26 +333,15 @@ Page({
     wx.setStorageSync('current_identity', target);
     this.setData({
       identity: target,
-      funcList: [
-        { key: 'notices', icon: '🔔', name: '消息通知', badge: this.data.notice_unread > 0 ? this.data.notice_unread : '' },
-        { key: 'realname', icon: '🪪', name: '实名认证', badge: this.data.user.is_realname_done ? '' : '待认证' },
-        { key: 'examCert', icon: '🎓', name: '考试认证', badge: this.data.examBadge },
-        { key: 'myBlog', icon: '📝', name: '我的动态' },
-        ...(target === 'partner'
-          ? [
-              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-              { key: 'help', icon: '🎧', name: '联系客服' },
-              { key: 'about', icon: 'ℹ️', name: '关于我们' }
-            ]
-          : [
-              { key: 'emergency', icon: '🆘', name: '紧急联系人' },
-              { key: 'myPublish', icon: '📋', name: '我的发布' },
-              { key: 'help', icon: '🎧', name: '联系客服' },
-              { key: 'about', icon: 'ℹ️', name: '关于我们' }
-            ])
-      ]
+      menuGroups: buildMenu(target, {
+        unread: this.data.notice_unread,
+        realnameDone: !!(this.data.user && this.data.user.is_realname_done),
+        examBadge: this.data.examBadge
+      })
     });
+    // 切换身份后刷新四宫格计数与考试角标(原实现遗漏: 计数停留在旧身份)
     this.loadCounts();
+    this.fetchExamBadge();
     wx.showToast({ title: target === 'partner' ? '已切换为耍伴身份' : '已切换为用户身份', icon: 'none' });
   },
 

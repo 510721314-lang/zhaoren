@@ -146,7 +146,7 @@
   margin-right: 8rpx;
 }
 
-/* U2 双信用分 */
+/* U2 信用分（仅当前身份, 另一身份切身份查看） */
 .pf__scores {
   margin-top: 20rpx;
   background: var(--bg-card);
@@ -180,10 +180,11 @@
   border-radius: var(--r-full);
   padding: 4rpx 16rpx;
 }
-.pf__score-divider {
-  width: 1rpx;
-  height: 88rpx;
-  background: var(--border-2);
+.pf__score-hint {
+  margin: 8rpx 8rpx 0;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+  text-align: right;
 }
 
 /* U3 */
@@ -374,7 +375,13 @@
   flex-shrink: 0;
 }
 
-/* U6 */
+/* U6 账号与安全 */
+.pf__acct-title {
+  margin: 40rpx 8rpx 4rpx;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-4);
+}
 .pf__logout {
   margin-top: 28rpx;
   text-align: center;
@@ -383,7 +390,7 @@
 }
 .pf__logout--exit {
   color: var(--text-4);
-  margin-top: 48rpx;
+  margin-top: 16rpx;
 }
 .pf__version {
   margin-top: 16rpx;
