@@ -147,6 +147,7 @@
 13. **nosql UPDATE 是全量文档匹配**：`update: admin_config` + `q: {}` 匹配集合中所有文档；admin_config 集合只有 1 条 `_id: "global"` → 安全。集合有多条时必须指定具体 q，禁止 `q: {}` 全量更新
 14. **cloudbase CLI 3.8.5 用 `--env-id`（带连字符）**：旧 `--envId` 打 warning 但还能跑；统一用 `--env-id`
 15. **wx-server-sdk 本地装后无凭据**：`cloud.init()` 后 `db.collection().get()` 抛 `missing secretId or secretKey`；**CLI 自带已登录凭据**，用 dump/nosql execute 绕开，不需要 tcb login 再调 sdk
+16. **用量治理与业务有效性门（2026-10-26）**：触发器可能「标准 + 微信云开发」双份并存（`config.json` 置空不删线上）、轮询应「聚合 + 增量 + 省写」、文件完整性校验不等于签名有效性 → **详见 `project_rules-20261013.md` §30（单一事实源，本节不重复）**
 
 ## 十一、前端大文件拆分铁律（2026-10-24 评估实证）
 
