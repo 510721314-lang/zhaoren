@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 $cmd = 'C:\zhaoren\scripts\auto-backup.ps1'
 $tasks = @(
-  @{ Name = 'zhaoren-backup-full';  Mode = 'full';         At = '02:30'; LimitH = 3; Desc = 'zhaoren 每日全量备份(bundle+热备+37表脱敏+raw加密+CHECKSUMS)' },
+  @{ Name = 'zhaoren-backup-full';  Mode = 'full';         At = @('02:30','14:30'); LimitH = 3; Desc = 'zhaoren 全量备份 每12小时一次(bundle+热备+37表脱敏+raw加密+CHECKSUMS)' },
   @{ Name = 'zhaoren-backup-incr';  Mode = 'incremental';  At = $null;   LimitH = 1; Desc = 'zhaoren 每小时增量(时段守卫 05:00-次日01:00 内生效)' },
   @{ Name = 'zhaoren-backup-verify'; Mode = 'verify';      At = '04:30'; LimitH = 1; Desc = 'zhaoren 每日备份校验汇总(SHA/bundle/解密探针/restore dry-run)' }
 )
@@ -15,7 +15,11 @@ $tasks = @(
 foreach ($t in $tasks) {
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
     -Argument ('-NoProfile -ExecutionPolicy Bypass -File ' + $cmd + ' -Mode ' + $t.Mode)
-  if ($t.At) { $trigger = New-ScheduledTaskTrigger -Daily -At $t.At }
+  if ($t.At) {
+    # At 可为单个时间或数组(每12小时=02:30+14:30), 生成对应的 Daily 触发器列表
+    $times = @($t.At)
+    $trigger = @(foreach ($tm in $times) { New-ScheduledTaskTrigger -Daily -At $tm })
+  }
   else {
     # HOURLY 跨午夜改用 21 个 Daily 触发器(00,01,05-23 点各一; RepetitionDuration MaxValue 超任务计划 XML 上限 P99999999D 被拒)
     $trigger = @(foreach ($h in (@(0,1) + @(5..23))) { New-ScheduledTaskTrigger -Daily -At ('{0:D2}:00' -f $h) })
