@@ -1,3 +1,8 @@
+---
+name: error-message-tracing
+description: 报错文案溯源排查法（前端 showToast/showModal 与云函数返回 msg 全链路定位）。Use when 用户反馈点击按钮弹错误提示、同一报错连续 2 轮未修好、或需要确认报错来自前端还是云函数。Do not use for 新功能开发或纯静态代码审查。
+---
+
 # 报错文案溯源排查法（zhaoren 项目专用）
 
 ## 触发场景

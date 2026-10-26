@@ -1,3 +1,8 @@
+---
+name: powershell-windows-traps
+description: PowerShell 5 / Windows 脚本陷阱与对策（引号、中文乱码、管道、stderr 包装）。Use when 编写或运行 .ps1、遇到 Unexpected token / string is missing the terminator / 中文乱码 / NativeCommandError。Do not use for bash/Linux 脚本或小程序业务逻辑。
+---
+
 # PowerShell 5 Windows 陷阱与对策（zhaoren 项目专用）
 
 ## 触发场景

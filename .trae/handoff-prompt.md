@@ -28,7 +28,7 @@
 | 云环境 ID | `cloud1-d9gkefwcp5c777088` |
 | AppID | `wxbc4a4afacdf234f5` |
 | Git remote | `https://github.com/510721314-lang/zhaoren.git` |
-| 微信开发者工具 CLI | 本机实测路径：`C:\Users\DC\Desktop\微信WEB开发者工具\cli.bat`（用 glob 桌面一级目录动态发现，勿写中文字面量） |
+| 微信开发者工具 CLI | 本机实测路径：`C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-26 实测；桌面旧路径已失效，勿再 glob 猜测） |
 | HTTP 网关 | `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com`（**触发路径为空，API 挂在网关根**：`GET /health`、`/debug`、`POST /api`） |
 | admin_web_key | 不入库不上文档；向管理员索取，或 `init-db generate_admin_web_key` 重新生成；脚本用 `-AdminKey` 参数或 `ADMIN_WEB_KEY` 环境变量传入 |
 
@@ -53,15 +53,15 @@ powershell -ExecutionPolicy Bypass -File .trae\predeploy.ps1
 **CLI 裸命令（预检不可用时）**，PS5 下必须用 `Start-Process` 分文件重定向（`& cli 2>&1` 会把 stderr 包装成 NativeCommandError 中断脚本）：
 
 ```powershell
-$cli='C:\Users\DC\Desktop\微信WEB开发者工具\cli.bat'
-$p = Start-Process -FilePath $cli -ArgumentList @('cloud','functions','deploy','--e','cloud1-d9gkefwcp5c777088','--project','c:\Users\DC\Desktop\zhaoren','--names','<函数名>') `
+$cli='C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat'
+$p = Start-Process -FilePath $cli -ArgumentList @('cloud','functions','deploy','--e','cloud1-d9gkefwcp5c777088','--project','c:\zhaoren','--names','<函数名>') `
      -RedirectStandardOutput "$env:TEMP\dep.out.txt" -RedirectStandardError "$env:TEMP\dep.err.txt" -NoNewWindow -Wait -PassThru
 ```
 
 **⚠️ CLI deploy 不同步 config.json 的 timeout**（已实测证实）：timeout 只能在 **CloudBase 控制台**手动改，或在 IDE 里右键「上传并部署」。改完用下面的命令验证：
 
 ```powershell
-$args=@('cloud','functions','info','--env','cloud1-d9gkefwcp5c777088','--project','c:\Users\DC\Desktop\zhaoren','--names','<函数名列表，空格分隔>')
+$args=@('cloud','functions','info','--env','cloud1-d9gkefwcp5c777088','--project','c:\zhaoren','--names','<函数名列表，空格分隔>')
 # ⚠️ info 必须带 --names，缺了只打印帮助
 ```
 

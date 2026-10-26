@@ -1,5 +1,7 @@
 # 找人帮忙小程序 · 工作衔接提示词（2026-10-25 · 学习考试中心立项版 V2）
 
+> ⚠️ **已被 `docs/HANDOFF-20261026.md` 取代（2026-10-26）**：工具路径、版本号、门禁计数、待办状态一律以新文件为准；本文件仅作历史参考，**禁止再投喂**。
+
 > **用途**：新任务首条消息整段投喂，使无上下文的新 Agent 零偏差接手。
 > **生成依据**：技能 `.trae/skills/zhaoren-handoff-prompt`（实测取证 → 双专家评审 → 修正 → 落盘）。
 > **版本**：V2「学习考试中心立项版」（2026-10-25 晚）。V1「admin-web 登录收尾版」同日早间（git 历史可溯）；V2 增量 = 用户战略决策（**暂缓提审**）+ **学习考试中心立项**，git 基线全部重测。**V2.1（同日深夜）**= 纯值刷新（HEAD/origin=`4eaf157`、`??` 6 项）+ T-8.1 完成回填 + T-0.3.1 直连 reset 探活重试经验，结构零改动。**V2.2（同日深夜）**= 双专家复检后状态回填（T-7.9 ✅、§2 两处、T-8.2 时态、T-7.2 消漂移源、C-4.8 MCP 现状），仍为纯值刷新。
@@ -20,8 +22,8 @@
 - **除本衔接文件自身外，任何 `M` 都是异常**（T-7.1 已收尾）：本文件 V2.1 值刷新待入库期间其 `M` 属预期；入库后应回到 **0 个 M**
 
 **T-0.5**（硬指标）云环境 `cloud1-d9gkefwcp5c777088`；AppID `wxbc4a4afacdf234f5`。
-**T-0.6**（硬指标）工具路径：密钥文件 `C:\zhaoren-bak\admin-key-20261006.txt`（True）；云开发 CLI `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd`（True）。
-**T-0.6.1**（硬指标·修正）IDE CLI **两个路径都存在**：桌面 `C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat`（本会话 v1.6.39 上传实测可用）与 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`。**必须用当前实际打开的 IDE 对应的那份**；不确定时先跑 `islogin` / `upload -h` 试通，勿两份混用。
+**T-0.6**（硬指标）工具路径：密钥文件 `C:\zhaoren-bak\admin-key-20261009.txt`（True）；云开发 CLI `C:\Users\DC\AppData\Roaming\npm\cloudbase.cmd`（True）。
+**T-0.6.1**（硬指标·2026-10-26 实测修正）IDE CLI 仅一个可用路径：`C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（Test-Path=True）；桌面 `C:\Users\DC\Desktop\微信WEB开发者工具` 与 `C:\Users\Administrator\Desktop\微信WEB开发者工具` 均**不存在**（旧备份在 `C:\Users\DC\Desktop\工具\微信WEB开发者工具`，勿调用）。
 **T-0.7**（硬指标）线上 admin-web 构建 = **`index-BxlCgeAe.js`**（实测托管域 HTML 引用；主 bundle 引 `admin-DaH-EOZU.js` 52393 B）。该构建**已含**「剔除不可见字符」**与**「64→68 补前缀」双加固（`e6e5a52`，2026-10-25 部署）。
 **T-0.8**（硬指标·V2 修订）当前体验版 = **v1.6.39**（`docs/deploy-log.md` **第 210 行**；现文件 216 行即倒数第 7 行，评审实测）。恢复提审时选 1.6.39（现为已上传快照，暂缓不影响其有效性）。
 **T-0.9**（硬指标）**开工前必读顺序**：`.trae/rules.md` → 项目记忆 `project_memory.md` → `docs/exam-center-plan-20261025.md`（**当前主线方案**）→ `docs/runbooks/pre-release-filing-checklist.md`（恢复提审时）→ 本文件。`rules.md` 为 alwaysApply 级约束，优先级高于本文件。
@@ -102,7 +104,7 @@
 Remove-Item -Recurse -Force C:\zhaoren\admin-web-frontend\dist, C:\zhaoren\admin-web-frontend\node_modules\.vite -ErrorAction SilentlyContinue
 if (Test-Path C:\zhaoren\admin-web-frontend\dist) { throw 'dist 未删除：先释放占用句柄' }
 cd C:\zhaoren\admin-web-frontend; npm.cmd run build
-& "C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd" hosting deploy "C:\zhaoren\admin-web-frontend\dist" -e cloud1-d9gkefwcp5c777088 --safe
+& "C:\Users\DC\AppData\Roaming\npm\cloudbase.cmd" hosting deploy "C:\zhaoren\admin-web-frontend\dist" -e cloud1-d9gkefwcp5c777088 --safe
 ```
 **禁用 `--prune`**（会删云端 `__auth/*`、`cloud-admin/index.html`）。
 

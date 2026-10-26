@@ -58,7 +58,7 @@ miniprogram/pages-v2/index/index.js  # 首页首屏请求编排
 ## 第 3 步：云函数保温与触发器现状
 
 ```powershell
-& "c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat" cloud functions info --env cloud1-d9gkefwcp5c777088 --names zz-warmup --project c:\zhaoren
+& "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" cloud functions info --env cloud1-d9gkefwcp5c777088 --names zz-warmup --project c:\zhaoren
 Get-Content c:\zhaoren\cloudfunctions\zz-warmup\config.json   # 看 triggers cron
 Get-Content c:\zhaoren\cloudfunctions\zz-warmup\index.js      # 看 ACTIVE_START/ACTIVE_END 时窗
 ```

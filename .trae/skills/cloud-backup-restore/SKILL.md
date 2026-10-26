@@ -1,3 +1,8 @@
+---
+name: cloud-backup-restore
+description: 找人帮忙云端全量备份与恢复（DB 导出 + 云函数代码 + admin_config）。Use when 用户要求执行云端全量备份到本地、备份/恢复 admin_config、用备份重新部署云函数、或核对备份链完整性。Do not use for 日常代码提交或小程序体验版上传。
+---
+
 # 云端全量备份与恢复（zhaoren 专用）
 
 ## 触发词
@@ -45,7 +50,7 @@ GitHub push → git bundle → robocopy hot backup（`.predeploy.ps1` + `.predep
 - 恢复时手动核对关键图片/证件是否存在
 
 ### L5 函数元数据
-- `cli cloud functions info --env cloud1-d9gkefwcp5c777088 --project c:\Users\DC\Desktop\zhaoren`
+- `cli cloud functions info --env cloud1-d9gkefwcp5c777088 --project c:\zhaoren`
 - 存：`backup/meta/functions_info.txt`
 - 网关路由：CloudBase 控制台手工记录 path → function → auth
 

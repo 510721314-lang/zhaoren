@@ -1,3 +1,8 @@
+---
+name: admin-web-write-ui-pattern
+description: admin-web 后台写操作 UI 标准模式（二次确认 + 原因填写 + 防双击 + 刷新列表）。Use when 在 admin-web-frontend 新增下架/通过/删除/冻结/审批等写操作按钮，或需要统一后台写操作交互与防误触。Do not use for 小程序端 UI 美化或云函数业务逻辑实现。
+---
+
 # admin-web 写操作 UI 模式（Vue3 + Element Plus）
 
 ## 触发场景

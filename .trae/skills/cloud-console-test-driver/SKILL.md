@@ -29,7 +29,7 @@ description: "通过 Computer Use 驱动微信开发者工具内置云开发控�
 
 ## 环境常量（IDE 重启后要更新 pid/windowId）
 
-- IDE：`c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat`
+- IDE：`C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-26 实测；桌面旧路径已失效）
 - 云开发控制台窗口：2026-09-13 IDE 重启后 pid=19660、主窗口 windowId=46401320、控制台 windowId=81463948（已关闭，重开后重新发现；旧值 17872/307760310 已失效）
 - 置前脚本：`.tmp-cloud-runner/fg.ps1 -ProcId <pid>`（SetForegroundWindow）
 - MCP server：`ide_mcp.config.ext.computer-use`，经 integrated_code_mode 的 `tools.run_mcp` 调用

@@ -17,9 +17,9 @@ description: 找人帮忙小程序运维与提审前补丁. Use when the user as
 
 ### deploy.ps1 — 部署云函数
 ```powershell
-& "c:\Users\DC\Desktop\微信WEB开发者工具\cli.bat" cloud functions deploy `
+& "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" cloud functions deploy `
   --env cloud1-d9gkefwcp5c777088 --names <fn1,fn2,...> `
-  --project c:\Users\DC\Desktop\zhaoren --remote-npm-install
+  --project c:\zhaoren --remote-npm-install
 ```
 
 ### syntax-check.ps1 — 全量语法校验

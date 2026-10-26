@@ -15,12 +15,12 @@ description: 找人帮忙项目高频开发运维流程固化。Use when 需要�
 | 工作目录 | `C:\zhaoren`（cwd 默认） |
 | 云环境 ID | `cloud1-d9gkefwcp5c777088` |
 | AppID | `wxbc4a4afacdf234f5` |
-| 开发者工具 CLI（主用） | `C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat` |
-| 云开发 CLI | `C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd` |
+| 开发者工具 CLI（主用） | `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-26 实测；桌面旧路径已失效） |
+| 云开发 CLI | `C:\Users\DC\AppData\Roaming\npm\cloudbase.cmd`（2026-10-26 实测；`Administrator` 旧路径已不存在） |
 | 当前 HEAD | 实跑 `git -C C:\zhaoren rev-parse HEAD` |
 | origin/master | 实跑 `git -C C:\zhaoren rev-parse origin/master` |
 | 工作区状态 | 实跑 `git -C C:\zhaoren status --short` |
-| 提审冻结期（T0.8） | 体验版 v1.6.37 已上传 → 提审选 1.6.37；冻结 miniprogram/+cloudfunctions/ 业务代码 |
+| 提审冻结期（T0.8） | 体验版 v1.6.42 已上传 → 提审选 1.6.42（下一版 1.6.43）；冻结 miniprogram/+cloudfunctions/ 业务代码 |
 
 ---
 
@@ -77,7 +77,7 @@ SHARED SYNC ALL OK
 ### 命令
 
 ```powershell
-& "C:\Users\Administrator\Desktop\微信WEB开发者工具\cli.bat" `
+& "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" `
   upload --project "C:\zhaoren" `
   -v X.Y.Z `
   -d "上传描述文本"
@@ -346,7 +346,7 @@ node scripts/check-ssot.js                # 硬编码 0
 ```powershell
 # 构建 + 发布（默认单行写法：先 build 再 deploy）
 npm.cmd run build
-& "C:\Users\Administrator\AppData\Roaming\npm\cloudbase.cmd" hosting deploy ./dist -e cloud1-d9gkefwcp5c777088 --safe
+& "C:\Users\DC\AppData\Roaming\npm\cloudbase.cmd" hosting deploy ./dist -e cloud1-d9gkefwcp5c777088 --safe
 # 验证生效（比对 assets/index-*.js 哈希）
 (Invoke-WebRequest "https://cloud1-d9gkefwcp5c777088-1482004365.tcloudbaseapp.com/?v=$((Get-Random))" -Headers @{'Cache-Control'='no-cache'} -UseBasicParsing).Content -match 'assets/index-[A-Za-z0-9_\-]+\.js'
 ```
