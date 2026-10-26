@@ -15,6 +15,8 @@ const { execTcbCommands } = require('./tcb-exec');
 
 const APPLY = process.argv.includes('--apply');
 const PUBLISH = process.argv.includes('--publish');
+// --subject=CODE 只处理指定科目(避免 --publish 波及其它未审核科目)
+const SUBJECT_ONLY = (process.argv.find((a) => a.startsWith('--subject=')) || '').split('=')[1] || '';
 const SRC_DIR = path.join(__dirname, '..', 'docs', 'study-content');
 const BANNED = ['给药', '执行医嘱', '作出诊断', '开具处方', '调整用药', '实施治疗', '推荐药品', '推荐保健品', '保证治愈', '优先挂号', '走后门'];
 
@@ -76,7 +78,7 @@ for (const f of files) {
     const title = d.meta.title;
     const sort = num(d.meta.sort, NaN);
     const label = `${f}:${subject}/${moduleId}/${chapterId}`;
-    if (!['base', 'W1', 'OUTDOOR'].includes(subject)) errors.push(`${label} subject 非法`);
+    if (!['base', 'W1', 'OUTDOOR', 'PEIZHEN', 'ONLINE'].includes(subject)) errors.push(`${label} subject 非法`);
     if (!/^[A-Za-z0-9_]{1,12}$/.test(moduleId || '')) errors.push(`${label} module_id 非法`);
     if (!/^[A-Za-z0-9_-]{1,20}$/.test(chapterId || '')) errors.push(`${label} chapter_id 非法`);
     if (!Number.isInteger(sort) || sort < 1) errors.push(`${label} sort 非法`);
@@ -92,7 +94,9 @@ if (errors.length) {
   console.error('❌ 校验失败, 未写库:\n' + errors.map((e) => '  - ' + e).join('\n'));
   process.exit(3);
 }
-const labels = docs.map((d) => d.subject + '|' + d.module_id + '|' + d.chapter_id);
+const scoped = SUBJECT_ONLY ? docs.filter((d) => d.subject === SUBJECT_ONLY) : docs;
+if (SUBJECT_ONLY && !scoped.length) { console.error('❌ --subject=' + SUBJECT_ONLY + ' 无匹配章节'); process.exit(3); }
+const labels = scoped.map((d) => d.subject + '|' + d.module_id + '|' + d.chapter_id);
 const dup = labels.filter((x, i) => labels.indexOf(x) !== i);
 if (dup.length) { console.error('❌ 重复定位: ' + [...new Set(dup)].join(', ')); process.exit(3); }
 
@@ -101,7 +105,7 @@ const byKey = {};
 for (const d of existing) if (d && d.subject && d.module_id && d.chapter_id) byKey[d.subject + '|' + d.module_id + '|' + d.chapter_id] = d;
 
 const creates = [], updates = [], skips = [];
-for (const d of docs) {
+for (const d of scoped) {
   const key = d.subject + '|' + d.module_id + '|' + d.chapter_id;
   const cur = byKey[key];
   const desiredStatus = PUBLISH ? 'published' : (cur && cur.status === 'published' ? 'published' : 'draft');
@@ -112,8 +116,8 @@ for (const d of docs) {
 }
 
 const bySubject = {};
-for (const d of docs) bySubject[d.subject] = (bySubject[d.subject] || 0) + 1;
-console.log(`源文件: ${files.join(', ')}; 文档=${docs.length} (${JSON.stringify(bySubject)})`);
+for (const d of scoped) bySubject[d.subject] = (bySubject[d.subject] || 0) + 1;
+console.log(`源文件: ${files.join(', ')}; 文档=${scoped.length}${SUBJECT_ONLY ? '(--subject=' + SUBJECT_ONLY + ')' : ''} (${JSON.stringify(bySubject)})`);
 console.log(`计划: insert=${creates.length} update=${updates.length} skip=${skips.length} 目标状态=${PUBLISH ? 'published' : 'draft'}`);
 for (const u of updates) console.log(`  ~ ${u.patch.subject}/${u.patch.module_id}/${u.patch.chapter_id} 变更=${u.diff.join(',')}`);
 if (!APPLY) { console.log('[DRY-RUN] 未写库; 确认合规后加 --apply [--publish]'); process.exit(0); }
