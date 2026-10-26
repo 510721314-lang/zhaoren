@@ -2,7 +2,7 @@
 
 > **用途**：新任务首条消息整段投喂，使无上下文的新 Agent 零偏差接手。
 > **生成依据**：技能 `.trae/skills/zhaoren-handoff-prompt`（实测取证 → 双专家评审 → 修正 → 落盘）。
-> **版本**：V2「学习考试中心立项版」（2026-10-25 晚）。V1「admin-web 登录收尾版」同日早间（git 历史可溯）；V2 增量 = 用户战略决策（**暂缓提审**）+ **学习考试中心立项**，git 基线全部重测。**V2.1（同日深夜）**= 纯值刷新（HEAD/origin=`4eaf157`、`??` 6 项）+ T-8.1 完成回填 + T-0.3.1 直连 reset 探活重试经验，结构零改动。
+> **版本**：V2「学习考试中心立项版」（2026-10-25 晚）。V1「admin-web 登录收尾版」同日早间（git 历史可溯）；V2 增量 = 用户战略决策（**暂缓提审**）+ **学习考试中心立项**，git 基线全部重测。**V2.1（同日深夜）**= 纯值刷新（HEAD/origin=`4eaf157`、`??` 6 项）+ T-8.1 完成回填 + T-0.3.1 直连 reset 探活重试经验，结构零改动。**V2.2（同日深夜）**= 双专家复检后状态回填（T-7.9 ✅、§2 两处、T-8.2 时态、T-7.2 消漂移源、C-4.8 MCP 现状），仍为纯值刷新。
 > **取证时点**：2026-10-25 晚。文中所有可核查值均当场命令实测；评审修正见文末「验证者修正」。
 > **清点边界**：`T-*` / `C-*` / `E-*` 为**清点项**，必须逐条回执；**§1 / §2 / §5 / §8 为参考用，非清点项**。
 
@@ -58,12 +58,12 @@
 | 双评审 P1 修复 | `a9705b9` | `rebuildScenes()` 保留脏值 + `beforeunload` + 非 scoped 查询改 `{doc_type}` | 已部署；行为验证 3/3 |
 | 满态 UI 改进 | `d23fadc` | 提示条 + tooltip + `配置数>=场景数` + 删除→停用 | 已部署 |
 | P2-11 SOS 闭环 | `c88c5c1` | `workbench.js` +22/−8：`my_orders(partner,doing)` 填 `currentOrderId/todayOrders`；无单 toast；静默 catch 改显式 | 已上传 v1.6.39，**真机未验** |
-| 技术债清单刷新 | — | `docs/tech-debt-inventory-20261015.md`：P1 **8** / P2 **13** / P3 **17**（实测行数） | 已入库；头部已漂移（T-7.9） |
+| 技术债清单刷新 | — | `docs/tech-debt-inventory-20261015.md`：P1 **8** / P2 **13** / P3 **17**（实测行数） | 已入库；头部与 A/B 口径已随 `63280a2` 订正（原 T-7.9 事项已完成） |
 | admin-web 登录 401 排查 | `9a789fb`（补部署）、`692622c` + `e6e5a52`（代码）、`5750405`（**仅文档登记**） | 见 E-6.1~E-6.5 | **已上线**（`index-BxlCgeAe.js`；64 裸 body 现已自动补 `AWK-`） |
-| 学习考试中心评估 + 实施方案 | —（**未入库**，工作区 `??`） | `docs/exam-center-plan-20261025.md`：双专家同步评估定稿（地基优先 / 独立 exam 云函数 / cert_status 派生状态机 / 内容灰度）+ S1–S6 路线 + 4 集合 schema + cutover 五步 + D1–D6 决策点 | **待用户审核** |
+| 学习考试中心评估 + 实施方案 | `63280a2`（已入库） | `docs/exam-center-plan-20261025.md`：双专家同步评估定稿（地基优先 / 独立 exam 云函数 / cert_status 派生状态机 / 内容灰度）+ S1–S6 路线 + 4 集合 schema + cutover 五步 + D1–D6 决策点 | **待用户审核** |
 
 **门禁实跑（取证时点）**：`npm.cmd test` → **tests 593 / pass 593 / fail 0**；A/B **444 EQUIVALENT**（241 explicit + 203 auto；**43** known-evolution）；`check-syntax` **251 files ALL OK**；`check-ssot` 0；`check-shared-sync` ALL OK（含 2 项 known-drift owed）。
-**口径提醒**：deploy-log 里 v1.6.39 那次写的 `581` 是当时值；**以 593 为准，每次 commit 前必须实跑**。技术债台账里的「38/41」A/B 口径也已落后（现为 43），下次 docs 批次一并订正。
+**口径提醒**：deploy-log 里 v1.6.39 那次写的 `581` 是当时值；**以 593 为准，每次 commit 前必须实跑**。技术债台账的 A/B 口径已随 `63280a2` 订正为 43（原「38/41」表述已过时）。
 **V2 提示**：593 / 444 / 43 为 17:3x 时点实测；V2 会话（学习考试中心立项）**零代码改动、未重跑门禁**——任何 commit 前仍须实跑（E-6.12）。
 
 ---
@@ -127,7 +127,7 @@ const cmd = JSON.stringify([{ TableName: 'admin_config', CommandType: 'QUERY',
 
 **C-4.7**（依赖配置）云端测试口径：入参必须带 `mock_openid`；订单/需求标识用 **32 位文档 `_id`**（不是 `ORD…` / `DR…` 业务单号）；部分函数有 `isValidDocId` 预检。中文入参**不要**走 PowerShell（见 E-6.6）。
 
-**C-4.8**（依赖配置）MCP 限制：`.trae/mcp.json` 是**受限文件**（Agent 不能写，只能用户 GUI 粘贴）；调用名必须是 **`mcp_weapp-test`**；入口必须 `dist/cli.js`（`dist/index.js` 为空模块会立即退出）。
+**C-4.8**（依赖配置）MCP 限制：`.trae/mcp.json` 是**受限文件**（Agent 不能写，只能用户 GUI 粘贴）；调用名必须是 **`mcp_weapp-test`**；入口必须 `dist/cli.js`（`dist/index.js` 为空模块会立即退出）。**现状提示（2026-10-25 实测）**：`.trae/mcp.json` 当前仅含 `cloudbase` 一个 server，`weapp-test` 由用户级 MCP（GUI）注册——做 E2E 前先按项目记忆重核配置，勿假设项目内条目仍在。
 
 ---
 
@@ -202,7 +202,7 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 **T-7.1.7** 分两批提交：代码与 docs（**均需用户确认**）。
 **T-7.1.8** 完成后重跑 T-0.2 / T-0.3 / T-0.4 / T-0.7 并更新本文件（已执行）。
 
-**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。V1 会话 4 个 commit（`692622c` 代码 / `5750405` 文档 / `e6e5a52` 代码 / `9a08e3e` 文档）**已推送完成**；当前 HEAD = `4eaf157` = origin（T-0.2/T-0.3）。
+**T-7.2**（待办·AI·**需用户确认**·仅在 ahead≠0 时）**补推 commit**：`git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master`；成功后 `rev-list --count origin/master..HEAD` 应为 `0`。V1 会话 4 个 commit（`692622c` 代码 / `5750405` 文档 / `e6e5a52` 代码 / `9a08e3e` 文档）**已推送完成**；HEAD 与 origin 一致（哈希以 T-0.2 实测为准）。
 
 **T-7.3**（**暂缓**·用户真机·恢复提审后执行）**验证 v1.6.39 的 P2-11 SOS**：
 **T-7.3.1** 有进行中订单 → 「仅上报」→ `safety_report` 新增 `sos` 且 `order_main.help_flag=true`。
@@ -223,13 +223,13 @@ $html -match '/assets/(index-[A-Za-z0-9_\-]+\.js)'
 
 **T-7.8**（待办·提审后·AI）技术债：P2-12/13（工作台「今日待履约」/「本周收入」口径）、P3-15（legal_doc 并发写 + 列表不带 content + 角色门控）、P3-12（order-timer 三表扫描索引）。
 
-**T-7.9**（待办·AI·低风险）两份台账口径订正（下次 docs 批次顺手做）：①`tech-debt-inventory` 头部仍写「HEAD `21cde8a`、origin MATCH、工作区干净」（实际 `5750405`、ahead 2、1 个 M）；②其 A/B「38/41」口径落后（现为 43）。
+**T-7.9**（✅ 已随 `63280a2` 完成）两份台账口径订正均已入库：①`tech-debt-inventory` 头部已刷新、②A/B 口径已改 43（双评审 diff 实证）。**无需再做。**
 
 **T-7.10**（约束红线）未获用户明确指令前**禁止开工**任何 `miniprogram/` / `cloudfunctions/` / `admin_config` 生产变更（含为 T-7.3.2 而改后端）。
 
 **T-8.1**（✅ 已执行 2026-10-25 深夜）`docs/exam-center-plan-20261025.md` 已按 docs 批次单独提交入库 = **`63280a2`**（含 T-7.9 台账口径订正；提交前实跑门禁 593/593 全绿）。**无需再做。**
 
-**T-8.2**（待办·用户）**审核方案 + 拍板 D1–D6**（方案 §5；推荐值：D1 base 证书永久 / D2 cutover 日回填 365d / D3 S6 验证后才开闸 / D4 study_content 集合 / D5 保持现行为 / D6 本地缓存批量写）。T-8.1 文档入库与 T-8.2 拍板**可并行，两者齐备 = S1 收口**。
+**T-8.2**（待办·用户）**审核方案 + 拍板 D1–D6**（方案 §5；推荐值：D1 base 证书永久 / D2 cutover 日回填 365d / D3 S6 验证后才开闸 / D4 study_content 集合 / D5 保持现行为 / D6 本地缓存批量写）。T-8.1 **已入库**，本项拍板即 **S1 收口**。
 
 **T-8.3**（待办·AI·T-8.2 后开工）**S2 后端落地**（方案 §4-S2）：新建 `exam-action` + `exam-admin-action` 两云函数；`_shared/cert_state.js` + `sync-cert-state.ps1` + 单测；4 新集合（questions / exam_sessions / certificates / study_records）+ 索引台账登记；admin_config 3 新键（`cert_gate_enabled` 默认 false / `w1_cert_valid_days` 365 / `base_cert_permanent` true，走 CONFIG_SCHEMA）；多选题判分 + exam_sessions 留痕 + 发证；partner-apply 门禁切换（**开关关闸 = 行为不变**）；partner-action/admin-action 旧考试 action 改薄别名（S6 才移除）。
 
