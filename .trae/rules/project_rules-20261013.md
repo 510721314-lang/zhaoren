@@ -352,3 +352,11 @@ alwaysApply: true
 - **O6 CloudBase CLI「无有效身份信息」先判登录态，不先怀疑代码/配置**：真因常为**临时密钥过期且自动续期失败**（`C:\Users\DC\.config\.cloudbase\auth.json` 的 `tmpExpired` 已过、`refreshToken` 未过）。处置：`cloudbase.cmd login` 扫码 → `env list` 验证；不要反复重试 `--apply`。
 - **O7 新门禁必须双挂载**：`verify:offline`（package.json）**且** `.trae/predeploy.ps1` 第 `[2b/5]` 段；仅挂一处视为无效。`scripts/check-cloud-timeout-policy.js`（R1 默认≥12s / R2 禁显式<10s / R3 错误态先于空态）已双挂载，并以「故意破坏→EXIT=1 命中 R1+R3→还原→EXIT=0」自证有效性。
 - 与既有规则关系：O1/O2 承接 §12（上线核验：改完必须取证）与 §31（CLI 脚本纪律）；O3 补充 §17（前端块/组件迁移纪律）；O4 补充 §30-N2（用量归因先做乘法）的时延维度；O5/O6 补充 §10 与 §31-L2；O7 承接 §22（门禁类改动纪律）。**注：专家协作条款 G7 位于 §22（非 §27），2026-10-27 双专家评审纠错；曾拟 O8「禁止主动调用专家资源」已经用户当日决策撤销，以 §22-G7 为准。**
+
+## 33. 默认值兜底链 · 门禁覆盖面 · 媒体 fileID 白名单（2026-10-27 昵称/头像编辑实证新增）
+
+- **Q1「注册用户名不生效」类反馈先查默认值兜底链，不先怀疑写入失败**：显示层常用 `{{user.nickname || '微信用户'}}` 兜底，只要写入端没把用户设定值写进字段，页面就会恒显默认值，且看起来"像"实名/注册没生效。排查顺序：①DB 实读字段值（区分空串/null/默认字面量）；②写入端是否在关键节点（如实名通过）回写该字段；③显示层兜底文案是否掩盖了空值。实证（2026-10-27）：注册三条链路硬编码 `nickname:'微信用户'`、`update_profile` 云函数存在但前端零调用、`submit_realname_action` 只写 `real_name` → 实名后仍显示「微信用户」；处置=实名通过时若昵称空或为默认字面量则同批回写实名姓名（已有自定义昵称不覆盖），并对存量按 `nickname='微信用户' ∧ is_realname_done ∧ real_name 非空` 回填（nModified=1）。
+- **Q2 门禁"全绿"只代表它扫过的范围，不代表全仓可发布**：`verify:offline` 的 SYNTAX 段只扫 `cloudfunctions/`（SYNTAX 262 = 云函数文件数），`miniprogram/` 前端 JS **不在覆盖内**。实证（2026-10-27）：`profile.js` 三元表达式漏 `:`，门禁 **EXIT=0**，体验版上传才报 `Syntax Error (code 10)` 失败。纪律：**改过前端 `.js` 后、上传体验版前，必须对改动文件跑 `node --check`**（必要时全量扫 `miniprogram/**.js`，2026-10-27 全量实测 0 bad）；新增/扩展门禁须按 §32-O7 双挂载，并先跑存量清点确认不会误伤。缺口已登记 tech-debt P3-19。
+- **Q3 媒体字段改存云存储 fileID（`cloud://`）时，全链白名单必须同步放行**：项目里多处 `avatar` 过滤器写作 `/^https?:/`（防 openid 等脏值渲染），一旦头像改存 `cloud://`，这些位置会**静默过滤为空**（不报错、头像消失），排查成本高。纪律：改存储形态前先全仓 grep 该字段的所有 `https?:` 校验点（前端页面/组件 + 云函数输出侧），一并改成正则白名单 `^(https?:|cloud:\/\/)`；云端改动需同步部署（本轮 `user-login` + `home-action`）。实证（2026-10-27）：8 处过滤点（前端 profile / partner-detail / message / partner-card；云端 user-login/action_map、home-action/action_feed×2）。
+- **Q4 用户自助编辑类入口的入参必须在服务端收口**：「前端零调用」的沉睡云函数一旦接入口，等于把未经校验的入参直接暴露；启封前先补齐 trim/长度/协议白名单与专属错误码。实证（2026-10-27）：`update_profile` 新增昵称 trim 后 1–20 字、头像仅 `cloud://`/`http(s)://` 且 ≤512 字符、错误码 `profile_avatar_invalid`，A/B 457 仍 EQUIVALENT。
+- 与既有规则关系：Q1 补充 §7（Bug 修复纪律）与 §9（收尾沉淀：存量回填需计数取证）；Q2 补充 §22（门禁类改动纪律）与 §32-O7（双挂载）；Q3 补充 §17（前端迁移纪律）与 §23-H2（调用通道）；Q4 补充 §14（输入校验口径变更）与 §30-N5（完整性≠有效性）。
