@@ -394,12 +394,12 @@ async function notice_list(ctx) {
   const skip = Number(event.skip) || 0;
   // 2026-10-27: list 与 unread 并行, 减少一次串行 DB 往返(客户端 6s 超时下关键)
   const [list, unread] = await Promise.all([
-    col('system_notice').where({ to_openid: openid })
+    col('system_notice').where({ to_openid: openid, type: _.neq('error_scan') })
       .orderBy('created_at', 'desc')
       .skip(skip)
       .limit(limit)
       .get(),
-    col('system_notice').where({ to_openid: openid, read: false }).count()
+    col('system_notice').where({ to_openid: openid, read: false, type: _.neq('error_scan') }).count()
   ]);
   // 订单概要(所有订单类通知前置统一概要): 批量关联 order_main
   const orderIds = Array.from(new Set((list.data || []).map((n) => n.order_id).filter(Boolean)));

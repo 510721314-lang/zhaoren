@@ -354,7 +354,7 @@ async function close_account_action(ctx) {
 let _unreadCache = { openid: '', at: 0, n: 0 };
 
 async function peek_login_action(ctx) {
-  const { event, openid, clientIp, device, col, safeUserDoc, maybeRestoreSuspend } = ctx;
+  const { event, openid, clientIp, device, col, _, safeUserDoc, maybeRestoreSuspend } = ctx;
       try {
         const r = await col('user_account').where({ openid }).limit(1).get();
         if (!(r.data && r.data.length > 0)) {
@@ -372,7 +372,7 @@ async function peek_login_action(ctx) {
           unread = _unreadCache.n;
         } else {
           try {
-            const nr = await col('system_notice').where({ to_openid: openid, read: false }).count();
+            const nr = await col('system_notice').where({ to_openid: openid, read: false, type: _.neq('error_scan') }).count();
             unread = Number(nr && nr.total) || 0;
             _unreadCache = { openid, at: nowTs, n: unread };
           } catch (e) { /* 计数失败不影响登录信息返回 */ }
