@@ -62,7 +62,7 @@
 
 ---
 
-## P3 · 卫生级 / 已接受的债（17 项）
+## P3 · 卫生级 / 已接受的债（18 项）
 
 | # | 负债 | 决策与依据 |
 |---|---|---|
@@ -87,6 +87,7 @@
 | P3-16 | **工作台信用分两源可能不一致**（2026-10-25 走查登记） | 证据：卡片分数取 `peek_login` 的 `user.partner_credit_score`（[workbench.wxml:33](file:///c:/zhaoren/miniprogram/pages-v2/workbench/workbench.wxml#L33)），而等级取 `balance_info.credit_level`——后者由 `partner_profile.score` 计算（[action_account.js:30-35](file:///c:/zhaoren/cloudfunctions/payment-mock/action_account.js#L30-L35)）。若两处分数未同步（如信用扣分只写 `user_account`），会出现「分数 L2 段却显示 L3」 | **修法（提审后，轻量）**：统一取 `partner_profile.score`（或让 `balance_info` 一并返回分数），前端只用一个源。属展示一致性，无阻断 |
 | P3-17 | **工作台占位区块不可达（时间轴 / 待办卡 / 导航 / 联系 / 周日历圆点）**（2026-10-25 走查登记） | 证据：`todayOrders` 仅在 data 初始化、**无任何赋值点** → 时间轴 `wx:if="{{todayOrders.length > 0}}"` 恒假、恒显「今日暂无订单」，其内「导航」「联系」按钮不可达（[workbench.wxml:49-64](file:///c:/zhaoren/miniprogram/pages-v2/workbench/workbench.wxml#L49-L64)）；`pendingOrders` 同样无数据源 → 待办卡整块恒隐藏（`:83`）；`weekDays` 的 `hasOrder` 恒 `false`（[workbench.js:108](file:///c:/zhaoren/miniprogram/pages-v2/workbench/workbench.js#L108)）；`onNavigate`/`onContactUser`/`onConfirmOrder`/`onRejectOrder` 仅 toast 占位。**2026-10-25 部分缓解**：`todayOrders` 由 P2-11 SOS 闭环修复时顺带从 `my_orders(partner, doing)` 填充（commit `c88c5c1`），时间轴卡对有进行中订单的耍伴**不再恒隐藏**；但卡内字段（`sceneColor`/`time`/`locationName`/`partnerName`）在 my_orders 返回里不存在，仍有空值；handlers 仍 toast 占位；`pendingOrders`/周日历圆点仍无数据源 | **影响**：不影响主流程、无审核风险，但工作台「当日安排」能力实际为空壳。**修法（提审后）**：接 `order-action my_orders(role=partner)` 取今日与待确认单填充；或先显式隐藏这两块避免「有卡无数据」观感 |
 | P3-18 | **昵称/头像自助编辑入口缺失（2026-10-27 登记）**：`user-login` 有 `update_profile`（昵称过 `msgSecCheck`/敏感词、长度 1-20、可同时改头像，`action_account.js:71-90`），但**前端 0 调用**（全仓 `update_profile` 仅服务端命中）→ 用户无法自助改昵称/头像；且注册三条链路（MVP / 手机号一键 / 验证码）硬编码 `nickname:'微信用户'` | **合规不一致**：`pages-v2/privacy/privacy.wxml:49` 明示「您可随时在『我的』页面查看并修改昵称、头像、手机号绑定等个人信息」——声明了但无入口。**2026-10-27 部分缓解**：实名通过后服务端自动把默认昵称回写为实名姓名（commit `da2abe9`），已实名用户不再是「微信用户」；未实名用户仍无法改名。**修法（提审后或用户批准即做）**：在「我的」页新增资料编辑入口（昵称/头像），直接复用 `update_profile`；或在隐私条款中删除该项声明。**影响面**：纯前端 + 冻结期外才可动；无阻断。**✅ 已偿还（2026-10-27，用户批准即做）**：①「我的」页头部新增「编辑资料 ›」入口 + 昵称/头像编辑弹层（`profile.wxml/.js/.wxss`，昵称 trim 1-20、头像 `wx.chooseMedia` → `wx.cloud.uploadFile` 存 `avatar/<ts>-<rand>.<ext>` fileID → `update_profile`）；②服务端 `update_profile` 入参收口（昵称 trim 后 1-20 字、头像仅 `cloud://`/`http(s)://` 且 ≤512 字符，新增 `profile_avatar_invalid`）；③8 处头像白名单同步放行 `cloud://`（前端 profile/partner-detail/message/partner-card + 云端 user-login/action_map、home-action/action_feed×2），避免自传头像在首页/附近地图/详情/会话被过滤掉；④`user-login`（13 files / 50.3 KB）与 `home-action`（12 files / 35.7 KB）均已部署 success=true；⑤`verify:offline` EXIT=0（A/B 457 EQUIVALENT）；待真机复测「改昵称→我的页即时刷新」「换头像→首页/详情/会话均显示」 |
+| P3-19 | **`verify:offline` 的 SYNTAX 门禁不覆盖 `miniprogram/`（2026-10-27 P3-18 实施中实证）**：`check-syntax.js` 仅扫 `cloudfunctions/`（SYNTAX 262 = 云函数文件数，无 miniprogram 命中），因此前端 JS 语法错误可让门禁 **EXIT=0** 后仍在上传时炸掉 | **实证**：`profile.js` 弹层默认昵称三元表达式缺 `:`（`nick === '微信用户' ? '',`），`verify:offline` 全绿，但体验版上传报 `Syntax Error (code 10)`；`node --check miniprogram/pages-v2/profile/profile.js` 立即定位，修正后（`d2e6f6d`）上传成功。**修法（轻量，待批）**：把 `check-syntax.js` 扫描根扩到 `miniprogram/`（`node --check` 等价的轻量 parse），或在上传流程前置 `node --check` 全量前端 JS；需先跑一次存量清点确认无历史语法错误 |
 
 
 ---
