@@ -62,7 +62,7 @@
 
 ---
 
-## P3 · 卫生级 / 已接受的债（17 项）
+## P3 · 卫生级 / 已接受的债（18 项）
 
 | # | 负债 | 决策与依据 |
 |---|---|---|
@@ -86,6 +86,7 @@
 | P3-15 | **法律合规 U2 双评审遗留（P2/P3 未修，2026-10-25 登记）**：P1 两条已当日修复（脏值覆盖 / beforeunload 与脏值判定范围），以下为评审确认但本轮不改的项 | ①**并发写**：`writeVersion` 用入口 `ctx.config` 快照合并 `legal_scene_disclaimers`，且版本号 `max+1` 无唯一索引/乐观锁 → 两管理员或双标签页同时保存会「后写覆盖前者 scope」并可能产生重复版本（单管理员顺序操作安全）；修法＝库内重读后局部更新 + `legal_doc(doc_type,scope,version)` 唯一索引（CLI 不能建，需控制台）+ 可选 `expected_version` CAS。②**双写漂移无告警**：规格 §4 要求的「发布后回读比对 + 漂移写 `platform_event`」未实现；`config_set` 热修仍可整块改/删 map 且不产生版本。③**列表上限**：`legal_doc_list` 固定 `limit 200` 且携带全量 `content`，版本累积后尾部场景会显示「未发布」、响应体膨胀 → 改分页或列表不带 content。④**角色门控**：R3 可读但前端未按 `admin_role` 隐藏写按钮（点了才报 `role_forbidden`）。⑤**重置回填源**：版本库不可用时 `fieldFallback` 读热修表单 `patch`（可能是未保存脏值）。⑥**文案**：「删除」实为「停用」（retire），三处措辞不统一。⑦**条件提示**：`availableScenes===0 && 行>0` 在「新增行占满剩余候选」时会误报「全部已配置」。⑧**批量发布快照完整性**：专家提出「单次调用内连续 publish 会让 `legal_versions`/`legal_scene_versions` 只剩最后一项」——生产实测**未复现**（5 项/9 项均完整），逻辑上仍有风险 → 需专项验证后再定 | 处置口径：**提审期不修**（涉及 admin-action 或需控制台建索引）；提审通过后按 ①③④ 优先立项，②随备份/一致性专项。①属数据正确性，若届时出现多人协作需求须先做 |
 | P3-16 | **工作台信用分两源可能不一致**（2026-10-25 走查登记） | 证据：卡片分数取 `peek_login` 的 `user.partner_credit_score`（[workbench.wxml:33](file:///c:/zhaoren/miniprogram/pages-v2/workbench/workbench.wxml#L33)），而等级取 `balance_info.credit_level`——后者由 `partner_profile.score` 计算（[action_account.js:30-35](file:///c:/zhaoren/cloudfunctions/payment-mock/action_account.js#L30-L35)）。若两处分数未同步（如信用扣分只写 `user_account`），会出现「分数 L2 段却显示 L3」 | **修法（提审后，轻量）**：统一取 `partner_profile.score`（或让 `balance_info` 一并返回分数），前端只用一个源。属展示一致性，无阻断 |
 | P3-17 | **工作台占位区块不可达（时间轴 / 待办卡 / 导航 / 联系 / 周日历圆点）**（2026-10-25 走查登记） | 证据：`todayOrders` 仅在 data 初始化、**无任何赋值点** → 时间轴 `wx:if="{{todayOrders.length > 0}}"` 恒假、恒显「今日暂无订单」，其内「导航」「联系」按钮不可达（[workbench.wxml:49-64](file:///c:/zhaoren/miniprogram/pages-v2/workbench/workbench.wxml#L49-L64)）；`pendingOrders` 同样无数据源 → 待办卡整块恒隐藏（`:83`）；`weekDays` 的 `hasOrder` 恒 `false`（[workbench.js:108](file:///c:/zhaoren/miniprogram/pages-v2/workbench/workbench.js#L108)）；`onNavigate`/`onContactUser`/`onConfirmOrder`/`onRejectOrder` 仅 toast 占位。**2026-10-25 部分缓解**：`todayOrders` 由 P2-11 SOS 闭环修复时顺带从 `my_orders(partner, doing)` 填充（commit `c88c5c1`），时间轴卡对有进行中订单的耍伴**不再恒隐藏**；但卡内字段（`sceneColor`/`time`/`locationName`/`partnerName`）在 my_orders 返回里不存在，仍有空值；handlers 仍 toast 占位；`pendingOrders`/周日历圆点仍无数据源 | **影响**：不影响主流程、无审核风险，但工作台「当日安排」能力实际为空壳。**修法（提审后）**：接 `order-action my_orders(role=partner)` 取今日与待确认单填充；或先显式隐藏这两块避免「有卡无数据」观感 |
+| P3-18 | **昵称/头像自助编辑入口缺失（2026-10-27 登记）**：`user-login` 有 `update_profile`（昵称过 `msgSecCheck`/敏感词、长度 1-20、可同时改头像，`action_account.js:71-90`），但**前端 0 调用**（全仓 `update_profile` 仅服务端命中）→ 用户无法自助改昵称/头像；且注册三条链路（MVP / 手机号一键 / 验证码）硬编码 `nickname:'微信用户'` | **合规不一致**：`pages-v2/privacy/privacy.wxml:49` 明示「您可随时在『我的』页面查看并修改昵称、头像、手机号绑定等个人信息」——声明了但无入口。**2026-10-27 部分缓解**：实名通过后服务端自动把默认昵称回写为实名姓名（commit `da2abe9`），已实名用户不再是「微信用户」；未实名用户仍无法改名。**修法（提审后或用户批准即做）**：在「我的」页新增资料编辑入口（昵称/头像），直接复用 `update_profile`；或在隐私条款中删除该项声明。**影响面**：纯前端 + 冻结期外才可动；无阻断 |
 
 
 ---
