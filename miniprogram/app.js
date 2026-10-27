@@ -63,7 +63,7 @@ App({
     const isWrite = WRITE_RE.test(action);
     const retries = opts.retries !== undefined ? opts.retries : (isWrite ? 0 : 2);
     const waitMs = opts.waitMs || 1500;     // 重试间隔
-    const timeout = opts.timeout || 6000;   // 单次超时(冷启动给足一次机会)
+    const timeout = opts.timeout || 12000;  // 单次超时(2026-10-27: 6s→12s, 云函数含多段联表, 冷启动易触顶)
 
     return this.globalData.cloudReady.then(() => {
       return new Promise((resolve) => {

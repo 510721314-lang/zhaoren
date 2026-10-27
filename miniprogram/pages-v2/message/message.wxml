@@ -32,10 +32,10 @@
     <view class="msg__loading" wx:if="{{loading}}">
       <view class="msg__skeleton skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
     </view>
+    <!-- 网络异常态(必须先于空态: 失败时 orderList 为空, 否则错误被「暂无消息」掩盖) -->
+    <empty-state wx:elif="{{loadError}}" icon="📡" title="加载失败" desc="{{loadErrorMsg || '请检查网络后重试'}}" btnText="重试" bind:btntap="reload" />
     <!-- 空态 -->
     <empty-state wx:elif="{{orderList.length === 0}}" icon="💬" title="暂无消息" desc="订单创建后会话将出现在此" />
-    <!-- 网络异常态 -->
-    <empty-state wx:elif="{{loadError}}" icon="📡" title="网络异常" desc="请检查网络后重试" btnText="重试" bind:btntap="reload" />
     <!-- 正常态：block 承接 wx:elif，内部 view 承接 wx:for，避免同元素双指令冲突 -->
     <block wx:elif="{{orderList.length > 0}}">
       <view

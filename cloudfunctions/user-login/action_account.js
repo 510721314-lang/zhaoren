@@ -350,6 +350,9 @@ async function close_account_action(ctx) {
 }
 
     // peek_login: 仅查已有账号不建号(前端 onShow 续查用, 避免每次进页都弹登录打断)
+// 首页未读角标缓存(30s): peek_login 高频调用, 避免每次都多一次 system_notice count
+let _unreadCache = { openid: '', at: 0, n: 0 };
+
 async function peek_login_action(ctx) {
   const { event, openid, clientIp, device, col, safeUserDoc, maybeRestoreSuspend } = ctx;
       try {
@@ -362,7 +365,19 @@ async function peek_login_action(ctx) {
         if (u.status === 'frozen') return { ok: true, data: { found: true, frozen: true, msg: '账号已冻结' } };
         if (u.status === 'banned') return { ok: true, data: { found: true, banned: true, msg: '账号已封禁' } };
         if (u.status === 'closed') return { ok: true, data: { found: true, closed: true, msg: '账号已注销' } };
-        return { ok: true, data: { found: true, user: safeUserDoc(u) } };
+        // 2026-10-27: 附带未读数(首页铃铛角标), 30s 缓存避免高频 peek 反复计数
+        let unread = 0;
+        const nowTs = Date.now();
+        if (_unreadCache.openid === openid && nowTs - _unreadCache.at < 30000) {
+          unread = _unreadCache.n;
+        } else {
+          try {
+            const nr = await col('system_notice').where({ to_openid: openid, read: false }).count();
+            unread = Number(nr && nr.total) || 0;
+            _unreadCache = { openid, at: nowTs, n: unread };
+          } catch (e) { /* 计数失败不影响登录信息返回 */ }
+        }
+        return { ok: true, data: { found: true, user: Object.assign({}, safeUserDoc(u), { unread_notice: unread }) } };
       } catch (e) {
         return { ok: false, code: 'peek_fail', msg: '查询失败' };
       }

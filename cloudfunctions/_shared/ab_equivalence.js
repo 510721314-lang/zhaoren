@@ -680,6 +680,8 @@ function loadWith(dir, file, sdk) {
     'auto_pa_get_exam_questions', 'auto_pa_exam_subjects',
     // 2026-10-27 学习中心: 新增 C 端只读 action(基线无), 行为由 partner-action.study.test.js 守护
     'auto_pa_study_list', 'auto_pa_study_detail',
+    // 2026-10-27 首页未读角标: peek_login 返回增加 unread_notice 字段(additive)
+    'ul_peek_found',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {
