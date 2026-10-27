@@ -87,5 +87,5 @@ function getLocationSafe(options = {}) -> Promise<{
 - 基线最终清空并删除 `scripts/location-timeout-baseline.json`；`miniprogram/` 内裸调 `wx.getLocation` 仅存 `utils/location.js`。
 - 验收：`verify:offline` EXIT=0（tests 688/0、A/B 457 EQUIVALENT、LOCATION-TIMEOUT-POLICY 0/0）；G2 探针两阶段均 FAIL→PASS；`getLocationSafe` 4 条收敛路径自测 PASS。
 - 体验版：Phase 1 → **v1.6.50**；Phase 2+3 合并 → **v1.6.51**（同日连续落地，未在中间设真机检查点）。
-- 待办：真机复测 SOS/安全中心/开始履约/接单/路线/附近地图/打卡/到场/发布页定位（v1.6.51）。
+- 待办：~~真机复测 SOS/安全中心/开始履约/接单/路线/附近地图/打卡/到场/发布页定位（v1.6.51）~~ → **2026-10-27 用户真机确认全部测试通过**。
 
