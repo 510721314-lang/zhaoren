@@ -4,6 +4,8 @@ const { getScene } = redline;
 const CONFIG = require('../../config/index.js');
 const { takeOrder } = require('../../utils/take-order.js');
 const { callCloud } = require('../../utils/cloud.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, 超时按定位失败处理)
+const { getLocationSafe } = require('../../utils/location.js');
 
 Page({
   data: {
@@ -72,19 +74,17 @@ Page({
     this.__scheduleOwnerWatch(demand);
   },
 
-  // 耍伴实时定位(仅非发布者触发; 授权失败/拒绝 → 兜底仅显示地址, 不阻断页面)
+  // 耍伴实时定位(仅非发布者触发; 授权失败/拒绝/超时 → 兜底仅显示地址, 不阻断页面)
   __collectViewerLoc(id) {
-    wx.getLocation({
-      type: 'wgs84',
-      success: (loc) => {
-        if (!loc || typeof loc.latitude !== 'number' || typeof loc.longitude !== 'number') return;
-        this.__viewerCoords = { latitude: loc.latitude, longitude: loc.longitude };
-        // 轻量重取详情补 distanceKm, 不闪骨架屏(坐标已缓存, 后续 reload 单次请求)
-        if (id && id === (this.__lastOptions && this.__lastOptions.id)) {
-          this.fetchData(this.__lastOptions || {}, false);
-        }
-      },
-      fail: () => { /* 定位拒绝/不可用: 保持显示履约地址, 距离留空 */ }
+    // 2026-10-27: getLocationSafe 8s 必收敛; 保持原 wgs84 坐标系
+    getLocationSafe({ type: 'wgs84' }).then((loc) => {
+      if (!loc.ok) return;   // 定位拒绝/不可用/超时: 保持显示履约地址, 距离留空
+      if (typeof loc.latitude !== 'number' || typeof loc.longitude !== 'number') return;
+      this.__viewerCoords = { latitude: loc.latitude, longitude: loc.longitude };
+      // 轻量重取详情补 distanceKm, 不闪骨架屏(坐标已缓存, 后续 reload 单次请求)
+      if (id && id === (this.__lastOptions && this.__lastOptions.id)) {
+        this.fetchData(this.__lastOptions || {}, false);
+      }
     });
   },
 

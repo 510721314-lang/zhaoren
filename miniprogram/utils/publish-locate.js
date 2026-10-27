@@ -6,6 +6,8 @@
 
 const { pad2, haversineKm, fmtDist } = require('./publish-validate.js');
 const { reverseGeocode } = require('./geo-wx.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, 迟到回调丢弃)
+const { getLocationSafe } = require('./location.js');
 
 // 迁自 publish.js onLocationPick(手动地图选点); this.data/this.setData → page.* (机械替换)
 function onLocationPick(page) {
@@ -37,60 +39,24 @@ function onLocationPick(page) {
 }
 
 // 迁自 publish.js _locatePublish(自动记录当前位置); 原体内 this._offerManualPick/this._locatePublish → 模块内 offerManualPick(page,...)/locatePublish(page,...)
-// 2026-10-27: 增加 8s 看门狗 + 高精度超时; wx.getLocation 回调不返回时必须复位 locating, 防旋转图标永久卡死
+// 2026-10-27: 统一走 getLocationSafe 8s 超时(必收敛), 超时/失败都复位 locating 并走原兜底编排
 const LOCATE_TIMEOUT_MS = 8000;
 function locatePublish(page, showToast) {
   if (page.data.locating) return;
   const seq = (page.__locateSeq || 0) + 1;
   page.__locateSeq = seq;
   const isCurrent = () => page.__locateSeq === seq;
-  if (page.__locateTimer) clearTimeout(page.__locateTimer);
   page.setData({ locating: true });
-  page.__locateTimer = setTimeout(() => {
+  getLocationSafe({ timeoutMs: LOCATE_TIMEOUT_MS }).then(async (res) => {
     if (!isCurrent()) return;
-    page.__locateSeq = seq + 1;   // 作废迟到回调
-    page.setData({ locating: false });
-    console.warn('[locatePublish] timeout', LOCATE_TIMEOUT_MS);
-    offerManualPick(page, `定位超时(${LOCATE_TIMEOUT_MS / 1000}s)`);
-  }, LOCATE_TIMEOUT_MS);
-  wx.getLocation({
-    type: 'gcj02',
-    isHighAccuracy: true,
-    highAccuracyExpireTime: 4000,
-    success: async (res) => {
-      if (!isCurrent()) return;
-      clearTimeout(page.__locateTimer);
-      const now = new Date();
-      const pub = {
-        latitude: res.latitude,
-        longitude: res.longitude,
-        name: '当前位置',
-        address: '',  // 逆地理编码回填, key 空则保持空
-        updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-      };
-      const f = page.data.form;
-      const dist = (Number(f.latitude) && Number(f.longitude))
-        ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude))
-        : 0;
-      page.setData({
-        locating: false,
-        publishLocation: pub,
-        distanceKm: dist,
-        distanceText: fmtDist(dist)
-      });
-      // 逆地理编码(异步, 不阻塞页面; key 空则静默跳过)
-      const addr = await reverseGeocode(pub.latitude, pub.longitude);
-      if (!isCurrent()) return;   // 期间已发起新定位/离开页面 → 丢弃旧结果
-      if (addr) {
-        page.setData({ 'publishLocation.address': addr });
-      }
-      if (showToast) wx.showToast({ title: '已重新定位', icon: 'success' });
-    },
-    fail: (err) => {
-      if (!isCurrent()) return;
-      clearTimeout(page.__locateTimer);
+    if (!res.ok) {
       page.setData({ locating: false });
-      const msg = (err && err.errMsg) || 'unknown';
+      if (res.timeout) {
+        console.warn('[locatePublish] timeout', LOCATE_TIMEOUT_MS);
+        offerManualPick(page, `定位超时(${LOCATE_TIMEOUT_MS / 1000}s)`);
+        return;
+      }
+      const msg = res.errMsg || 'unknown';
       if (/cancel/i.test(msg)) return;
       console.warn('[getLocation fail]', msg);
       // 权限被拒(含"不再询问") → 引导去设置开启, 恢复后自动重新定位
@@ -118,7 +84,33 @@ function locatePublish(page, showToast) {
       }
       // 非权限类失败: 弹窗带出具体 errMsg, 现场可见根因
       offerManualPick(page, msg);
+      return;
     }
+    const now = new Date();
+    const pub = {
+      latitude: res.latitude,
+      longitude: res.longitude,
+      name: '当前位置',
+      address: '',  // 逆地理编码回填, key 空则保持空
+      updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+    };
+    const f = page.data.form;
+    const dist = (Number(f.latitude) && Number(f.longitude))
+      ? haversineKm(pub.latitude, pub.longitude, Number(f.latitude), Number(f.longitude))
+      : 0;
+    page.setData({
+      locating: false,
+      publishLocation: pub,
+      distanceKm: dist,
+      distanceText: fmtDist(dist)
+    });
+    // 逆地理编码(异步, 不阻塞页面; key 空则静默跳过)
+    const addr = await reverseGeocode(pub.latitude, pub.longitude);
+    if (!isCurrent()) return;   // 期间已发起新定位/离开页面 → 丢弃旧结果
+    if (addr) {
+      page.setData({ 'publishLocation.address': addr });
+    }
+    if (showToast) wx.showToast({ title: '已重新定位', icon: 'success' });
   });
 }
 
