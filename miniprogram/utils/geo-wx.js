@@ -18,20 +18,17 @@ function evalFulfillGeo(page) {
   const site = o.location || null;
   const thresholdM = CONFIG.FULFILL.distanceMaxM;
   const accuracyMaxM = CONFIG.FULFILL.accuracyMaxM;
-  wx.getLocation({
-    type: 'gcj02',
-    isHighAccuracy: true,
-    highAccuracyExpireTime: 4000,
-    success: (loc) => {
-      page.setData({ geoGuard: evaluatePosition({
-        user: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy },
-        site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM
-      }) });
-    },
-    // 未授权/取点失败: 明确置灰并引导(不静默放行); 若本单履约地本身无有效坐标, 判定内部会兜底放行
-    fail: () => {
+  // 2026-10-27: getLocationSafe 8s 必收敛, 超时按取点失败置灰引导
+  getLocationSafe().then((loc) => {
+    // 未授权/取点失败/超时: 明确置灰并引导(不静默放行); 若本单履约地本身无有效坐标, 判定内部会兜底放行
+    if (!loc.ok) {
       page.setData({ geoGuard: evaluatePosition({ user: null, site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM }) });
+      return;
     }
+    page.setData({ geoGuard: evaluatePosition({
+      user: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy },
+      site: site, thresholdM: thresholdM, accuracyMaxM: accuracyMaxM
+    }) });
   });
 }
 

@@ -270,25 +270,26 @@ Page({
         wx.showToast({ title: '打卡成功', icon: 'success' });
       }).catch(() => wx.showToast({ title: '网络异常，打卡失败', icon: 'none' }));
     };
-    wx.getLocation({
-      type: 'gcj02',
-      success: (res) => doCheckin({ latitude: res.latitude, longitude: res.longitude }),
-      fail: () => {
-        // getLocation 不可用时 offer chooseLocation 手动选点
-        wx.showModal({
-          title: '定位不可用',
-          content: '是否手动在地图上选择你当前的位置进行打卡?',
-          confirmText: '选点打卡',
-          cancelText: '跳过',
-          success: (r) => {
-            if (!r.confirm) { doCheckin(null); return; }
-            wx.chooseLocation({
-              success: (loc) => doCheckin({ latitude: loc.latitude, longitude: loc.longitude }),
-              fail: () => doCheckin(null)
-            });
-          }
-        });
+    // 2026-10-27: getLocationSafe 8s 必收敛, 超时按失败走选点兜底
+    getLocationSafe().then((res) => {
+      if (res.ok) {
+        doCheckin({ latitude: res.latitude, longitude: res.longitude });
+        return;
       }
+      // getLocation 不可用时 offer chooseLocation 手动选点
+      wx.showModal({
+        title: '定位不可用',
+        content: '是否手动在地图上选择你当前的位置进行打卡?',
+        confirmText: '选点打卡',
+        cancelText: '跳过',
+        success: (r) => {
+          if (!r.confirm) { doCheckin(null); return; }
+          wx.chooseLocation({
+            success: (loc) => doCheckin({ latitude: loc.latitude, longitude: loc.longitude }),
+            fail: () => doCheckin(null)
+          });
+        }
+      });
     });
   },
 

@@ -1,9 +1,4 @@
 {
   "pages-v2/demand-detail/demand-detail.js": 1,
-  "pages-v2/nearby-map/nearby-map.js": 2,
-  "pages-v2/order-detail/order-detail.js": 1,
-  "pages-v2/partner-detail/partner-detail.js": 1,
-  "pages-v2/pkg-low/safety/safety.js": 1,
-  "utils/geo-wx.js": 1,
   "utils/publish-locate.js": 1
 }

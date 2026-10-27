@@ -6,6 +6,8 @@ const CONFIG = require('../../config/index.js');
 const { getScene } = redline;
 
 const { callCloud } = require('../../utils/cloud.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, 防 routeLoading 永久转圈)
+const { getLocationSafe } = require('../../utils/location.js');
 
 Page({
   data: {
@@ -118,30 +120,29 @@ Page({
     const partner = this.data.partner;
     if (!partner || !partner.openid) return;
     this.setData({ routeLoading: true, locDenied: false, route: null });
-    wx.getLocation({
-      type: 'gcj02',
-      success: async (loc) => {
-        try {
-          const r = await callCloud('partner-action', {
-            action: 'route_plan',
-            partner_openid: partner.openid,
-            latitude: loc.latitude,
-            longitude: loc.longitude
-          });
-          if (r.ok) {
-            this.setData({ route: this.buildRouteView(r.data), routeLoading: false });
-          } else {
-            this.setData({ routeLoading: false });
-            console.warn('[partner-detail] route_plan fail:', r.code, r.msg);
-          }
-        } catch (e) {
-          this.setData({ routeLoading: false });
-          console.error('[partner-detail] route_plan error:', e);
-        }
-      },
-      fail: (err) => {
+    // 2026-10-27: getLocationSafe 8s 必收敛, 超时按定位失败置 locDenied
+    getLocationSafe().then(async (loc) => {
+      if (!loc.ok) {
         this.setData({ routeLoading: false, locDenied: true });
-        console.warn('[partner-detail] getLocation fail:', err);
+        console.warn('[partner-detail] getLocation fail:', loc.errMsg);
+        return;
+      }
+      try {
+        const r = await callCloud('partner-action', {
+          action: 'route_plan',
+          partner_openid: partner.openid,
+          latitude: loc.latitude,
+          longitude: loc.longitude
+        });
+        if (r.ok) {
+          this.setData({ route: this.buildRouteView(r.data), routeLoading: false });
+        } else {
+          this.setData({ routeLoading: false });
+          console.warn('[partner-detail] route_plan fail:', r.code, r.msg);
+        }
+      } catch (e) {
+        this.setData({ routeLoading: false });
+        console.error('[partner-detail] route_plan error:', e);
       }
     });
   },

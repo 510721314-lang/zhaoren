@@ -2,6 +2,8 @@
 // 附近地图: 实时定位共享(双向对称) — 打开上报本人位置, 展示已开启共享且在线(15min)的 TA
 // 点 marker 卡片 → 耍伴看用户(去承接) / 用户看耍伴(定向邀请帮忙)
 const { callCloud } = require('../../utils/cloud.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛)
+const { getLocationSafe } = require('../../utils/location.js');
 function fmtDist(m) {
   if (!Number.isFinite(m) || m < 0) return '';
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
@@ -51,14 +53,9 @@ Page({
     this.setData({ loading: false });
   },
 
+  // 2026-10-27: getLocationSafe 8s 必收敛, 超时按取点失败返回 null
   getMyLocation() {
-    return new Promise((resolve) => {
-      wx.getLocation({
-        type: 'gcj02',
-        success: (r) => resolve({ latitude: r.latitude, longitude: r.longitude }),
-        fail: () => resolve(null)
-      });
-    });
+    return getLocationSafe().then((r) => (r.ok ? { latitude: r.latitude, longitude: r.longitude } : null));
   },
 
   async loadNearby() {
@@ -95,10 +92,11 @@ Page({
 
   // 推荐名: 定位授权引导
   onEnableLoc() {
-    wx.getLocation({
-      type: 'gcj02',
-      success: (r) => { this.setData({ my: { lat: r.latitude, lng: r.longitude } }); this.init(); },
-      fail: () => wx.showToast({ title: '定位授权失败', icon: 'none' })
+    // 2026-10-27: getLocationSafe 8s 必收敛, 超时与拒绝同样给出反馈
+    getLocationSafe().then((r) => {
+      if (!r.ok) { wx.showToast({ title: '定位授权失败', icon: 'none' }); return; }
+      this.setData({ my: { lat: r.latitude, lng: r.longitude } });
+      this.init();
     });
   },
 

@@ -616,26 +616,25 @@ Page({
       confirmText: '确认',
       success(res) {
         if (!res.confirm) return;
-        wx.getLocation({
-          type: 'gcj02',
-          isHighAccuracy: true,
-          highAccuracyExpireTime: 4000,
-          success: (loc) => {
-            const at = Date.now();
-            that._addrOf(loc.latitude, loc.longitude).then((addr) => {
-              wx.showLoading({ title: '提交中', mask: true });
-              callCloud('order-action', {
-                action: 'user_confirm_start', order_id: that.data.order._id,
-                user_confirm: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, address: addr, at }
-              }).then((r) => {
-                wx.hideLoading();
-                if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
-                wx.showToast({ title: '已确认到场', icon: 'success' });
-                that.fetchData({ orderId: that.data.order._id });
-              }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
-            });
-          },
-          fail: () => { wx.showToast({ title: '确认到场需授权定位, 请开启后重试', icon: 'none' }); }
+        // 2026-10-27: 改走 getLocationSafe(8s 必收敛), 超时按原拒绝分支提示
+        getLocationSafe().then((loc) => {
+          if (!loc.ok) {
+            wx.showToast({ title: '确认到场需授权定位, 请开启后重试', icon: 'none' });
+            return;
+          }
+          const at = Date.now();
+          that._addrOf(loc.latitude, loc.longitude).then((addr) => {
+            wx.showLoading({ title: '提交中', mask: true });
+            callCloud('order-action', {
+              action: 'user_confirm_start', order_id: that.data.order._id,
+              user_confirm: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, address: addr, at }
+            }).then((r) => {
+              wx.hideLoading();
+              if (!r.ok) { wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
+              wx.showToast({ title: '已确认到场', icon: 'success' });
+              that.fetchData({ orderId: that.data.order._id });
+            }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
+          });
         });
       }
     });
