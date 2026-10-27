@@ -132,3 +132,17 @@ test('simulate_realname: prod → realname_mock_closed(不得 ReferenceError)', 
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'realname_mock_closed');
 });
+
+test('peek_login: error_scan 巡检通知不计入 unread_notice', async () => {
+  const store = loginStore();
+  store.system_notice = {
+    s1: { _id: 's1', to_openid: OPENID, read: false, type: 'error_scan', created_at: 2 },
+    s2: { _id: 's2', to_openid: OPENID, read: false, type: 'demand_grab', created_at: 1 }
+  };
+  const { r, sdk } = await run(store, { action: 'peek_login' });
+  assert.strictEqual(r.ok, true);
+  const c = sdk.calls.find((x) => x.method === 'where.count' && x.name === 'system_notice');
+  assert.ok(c, '应发起未读 count');
+  assert.strictEqual(c.query.type.__sentinel, 'neq', '未读计数须排除 error_scan');
+  assert.strictEqual(c.query.type.args[0], 'error_scan');
+});

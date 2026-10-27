@@ -475,6 +475,25 @@ test('notice_list: 通知关联订单 → demand.remark 拆为 demand_title/dema
   assert.strictEqual(n.title, '抢单提醒', '既有字段不受影响');
 });
 
+test('notice_list: error_scan 巡检通知不展示且不计未读', async () => {
+  const sdk = makeSdk({ openid: USER, store: {
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
+    system_notice: {
+      e1: { _id: 'e1', to_openid: USER, order_id: '', type: 'error_scan', title: '巡检报告', read: false, created_at: 2 },
+      d1: { _id: 'd1', to_openid: USER, order_id: '', type: 'demand_grab', title: '有新需求可接单', read: false, created_at: 1 }
+    }
+  } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'notice_list', limit: 20, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.list.length, 1);
+  assert.strictEqual(r.data.list[0].type, 'demand_grab');
+  const c = sdk.calls.find((x) => x.method === 'where.count' && x.name === 'system_notice');
+  assert.ok(c, '应发起未读 count');
+  assert.strictEqual(c.query.type.__sentinel, 'neq', '未读计数须排除 error_scan');
+  assert.strictEqual(c.query.type.args[0], 'error_scan');
+});
+
 // 27. update_item 成功路径(发单人改「时间」) + confirm_comm 已配模板且耍伴已授权 → 订阅消息真发 1 次(2026-10-17)
 //     覆盖 §10「成功路径必须走通」: 断言返回值 + 副作用(订阅发送被调用), 不只覆盖错误码分支
 test('update_item: 发单人改时间 → 落库成功且向耍伴发 confirm_comm 订阅消息', async () => {
