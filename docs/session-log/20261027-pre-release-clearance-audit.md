@@ -104,3 +104,10 @@
 3. 上传 v1.6.48 → 登记 `docs/deploy-log.md` → docs 提交。
 4. 重试 `git push`（网络恢复后，绕代理/直连按 §15 判读）。
 5. 按 §5 未决项继续推进 F1/F4/F6、B1–B6、C5、D2–D5。
+
+## 7. 收口更新（2026-10-27）
+
+- **C1 已完成**：`tcb-scan-indexes` 重扫落盘，`check-index-ledger` → `INDEX LEDGER OK: 台账 42 条全部在云端实际索引中`，EXIT=0；`init-db` 声明提交 `0b8af09`。
+- **E1 已完成**：体验版 **v1.6.48** 上传 `EXIT=0 / ✔ upload`，TOTAL **749.4 KB（767,366 B）** / main 523.0 KB / pkg-low 184.4 KB；登记提交 `f6e4b18`。
+- **GitHub push 仍未完成**：本次报 `schannel: failed to receive handshake, SSL/TLS connection failed`；按 §15/§17 不反复重试，待网络恢复后补推并 `ls-remote` 核对。
+- 当前剩余未决项：F1/F4/F6、B1–B6、B7 口径拍板、C5、D2–D5、明日 04:30 verify 复核。
