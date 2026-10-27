@@ -25,9 +25,10 @@ $script:t0 = Get-Date
 # ── 公共函数 ──
 function Test-Bom([string]$Path) {
   if (-not (Test-Path $Path)) { throw "BOM 检查对象不存在: $Path" }
-  $b = New-Object byte[] 3
-  $fs = [System.IO.File]::OpenRead($Path); [void]$fs.Read($b,0,3); $fs.Dispose()
-  if ($b[0] -ne 0xEF -or $b[1] -ne 0xBB -or $b[2] -ne 0xBF) { throw "UTF-8 BOM 缺失(PS5.1 会 ParserError): $Path" }
+  $b = New-Object byte[] 6
+  $fs = [System.IO.File]::OpenRead($Path); $n = $fs.Read($b,0,6); $fs.Dispose()
+  if ($n -lt 3 -or $b[0] -ne 0xEF -or $b[1] -ne 0xBB -or $b[2] -ne 0xBF) { throw "UTF-8 BOM 缺失(PS5.1 会 ParserError): $Path" }
+  if ($n -ge 6 -and $b[3] -eq 0xEF -and $b[4] -eq 0xBB -and $b[5] -eq 0xBF) { throw "UTF-8 BOM 重复(编辑器重复前置 BOM, 会导致 ParserError): $Path" }
 }
 function Read-KeyFile([string]$Path, [string]$Name) {
   if (-not (Test-Path $Path)) { throw "$Name 密钥文件不存在: $Path" }
@@ -50,6 +51,8 @@ function Test-HWritable {
 }
 function Invoke-Guard {
   Test-Bom "$PROJECT\scripts\auto-backup.ps1"
+  Test-Bom "$PROJECT\.trae\predeploy.ps1"
+  Test-Bom "$PROJECT\scripts\register-backup-tasks.ps1"
   Test-HWritable
 }
 function Assert-FullChain {
