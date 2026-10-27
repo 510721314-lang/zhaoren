@@ -5,40 +5,39 @@
 // ⚠ 全文件唯一 wx.cloud.uploadFile 直接调用点在 uploadEvidenceOne 内(方案 §5.5: 组件化后上传仍须留页面侧, 本阶段约定不变)
 
 const { addrOf } = require('./geo-wx.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, 超时按失败处理, 防 Promise 悬空)
+const { getLocationSafe } = require('./location.js');
 
 // 迁自 order-detail.js _collectStartEvidence; 原体内 that._addrOf → 模块内 addrOf, that._uploadStartPhotos → uploadStartPhotos(page,...)(机械替换)
 function collectStartEvidence(page, serverAt, stage) {
   return new Promise((resolve) => {
-    wx.getLocation({
-      type: 'gcj02',
-      isHighAccuracy: true,
-      highAccuracyExpireTime: 4000,
-      success: (loc) => {
-        // L1-1(2026-10-14) 异常隔离: 采集/上传链任何抛错都须收敛为 resolve(null), 不得悬空 Promise 或卡住 loading
-        try {
-          const at = Number(serverAt) || Date.now();
-          addrOf(loc.latitude, loc.longitude).then((addr) => {
-            wx.chooseMedia({
-              count: 3,
-              mediaType: ['image'],
-              sizeType: ['compressed'],
-              sourceType: ['camera', 'album'],
-              // uploadStartPhotos 内部已兜底返回 null; 末尾 .catch 为防御性二次兜底
-              success: (res) => uploadStartPhotos(page, res.tempFiles || [], { loc, addr, at, stage }).then(resolve).catch(() => resolve(null)),
-              fail: () => resolve(null)
-            });
-          }).catch(() => {
-            wx.showToast({ title: '定位解析失败,请重试', icon: 'none' });
-            resolve(null);
-          });
-        } catch (e) {
-          console.error('[start-evidence collect]', e);
-          wx.showToast({ title: '采集失败,请重试', icon: 'none' });
-          resolve(null);
-        }
-      },
-      fail: () => {
+    getLocationSafe().then((r) => {
+      if (!r.ok) {
         wx.showToast({ title: '开始履约需授权定位, 请开启后重试', icon: 'none' });
+        resolve(null);
+        return;
+      }
+      const loc = r;
+      // L1-1(2026-10-14) 异常隔离: 采集/上传链任何抛错都须收敛为 resolve(null), 不得悬空 Promise 或卡住 loading
+      try {
+        const at = Number(serverAt) || Date.now();
+        addrOf(loc.latitude, loc.longitude).then((addr) => {
+          wx.chooseMedia({
+            count: 3,
+            mediaType: ['image'],
+            sizeType: ['compressed'],
+            sourceType: ['camera', 'album'],
+            // uploadStartPhotos 内部已兜底返回 null; 末尾 .catch 为防御性二次兜底
+            success: (res) => uploadStartPhotos(page, res.tempFiles || [], { loc, addr, at, stage }).then(resolve).catch(() => resolve(null)),
+            fail: () => resolve(null)
+          });
+        }).catch(() => {
+          wx.showToast({ title: '定位解析失败,请重试', icon: 'none' });
+          resolve(null);
+        });
+      } catch (e) {
+        console.error('[start-evidence collect]', e);
+        wx.showToast({ title: '采集失败,请重试', icon: 'none' });
         resolve(null);
       }
     });

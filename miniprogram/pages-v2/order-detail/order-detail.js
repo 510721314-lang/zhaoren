@@ -15,6 +15,8 @@ const { computeNextStep, pad, buildModifyTs, buildPrepCountdown, buildOrderView,
 const { evaluatePosition } = require('../../utils/geo-guard.js');
 // 拆分阶段2b(2026-10-16): 定位能力链路(定位判定/定位采集/逆地理)外移 utils/geo-wx.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { evalFulfillGeo, collectStartLocation, addrOf } = require('../../utils/geo-wx.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, Promise 永不悬空)
+const { getLocationSafe } = require('../../utils/location.js');
 // 拆分阶段2b(2026-10-16): 证据采集/上传(唯一 uploadFile 点)外移 utils/order-evidence.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { collectStartEvidence, uploadStartPhotos, uploadEvidenceOne } = require('../../utils/order-evidence.js');
 // 拆分阶段2c(2026-10-16): 定时器/通知轮询(6 法)外移 utils/order-poll.js(经用户书面批准逐字搬迁); 页面留同名薄代理
@@ -701,12 +703,9 @@ Page({
         }
         wx.showLoading({ title: '提交中', mask: true });
         // 定位失败不阻断求助(云端允许无位置 SOS), 保证紧急场景可用
-        wx.getLocation({
-          type: 'gcj02',
-          isHighAccuracy: true,
-          highAccuracyExpireTime: 4000,
-          success: (loc) => that._submitSos({ latitude: loc.latitude, longitude: loc.longitude }),
-          fail: () => that._submitSos(null)
+        // 2026-10-27: 改走 getLocationSafe(8s 必收敛), 超时也按无位置提交, 防 loading 遮罩卡死
+        getLocationSafe().then((loc) => {
+          that._submitSos(loc.ok ? { latitude: loc.latitude, longitude: loc.longitude } : null);
         });
       }
     });

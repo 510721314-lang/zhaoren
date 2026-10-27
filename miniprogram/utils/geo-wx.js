@@ -5,6 +5,8 @@
 
 const CONFIG = require('../config/index.js');
 const { evaluatePosition } = require('./geo-guard.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛; 本文件 evalFulfillGeo 仍在基线, 后续阶段迁移)
+const { getLocationSafe } = require('./location.js');
 
 // 迁自 order-detail.js _evalFulfillGeo(定位能力链路: wx.getLocation + geo-guard 判定); 仅 this→page 机械替换
 function evalFulfillGeo(page) {
@@ -36,19 +38,16 @@ function evalFulfillGeo(page) {
 // 迁自 order-detail.js _collectStartLocation(纯定位快照); 原体内 that._addrOf → 模块内 addrOf(机械替换)
 function collectStartLocation(page, silent, withAddr) {
   return new Promise((resolve) => {
-    wx.getLocation({
-      type: 'gcj02',
-      isHighAccuracy: true,
-      highAccuracyExpireTime: 4000,
-      success: (loc) => {
-        const base = { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy };
-        if (!withAddr) { resolve(base); return; }
-        addrOf(loc.latitude, loc.longitude).then((addr) => resolve(Object.assign({ address: addr }, base)));
-      },
-      fail: () => {
+    // 2026-10-27: getLocationSafe 8s 必收敛, 超时按失败处理, 防 Promise 永久悬空
+    getLocationSafe().then((loc) => {
+      if (!loc.ok) {
         if (!silent) wx.showToast({ title: '发起履约申请需授权定位, 请开启后重试', icon: 'none' });
         resolve(null);
+        return;
       }
+      const base = { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy };
+      if (!withAddr) { resolve(base); return; }
+      addrOf(loc.latitude, loc.longitude).then((addr) => resolve(Object.assign({ address: addr }, base)));
     });
   });
 }

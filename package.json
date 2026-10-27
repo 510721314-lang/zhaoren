@@ -11,7 +11,7 @@
     "test:e2e": "node scripts/e2e-smoke.js",
     "check:devtools": "node -e \"const {devtools,validateDevtools}=require('./scripts/load-env.cjs');const r=validateDevtools();if(r.ok){console.log('CLI OK:',devtools.cliPath);console.log('Project:',devtools.projectPath);console.log('autoPort:',devtools.autoPort||'(auto)');if(devtools.servicePort)console.log('servicePort:',devtools.servicePort);}else{console.error('FAIL:',r.problems.join('; '));process.exit(1);}\"",
     "verify": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-require-scope.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-deploy-config.js && node scripts/check-manual-links.js && npm test",
-    "verify:offline": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-require-scope.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-cloud-timeout-policy.js && node scripts/check-deploy-config.js --offline && node scripts/check-manual-links.js && npm test"
+    "verify:offline": "node scripts/check-syntax.js && node scripts/check-ssot.js && node scripts/check-shared-sync.js && node scripts/check-require-scope.js && node scripts/check-handlers.js && node scripts/check-index-ledger.js && node scripts/check-cloud-timeout-policy.js && node scripts/check-location-timeout-policy.js && node scripts/check-deploy-config.js --offline && node scripts/check-manual-links.js && npm test"
   },
   "devDependencies": {
     "@creatoria/miniapp-mcp": "^0.2.3",

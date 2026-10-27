@@ -3,6 +3,8 @@
 // 拒绝规则(身份/资料审核/信用分/距离50km/时间冲突/接单范围)以后端 order-create 为准, 前端只做入口校验
 const { getScene } = require('./redline.js');
 const { callCloud } = require('./cloud.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, 防 showLoading 永久遮罩)
+const { getLocationSafe } = require('./location.js');
 
 // 网络不确定类错误码: app.cloudCall 超时/失败时 resolve 而非 reject(写操作不重试),
 // 这两个码等价于旧直调时的 reject, 需走「订单可能已建」的捞回分支
@@ -256,34 +258,32 @@ function _showDisclaimer(d, demand, opts) {
 // 真实客户端 create_from_take 必传 partner_location(服务端 50km 距离校验), 定位失败 fallback 到 chooseLocation
 function _locate(demand, opts) {
   wx.showLoading({ title: '获取定位...', mask: true });
-  wx.getLocation({
-    type: 'gcj02',
-    success: (loc) => {
-      wx.hideLoading();
+  // 2026-10-27: getLocationSafe 8s 必收敛, 超时按失败走选点兜底, 防 showLoading 卡死
+  getLocationSafe().then((loc) => {
+    wx.hideLoading();
+    if (loc.ok) {
       _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
-    },
-    fail: () => {
-      wx.hideLoading();
-      // getLocation 可能因 API 未通过审核或用户权限被拒而失败, fallback 到 chooseLocation(已审核通过)
-      wx.showModal({
-        title: '定位不可用',
-        content: '需要位置信息用于距离校验, 是否手动在地图上选择你的当前位置?',
-        confirmText: '选点',
-        cancelText: '取消',
-        success: (r) => {
-          if (!r.confirm) { _release(); return; }
-          wx.chooseLocation({
-            success: (loc) => {
-              _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
-            },
-            fail: () => {
-              wx.showToast({ title: '未选择位置,无法接单', icon: 'none' });
-              _release();
-            }
-          });
-        }
-      });
+      return;
     }
+    // getLocation 可能因 API 未通过审核或用户权限被拒而失败, fallback 到 chooseLocation(已审核通过)
+    wx.showModal({
+      title: '定位不可用',
+      content: '需要位置信息用于距离校验, 是否手动在地图上选择你的当前位置?',
+      confirmText: '选点',
+      cancelText: '取消',
+      success: (r) => {
+        if (!r.confirm) { _release(); return; }
+        wx.chooseLocation({
+          success: (loc2) => {
+            _signThenCreate(demand, { latitude: loc2.latitude, longitude: loc2.longitude }, opts);
+          },
+          fail: () => {
+            wx.showToast({ title: '未选择位置,无法接单', icon: 'none' });
+            _release();
+          }
+        });
+      }
+    });
   });
 }
 

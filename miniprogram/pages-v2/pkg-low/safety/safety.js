@@ -8,6 +8,8 @@ const { normalizeStatus } = require('../../../config/enums.js');
 const SAFETY_ALLOWED_STATUS = ['S3', 'S3_5', 'S4'];
 
 const { callCloud } = require('../../../utils/cloud.js');
+// 2026-10-27: 定位统一收口 getLocationSafe(8s 必收敛, 防 locating 锁死)
+const { getLocationSafe } = require('../../../utils/location.js');
 
 Page({
   data: {
@@ -151,20 +153,16 @@ Page({
   getHighAccuracyLocation() {
     if (this.data.locating) return;
     this.setData({ locating: true, locStatus: 'locating' });
-    wx.getLocation({
-      type: 'gcj02',
-      isHighAccuracy: true,
-      highAccuracyExpireTime: 4000,
-      success: (res) => { this._applyLocation(res); this._locFailCount = 0; },
-      fail: () => {
-        // 连续失败 3 次 → GPS 不可用, 停止轮询并标记降级模式
-        this._locFailCount = (this._locFailCount || 0) + 1;
-        this.setData({ locating: false, locStatus: 'fail' });
-        if (this._locFailCount >= 3) {
-          this.stopLocationTracking();
-          this.setData({ locDegraded: true });
-          wx.showToast({ title: '定位服务不可用,安全功能降级运行', icon: 'none', duration: 2500 });
-        }
+    // 2026-10-27: getLocationSafe 8s 必收敛, 超时按一次失败计, 防 locating 永久锁死
+    getLocationSafe().then((res) => {
+      if (res.ok) { this._applyLocation(res); this._locFailCount = 0; return; }
+      // 连续失败 3 次 → GPS 不可用, 停止轮询并标记降级模式
+      this._locFailCount = (this._locFailCount || 0) + 1;
+      this.setData({ locating: false, locStatus: 'fail' });
+      if (this._locFailCount >= 3) {
+        this.stopLocationTracking();
+        this.setData({ locDegraded: true });
+        wx.showToast({ title: '定位服务不可用,安全功能降级运行', icon: 'none', duration: 2500 });
       }
     });
   },
