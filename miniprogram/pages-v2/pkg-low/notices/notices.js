@@ -54,7 +54,8 @@ Page({
       this.setData({ loadingMore: true });
     }
     const skip = reset ? 0 : this.data.list.length;
-    const r = await callCloud('order-action', { action: 'notice_list', limit: this.data.pageSize + 1, skip });
+    // 通知列表含联表装饰, 冷启动可能 >6s; 单独放宽到 12s, 避免默认 6s 超时误判失败
+    const r = await callCloud('order-action', { action: 'notice_list', limit: this.data.pageSize + 1, skip }, { timeout: 12000 });
     if (r && r.ok && r.data) {
       const fetched = (r.data.list || []).map((n) => ({ ...n, time_ago: fmtAgo(n.created_at) }));
       const hasMore = fetched.length > this.data.pageSize;
@@ -69,7 +70,11 @@ Page({
         hasMore
       });
     } else {
+      // 失败不再静默: 给用户可操作提示, 并保留 console 便于排障
+      const msg = (r && r.msg) || '加载失败，请下拉重试';
+      console.error('[notices] load fail', (r && r.code) || '', msg);
       this.setData({ loading: false, loadingMore: false });
+      wx.showToast({ title: msg, icon: 'none' });
     }
   },
 

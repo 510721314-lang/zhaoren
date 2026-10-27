@@ -302,8 +302,8 @@ Page({
         this.setData({ userRecentDemands: list });
       }).catch(() => {});
     }
-    // 通知未读数(始终拉, 与身份无关)
-    callCloud('order-action', { action: 'notice_list', limit: 1 }).then((nr) => {
+    // 通知未读数(始终拉, 与身份无关; 放宽超时防冷启动误判)
+    callCloud('order-action', { action: 'notice_list', limit: 1 }, { timeout: 12000 }).then((nr) => {
       if (!nr || !nr.ok) return;
       const unread = nr.data ? nr.data.unread : 0;
       this.setData({
