@@ -49,6 +49,9 @@ const INDEXES = [
   { coll: 'im_conversation', name: 'uk_order_id', keys: { order_id: 1 }, unique: true },
   // 会话监管: 后台按 order_no 定位会话(2026-10-01 admin-action im_message_admin_list)
   { coll: 'im_conversation', name: 'idx_order_no', keys: { order_no: 1 } },
+  // 会话列表: 按用户/耍伴 + 最后消息时间排序(2026-10-27 提审前清零, 已云端实测)
+  { coll: 'im_conversation', name: 'idx_user_last_msg', keys: { user_openid: 1, last_msg_at: -1 } },
+  { coll: 'im_conversation', name: 'idx_partner_last_msg', keys: { partner_openid: 1, last_msg_at: -1 } },
   // 后台账号体系(RBAC S1): 登录名唯一 + 会话按 token 主键查询
   { coll: 'admin_accounts', name: 'uk_account', keys: { account: 1 }, unique: true },
   { coll: 'im_message', name: 'idx_conv_created', keys: { conv_id: 1, created_at: -1 } },
