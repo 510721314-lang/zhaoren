@@ -230,8 +230,20 @@ async function submit_realname_action(ctx) {
         return { ok: false, code: 'realname_evidence_fail', msg: '留证落库失败,请稍后重试' };
       }
 
+      // 2026-10-27: 实名通过后若昵称仍是注册默认值('微信用户'/空)，回写为实名姓名，
+      // 否则「我的」页永远显示「微信用户」（注册流程不收集昵称，update_profile 前端无入口）。
+      // 已有自定义昵称的账号不覆盖。
+      let curNick = '';
       try {
-        await col('user_account').where({ openid }).update({ data: {
+        const curR = await col('user_account').where({ openid }).limit(1).get();
+        curNick = String(((curR.data && curR.data[0]) || {}).nickname || '').trim();
+      } catch (e) {
+        log.d(`realname read nickname fail: ${(e && e.message) || e}`);
+      }
+      const nickPatch = (!curNick || curNick === '微信用户') ? { nickname: name } : {};
+
+      try {
+        await col('user_account').where({ openid }).update({ data: Object.assign({
           real_name: name,
           idcard_enc: idcardEnc, idcard_mask: maskIdCard(id), idcard: '',
           age,
@@ -239,7 +251,7 @@ async function submit_realname_action(ctx) {
           is_realname_done: true, is_realname_simulated: envNow !== 'dev',
           realname_method: 'mock_face', realname_evidence_id: evidenceId, realname_done_at: nowTs,
           updated_at: nowTs
-        }});
+        }, nickPatch) });
       } catch (e) {
         return { ok: false, code: 'realname_save_fail', msg: '实名信息保存失败,请稍后重试' };
       }
