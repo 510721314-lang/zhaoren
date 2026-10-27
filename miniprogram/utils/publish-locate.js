@@ -37,12 +37,29 @@ function onLocationPick(page) {
 }
 
 // 迁自 publish.js _locatePublish(自动记录当前位置); 原体内 this._offerManualPick/this._locatePublish → 模块内 offerManualPick(page,...)/locatePublish(page,...)
+// 2026-10-27: 增加 8s 看门狗 + 高精度超时; wx.getLocation 回调不返回时必须复位 locating, 防旋转图标永久卡死
+const LOCATE_TIMEOUT_MS = 8000;
 function locatePublish(page, showToast) {
   if (page.data.locating) return;
+  const seq = (page.__locateSeq || 0) + 1;
+  page.__locateSeq = seq;
+  const isCurrent = () => page.__locateSeq === seq;
+  if (page.__locateTimer) clearTimeout(page.__locateTimer);
   page.setData({ locating: true });
+  page.__locateTimer = setTimeout(() => {
+    if (!isCurrent()) return;
+    page.__locateSeq = seq + 1;   // 作废迟到回调
+    page.setData({ locating: false });
+    console.warn('[locatePublish] timeout', LOCATE_TIMEOUT_MS);
+    offerManualPick(page, `定位超时(${LOCATE_TIMEOUT_MS / 1000}s)`);
+  }, LOCATE_TIMEOUT_MS);
   wx.getLocation({
     type: 'gcj02',
+    isHighAccuracy: true,
+    highAccuracyExpireTime: 4000,
     success: async (res) => {
+      if (!isCurrent()) return;
+      clearTimeout(page.__locateTimer);
       const now = new Date();
       const pub = {
         latitude: res.latitude,
@@ -63,12 +80,15 @@ function locatePublish(page, showToast) {
       });
       // 逆地理编码(异步, 不阻塞页面; key 空则静默跳过)
       const addr = await reverseGeocode(pub.latitude, pub.longitude);
+      if (!isCurrent()) return;   // 期间已发起新定位/离开页面 → 丢弃旧结果
       if (addr) {
         page.setData({ 'publishLocation.address': addr });
       }
       if (showToast) wx.showToast({ title: '已重新定位', icon: 'success' });
     },
     fail: (err) => {
+      if (!isCurrent()) return;
+      clearTimeout(page.__locateTimer);
       page.setData({ locating: false });
       const msg = (err && err.errMsg) || 'unknown';
       if (/cancel/i.test(msg)) return;

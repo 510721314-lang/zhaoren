@@ -339,6 +339,8 @@ Page({
 
   onUnload() {
     if (this._saveTimer) clearInterval(this._saveTimer);
+    if (this.__locateTimer) clearTimeout(this.__locateTimer);
+    this.__locateSeq = (this.__locateSeq || 0) + 1;   // 作废离开页面后的迟到定位回调
   },
 
   noop() {},
