@@ -79,3 +79,13 @@ function getLocationSafe(options = {}) -> Promise<{
 1. 是否批准按三阶段实施（先 Phase 1）。
 2. 门禁是否允许 P2 的 `demand-detail` 永久豁免（当前方案：不豁免，最终清零）。
 3. 是否在提审冻结期前全部完成；若冻结期先到，Phase 2/3 顺延到提审后。
+
+## 6. 执行结果（2026-10-27）
+
+- 三阶段全部完成：`a1d68f6`（Phase 1，P0 5 处 + 门禁 + baseline 13→8）、`958d315`（Phase 2，P1 6 处，baseline→2）、`c22ce5a`（Phase 3，P2 2 处 + 删除 baseline）。
+- 实际 P1 为 **6 处**（表内 #6–#11），P2 为 **1 处**（#12）；另有发布页 `publish-locate.js` 已在 Phase 1 登记为等价兜底、Phase 3 统一迁移。原 §2/§3 的「P1 5 处 / 基线降至 2」计数已按表更正。
+- 基线最终清空并删除 `scripts/location-timeout-baseline.json`；`miniprogram/` 内裸调 `wx.getLocation` 仅存 `utils/location.js`。
+- 验收：`verify:offline` EXIT=0（tests 688/0、A/B 457 EQUIVALENT、LOCATION-TIMEOUT-POLICY 0/0）；G2 探针两阶段均 FAIL→PASS；`getLocationSafe` 4 条收敛路径自测 PASS。
+- 体验版：Phase 1 → **v1.6.50**；Phase 2+3 合并 → **v1.6.51**（同日连续落地，未在中间设真机检查点）。
+- 待办：真机复测 SOS/安全中心/开始履约/接单/路线/附近地图/打卡/到场/发布页定位（v1.6.51）。
+
