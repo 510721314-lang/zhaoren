@@ -331,5 +331,16 @@ alwaysApply: true
 ## 31. TCB CLI 数据脚本幂等与凭据重试纪律（2026-10-26 OUTDOOR 灌库实证新增）
 
 - **L1 TCB CLI 回读数字字段必须先解码再比对，否则幂等脚本会误刷 `updated_at`/`bank_ver`**：CLI 读 MongoDB 返回 Extended JSON 包装对象（`{"$numberInt":"1"}` / `{"$numberLong":...}` / `{"$numberDouble":...}`），与本地原生数字做 `JSON.stringify` 比较**永远不等** → 幂等脚本每跑一次都把"同值"判为 update、刷新 `updated_at`；对 `bank_ver = max(updated_at)` 的考试科目，这会让正在进行的考试提交被 `pa_exam_bank_changed` 拒绝。纪律：①凡从 CLI 读回的数字字段（含嵌套数组里的数字，如 `answer_idx`）比对前统一 `decNum()` 解码；②dry-run 报全量 diff 时先怀疑"未解码包装对象"，别误判"数据被改过"。实证（2026-10-26 OUTDOOR 灌库）：`seed-outdoor-exam.js` 初版未解码，dry-run 报 30 题 `answer_idx,score` 全量 diff，`--apply` 后 30 题同值重写、`updated_at` 全部刷新；补 `decNum()` 后 dry-run 直接 `skip=30`。跨引用：`project_memory.md`「云数据库 Extended JSON 格式需解包」是**写时**防 NaN，本条目是其**读回比对**对偶情形。
-- **L2 TCB CLI 凭据读取偶发 `EEXIST` 必须重试，首次失败不直接抛**：`tcb-exec.js` 调 CLI 时偶发读 `cloudbaserc.json` 报 `EEXIST: file already exists`（非真实凭据问题），直接抛错会让批量脚本半途中断。纪律：凭据读取/CLI 调用封装 `readCredsWithRetry`（≤3 次、200ms 起指数退避），3 次仍失败才抛。实证（2026-10-26）：未加重试时连续多次 `EEXIST` 中断 OUTDOOR 灌库，加重试后稳定通过。
+- **L2 TCB CLI 凭据读取偶发 `EEXIST` 必须重试，首次失败不直接抛**：`tcb-exec.js` 调 CLI 时偶发读 `cloudbaserc.json` 报 `EEXIST: file already exists`（非真实凭据问题），直接抛错会让批量脚本半途中断。纪律：凭据读取/CLI 调用封装重试（实测实现为 **最多 5 次**，`for (i=0;i<5;i++)`，800ms 间隔），全部失败才抛。实证（2026-10-26）：未加重试时连续多次 `EEXIST` 中断 OUTDOOR 灌库，加重试后稳定通过；2026-10-27 复核代码确认次数为 5 非 3。
 - 与既有规则关系：L1 补充 §24-I1（TCB 过滤口径）与 §23-H6（只读查库通道）；L2 补充 §29-M1（凭据输入归一）的"凭据文件读取"侧；二者均承接 §9（收尾沉淀：幂等脚本必须能重复跑、无副作用）。
+
+## 32. 云调用超时 · 错误态可见性 · 串行段预算（2026-10-27 消息页三轮实证新增）
+
+- **O1 客户端读超时统一 12s，禁止逐页"放水"**：云函数单 action 内常见「列表 + count + 两次联表 + 配置」多段串行，冷启动下极易超 6s；统一由 `app.js` 的 `cloudCall` 默认读超时 **12000ms**，页面仅在确有需要时显式覆盖，且不得低于 10000ms。实证：`notices` 页 6s→12s 后恢复；消息 Tab 仍失败时，恰恰暴露了 O2 的问题。
+- **O2 列表页「错误态」必须写在「空态」之前**：若 `wx:elif="{{loadError}}"` 排在 `list.length === 0` 之后，加载失败时列表为空 → 渲染「暂无数据」，真实错误被彻底掩盖，排障无从下手（本会话因此连续三轮"无法加载"却拿不到任何错误码）。实证：`message.wxml` 调整顺序后立即可见 `loadErrorMsg`。
+- **O3 WXML 数据绑定不支持方法调用**：`{{arr.indexOf(x)}}` / `{{arr.includes(x)}}` / `{{fn(x)}}` 一律无效且**静默失败**（不报错、不生效）。须改为「预计算布尔字段 / `sel` 布尔数组 / WXS 模块」。实证：考试页多选高亮因 `.indexOf()` 永远不生效，表现为"点不动"。
+- **O4 串行 DB 段数就是超时预算**：单 action 内每个 `await` 段约 0.3–1s；重查询 action 必须并行化无依赖段——列表∥count、配置∥主查询、用户联表∥订单联表。实证：`my_convs` 5→3 段、`notice_list` 4→3 段，均在部署后生效。
+- **O5 部署遇 `当前函数处于Updating状态` 等 25s 重试，不得判为代码失败**：`FailedOperation.UpdateFunctionCode` 表示上一次部署尚未收敛。本会话 `order-action` / `im-conv` 各现一次，等待 25s 重试即 `success=true`。
+- **O6 CloudBase CLI「无有效身份信息」先判登录态，不先怀疑代码/配置**：真因常为**临时密钥过期且自动续期失败**（`C:\Users\DC\.config\.cloudbase\auth.json` 的 `tmpExpired` 已过、`refreshToken` 未过）。处置：`cloudbase.cmd login` 扫码 → `env list` 验证；不要反复重试 `--apply`。
+- **O7 新门禁必须双挂载**：`verify:offline`（package.json）**且** `.trae/predeploy.ps1` 第 `[2b/5]` 段；仅挂一处视为无效。`scripts/check-cloud-timeout-policy.js`（R1 默认≥12s / R2 禁显式<10s / R3 错误态先于空态）已双挂载，并以「故意破坏→EXIT=1 命中 R1+R3→还原→EXIT=0」自证有效性。
+- 与既有规则关系：O1/O2 承接 §12（上线核验：改完必须取证）与 §31（CLI 脚本纪律）；O3 补充 §17（前端块/组件迁移纪律）；O4 补充 §30-N2（用量归因先做乘法）的时延维度；O5/O6 补充 §10 与 §31-L2；O7 承接 §22（门禁类改动纪律）。**注：专家协作条款 G7 位于 §22（非 §27），2026-10-27 双专家评审纠错；曾拟 O8「禁止主动调用专家资源」已经用户当日决策撤销，以 §22-G7 为准。**
