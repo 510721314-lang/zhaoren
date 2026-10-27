@@ -473,7 +473,7 @@ Page({
     this.setData({
       editOpen: true,
       editSaving: false,
-      editNick: nick === '微信用户' ? '',   // 默认昵称视为未设置, 直接给出空输入框
+      editNick: nick === '微信用户' ? '' : nick,   // 默认昵称视为未设置, 直接给出空输入框
       editAvatar: u.avatar || '',
       editAvatarTemp: ''
     });
