@@ -8,8 +8,8 @@
     <view class="pf__guest-btn" bindtap="onGuestLogin">立即登录 / 注册</view>
   </view>
 
-  <!-- U1 身份头部 -->
-  <view class="pf__header" wx:if="{{!isGuest}}">
+  <!-- U1 身份头部(点击可编辑昵称/头像, P3-18) -->
+  <view class="pf__header" wx:if="{{!isGuest}}" bindtap="onEditProfile" hover-class="pf__header--hover">
     <view class="pf__avatar">
       <image wx:if="{{user.avatar}}" class="pf__avatar-img" src="{{user.avatar}}" mode="aspectFill" />
       <text wx:else>👤</text>
@@ -21,6 +21,7 @@
       </view>
       <view class="pf__phone">{{user.phone || '未绑定手机号'}}</view>
     </view>
+    <view class="pf__edit-entry">编辑资料 ›</view>
   </view>
 
   <!-- 耍伴入驻进度卡: 未完成接单手续时给出唯一「下一步」(2026-10-21) -->
@@ -216,6 +217,32 @@
   <view class="pf__logout" bindtap="onLogout">注销账号</view>
   <view class="pf__version">版本号 {{version}}</view>
   </block>
+
+  <!-- P3-18(2026-10-27): 昵称/头像自助编辑弹层(此前 update_profile 前端零入口) -->
+  <view class="pf__edit-mask" wx:if="{{editOpen && !isGuest}}" bindtap="onEditClose"></view>
+  <view class="pf__edit-sheet" wx:if="{{editOpen && !isGuest}}" catchtap="onSheetTap">
+    <view class="pf__edit-title">编辑资料</view>
+    <view class="pf__edit-avatar" bindtap="onPickAvatar" hover-class="pf__edit-avatar--hover">
+      <image wx:if="{{editAvatar}}" class="pf__edit-avatar-img" src="{{editAvatar}}" mode="aspectFill" />
+      <text wx:else class="pf__edit-avatar-ph">👤</text>
+      <view class="pf__edit-avatar-tip">点击更换头像</view>
+    </view>
+    <view class="pf__edit-row">
+      <text class="pf__edit-label">昵称</text>
+      <input
+        class="pf__edit-input"
+        value="{{editNick}}"
+        maxlength="20"
+        placeholder="请输入昵称(最多20字)"
+        placeholder-class="pf__edit-ph"
+        bindinput="onNickInput"
+      />
+    </view>
+    <view class="pf__edit-actions">
+      <view class="pf__edit-btn pf__edit-btn--ghost" bindtap="onEditClose">取消</view>
+      <view class="pf__edit-btn {{editSaving ? 'is-disabled' : ''}}" bindtap="onEditSave">{{editSaving ? '保存中…' : '保存'}}</view>
+    </view>
+  </view>
 
   <night-mask visible="{{isRedline}}" bind:reserve="onReserve"></night-mask>
 </view>

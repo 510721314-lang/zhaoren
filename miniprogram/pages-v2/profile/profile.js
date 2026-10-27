@@ -72,7 +72,13 @@ Page({
     isRedline: false,
     isGuest: false,         // 未登录访客: 头部改为登录引导卡(2026-10-21 Q2 方案)
     // 耍伴入驻进度卡(2026-10-21): 未满足接单手续时展示, 四步=实名→申请→审核→考试
-    onboarding: null        // { step, status, rejectNote, basePassed, switchOff }
+    onboarding: null,       // { step, status, rejectNote, basePassed, switchOff }
+    // P3-18(2026-10-27): 昵称/头像自助编辑弹层
+    editOpen: false,
+    editSaving: false,
+    editNick: '',
+    editAvatar: '',         // 弹层内预览(当前头像或新选临时图)
+    editAvatarTemp: ''      // 新选图片临时路径, 保存时才上传
   },
   onShareAppMessage() {
     return {
@@ -126,7 +132,8 @@ Page({
       const uiUser = {
         _id: u._id,
         nickname: u.nickname || '微信用户',
-        avatar: (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '', // 只接受 http(s) URL, 否则兜底
+        // 只接受 http(s) URL 或云存储 fileID(cloud://), 否则兜底(防 openid 等脏值渲染)
+        avatar: (u.avatar && /^(https?:|cloud:\/\/)/.test(u.avatar)) ? u.avatar : '',
         phone: maskPhone(u.phone) || '',
         roles: u.roles || [],
         is_realname_done: !!u.is_realname_done,
@@ -456,6 +463,90 @@ Page({
     wx.navigateTo({
       url: '/pages-v2/pkg-low/partner-apply/partner-apply',
       fail: () => wx.showToast({ title: '申请页暂不可用', icon: 'none' })
+    });
+  },
+
+  // P3-18(2026-10-27): 昵称/头像自助编辑(此前 update_profile 云函数存在但前端零入口)
+  onEditProfile() {
+    const u = this.data.user || {};
+    const nick = String(u.nickname || '');
+    this.setData({
+      editOpen: true,
+      editSaving: false,
+      editNick: nick === '微信用户' ? '',   // 默认昵称视为未设置, 直接给出空输入框
+      editAvatar: u.avatar || '',
+      editAvatarTemp: ''
+    });
+  },
+  onEditClose() {
+    if (this.data.editSaving) return;
+    this.setData({ editOpen: false });
+  },
+  onSheetTap() {},   // 阻止点击弹层内部冒泡到遮罩
+  onNickInput(e) {
+    this.setData({ editNick: e.detail.value });
+  },
+  onPickAvatar() {
+    if (this.data.editSaving) return;
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const f = res.tempFiles && res.tempFiles[0];
+        if (!f || !f.tempFilePath) return;
+        this.setData({ editAvatar: f.tempFilePath, editAvatarTemp: f.tempFilePath });
+      },
+      fail: () => {}
+    });
+  },
+  // 保存: 新头像先传云存储取 fileID, 再调 update_profile(昵称过服务端安全检测)
+  onEditSave() {
+    if (this.data.editSaving) return;
+    const nick = String(this.data.editNick || '').trim();
+    const temp = this.data.editAvatarTemp;
+    if (!nick && !temp) {
+      wx.showToast({ title: '请填写昵称或更换头像', icon: 'none' });
+      return;
+    }
+    if (nick.length > 20) {
+      wx.showToast({ title: '昵称长度需 1-20 字', icon: 'none' });
+      return;
+    }
+    this.setData({ editSaving: true });
+    const submit = (avatarFileID) => {
+      const payload = { action: 'update_profile' };
+      if (nick) payload.nickname = nick;
+      if (avatarFileID) payload.avatar = avatarFileID;
+      callCloud('user-login', payload).then((r) => {
+        this.setData({ editSaving: false });
+        if (!r || !r.ok) {
+          wx.showToast({ title: (r && r.msg) || '保存失败', icon: 'none' });
+          return;
+        }
+        this.setData({ editOpen: false, editAvatarTemp: '' });
+        wx.showToast({ title: '资料已更新', icon: 'success' });
+        this.fetchUser();   // 直接刷新, 绕过 onShow 的 30s 防抖
+      }).catch(() => {
+        this.setData({ editSaving: false });
+        wx.showToast({ title: '网络异常', icon: 'none' });
+      });
+    };
+    if (!temp) { submit(''); return; }
+    const m = /\.(\w+)$/.exec(temp);
+    const ext = m ? m[1].toLowerCase() : 'jpg';
+    wx.showLoading({ title: '上传中', mask: true });
+    wx.cloud.uploadFile({
+      cloudPath: `avatar/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`,
+      filePath: temp
+    }).then((up) => {
+      wx.hideLoading();
+      submit((up && up.fileID) || '');
+    }).catch(() => {
+      wx.hideLoading();
+      this.setData({ editSaving: false });
+      wx.showToast({ title: '头像上传失败,请重试', icon: 'none' });
     });
   },
 

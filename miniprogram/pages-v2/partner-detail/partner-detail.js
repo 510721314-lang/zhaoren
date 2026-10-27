@@ -87,9 +87,9 @@ Page({
         .map((code) => getScene(code))
         .filter(Boolean);
 
-      // avatar 正则校验 (后端可能返回 openid)
+      // avatar 正则校验 (后端可能返回 openid; P3-18 起也接受云存储 fileID cloud://)
       let avatar = partner.avatar || '';
-      if (avatar && !/^https?:/.test(avatar)) avatar = '';
+      if (avatar && !/^(https?:|cloud:\/\/)/.test(avatar)) avatar = '';
 
       this.setData({
         partner: { ...partner, avatar },

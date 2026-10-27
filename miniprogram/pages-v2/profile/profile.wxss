@@ -429,4 +429,104 @@
   color: var(--text-5);
 }
 
+/* P3-18(2026-10-27): 头部「编辑资料」入口 + 昵称/头像编辑弹层 */
+.pf__header--hover { opacity: 0.92; }
+.pf__edit-entry {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--brand-primary);
+  white-space: nowrap;
+}
+.pf__edit-mask {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 900;
+}
+.pf__edit-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 901;
+  background: var(--bg-card);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
+}
+.pf__edit-title {
+  text-align: center;
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.pf__edit-avatar {
+  margin: 28rpx auto 0;
+  width: 160rpx;
+  text-align: center;
+}
+.pf__edit-avatar--hover { opacity: 0.85; }
+.pf__edit-avatar-img {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+}
+.pf__edit-avatar-ph {
+  display: block;
+  width: 160rpx;
+  height: 160rpx;
+  line-height: 160rpx;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  font-size: 72rpx;
+  text-align: center;
+}
+.pf__edit-avatar-tip {
+  margin-top: 10rpx;
+  font-size: var(--font-xs);
+  color: var(--text-4);
+}
+.pf__edit-row {
+  margin-top: 28rpx;
+  display: flex;
+  align-items: center;
+  height: 88rpx;
+  padding: 0 24rpx;
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+}
+.pf__edit-label {
+  font-size: var(--font-md);
+  color: var(--text-2);
+}
+.pf__edit-input {
+  flex: 1;
+  margin-left: 20rpx;
+  font-size: var(--font-md);
+  color: var(--text-1);
+}
+.pf__edit-ph { color: var(--text-4); }
+.pf__edit-actions {
+  margin-top: 32rpx;
+  display: flex;
+}
+.pf__edit-btn {
+  flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  text-align: center;
+  border-radius: var(--r-md);
+  font-size: var(--font-md);
+  background: var(--brand-primary);
+  color: #fff;
+}
+.pf__edit-btn--ghost {
+  margin-right: 20rpx;
+  background: var(--bg-subtle);
+  color: var(--text-2);
+}
+.pf__edit-btn.is-disabled { opacity: 0.6; }
+
 

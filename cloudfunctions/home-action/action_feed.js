@@ -162,7 +162,8 @@ async function squareAction(ctx) {
         const activeUsers = (activeUserR.data || []).map((u) => ({
           openid: u.openid || '',
           nickname: u.nickname || '微信用户',
-          avatar: (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '',
+          // P3-18(2026-10-27): 头像自助上传后存云存储 fileID(cloud://), 白名单同步放行
+          avatar: (u.avatar && /^(https?:|cloud:\/\/)/.test(u.avatar)) ? u.avatar : '',
           created_at: u.created_at || 0
         })).filter((u) => !!u.openid).slice(0, 10);
 
@@ -204,7 +205,7 @@ async function squareAction(ctx) {
           partnerList = (partnerR.data || [])
             .map((p) => {
               const u = partnerUserMap[p.openid] || {};
-              const avatar = (u.avatar && /^https?:/.test(u.avatar)) ? u.avatar : '';
+              const avatar = (u.avatar && /^(https?:|cloud:\/\/)/.test(u.avatar)) ? u.avatar : '';
               const item = {
                 openid: p.openid,
                 nickname: u.nickname || '耍伴',

@@ -19,9 +19,9 @@ Component({
   methods: {
     compute() {
       const p = this.properties.partner || {};
-      // avatar 只接受 http(s) URL, 否则置空避免渲染 openid 等脏值
+      // avatar 只接受 http(s) URL 或云存储 fileID(cloud://), 否则置空避免渲染 openid 等脏值
       const normalized = Object.assign({}, p, {
-        avatar: (p.avatar && /^https?:/.test(p.avatar)) ? p.avatar : ''
+        avatar: (p.avatar && /^(https?:|cloud:\/\/)/.test(p.avatar)) ? p.avatar : ''
       });
       const sceneList = (p.scenes || p.accept_scenes || p.certified_scenes || [])
         .map((code) => getScene(code))

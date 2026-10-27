@@ -81,7 +81,8 @@ async function nearby_map_list_action(ctx) {
         return {
           openid: t.openid,
           nickname: t.nickname || '微信用户',
-          avatar: (t.avatar && /^https?:/.test(t.avatar)) ? t.avatar : '',
+          // P3-18(2026-10-27): 头像自助上传后存云存储 fileID(cloud://), 白名单同步放行
+          avatar: (t.avatar && /^(https?:|cloud:\/\/)/.test(t.avatar)) ? t.avatar : '',
           roles: t.roles || [],
           is_partner: (t.roles || []).indexOf('partner') >= 0,
           lat: gps ? gps.lat : 0,

@@ -68,21 +68,31 @@ async function login_action(ctx) {
 }
 
     // 2. 更新昵称与头像(昵称过安全检测)
+    // P3-18(2026-10-27): 补齐前端入口后本动作首次被调用, 入参收口以免脏写:
+    //   昵称 trim 后 1-20 字; 头像只接受 cloud://(本环境云存储 fileID) 或 http(s) URL, 长度上限 512。
 async function update_profile_action(ctx) {
   const { event, openid, clientIp, device, col, safeCheckText, getConfig } = ctx;
-      const { nickname, avatar } = event;
-      if (!nickname && !avatar) return { ok: false, code: 'profile_empty', msg: '昵称与头像不能同时为空' };
-      if (nickname && (typeof nickname !== 'string' || nickname.length > 20)) {
+      const nickRaw = (event.nickname === undefined || event.nickname === null) ? '' : event.nickname;
+      if (nickRaw !== '' && typeof nickRaw !== 'string') {
         return { ok: false, code: 'profile_nick_invalid', msg: '昵称长度需 1-20 字' };
       }
+      const nick = String(nickRaw).trim();
+      const avatarVal = (event.avatar === undefined || event.avatar === null) ? '' : String(event.avatar).trim();
+      if (!nick && !avatarVal) return { ok: false, code: 'profile_empty', msg: '昵称与头像不能同时为空' };
+      if (nick && nick.length > 20) {
+        return { ok: false, code: 'profile_nick_invalid', msg: '昵称长度需 1-20 字' };
+      }
+      if (avatarVal && (avatarVal.length > 512 || !/^(cloud:\/\/|https?:\/\/)/.test(avatarVal))) {
+        return { ok: false, code: 'profile_avatar_invalid', msg: '头像地址无效,请重新上传' };
+      }
       const config = await getConfig();
-      if (nickname) {
-        const chk = await safeCheckText(nickname, config.block_words);
+      if (nick) {
+        const chk = await safeCheckText(nick, config.block_words);
         if (!chk.pass) return { ok: false, code: 'profile_nick_blocked', msg: chk.msg || '昵称包含敏感内容' };
       }
       const update = { updated_at: Date.now() };
-      if (nickname) update.nickname = nickname;
-      if (avatar) update.avatar = avatar;
+      if (nick) update.nickname = nick;
+      if (avatarVal) update.avatar = avatarVal;
       try {
         await col('user_account').where({ openid }).update({ data: update });
         return { ok: true, data: { updated: Object.keys(update).filter(k => k !== 'updated_at') } };

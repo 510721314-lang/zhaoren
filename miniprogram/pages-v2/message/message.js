@@ -103,7 +103,7 @@ Page({
       return Object.assign({}, c, {
         _id: c.conv_id,     // WXML 列表 key
         counterpart: peerName,
-        avatar: (peer.avatar && /^https?:/.test(peer.avatar)) ? peer.avatar : '',
+        avatar: (peer.avatar && /^(https?:|cloud:\/\/)/.test(peer.avatar)) ? peer.avatar : '',
         order_status: c.status || '',
         sceneName,
         displayTitle: peerName && sceneName ? `${peerName} · ${sceneName}` : (peerName || sceneName || '会话'),
