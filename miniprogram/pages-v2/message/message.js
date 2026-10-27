@@ -44,7 +44,8 @@ Page({
       this.setData({ loadingMore: true });
     }
     const skip = reset ? 0 : this.data.orderList.length;
-    callCloud('im-conv', { action: 'my_convs', limit: this.data.pageSize, skip }).then((r) => {
+    // my_convs 含多段联表(会话/用户/订单/需求), 冷启动易超默认 6s; 放宽到 12s
+    callCloud('im-conv', { action: 'my_convs', limit: this.data.pageSize, skip }, { timeout: 12000 }).then((r) => {
       if (!r.ok) {
         this.setData({ loading: false, loadingMore: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });
         return;
@@ -74,7 +75,7 @@ Page({
   // M2 系统通知入口(2026-10-10): 复用 order-action notice_list 取未读数与最近一条通知,
   // 使「需求发布成功 / 抢单提醒 / 评价提醒」等站内通知在消息页有入口与红点(此前 entries.system 恒为 null 不显示)
   fetchSystemEntry() {
-    callCloud('order-action', { action: 'notice_list', limit: 1 }).then((r) => {
+    callCloud('order-action', { action: 'notice_list', limit: 1 }, { timeout: 12000 }).then((r) => {
       if (!r || !r.ok) return;
       const latest = (r.data && r.data.list && r.data.list[0]) || null;
       const unread = Number((r.data && r.data.unread) || 0);

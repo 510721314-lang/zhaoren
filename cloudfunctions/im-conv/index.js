@@ -314,12 +314,13 @@ exports.main = async (event, context) => {
 
   // ───────── 3. 我的会话列表(消息 tab) ─────────
   if (action === 'my_convs') {
-    // 分页: 默认每页条数后台可配(msg_page_size), limit 防御 1-50, skip 非负整数
-    const cfgPageSize = await getMsgPageSize();
+    // 分页: limit 合法(event 传入)时不读配置; skip 非负整数
+    // 2026-10-27: 配置读取与主查询并行、用户与订单联表并行, 减少串行往返(冷启动易触客户端 6s 超时)
     const rawLimit = parseInt(event.limit, 10);
     const rawSkip = parseInt(event.skip, 10);
-    const limit = Number.isInteger(rawLimit) && rawLimit >= 1 && rawLimit <= 50 ? rawLimit : cfgPageSize;
+    const limit = Number.isInteger(rawLimit) && rawLimit >= 1 && rawLimit <= 50 ? rawLimit : await getMsgPageSize();
     const skip = Number.isInteger(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
+    const configP = getConfig();
     const r = await col('im_conversation').where(_.and([
       { is_deleted: false },
       _.or([{ user_openid: openid }, { partner_openid: openid }])
@@ -327,17 +328,20 @@ exports.main = async (event, context) => {
 
     const convs = r.data || [];
     const peerOpenids = convs.map((c) => (c.user_openid === openid ? c.partner_openid : c.user_openid));
-    const userMap = await getUserMap(peerOpenids.concat([openid]));
-
-    // 关联订单状态(会话可能创建于订单取消后状态变化)
+    // 关联订单状态(会话可能创建于订单取消后状态变化); 与用户信息联表并行
     const orderIds = Array.from(new Set(convs.map((c) => c.order_id).filter(Boolean)));
-    const orderMap = {};
-    if (orderIds.length) {
-      try {
-        const oR = await col('order_main').where({ _id: _.in(orderIds) }).limit(orderIds.length).get();
-        for (const o of (oR.data || [])) orderMap[o._id] = o;
-      } catch (e) {}
-    }
+    const [userMap, orderMap] = await Promise.all([
+      getUserMap(peerOpenids.concat([openid])),
+      (async () => {
+        const m = {};
+        if (!orderIds.length) return m;
+        try {
+          const oR = await col('order_main').where({ _id: _.in(orderIds) }).limit(orderIds.length).get();
+          for (const o of (oR.data || [])) m[o._id] = o;
+        } catch (e) {}
+        return m;
+      })()
+    ]);
     // 需求标题/详细描述(2026-10-17 新增展示): 按会话订单的 demand_id 一次批量反查 demand
     const dmIds = Array.from(new Set(Object.values(orderMap).map((o) => o.demand_id).filter(Boolean)));
     const dmMap = {};
@@ -348,7 +352,7 @@ exports.main = async (event, context) => {
       } catch (e) {}
     }
 
-    const config = await getConfig();
+    const config = await configP;
     const list = convs.map((c) => {
       const myRole = c.user_openid === openid ? 'user' : 'partner';
       const peerOpenid = myRole === 'user' ? c.partner_openid : c.user_openid;
