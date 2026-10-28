@@ -10,6 +10,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { getGlobalConfig } = require('./config_cache');  // 2026-10-28 用量治理: admin_config 进程内 30s 缓存(规范源 _shared/config_cache.js)
 const { writeAudit } = require('./audit');
 // (2026-10-13) 留存负债闭环: 失败计数(密码/SMS)改原子自增+条件写后, passwordFailPatch 不再被本文件使用
 const { evalPasswordLock, evalEmergencyCooldown } = require('./security_policy');
@@ -159,8 +160,8 @@ async function safeCheckText(text, blockWords) {
 // 获取运营参数(本地兜底词库等)
 async function getConfig() {
   try {
-    const r = await col('admin_config').doc('global').get();
-    return r.data || { block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'] };
+    const c = await getGlobalConfig(db);   // 30s 进程内缓存(2026-10-28 用量治理)
+    return c || { block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'] };
   } catch (e) { return { block_words: ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'] }; }
 }
 

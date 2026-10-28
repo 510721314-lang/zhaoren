@@ -1,6 +1,6 @@
 // @VERIFIED 2026-10-13 已真机验证：order-timer 游标分页(禁用 skip)+单轮500硬上限+9段 scanAll+trackBacklog+R2争议升级/停用恢复（依据：project_memory L103-106, L113, L210）
 // 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
-// order-timer 超时自动流转 · 定时触发器(2026-10-26 起每10分钟, 原5分钟; 用量治理, 自动流转最多延迟5分钟) + 云端测试(action=run)
+// order-timer 超时自动流转 · 定时触发器(2026-10-28 起每15分钟, 原10/5分钟; 用量治理, 自动流转最多延迟15分钟) + 云端测试(action=run)
 // 规则(rules.md §14):
 //   S1 待确认 15 分钟未完成四确认 → 自动 S6 并释放需求回 matching
 //   S0 待支付 30 分钟未支付(pay_expire_at) → 自动 S6
@@ -13,6 +13,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { getGlobalConfig } = require('./config_cache');  // 2026-10-28 用量治理: admin_config 进程内 30s 缓存(规范源 _shared/config_cache.js)
 // Wave1 状态机单源(规范源 _shared/order_state.js, 修改后跑 sync-order-state.ps1): CAS 语义收敛
 const { casTransition } = require('./order_state');
 // Wave2 止血⑥: S2 履约催办三段式纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
@@ -66,8 +67,8 @@ async function scanAll(coll, buildWhere, cap) {
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
+    const c = await getGlobalConfig(db);   // 30s 进程内缓存(2026-10-28 用量治理)
+    if (c) return c;
   } catch (e) {}
   return { s1_timeout_min: 15, s0_timeout_min: 30, interrupt_timeout_h: 24, eval_window_h: 48, default_star: 4, after_sale_days: 15, partial_judge_days: 7, start_apply_timeout_min: 15, finish_confirm_timeout_min: 30 };
 }

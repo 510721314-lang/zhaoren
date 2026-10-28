@@ -20,6 +20,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { getGlobalConfig } = require('./config_cache');  // 2026-10-28 用量治理: admin_config 进程内 30s 缓存(规范源 _shared/config_cache.js)
 const { writeAudit } = require('./audit');
 // 第三批 3B: 爽约申诉/举证/裁定纯规则(规范源 _shared/no_show_rules.js, 修改后跑 sync-no-show-rules.ps1)
 const { noShowCfg, canSubmitReport, defenseDeadlineOf, canWithdrawReport, REPORT_STATUS } = require('./no_show_rules');
@@ -96,8 +97,8 @@ async function checkText(openid, text, blockWords) {
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
+    const c = await getGlobalConfig(db);   // 30s 进程内缓存(2026-10-28 用量治理)
+    if (c) return c;
   } catch (e) {}
   return { s0_timeout_min: 30, youth_limit_fen: 20000, platform_fee_rate_fen: 1000 };
 }

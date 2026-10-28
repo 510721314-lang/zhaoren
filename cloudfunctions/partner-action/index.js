@@ -7,6 +7,7 @@ const db = cloud.database();
 const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
+const { getGlobalConfig } = require('./config_cache');  // 2026-10-28 用量治理: admin_config 进程内 30s 缓存(规范源 _shared/config_cache.js)
 const { writeAudit } = require('./audit');
 const { buildAuditPatch } = require('./partner_audit');
 // D2-3 防漂移抽取: 规范源 _shared/take_rules.js(修改后跑 sync-take-rules.ps1 同步各函数)
@@ -298,8 +299,8 @@ async function fetchTencentRoute(mode, from, to, mapKey) {
 
 async function getConfig() {
   try {
-    const r = await col('admin_config').doc('global').get();
-    if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
+    const c = await getGlobalConfig(db);   // 30s 进程内缓存(2026-10-28 用量治理)
+    if (c) return c;
   } catch (e) {}
   return {
     rate_min_fen: 3000, rate_max_fen: 10000,

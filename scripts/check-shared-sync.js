@@ -53,7 +53,10 @@ const SYNC_MAP = {
   'cert_state.js': ['partner-apply', 'order-create', 'partner-action'],
   // admin 登录单一规范源(2026-10-19 P2-6 重做): admin-web 本地直调(消除双冷启动 504) + admin-action 前置组;
   // 本模块内部 require('./security_policy') -> 两消费方均需 security_policy.js 副本(见上一项)
-  'admin-login.js': ['admin-action', 'admin-web']
+  'admin-login.js': ['admin-action', 'admin-web'],
+  // admin_config 进程内缓存(2026-10-28 用量治理): 规范源 → 4 个高频读配置函数副本;
+  //   消除「每次调用读 1 次 admin_config」(实测占 DB 请求 23.6%); 修改后跑 sync-config-cache.ps1
+  'config_cache.js': ['order-action', 'order-timer', 'user-login', 'partner-action']
 };
 
 // KNOWN_DRIFT(2026-10-19): 已登记的「既有漂移」, 依 §10「只登记不手修」处理——
