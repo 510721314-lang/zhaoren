@@ -44,6 +44,25 @@ function Write-Log([string]$Result, [string]$Detail) {
   Add-Content -Path $LOG_FILE -Value $line -Encoding UTF8
   Write-Host "[LOG] $Result ($dur s): $detail"
 }
+# ── 备份互斥锁(2026-10-28) ──
+# 事故: full(14:30) 与每小时 incremental 并发 —— 两者同时争用同一 IDE CLI 下载函数代码/网关导出,
+#   full 由正常 ~41 分钟拖到 6.5 小时(14:30→21:02), 17:30 被任务 PT3H 超时终止(wscript 被杀但 PowerShell 子进程继续),
+#   结果 0x41306(267014) 且无 FAIL 日志(进程未走到 catch)。
+# 方案: 文件句柄独占锁(进程退出自动释放, 残留文件无害); full 优先, incr/verify 遇锁直接跳过当轮。
+$LOCK_PATH = Join-Path $LOG_DIR '.backup.lock'
+$script:lockStream = $null
+function Enter-BackupLock([string]$m) {
+  New-Item -ItemType Directory -Force -Path $LOG_DIR | Out-Null
+  try {
+    $script:lockStream = [System.IO.File]::Open($LOCK_PATH, 'OpenOrCreate', 'ReadWrite', 'None')
+    $script:lockStream.SetLength(0)
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes("$m pid=$PID at=$(Get-Date -Format s)")
+    $script:lockStream.Write($bytes, 0, $bytes.Length)
+    $script:lockStream.Flush()
+    return $true
+  } catch { return $false }
+}
+
 function Test-HWritable {
   $probe = Join-Path $BackupRoot ('.probe-' + [guid]::NewGuid().ToString('N'))
   try { Set-Content -Path $probe -Value 'ok' -Encoding ASCII; $ok = (Get-Content $probe) -eq 'ok' } finally { Remove-Item $probe -ErrorAction SilentlyContinue }
@@ -197,6 +216,7 @@ function Remove-OldIncremental {
 if ($Mode -eq 'full') {
   try {
     Invoke-Guard; Assert-FullChain
+    if (-not (Enter-BackupLock 'full')) { Write-Log 'SKIP' 'full: 另一备份任务持锁(并发保护)'; exit 0 }
     $ak = Read-KeyFile $ADMIN_KEY_FILE 'admin'; [void](Read-KeyFile $ENC_KEY_FILE 'enc')
     $dir = Join-Path $BackupRoot ('full\' + (Get-Date -Format 'yyyyMMdd_HHmm'))
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -257,6 +277,7 @@ if ($Mode -eq 'incremental') {
   if (-not (($h -ge 5 -and $h -le 23) -or $h -eq 0 -or $h -eq 1)) { Write-Host '[SKIP] 非增量时段(守卫静默退出)'; exit 0 }
   try {
     Invoke-Guard
+    if (-not (Enter-BackupLock 'incremental')) { Write-Log 'SKIP' 'incremental: full/verify 正在运行, 跳过本轮'; exit 0 }
     $ek = [void](Read-KeyFile $ENC_KEY_FILE 'enc')
     $dayDir = Join-Path $BackupRoot ('incremental\' + (Get-Date -Format 'yyyyMMdd'))
     $dir = Join-Path $dayDir (Get-Date -Format 'HH')
@@ -301,6 +322,7 @@ if ($Mode -eq 'verify') {
   $issues = @()
   try {
     Invoke-Guard
+    if (-not (Enter-BackupLock 'verify')) { Write-Log 'SKIP' 'verify: 另一备份任务正在运行, 跳过本轮'; exit 0 }
     $fullRoot = Join-Path $BackupRoot 'full'
     $latestFull = Get-ChildItem $fullRoot -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
     if ($latestFull) {
