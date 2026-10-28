@@ -64,7 +64,10 @@ Page({
         btnText: passed ? '重新考试' : (locked ? '待解锁' : '去考试')
       });
     });
-    this.setData({ loading: false, loadError: false, noProfile: false, subjects });
+    this.setData({
+      loading: false, loadError: false, noProfile: false, subjects,
+      passedCount: subjects.filter((s) => s.passed).length   // 2026-10-28 UI: 顶部进度概览
+    });
     // 批3c(2026-10-23): 链内且所有科目已通过 → 自动进下一步(提交申请), 仅触发一次
     if (this.data.chainBar && subjects.length > 0 && subjects.every((s) => s.passed) && !this._chainJumped) {
       this._chainJumped = true;

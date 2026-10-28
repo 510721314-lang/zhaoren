@@ -27,8 +27,21 @@
 
   <!-- 科目状态卡 -->
   <block wx:else>
-    <view class="es__tip">通过基础考试（满分）后方可接单；陪诊场景需另通过提升考试（满分），且须先通过基础考试</view>
-    <view class="es__card" wx:for="{{subjects}}" wx:key="key">
+    <!-- 2026-10-28 UI 优化: 通过进度概览 -->
+    <view class="es__overview">
+      <view class="es__overview-main">
+        <view class="es__overview-line">
+          <text class="es__overview-num">{{passedCount}}</text>
+          <text class="es__overview-total"> / {{subjects.length}}</text>
+        </view>
+        <text class="es__overview-label">已通过科目</text>
+      </view>
+      <view class="es__overview-bar">
+        <view class="es__overview-fill" style="width:{{subjects.length ? passedCount * 100 / subjects.length : 0}}%"></view>
+      </view>
+    </view>
+    <view class="es__tip">先通过「基础考试」解锁场景专项考试；各科达到通过线后方可接单</view>
+    <view class="es__card {{item.passed ? 'is-pass' : (item.locked ? 'is-locked' : (item.hasScore ? 'is-fail' : ''))}}" wx:for="{{subjects}}" wx:key="key">
       <view class="es__card-head">
         <view class="es__card-title-wrap">
           <text class="es__card-title">{{item.title}}</text>
@@ -41,7 +54,7 @@
           <text class="es__score-num">{{item.score}}</text>
           <text class="es__score-unit">分 / 通过线 {{item.passLine}}</text>
         </view>
-        <view class="es__score es__score--none" wx:else>{{item.locked ? '需先通过基础考试' : '尚未参加考试'}}</view>
+        <view class="es__score es__score--none" wx:else>{{item.locked ? '需先通过前置科目' : '尚未参加考试'}}</view>
         <button class="es__btn {{item.passed ? '' : (item.locked ? 'is-locked' : 'is-primary')}}" data-subject="{{item.key}}" bindtap="onGoExam" hover-class="btn-press">{{item.btnText}}</button>
       </view>
     </view>

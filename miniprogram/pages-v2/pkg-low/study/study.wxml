@@ -1,52 +1,71 @@
 <view class="study">
   <view class="study__head">
     <text class="study__title">学习中心</text>
-    <text class="study__sub">已发布课程 · 点击章节展开阅读</text>
+    <text class="study__sub">选择一个科目开始学习 · 点击章节展开正文</text>
   </view>
 
-  <!-- 科目筛选 -->
-  <scroll-view wx:if="{{subjects.length}}" class="study__chips" scroll-x enhanced show-scrollbar="{{false}}">
-    <view class="study__chip {{activeSubject === '' ? 'is-on' : ''}}" data-code="" bindtap="onSubjectTap">全部</view>
+  <!-- 科目竖排列表: 页面加载零请求, 点击科目才拉该科章节(2026-10-28 优化) -->
+  <view class="study__subjects">
+    <view
+      class="study__subject {{picked && activeSubject === '' ? 'is-on' : ''}}"
+      data-code=""
+      bindtap="onSubjectTap"
+    >
+      <view class="study__subject-main">
+        <text class="study__subject-name">全部科目</text>
+        <text class="study__subject-desc">按模块浏览全部已发布章节</text>
+      </view>
+      <text class="study__subject-arrow">{{picked && activeSubject === '' ? '⌃' : '›'}}</text>
+    </view>
     <view
       wx:for="{{subjects}}"
       wx:key="code"
-      class="study__chip {{activeSubject === item.code ? 'is-on' : ''}}"
+      class="study__subject {{picked && activeSubject === item.code ? 'is-on' : ''}}"
       data-code="{{item.code}}"
       bindtap="onSubjectTap"
-    >{{item.name}}</view>
-  </scroll-view>
-
-  <view wx:if="{{loading}}" class="study__tip">加载中…</view>
-  <view wx:elif="{{error}}" class="study__tip" bindtap="onRetry">加载失败，点击重试</view>
-  <view wx:elif="{{!groups.length}}" class="study__tip">暂无已发布课程</view>
-
-  <!-- 模块分组 + 章节 -->
-  <view class="study__group" wx:for="{{groups}}" wx:key="key" wx:for-item="g">
-    <view class="study__group-title">{{g.subjectName}} · {{g.module_id}}</view>
-    <view
-      wx:for="{{g.chapters}}"
-      wx:key="chapter_id"
-      wx:for-item="item"
-      class="study__chapter {{openKey === item.key ? 'is-open' : ''}}"
-      data-subject="{{item.subject}}"
-      data-module="{{item.module_id}}"
-      data-chapter="{{item.chapter_id}}"
-      data-key="{{item.key}}"
-      bindtap="onChapterTap"
     >
-      <view class="study__chapter-row">
-        <text class="study__chapter-name">{{item.title}}</text>
-        <text class="study__chapter-arrow">{{openKey === item.key ? '⌃' : '⌄'}}</text>
+      <view class="study__subject-main">
+        <text class="study__subject-name">{{item.name}}</text>
+        <text class="study__subject-desc">{{item.desc}}</text>
       </view>
-      <block wx:if="{{openKey === item.key}}">
-        <view wx:if="{{detailLoading}}" class="study__detail-tip">正文加载中…</view>
-        <view
-          wx:for="{{blocks}}"
-          wx:key="index"
-          wx:for-item="b"
-          class="study__blk {{b.type === 'h' ? 'is-h' : ''}} {{b.type === 'li' ? 'is-li' : ''}}"
-        >{{b.text}}</view>
-      </block>
+      <text class="study__subject-arrow">{{picked && activeSubject === item.code ? '⌃' : '›'}}</text>
     </view>
   </view>
+
+  <!-- 章节区: 仅选中科目后渲染 -->
+  <block wx:if="{{picked}}">
+    <view wx:if="{{listLoading}}" class="study__tip">加载中…</view>
+    <view wx:elif="{{listError}}" class="study__tip" bindtap="onRetry">加载失败，点击重试</view>
+    <view wx:elif="{{!groups.length}}" class="study__tip">该科目暂无已发布章节</view>
+
+    <view class="study__group" wx:for="{{groups}}" wx:key="key" wx:for-item="g">
+      <view class="study__group-title">{{g.subjectName}} · {{g.module_id}}</view>
+      <view
+        wx:for="{{g.chapters}}"
+        wx:key="chapter_id"
+        wx:for-item="item"
+        class="study__chapter {{openKey === item.key ? 'is-open' : ''}}"
+        data-subject="{{item.subject}}"
+        data-module="{{item.module_id}}"
+        data-chapter="{{item.chapter_id}}"
+        data-key="{{item.key}}"
+        bindtap="onChapterTap"
+      >
+        <view class="study__chapter-row">
+          <text class="study__chapter-name">{{item.title}}</text>
+          <text class="study__chapter-arrow">{{openKey === item.key ? '⌃' : '⌄'}}</text>
+        </view>
+        <block wx:if="{{openKey === item.key}}">
+          <view wx:if="{{detailLoading}}" class="study__detail-tip">正文加载中…</view>
+          <view
+            wx:for="{{blocks}}"
+            wx:key="index"
+            wx:for-item="b"
+            class="study__blk {{b.type === 'h' ? 'is-h' : ''}} {{b.type === 'li' ? 'is-li' : ''}}"
+          >{{b.text}}</view>
+        </block>
+      </view>
+    </view>
+  </block>
+  <view wx:else class="study__tip">请选择上方科目</view>
 </view>
