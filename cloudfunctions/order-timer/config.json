@@ -6,6 +6,6 @@
     ]
   },
   "triggers": [
-    { "name": "orderTimer", "type": "timer", "config": "0 */15 * * * * *" }
+    { "name": "orderTimer", "type": "timer", "config": "0 */30 * * * * *" }
   ]
 }
