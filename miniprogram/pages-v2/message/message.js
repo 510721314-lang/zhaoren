@@ -10,7 +10,7 @@ Page({
   data: {
     retentionText: `未成单记录保留${CONFIG.MESSAGE_RETENTION.unDealDays}天 · 成单后保留至订单完成${CONFIG.MESSAGE_RETENTION.dealtDays}天`,
     orderList: [],
-    entries: { system: null, kefu: null },
+    entries: { system: null },
     isRedline: false,
     loading: false,
     loadError: false,
@@ -109,7 +109,6 @@ Page({
         displayTitle: peerName && sceneName ? `${peerName} · ${sceneName}` : (peerName || sceneName || '会话'),
         summary: lastText,
         unread_count: c.unread || 0,
-        pinned: false,
         is_read: !c.unread,
         order_summary: c.order_summary || null // 统一订单概要结构化{l1,l2,l3}(my_convs 后端生成)
       });
@@ -156,24 +155,8 @@ Page({
     return `${y}-${mo}-${day}T${h}:${mi}:${s}${oz}`;
   },
 
-  // M1 长按菜单（2026-10-28 提审期移除入口：删除只改本地数组、刷新即回，属半实现；
-  //   恢复时在 message.wxml 会话项加回 bindlongpress="onLongPress"）
-  onLongPress(e) {
-    const id = e.currentTarget.dataset.id;
-    const target = this.data.orderList.find((c) => c._id === id);
-    if (!target) return;
-    wx.showActionSheet({
-      itemList: ['置顶', '删除'],
-      success: (res) => {
-        if (res.tapIndex === 0) {
-          wx.showToast({ title: '暂不支持置顶', icon: 'none' });
-        } else {
-          this.setData({ orderList: this.data.orderList.filter((c) => c._id !== id) });
-          wx.showToast({ title: '已删除(本地)', icon: 'none' });
-        }
-      }
-    });
-  },
+  // M1 长按菜单已于 2026-10-28 移除入口并删除实现（删除仅改本地数组、刷新即回，属半实现，提审期不暴露）；
+  //   如需恢复「置顶」：从 git 历史（v1.6.56 之前）取回 onLongPress 实现，并在 message.wxml 会话项加回 bindlongpress="onLongPress"
 
   onConvTap(e) {
     const id = e.currentTarget.dataset.id;
@@ -191,9 +174,6 @@ Page({
   // M2 固定入口
   onSystemTap() {
     wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
-  },
-  onKefuTap() {
-    wx.showToast({ title: '平台客服7×24小时接入中', icon: 'none' });
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });

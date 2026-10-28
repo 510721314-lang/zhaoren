@@ -16,14 +16,6 @@
       </view>
       <view class="msg__entry-time">{{entries.system.last_msg_at}}</view>
     </view>
-    <view class="msg__entry" bindtap="onKefuTap" wx:if="{{entries.kefu}}">
-      <view class="msg__entry-avatar">{{entries.kefu.avatar}}</view>
-      <view class="msg__entry-main">
-        <view class="msg__entry-name">{{entries.kefu.counterpart}}</view>
-        <view class="msg__entry-last">{{entries.kefu.last_msg}}</view>
-      </view>
-      <view class="msg__entry-time">{{entries.kefu.last_msg_at}}</view>
-    </view>
   </view>
 
   <!-- M1 订单会话 -->
@@ -39,7 +31,7 @@
     <!-- 正常态：block 承接 wx:elif，内部 view 承接 wx:for，避免同元素双指令冲突 -->
     <block wx:elif="{{orderList.length > 0}}">
       <view
-        class="msg__conv fade-in-up {{item.pinned ? 'is-pinned' : ''}}"
+        class="msg__conv fade-in-up"
         style="animation-delay:{{index * 0.03}}s;"
         wx:for="{{orderList}}"
         wx:key="_id"

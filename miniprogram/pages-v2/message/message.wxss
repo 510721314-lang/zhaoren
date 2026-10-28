@@ -101,9 +101,6 @@
   padding: 22rpx 24rpx;
   margin-bottom: 16rpx;
 }
-.msg__conv.is-pinned {
-  background: var(--brand-primary-light);
-}
 .msg__row1 {
   display: flex;
   align-items: center;
