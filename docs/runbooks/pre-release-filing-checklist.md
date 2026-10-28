@@ -1,6 +1,6 @@
 # 提审备案类配置填报清单（A6）
 
-> 适用：小程序 `1.6.32`（2026-10-23 上传；mp 后台当前版本）｜事实来源＝仓库代码实测（`miniprogram/app.json`、`pages-v2/**`、`config/index.js`、`cloudfunctions/admin-action/action_config_set.js`）｜本文只描述「在 mp/云开发后台要填什么、怎么填、填错会怎样」，不含代码改动。
+> 适用：小程序 `1.6.55`（2026-10-28 上传；当前提审候选版本）｜事实来源＝仓库代码实测（`miniprogram/app.json`、`pages-v2/**`、`config/index.js`、`cloudfunctions/admin-action/action_config_set.js`）｜本文只描述「在 mp/云开发后台要填什么、怎么填、填错会怎样」，不含代码改动。
 
 ## 0. 总览（5 项，按填报顺序）
 
@@ -62,6 +62,8 @@
 | `confirm_comm` | 确认完成/结算提醒 | 生活服务 → 订单状态通知 | `order-timer` 提醒段（G3 超时提醒同链路） |
 
 > 服务端键白名单 `TMPL_WHITELIST = ['demand_grab','demand_urge','confirm_comm']`（`cloudfunctions/admin-action/action_config_set.js`）——不在白名单内的键写了也不生效。
+
+> **核实记录（2026-10-28，TCB 只读 QUERY `admin_config._id=global`）**：三键 `tmpl_id` 均已写入、均 `miniprogram_state=trial`，第 6 节已勾选。**注意两点**：①`demand_grab` 由 `order-timer` 定时触发发送，无小程序上下文 → 云调用必报 `-501001 invalid wx openapi access_token`（`demand.sub_msg_send_logs` 最近记录全为 `fail/-501001`），属既定设计：自动链路降级站内 `system_notice`，不影响提审；②`demand_urge`/`confirm_comm` 由小程序端 `order-action` 触发（有上下文），但需耍伴 `partner_profile.sub_msgs.<key>.authorized=true`，**发送实效待真机回归验证**（走一次手动催办 + 一次四确认）。
 
 ### 填报步骤
 
@@ -151,8 +153,8 @@
 - [ ] F1 隐私保护指引已提交且**状态为「已通过」**
 - [ ] F1 指引勾选项 = 位置 / 相册摄像头 / 证件信息 / OpenID（**不含手机号**）
 - [ ] F2 位置接口权限显示「已开通」
-- [ ] F3 **三个**模板 `tmpl_id` 已写入 `sub_msg_templates` 且 `enabled=true`
-- [ ] F3 `miniprogram_state` 仍为 `trial`（正式发布日再切）
+- [x] F3 **三个**模板 `tmpl_id` 已写入 `sub_msg_templates`（2026-10-28 实测：`demand_grab`=`x1TfKgMBQCa2PpfpW10AVewcaFfm8BfuPCKOLk2Dx3Q`、`demand_urge`=`-JfmHqHsI_q3qZHy_yrJloS_a8Xr3uez18YqD041hmg`、`confirm_comm`=`9j-D9hF_b4AMdHqcxsXjEOex0b7t61ZNfM1YGhT-n6o`；库中无 `enabled` 字段，`admin-action/action_config_public.js` 以 `tmpl_id` 存在即下发 `enabled:true`，口径等价）
+- [x] F3 `miniprogram_state` 仍为 `trial`（2026-10-28 实测三键均 `trial`；正式发布日再切）
 - [ ] F4 request 域名含 `https://apis.map.qq.com`，开发者工具「不校验合法域名」**已关闭**并真机自测通过
 - [x] F5 `admin_openids` 非空且为真实管理员 OPENID（2026-10-22 只读实测：2 条，`oLDJ***Tw9c`/`oLDJ***LPA4`，非 bootstrap 开放态）
 - [x] F5 `admin_web_key` 为 `AWK-`+64hex，未出现在任何前端文件（2026-10-22 实测：线上 68 字符；全仓 grep + `miniprogram/` + `admin-web/public/` + `admin-web-frontend/src|dist` 共 0 命中；明文仅存于仓库外 `C:\zhaoren-bak\admin-key-20261009.txt`）
