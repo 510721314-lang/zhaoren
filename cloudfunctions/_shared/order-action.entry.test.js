@@ -454,6 +454,32 @@ test('my_orders: 无 demand_id → 标题兜底 content_options[0]、描述空',
   assert.strictEqual(item.demand_desc, '');
 });
 
+// 25b. my_orders 承接视角细分 tab(2026-10-28 新增): confirm=S1 / done=S5,S8,S9 / canceled=S6
+test('my_orders: 承接视角 filter confirm/done/canceled 状态映射', async () => {
+  const mk = (id, status) => ({ _id: id, status, user_openid: USER, partner_openid: PARTNER, created_at: 1, content_options: ['遛狗'], is_deleted: false });
+  const store = {
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
+    order_main: {
+      ['a1'.repeat(16)]: mk('a1'.repeat(16), 'S1'),
+      ['b2'.repeat(16)]: mk('b2'.repeat(16), 'S5'),
+      ['c3'.repeat(16)]: mk('c3'.repeat(16), 'S8'),
+      ['d4'.repeat(16)]: mk('d4'.repeat(16), 'S9'),
+      ['e5'.repeat(16)]: mk('e5'.repeat(16), 'S6'),
+      ['f6'.repeat(16)]: mk('f6'.repeat(16), 'S3')
+    }
+  };
+  const sdk = makeSdk({ openid: PARTNER, store });
+  const { main } = loadIndex(sdk);
+  const statusesOf = async (filter) => {
+    const r = await main({ action: 'my_orders', role: 'partner', filter, page: 1, page_size: 20, mock_openid: PARTNER }, {});
+    assert.strictEqual(r.ok, true);
+    return (r.data.list || []).filter((x) => x.item_type === 'order').map((x) => x.status).sort();
+  };
+  assert.deepStrictEqual(await statusesOf('confirm'), ['S1'], '待确认 = S1');
+  assert.deepStrictEqual(await statusesOf('done'), ['S5', 'S8', 'S9'], '已完成 = S5 + 终态 S8/S9');
+  assert.deepStrictEqual(await statusesOf('canceled'), ['S6'], '已取消 = S6');
+});
+
 // 26. notice_list: 通知关联订单含 demand_id → 反查 demand 拆出 demand_title/demand_desc(2026-10-17)
 //     A/B 侧 notice_list 已按 KNOWN_EVOLUTION 登记(新增两键), 本例为其独立行为守护
 test('notice_list: 通知关联订单 → demand.remark 拆为 demand_title/demand_desc', async () => {

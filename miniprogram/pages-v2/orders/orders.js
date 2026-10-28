@@ -4,13 +4,29 @@
 const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 const CONFIG = require('../../config/index.js');
 
-const TABS = [
+// 2026-10-28: 承接方(partner)新增细分 tab 待确认/已完成/已取消(对应 S1 / S5+S8+S9 / S6);
+// 发单方沿用原 5 项。tab 过滤口径仍下推服务端 my_orders
+const TABS_USER = [
   { key: 'all', name: '全部' },
   { key: 'pay', name: '待支付' },
   { key: 'doing', name: '进行中' },
   { key: 'eval', name: '待评价' },
   { key: 'after', name: '售后' }
 ];
+
+const TABS_PARTNER = [
+  { key: 'all', name: '全部' },
+  { key: 'confirm', name: '待确认' },
+  { key: 'doing', name: '进行中' },
+  { key: 'eval', name: '待评价' },
+  { key: 'done', name: '已完成' },
+  { key: 'canceled', name: '已取消' },
+  { key: 'after', name: '售后' }
+];
+
+function tabsOf(role) {
+  return role === 'partner' ? TABS_PARTNER : TABS_USER;
+}
 
 // 状态过滤已下推服务端(my_orders 的 filter 参数, 点号字面量 S3.5/S10.5/S2.5) —— 本地不再二次过滤
 
@@ -31,7 +47,7 @@ function fmtFen(fen) {
 
 Page({
   data: {
-    tabs: TABS,
+    tabs: TABS_USER,
     activeTab: 'all',
     role: 'user',
     orders: [],
@@ -50,9 +66,10 @@ Page({
 
 
   onLoad(options) {
-    const tab = (options && TABS.some((t) => t.key === options.tab)) ? options.tab : 'all';
     const role = options && options.role === 'partner' ? 'partner' : 'user';
-    this.setData({ activeTab: tab, role });
+    const tabs = tabsOf(role);
+    const tab = (options && tabs.some((t) => t.key === options.tab)) ? options.tab : 'all';
+    this.setData({ activeTab: tab, role, tabs });
   },
 
   onShow() {
@@ -73,7 +90,10 @@ Page({
   switchRole(e) {
     const role = e.currentTarget.dataset.role;
     if (role === this.data.role) return;
-    this.setData({ role, orders: [], loaded: false });
+    const tabs = tabsOf(role);
+    // 当前 tab 在新视角不存在(如发单方无「待确认」/承接方无「待支付」) → 回「全部」
+    const activeTab = tabs.some((t) => t.key === this.data.activeTab) ? this.data.activeTab : 'all';
+    this.setData({ role, tabs, activeTab, orders: [], loaded: false });
     this.loadOrders();
   },
 

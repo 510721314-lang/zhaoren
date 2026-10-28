@@ -218,14 +218,19 @@ async function my_orders(ctx) {
   const { event, openid, col, _, log, buildOrderSummary, haversineKm, estimateCommute } = ctx;
   const role = event.role === 'user' ? 'user' : 'partner';
   const queryField = role === 'partner' ? 'partner_openid' : 'user_openid';
-  // tab 过滤(与前端 TAB_STATUS 同口径; 云端字面量一律点号 S3.5/S10.5/S2.5)
+  // tab 过滤(与前端 TAB 同口径; 云端字面量一律点号 S3.5/S10.5/S2.5)
+  // 2026-10-28: 承接视角细分 tab —— confirm(待确认 S1) / done(已完成 S5 + 终态 S8 已评价、S9 评价超时) / canceled(已取消 S6)
   const FILTER_STATUS = {
     pay: ['S0'],
     doing: ['S1', 'S2', 'S2.5', 'S3', 'S3.5'],
     eval: ['S5'],
-    after: ['S6', 'S7', 'S9', 'S10', 'S10.5']
+    after: ['S6', 'S7', 'S9', 'S10', 'S10.5'],
+    confirm: ['S1'],
+    done: ['S5', 'S8', 'S9'],
+    canceled: ['S6']
   };
-  const filter = (['all', 'pay', 'doing', 'eval', 'after'].indexOf(event.filter) >= 0) ? event.filter : 'all';
+  const VALID_FILTERS = ['all', 'pay', 'doing', 'eval', 'after', 'confirm', 'done', 'canceled'];
+  const filter = (VALID_FILTERS.indexOf(event.filter) >= 0) ? event.filter : 'all';
   // 分页: 倒序(created_at desc), 每页最多 50
   const page = Math.max(1, Number(event.page) || 1);
   const pageSize = Math.min(50, Math.max(1, Number(event.page_size) || 20));
