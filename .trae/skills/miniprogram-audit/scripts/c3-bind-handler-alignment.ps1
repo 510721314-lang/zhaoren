@@ -15,6 +15,7 @@ foreach ($dir in (Get-ChildItem $pagesRoot -Directory)) {
   $js   = Join-Path $dir.FullName "$($dir.Name).js"
   if (-not (Test-Path $wxml) -or -not (Test-Path $js)) { continue }
   $w = Get-Content $wxml -Raw -Encoding UTF8
+  $w = [regex]::Replace($w, '(?s)<!--.*?-->', '')  # 剥 WXML 注释: 注释里的迁移说明/旧事件名不得参与配对(2026-10-28 误报 3 例实证)
   $j = Get-Content $js   -Raw -Encoding UTF8
   $names = ([regex]::Matches($w, '(?:bind|catch):?[a-zA-Z]*="([a-zA-Z_][a-zA-Z0-9_]*)"') |
     ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
@@ -30,6 +31,7 @@ foreach ($dir in (Get-ChildItem $compRoot -Directory -ErrorAction SilentlyContin
   $js   = Join-Path $dir.FullName "index.js"
   if (-not (Test-Path $wxml) -or -not (Test-Path $js)) { continue }
   $w = Get-Content $wxml -Raw -Encoding UTF8
+  $w = [regex]::Replace($w, '(?s)<!--.*?-->', '')  # 剥 WXML 注释: 注释里的迁移说明/旧事件名不得参与配对(2026-10-28 误报 3 例实证)
   $j = Get-Content $js   -Raw -Encoding UTF8
   $names = ([regex]::Matches($w, '(?:bind|catch):?[a-zA-Z]*="([a-zA-Z_][a-zA-Z0-9_]*)"') |
     ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)

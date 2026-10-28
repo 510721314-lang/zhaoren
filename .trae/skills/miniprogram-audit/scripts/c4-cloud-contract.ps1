@@ -3,6 +3,9 @@
 # Back:   match both switch-case and guard-clause forms:
 #           case 'x':
 #           action === 'x' | action !== 'x' | action == 'x' | action != 'x'
+#         2026-10-28: 巨型入口物理拆分后 handler 多在同级 action_*.js, 注册形态四种都要认
+#           (case/if 守卫 | function 名 | 无引号对象键/exports 简写 | 引号对象键),
+#           仅扫 index.js 曾误报 85 例; _orig_baseline.js/node_modules/*.test.js 排除
 param(
   [string]$Fe = (Join-Path $PSScriptRoot '..\..\..\..\miniprogram'),
   [string]$Be = (Join-Path $PSScriptRoot '..\..\..\..\cloudfunctions')
@@ -27,14 +30,18 @@ Get-ChildItem "$Fe\pages-v2","$Fe\components","$Fe\custom-tab-bar" -Recurse -Fil
 
 $back = @{}
 Get-ChildItem $Be -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-  $idx = Join-Path $_.FullName "index.js"
-  if (Test-Path $idx) {
-    $t = Get-Content $idx -Raw -Encoding UTF8
-    $cases = @()
-    $cases += [regex]::Matches($t, "case\s+'([a-z_]+)'") | ForEach-Object { $_.Groups[1].Value }
-    $cases += [regex]::Matches($t, "action\s*(?:===?|!==?)\s*'([a-z_]+)'") | ForEach-Object { $_.Groups[1].Value }
-    $back[$_.Name] = @($cases | Sort-Object -Unique)
-  }
+  $names = New-Object 'System.Collections.Generic.HashSet[string]'
+  Get-ChildItem $_.FullName -Recurse -Filter *.js -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notlike '*node_modules*' -and $_.Name -ne '_orig_baseline.js' -and $_.Name -notlike '*.test.js' } |
+    ForEach-Object {
+      $t = Get-Content $_.FullName -Raw -Encoding UTF8
+      foreach ($m in [regex]::Matches($t, "case\s+'([a-z_][a-z0-9_]*)'")) { [void]$names.Add($m.Groups[1].Value) }
+      foreach ($m in [regex]::Matches($t, "action\s*(?:===?|!==?)\s*'([a-z_][a-z0-9_]*)'")) { [void]$names.Add($m.Groups[1].Value) }
+      foreach ($m in [regex]::Matches($t, '(?m)(?:async\s+)?function\s+([a-z_][a-z0-9_]*)\s*\(')) { [void]$names.Add($m.Groups[1].Value) }
+      foreach ($m in [regex]::Matches($t, '(?m)^\s*[''""]?([a-z_][a-z0-9_]*)[''""]?\s*:')) { [void]$names.Add($m.Groups[1].Value) }
+      foreach ($m in [regex]::Matches($t, '(?m)^\s*([a-z_][a-z0-9_]*)\s*[,}]')) { [void]$names.Add($m.Groups[1].Value) }
+    }
+  $back[$_.Name] = @($names | Sort-Object -Unique)
 }
 
 $bad = 0
