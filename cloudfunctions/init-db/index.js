@@ -39,6 +39,8 @@ const INDEXES = [
   { coll: 'demand', name: 'idx_hall_broadcast_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, created_at: -1, expire_at: 1 } },
   // 大厅按场景查询: 多一个 scene 等值条件
   { coll: 'demand', name: 'idx_hall_scene_status_created', keys: { is_deleted: 1, status: 1, broadcast: 1, scene: 1, created_at: -1, expire_at: 1 } },
+  // P3-12(2026-10-28): 云端实有但 init-db 未声明 → 补登记(非唯一; order-timer 抢单通知扫描)
+  { coll: 'demand', name: 'grab_pending_scan', keys: { grab_notify_pending: 1, status: 1, created_at: -1 } },
   { coll: 'order_main', name: 'uk_order_no', keys: { order_no: 1 }, unique: true },
   { coll: 'order_main', name: 'idx_demand_id', keys: { demand_id: 1 } },
   { coll: 'order_main', name: 'idx_partner_status', keys: { partner_openid: 1, status: 1 } },
