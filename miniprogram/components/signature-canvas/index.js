@@ -2,13 +2,18 @@
 // 用法: <signature-canvas id="sig" tip="请在此处手写签名" />
 //       页面通过 this.selectComponent('#sig') 调 clear() / isEmpty() / exportPNG()
 // 说明: 白底 PNG 导出, 签名图上传云存储后由服务端下载复算 SHA-256 留证
+// 2026-10-28(P0-4): 新增 recognize() 质量识别(空签/单点/笔画过少/过小), 提交前由调用方闸门
+const { analyzeInkPixels } = require('../../utils/signature-quality.js');
+
 Component({
   properties: {
     tip: { type: String, value: '请在此处手写签名' }
   },
 
   data: {
-    hasInk: false
+    hasInk: false,
+    verifyStatus: '',   // '' | 'ok' | 'fail'
+    verifyText: ''
   },
 
   lifetimes: {
@@ -61,7 +66,7 @@ Component({
     // 清除重写
     clear() {
       this._reset();
-      this.setData({ hasInk: false });
+      this.setData({ hasInk: false, verifyStatus: '', verifyText: '' });
     },
 
     // 是否空签名(未落笔)
@@ -69,10 +74,37 @@ Component({
       return !this.data.hasInk;
     },
 
+    // 签名质量识别(同步): 返回 { ok, code, message, inkPixels, inkRatio, bbox, canvas }
+    // 空签/单点/笔画过少/过小 → ok:false; 通过 → ok:true 并展示「识别通过」
+    recognize() {
+      if (!this._canvas || !this._ctx) {
+        return { ok: false, code: 'canvas_not_ready', message: '签字板未就绪，请重试' };
+      }
+      if (!this.data.hasInk) {
+        return { ok: false, code: 'empty', message: '请先手写签名' };
+      }
+      let result;
+      try {
+        const img = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
+        result = analyzeInkPixels(img.data, this._canvas.width, this._canvas.height);
+      } catch (e) {
+        console.error('[signature-canvas] recognize fail:', e);
+        result = { ok: false, code: 'recognize_failed', message: '签名识别失败，请重试' };
+      }
+      this.setData({
+        verifyStatus: result.ok ? 'ok' : 'fail',
+        verifyText: result.ok ? '✅ 签名识别通过' : '❌ ' + result.message
+      });
+      this.triggerEvent('verify-change', result);
+      return result;
+    },
+
     onTouchStart(e) {
       const ctx = this._ctx;
       const t = (e.touches && e.touches[0]) || null;
       if (!ctx || !t) return;
+      // 新一轮书写: 清掉上一次识别结果, 避免「已通过」误导
+      if (this.data.verifyStatus) this.setData({ verifyStatus: '', verifyText: '' });
       this._drawing = true;
       this._lastX = t.x;
       this._lastY = t.y;

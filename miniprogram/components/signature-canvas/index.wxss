@@ -18,3 +18,10 @@
   font-size: 28rpx;
   pointer-events: none;
 }
+.sgc__status {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  text-align: right;
+}
+.sgc__status--ok { color: var(--success, #22B573); }
+.sgc__status--fail { color: var(--danger, #E5484D); }

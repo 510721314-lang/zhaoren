@@ -167,6 +167,12 @@ Page({
       wx.showToast({ title: '请手写签名后再提交', icon: 'none' });
       return;
     }
+    // P0-4(2026-10-28): 提交前签名质量识别, 空签/单点/笔画过少/过小一律阻断
+    const chk = sig.recognize();
+    if (!chk || !chk.ok) {
+      wx.showToast({ title: (chk && chk.message) || '签名识别未通过，请重写', icon: 'none' });
+      return;
+    }
     this.setData({ submitting: true });
     wx.showLoading({ title: '提交中', mask: true });
 

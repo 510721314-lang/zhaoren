@@ -9,4 +9,5 @@
     bindtouchcancel="onTouchEnd"
   ></canvas>
   <view class="sgc__hint" wx:if="{{!hasInk}}">{{tip}}</view>
+  <view class="sgc__status sgc__status--{{verifyStatus}}" wx:if="{{verifyText}}">{{verifyText}}</view>
 </view>

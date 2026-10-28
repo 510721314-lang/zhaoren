@@ -48,6 +48,12 @@ Component({
       if (this.data.submitting) return;
       const sig = this.selectComponent('#sig');
       if (!sig) { wx.showToast({ title: '签字板未就绪,请重试', icon: 'none' }); return; }
+      // P0-4(2026-10-28): 导出前签名质量识别, 空签/单点/笔画过少/过小一律阻断
+      const chk = sig.recognize();
+      if (!chk || !chk.ok) {
+        wx.showToast({ title: (chk && chk.message) || '签名识别未通过，请重写', icon: 'none' });
+        return;
+      }
       this.setData({ submitting: true });
       sig.exportPNG().then((tempPath) => {
         this.triggerEvent('sign-confirm', { tempFilePath: tempPath, kind: this.data.kind });
