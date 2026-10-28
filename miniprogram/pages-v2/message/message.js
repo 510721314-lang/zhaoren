@@ -156,7 +156,8 @@ Page({
     return `${y}-${mo}-${day}T${h}:${mi}:${s}${oz}`;
   },
 
-  // M1 长按：置顶 / 删除
+  // M1 长按菜单（2026-10-28 提审期移除入口：删除只改本地数组、刷新即回，属半实现；
+  //   恢复时在 message.wxml 会话项加回 bindlongpress="onLongPress"）
   onLongPress(e) {
     const id = e.currentTarget.dataset.id;
     const target = this.data.orderList.find((c) => c._id === id);

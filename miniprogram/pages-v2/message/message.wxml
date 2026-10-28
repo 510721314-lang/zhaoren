@@ -45,7 +45,6 @@
         wx:key="_id"
         data-id="{{item._id}}"
         bindtap="onConvTap"
-        bindlongpress="onLongPress"
       >
         <view class="msg__avatar">{{item.avatar}}
           <text class="msg__badge" wx:if="{{item.unread_count}}">{{item.unread_count}}</text>
