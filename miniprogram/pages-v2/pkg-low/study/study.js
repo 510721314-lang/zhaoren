@@ -3,7 +3,7 @@
 // 数据源: partner-action study_list(subject 可选) / study_detail(仅 status=published)
 const { callCloud } = require('../../../utils/cloud.js');
 
-// 科目静态清单(线上已发布科目); 点「全部科目」若发现未登记科目会自动补入
+// 科目静态清单(线上已发布科目; 后台新增科目需同步此清单)
 const SUBJECTS = [
   { code: 'base', name: '基础考试', desc: '全体耍伴接单前置' },
   { code: 'W1', name: '陪诊', desc: '就医陪诊专项' },
@@ -36,7 +36,7 @@ Page({
   data: {
     subjects: SUBJECTS.slice(),
     activeSubject: '',
-    picked: false,        // 是否已选科目(区分「未选」与「全部科目」)
+    picked: false,        // 是否已选科目
     groups: [],
     openKey: '',
     blocks: [],
@@ -46,13 +46,32 @@ Page({
   },
 
   // 2026-10-28: onLoad 不发云调用(科目静态渲染), 首次点科目才加载
-  onLoad() {},
+  onLoad() {
+    this._baseSubjects = SUBJECTS.slice();   // 原始顺序(取消选中时还原)
+  },
 
-  // 点科目: 已选则收起; 未选则按科目拉章节(「全部科目」= 不带 subject)
+  // 选中科目置顶、其余科目保持原顺序紧凑排列 —— 章节内容随之上移(2026-10-28 二改)
+  pinSubject(code) {
+    const base = this._baseSubjects || SUBJECTS;
+    const sel = base.filter((s) => s.code === code);
+    const rest = base.filter((s) => s.code !== code);
+    return sel.concat(rest);
+  },
+
+  // 点科目: 已选则收起(恢复完整列表); 未选/换科则重排置顶并拉该科章节
   onSubjectTap(e) {
     const code = e.currentTarget.dataset.code || '';
+    if (!code) return;
     if (this.data.picked && this.data.activeSubject === code) {
-      this.setData({ picked: false, groups: [], openKey: '', blocks: [], listError: false });
+      this.setData({
+        picked: false,
+        activeSubject: '',
+        subjects: (this._baseSubjects || SUBJECTS).slice(),
+        groups: [],
+        openKey: '',
+        blocks: [],
+        listError: false
+      });
       return;
     }
     this.fetchChapters(code);
@@ -62,37 +81,20 @@ Page({
     this.setData({
       picked: true,
       activeSubject: code,
+      subjects: this.pinSubject(code),
       listLoading: true,
       listError: false,
       groups: [],
       openKey: '',
       blocks: []
     });
-    const payload = { action: 'study_list' };
-    if (code) payload.subject = code;
-    return callCloud('partner-action', payload).then((r) => {
+    return callCloud('partner-action', { action: 'study_list', subject: code }).then((r) => {
       if (!(r.ok && r.data)) {
         this.setData({ listLoading: false, listError: true });
         return;
       }
       this.setData({ listLoading: false, groups: this.buildGroups(r.data.list || []), openKey: '', blocks: [] });
-      if (!code) this.mergeSubjects(r.data.list || []);
     }).catch(() => this.setData({ listLoading: false, listError: true }));
-  },
-
-  // 「全部科目」返回里出现静态清单未登记的科目 → 自动补入, 防后台新增科目在入口消失
-  mergeSubjects(list) {
-    const known = {};
-    this.data.subjects.forEach((s) => { known[s.code] = true; });
-    const extra = [];
-    list.forEach((x) => {
-      if (x && x.subject && !known[x.subject]) {
-        known[x.subject] = true;
-        SUBJECT_TITLES[x.subject] = SUBJECT_TITLES[x.subject] || x.subject;
-        extra.push({ code: x.subject, name: SUBJECT_TITLES[x.subject], desc: '专项' });
-      }
-    });
-    if (extra.length) this.setData({ subjects: this.data.subjects.concat(extra) });
   },
 
   // 按模块分组(章节自带 key, 供 wxml 判断展开态)

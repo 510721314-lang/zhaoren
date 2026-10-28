@@ -9,49 +9,73 @@
 .study__title { display: block; font-size: var(--font-xl); font-weight: 700; color: var(--text-1); }
 .study__sub { margin-top: 8rpx; display: block; font-size: var(--font-xs); color: var(--text-4); }
 
-/* 科目竖排列表(2026-10-28: 由横向 chips 改竖排; 点击才加载该科章节) */
-.study__subjects { margin-top: 20rpx; }
+/* 科目竖排列表 */
+.study__list { margin-top: 20rpx; }
 .study__subject {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16rpx;
-  padding: 28rpx 24rpx;
   background: var(--bg-card);
   border: 2rpx solid transparent;
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
+  transition: padding .18s ease, background .18s ease;
 }
-.study__subject.is-on {
+/* 未选: 紧凑行(其他科目上移, 把空间让给内容) */
+.study__subject.is-compact { padding: 22rpx 24rpx; }
+/* 选中: 展开卡(浅主色底 + 主色描边) */
+.study__subject.is-open {
+  padding: 28rpx 24rpx;
   border-color: var(--brand-primary);
   background: var(--brand-primary-light);
 }
+.study__subject--hover { opacity: .9; }
 .study__subject-main { display: flex; flex-direction: column; }
 .study__subject-name { font-size: var(--font-lg); font-weight: 700; color: var(--text-1); }
-.study__subject.is-on .study__subject-name { color: var(--brand-primary); }
+.study__subject.is-compact .study__subject-name { font-size: var(--font-md); font-weight: 600; }
+.study__subject.is-open .study__subject-name { color: var(--brand-primary); }
 .study__subject-desc { margin-top: 6rpx; font-size: var(--font-xs); color: var(--text-4); }
+.study__subject.is-open .study__subject-desc { color: var(--brand-primary); opacity: .75; }
 .study__subject-arrow { margin-left: 16rpx; font-size: var(--font-lg); color: var(--text-4); }
+.study__subject.is-open .study__subject-arrow { color: var(--brand-primary); }
 
-/* 状态提示 */
-.study__tip { padding: 120rpx 0; text-align: center; font-size: var(--font-sm); color: var(--text-4); }
+/* 章节面板(紧贴选中科目) */
+.study__panel { margin: -4rpx 0 24rpx; padding: 0 4rpx; }
+.study__panel .study__tip { padding: 60rpx 0; }
 
-/* 模块分组 */
-.study__group { margin-top: 20rpx; }
+/* 模块分组标题: 左侧色条 + 小写字号 */
+.study__group { margin-top: 8rpx; }
 .study__group-title {
-  padding: 8rpx 8rpx 12rpx;
+  display: flex;
+  align-items: center;
+  padding: 20rpx 8rpx 12rpx;
   font-size: var(--font-xs);
   font-weight: 600;
   color: var(--text-4);
+  letter-spacing: .5rpx;
 }
+.study__group-title::before {
+  content: '';
+  width: 6rpx;
+  height: 22rpx;
+  margin-right: 12rpx;
+  background: var(--brand-primary);
+  border-radius: 4rpx;
+  opacity: .6;
+}
+
+/* 章节行 */
 .study__chapter {
   margin-bottom: 12rpx;
-  padding: 22rpx 24rpx;
+  padding: 24rpx;
   background: var(--bg-card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
 }
+.study__chapter--hover { background: var(--bg-segment); }
 .study__chapter.is-open { padding-bottom: 8rpx; }
-.study__chapter-row { display: flex; align-items: center; }
+.study__chapter-row { display: flex; align-items: flex-start; }
 .study__chapter-name {
   flex: 1;
   font-size: var(--font-md);
@@ -59,21 +83,41 @@
   color: var(--text-1);
   line-height: 1.5;
 }
-.study__chapter-arrow { margin-left: 16rpx; font-size: var(--font-sm); color: var(--text-4); }
+.study__chapter-arrow { flex: none; margin-left: 16rpx; font-size: var(--font-sm); color: var(--text-4); }
 
-/* 正文展开区 */
-.study__detail-tip { margin-top: 16rpx; font-size: var(--font-xs); color: var(--text-4); }
-.study__blk {
-  margin-top: 14rpx;
-  font-size: var(--font-sm);
-  color: var(--text-2);
-  line-height: 1.75;
+/* 正文阅读区(2026-10-28: 独立浅底区块, 加大行距与段距, 提升长文可读性) */
+.study__detail-tip { margin-top: 12rpx; padding-left: 4rpx; font-size: var(--font-xs); color: var(--text-4); }
+.study__body {
+  margin-top: 16rpx;
+  padding: 26rpx 24rpx;
+  background: var(--bg-page);
+  border-radius: 16rpx;
 }
+.study__blk {
+  font-size: 28rpx;
+  color: var(--text-2);
+  line-height: 1.9;
+  word-break: break-word;
+}
+.study__blk + .study__blk { margin-top: 20rpx; }
 .study__blk.is-h {
-  margin-top: 22rpx;
-  font-size: var(--font-md);
+  margin-top: 34rpx;
+  font-size: 30rpx;
   font-weight: 700;
   color: var(--text-1);
+  line-height: 1.6;
 }
-.study__blk.is-li { padding-left: 20rpx; position: relative; }
-.study__blk.is-li::before { content: '·'; position: absolute; left: 4rpx; color: var(--text-4); }
+.study__blk.is-h:first-child { margin-top: 0; }
+.study__blk.is-li {
+  padding-left: 28rpx;
+  position: relative;
+  line-height: 1.85;
+}
+.study__blk.is-li::before {
+  content: '·';
+  position: absolute;
+  left: 6rpx;
+  top: -2rpx;
+  font-weight: 700;
+  color: var(--brand-primary);
+}
