@@ -72,7 +72,8 @@ Page({
 
   startPoll() {
     this.stopPoll();
-    this._t = setInterval(() => this.refreshMessages(), 5000);
+    // 2026-10-28 用量治理: 5s→15s(调用量降约 67%, 客服消息延迟上限 15s)
+    this._t = setInterval(() => this.refreshMessages(), 15000);
   },
   stopPoll() { if (this._t) { clearInterval(this._t); this._t = null; } },
 

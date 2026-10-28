@@ -32,7 +32,7 @@ module.exports = {
   AA_OPTIONS: ['0-50', '50-200', '200+', 'custom'],
 
   // 草稿（拍板项1）
-  DRAFT: { expireDays: 30, maxCount: 20, autoSaveSec: 30 },
+  DRAFT: { expireDays: 30, maxCount: 20, autoSaveSec: 60 },
 
   // 订单时效
   ORDER: {

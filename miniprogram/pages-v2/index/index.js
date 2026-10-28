@@ -223,10 +223,10 @@ Page({
     if (typeof wx.vibrateShort === 'function') wx.vibrateShort({ type: 'medium', fail: () => {} });
     wx.showToast({ title: '附近有新需求', icon: 'none' });
   },
-  // 首页可见期间 30s 轮询附近新单(仅耍伴端)
+  // 首页可见期间 60s 轮询附近新单(仅耍伴端; 2026-10-28 用量治理 30s→60s)
   startNearbyPoll() {
     this.stopNearbyPoll();
-    this.__nearbyPollTimer = setInterval(() => { if (this.data.isPartner) this.fetchNearby(); }, 30000);
+    this.__nearbyPollTimer = setInterval(() => { if (this.data.isPartner) this.fetchNearby(); }, 60000);
   },
   stopNearbyPoll() {
     if (this.__nearbyPollTimer) { clearInterval(this.__nearbyPollTimer); this.__nearbyPollTimer = null; }

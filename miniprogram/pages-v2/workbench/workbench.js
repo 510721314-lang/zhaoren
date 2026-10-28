@@ -255,7 +255,7 @@ Page({
   },
   startNearbyPoll() {
     this.stopNearbyPoll();
-    this.__nearbyPollTimer = setInterval(() => { if (this.data.isPartner) this.fetchNearby(); }, 30000);
+    this.__nearbyPollTimer = setInterval(() => { if (this.data.isPartner) this.fetchNearby(); }, 60000);
   },
   stopNearbyPoll() {
     if (this.__nearbyPollTimer) { clearInterval(this.__nearbyPollTimer); this.__nearbyPollTimer = null; }

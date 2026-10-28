@@ -101,11 +101,12 @@ Page({
   reload() { this.fetchData(this.__lastOptions || {}); },
 
   // 发布者端接单感知: 停留详情页期间耍伴接单 → 自动跳转确认页(用 detail_light 轮询, 不自增浏览)
+  // 2026-10-28 用量治理: 5s→15s(调用量降约 67%, 接单感知延迟上限 15s)
   __scheduleOwnerWatch(demand) {
     const owner = !!(demand && demand.is_owner);
     if (!owner || this.__ownerPrompted || this.__ownerPoll) return;
     this.__ownerPollLaunch = Date.now();
-    this.__ownerPoll = setInterval(() => { this.__pollOwnerLight(); }, 5000);
+    this.__ownerPoll = setInterval(() => { this.__pollOwnerLight(); }, 15000);
     this.__pollOwnerLight();
   },
   __pollOwnerLight() {
