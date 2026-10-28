@@ -60,13 +60,29 @@ test('小尺寸涂写 → too_small', () => {
   assert.strictEqual(r.code, 'too_small');
 });
 
+test('短划痕(80x25) → too_small', () => {
+  const d = blank();
+  paint(d, 160, 88, 239, 112);
+  const r = analyzeInkPixels(d, W, H);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'too_small');
+});
+
+test('极短横向划痕(120x10) → too_small', () => {
+  const d = blank();
+  paint(d, 140, 95, 259, 104);
+  const r = analyzeInkPixels(d, W, H);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'too_small');
+});
+
 test('正常姓名书写 → ok', () => {
   const d = blank();
   paint(d, 60, 60, 300, 140);
   const r = analyzeInkPixels(d, W, H);
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.code, 'ok');
-  assert.ok(r.inkRatio > 0.0012);
+  assert.ok(r.inkRatio > 0.003);
   assert.deepStrictEqual(r.bbox, { x: 60, y: 60, w: 241, h: 81 });
 });
 
