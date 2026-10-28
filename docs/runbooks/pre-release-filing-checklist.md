@@ -1,6 +1,6 @@
 # 提审备案类配置填报清单（A6）
 
-> 适用：小程序 `1.6.58`（2026-10-28 上传；当前提审候选版本）｜事实来源＝仓库代码实测（`miniprogram/app.json`、`pages-v2/**`、`config/index.js`、`cloudfunctions/admin-action/action_config_set.js`）｜本文只描述「在 mp/云开发后台要填什么、怎么填、填错会怎样」，不含代码改动。
+> 适用：小程序 `1.6.59`（2026-10-28 上传；当前提审候选版本）｜事实来源＝仓库代码实测（`miniprogram/app.json`、`pages-v2/**`、`config/index.js`、`cloudfunctions/admin-action/action_config_set.js`）｜本文只描述「在 mp/云开发后台要填什么、怎么填、填错会怎样」，不含代码改动。
 
 ## 0. 总览（5 项，按填报顺序）
 
