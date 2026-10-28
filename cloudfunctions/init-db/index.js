@@ -71,6 +71,13 @@ const INDEXES = [
   { coll: 'system_notice', name: 'idx_to_created', keys: { to_openid: 1, created_at: -1 } },
   // audit_log 行为审计: 单用户链查询(writeAudit 取上一条 orderBy at desc) 与 audit_verify 全量升序
   { coll: 'audit_log', name: 'idx_openid_at', keys: { openid: 1, at: -1 } },
+  // P3-12(2026-10-28): order-timer 扫描支撑索引
+  // auditPrune 按 at<cutoff 范围查询、errorScan 按 result=fail + at>window 计数 → 范围字段 at 在前
+  { coll: 'audit_log', name: 'idx_at_result', keys: { at: 1, result: 1 } },
+  // errorScan: P0/P1 事件(level in + created_at>window, orderBy created_at asc)
+  { coll: 'platform_event', name: 'idx_level_created', keys: { level: 1, created_at: 1 } },
+  // errorScan: 网关鉴权失败突增(type=gateway_bad_key + created_at>window)
+  { coll: 'platform_event', name: 'idx_type_created', keys: { type: 1, created_at: 1 } },
   // no_show_report(第三批 3B 爽约申诉): 幂等查重(order_id)/管理端列表(status+created_at)/被诉方历史
   { coll: 'no_show_report', name: 'idx_order_id', keys: { order_id: 1 } },
   { coll: 'no_show_report', name: 'idx_status_created', keys: { status: 1, created_at: -1 } },
