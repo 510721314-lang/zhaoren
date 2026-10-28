@@ -105,6 +105,9 @@
 | system_notice | idx_order_created | order_id↑, created_at↓ | |
 | system_notice | idx_to_created | to_openid↑, created_at↓ | |
 | audit_log | idx_openid_at | openid↑, at↓ | |
+| audit_log | idx_at_result | at↑, result↑ | ✅ 2026-10-28 P3-12 |
+| platform_event | idx_level_created | level↑, created_at↑ | ✅ 2026-10-28 P3-12 |
+| platform_event | idx_type_created | type↑, created_at↑ | ✅ 2026-10-28 P3-12 |
 | no_show_report | idx_order_id | order_id↑ | |
 | no_show_report | idx_status_created | status↑, created_at↓ | |
 | no_show_report | idx_target_created | target_openid↑, created_at↓ | |
