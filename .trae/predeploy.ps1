@@ -101,7 +101,7 @@ foreach ($f in $functions) {
 #       verify 或不走 verify, 闸门形同虚设; 故在此与语法检查同级硬拦(fail-closed)。
 Write-Host "[2b/5] shared-sync + require-scope gates" -ForegroundColor Gray
 $gateFailed = @()
-foreach ($gateJs in @("scripts\check-shared-sync.js", "scripts\check-require-scope.js", "scripts\check-cloud-timeout-policy.js", "scripts\check-location-timeout-policy.js")) {
+foreach ($gateJs in @("scripts\check-shared-sync.js", "scripts\check-require-scope.js", "scripts\check-cloud-timeout-policy.js", "scripts\check-location-timeout-policy.js", "scripts\check-miniprogram-syntax.js")) {
     $gatePath = Join-Path $root $gateJs
     if (-not (Test-Path $gatePath)) {
         Write-Host "      [FAIL] gate script missing: $gateJs" -ForegroundColor Red
