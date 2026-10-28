@@ -165,7 +165,7 @@ Page({
       itemList: ['置顶', '删除'],
       success: (res) => {
         if (res.tapIndex === 0) {
-          wx.showToast({ title: '置顶功能待后端支持', icon: 'none' });
+          wx.showToast({ title: '暂不支持置顶', icon: 'none' });
         } else {
           this.setData({ orderList: this.data.orderList.filter((c) => c._id !== id) });
           wx.showToast({ title: '已删除(本地)', icon: 'none' });
