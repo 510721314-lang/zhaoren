@@ -6,6 +6,7 @@
 $ErrorActionPreference = 'Stop'
 
 $cmd = 'C:\zhaoren\scripts\auto-backup.ps1'
+$launcher = 'C:\zhaoren\scripts\run-hidden.vbs'
 $tasks = @(
   @{ Name = 'zhaoren-backup-full';  Mode = 'full';         At = @('02:30','14:30'); LimitH = 3; Desc = 'zhaoren 全量备份 每12小时一次(bundle+热备+37表脱敏+raw加密+CHECKSUMS)' },
   @{ Name = 'zhaoren-backup-incr';  Mode = 'incremental';  At = $null;   LimitH = 1; Desc = 'zhaoren 每小时增量(时段守卫 05:00-次日01:00 内生效)' },
@@ -13,8 +14,11 @@ $tasks = @(
 )
 
 foreach ($t in $tasks) {
-  $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-    -Argument ('-NoProfile -ExecutionPolicy Bypass -File ' + $cmd + ' -Mode ' + $t.Mode)
+  # 2026-10-28: 经 wscript 隐藏启动, 避免每小时弹出 PowerShell 窗口; wscript 等待子进程结束再退出
+  # WorkingDirectory 必须为 C:\zhaoren: lark push 使用相对 --local-dir .backup-lark(计划任务默认 cwd 是 System32 会失败)
+  $action = New-ScheduledTaskAction -Execute 'wscript.exe' `
+    -Argument ('"' + $launcher + '" "' + $cmd + '" -Mode ' + $t.Mode) `
+    -WorkingDirectory 'C:\zhaoren'
   if ($t.At) {
     # At 可为单个时间或数组(每12小时=02:30+14:30), 生成对应的 Daily 触发器列表
     $times = @($t.At)
@@ -25,7 +29,7 @@ foreach ($t in $tasks) {
     $trigger = @(foreach ($h in (@(0,1) + @(5..23))) { New-ScheduledTaskTrigger -Daily -At ('{0:D2}:00' -f $h) })
   }
   $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-    -ExecutionTimeLimit (New-TimeSpan -Hours $t.LimitH) -MultipleInstances IgnoreNew
+    -ExecutionTimeLimit (New-TimeSpan -Hours $t.LimitH) -MultipleInstances IgnoreNew -Hidden
   # 已存在则先卸载(幂等重注册)
   if (Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskName $t.Name -Confirm:$false
