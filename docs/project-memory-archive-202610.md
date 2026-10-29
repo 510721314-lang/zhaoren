@@ -1,0 +1,322 @@
+# 项目记忆归档快照 · 2026-10-29
+
+- 来源：`%userprofile%/.trae-cn/memory/projects/-c-zhaoren--p2-f953b3c8ed7b028eaf39/project_memory.md`
+- 快照 SHA256：`7bdefd02092f5d3e53037d6ad5c9af9e50a86a7c234baab333af593445d6c629`
+- 规模：311 行 / 79,721 字节
+- 性质：**只读归档**，不参与自动注入。冻结期只增不删 —— 主记忆文件对应条目尚未移除。
+- 用途：按需检索历史实证（拆分过程、A/B 用例数、SHA 校验、部署体积等）；主文件瘦身（删除版）待提审通过后执行。
+- 重建方式：本文件正文即源文件 311 行原文，可用 Grep 按关键词检索，或按 `##` 标题分段 Read。
+
+---
+
+## Hard Constraints
+- 已验收基线内容的修改必须先经用户同意
+- 信用分等级映射标准：L1 620-799 / L2 800-899 / L3 900-949 / L4 950-1000
+- 动态信用分数据源为 user_account.partner_credit_score
+- 需求发布时，status≠cancelled 的需求参与时间窗冲突判定
+- 争议单超期升级已实现（2026-10-13 闭环）：`dispute_state='open'` 发起超 `dispute_escalate_d`(30) 天未裁决 → 幂等标记 `dispute_escalated_at` + P1 `dispute_escalate_overdue` 平台事件（errorScan 推送管理员）；**裁决仍走人工，禁止自动裁决**
+- 生产环境下，mock_openid 全部失效，身份验证使用真实 OPENID
+- 生产环境下，打赏功能（tip_enabled）自动关闭
+- 所有备份文件必须保存在 `c:\zhaoren-bak` 目录中
+- 提审演示/截图期间可临时切回 dev 环境，演示完成后需立即切回 prod 环境
+- 新开任务必须进行工作目录验证，并经用户确认后才能动工
+- AI 应用需遵循 fail-closed 原则，AI 失败时按开关降级，不影响主流程
+- AI 请求不得携带全量订单、位置或联系方式等私有数据
+- AI 输出需标注「AI 建议」，不触碰核心交易链路，隐私指引无新增
+- 微信云开发环境启用 AI 模型需先切换至资源点计费模式，旧套餐模式下无法启用
+- 环境切换至 dev 后有 4 小时自动回 prod 兜底机制
+- 耍伴展示端资料(BIO/技能/亮点/资质/荣誉)只读 `profile_audited_snapshot`，未过审内容一律不上线（fail-closed 双缓冲）
+- 资质/荣誉标题长度限制为≤20，图片数量限制为≤6
+- 资质/荣誉添加入口必须恒显示，满额时通过 toast 提示上限
+- 环境判定依赖 `admin_config.global.env` 云端运行值，读取失败时按 prod 兜底（不隐式放开 mock）
+- 本功能不含 auto 通过，资质/荣誉审核双向进入人工审核链路
+- 场景白名单从 `admin_config.scene_list` 动态读取，审核红色线仅 `auto_approve_*` 触发
+- 资料维护与入驻审核解耦：update_partner_profile 门槛从 status==='approved' 放宽为 status !== 'rejected'，入驻审核中(pending_review)可维护资料
+- 资料驳回后允许立即重提：驳回时写入 profile_submit_at: 0，清除 30min 限频
+- 资料维护支持每栏目独立提交：技能标签/服务亮点/资质证书/荣誉 其他各有独立提交按钮，提交后整份锁定，仅该栏进入待审
+- 地图位置共享双向对称：用户需开启 `allow_map_share` 开关且定位在15分钟内有效，对方才能在地图上看到自己
+- 地图定位上报限制：仅当 `allow_map_share` 为 true 时，`report_map_gps` 云函数才会写入坐标数据
+- 地图坐标隐私保护：关闭 `allow_map_share` 开关时，系统自动清除已上报的坐标数据
+- 地图 marker 角色区分：耍伴使用绿色定位针（marker.png），需求发布者使用蓝色定位针（marker-user.png），通过 `is_partner` 字段判断角色
+- 资质证书/荣誉 其他图片上传单张大小限制为≤3M
+- 代发需求发布时，被代发人联系方式为必填项，且需对手机（11位，1[3-9]开头）和座机（区号+连字符+7-8位号码）进行格式校验
+- 代发需求中与被代发人关系需从预设列表（父母/子女/配偶/长辈/兄弟姐妹/亲友/邻居/同事/其他）选择，选择「其他」时需提供20字以内附加说明
+- 所有需求发布时，发布者必须留下联系手机号并通过验证，付款后接单者可通过系统分配的虚拟号码联系发布者，履约结束3小时后（可通过后台管理设定时间）该虚拟号码失效
+- 代发需求详情页需显示「👥 代他人发布 · 服务对象为发布者的[关系]」标识，与普通订单区分
+- 3B爽约申诉可提交条件（2026-10-12 口径定稿）：订单状态为S2（已支付未开始）或S3.5（履约中断），且落在「约定开始时间 ≤ now ≤ 约定开始时间+48小时（可配置）」窗口内。10-10 曾放宽为「付款后即可申诉」，10-12 恢复下界（开始时间未到谈不上爽约，且与上报页文案矛盾），前后端口径一致；详情页按钮改为「开始时间未到则显示占位提示"约定开始时间后可报告爽约"」，后端返回 no_show_not_started
+- 3B爽约申诉链路：提交申诉（需截图举证，≥10字）→对方举证（48小时窗口）→管理端裁定（成立：扣20分/次，满3次停用7天；不成立），申诉人在裁定完成前可随时撤回申诉
+- admin_accounts 表的 account 字段唯一索引 `uk_account` 已建成，重复创建 admin 账户会被数据库层拦截并返回友好报错
+- 提审前必须完成所有云调用权限声明补齐、静默降级日志升级，确保所有 openapi 调用失败在生产环境可观测，无无痕静默失败
+- 订单状态S5（履约完成待评价）下，需求发布者与耍伴双方均可看到「发起投诉」按钮，无需等待评价完成
+- 需求发布成功后必须立即向发布者推送站内通知，同时向符合条件的可接耍伴推送抢单通知，全程遵循 fail-closed 原则，失败不影响发布主流程
+- 退款金额上限为订单总金额减去已成功退款合计（不含打赏），超额、零额、非整数退款均会被拦截
+- 退款操作失败时需自动补偿回滚订单状态，避免状态不一致
+- 退款成功后需向订单双方推送包含退款金额的站内通知，可点击跳转至订单详情页
+- 履约域所有等待类状态必须配置超时守夜人兜底，避免订单永久滞留
+- 争议裁决完成后回退状态需保留原状态上下文，已有评价的争议回退应返回S8而非固定返回S5
+- 部分退款仅冲减结算基数，不进入全额退款终态S7
+- 履约状态语义需保证admin端与小程序端完全一致，避免两端标签语义相反
+- S2协商取消链采用角色不对称梯度退款：用户取消按距开始时间分全额/80%/50%三档，耍伴取消任意时间全额+平台赔付20%并扣20信用分
+- S2协商取消链不新增独立状态，通过cancel_request挂起字段实现，含发起方/原因/预计算金额/2h过期时间
+- S2协商取消链金额冻结以发起时点为准，超时转裁决时按裁决时点梯度重核
+- S2协商取消链挂起期间冻结start/modify操作，与爽约申诉并存时申诉优先自动撤回取消申请
+- S2协商取消链转裁决为专用双出口：同意取消按裁决时点梯度退款→S7，驳回取消清挂起回S2
+- 履约催办采用三段式自动链路：到点提醒耍伴→超时1h用户收通知+催办入口亮起→超时4h自动引导爽约申诉
+- 履约催办每单限手动触发2次，满额置灰并记录催办次数
+- 提审前需完成催办/取消订阅消息全链路落地，包含小程序端订阅授权、手动/自动双通道发送、失败降级站内通知
+- 订单状态机重构需采用双写过渡策略：先同时写入旧状态字段与新正交位字段，完成存量迁移后再全仓切换读方，避免读写空窗
+- 存量数据迁移前必须完成全量备份，采用分批limit+skip方式执行，迁移后抽样验证确保数据一致性
+- 【提审策略变更·2026-10-10 用户拍板】履约域 P0'/P1/P2/P3 全部批次纳入**提审前**完成，对提审无时间限制，交付相对完善的产品（原「提审前零行为改动」冻结红线废除）；执行按 Wave 0-4 五波次：Wave 0 先决（IDE 白屏修复/存量盘点/密钥修正）→ Wave 1 状态机重构（order_state.js 表驱动+正交位 dual-write+存量迁移+标签对齐）→ Wave 2 止血批（S0 释放/S3.5 生产方/S4 兜底/冻结位/催办链+订阅消息）→ Wave 3 资金安全批（分段结算/S2 协商取消链/部分退款非终态/前端入口）→ Wave 4 总验收提审
+- 【提审范围收敛·配套规则】「无时间限制」= 时间不构成提审压力，不等于范围开放：提审准入以既定验收标准达成（三审计零 P0 遗留 + 每 Wave DoD 达标 + 真机全生命周期回归通过）为准，不以「继续完善」无界扩张；新增需求走常规流程单独评审，不默认并入提审前批次
+- 催办提醒订阅模板选用红线：仅勾选 thing（文本）+ time（时间）类字段，避开 phrase/amount/character_string/name 等格式受限字段，模板配置结构与 demand_grab 保持一致，miniprogram_state 提审前设为 trial
+- 微信开发者工具模拟器白屏为IDE环境问题，项目代码无异常，真机渲染完全正常，无需进行代码排查；【2026-10-10 用户实证已解决】有效修复动作=完全退出开发者工具 → 关闭当前文件夹/项目 → 重新打开文件夹 → 重新创建/导入项目（本质是 IDE 项目态/多进程残留异常，与「真机调试断开需结束全部进程重开」同源），**非**基础库版本/缓存/硬件加速问题；对照实验法（真机是否正常）是区分「IDE 侧 vs 代码侧」的最低成本定性手段。**2026-10-10 二次实证**：模拟器可能渲染**陈旧编译产物**（实例：「被代发人电话」输入框在 C:\zhaoren 源码与校验中均存在，但模拟器发布页不显示），而同机**真机二维码预览完全正常** → 此时**不得判定为代码回归**。定性顺序：①先确认「云端是否已部署该改动」（未部署则运行时不可能受影响）②再看真机是否正常 ③都指向 IDE 侧则让用户「关闭项目 → 重新打开 C:\zhaoren → 重新编译」（多数即恢复）
+- 【IDE 白屏·2026-10-13 复发与终解】症状链同源（编译 .wxml 报 `[Builder Services] getRootFactory Not Define Env` / 模拟器长时间无响应 / 真机调试白屏；真机「预览」二维码正常 = 代码无责）；**「重启电脑」= 终解（用户实证）**，轻量版 = 彻底结束全部「微信开发者工具」进程 + 重开项目；疑似与 10-12 IDE 自动更新后的进程态/构建器初始化残留有关（未进一步定证）。**环境更正**：用户主用 IDE = `C:\Program Files (x86)\Tencent\微信web开发者工具`（2.02.2610122 最新；其 cli.bat 部署通道已实测可用）；原「x86=旧装残留勿用」记载作废；桌面旧拷版（2.02.2609102）已被用户移入 `C:\Users\DC\Desktop\工具\微信WEB开发者工具`
+- Wave 1 存量迁移采用范围A策略：仅迁移语义单（S8/S9/S10.5 共59单），其余159单由 mapStatus 读时推导默认值，不写入无意义的终态单噪声
+- 资金字段（paid_fen/refunded_fen/settle_state）双写需在 Wave 1 完整落地，不得暂缓至 Wave 3
+- 云数据库 Extended JSON 格式（`{"$numberInt":"10000"}`）需在迁移脚本中通过专用函数解包，避免数字解析为 NaN 导致字段写入错误
+- 云函数巨型文件拆分采用同级 handler 文件方案，不创建子目录，避免破坏现有 `_shared` 模块同步脚本的路径匹配逻辑
+- 巨型文件拆分必须以「拆分前后 action 输入输出逐字节等价」作为核心验收标准，通过等价性重放 fixture 验证，不得仅依赖单元测试覆盖
+- admin action 等价性验证需优先覆盖核心高风险业务块，每个核心块需同时提供成功用例与对应的拒绝分支用例进行正反对照，确保用例对业务逻辑真实敏感，避免过度拟合夹具导致用例对代码改动不敏感
+- admin-action 巨型文件拆分全量完成：181 例等价验证（67 显式用例 + 114 自动种子）零差异，覆盖全部 83 个 action 的分发路由、鉴权门及核心业务逻辑的成功/拒绝正反路径，全程零生产代码改动，仅加固测试基建
+- payment-mock 巨型入口物理拆分完成（2026-10-14）：index.js 874→186 行（-79%），14 个 action 分 4 组至同级 action_pay.js(pay4)/action_tip.js(tip3)/action_account.js(account4)/action_withdraw.js(withdraw3)；index.js 保留 prod mock 资金门控(MOCK_ONLY_ACTIONS)+订单 `_id` 预检(两道预检有意不抽)+HANDLERS 分发+ctx 注入；withdraw/fast_withdraw 为落穿共享 case（isFast 由 ctx.action 区分，同一 handler）；逐字 14/14、A/B 357 例 0 差异（318→357）、反向假设抽 ctx.acquireWithdrawLock 后 4 例 FAIL、部署 download 13 文件 SHA256 全 MATCH；剩余待拆巨型入口：order-create(804)
+- home-action 巨型入口物理拆分完成（2026-10-14）：index.js 828→364 行（-56%），8 个 action 分 4 组至同级 action_feed.js(overview/square)/action_scene.js(scene_groups/scene_list)/action_nearby.js(nearby)/action_misc.js(user_home/home_activity_list/activity_detail)；index.js 保留全部 helper 与进程内缓存(ensureCollections/truncate/memSet/memGet/memo/buildSceneGroups/pickActivities/loadHomeActivitiesRaw/loadSceneList/mapDemand/fillPublisherSurname/hallWhere/priceRangeWhere/loadVisitorPartner/loadTakeDistanceCap/haversineKm/sceneOptionDisplayMax/sceneGroupsCacheKey) 经 ctx 注入防缓存分叉 + HANDLERS 分发（dispatch 置于 try 内 switch 之前，switch 仅留 default home_unknown_action）；首行 @VERIFIED 2026-10-13(场景/子场景显隐)随 scene_groups 迁至 action_scene.js 并加承接注释；逐字 8/8、A/B 381 例 0 差异（357→381）、反向假设抽 ctx.loadVisitorPartner 后 13 例 FAIL、部署 download 12 文件 SHA256 全 MATCH；剩余待拆巨型入口：order-create(804)
+- 拆分工具 .tmp-tcb/make-handlers.js 与 verify-verbatim.js 的 case 收尾括号判定须与 case 行缩进对齐（home-action switch 被 try 包裹、缩进为 4/6 空格，原固定 `^\s{4}\}$` 失效）；handler 生成需过滤 redeclare 变量（body 内自声明 `const openid` 与 ctx 解构同名会 SyntaxError）——home-action 之 squareAction/nearbyAction 解构不含 openid 即由此过滤器产出
+- mock SDK 匹配器除 db.command 哨兵(neq/eq/in/nin/gt/gte/lt/lte/exists)与顶层 _.or/_.and 外，还须支持 ①字段级命令链 `_.gte(x).and(_.lte(y))`（makeSentinel.and → and_field 分支）②嵌套 `_.and([普通对象, _.or([...])])`（where 内 matchQuery 递归求值）；否则耍伴价格区间/接单距离等深层路径无法命中夹具（2026-10-14 home-action 实证）
+- 订单端到端异常分支覆盖补充需遵循「规则层单测 → action 层全链路验证 → A/B 等价证明」的顺序，每批次完成后更新 ORDER_E2E_MATRIX.md 覆盖状态，全程零生产代码改动
+- 投诉/爽约/改期等所有订单相关事件必须在订单详情页以统一时间线形式向双方展示详情，时间线按时间倒序排列，操作人角色可读化，不暴露原始 openid
+- 订单冻结位（frozen=true）期间需隐藏「发起投诉」按钮，禁止投诉操作，避免争议状态冲突
+- 首页场景宫格默认展示5个常用场景（就医陪诊/生活协助/游玩陪伴/情绪陪伴/宠物陪伴），学习陪伴/出行陪伴/健身陪伴/线上陪伴归入「更多场景」折叠入口，点击入口就地展开/收起，不跳转新页面
+- 首页场景搜索不受折叠状态限制，可直接命中「更多场景」内的所有场景
+- 前端统一云调用入口：小程序端所有云函数调用需统一走 `utils/cloud.js` 封装，自动等待 `cloudReady`、读操作重试2次、写操作不重试、单次超时6秒、注入device字段，仅初始化链路保留直调避免循环依赖
+- 场景配置跨端一致性校验：`demand-publish` 的 `SCENE_CODES_FALLBACK` 每个code必须存在于前端 `enums.SCENES`，纳入门禁校验
+- 客服会话唯一索引约束：`im_conversation` 表 `uk_order_id` 唯一；客服会话用**按用户唯一占位** `order_id: 'kefu_'+openid` 复用该索引（每用户一条）——原空串占位全局仅容一条、多用户并发开客服撞唯一键加载失败的问题已于 2026-10-12 修复（2026-10-13 云端 download 核验 `kefu_` 命中）；禁止回退空串占位
+- 场景/子场景（服务项）新增前端显示/隐藏功能：隐藏仅控制前端入口展示，存量已发布需求仍可在广场/附近/订单列表正常可见，不删除或隐藏存量业务数据
+- 场景隐藏标记存储在 `scene_list` 项的 `visible` 字段，默认值为 true，设为 false 时隐藏；子场景隐藏标记存储在对应场景的 `hidden_options` 数组中，将子场景 code 加入该数组即隐藏
+- 场景/子场景隐藏过滤逻辑统一在 `home-action` 的 `scene_groups` 出口执行，`scene_list` 单场景分页、`nearby` 白名单、`demand-publish` 白名单均不做过滤，保证存量需求不受影响
+- 后台管理端场景配置页面新增「前端显示」列，每个场景和每个子服务项均配置独立的显示/隐藏开关，操作即时保存，关闭时二次确认说明隐藏仅影响前端入口、存量需求仍可见
+- 小程序端三处兜底场景列表需增加防泄漏逻辑：全部子场景被隐藏时不再回落硬编码选项，`SCENES` 仅在云端列表为空时才使用兜底，同时升级 swr key 版本清除旧缓存
+- 加时申请超时自动拒绝逻辑：订单状态S3且存在pending_extend字段时，以expire_at或created_at+modifyConfirmH作为超时判定依据，超时后写入timeout_extend_auto_reject时间线、发送extend_reject类型系统通知给发起人，不修改订单主状态，使用pending_extend_token作为精确乐观锁条件更新避免竞态，历史无token的在途申请回退updated_at等价条件兼容
+- 加时申请被拒绝（含自动超时拒绝）时，若对方停留在订单详情页面，需通过消息及时通知对方
+- 投诉相关的全部详细信息需在订单详情页完整展示，包含投诉发起方、原因、时间、状态、撤回时间、处理时间、处理结论、退款金额等字段，不对外暴露管理员openid
+- 巡检项（errorScan）仅对真实用户的P0/safety_sos事件保留告警，豁免admin_probe（无身份机器调用）和order-timer自身的s4_stale_escalate兜底事件，避免误报
+- 活动卡片采用方形1:1比例展示，与后台「卡片图居中裁切为750×750方形」的规格对齐，避免图片被横向裁切；活动标题/副标题仅在非空时渲染正文区域，避免仅传图时出现空白白块
+- 活动标题/副标题需在后台提交和云端存储时统一trim，空格内容无法通过非空校验，避免无文案活动卡片出现空白区域
+- 投诉裁定完成后需同步回写complaint集合的status为resolved及对应decision/verdict/decided_reason/by/at字段，避免该集合status永久停留在pending导致后续功能读取错误
+- user_account停用到期恢复逻辑在order-timer中新增定时扫描兜底，与user-login的惰性恢复形成双保险，到期自动恢复normal状态并发送account_restored站内信
+- order-timer所有扫描逻辑统一使用分页循环实现，避免单页limit(BATCH)导致积压超过50笔时部分单据永不被处理，单轮硬上限500笔防止3s超时
+- dev环境身份校验需遵循fail-closed原则：dev_bypass配置需携带未来时间戳dev_until才生效，过期或缺失时自动回退生产环境，仅dev_bypass=true作为紧急回滚开关
+- 网关鉴权优先级：X-Admin-Token（校验admin_web_sessions 12h有效期）> admin_login免key > X-Admin-Key兜底，避免账号密码登录后清key导致401
+- 密钥轮换需提供合规密钥生成脚本及演练脚本，phone_hash需随密钥同步重算
+- 图片上传校验规则：admin-action的upload_image接口对封面图强制校验为1:1比例，非正方形图片直接拒绝并返回up_not_square错误码
+- HTTPS订阅消息发送采用opt-in模式：仅当admin_config.sub_msg_https配置了有效appid和secret时才启用HTTPS通道，未配置时自动回退原有云调用发送方式，无破坏性变更
+- 订阅消息发送结果统一写入demand集合的sub_msg_send_logs字段，同时标注发送通道（云调用/HTTPS）便于后续排查
+- 配置变更生效提示：admin端所有配置保存成功后统一弹出「约5分钟内生效」的提示，覆盖config_set、home_activity等所有配置操作
+- 微信公众平台消息推送配置页（URL/Token/EncodingAESKey）仅用于配置微信主动向服务器推送的入站回调，当前项目无相关需求，无需配置，不影响服务器主动调用微信接口发送订阅消息的出站链路
+- admin_login 登录失败（账号不存在/账户停用/密码错误）必须写入 P1 事件 `admin_login_fail` 到 platform_event 表，确保 errorScan 巡检可捕获，避免匿名爆破无观测
+- HTTPS 订阅消息发送的 `defaultPostJson` 必须设置 8 秒超时，超时后显式销毁请求，防止微信接口挂起导致云函数被强杀后重复推送
+- HTTPS 订阅消息的 pusher 实例需在 `processDemandNotify` 函数级创建，跨 demand 共享 token 缓存，同时 `getAccessToken` 需实现 in-flight 并发去重，避免重复调用 stable_token 接口浪费配额
+- order-timer 分页扫描已改**游标分页**（2026-10-13 闭环，原 skip 漂移负债销项）：scanAll 用 `orderBy('_id')` + `_id > 上页末位`（_id 恒有索引、无需新建组合索引；云端实测 `sort:{_id:1}` 过滤查询可用），并发写者下不跳过/不重扫；**禁止回退 skip 分页**
+- admin_login 防爆破锁定已落地（2026-10-13 闭环）：连续失败 5 次锁 10 分钟（新错误码 login_locked，锁定中不验密直接拒；验密成功清零计数）；复用 _shared/security_policy.js（admin-action 副本已并入 SYNC_MAP，消费者=user-login/init-db/admin-action 共 3）；P1 admin_login_fail 事件保留，触发锁定的一次 payload.locked=true
+- 整改 v2 全量收官总览（6 批 31 项 + 14 个提交 + 门禁 335 pass）与留存负债快照（S1/S2/R2/B1/B3/P3 及各自触发条件）需留存，下次会话直接可查
+- scanAll 已全量推广 9 段 + trackBacklog 新语义（取满 500 才算积压）
+- readImageDims JPEG 填充字节跳过红线
+- zz-warmup 云函数 cron 调整为全天每5分钟触发一次，覆盖 0-24 点全时段，解决夜间冷启动无预热问题，调用量约 1.7 万次/月，占基础版额度约 4% 可接受
+- openid.js 已全量 17 业务函数单一源收敛（2026-10-13 闭环）：不再有任何「有意变体」；admin-action 的 admin-web 网关密钥校验上移至其 index.js resolveOpenidWithProxy 包装层；规范源新增 invalidateEnvCache 导出；init-db 旧变体废弃（其缺 dev_until fail-closed 属安全隐患，已修）
+- init-db force_set_env 切 dev 时同刻写 dev_until（4h 与 force_expire_at 同刻自毁）——否则 openid.js 规范源按 prod 兜底、跨函数 mock 放行失效；17 个 openid.js 载体函数（2026-10-13）已全部部署并 download 核验（admin-action=login_locked / init-db=dev_until 标记命中）
+- 评审 P4 处置已落地（2026-10-13 拍板 A）：#1 启用清锁定残留 / #3 计数写失败 log.w 留痕 / #4 阈值反向用例 / #5 文档残留——已修并部署 admin-action+init-db（deploy-log 2026-10-13 第三行；回滚点 c130f28）；#2 失败计数读-改-写竞态**已于 2026-10-13 撤销「登记不修」拍板并原子修复**（admin_login/password_login/SMS 验证码三处：`_.inc` 原子自增 + 达阈值条件置锁）；门禁基线更新为 pass 360/0（A/B 205 例、9 known-evolution）
+- 待办 4/5 已执行（2026-10-13）：4 个 skill（cloud-entry-contract-test/cloud-function-split/zhaoren-perf-baseline/zhaoren-tech-review）已入库；4 个报告/文档已入库；`.trae-html-share-packages/` 已加 .gitignore；评审留档 `docs/verification/tech-review-20261013.md` 已落盘
+- 留存负债全量闭环已落地并部署（2026-10-13 晚，勿再列为待办）：①order-timer 游标分页；②争议超期升级（P1 dispute_escalate_overdue，裁决仍人工）；③失败计数原子化三处（admin_login/password_login/SMS）；④客服占位复核已修（kefu_ 云端命中）→ 附录 A.2 在册清零。部署 4 函数（order-timer/admin-action/user-login/init-db 串行；deploy-log 2026-10-13 第四行；代码 commit 0b2d061、bundle zhaoren-deploy-20261013-140445、回滚点 29a3184）；download 标记全部命中；门禁 pass 360/0
+- 节点全量备份已完成（2026-10-13 晚，CHECKSUMS.txt 已登记）：bundle `zhaoren-full-20261013-144705`(--all, verify OK)；robocopy `zhaoren_files_20261013-144903`(915/915, 源↔备 SHA 全对)；DB/云函数/索引 `zhaoren_backup_20261013-1441`(L2 快照 env=prod + L3 37 集合 SHA 37/37 + L6 20/20 云端下载 + L7 33 条)；沉淀资产 `zhaoren_assets_20261013-145007`(项目记忆+skills 22+rules+SHA256SUMS)；restore.ps1 dry-run 39 OK/0 BAD。前置修复 commit f18d2d0（BOM/CLI 路径）+ BOM 补齐 aa51d43（均已推 origin）
+- 飞书异地备份通道已打通并完成首推（2026-10-13，runbook §4 已按实测更新）：lark-cli（插件内 `C:\Users\DC\.trae-cn\plugins\trae-remote-official\lark\1.0.5\bin\lark-cli.exe`）首次需 `config init --new`（浏览器/扫码）→ `auth login --domain drive`（用户身份=李劲松；**必须 --as user**，bot 看不到用户云盘）→ status → `+push --if-exists overwrite` → status 复核 unchanged；本次推 3 件（bundle 16.3MB + `zhaoren_backup_20261013-1441.zip` + CHECKSUMS.txt；folder_token RCsff3kGUlKhpud1KVFckJOhnGc）；**staging 必须位于 cwd 内**（TEMP 绝对路径判 unsafe file path），用 `c:\zhaoren\.backup-lark`（`.backup-*/` 已 gitignore）
+- 备份规则已沉淀（2026-10-13）：`.trae/rules.md §八` 重构为「**节点备份 v2**」（五通道：GitHub/bundle/robocopy/manual-backup 数据层/异地飞书 + 沉淀资产；前置检查：先提交再归档/BOM 复检/L6 CLI 路径/密钥通道/索引扫描；完整性检查 7 项含 restore dry-run；命名与 CHECKSUMS 记录格式；恢复优先级；经验教训 7 条）；skill `cloud-backup-restore` 同步修正（CLI 主用路径/lark 三坑/BOM 事故/2026-10-13 实测节）
+- 【PS5.1 BOM 事故·2026-10-13 实证】中文 .ps1 的 UTF-8 BOM **会被后续编辑（工具改写）静默丢失** → ParserError 整脚本不可用（manual-backup.ps1 无 BOM 直接抛错、其 L6 CLI 旧路径会静默 SKIP；restore.ps1 同因解析失败）。**跑备份/恢复链前先复检前 3 字节 = EF BB BF**；当日全仓扫描发现的其余 6 个无 BOM 中文脚本（.trae/predeploy.ps1、.trae/scripts/scan-miniprogram.ps1、sync-openid.ps1、sync-security-policy.ps1、build-admin-web.ps1、ui-consistency.test.ps1）**已全部补齐 BOM 并提交（aa51d43）**；skill powershell-windows-traps 已同步补注记
+- demand-publish 入口拆分试点已闭环（2026-10-13 晚，commit 7a04230 + 文档 1c1bcf7，勿再列为待办）：cancel/lazy_expire → action_lifecycle.js（HANDLERS 分发 + ctx 注入）；验证=部署级（CLI download 5 文件 SHA256 全 MATCH + 云端实调 341ms 证明模块加载）+ A/B 213 例 0 差异 + 单测 360 pass + npm run verify 全绿；云端测试面板 mock 烟雾 4 次被拒（publish_no_openid）= openid.js prod fail-closed 设计行为（反向实证生产防冒充生效），非拆分缺陷；cancel（发布→取消）真机回归通过（2026-10-13 用户实测）；lazy_expire（过期下架）真机回归放弃（由 A/B 213 例等价背书）→ 试点完全闭环；其余巨型入口现状：admin-action 已拆完（622 行+30 action 文件），**user-login 已拆完（2026-10-13 晚，1250→348 行，4 个 handler：action_map/auth/account/misc，20 action 全抽出，A/B 275 例 0 差异 + 20/20 逐字校验 + 部署 download 10 文件 SHA256 全 MATCH，commit fa0f302/0feedab/54ac13d，真机回归待用户）**，**partner-action 已拆完（2026-10-13，1134→373 行，4 个 handler：action_config/exam/profile/public，13 action 全抽出，A/B 305 例 0 差异 + 13/13 逐字校验 + 部署 download 14 文件 SHA256 全 MATCH，commit d76aed4/1cefcff/c07a958，真机回归待用户）**，**order-timer 已拆完（2026-10-13，969→639 行，4 个 section：action_timeout(超时2)/action_modify(改期加时2)/action_lifecycle(生命周期5)/action_account(账户争议2)，11 段全抽出，A/B 318 例 0 差异 + 11/11 段落逐字校验 + 部署 download 14 文件 SHA256 全 MATCH，commit b33cd80/5b8354c/fd7f1c5/bac3fb3，真机/云端回归待用户；注意 order-timer 无 action 分发，用 make-sections.js/verify-sections.js 按「// ───────── 」段落标记抽取 + sectionCtx 注入）**，待拆=payment-mock(824)/home-action(764)/order-create(747)；【推广拍板 2026-10-13】按顺序推广（凭 A/B 等价证据），顺序 user-login → partner-action → order-timer，每函数小切口 + 基线入库 + A/B 门禁 + 独立提交 + 串行部署 + download 核验（复用 cloud-function-split skill 流程）
+
+## Engineering Conventions
+- 信用分 level 由后端根据 score 按 CREDIT_LEVEL 区间推导
+- 种子需求补造采用 seed-scene-demands.md 方案A：demand-publish mock 发布，start_time 设 30 天窗口内、expire_at 自动未来
+- 订单列表、消息页、订单详情页的订单概况信息统一通过 buildOrderSummary 函数生成，确保同源一致
+- 场景中文映射需全仓同步：涉及 order-action、im-conv、im-send、payment-mock、home-action 等云函数的 SCENE_CN/SCENE_NAME/SCENE_NAMES 常量
+- 工作目录验证需执行 `Test-Path + git remote -v + project.config.json appid` 三合一检查
+- 三重备份包括 git bundle、robocopy 热备和云端 DB 导出
+- DB 导出通道：backup.ps1 AdminKey 未配置时，用 force_set_env dev + mock_openid=管理员 → fn invoke admin-action export_collection 分页导出（白名单校验在 admin-action 内）；2026-10-13 起 force_set_env 同刻写 dev_until，该链路的跨函数 mock 放行已可靠
+- 数据层备份正脚本=manual-backup.ps1（含 L2 配置快照/L3 DB 导出(37集合)/L6 云函数代码/L7 索引台账，无 L4/L5）；backup.ps1 的 confirm 缺口已修复但入口仍以 manual-backup 为准；DB 恢复=restore.ps1（走 admin-action import_collection 逐表 replace 回灌）
+- 审核结果以 system_notice 推送（partner_profile_submitted/approved/rejected 三条链），复用 writeNotice 去重合并（同收件人+order_id('')+type 未读覆盖正文）
+- 匿名越权回归方法论：不带 mock_openid 调敏感函数(init-db/order-timer/payment-mock/admin-action)，逐个断言拒绝；init-db 种子分支须管理员鉴权，首部署(global 不存在)放行保鸡生蛋
+- 审核历史存储在 `partner_profile.profile_audit_history` 数组，包含通过/驳回状态、操作人、原因和时间
+- 待审核内容按个人简介、技能标签、服务亮点、资质证书、荣誉 其他分类呈现，原内容与变更后内容对比并高亮差异
+- 小程序端「审核中」区域下部显示待审核事项（带「待审核」角标）和审核历史时间线
+- 云函数部署需使用全路径命令：C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat cloud functions deploy --env cloud1-d9gkefwcp5c777088 --names <单个名> --project C:\zhaoren --remote-npm-install（一次部署一个云函数，不可逗号拼接多个名称；2026-10-13 更正：主用安装为 x86 路径，原桌面路径已不存在，详见 skill: wx-cloud-deploy）
+- 部署后内容核验手法：cli cloud functions download 到 %TEMP% + 核对标记串（admin-action=login_locked、init-db=dev_until、通用=openid.js 含 invalidateEnvCache）；DevTools CLI 输出表格含框线字符 │（非 ASCII |），Select-String 过滤建议用 "true|KB|error|fail"
+- tcb fn list 默认只显示 20 条（第 21 个起静默漏显，易误判「函数缺失」）→ 全量复核用 tcb fn list --limit 50，点名单查用 tcb fn detail <name> -e <env>；functions download 核验须按函数分目录（同一 path 平铺会互相覆盖同名文件）
+- 场景/子场景前端显示顺序 = admin_config.scene_list/options 数组序（2026-10-13 起后台「场景管理」可配置：操作列 ↑上移/↓下移 + 服务项排序弹窗；云端 config_set 键 scene_reorder/scene_option_reorder，边界返回 config_reorder_noop）；首页宫格 = 可见场景按序前 5 进主宫格 + 其余进「更多场景」折叠（原硬编码 MORE_SCENE_CODES 已废弃；enums 兜底顺序已对齐展示序）；改序后 ≤5~10 分钟缓存过期生效；存量顺序迁移经网关 15 次自愈调用完成（脚本 .tmp-tcb/scene-order-migrate.ps1，目标 W1,W8,W4,W7,W9,W10,W11,W2,W3）；入口契约用例 +3（门禁 351/0）
+- PowerShell 5.1 无 heredoc：git commit 用 -F <临时消息文件>；部署前工作区须先提交，否则归档 bundle 只能取部署前 HEAD、回滚点含混
+- admin-web 前端修改后需先设置 node 路径 `$env:PATH="C:\Program Files\nodejs;"+$env:PATH`，再执行 npm run build，将 dist 目录内容清空重拷至 cloudfunctions/admin-web/public，最后部署 admin-web 云函数
+- 独立提交时只上报该栏内容，其余栏置空；提交后所有独立按钮+底部按钮全部置灰（整份锁定）
+- 审核历史时间栏显示格式为 YYYY-MM-DD HH:mm
+- 地图 marker 图标选择逻辑：在 nearby-map.js 中通过 `is_partner` 字段判断角色，耍伴使用绿色图标，需求发布者使用蓝色图标
+- 资质证书/荣誉 其他图片上传超限处理：选图后按 tempFile.size 过滤，>3M 的跳过不上传，超限张数通过 toast 提示「N 张图片超过 3M 已忽略」，全部未超限时显示「上传中…」loading
+- 资质证书/荣誉 其他上传入口辅助文案需添加「（单张≤3M）」
+- 每栏目独立审核采用栏目级 approve/reject 模型：保留整份 `profile_audit_status=pending` 作为「还有未处理栏目」的锁，对每个栏目单独点「通过/驳回」，通过的栏目并入快照并清除其 pending，驳回的栏目仅清除 pending 并保留 reason，全部栏目处理完后解除 pending 锁
+- 审核操作接受 `items=[{field,pass,reason}]` 参数，支持的白名单字段为 bio/skills/highlights/qualifications/honors
+- 资质/荣誉判空规则：titles 与 photos 都空才算空，有任一即视为有待审内容
+- 资质/荣誉图片展示：待审图与已上快照图均显示缩略图（64px 小图），点击缩略图可弹大图预览并左右切换
+- 资料审核逻辑采用单一实现：审核逻辑统一维护在 `_shared/partner_audit.js`，`partner-action` 和 `admin-action` 通过本地副本 `require('./partner_audit')` 引用，修改时需同步三份
+- `partner-action.audit_partner_profile` 标注为 DEPRECATED，仅用于兼容云端面板，实际审核逻辑与 `admin-action.partner_profile_review` 完全同源
+- 审核逻辑单测：为 `_shared/partner_audit.js` 编写单元测试覆盖 buildAuditPatch 四主路径（通过/驳回/锁/判空），并纳入 predeploy
+- 审核逻辑同步机制：使用 PowerShell 脚本 `sync-partner-audit.ps1` 从 `_shared/partner_audit.js` 复制到 partner-action/、admin-action/ 两副本并进行 SHA256 一致性校验，修改审核逻辑时仅改规范源后运行脚本同步
+- 单元测试用例需自包含：每条 test 使用重置函数（如 `freshOpenid()`）避免模块缓存副作用导致的顺序依赖
+- 测试 mock 需模拟真实语义：如 heal.test.js 的 mock 应模拟 DB 过滤语义，确保测试有效性
+- 被代发人联系方式和发布者联系手机号存储时需脱敏，手机格式为138****5678，座机格式为028-****8888
+- 发布页联系手机号区块位于「性别偏好」之下、「发布类型」之上，账户已绑手机号时默认勾选「使用账户绑定手机号（脱敏显示）」，取消勾选可手填11位手机号
+- 订单付款后，接单方订单详情页需显示需求发布者联系电话；代发订单需额外显示被代发人（父母）联系电话，均采用脱敏格式并附带拨打占位提示
+- 数据库/索引命令行操作优先使用 @cloudbase/cli（tcb）v3 版本，命令格式为 `tcb db nosql execute` 执行 NoSQL 命令、`tcb db mysql execute --sql` 执行 MySQL 命令，避免使用 v2 旧命令写法
+- 批量创建集合索引优先在 cloudbaserc.json 中声明 createIndex 配置，通过 cloudbase framework deploy 一键部署，便于版本管理和复现
+- 云端实际索引读取/创建统一走 tcb 直连工具：`node scripts/tcb-scan-indexes.js`（全量扫描实际索引落盘 .tmp-tcb/indexes-actual.json）+ `node scripts/tcb-exec.js <cmd.json>`（执行任意 NoSQL 命令，含 createIndexes；务必 background:true）；前提=@cloudbase/cli 已装且 tcb login（登录态本地复用）；「索引只能控制台手动核对」的历史结论已过时（机制详见 skill: cloud-backup-restore「索引核对与创建」节）
+- 设计台账（index_ledger.json）≠ 云端实际索引，一切以 tcb 扫描为准；提审前必跑扫描对照补齐（2026-10-09 全量实证：设计 32 条仅 4 条已建 → 当日补建 28 条**全数到位**；含清理 admin_accounts 2 条重复 admin（admin_account_create 无查重、疑重复提交）后建 uk_account；另发现 9 个「幽灵集合」实际不存在：user_profile/partner_exam/partner_apply/dispute/withdraw_request/credit_log/report/sms_log/device_bind）
+- manual-backup.ps1 的 L6（云函数代码云端下载）/L7（索引台账）为收工备份必含层；L6 的 CLI 路径探测已适配多机（Administrator/DC/当前用户桌面三候选）
+- gate.ps1 已接入索引台账与云端实际索引的离线静态比对校验，缓存新鲜且台账存在缺失时强制阻塞提交
+- 走查方案与实现文档统一归档至 docs/ 目录，便于后续功能迭代时追溯设计决策与技术红线
+- 订阅模板「接单提醒」已于 2026-10-09 启用：admin_config.sub_msg_templates.demand_grab 配置 tmpl_id=x1TfKgMBQCa2PpfpW10AVewcaFfm8BfuPCKOLk2Dx3Q（公众平台·家政服务类目·一次性订阅·提交即生效无需审核），字段映射 服务项目=thing2→subject / 服务时间=time22→start_time；fields 必须同时给未用的默认键（thing1/time）置空串，否则 sendDemandSub 的 Object.assign 默认映射残留会导致多发字段报 47003
+- tcb MgoCommands update 语法：CommandType 取操作类型（UPDATE/INSERT/DELETE/COMMAND），$set 不支持点号路径（sub_msg_templates.demand_grab 会 Check request parameter fail），必须用嵌套对象整字段赋值；官方示例见 `tcb db nosql execute --help`；写入后必须 find 读回验证
+- 公众平台订阅消息「选用」流程与选型红线：公共模板库→选用→tmplselect 勾关键词胶囊（浏览器自动化须用 selector 快照 .new_keyword_tags 获取胶囊 ref 再点击）→场景说明≤15字→提交→「我的模板」立即生效（无需审核）；选型只挑 thing（文本）+time（时间）字段，避开 phrase（枚举）/amount/character_string/name 等格式受限字段；模板关键词提交后不可修改（只能删除重选）
+- 云调用（cloud.openapi.*）须在云函数 config.json 声明 permissions.openapi=[接口名]（官方：未声明无法调用 errCode -604101）；本项目 openapi 调用均带兜底 catch。2026-10-09 已为 9 函数批量补声明（msgSecCheck×9 + user-login 另加 phonenumber.getPhoneNumber）并将失败日志升 log.w（commit eda406c）；注意「缺声明=全体静默失败」的推论存疑——blog 为 fail-closed 设计却在 2026-10-08 正常发布过动态（msgSecCheck 当时可用）【2026-10-10 真因定论】订阅发送实报 errCode=-501001 INVALID_WX_ACCESS_TOKEN，根因=云调用只在「从小程序端触发的云函数」中经微信自动鉴权（官方云调用文档），order-timer 为定时触发器触发、无小程序上下文→必然 -501001；权限声明是必要条件非充分条件（读库落库 demand.sub_msg_send_logs 实证）
+- tcb CLI 云函数通道（实测）：`tcb fn detail <name> --env-id` 可读函数配置（timeout/触发器/代码大小）✓；`tcb fn log` 在本环境取不到日志（勿依赖）；`tcb fn invoke` 可远程触发云函数
+- devtools CLI 部署批量报 `40001 invalid credential` / 「需要重新登录」= IDE 登录凭据失效（非代码问题）；修复：`cli login -f image -o <png路径> -r <json路径>` 出二维码用户扫码（或 IDE 右上角重新登录）；注意 `cli islogin` 可能假阳性显示 login:true
+- 订阅消息 miniprogram_state：无正式版期间（提审前）配 trial；正式发布后改回 formal（admin_config.sub_msg_templates.demand_grab.miniprogram_state，tcb 直写，运行时生效无需重新部署）
+- order-timer 订阅发送失败日志已由 log.d 升为 log.w（prod 云函数日志可查 errCode/errMsg，订阅链路排障用）
+- 站内抢单通知（demand_grab）展示于「我的→系统通知」页（pages-v2/pkg-low/notices），不在「消息」会话列表（后者仅 IM 会话）——2026-10-09 用户疑惑点，验收说明时注意
+- PowerShell 5.1 中文脚本必须使用 UTF-8 带 BOM 编码，与 JSON 文件必须无 BOM 的要求相反，避免解析乱码报错
+- gate.ps1 第 7 步 smoke 的 home_probe_square 偶发 count=0 属冷启动瞬态，重跑 smoke-check.ps1 即可恢复，非数据问题
+- git push 输出被 PowerShell 识别为 stderr 属正常现象，以 rev-list 计数核对实际推送结果；Empty reply from server 为网络抖动，重试即可
+- 云函数目录基线：当前实际 20 个正式业务云函数，5 个临时残留目录（export-config/admin-test/zz-ai-guard/zz-clean-n8b/zz-kefu-clean）已清理，zz-seed-orders/zz-warmup 为临时自测目录勿动勿部署
+- 需求发布时向可接耍伴推送抢单通知的候选数量阈值为20，候选超过20时不即时推送，保留 grab_notify_pending 交 order-timer 每5分钟批量兜底推送，仅当全部推送成功才清除 pending
+- 小程序端「消息」页的系统通知入口需复用 order-action notice_list 渲染，展示「🔔 系统通知」行、未读徽标及最近一条通知标题，新通知类型无需额外修改前端代码
+- 纠纷/申诉历史汇总采用统一时间线结构，合并订单状态流水、投诉记录、爽约申诉、支付/退款流水四类数据，操作人显示为「昵称(角色)」，退款节点附带金额信息
+- 纠纷处理管理端列表新增「处理中/已处置/全部」视图，默认展示处理中订单，已处置订单不再从列表消失
+- 爽约申诉详情弹窗内同步展示处理时间线
+- 履约域状态迁移采用表驱动白名单机制，所有状态变更均通过 casStatus 乐观锁并发保护
+- 履约分段结算口径遵循PRD规则：完成比例≥50%按比例结算，<50%按10-20%到场补偿（可配置）
+- 设计方案与流程图配套文档统一归档至 docs/ 目录，节点业务逻辑与异常处理规则作为独立章节与流程图对应
+- S2协商取消链的2h超时转裁决仅发送站内通知+列表红点，不依赖订阅消息
+- S2协商取消链同方被拒后不可重发，每单双方合计发起上限2次，满额仅剩裁决入口
+- 共享模块需遵循项目已有三副本同步模式：规范源存于 _shared/，同步至各消费者云函数目录，通过 gate 脚本进行一致性校验
+- 前端变更后必须执行清缓存+重新编译+体验版升级验证，避免旧缓存导致真机验证结果失真
+- 每批次开发完成后需对照 PRD 对应章节逐条校验，确保实现与设计共识无偏离
+- 订单状态机重构需遵循三副本同步模式：_shared/order_state.js 为规范源，同步至云函数与小程序端配置目录，纳入 gate SHA 校验
+- 投诉开放范围扩展至S2/S3/S3.5/S4状态，发起投诉即冻结订单
+- 申诉/投诉期间订单冻结位需禁止start/modify/complete/evaluate四类操作
+- 结算基数需支持双方各确认一次，部分完成确认后自动生成剩余金额退款工单
+- 后台管理端需配套实现取消申请转裁决双入口、争议/爽约页面读方切换至正交位字段
+- 存量迁移需覆盖全部活跃订单补全正交位默认值，S2取消链8条异常细则需作为实现规格落地
+- 旧状态字段去除时机放在提审后，提审前保留mapStatus读兼容逻辑以降低回归面
+- 履约催办逻辑采用三副本同步模式：规范源存于 _shared/urge_rules.js，同步至 order-timer/order-action 两消费者目录，纳入 gate SHA 一致性校验
+- 催办入口与次数展示逻辑：小程序端订单详情页按 `can_urge` 字段显隐催办按钮，显示「催办(N/max)」格式，满额时自动置灰
+- 催办提醒订阅授权开关在耍伴端配置页独立存在，与其他通知开关并列
+- 共享核心规则模块（order_state/urge_rules/money_rules）需添加 JSDoc 类型标注，明确核心契约结构，避免跨模块字段漏写错误
+- 云函数入口层测试框架采用可编程内存 mock 拦截 wx-server-sdk 实现，无需修改运行时代码即可对 action 分发、鉴权、返回码等契约进行自动化测试，已覆盖 nudge_partner 全部入口分支
+- 巨型文件拆分采用单组增量搬移策略，每组完成后立即执行静态检查、单元测试、等价性重放验证，全部通过后再进行下一组，每组独立提交便于回退
+- 云函数巨型文件拆分完成后，已实现全量114个action的自动种子生成与A/B等价验证，覆盖所有action的分发路由、鉴权门及无ReferenceError校验，等价用例总数达157例零差异
+- admin action 等价性验证的 mock 匹配器需支持真实数据库查询语义，包括 db.command 哨兵（neq/eq/in/nin/gt/gte/lt/lte/exists）及顶层 _.or/_.and 逻辑，确保查询能真实命中预置文档
+- 订单端到端异常分支补充用例需覆盖真实数据库副作用（多表写入、流水、通知、CAS并发保护），并通过A/B等价验证确认拆分前后行为一致
+- 订单相关事件时间线采用独立只读 action `action_timeline.js` 实现，合并状态轴/投诉/爽约/支付退款/里程碑+催办五类数据源，按时间倒序限流最近50条返回，角色可读化且不暴露原始openid
+- 场景/子场景显示/隐藏功能的后端写入新增 `scene_visibility_set` / `scene_option_visibility_set` 两个独立 action 分支，包含参数校验与对应错误码返回
+- 场景/子场景隐藏标记写入采用 deny 语义：仅当需要隐藏时才写入对应标记，恢复显示时删除对应字段，避免全量覆盖导致配置丢失
+- 场景/子场景功能实现完成后需执行全量语法检查、配置一致性校验、单元测试验证，确保零错误后再进行部署
+- order-timer分页扫描采用**游标分页**实现（2026-10-13 起）：`orderBy('_id')` + `_id > 上页末位`，复用恒存 `_id` 索引，无新增组合索引；skip 分页已废弃（并发写者下会越过未处理文档）
+- dev环境配置接口action_config_set在切换dev时必须传入1-24小时的dev_hours参数，缺失或超出范围返回config_bad_dev_hours错误码
+- order-timer需新增定时任务自动清理过期dev环境配置及12小时过期的admin_web_sessions会话
+- admin-web前端需统一在云请求header中注入X-Admin-Token，收到bad_token错误码时自动清除本地会话并跳转登录页
+- 图片尺寸解析逻辑统一在admin-action的action_misc.js中实现，支持PNG/JPEG/WebP三种常见图片格式的文件头解析
+- HTTPS订阅消息发送模块独立封装为order-timer下的push_https.js，支持独立注入依赖便于单元测试，默认使用node:https原生模块实现
+- 订单详情页履约里程碑证据图新增预览功能，复用现有onPreviewEvidence方法实现图片点击预览与左右切换
+- 同步专家技术评审全流程可复用：圈定范围 → 并行派两个子代理（A 结构性猎手 / B 定点抽查）→ 2/2 确认才立项（1/1 低置信只登记）→ 报告含「验证者修正」章节（防影响面误判复发）→ 文本选项让用户拍板 → 修复纪律（verify → 串行部署 → 心跳/网关验证 → commit+push）
+
+## Lessons Learned
+- 旧 expired 种子需求因未软删导致新种子发布时触发 publish_time_conflict 拦截
+- 前端样式修改后需重新编译或重新上传体验版才能在真机/模拟器生效
+- 多目录克隆同一仓库会导致开发工具编译旧代码，需统一工作目录
+- 微信云开发 AI 通道 429 错误通常由未开通 AI+ 或未启用指定模型导致，需在控制台完成开通和模型启用
+- 模型启用开关点击无反应可能是环境未切换至资源点计费模式导致
+- 新增 collection 必须同步两处导出白名单：admin-action EXPORT_COLLECTIONS + .predeploy/backup.ps1 $COLLECTIONS（withdraw_record 曾漏）
+- 耍伴推荐/附近/广场距离口径统一为观看者 home_location ↔ 目标点 haversine；普通用户无 home_location 不显示距离
+- init-db 种子分支（无 action 或 action='seed'）在 admin_config.global 已存在时需管理员身份鉴权，防止匿名调用触发管理操作
+- 微信原声 `<button>` 与 `<input>` 同行时键盘失焦会吞掉 bindtap → 改用 `<view bindtap>`；提交类双闸：pa_submit_frequent(30min 限频)/pa_audit_pending(并发幂等)
+- 重启后 node/git 不在系统 PATH → 用全路径 `C:\Program Files\nodejs\node.exe`、`C:\Program Files\Git\bin\git.exe`；IDE 仍可能打开旧的 Desktop\zhaoren 克隆(停在 a5b9c34)，编辑/编译/部署一律用唯一工作目录 C:\zhaoren（§9.11 防复发）
+- 服务亮点添加按钮在满3条时隐藏导致用户无法操作 → 改为按钮恒显示，满额点击时 toast 提示上限
+- 编辑页「审核历史」时间线使用 `{{fmtTime(item.at)}}` 绑定 Page 方法会导致真机不渲染时间（0a427a4 遗留问题），需改为 JS 预计算 `timeStr` 字段实现
+- WebView 直接导航到 hash 路由可能触发 SPA 重载卡顿，需等待并重试
+- 样式问题需一次性覆盖同类控件，避免逐点补丁修复（如深色模式文字隐形问题分三轮才修完）
+- 涉及样式修改时，应检查该页所有文字控件并统一设置颜色，避免遗漏导致隐形问题
+- 后端整份审核会导致未提交的空栏目覆盖进快照被清空，独立审核需确保只修改被审栏目，其他栏目快照不受影响
+- 后端判空逻辑仅检查 titles 忽略 photos 会导致有图片无标题的资质/荣誉被误判为空，引发「缺少审核项」错误
+- 部分通过审核时，原实现使用原始 profile 复核剩余栏目会误判已通过栏目为待审状态，导致无法解锁，需通过排除 passedFields 修正
+- 项目缺乏自动化测试导致 `buildAuditPatch` 的「部分通过锁判定」bug 需手动测试发现，增加回归成本
+- 跨目录 require 风险应在抽取模块前先查项目惯例（各函数用本地 ./logger），避免先写后回退的低效操作
+- `_shared/` 纯逻辑模块已建 node:test 基础自动化测试（零依赖，Node 24 内置 runner）：根 package.json `npm test` = `node --test "cloudfunctions/_shared/*.test.js"`；已有 partner_audit(判空/全过解锁/部分过锁/驳回/白名单)、heal(惰性治愈/软删/容错)、openid(fail-closed env 安全语义) 共 12 条；新增纯逻辑共享模块时应同步补 `*.test.js`（Windows 下 node --test 传目录不 glob，需传 glob 串）
+- 本机 shell 无 node 入 PATH 时 npm test 会报 'node' not recognized，可靠做法是用全路径 `C:\Program Files\nodejs\node.exe --test 'cloudfunctions/_shared/*.test.js'`
+- 深色模式下硬编码深色文字会导致深底深字隐形：需使用主题变量（如 `var(--text-1)`、`var(--text-3)`）替代固定色值
+- 真机测试前需清除缓存并重新编译，确保样式修改生效
+- 旧版「部分通过」锁判定 bug 会导致审核状态死锁：当测试账号 `status=pending` 但待审栏目内容全空时，系统误判仍有栏目待审而未解锁，造成前端按钮无响应且后台待审列表不显示
+- 网关路由参数错误会导致 payment-mock 云函数调用失败，需查阅网关 action 分发表确认正确调用约定
+- 页面配置文件（如 nearby-list.json）中组件声明或配置项被误删会导致组件找不到或功能异常，需在修改后检查关键配置项完整性
+- CloudBase CLI v2 的旧命令写法（如 tcb database:collection:create、tcb db:createindex）在 v3 版本中已废弃，执行会报 unknown command，需使用 v3 新格式并通过 tcb db --help 确认当前命令签名
+- Windows PowerShell 5.1 向 CLI 传含引号的 JSON 参数会剥引号/转义层级错乱（表现为 JSON position 2 / position 60 解析失败），cmd /c 又会被 Trae 安全策略拦截 → 一律走包装器（JSON 文件 + spawnSync 数组传参，见 scripts/tcb-exec.js）
+- 网关写操作返回 gateway_timeout（admin-action 冷启动 2.5s 哨兵）≠ 执行失败：可能已落库（user_credit_adjust 实证）——遇超时先复核（查流水/读数值）再决定是否重试，防重复执行；另 PS 调网关时中文 body 须 UTF-8 编码（否则落库乱码 ???）
+- 共享模块多副本复制是微信云开发独立打包场景下的务实方案，无需强行重构为共享依赖，保持规范源 + 门禁强校验即可
+- tcb 日志通道在当前环境不可用，无法通过 tcb fn log 获取云函数运行日志，排障需依赖云函数自身输出的日志或手机端实收结果
+- 【云调用触发约束·2026-10-10 重要定论】cloud.openapi.* 仅在「小程序端(wx.cloud.callFunction)触发的云函数」中经微信自动鉴权成功；定时触发器/HTTP 网关/控制台云端测试/CLI 触发均无小程序上下文，调用**必报 -501001 INVALID_WX_ACCESS_TOKEN**（官方云调用文档「须从小程序端触发的云函数」+ 错误页双重实证）。推论：order-timer 的订阅消息发送从设计上不可行（真因，非权限声明）；admin-action(HTTP 网关触发)的 msgSecCheck 同样失效；各小程序端触发函数(demand-publish/im-send/blog-action/user-login/order-action 等)的云调用正常。定时器发订阅消息须改 HTTPS API(cgi-bin/stable_token 换 access_token，需 AppSecret) 或改由小程序端触发路径发送
+- 订阅发送结果落库方案：在 sendDemandSub 的 try/catch/finally 里把 {openid,at,status,errCode,errMsg} 用 _.push 写进 demand.sub_msg_send_logs（不新增集合，规避导出白名单/索引台账连锁），是「无日志通道时验证订阅/云调用结果」的有效手段——tcb fn log 不可用时靠它读回 errCode
+- 真机调试连接断开、首页无法加载的常见根因为微信开发者工具多进程残留导致调试通道异常，需完全退出开发者工具并结束全部相关进程后重新打开项目重试
+- 问题排查应优先采用低成本、可快速定性的对照实验，避免无意义的大排查操作浪费积分
+- 1.6.6 体验版首页首次加载耗时超过10秒属预期现象，由包体下载、云开发握手及云函数冷启动共同导致，二次加载因本地缓存存在可正常秒开，不影响提审体验
+- 后台管理端原纠纷原因字段读取逻辑存在缺陷，原读取 `dispute_reason` 而实际投诉数据存储在 `complaint_reason` 字段，需统一修正读取源
+- 巨型文件拆分时，handler 依赖的顶层变量需通过 deps 注入方式传入，不得直接 require 主模块避免循环依赖
+- GitHub 直连推送失败根因为国内网络间歇性抖动（github.com:443 时通时断），重试即可成功（2026-10-13 实证：失败×2 → 恢复后推送成功）；【同日二次实证】连续失败×4（跨约10分钟）后网络恢复即推送成功——此类故障**勿改配置**（系统代理本就关闭、7890 未监听且非必需），用 `Test-NetConnection github.com -Port 443` + 对照站点（baidu:443）快速定性「GitHub 抖动 vs 整网中断」，恢复后再推；备用通道=SSH（github.com:22 / ssh.github.com:443 可达，但本机 key ~/.ssh/id_ed25519_zhaoren 未在 GitHub 授权，添加公钥后可改走 SSH）
+- 客服加载失败为存量历史bug，与本次统一云调用重构无关，根因为im_conversation表uk_order_id唯一索引约束下客服场景固定使用order_id:''占位符，全局仅允许一条客服会话，多用户同时打开客服会触发唯一键冲突导致加载失败
+- 场景/子场景隐藏功能的缓存延迟：云函数 scene_list 缓存5分钟、scene_groups缓存60秒，运营修改显隐开关后最长约5分钟前端才会生效，需提前告知运营人员
+- init-db 的 force_migrate_scenes 种子整体覆盖操作会清空所有场景显隐标记，执行前必须先备份场景配置数据
+- 双代理评审「2/2 才立项」纪律 + 评审初判被证伪实例（demand_notify 段序案例）
+- 部署后空转验证通道：`check-heartbeat.ps1` + AWK_KEY 读法（无需日志通道）
+- grep 范围必须含 `_shared/` 测试文件（security_policy.test.js 暴露既有机制的教训）
+- 云函数触发器更新被微信公众平台 IP 白名单拦截时，需将当前机器公网 IP 加入小程序代码上传白名单，或手动在云开发控制台修改触发器配置，避免程序化更新失败；【2026-10-13 实证】改走 `tcb fn trigger create --trigger-name <n> --cron "..." --env-id ...` 可直接绕开该拦截（zz-warmup 全天候更新成功，`tcb fn detail` 复核无重复）
+- 非代码产物（衔接提示词/文档/方案）也须双代理审核：2026-10-13 提示词 v3 审核抓到 5 处——数字凭记忆未实测（skills 入库数为 18 非 19）、口径过时（backup.ps1 已修复仍写「会导空」）、状态漂移（审核期间推送转成功）、已决项未写明（#2 竞态须标「登记不修」）、待办缺口（user-side-todo 与另 5 项未跟踪文件去向）——凡引用仓库现状必须实测
+- errorScan 告警签名只取 level/type（不含 payload）→ 事件 payload 增加字段或新 reason 不会破坏「同签名两轮静默」收敛
+- 单测有效性可用「反向假设」检验：改坏实现或下调阈值后若用例仍全绿即为盲区（实证：security_policy.test.js 对锁定阈值下调 1-4 无守护）
+- config_set 新增事件键（如 scene_reorder/scene_option_reorder）不产生 A/B 新 diff（自动种子按 action 粒度生成）——扩展 config_set 属低成本安全动作（2026-10-13 实证）
+- 一次性云端数据操作可经 admin-web 网关（X-Admin-Key，check-heartbeat 同款通道）逐次调用管理动作完成（实证：场景顺序迁移 15 次 scene_reorder 全 ok）；脚本须「每步后重读实际状态重算」（自愈），兼容 gateway_timeout（写可能已生效）；模板 `.tmp-tcb/scene-order-migrate.ps1`
+- 单机环境事实（IDE 安装路径/快捷方式指向/用户主用工具）会随时间漂移：断言前先实测（Test-Path / .lnk 扫描 / 进程 Path），且**以用户纠正为准**——2026-10-13 实证：旧 skill 记载「x86=旧装残留勿用」已过期，实际为用户主用最新安装（2.02.2610122，cli 通道实测可用）
+- 运营配置（admin-web Operations 页）说明体系（2026-10-13 落地）：78 项参数的设置说明 SSOT=CONFIG_SCHEMA 的 `d` 字段（随 config_get 下发，前端表单项下方内嵌展示）；带 `clock: true` 的项（自 0:00 起算分钟数，如时间红线两项）前端即时换算显示 `= HH:MM`，`clockZero` 指定 0 值文案（接单截止 0=「全天开放」，非 00:00）；运维指引见 dev-manual Ch10 §10.5.1。给 schema 项追加字段用「单行对象内追加」可保持行数不变，但新增注释行会使文档锚点右移 → 改后须复核并同步 [03-data-model/10-ops-runbook] 的 `#Lstart-Lend` 锚点
+- admin-web 构建脚本坑（2026-10-13 实证）：`scripts/build-admin-web.ps1` 内 `npm.cmd run build` 的 vite 输出走 stderr，若在 PowerShell 调用时加 `2>&1` 会被包装成 NativeCommandError 终止脚本 → **assets 清空/拷贝步被跳过、public 仍是旧产物**；直接 `& .\scripts\build-admin-web.ps1` 不带重定向即可；构建后用 Glob 核对 `public/assets/Operations-*.js` hash 已更新再部署
+- CONFIG_SCHEMA 输出变化对 A/B 无新风险：auto_admin_config_get 按「整用例名」粒度在白名单放过（known-evolution），schema 加/改内容无需逐字段登记；对照副本 _orig_baseline.js 必须保持冻结（勿同步新字段）
+- admin-web 部署链路实证（2026-10-13）：`scripts/build-admin-web.ps1`（PATH 需含 C:\Program Files\nodejs）→ 自动清 assets 并同步 `cloudfunctions/admin-web/public` → CLI 部署 admin-web；核验=`functions download` 比对 `public/assets/Operations-*.js` SHA256 云端==本地 + 网关 `GET /` 200 + `GET /assets/<新hash>.js` 200
+- 文稿统计口径陷阱：统计 `d: '` 出现次数须用行锚定 `^\s*\{ f: '`（原始全文计数含 `target_id: ''`/`refund: '` 等假阳性 +3）
+- 运营配置项改「计时单位」时必须四处同步，否则静默错算：①`admin-action/index.js` schema（`unit`/`def`/`min`/`max`）②`action_config_public.js` 手写键 ③消费方换算（order-action `expire_at`、order-timer 兜底 deadline，小时→分钟即 `*3600000`→`*60000`）④`order_state.js` timeout 文案 + 同步副本。改键名（如 2026-10-13 `extend_confirm_h`→`extend_confirm_min`）时消费方整体切新键 → 旧存量值自动失效、走新默认（本次：默认 0=跟随改期 24h → 20 分钟）；`admin-action/config_history` 历史日志含旧键，`ConfigLog.vue` 的 `EXTRA_LABELS` 需补旧键可读名
+- GitHub push 被墙处置（2026-10-13 实证）：本机 HTTPS 直推 github.com 反复 `Empty reply`/`Connection reset`/`Failed to connect 443`；DNS 被 Clash fake-ip 劫持（解析到 198.18.x.x:22 超时，SSH 22 也不通）。解法：Clash HTTP 代理在 `127.0.0.1:7890`（已实测可达），用一次性 `git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin master` 走代理，不污染持久 config（勿 `git config --global http.proxy` 留全局）。本机虽有 `~/.ssh/id_ed25519_zhaoren` 但公钥未加到 GitHub 账户（Permission denied），SSH 通道暂不可用
+- 夜间弹窗交互改造（2026-10-13）：night-mask 组件原 `catchtap="noop" catchtouchmove="noop"` 全屏吞触摸 → 与「您可继续浏览」文案矛盾；改为背景 `bindtap` 点关 + 「继续浏览」按钮 + 弹窗本体 `catchtap="noop"` 阻冒泡；`redline.js` 加 `dismissNightMask()`/`shouldShowNightMask()`（模块级单例，同一夜间段不再弹、离开夜间段自动重置）；组件 `pageLifetimes.show` 守门跨页面切换（处理 isRedline 值未变 observer 不触发的情况）。预约/接单/履约三入口独立拦截：`enterScene`(checkEntryLocked)、`onGrab`(isRedline)、`onStartService`(isRedline，本次补——原漏)
+- PowerShell 提交规范（2026-10-13 实证）：PowerShell 5 不支持 `&&`/`||` 作语句分隔（用 `;`）；不支持 bash heredoc `<<'EOF'`（PowerShell here-string 用 `@"`...`"@`，但跨行在 `-Command` 调用易出错）；多行 commit 消息最稳用多个 `-m`（标题一个、正文一个）；commit 消息正文里别写 `&&`（会被解析器误判为语句分隔符）。正例：`git add f1 f2; git commit -m "标题" -m "正文"`
+- 运营配置分组级重置/保存模式（2026-10-13）：`Operations.vue` 用 `saveGroup` ref（null=全局、字符串=单分组）+ `confirmRows` computed（按 saveGroup 过滤 diffRows）实现单分组 diff 保存，复用同一确认弹窗；全滑动开关分组（`isGroupAllBool` = 该组所有字段 `t==='bool'`）不显示分组级按钮、其改动走底部全局保存；分组级按钮 `:loading="saving && saveGroup===grp"`、全局按钮 `:loading="saving && saveGroup===null"` 防互染 loading
+- AI 协作防回退规则体系（2026-10-13 落地，提交 62cff6d，已 push origin/master）：`.trae/rules/project_rules-20261013.md`（九条铁律：最小改动/@VERIFIED 保护/先说后做/高危区/专项红线/回归清单/修 bug 纪律/回答格式/收尾沉淀；alwaysApply=true；注意文件名带日期，与原提示词要求的 `project_rules.md` 有意差异）+ `.trae/rules/miniprogram-config-guard.md`（app.json/project.config.json/project.private.config.json/sitemap.json/ext.json 五文件 globs 保护）+ `docs/FUNCTION-REGISTRY.md`（50 条功能清单，33 已验证/17 待验证）+ `docs/CHANGELOG.md`。规则第 0 条：开工前必读本文件+REGISTRY+CHANGELOG，未读即改代码视为违规
+- _shared 规范源「只加注释也会漂移」陷阱（2026-10-13 实证）：给 `_shared/openid.js`、`_shared/security_policy.js` 首行加 `// @VERIFIED` 注释即造成 20 处副本 SHA ≠ 规范源 → `scripts/check-shared-sync.js` 门禁 FAIL。铁律：任何 `_shared` 规范源字节变化都必须跑对应 `sync-*.ps1`（共 14 个，含 openid / security_policy / partner_audit / order_state / money_rules / urge_rules 等），否则副本漂移；批量加注释顺序 = 改规范源 → 跑 sync → 复检 `SHARED SYNC ALL OK`
+- 跨会话衔接提示词固化（2026-10-13）：`docs/HANDOFF-20261013.md`（六段结构 工作目录/基线/约束/约定/经验教训/待办 + 开场回执校验 + 资产索引）；新任务开场按 user_profile 约定整段投喂，回执数值不符即停手纠正后再动工
+- 云端测试面板 mock 烟雾需临时开 dev 时，正确路径=init-db force_set_env（admin 白名单鉴权 + dev_until 4h 同刻自毁 + platform_event 留痕），**禁止手改 admin_config.global**：控制台直改 env/dev_until 无鉴权无自毁、「添加字段」写入结果难回读（半态风险）、openid.js 有 5min env 缓存干扰生效判定（2026-10-13 实证：手改 env=dev 后烟雾仍 4 次被拒，未确认 dev_until 是否写入即还原收敛）；另 PowerShell 5.1 调 .ps1 含中文需 UTF-8 BOM，否则中文字面量乱码导致窗口匹配静默失败
+- order-create 巨型入口物理拆分完成（2026-10-14）：index.js 804→193 行（-76%）。结构非 switch/case（3 个前置早返回块 check_signed/sign_disclaimer/check_take_result + 1 个尾部续写体 create_from_take），采用「早返回块抽取 + 尾部续写体整体切片」→ 同级 action_aux.js(只读/留证3) / action_take.js(接单建单1)；index.js 保留 helper/requires + HANDLERS 分发（dispatch 置于 clientIp/device 之后，未命中回 order_unknown_action）+ ctx 注入；create_from_take 517 行体逐字切片（含体 L443 用 `!wxCtx.OPENID && !!event.mock_openid` 判 mock → ctx 必须注入 wxCtx，漏注入→4 例 A/B FAIL）；逐字 4/4、A/B 402 例 0 差异（381→402）、反向假设守护力、部署 download 3 源文件(index/action_aux/action_take) SHA256 全 MATCH；生成器 .tmp-tcb/gen-oc-take.js 按 body 实际引用自动筛 ctx 名 + 局部声明冲突自检（无 collision）。至此「已批巨型入口待拆清单」全部清空（payment-mock/home-action/order-create 收官）
+- 【待修·预有 bug】order-create create_from_take 接单成功路径存在拆分前既有 ReferenceError（2026-10-14 探针实证 index.js:771『orderNo is not defined』）：orderNo/orderId/totalFen/feeFen/partnerIncomeFen/orderData/userEvidenceId 在 L482 `try {` 块内以 const 声明，却落在 finally 之后的 L771-L803 后置段引用 → 块级作用域越界；拆分严守零行为变更故未修，A/B 用例 oc_create_build_path（及 auto_oc_create_from_take）锁定的实为两侧同抛错的错误路径；修复需另行授权（建议 try 外 `let` 提升声明，或把后置 log/audit/notice/return 收进 try 作用域）
+- demand-publish 巨型入口物理拆分完成（2026-10-14）：index.js 1746→457 行（-74%；含此前 pilot：cancel/lazy_expire→action_lifecycle.js）。本轮 8 个 action 分 4 组：publish→action_publish.js(666行) / my_demands+detail+detail_light→action_query.js(206行) / save_draft+list_drafts+delete_draft→action_draft.js(97行) / update→action_update.js(328行)；index.js 保留 helper + 模块级 lazyExpire()/getSceneCodes 进程内缓存 + HANDLERS 分发表(dispatch 置于 switch 之前，switch 仅留 default 兜底 publish_unknown_action) + 全量 ctx 注入。A 侧基线 `_orig_baseline.js`(= pilot 提交 7a04230 的父提交单体版，hash 6c9179c，冻结不动，非 HEAD blob)。逐字 8/8；A/B 428 例 0 差异（213→428）；反向假设（抽掉 ctx.buildRecommendPartners）→ FAIL dp_detail_ok 证明用例有守护力；npm run verify 全绿；部署 download 13 文件 SHA256 全 MATCH；5 提交 03bec14/bd2075b/5e60128/8340f32/9646ef5。生成器 .tmp-tcb/make-handlers.js 的 ALWAYS 数组须含 wxCtx（exports.main 内局部变量，自动收集器识别不到）。另注：dp_publish_ok 用例须在 dpPubStore 提供 legal_scene_disclaimers（否则 evidence signature_hash 内嵌 Date.now() 造成 A/B 非确定）。
+- 【既有 bug·未修·不属本轮】order-create create_from_take 成功路径块作用域越界（同上条），demand-publish 本轮拆分严守零行为变更未触碰任何业务逻辑；如用户后续要求修复需单独授权 + 回归
+- 【已修复·2026-10-14 commit 76f765e】order-create create_from_take 接单成功路径块作用域越界（原登记见上两条"待修"）：7 变量(orderNo/totalFen/feeFen/partnerIncomeFen/orderData/orderId/userEvidenceId)提升到外层 try(L201) 之外声明 let 安全初值，try 内 const/解构改赋值（解构赋值须包圆括号），删 2 处重复 let；CAS/补偿/finally 释放锁/事务表达式零改动。成功路径新增独立守护 `_shared/order_create_take_success.test.js`（三表+demand CAS matched+audit_log order_take+system_notice 接单通知+返回 order_id/no；撤回修复实测 FAIL）；A/B 两例 oc_create_build_path/auto_oc_create_from_take 登记 KNOWN_EVOLUTION（9→11，冻结基线保留"修复前抛错"证据，不刷基线）；362 pass；已部署（13 文件/41.1KB）download 11/11 SHA256 MATCH。待真机回归抢单成功链路
+- 【已修复·2026-10-14 commit 95729a7】home-action scene_groups 60s 访客缓存永不命中：物理拆分 ctx 漏注入 TTL_SCENE_GROUPS（定义 index.js:85）→ memSet 第三参 undefined→until=NaN→memGet 恒 miss。修复仅 ctx 加 1 个键；守护 `_shared/home_action_cache.test.js`（暖实例连调两次第二次 demand where.get=0；无修复实测=2）。教训：A/B 单调用返回值相等但跨调用时序（进程内缓存）无断言，这类"ctx 漏注入常量"必须靠二次调用计数测试守护
+- 大文件拆分专项静态审查脚本（2026-10-14，.tmp-tcb/check-split-safety2.js，gitignored）：机械扫"ctx 解构未注入且体内使用"会有误报——①'./openid' require 路径字符串含 openid 子串；②对象键名 {openid: x}；③解构行自身；④函数体内自声明同名局部。真实漏注入全批仅 1 例（TTL_SCENE_GROUPS）。注释文字"禁 require('./index')"也会触发反向依赖正则，须先过滤注释行
+- 【规则升级·2026-10-14】防回退规则新增 §10「大型机械重构与 A/B 门禁纪律」（project_rules 现 10 节）；cloud-function-split skill 同步补「A/B 三盲区+收尾独立审查」。核心教训（本批 9 入口拆分双专家评审实证，执行者自查 A/B 428 全绿仍漏 2 个线上故障）：①A/B 只比单次调用返回值——跨调用状态（缓存 TTL/锁/单例）须二次调用计数测试、静默退化（undefined 不抛错）须静态核对 ctx 键 ⊇ 解构键、成功路径须穿透落库断言 writes（两侧同抛错也算"等价"会互相背书，order-create 接单 P1 即此漏网）；②KNOWN_EVOLUTION 只跳过比较不提供保护，登记必配独立行为断言；③_orig_baseline.js 冻结常驻不删，修基线时代 bug 不刷基线、修复与重构分开提交；④多文件重构收尾默认派双视角独立审查（2/2 才立项），只报线上故障不报风格；⑤重构中发现的既有 bug 只登记，修复须单独授权
+- 接收遗漏防复发机制 RIC（2026-10-14 实证新增）：新会话收取衔接提示词常犯「抽样式回执」→系统性漏接三类——嵌套子项（§7②只接①②漏③ apis.map.qq.com）、验收标准细节（B1 缺照片/拒定位两个失败分支未复述）、整节内容（§2 已部署 5 函数名单、§7⑤⑥）。机制=生成侧「可穷举」（提示词 §0 内置接收清点模板 + 全文可执行项统一编号、嵌套子项独立编号、每项标注类型）+ 接收侧「逐条清点」（三层表 L1 硬指标逐项实测 / L2 约束红线逐条复述+边界 / L3 待办依赖逐条含验收标准+谁做+是否需授权；每项状态 接收/存疑/不符/缺失；编号集合差集为空才通过；禁折叠子项；缺项即停手补齐再派活）+ 双向闭环。落点：project_rules §11 第 6 条（接收侧义务）+ zhaoren-handoff-prompt 技能 §2.5（生成侧义务+模板）+ 本条（经验）
+- 【规则·2026-10-18 用户指令·暂缓执行】「AI 生成水印」治理：①已产生的所有产物内容/资产（含文档、PRD、方案、报告、衔接提示词、规则文件等）去掉「AI生成」水印标识；②此后新产生的任何资产不再带「AI 生成」水印标识；③本规则写入规则体系（rules.md 或 project_rules）。**状态：已记住、暂未执行**（用户明确「暂不执行」，等派活后再动手）。已只读取证：`c:\zhaoren` 下含「AI生成|AI 生成|AI-generated|AI generated」字样文件 3 处（PRD_v15.1.md、PRD/kaifaV2.0.md、PRD/PRD.md 各 1 处）；执行时需先全量 grep 确认所有变体（含「AI 产出」「由 AI 编写」等）与范围（含 git 历史、云存储、飞书资产），改前先报方案。
+- 【备案/隐私合规提示纪律·2026-10-18 用户指令】此后凡涉及小程序备案类配置（隐私保护指引、订阅消息模板、后台权限声明、合法域名、key 白名单等），必须**完整提示**所需填报项（基于全仓实测取证，非记忆推测）并给出**特别注意事项**（坑/陷阱/联动影响）。2026-10-18 实证教训：①`requiredPrivateInfos` 白名单**仅限定位类 8 项**（chooseAddress/chooseLocation/choosePoi/getFuzzyLocation/getLocation/onLocationChange/startLocationUpdate/startLocationUpdateBackground），`chooseMedia` 等相册/摄像头类**不得写入 app.json**（IDE 报 `requiredPrivateInfos[n] field needs to be ...` 编译错误）——相册/摄像头走 mp 后台「用户隐私保护指引」；②`chooseLocation` 与 `getLocation` 都需后台「位置信息」类目声明，漏声明真机报 `chooseLocation:fail api scope is not declared in the privacy agreement`；③用途说明文案须与实际调用点一一对应（全仓 grep 实测调用面后再列清单，防遗漏 getLocation/chooseLocation 等高频接口）；④隐私指引变更会触发重新审核，审核中期间真机接口可能被拦；⑤提审/备案类操作前后端两侧都要对齐（app.json requiredPrivateInfos ↔ 后台隐私指引），缺失任何一侧都会静默或显式失败。- 【2026-10-27 昵称/头像自助编辑（P3-18 偿还，commit cad9926 + d2e6f6d + 9f94166，HEAD 已 push）】根因链三条：注册三链路硬编码 `nickname:'微信用户'`（action_auth.js L32/L123/L183）、`update_profile` 云函数存在但前端零调用、「我的」页 `{{user.nickname || '微信用户'}}` 兜底 → 实名后恒显微信用户。修复：①`submit_realname_action` 在昵称空/默认值时同批回写实名姓名（已有自定义昵称不覆盖），存量按 `nickname='微信用户' ∧ is_realname_done ∧ real_name 非空` 回填 nModified=1；②「我的」页头部「编辑资料 ›」+ 编辑弹层（头像 `wx.chooseMedia` → `wx.cloud.uploadFile` 存 `avatar/<ts>-<rand>.<ext>` fileID；昵称 trim ≤20；保存后 `fetchUser()` 绕过 onShow 30s 防抖）；③`update_profile` 入参收口（昵称 trim 1-20、头像 `cloud://|http(s)://` ≤512、错误码 `profile_avatar_invalid`）；④8 处 `avatar` 白名单 `/^https?:/` 扩为 `^(https?:|cloud:\/\/)`（前端 profile/partner-detail/message/partner-card；云端 user-login/action_map、home-action/action_feed×2）——否则自传头像在首页/广场/附近地图/详情/会话被静默过滤为空。部署：user-login 13 files/50.3KB、home-action 12 files/35.7KB，均 success=true；体验版 **v1.6.52**（754.9KB）上传成功。**门禁缺口实证（tech-debt P3-19）**：`verify:offline` 的 SYNTAX 只扫 `cloudfunctions/`，`profile.js` 三元漏 `:` 时门禁仍 EXIT=0，直到上传才报 `Syntax Error (code 10)` → 改前端 JS 后上传前必须 `node --check`（本轮全量 miniprogram 实测 0 bad）。已沉淀规则 §33（Q1 默认值兜底链 / Q2 门禁覆盖面 / Q3 fileID 白名单 / Q4 沉睡云函数入参收口）。
+- 【提审前清零项·2026-10-28 用户指令】订阅消息发送实效两项必须提审前清零（已立 tech-debt P0-5 + HANDOFF T-7.8.1/7.8.2/7.8.3 + runbook F3 核实记录）：①`demand_grab` 自动推送实际发不出去（非配置问题）——`order-timer` 定时触发无小程序上下文，云调用报 `-501001 invalid wx openapi access_token`，实测 `demand.sub_msg_send_logs` 最近 3 单全 `fail/-501001`（2026-10-10 记录），代码注释已声明自动链路降级站内通知（`order-timer/index.js` L398-399）→ **属既定设计、登记不修、不作提审阻塞项**；②`demand_urge` / `confirm_comm` 发送实效未验证——由小程序端 `order-action` 触发（有上下文，可正常发送），需耍伴 `partner_profile.sub_msgs.<key>.authorized=true`，目前无成功发送实证 → 提审前真机走一次「手动催办」+ 一次「四确认沟通」，查授权标记与发送结果。F3 配置面已核实（三模板 `tmpl_id` 齐、均 `trial`，库无 `enabled` 字段而 `action_config_public` 以 tmpl_id 即 enabled:true）。
+## 当前作战上下文（2026-10-29 起 · 提审冻结期）
+- 提审候选版本 v1.6.61；下一版号 1.6.62
+- 配额周期 2026-10-06～11-05（20 万次）；本日 2.12 万、周期约 19.35 万、余量约 0.65 万 —— 结论：撑不到 11-05，且无加购条件
+- order-timer 触发器已切 30 分钟（云端生效；本地 config.json 注释差异未重部署）
+- admin_config 进程内缓存 30s 已覆盖 order-action / order-timer / user-login / partner-action（`_shared/config_cache.js`）
+- 备份互斥锁已上线（full 优先，incr/verify 遇锁 SKIP）；最新完整 full = `20261028_0230`；`20261028_1430` 因并发终止已清理
+- 待核对三项：02:30 full 应 SUCCESS 且日志 `lark=OK`；04:30 verify 应 `issues=0`；23:00 增量无 full 时应正常执行
+- 真值源与冻结期禁止项见 `.trae/rules/zhaoren-release-freeze.md`（alwaysApply，每轮自动生效）
