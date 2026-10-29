@@ -81,6 +81,21 @@
 3. **`trial` 状态下用户收不到正式版推送**：体验版测试需用体验成员账号，且模板状态为试用；切 `formal` 前不要对外宣称「可收通知」。
 4. **不要向 `order-timer` 云函数发配置**：配置写入唯一入口是 `admin-action`（`order-timer` 有硬鉴权门，写配置会得 `ot_forbidden`）。
 
+### 送达验证（每次发版前必做，2026-10-29 新增）
+
+> 微信不提供订阅消息「已读/送达」回执，**唯一可信证据 = 手机实收 + 服务端 `errcode=0` 留痕**。缺任一条即判「未验证」。
+
+| 步 | 动作 | 观察点 |
+|---|---|---|
+| 1 | 耍伴账号 → 接单配置 → 打开「催办提醒」开关（`demand_urge` 一次性订阅授权） | `partner_profile.sub_msgs.demand_urge.authorized=true` |
+| 2 | 需求方账号 → 进入状态 S2 且已过 `start_time` 的订单 → 点「催办」 | 每单上限 `urge_max_count`、同单 60s 频控 |
+| 3 | 耍伴手机看通知栏 | 收到「催单提醒」；**未收到即失败**，按第 4 步错误码定位 |
+| 4 | 读回 `order_main.sub_msg_send_logs`（`node scripts/tcb-exec.js <tmp.json>` 只读） | `status=ok` 且 `errCode=''` = 微信受理；`fail` 按码判：`43101` 无授权额度 / `47003` 字段不符 / `-501001` 云调用无上下文 |
+
+- `demand_grab`（抢单）由 `order-timer` 触发 → 必须走 HTTPS 通道（`admin_config.sub_msg_https` 已配），记录落 `demand.sub_msg_send_logs`；`demand_urge` / `confirm_comm` 由 `order-action` 客户端触发走云调用，记录落 `order_main.sub_msg_send_logs`（2026-10-29 起补留痕）。
+- 四确认路径（`confirm_comm`）需一笔处于四确认阶段的订单：需求方改任一项 → 耍伴收「上门时间变更通知」→ 同法读回 `key='confirm_comm'`。
+- 模板字段契约可用服务端只读复核：用 `sub_msg_https` 的 appid/secret 取 `stable_token` 后请求 `wxaapi/newtmpl/gettemplate`，逐模板比对 `content` 里的 `{{字段.DATA}}` 与 `admin_config.sub_msg_templates.<key>.fields` 的非空键是否一一对应。
+
 ---
 
 ## F4 服务器域名（request 合法域名）
