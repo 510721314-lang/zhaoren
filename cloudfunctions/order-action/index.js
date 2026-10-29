@@ -262,10 +262,21 @@ async function sendUrgeSub(order, config, now, used) {
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
   if (!Object.keys(data).length) return;
-  await cloud.openapi.subscribeMessage.send({
-    touser: p, templateId: tmpl.tmpl_id, page: tmpl.page || 'pages-v2/order-detail/order-detail',
-    data, miniprogramState: tmpl.miniprogram_state || 'formal'
-  });
+  // 2026-10-29: 发送结果落库 order_main.sub_msg_send_logs(成功/失败均记), 补送达验证留痕; 失败仍向上抛由调用方降级
+  const entry = { key: 'demand_urge', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
+  try {
+    await cloud.openapi.subscribeMessage.send({
+      touser: p, templateId: tmpl.tmpl_id, page: tmpl.page || 'pages-v2/order-detail/order-detail',
+      data, miniprogramState: tmpl.miniprogram_state || 'formal'
+    });
+  } catch (e) {
+    entry.status = 'fail';
+    entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
+    entry.errMsg = String((e && (e.errMsg || e.message)) || '');
+    throw e;
+  } finally {
+    try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+  }
 }
 
 // 2026-10-17: 四确认沟通订阅发送（用户在四确认面板提交修改/沟通 → 耍伴端微信订阅消息, 离端即时提醒）
@@ -298,11 +309,22 @@ async function sendCommSub(order, config, item) {
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
   if (!Object.keys(data).length) return;
-  await cloud.openapi.subscribeMessage.send({
-    touser: p, templateId: tmpl.tmpl_id,
-    page: tmpl.page || `pages-v2/chat/chat?orderId=${order._id}`,
-    data, miniprogramState: tmpl.miniprogram_state || 'formal'
-  });
+  // 2026-10-29: 同 sendUrgeSub, 发送结果落 order_main.sub_msg_send_logs(成功/失败均记)
+  const entry = { key: 'confirm_comm', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
+  try {
+    await cloud.openapi.subscribeMessage.send({
+      touser: p, templateId: tmpl.tmpl_id,
+      page: tmpl.page || `pages-v2/chat/chat?orderId=${order._id}`,
+      data, miniprogramState: tmpl.miniprogram_state || 'formal'
+    });
+  } catch (e) {
+    entry.status = 'fail';
+    entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
+    entry.errMsg = String((e && (e.errMsg || e.message)) || '');
+    throw e;
+  } finally {
+    try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+  }
 }
 
 // ── action 分发表：已物理抽到同级 action_*.js 的 handler 在此注册，ctx 注入共享符号 ──
