@@ -190,16 +190,20 @@ async function detail_light_action(ctx) {
         const d = r.data;
         if (!d || d.is_deleted) return { ok: false, code: 'detail_not_found', msg: '需求不存在或已删除' };
         let order_id = null;
+        // 2026-10-30: 一并下发订单阶段 —— 前端「已有人接单」弹窗只应在 S2(已支付待履约)出现,
+        // 此前只回 order_id, 订单推进到 S3/S3.6 后重进需求详情仍会弹「去确认」(阶段判据缺失)
+        let order_status = '';
         if (d.status && d.status !== 'matching') {
           try {
             const oR = await col('order_main').where({ demand_id, is_deleted: false }).orderBy('created_at', 'desc').limit(1).get();
             const o = (oR.data && oR.data[0]) || null;
             if (o && typeof o.status === 'string' && !/^(cancelled|failed|closed|completed|refunded)$/.test(o.status)) {
               order_id = o._id || o.order_no || null;
+              order_status = o.status;
             }
           } catch (e) { log.d(`detail_light order lookup fail: ${e.message}`); }
         }
-        return { ok: true, data: { status: d.status, order_id, is_owner: d.creator_openid === openid } };
+        return { ok: true, data: { status: d.status, order_id, order_status, is_owner: d.creator_openid === openid } };
       } catch (e) {
         log.d(`detail_light fail: ${e.message}`);
         return { ok: false, code: 'detail_fail', msg: '查询需求状态失败' };

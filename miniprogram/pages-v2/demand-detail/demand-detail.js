@@ -118,7 +118,14 @@ Page({
       if (!d || !d.is_owner) { this.stopOwnerPoll(); return; }
       if (d.status && d.status !== 'matching') {
         this.stopOwnerPoll();
-        if (d.order_id && !this.__ownerPrompted) {
+        // 2026-10-30: 仅订单处于 S2(已支付待履约/四确认)才提示"去确认"; 订单已推进到 S3 及以后时
+        // 弹「已有人接单, 是否前往核对确认」属过期提示, 且每次重进详情页都会再弹一次
+        if (d.order_id && d.order_status === 'S2' && !this.__ownerPrompted) {
+          // 2026-10-30: 持久化幂等锚 —— 内存标记随页面销毁失效, 重进详情页会再弹一次(§34)
+          let onceDone = false;
+          try { onceDone = !!wx.getStorageSync('once:owner_prompt:' + id); } catch (e) {}
+          if (onceDone) return;
+          try { wx.setStorageSync('once:owner_prompt:' + id, 1); } catch (e) {}
           this.__ownerPrompted = true;
           wx.showModal({
             title: '👥 已有人接单',

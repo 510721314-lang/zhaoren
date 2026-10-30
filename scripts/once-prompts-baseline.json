@@ -1,0 +1,49 @@
+{
+  "updated": "2026-10-30",
+  "rule": ".trae/rules/project-rules-core.md §34 被动提示幂等纪律",
+  "note": "state=ok 表示已具备持久化锚(Storage 键)或幂等键本身全局唯一; state=todo 表示仍为页面内存标记, 属已知债务, 下一批改造。新增/删除标记必须同步本文件, 否则 check-once-prompts.js FAIL。",
+  "items": [
+    {
+      "file": "miniprogram/pages-v2/demand-detail/demand-detail.js",
+      "marker": "__ownerPrompted",
+      "state": "ok",
+      "reason": "2026-10-30 已加 Storage 锚 once:owner_prompt:<demand_id>, 内存标记仅作页面内轮询短路"
+    },
+    {
+      "file": "miniprogram/utils/order-poll.js",
+      "marker": "__shownTipIds",
+      "state": "todo",
+      "reason": "去重键为通知 _id 且服务端 read 标记可降噪, 但重进订单详情未点过的横幅会再弹"
+    },
+    {
+      "file": "miniprogram/pages-v2/chat/chat.js",
+      "marker": "__shownNoticeIds",
+      "state": "todo",
+      "reason": "重进聊天页未读通知会再弹一次"
+    },
+    {
+      "file": "miniprogram/pages-v2/chat/chat.js",
+      "marker": "__shownStatus",
+      "state": "todo",
+      "reason": "重进聊天页状态提示会再弹一次"
+    },
+    {
+      "file": "miniprogram/pages-v2/chat/chat.js",
+      "marker": "__guideShown",
+      "state": "todo",
+      "reason": "引导提示仅页面内生效"
+    },
+    {
+      "file": "miniprogram/pages-v2/chat/chat.js",
+      "marker": "__commShownKeys",
+      "state": "todo",
+      "reason": "沟通提示仅页面内生效"
+    },
+    {
+      "file": "miniprogram/pages-v2/profile/profile.js",
+      "marker": "_toastNotified",
+      "state": "todo",
+      "reason": "每次重进「我的」页都会 toast「您有 N 条新通知」"
+    }
+  ]
+}
