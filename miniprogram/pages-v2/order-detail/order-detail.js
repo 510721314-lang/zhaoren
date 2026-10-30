@@ -903,6 +903,10 @@ Page({
       extendIsFixed: order.pricing_type === 'fixed',
       extendReason: ''
     });
+    // 2026-10-30: 加时面板在页面底部, 展开后滚到底部, 让「提交加时」区域立即可见(与改期面板 onModify 同款处理)
+    setTimeout(() => {
+      wx.pageScrollTo({ scrollTop: 999999, duration: 300 });
+    }, 50);
   },
 
   closeExtendPanel() { this.setData({ extendPanelVisible: false, extendReason: '' }); },
