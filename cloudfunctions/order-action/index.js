@@ -237,16 +237,17 @@ function allConfirmed(items) {
 // Wave2 止血⑥: 催办提醒订阅发送（手动催办由小程序端触发 → 云调用有效；失败/未授权/未配模板一律降级，不阻断）
 async function sendUrgeSub(order, config, now, used) {
   const tmpl = (config && config.sub_msg_templates && config.sub_msg_templates.demand_urge) || null;
-  if (!tmpl || !tmpl.tmpl_id) return;                       // 未配模板 → 静默降级
+  // 2026-10-30 T-7.26 配套: 早退分支回传原因码, 避免前端把"未授权/未配模板"误报成"发送失败"
+  if (!tmpl || !tmpl.tmpl_id) return { sent: false, errCode: 'NO_TMPL', errMsg: '' };  // 未配模板 → 静默降级
   const p = order.partner_openid;
-  if (!p) return;
+  if (!p) return { sent: false, errCode: 'NO_OPENID', errMsg: '' };
   let authorized = false;                                    // 耍伴需已授权 demand_urge
   try {
     const pr = await col('partner_profile').where({ openid: p }).limit(1).get();
     const prof = (pr.data && pr.data[0]) || {};
     authorized = !!(prof.sub_msgs && prof.sub_msgs.demand_urge && prof.sub_msgs.demand_urge.authorized === true);
-  } catch (e) { return; }
-  if (!authorized) return;
+  } catch (e) { return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
+  if (!authorized) return { sent: false, errCode: 'NO_AUTH', errMsg: '' };
   const fields = Object.assign({ thing4: 'urge_content', time3: 'urge_time' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
   const pad = (n) => (n < 10 ? '0' + n : '' + n);

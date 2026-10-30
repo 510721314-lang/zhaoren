@@ -682,6 +682,10 @@ function loadWith(dir, file, sdk) {
     'auto_pa_study_list', 'auto_pa_study_detail',
     // 2026-10-27 首页未读角标: peek_login 返回增加 unread_notice 字段(additive)
     'ul_peek_found',
+    // 2026-10-30 T-7.25/T-7.26: sendUrgeSub 早退分支返回原因码(NO_TMPL/NO_AUTH),
+    // nudge_partner 响应新增 sub_sent/sub_err(additive 字段); 基线无模板故 RE 为空串、当前返回 NO_TMPL。
+    // 行为由真机送达验证(REGISTRY #115)与前端三分支文案守护。
+    'auto_order_nudge_partner',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

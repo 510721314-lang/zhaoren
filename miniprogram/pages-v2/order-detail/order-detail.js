@@ -469,10 +469,13 @@ Page({
                   // 2026-10-30: 按订阅发送结果区分文案(一次性订阅: 第 2 次必 43101 额度用尽, 不可显示"已催办"了事)
                   if (rr.data && rr.data.sub_sent === false) {
                     const subErr = String(rr.data.sub_err || '');
-                    wx.showToast({
-                      title: subErr === '43101' ? '已催办，微信额度已用完' : '已催办，微信提醒发送失败',
-                      icon: 'none'
-                    });
+                    // 原因码拆开：额度用尽 / 对方未授权 / 未开通 / 其他失败（不再一律"发送失败"）
+                    const tipMap = {
+                      '43101': '已催办，微信额度已用完',
+                      'NO_AUTH': '已催办，对方未开提醒',
+                      'NO_TMPL': '已催办，微信提醒未开通'
+                    };
+                    wx.showToast({ title: tipMap[subErr] || '已催办，微信提醒发送失败', icon: 'none' });
                   } else {
                     wx.showToast({ title: `已催办，剩余${rem}次`, icon: 'success' });
                   }
