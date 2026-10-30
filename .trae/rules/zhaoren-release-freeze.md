@@ -6,7 +6,7 @@ alwaysApply: true
 
 ## 1. 真值优先级（冲突时按此裁决）
 1. 云端回读：`tcb fn detail` / `tcb fn code download` / 控制台用量实测
-2. 仓库台账：`docs/HANDOFF-20261027-v3.md`（唯一现行）→ `docs/CHANGELOG.md` → `docs/tech-debt-inventory-20261015.md`
+2. 仓库台账：`docs/HANDOFF-20261030.md`（唯一现行）→ `docs/CHANGELOG.md` → `docs/tech-debt-inventory-20261015.md`
 3. 助手记忆与历史对话
 
 出现不一致时，先回读再回写台账；禁止只改记忆而不改台账。
@@ -24,7 +24,7 @@ alwaysApply: true
 - 提审提交、加购、支付等人工动作，AI 不代点
 
 ## 4. 知识库入口（按需检索，不整篇灌入）
-- 交接与待办：`docs/HANDOFF-20261027-v3.md`
+- 交接与待办：`docs/HANDOFF-20261030.md`
 - 变更与回归结论：`docs/CHANGELOG.md`
 - 技术债：`docs/tech-debt-inventory-20261015.md`
 - 部署记录：`docs/deploy-log.md` ／ 功能验收：`docs/FUNCTION-REGISTRY.md`

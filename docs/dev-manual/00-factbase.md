@@ -20,7 +20,7 @@
 | init-db | 数据库初始化/种子/索引/quick_check/lookup | 0 | 20 | — |
 | order-action | 订单全生命周期写操作（HANDLERS 拆分） | 7 | 20 | — |
 | order-create | 下单 | 2 | 20 | — |
-| order-timer | 定时任务：9 段分页扫描 + 状态推进 + 错误巡检 + 订阅消息推送 | 4 | 60 | `0 */5 * * * * *` |
+| order-timer | 定时任务：9 段分页扫描 + 状态推进 + 错误巡检 + 订阅消息推送 | 4 | 60 | `0 */30 * * * * *` |
 | partner-action | 耍伴侧操作（抢单/资质/上下线） | 4 | 8 | — |
 | partner-apply | 耍伴入驻申请 | 0 | 20 | — |
 | payment-mock | 支付（mock/真实） | 4 | 10 | — |
