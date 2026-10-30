@@ -104,6 +104,9 @@ Page({
       wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });
     } else if (key === 'jump_demand') {
       wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${payload.demand_id || ''}`, fail: () => {} });
+    } else if (key === 'jump_accept_config') {
+      // 2026-10-30: 订阅额度用尽通知 → 直达「接单配置」重新开启催办提醒
+      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => {} });
     }
   },
 
