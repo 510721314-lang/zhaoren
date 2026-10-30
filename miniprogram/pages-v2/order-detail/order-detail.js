@@ -903,6 +903,7 @@ Page({
       extendIsFixed: order.pricing_type === 'fixed',
       extendReason: ''
     });
+    // @VERIFIED 2026-10-30 已真机验证：点「加时申请」后自动滚到「提交加时」区域（用户/耍伴同入口）
     // 2026-10-30: 加时面板在页面底部, 展开后滚到底部, 让「提交加时」区域立即可见(与改期面板 onModify 同款处理)
     setTimeout(() => {
       wx.pageScrollTo({ scrollTop: 999999, duration: 300 });
