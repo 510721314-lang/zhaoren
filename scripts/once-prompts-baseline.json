@@ -12,38 +12,8 @@
     {
       "file": "miniprogram/utils/order-poll.js",
       "marker": "__shownTipIds",
-      "state": "todo",
-      "reason": "去重键为通知 _id 且服务端 read 标记可降噪, 但重进订单详情未点过的横幅会再弹"
-    },
-    {
-      "file": "miniprogram/pages-v2/chat/chat.js",
-      "marker": "__shownNoticeIds",
-      "state": "todo",
-      "reason": "重进聊天页未读通知会再弹一次"
-    },
-    {
-      "file": "miniprogram/pages-v2/chat/chat.js",
-      "marker": "__shownStatus",
-      "state": "todo",
-      "reason": "重进聊天页状态提示会再弹一次"
-    },
-    {
-      "file": "miniprogram/pages-v2/chat/chat.js",
-      "marker": "__guideShown",
-      "state": "todo",
-      "reason": "引导提示仅页面内生效"
-    },
-    {
-      "file": "miniprogram/pages-v2/chat/chat.js",
-      "marker": "__commShownKeys",
-      "state": "todo",
-      "reason": "沟通提示仅页面内生效"
-    },
-    {
-      "file": "miniprogram/pages-v2/profile/profile.js",
-      "marker": "_toastNotified",
-      "state": "todo",
-      "reason": "每次重进「我的」页都会 toast「您有 N 条新通知」"
+      "state": "ok",
+      "reason": "2026-10-30 横幅列表仍走页内去重(允许重进再列), toast/弹窗类提示已改 Storage once:notice_tip:<order_id>"
     }
   ]
 }

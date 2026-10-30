@@ -11,6 +11,7 @@ const { getScene } = redline;
 const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
 
 const { callCloud } = require('../../utils/cloud.js');
+const once = require('../../utils/once-anchor.js');
 
 Page({
   data: {
@@ -153,12 +154,14 @@ Page({
   // 首次进入四确认引导: 订单 S1 且双方都未发起过任何确认模板时, 引导先发起「时间」确认
   // 判断依据: 消息流里无 template 卡(发模板不写 order_confirmations, 以消息流为准)
   __maybeGuideConfirm(conf, msgs) {
-    if (this.__guideShown) return;
+    // 2026-10-30(§34): 引导幂等键落 Storage(once:guide:<order_id>:S1), 重进聊天页不再重复弹
+    const guideKey = 'guide:' + (this.data.orderId || '') + ':S1';
+    if (once.has(guideKey)) return;
     const d = (conf && conf.ok && conf.data) || null;
     const list = (msgs && msgs.ok && msgs.data && msgs.data.messages) || [];
     if (!d || d.status !== 'S1' || d.all_confirmed) return;
     if (list.some((m) => m && m.type === 'template')) return; // 已有确认卡, 不重复引导
-    this.__guideShown = true;
+    once.mark(guideKey);
     wx.showModal({
       title: '开始四确认',
       content: '订单已创建。请先与对方确认「时间」: 点确定发送时间确认卡, 双方逐项确认后进入待支付。',
@@ -245,9 +248,10 @@ Page({
     }, () => {
       this.updateMsgStatuses();
       // ── 状态提示 catch-up 模式: 每状态只提示一次, 不依赖轮询跳变/瞬时窗口(根治"提示不跳出/丢失"类问题) ──
-      if (!this.__shownStatus) this.__shownStatus = new Set();
-      const shown = (k) => this.__shownStatus.has(k);
-      const mark = (k) => this.__shownStatus.add(k);
+      // 2026-10-30(§34): 状态提示幂等键落 Storage(once:status:<order_id>:<阶段>), 重进聊天页不再重复弹
+      const stOid = this.data.orderId || '';
+      const shown = (k) => once.has('status:' + stOid + ':' + k);
+      const mark = (k) => once.mark('status:' + stOid + ':' + k);
 
       // 1) S0 耍伴端: 对方已确认, 待付款
       if (this.data.role === 'partner' && nextStatus === 'S0' && !shown('partner_S0')) {
@@ -477,14 +481,17 @@ Page({
   },
 
   // ───────── 订单动态通知展示: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
-  // 幂等去重: 已提示过的通知 id 不再重复(本地 Map 记忆); 数据源为 chat_poll.notices(60s 一轮)
+  // 幂等去重: 已提示过的通知 id 不再重复(Storage once:chat_notice:<order_id> 持久化); 数据源为 chat_poll.notices(60s 一轮)
   applyNotices(d) {
-    this.__shownNoticeIds = this.__shownNoticeIds || {};
+    // 2026-10-30(§34): 通知/沟通提示幂等键落 Storage, 重进聊天页不再重复弹(§2 #88 已获放行: 文案与触发条件不变)
+    const nOid = this.data.orderId || '';
+    const shownIds = once.getMap('chat_notice:' + nOid);
     {
       if (!d || !d.list || !d.list.length) return;
-      const fresh = d.list.filter((n) => n && n.id && !this.__shownNoticeIds[n.id]);
+      const fresh = d.list.filter((n) => n && n.id && !shownIds[n.id]);
       if (!fresh.length) return;
-      fresh.forEach((n) => { this.__shownNoticeIds[n.id] = 1; });
+      fresh.forEach((n) => { shownIds[n.id] = 1; });
+      once.putMap('chat_notice:' + nOid, shownIds);
       // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)
       const RESPOND_ALERT = {
         extend_confirm: '✅ 对方已同意加时',
@@ -496,10 +503,10 @@ Page({
       // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）
       // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
       // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
-      this.__commShownKeys = this.__commShownKeys || {};
+      const commShown = once.getMap('chat_comm:' + nOid);
       const commHit = (this.data.role === 'partner' && !respondHit)
         ? (d.list || []).find((n) => n && n.type === 'modify' && n.title === '订单沟通'
-            && !this.__commShownKeys[n.id + '|' + (n.body || '')])
+            && !commShown[n.id + '|' + (n.body || '')])
         : null;
       if (respondHit) {
         try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
@@ -511,7 +518,8 @@ Page({
         });
       } else if (commHit) {
         // 先记账再弹窗: 弹窗未关时下一轮轮询(5s)不会重复弹出
-        this.__commShownKeys[commHit.id + '|' + (commHit.body || '')] = 1;
+        commShown[commHit.id + '|' + (commHit.body || '')] = 1;
+        once.putMap('chat_comm:' + nOid, commShown);
         try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
         wx.showModal({
           title: '对方发起沟通',

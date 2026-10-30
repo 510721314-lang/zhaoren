@@ -7,6 +7,7 @@
 const { callCloud } = require('./cloud.js');
 const { ORDER_STATUS } = require('../config/enums.js');
 const { fmtNoticeTime } = require('./order-view.js');
+const once = require('./once-anchor.js');
 
 // 迁自 order-detail.js clearTimers(定时器清理; 不依赖 wx, 仅 page 实例属性)
 function clearTimers(page) {
@@ -23,13 +24,20 @@ function startTipPoll(page) {
   stopTipPoll(page);
   page.__shownTipIds = page.__shownTipIds || {};
   page._tipTimer = setInterval(() => {
-    callCloud('order-action', { action: 'notice_poll', order_id: page.data.order.order_id }).then((r) => {
+    const orderId = page.data.order.order_id;
+    callCloud('order-action', { action: 'notice_poll', order_id: orderId }).then((r) => {
       const d = r && r.ok && r.data;
       if (!d || !d.list || !d.list.length) return;
       // 多次打赏/多通知: 依次追加到列表, 已展示过的不再重复
       const fresh = d.list.filter((n) => n && n.id && !page.__shownTipIds[n.id]);
       if (!fresh.length) return;
       fresh.forEach((n) => { page.__shownTipIds[n.id] = 1; });
+      // 2026-10-30(§34): toast/弹窗类提示另用 Storage 去重(once:notice_tip:<order_id>) ——
+      // 内存标记随页面销毁失效, 未点开的通知重进订单详情会重复弹窗; 横幅仍走页内去重
+      const prompted = once.getMap('notice_tip:' + orderId);
+      const freshPrompt = fresh.filter((n) => !prompted[n.id]);
+      freshPrompt.forEach((n) => { prompted[n.id] = 1; });
+      if (freshPrompt.length) once.putMap('notice_tip:' + orderId, prompted);
       const iconOf = (type) => (type === 'tip' ? '💝' : '🔔');
       const textOf = (n) => (n.type === 'tip' ? (n.body || '收到打赏') : (n.body || n.title || '新通知'));
       const items = fresh.map((n) => ({
@@ -47,7 +55,7 @@ function startTipPoll(page) {
         modify_confirm: '✅ 对方已同意改期',
         modify_reject: '❌ 对方已拒绝改期'
       };
-      const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
+      const respondHit = freshPrompt.find((n) => RESPOND_ALERT[n.type]);
       if (respondHit) {
         try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
         wx.showModal({
@@ -56,8 +64,8 @@ function startTipPoll(page) {
           showCancel: false,
           confirmText: '知道了'
         });
-      } else {
-        const key = fresh[0];
+      } else if (freshPrompt.length) {
+        const key = freshPrompt[0];
         const TITLE_OF = {
           accept: '有人接单了', paid: '对方已支付',
           confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',

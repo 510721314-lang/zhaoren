@@ -6,6 +6,7 @@ const CONFIG = require('../../config/index.js');
 const { CREDIT_LEVEL, ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 const { callCloud } = require('../../utils/cloud.js');
+const once = require('../../utils/once-anchor.js');
 
 // showModal fail 兜底(部分真机弹窗静默失败时给反馈)
 function modalFail() {
@@ -321,9 +322,10 @@ Page({
           examBadge: this.data.examBadge
         })
       });
-      // 轻量弹窗提示有新通知 (仅首次从 tabBar 进入"我的"时触发)
-      if (unread > 0 && !this._toastNotified) {
-        this._toastNotified = true;
+      // 轻量弹窗提示有新通知: 2026-10-30(§34) 幂等键落 Storage once:profile_unread:<未读数>
+      // 同一未读数只提示一次(重进小程序不再重复), 未读数变化(有新消息)才重新提示
+      if (unread > 0 && !once.has('profile_unread:' + unread)) {
+        once.mark('profile_unread:' + unread);
         setTimeout(() => wx.showToast({ title: `您有 ${unread} 条新通知`, icon: 'none', duration: 2000 }), 300);
       }
     }).catch(() => {});
