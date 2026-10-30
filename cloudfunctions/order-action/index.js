@@ -275,6 +275,17 @@ async function sendUrgeSub(order, config, now, used) {
     entry.status = 'fail';
     entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
     entry.errMsg = String((e && (e.errMsg || e.message)) || '');
+    // 2026-10-30 T-7.26: 43101 = 一次性订阅额度已用尽 → 关闭授权标记, 使接单配置「催办提醒」开关回到"关", 引导耍伴重新授权
+    if (String(entry.errCode) === '43101') {
+      try {
+        await col('partner_profile').where({ openid: p }).update({
+          data: {
+            'sub_msgs.demand_urge.authorized': false,
+            'sub_msgs.demand_urge.quota_empty_at': Date.now()
+          }
+        });
+      } catch (e3) {}
+    }
     return { sent: false, errCode: entry.errCode, errMsg: entry.errMsg };
   } finally {
     try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
