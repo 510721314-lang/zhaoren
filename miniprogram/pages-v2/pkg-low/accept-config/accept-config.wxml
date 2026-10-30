@@ -192,7 +192,7 @@
       <view class="ac__row-between">
         <view>
           <view class="ac__card-title">催办提醒</view>
-          <view class="ac__tip" wx:if="{{urgeSubMsgCfg.enabled}}">发单人催办履约时，通过微信消息提醒你</view>
+          <view class="ac__tip" wx:if="{{urgeSubMsgCfg.enabled}}">发单人催办履约时通过微信提醒你；每次开启可收 1 条，用完需再开</view>
           <view class="ac__tip" wx:else>微信提醒暂未开通，催办仍会显示在站内通知</view>
         </view>
         <switch checked="{{urgeSubAuthorized}}" disabled="{{!urgeSubMsgCfg.enabled}}" color="var(--func-success)" data-tmpl="demand_urge" bindchange="onSubToggle" />

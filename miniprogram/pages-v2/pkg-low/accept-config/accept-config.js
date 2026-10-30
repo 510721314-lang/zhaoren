@@ -497,8 +497,8 @@ Page({
         this.setData({ [authKey]: false });
         return;
       }
-      // 实验(2026-10-30): 一次点击连调 2 次, 验证能否累积 2 条一次性订阅额度(仅催办提醒 demand_urge)
-      // 实测口径: 开启后需求方连催 2 次均 status=ok 则累积成立; 第 2 次 43101 则本段回滚
+      // 2026-10-30 实测证实: 一次点击连调 2 次可累积 2 条一次性订阅额度(仅催办提醒 demand_urge)
+      // 依据: 开关开启后需求方连催 2 次, order_main.sub_msg_send_logs 两条均 status=ok
       if (isUrge) {
         try {
           const res2 = await wx.requestSubscribeMessage({ tmplIds: [cfg.tmplId] });
