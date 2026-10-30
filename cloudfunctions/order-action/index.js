@@ -141,7 +141,9 @@ async function writeNotice(opt) {
       updated_at: Date.now()
     };
     if (exist.data && exist.data[0]) {
-      await col('system_notice').doc(exist.data[0]._id).update({ data });
+      // 2026-10-30: 合并更新同时顺延 created_at(语义=最近一次提醒时间) —— notice_list 按 created_at desc 排序,
+      // 只写 updated_at 会让被合并的通知停在首次位置, 用户看不到"最新变化"(提示滞后根因之一)
+      await col('system_notice').doc(exist.data[0]._id).update({ data: Object.assign({}, data, { created_at: data.updated_at }) });
     } else {
       await col('system_notice').add({ data: Object.assign({
         to_openid: opt.to_openid,

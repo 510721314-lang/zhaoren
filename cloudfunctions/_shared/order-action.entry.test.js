@@ -573,5 +573,23 @@ test('chat_poll: 不带开关 → 不查确认单/通知, 返回空 data', async
   assert.deepStrictEqual(r.data, {});
 });
 
+// 27. writeNotice 去重合并(2026-10-30): 同收件人+同单+同类型未读通知再次触发 → update 顺延 created_at(列表可置顶)
+test('writeNotice: 合并更新顺延 created_at, 通知列表可置顶', async () => {
+  const NID = 'n'.repeat(32);
+  const OLD = Date.now() - 30 * 60 * 1000;
+  const store = baseStore();
+  store.system_notice = {
+    [NID]: { _id: NID, to_openid: PARTNER, order_id: OID, type: 'nudge', read: false, title: '旧催办', body: '旧', created_at: OLD, updated_at: OLD }
+  };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'nudge_partner', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const upd = (sdk.writes.system_notice || []).find((w) => w.doc === NID);
+  assert.ok(upd, '同类型未读通知应走 doc.update 合并');
+  assert.strictEqual(typeof upd.data.created_at, 'number');
+  assert.ok(upd.data.created_at > OLD, 'created_at 应顺延为最近一次提醒时间');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

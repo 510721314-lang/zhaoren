@@ -137,6 +137,29 @@ Page({
     });
   },
 
+  // 2026-10-30: 首页铃铛角标刷新(此前只在 onLoad 拉一次 → 切 tab 回来角标滞后)
+  // - 默认 30s 节流走 peek_login(云端自带 30s 未读缓存, 省调用)
+  // - 通知页读过消息会写 Storage 脏标记 → 本次改走 notice_list limit:1 取实时未读并清标记(角标即时回退)
+  refreshNoticeBadge() {
+    const now = Date.now();
+    let dirty = false;
+    try { dirty = !!wx.getStorageSync('notice_unread_dirty'); } catch (e) {}
+    if (!dirty && this.__badgeAt && now - this.__badgeAt < 30000) return;
+    this.__badgeAt = now;
+    if (dirty) {
+      try { wx.removeStorageSync('notice_unread_dirty'); } catch (e) {}
+      callCloud('order-action', { action: 'notice_list', limit: 1 }).then((r) => {
+        if (r && r.ok && r.data) this.setData({ 'user.unread_notice': r.data.unread || 0 });
+      }).catch(() => {});
+      return;
+    }
+    callCloud('user-login', { action: 'peek_login' }).then((r) => {
+      if (r && r.ok && r.data && r.data.found && r.data.user) {
+        this.setData({ 'user.unread_notice': r.data.user.unread_notice || 0 });
+      }
+    }).catch(() => {});
+  },
+
   // 批2 P2-8/P2-9: 顶部续作条计算。互斥优先级——发布中断 > 入驻中断;
   // 发布条纯本地 intent 读取, 有它时不发入驻探针(省一次云调用)
   _refreshGuides() {
@@ -185,6 +208,8 @@ Page({
     this.setData({ isRedline: redline.isInRedline() });
     // 批2 P2-8/P2-9: 每次显示刷新续作条(发布条纯本地读取; 入驻条走 60s 缓存探针)
     this._refreshGuides();
+    // 2026-10-30: 铃铛未读角标随 onShow 刷新(fetchUser 仅 onLoad 一次, 此前切 tab 回来角标是旧值)
+    this.refreshNoticeBadge();
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 });
     }

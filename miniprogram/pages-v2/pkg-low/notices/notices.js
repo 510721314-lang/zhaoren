@@ -84,6 +84,8 @@ Page({
     if (!n) return;
     // 标记已读
     callCloud('order-action', { action: 'notice_read', notice_id: n._id }).catch(() => {});
+    // 2026-10-30: 通知首页刷新角标(首页 onShow 见脏标记才走实时未读查询)
+    try { wx.setStorageSync('notice_unread_dirty', 1); } catch (e) {}
     // 更新本地
     this.setData({
       list: this.data.list.map((x) => x._id === n._id ? { ...x, read: true } : x),
@@ -113,6 +115,8 @@ Page({
   // 全部标已读
   async onMarkAll() {
     callCloud('order-action', { action: 'notice_read' }).catch(() => {});
+    // 2026-10-30: 通知首页刷新角标(同上, 走 Storage 脏标记)
+    try { wx.setStorageSync('notice_unread_dirty', 1); } catch (e) {}
     this.setData({
       list: this.data.list.map((x) => ({ ...x, read: true })),
       unread: 0

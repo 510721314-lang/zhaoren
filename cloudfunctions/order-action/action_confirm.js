@@ -153,7 +153,8 @@ async function update_item(ctx) {
   }
 
   log.d(`confirm item updated: order=${order.order_no} item=${item} by=${role}, all reset`);
-  writeNotice({
+  // 2026-10-30: await 落库, 防函数 return 后异步写被回收(与 payment-mock 同口径)
+  await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
     order_id, type: 'modify',
     title: '订单沟通',
@@ -255,7 +256,7 @@ async function confirm_item(ctx) {
   }
 
   await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_item', target_type: 'order', target_id: order_id, detail: { item, role, confirmed_count: cnt, status: newStatus }, result: 'ok', client_ip: clientIp, device });
-  writeNotice({
+  await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
     order_id, type: `confirm:${item}`,
     title: '订单沟通',
@@ -335,7 +336,7 @@ async function confirm_all(ctx) {
     }
   }
   await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_all', target_type: 'order', target_id: order_id, detail: { role, confirmed_count: cnt, status: newStatus }, result: 'ok', client_ip: clientIp, device });
-  writeNotice({
+  await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
     order_id, type: 'confirm_all',
     title: '订单沟通',

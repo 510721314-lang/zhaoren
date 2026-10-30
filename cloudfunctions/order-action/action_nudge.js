@@ -21,8 +21,8 @@ async function nudge_partner(ctx) {
   }
   const max = gate.max;
   // 频控：60 秒内同单只催 1 次（防连点）
-  // 2026-10-30: 改查 updated_at —— writeNotice 对「同收件人+同单+同类型」未读通知做的是覆盖更新,
-  // created_at 保持首次时间, 查 created_at 会让第 2 次催办绕过频控(真机实测 24.7s 内连催两次未被拦)
+  // 2026-10-30: 频控查 updated_at —— writeNotice 对「同收件人+同单+同类型」未读通知做的是覆盖更新;
+  // created_at 已随合并更新一起顺延(见 index.js writeNotice), 但 updated_at 是唯一可靠"最近写入"锚, 频控以它为准
   const recent = await col('system_notice').where({
     to_openid: order.partner_openid, order_id, type: 'nudge',
     updated_at: _.gte(now - 60 * 1000)
@@ -40,7 +40,8 @@ async function nudge_partner(ctx) {
   }
   const used = (Number(order.urge_count) || 0) + 1;
   // 站内通知（必达）
-  writeNotice({
+  // 2026-10-30: await 落库, 防函数 return 后异步写被回收(与 payment-mock 同口径)
+  await writeNotice({
     to_openid: order.partner_openid, order_id, type: 'nudge',
     title: '📢 用户催办履约',
     body: `发单人催办（第${used}次），请尽快开始履约`,
