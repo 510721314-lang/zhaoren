@@ -37,11 +37,49 @@ Page({
     };
   },
 
-  onShow() { this.loadList(true); },
+  onShow() {
+    this.loadList(true);
+    // 2026-10-30(提示滞后批4): 停留期间轮询, 新通知不再需要退出重进才能看到
+    this.startNoticePoll();
+  },
+  onHide() { this.stopNoticePoll(); },
+  onUnload() { this.stopNoticePoll(); },
   onPullDownRefresh() {
     this.loadList(true).then(() => wx.stopPullDownRefresh());
   },
   onReachBottom() { this.loadList(false); },
+
+  // 2026-10-30(提示滞后批4): 通知页停留轮询 —— 每 15s 静默比对「首条 _id+created_at 与未读数」,
+  // 有变化才 setData; 不闪 loading、失败静默、已分页时只同步未读不重排列表(防分页重复/漏条)
+  startNoticePoll() {
+    this.stopNoticePoll();
+    this._noticeTimer = setInterval(() => this.pollNoticeOnce(), 15000);
+  },
+  stopNoticePoll() {
+    if (this._noticeTimer) { clearInterval(this._noticeTimer); this._noticeTimer = null; }
+  },
+  async pollNoticeOnce() {
+    // 在飞门锁 + 首屏/触底加载中跳过(单次最长 12s, 与 15s 周期可能叠加)
+    if (this.__polling || this.data.loading || this.data.loadingMore) return;
+    this.__polling = true;
+    const r = await callCloud('order-action', { action: 'notice_list', limit: this.data.pageSize + 1 }, { timeout: 12000 }).catch(() => null);
+    this.__polling = false;
+    if (!r || !r.ok || !r.data) return;   // 失败静默, 不复用 loadList 的失败 toast
+    const fetched = (r.data.list || []).map((n) => ({ ...n, time_ago: fmtAgo(n.created_at) }));
+    const hasMore = fetched.length > this.data.pageSize;
+    const page = hasMore ? fetched.slice(0, this.data.pageSize) : fetched;
+    // 本地刚点过已读时 10s 内不回写未读(防服务端延迟导致角标数字回弹)
+    const unreadNext = (this.__localReadAt && Date.now() - this.__localReadAt < 10000)
+      ? this.data.unread : (r.data.unread || 0);
+    const sig = (x) => ((x && x._id) ? `${x._id}|${x.created_at || 0}` : '');
+    const changed = sig(page[0]) !== sig((this.data.list || [])[0]);
+    const paged = this.data.hasMore || (this.data.list || []).length > this.data.pageSize;
+    if (changed && !paged) {
+      this.setData({ list: page, unread: unreadNext, empty: page.length === 0, hasMore });
+    } else if (unreadNext !== this.data.unread) {
+      this.setData({ unread: unreadNext });
+    }
+  },
 
   // reset=true: 首屏/返回页面/下拉刷新, 从头拉第一页替换; reset=false: 触底/更多追加下一页
   // limit+1 技巧: 请求 pageSize+1 条, 实际回满则判定有下一页, 只展示前 pageSize 条;
@@ -87,6 +125,7 @@ Page({
     // 2026-10-30: 通知首页刷新角标(首页 onShow 见脏标记才走实时未读查询)
     try { wx.setStorageSync('notice_unread_dirty', 1); } catch (e) {}
     // 更新本地
+    this.__localReadAt = Date.now();   // 2026-10-30: 10s 内轮询不回写未读, 防数字回弹
     this.setData({
       list: this.data.list.map((x) => x._id === n._id ? { ...x, read: true } : x),
       unread: Math.max(0, this.data.unread - 1)
@@ -117,6 +156,7 @@ Page({
     callCloud('order-action', { action: 'notice_read' }).catch(() => {});
     // 2026-10-30: 通知首页刷新角标(同上, 走 Storage 脏标记)
     try { wx.setStorageSync('notice_unread_dirty', 1); } catch (e) {}
+    this.__localReadAt = Date.now();   // 2026-10-30: 10s 内轮询不回写未读, 防数字回弹
     this.setData({
       list: this.data.list.map((x) => ({ ...x, read: true })),
       unread: 0

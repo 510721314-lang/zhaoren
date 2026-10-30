@@ -319,7 +319,8 @@ async function mockTipAction(ctx) {
 
         log.d(`mock_tip success: ${order.order_no} tip_no=${tipNo} amount=${amount}`);
         // 订单沟通同步: 通知耍伴收到打赏
-        col('system_notice').add({ data: {
+        // 2026-10-30: await 落库, 防函数 return 后异步写被回收(与同文件支付/退款通知同口径)
+        await col('system_notice').add({ data: {
           to_openid: order.partner_openid, order_id, type: 'tip',
           title: '收到打赏',
           body: `发单人打赏了你 ¥${(amount / 100).toFixed(2)}`,

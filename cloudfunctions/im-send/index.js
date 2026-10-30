@@ -322,7 +322,8 @@ exports.main = async (event, context) => {
         result: 'ok', client_ip: clientIp, device
       });
       // 订单沟通同步: 通知对端收到确认请求
-      writeNotice({
+      // 2026-10-30: await 落库, 防函数 return 后异步写被回收(与 payment-mock 同口径)
+      await writeNotice({
         to_openid: role === 'user' ? order.partner_openid : order.user_openid,
         order_id, type: 'im_template',
         title: '订单沟通',
@@ -413,7 +414,8 @@ exports.main = async (event, context) => {
         result: 'ok', client_ip: clientIp, device
       });
       // 订单沟通同步: 通知对端收到新消息
-      writeNotice({
+      // 2026-10-30: await 落库, 防函数 return 后异步写被回收(与 payment-mock 同口径)
+      await writeNotice({
         to_openid: role === 'user' ? order.partner_openid : order.user_openid,
         order_id, type: 'im_text',
         title: '订单沟通',
