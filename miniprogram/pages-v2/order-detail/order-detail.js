@@ -99,6 +99,8 @@ Page({
         return;
       }
       this.refreshOrder(r.data);
+      // 2026-10-30: 耍伴 S2 页需「补充微信提醒额度」入口 → 预取 demand_urge 模板 ID(云端 config_public 为 SSOT, 会话内仅 1 次)
+      if (r.data.my_role === 'partner' && normalizeStatus(r.data.status) === 'S2') this._ensureUrgeTmplId();
       // 联系信息(过渡版): 接单方且已支付后展示对方脱敏号(拨打为占位)
       this.setData({ contactDisplay: r.data.contact_display || null, loading: false });
       this.startCountdown();
@@ -424,6 +426,39 @@ Page({
     return fetchTipList(this);
   },
 
+  // 2026-10-30 耍伴端「补充微信提醒额度」: 懒取 demand_urge 模板 ID(config_public 为 SSOT, 会话内只请求 1 次)
+  // 模板 ID 必须提前拿到: requestSubscribeMessage 只能在点击手势内同步调用, 不能先 await 网络再调
+  _ensureUrgeTmplId() {
+    if (this.__urgeTmplId !== undefined) return;
+    this.__urgeTmplId = '';
+    callCloud('admin-action', { action: 'config_public' }).then((r) => {
+      const c = (r && r.ok && r.data && r.data.sub_msg && r.data.sub_msg.demand_urge) || null;
+      this.__urgeTmplId = (c && c.tmpl_id) || '';
+    }).catch(() => {});
+  },
+
+  // 2026-10-30 耍伴端: 补充 1 条「催办提醒」订阅额度(一次性订阅: 一次授权=一条消息, 用完需再补)
+  onRefillUrgeSub() {
+    const tmplId = this.__urgeTmplId || '';
+    if (!tmplId) {
+      wx.showToast({ title: '微信提醒暂未开通', icon: 'none' });
+      return;
+    }
+    wx.requestSubscribeMessage({
+      tmplIds: [tmplId],
+      success: (res) => {
+        if (!res || res[tmplId] !== 'accept') {
+          wx.showToast({ title: '未获得微信订阅授权', icon: 'none' });
+          return;
+        }
+        callCloud('partner-action', { action: 'sub_authorize', tmpl: 'demand_urge', authorized: true })
+          .then((r) => wx.showToast({ title: r.ok ? '已补充1条微信提醒' : (r.msg || '操作失败'), icon: 'none' }))
+          .catch(() => wx.showToast({ title: '网络异常，请重试', icon: 'none' }));
+      },
+      fail: () => wx.showToast({ title: '微信授权未完成', icon: 'none' })
+    });
+  },
+
   // ── §5 履约准备 & 定位判定 (onViewPrep / onStartService / onStartConfirm / _evalFulfillGeo / _collectStartLocation) ──
   // O3 操作区
   // 用户端 S2: 查看履约准备 (弹窗展示履约信息 + 可选操作)
@@ -465,19 +500,27 @@ Page({
               }).then((rr) => {
                 wx.hideLoading();
                 if (rr.ok) {
-                  const rem = (rr.data && rr.data.remaining !== undefined) ? rr.data.remaining : 0;
-                  // 2026-10-30: 按订阅发送结果区分文案(一次性订阅: 第 2 次必 43101 额度用尽, 不可显示"已催办"了事)
+                  // 2026-10-30: 按订阅发送结果区分文案(一次性订阅: 一次授权只对应 1 条微信提醒)
                   if (rr.data && rr.data.sub_sent === false) {
                     const subErr = String(rr.data.sub_err || '');
-                    // 原因码拆开：额度用尽 / 对方未授权 / 未开通 / 其他失败（不再一律"发送失败"）
-                    const tipMap = {
-                      '43101': '已催办，微信额度已用完',
-                      'NO_AUTH': '已催办，对方未开提醒',
-                      'NO_TMPL': '已催办，微信提醒未开通'
-                    };
-                    wx.showToast({ title: tipMap[subErr] || '已催办，微信提醒发送失败', icon: 'none' });
+                    if (subErr === '43101' || subErr === 'NO_AUTH') {
+                      // 额度用尽/对方未开提醒: 站内通知已送达, 用弹窗给出明确去处(替代一闪而过、无行动项的 toast)
+                      wx.showModal({
+                        title: '已催办 · 站内已送达',
+                        content: '微信提醒每次授权只能发 1 条，对方需在小程序内重新开启。可先发消息提醒对方。',
+                        confirmText: '去聊天',
+                        cancelText: '知道了',
+                        success: (m) => { if (m.confirm) this.goChat(); }
+                      });
+                    } else {
+                      wx.showToast({
+                        title: subErr === 'NO_TMPL' ? '已催办，微信提醒未开通' : '已催办，微信提醒发送失败',
+                        icon: 'none'
+                      });
+                    }
                   } else {
-                    wx.showToast({ title: `已催办，剩余${rem}次`, icon: 'success' });
+                    // 成功: 明说"微信已送达", 避免用户误以为每次催办都会弹微信服务通知
+                    wx.showToast({ title: '已催办，微信已送达', icon: 'none' });
                   }
                   this.fetchData({ orderId: o._id }, true);
                 } else {

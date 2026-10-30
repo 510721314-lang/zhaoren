@@ -151,6 +151,8 @@
           <view class="od__after-sale-tip" wx:if="{{!geoGuard}}">正在校验履约地点…</view>
           <view class="od__after-sale-tip" wx:elif="{{geoGuard.tip}}">{{geoGuard.tip}}</view>
           <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
+          <!-- 2026-10-30 耍伴端: 催办微信提醒额度补充(一次性订阅: 一次授权仅 1 条, 用完再补) -->
+          <view class="od__after-sale-tip" wx:if="{{order.urge && order.urge.count > 0}}" bindtap="onRefillUrgeSub">📲 微信提醒额度：点我补充（每次 1 条）</view>
         </block>
         <block wx:else>
           <button class="od__btn od__btn--primary" bindtap="onViewPrep" hover-class="btn-press">📋 查看履约准备</button>
