@@ -262,18 +262,20 @@ async function sendUrgeSub(order, config, now, used) {
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
   if (!Object.keys(data).length) return;
-  // 2026-10-29: 发送结果落库 order_main.sub_msg_send_logs(成功/失败均记), 补送达验证留痕; 失败仍向上抛由调用方降级
+  // 2026-10-29: 发送结果落库 order_main.sub_msg_send_logs(成功/失败均记), 补送达验证留痕
+  // 2026-10-30: 改为返回 {sent,errCode,errMsg}(不再抛出), 供 nudge_partner 回传前端区分"已送达/额度用尽/发送失败"
   const entry = { key: 'demand_urge', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
   try {
     await cloud.openapi.subscribeMessage.send({
       touser: p, templateId: tmpl.tmpl_id, page: tmpl.page || 'pages-v2/order-detail/order-detail',
       data, miniprogramState: tmpl.miniprogram_state || 'formal'
     });
+    return { sent: true, errCode: '', errMsg: '' };
   } catch (e) {
     entry.status = 'fail';
     entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
     entry.errMsg = String((e && (e.errMsg || e.message)) || '');
-    throw e;
+    return { sent: false, errCode: entry.errCode, errMsg: entry.errMsg };
   } finally {
     try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
   }

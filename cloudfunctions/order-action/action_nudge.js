@@ -46,8 +46,13 @@ async function nudge_partner(ctx) {
     action_payload: { order_id }
   });
   // 订阅消息（小程序端触发云调用有效；未授权/未配模板/失败一律降级，不阻断）
-  try { await sendUrgeSub(order, config, now, used); } catch (e) { log.w(`urge sub fail: ${e && (e.errMsg || e.message)}`); }
-  return { ok: true, data: { urge_count: used, urge_max: max, remaining: max - used } };
+  // 2026-10-30: 回传订阅发送结果, 前端据此区分"微信提醒已发 / 额度用尽 / 发送失败"
+  let sub = { sent: false, errCode: '', errMsg: '' };
+  try { sub = (await sendUrgeSub(order, config, now, used)) || sub; } catch (e) { log.w(`urge sub fail: ${e && (e.errMsg || e.message)}`); }
+  return {
+    ok: true,
+    data: { urge_count: used, urge_max: max, remaining: max - used, sub_sent: !!sub.sent, sub_err: sub.errCode || '' }
+  };
 }
 
 module.exports = { nudge_partner };
