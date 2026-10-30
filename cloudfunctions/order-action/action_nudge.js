@@ -21,9 +21,11 @@ async function nudge_partner(ctx) {
   }
   const max = gate.max;
   // 频控：60 秒内同单只催 1 次（防连点）
+  // 2026-10-30: 改查 updated_at —— writeNotice 对「同收件人+同单+同类型」未读通知做的是覆盖更新,
+  // created_at 保持首次时间, 查 created_at 会让第 2 次催办绕过频控(真机实测 24.7s 内连催两次未被拦)
   const recent = await col('system_notice').where({
     to_openid: order.partner_openid, order_id, type: 'nudge',
-    created_at: _.gte(now - 60 * 1000)
+    updated_at: _.gte(now - 60 * 1000)
   }).count().catch(() => ({ total: 0 }));
   if ((recent.total || 0) > 0) {
     return { ok: false, code: 'oa_nudge_too_frequent', msg: '操作过于频繁，请稍后再试' };
