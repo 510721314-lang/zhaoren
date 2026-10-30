@@ -497,6 +497,16 @@ Page({
         this.setData({ [authKey]: false });
         return;
       }
+      // 实验(2026-10-30): 一次点击连调 2 次, 验证能否累积 2 条一次性订阅额度(仅催办提醒 demand_urge)
+      // 实测口径: 开启后需求方连催 2 次均 status=ok 则累积成立; 第 2 次 43101 则本段回滚
+      if (isUrge) {
+        try {
+          const res2 = await wx.requestSubscribeMessage({ tmplIds: [cfg.tmplId] });
+          if (res2 && res2[cfg.tmplId] === 'accept') {
+            // 第 2 条额度已累积(若无"总是保持"选择, 此处会再弹一次授权框)
+          }
+        } catch (e2) {}
+      }
     }
     const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl, authorized: on });
     this.setData({ [authKey]: r.ok ? on : this.data[authKey] });
