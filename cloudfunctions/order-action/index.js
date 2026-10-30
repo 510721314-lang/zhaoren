@@ -286,6 +286,15 @@ async function sendUrgeSub(order, config, now, used) {
           }
         });
       } catch (e3) {}
+      // 2026-10-30: 额度用尽时给耍伴写一条站内通知(解释开关为何自动关闭 + 一键去重新开启; 站内必达, 不依赖微信)
+      writeNotice({
+        to_openid: p,
+        order_id: order._id,
+        type: 'sub_quota',
+        title: '微信催办提醒已用完',
+        body: '点此重新开启，可再收 1 条催办提醒',
+        action_key: 'jump_accept_config'
+      });
     }
     return { sent: false, errCode: entry.errCode, errMsg: entry.errMsg };
   } finally {
