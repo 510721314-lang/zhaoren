@@ -258,32 +258,17 @@ function _showDisclaimer(d, demand, opts) {
 // 真实客户端 create_from_take 必传 partner_location(服务端 50km 距离校验), 定位失败 fallback 到 chooseLocation
 function _locate(demand, opts) {
   wx.showLoading({ title: '获取定位...', mask: true });
-  // 2026-10-27: getLocationSafe 8s 必收敛, 超时按失败走选点兜底, 防 showLoading 卡死
+  // 2026-10-27: getLocationSafe 8s 必收敛, 超时按定位失败处理, 防 showLoading 卡死
   getLocationSafe().then((loc) => {
     wx.hideLoading();
     if (loc.ok) {
-      _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude }, opts);
+      // 接单定位须带 accuracy(服务端与履约 geo-guard 同口径校验精度, 禁手选点绕过距离门禁)
+      _signThenCreate(demand, { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy }, opts);
       return;
     }
-    // getLocation 可能因 API 未通过审核或用户权限被拒而失败, fallback 到 chooseLocation(已审核通过)
-    wx.showModal({
-      title: '定位不可用',
-      content: '需要位置信息用于距离校验, 是否手动在地图上选择你的当前位置?',
-      confirmText: '选点',
-      cancelText: '取消',
-      success: (r) => {
-        if (!r.confirm) { _release(); return; }
-        wx.chooseLocation({
-          success: (loc2) => {
-            _signThenCreate(demand, { latitude: loc2.latitude, longitude: loc2.longitude }, opts);
-          },
-          fail: () => {
-            wx.showToast({ title: '未选择位置,无法接单', icon: 'none' });
-            _release();
-          }
-        });
-      }
-    });
+    // 定位失败不再 fallback 手选点(手选点无精度可伪造距离), 引导到开阔处重试
+    wx.showToast({ title: '定位失败,请到开阔处重试', icon: 'none' });
+    _release();
   });
 }
 

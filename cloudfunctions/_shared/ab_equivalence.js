@@ -524,7 +524,7 @@ const CASES = [
   { fn: 'order-create', name: 'oc_create_demand_gone', openid: USER, store: ocStore({ demand: {} }), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 30.5, longitude: 104.0 }, mock_openid: USER } },
   { fn: 'order-create', name: 'oc_create_not_signed', openid: USER, store: ocStore({ disclaimer_signature: {} }), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 30.5, longitude: 104.0 }, mock_openid: USER } },
   { fn: 'order-create', name: 'oc_create_no_location', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: DEM, mock_openid: USER } },
-  { fn: 'order-create', name: 'oc_create_too_far', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 40.0, longitude: 120.0 }, mock_openid: USER } },
+  { fn: 'order-create', name: 'oc_create_too_far', openid: USER, store: ocStore(), event: { action: 'create_from_take', demand_id: DEM, partner_location: { latitude: 40.0, longitude: 120.0, accuracy: 10 }, mock_openid: USER } },
   // 注意: 该用例锁定「拆分前既有行为」——create_from_take 成功路径因 L482 try 块内 const
   // (orderNo/orderId/totalFen/orderData/userEvidenceId) 在 finally 后越界引用, 两侧同抛
   // ReferenceError; 后续单独修复该 bug 时本用例会转 FAIL, 需按 KNOWN_EVOLUTION 显式登记。

@@ -200,6 +200,12 @@ async function createFromTakeAction(ctx) {
       await logReject(openid, demand_id, 'no_partner_location');
       return { ok: false, code: 'order_location_required', msg: '接单需要获取你的实时位置，请授权定位后重试' };
     }
+    // 接单精度可信校验(与履约 geo-guard 同口径 accuracyMaxM=50): 缺失/<=0/超 50m 一律不可信 → 拒绝, 禁手选点绕过距离门禁
+    const accM = Number(pl && pl.accuracy);
+    if (!isFinite(accM) || accM <= 0 || accM > 50) {
+      await logReject(openid, demand_id, 'location_untrusted');
+      return { ok: false, code: 'order_location_untrusted', msg: '定位精度不足,请到开阔处重试' };
+    }
     const site = demand.location;
     if (site && site.latitude && site.longitude) {
       // 阈值 = min(耍伴接单配置的最大接单距离, 平台上限 admin_config.take_distance_max_km), 缺省 50km

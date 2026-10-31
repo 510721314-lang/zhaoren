@@ -62,7 +62,7 @@ test('create_from_take 成功路径: 建单三表 + demand CAS matched + 审计 
 
   const r = await mod.main({
     action: 'create_from_take', demand_id: DEM,
-    partner_location: { latitude: 30.5, longitude: 104.0 },
+    partner_location: { latitude: 30.5, longitude: 104.0, accuracy: 10 },
     mock_openid: USER, device: 'test'
   }, {});
 
@@ -105,11 +105,12 @@ function cert(subject, over) {
     expires_at: 0, status: 'active', is_deleted: false
   }, over || {});
 }
-async function take(sdk) {
+async function take(sdk, loc) {
   const mod = loadOrderCreate(sdk);
   return mod.main({
     action: 'create_from_take', demand_id: DEM,
-    partner_location: { latitude: 30.5, longitude: 104.0 },
+    // 真实客户端 wx.getLocation 必带 accuracy; 接单侧与履约 geo-guard 同口径要求 accuracy<=50
+    partner_location: loc || { latitude: 30.5, longitude: 104.0, accuracy: 10 },
     mock_openid: USER, device: 'test'
   }, {});
 }
@@ -178,5 +179,17 @@ test('门禁开: W1 证书过期 → order_scene_exam_required', async () => {
   };
   const r = await take(makeSdk({ openid: USER, store: s }));
   assert.strictEqual(r.code, 'order_scene_exam_required');
+});
+
+// ── ISS-005(2026-10-31): 接单定位精度可信门(与履约 geo-guard 同口径 accuracyMaxM=50) ──
+// 手选点(chooseLocation)无 accuracy 可伪造距离 → 缺失/<=0/超 50m 一律拒绝, 防绕过 50km 距离门禁
+test('定位精度缺失(手选点) → order_location_untrusted', async () => {
+  const r = await take(makeSdk({ openid: USER, store: store() }), { latitude: 30.5, longitude: 104.0 });
+  assert.strictEqual(r.code, 'order_location_untrusted');
+});
+
+test('定位精度超 50m → order_location_untrusted', async () => {
+  const r = await take(makeSdk({ openid: USER, store: store() }), { latitude: 30.5, longitude: 104.0, accuracy: 61 });
+  assert.strictEqual(r.code, 'order_location_untrusted');
 });
 
