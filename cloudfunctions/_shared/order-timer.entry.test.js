@@ -189,4 +189,25 @@ test('账号停用到期 → account_restored=1', async () => {
   assert.strictEqual(upd.data.status, 'normal');
 });
 
+// 17. ISS-011(2026-10-31): 爽约申诉举证逾期 → 标记逾期 + 通知管理员, 不自动裁定
+test('爽约申诉举证逾期 → no_show_overdue=1 且仅标记不裁定', async () => {
+  const now = Date.now();
+  const RID = 'r'.repeat(32);
+  const { r, sdk } = await run(baseStore({}, {
+    no_show_report: { [RID]: { _id: RID, order_id: 'A1', status: 'received', evidence_deadline: now - 1000, is_deleted: false } }
+  }));
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.counts.no_show_overdue, 1);
+  assert.deepStrictEqual(r.data.no_show_overdue, [RID]);
+  // 仅打逾期标记 + updated_at, 不动状态/不落裁定/不扣分
+  const upd = (sdk.writes.no_show_report || []).find((w) => w.where && w.where._id === RID);
+  assert.ok(upd && typeof upd.data.overdue_escalated_at === 'number', '写入 overdue_escalated_at 幂等位');
+  assert.strictEqual(upd.data.status, undefined, '不改申诉状态(不自动裁定)');
+  assert.strictEqual(upd.data.verdict, undefined, '不写裁定结果');
+  // 通知管理员(store.admin_config.admin_openids = [ADMIN])
+  const notice = (sdk.writes.system_notice || []).find((w) => w.data && w.data.type === 'no_show_overdue');
+  assert.ok(notice, '写 no_show_overdue 站内信');
+  assert.strictEqual(notice.data.to_openid, ADMIN);
+});
+
 test.after(() => { Module._load = origLoad; });

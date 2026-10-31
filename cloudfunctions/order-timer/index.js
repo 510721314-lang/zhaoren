@@ -537,7 +537,7 @@ exports.main = async (event, context) => {
   // G3(2026-10-20) 超时前提醒: S2_6/S3_6 窗口内各 2 档(缺省 5/10 与 10/20, 后台可配)
   const remindMin = remindCfg(cfg);
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
@@ -603,6 +603,9 @@ exports.main = async (event, context) => {
   // ───────── 4.8 争议单超期升级(2026-10-13 留存负债闭环): 争议发起超 dispute_escalate_d 天未裁决 → P1 平台事件 ─────────
   await SECTIONS.processDisputeEscalate(sectionCtx);
 
+  // ───────── 4.9 爽约申诉举证逾期(ISS-011, 2026-10-31): 标记逾期 + 升级管理员(不自动裁定) ─────────
+  await SECTIONS.processNoShowDefenseOverdue(sectionCtx);
+
   // ───────── 5. error_scan 巡检(D7) ─────────
   let errorScanResult = null;
   try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
@@ -645,6 +648,7 @@ exports.main = async (event, context) => {
       finish_confirm_timeout: out.finish_confirm_timeout,
       start_apply_remind: out.start_apply_remind,
       finish_confirm_remind: out.finish_confirm_remind,
+      no_show_overdue: out.no_show_overdue,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
@@ -661,7 +665,8 @@ exports.main = async (event, context) => {
         start_apply_timeout: out.start_apply_timeout.length,
         finish_confirm_timeout: out.finish_confirm_timeout.length,
         start_apply_remind: out.start_apply_remind.length,
-        finish_confirm_remind: out.finish_confirm_remind.length
+        finish_confirm_remind: out.finish_confirm_remind.length,
+        no_show_overdue: out.no_show_overdue.length
       }
     }
   };

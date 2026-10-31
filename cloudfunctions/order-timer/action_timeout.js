@@ -212,6 +212,47 @@ async function processFinishConfirmRemind(ctx) {
   } catch (e) { log.d(`s3_6 remind scan fail: ${e.message}`); }
 }
 
+// ── ISS-011(2026-10-31): 爽约申诉举证逾期 → 标记逾期 + 升级管理员(不自动裁定) ──
+// 口径(N2, 见 _shared/no_show_rules.js defenseDeadlineOf 注释): 逾期不自动关闭、不自动裁定,
+//   管理员仍可径行裁定。本段只做两件保守动作:
+//   ① 对 status in [received, defense] 且 evidence_deadline < now 的申诉打一次性逾期标记
+//      (overdue_escalated_at 作幂等位, 条件更新仅当字段不存在才写, 防并发/重复轮次重复通知);
+//   ② 给 admin_openids 发 system_notice 提示运营核实后人工裁定; 不改申诉状态、不动订单、不扣分。
+// 注: 状态常量与 _shared/no_show_rules.js REPORT_STATUS 同值(received/defense);
+//   微信云开发单函数目录打包禁跨目录 require, 故此处内联。
+const NS_OPEN_STATUSES = ['received', 'defense'];
+async function processNoShowDefenseOverdue(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, now, out, adminOpenids } = ctx;
+  try {
+    const rows = await scanAll('no_show_report', () => ({
+      status: _.in(NS_OPEN_STATUSES),
+      evidence_deadline: _.lt(now),
+      overdue_escalated_at: _.exists(false),
+      is_deleted: _.neq(true)
+    }));
+    trackBacklog('no_show_report', rows.length >= SCAN_MAX ? rows : []);
+    const marked = [];
+    await Promise.allSettled(rows.map(async (r) => {
+      if (!(r.evidence_deadline && r.evidence_deadline < now)) return;
+      // 幂等: 仅当逾期标记位不存在时抢到, 已被标记(含并发轮次)则跳过
+      const upd = await col('no_show_report').where({ _id: r._id, overdue_escalated_at: _.exists(false) })
+        .update({ data: { overdue_escalated_at: now, updated_at: now } });
+      if (!upd.stats || upd.stats.updated !== 1) return;
+      marked.push(r);
+      // 仅站内信(定时器无小程序上下文, 云调用订阅消息必报 -501001); 收件人=管理员
+      await Promise.allSettled((adminOpenids || []).map((openid) => col('system_notice').add({ data: {
+        to_openid: openid, order_id: r.order_id || '', type: 'no_show_overdue',
+        title: '爽约申诉举证逾期,待裁定',
+        body: '举证窗口已过,请运营核实后裁定(可径行裁定,系统不自动裁决)',
+        action_key: '', action_payload: { report_id: r._id },
+        created_at: now, read: false
+      }})));
+    }));
+    out.no_show_overdue.push(...marked.map((r) => r._id));
+    marked.forEach((r) => log.d(`no_show overdue escalate: ${r._id}`));
+  } catch (e) { log.d(`no_show overdue scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processS1Timeout,
   processS0Timeout,
@@ -219,4 +260,5 @@ module.exports = {
   processFinishConfirmTimeout,
   processStartApplyRemind,
   processFinishConfirmRemind,
+  processNoShowDefenseOverdue,
 };
