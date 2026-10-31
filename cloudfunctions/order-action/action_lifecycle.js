@@ -39,7 +39,7 @@ async function cancel(ctx) {
   if (fromStatus === 'S1' && order.demand_id) {
     try {
       const dr = await col('demand').where({ _id: order.demand_id, status: 'matched' }).update({
-        data: { status: 'matching', updated_at: now }
+        data: { status: 'matching', matched_openid: null, updated_at: now }
       });
       demandReleased = !!(dr.stats && dr.stats.updated === 1);
       log.d(`demand released: ${order.demand_id} → matching (released=${demandReleased})`);

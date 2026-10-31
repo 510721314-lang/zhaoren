@@ -13,7 +13,7 @@ async function processS1Timeout(ctx) {
       if (!won) { out.skipped.push(o.order_no + ':S1竞态'); return; }
       if (o.demand_id) {
         await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
-          data: { status: 'matching', updated_at: now }
+          data: { status: 'matching', matched_openid: null, updated_at: now }
         }).catch(() => {});
       }
       s1OK.push(o);
@@ -49,7 +49,7 @@ async function processS0Timeout(ctx) {
       // Wave2 止血①(D12): S0 超时同样释放需求回 matching, 否则需求被已取消订单永久占用
       if (o.demand_id) {
         await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
-          data: { status: 'matching', updated_at: now }
+          data: { status: 'matching', matched_openid: null, updated_at: now }
         }).catch(() => {});
       }
       s0OK.push(o);
