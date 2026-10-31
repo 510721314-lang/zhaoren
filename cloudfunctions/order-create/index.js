@@ -34,9 +34,8 @@ async function acquireTakeLock(openid, token) {
       ])).update({ data: { take_lock_owner: token, take_lock_expire: exp } });
       if (res.stats && res.stats.updated === 1) return true;
     } catch (e) {
-      // 锁基础设施异常 = fail-open: 放行接单(不阻断主业), 仅记日志, 修复退化为旧行为而非全拒
-      log.d(`take lock acquire error(fail-open): ${e.message}`);
-      return true;
+      // 锁基础设施异常: 记日志并重试(有限重试), 耗尽后由下方「无账户放行 / 有账户拒绝」兜底(fail-closed), 防并发超卖
+      log.d(`take lock acquire error(retry): ${e.message}`);
     }
     // 被并发的同耍伴接单短暂持有: 等待重试(持锁窗口极短, 通常一两次即成功)
     await new Promise((r) => setTimeout(r, 100));
@@ -45,7 +44,7 @@ async function acquireTakeLock(openid, token) {
   try {
     const ur = await col('user_account').where({ openid }).limit(1).get();
     if (!ur.data || !ur.data.length) return true;
-  } catch (e) { return true; }
+  } catch (e) { log.d(`take lock fallback query error: ${e.message}`); return false; }
   return false;
 }
 

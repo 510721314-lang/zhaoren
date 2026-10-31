@@ -182,8 +182,9 @@ exports.main = async (event, context) => {
 
   // ── upsert partner_profile ──
   const now = Date.now();
-  // 审核红线: 仅 auto_approve_partner === true 自动通过; 已 approved 的档案重提交保留资格
-  let status = config.auto_approve_partner === true ? 'approved' : 'pending_review';
+  // 审核红线: 仅 auto_approve_partner === true 自动通过; prod 环境强制禁用自动通过(防运营误开跳过审核, 缺省按 prod); 已 approved 的档案重提交保留资格
+  const isProd = String(config.env || 'prod') === 'prod';
+  let status = (config.auto_approve_partner === true && !isProd) ? 'approved' : 'pending_review';
   const profileData = {
     openid,
     nickname: user.nickname || '微信用户',
