@@ -35,6 +35,8 @@
 | ☐ | 云环境 | IDE 内**云开发控制台**登录微信并选择/开通 `cloud1-d9gkefwcp5c777088` | 首次编译云函数报错消失 |
 | ☐ | CLI 路径实测 | `Test-Path 'C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat'`（新机安装位置可能不同，以实测为准，**记录实测路径**） | True（或记录到实际路径） |
 | ☐ | 登录态自检 | `"<cli.bat 实测路径>" islogin` | `{"login":true}`（假阳性可能，部署时报错为准） |
+| ☐ | CLI 访问令牌 | 设置 → 安全 → **CLI 访问令牌留空**（界面提示「不填写则不校验」） | **无需填写**；填了反而要求每次调用带 `--token` 或 `WECHAT_DEVTOOLS_CLI_TOKEN`。旁边的 **MCP Token** 是另一套（只给 MCP 客户端用），与 CLI/automator 无关 |
+| ☐ | 端口错配排障 | 只报 `IDE may already started at port 9420 / wait IDE port timeout` 时，先比对**在跑的 IDE 安装路径**与 `.env` 的 `WX_DEVTOOLS_CLI_PATH` 是否同一安装（看 `.ide-status` 是否为 `On`） | 不同安装各自有 user data profile（`%LOCALAPPDATA%\微信开发者工具\User Data\<hash>\Default\.ide`），端口读错；把 `.env` 改指在跑的安装版即可 |
 
 > ⚠ 首次编译云函数报错属预期 → 处置=上一步「云环境」；**勿因编译报错去做 tcb 授权**（tcb 按需，见阶段 6）。
 
@@ -43,7 +45,7 @@
 | ✓ | 项 | 操作 | 预期（2026-10-31 旧机基线） |
 |---|---|---|---|
 | ☐ | 门禁全链 | `npm run verify:offline` | **EXIT=0** |
-| ☐ | 基线比对 | 核对输出 | tests **707/707**；A/B **457 EQUIVALENT**（241 explicit+216 auto；69 known-evolution）；RULES-SIZE OK **30626B**/30720B；SYNTAX 269 / MINIPROGRAM 105 / SHARED SYNC ALL OK / HANDLER 143 / LEDGER 46 / manual-links 192·13 / ONCE-PROMPTS 2 markers (0 known-todo) |
+| ☐ | 基线比对 | 核对输出 | tests **707/707**；A/B **457 EQUIVALENT**（241 explicit+216 auto；69 known-evolution）；RULES-SIZE OK **30656B**/30720B；SYNTAX 269 / MINIPROGRAM 105 / SHARED SYNC ALL OK / HANDLER 143 / LEDGER 46 / manual-links 192·13 / ONCE-PROMPTS 2 markers (0 known-todo) |
 | ☐ | 失败处置 | 若非 EXIT=0 | **停下报告**（多为 PATH/编码/换行环境差异），不得绕过、不得改门禁 |
 | ☐ | Shell 版本 | `$PSVersionTable.PSVersion` | 记录实测版本（PS5/PS7 陷阱条款按实测取舍） |
 
@@ -81,6 +83,7 @@
 | push 报 `schannel: failed to receive handshake` / `Connection was reset`，但 TCP 443/22 通 | 中间层瞬时干扰，**隔轮重试同参数** `git -c http.proxy= -c https.proxy= push origin master`（E-6.54）；连续 3 败停手报告 |
 | `git status` 显示 M 但内容没改 | stat-dirty 假 M：`git hash-object <file>` == HEAD blob 且 `git diff --quiet` → `git add <file>` 刷新即消，**禁空提交**（E-6.55） |
 | tcb 反复弹「CLI 授权」用户码 | 凭据未落盘 `~/.cloudbase`（E-6.53）；按阶段 6 闭环判据验证；可改 `tcb login --apiKeyId … --apiKey …` 免反复授权（密钥只存本地路径） |
+| IDE 侧「CLI 授权 / 访问令牌」反复要求填写 | **两件事勿混**：①IDE「CLI 访问令牌」留空即可（不填=不校验，填了就要每次 `--token`）；②`tcb`/`cloudbase` 命令的设备码授权属 CloudBase CLI，只在阶段 6 三类场景才需要（E-6.53） |
 | PowerShell 把 git/tcb 的 stderr 包成 `NativeCommandError` | PS 包装行为，**以退出码为准**；PS5 中文/引号陷阱见 C-4.x |
 | IDE 白屏/模拟器无响应/automator RPC 超时 | 结束全部「微信开发者工具」进程重开项目；仍复发重启电脑（v3 §7.7 终解）；不得据模拟器现象判定代码回归 |
 | 触发器更新报 `-10008 invalid ip` | 非登录问题：公网 IP 未加「代码上传」白名单，或改走 `tcb fn trigger create` 绕开 |
