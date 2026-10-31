@@ -32,7 +32,8 @@ async function main() {
   // Step 1: CLI auto
   console.log('\n[1/3] CLI auto 启动 ...');
   try {
-    execFileSync(devtools.cliPath, [
+    // shell:true 下 Node 会把命令拼成字符串执行，路径含空格必须加引号，否则报 "'C:\Program' is not recognized"
+    execFileSync(`"${devtools.cliPath}"`, [
       'auto', '--project', devtools.projectPath, '--auto-port', String(port),
     ], { encoding: 'utf8', timeout: 30000, shell: true,
         stdio: ['pipe', 'pipe', 'pipe'] });
