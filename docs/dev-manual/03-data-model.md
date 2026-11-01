@@ -90,6 +90,7 @@
 | order_main | idx_user_status | user_openid↑, status↑ | |
 | order_main | idx_created | created_at↓ | |
 | pay_transaction | idx_order_id | order_id↑ | |
+| pay_transaction | uk_pay_no | pay_no↑ | ✅ 唯一（2026-11-01 云端建：查重 191 条零重复/零缺失，numIndexes 3→4） |
 | order_status_log | idx_order_created | order_id↑, created_at↓ | |
 | im_conversation | uk_order_id | order_id↑ | ✅ |
 | im_conversation | idx_order_no | order_no↑ | |
