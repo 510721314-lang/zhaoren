@@ -120,9 +120,10 @@ test('cancel: S0 待支付取消 → 需求释放(matched→matching 且清 matc
   assert.strictEqual(dw.data.matched_openid, null, '须清 matched_openid(ISS-010)');
 });
 
-// 8. CAS 未抢到: 开始履约竞争落败 → oa_status_conflict
-// 注: 2026-10-14(需求B)起 start_service 强制 start_evidence, 须先满足资料门才能走到 CAS 分支
-test('start_service: CAS 未抢到 → oa_status_conflict', async () => {
+// 8. 批4(2026-11-01 形态B 入口软退役): 旧 start_service 入口一律拒绝 → oa_legacy_retired
+// 注: 本用例原断言 CAS 落败 oa_status_conflict; 入口守卫前置于分发表, 任何入参都到不了 handler,
+//     资料门与 CAS 分支均已不可达(旧链路行为由 order_start_photo.test.js 的 start_photo 覆盖)。
+test('start_service: 入口已软退役 → oa_legacy_retired 且不落库', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S2' }), updateCount: 0 });
   const { main } = loadIndex(sdk);
   const r = await main({
@@ -133,16 +134,19 @@ test('start_service: CAS 未抢到 → oa_status_conflict', async () => {
     }
   }, {});
   assert.strictEqual(r.ok, false);
-  assert.strictEqual(r.code, 'oa_status_conflict');
+  assert.strictEqual(r.code, 'oa_legacy_retired');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '退役入口不得写 order_main');
 });
 
-// 9. CAS 未抢到: 完成履约竞争落败 → oa_status_conflict
-test('complete_service: CAS 未抢到 → oa_status_conflict', async () => {
+// 9. 批4(2026-11-01 形态B 入口软退役): 旧 complete_service 入口一律拒绝 → oa_legacy_retired
+// 注: 本用例原断言 CAS 落败 oa_status_conflict; 现由 finish_apply + finish_confirm 双确认链路替代。
+test('complete_service: 入口已软退役 → oa_legacy_retired 且不落库', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: baseStore({ status: 'S3', milestone: { current: 3, confirmed: [true, true, true] } }), updateCount: 0 });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'complete_service', order_id: OID, mock_openid: PARTNER }, {});
   assert.strictEqual(r.ok, false);
-  assert.strictEqual(r.code, 'oa_status_conflict');
+  assert.strictEqual(r.code, 'oa_legacy_retired');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '退役入口不得写 order_main');
 });
 
 // confirm_comm 订阅消息夹具(2026-10-17): S1 订单 + 未确认确认单 + 已授权 confirm_comm 的耍伴档案

@@ -450,6 +450,15 @@ exports.main = async (event, context) => {
     }
   }
 
+  // 批4(2026-11-01 用户批准·形态B 入口软退役): 旧 B1 链路已停用 ——
+  //   start_service(S2→S3 直连, 绕过耍伴 start_apply + 需求方 start_confirm, 也无距离/精度门)
+  //   complete_service(S3→S5 直连, 绕过 finish_apply + finish_confirm 双确认)
+  // 前端已全量切换到 start_apply/finish_apply(全仓 miniprogram 零调用这两个 action), 此处仅在入口拒绝,
+  // handler 本体仍保留在 action_lifecycle.js(删守卫即可回滚), 防历史客户端/脚本走旁路。
+  if (action === 'start_service' || action === 'complete_service') {
+    return { ok: false, code: 'oa_legacy_retired', msg: '该履约动作已停用, 请走履约申请与确认流程' };
+  }
+
   // 已抽离到 action_*.js 的动作优先走分发表（ctx 注入共享符号，行为与原内联逐字一致）
   if (HANDLERS[action]) {
     /** @type {HandlerCtx} */

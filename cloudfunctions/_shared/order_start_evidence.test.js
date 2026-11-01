@@ -1,9 +1,9 @@
-// order-action start_service 履约留痕(需求B · 强制)守护测试(零依赖 node:test)
-// 背景: 「开始履约」由纯确认升级为强制资料 —— 需 1~3 张带地址+时间水印的现场照片 + 耍伴实时精确位置;
-//   服务端 fail-closed 拒绝缺资料请求, 并把照片/位置/履约地点落入 order_main.service_start_evidence。
-// 本测试锁定: ①缺照片 → 拒绝且不落库; ②缺实时位置 → 拒绝且不落库;
-//             ③资料齐全 → S2→S3 且写入 service_start_evidence(photos + partner_location + site_location)。
-// 说明: mock OPENID 非空(真实调用面), 走 fail-closed 分支; mock_openid 旁路仅用于云端测试面板。
+// order-action 履约留痕测试(零依赖 node:test)
+// 批4(2026-11-01 用户批准·形态B 入口软退役): 旧 start_service 入口已停用, 一律返回 oa_legacy_retired,
+//   因此原先「缺照片/缺位置/资料齐全」三例已不可达, 本文件改为锁定「入口拒绝 + 不落库」。
+//   履约留痕的 fail-closed 规则现由 start_photo(凭证前置)承担, 行为守护见 order_start_photo.test.js。
+// 保留 detail 回传用例: order_main.service_start_evidence 的历史字段仍需在订单详情原样回传。
+// 说明: mock OPENID 非空(真实调用面); mock_openid 旁路仅用于云端测试面板。
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
@@ -48,7 +48,8 @@ function fullEvidence() {
   };
 }
 
-test('缺现场照片 → fail-closed 拒绝且不写 order_main', async () => {
+// 批4 形态B: 缺照片(原 oa_start_evidence_required)分支已不可达 → 统一断言入口退役
+test('start_service 入口软退役: 资料不全也直接 oa_legacy_retired 且不落库', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: store() });
   const mod = loadOrderAction(sdk);
   const r = await mod.main({
@@ -56,11 +57,12 @@ test('缺现场照片 → fail-closed 拒绝且不写 order_main', async () => {
     start_evidence: { partner_location: { latitude: 30.6, longitude: 104.1 } }
   }, {});
   assert.equal(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
-  assert.equal(r.code, 'oa_start_evidence_required');
+  assert.equal(r.code, 'oa_legacy_retired');
   assert.equal((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
 });
 
-test('缺实时位置 → fail-closed 拒绝且不写 order_main', async () => {
+// 批4 形态B: 缺位置(原 oa_start_location_required)分支已不可达 → 统一断言入口退役
+test('start_service 入口软退役: 缺实时位置也直接 oa_legacy_retired 且不落库', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: store() });
   const mod = loadOrderAction(sdk);
   const r = await mod.main({
@@ -68,30 +70,20 @@ test('缺实时位置 → fail-closed 拒绝且不写 order_main', async () => {
     start_evidence: { photos: [{ file_id: 'cloud://x/1.jpg' }] }
   }, {});
   assert.equal(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
-  assert.equal(r.code, 'oa_start_location_required');
+  assert.equal(r.code, 'oa_legacy_retired');
   assert.equal((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
 });
 
-test('资料齐全 → S2→S3 且写入 service_start_evidence(照片/耍伴位置/履约地点)', async () => {
+// 批4 形态B: 资料齐全(原 S2→S3 成功路径)也已不可达 → 一律拒绝, 不得写 status=S3
+test('start_service 入口软退役: 资料齐全也被拒, 不写 status=S3', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: store() });
   const mod = loadOrderAction(sdk);
   const r = await mod.main({
     action: 'start_service', order_id: OID, mock_openid: PARTNER, start_evidence: fullEvidence()
   }, {});
-  assert.equal(r.ok, true, `应成功: ${JSON.stringify(r)}`);
-  assert.equal(r.data.status, 'S3');
-
-  const w = (sdk.writes.order_main || []).find((x) => x.data && x.data.status === 'S3');
-  assert.ok(w, 'CAS 应写入 status=S3');
-  const ev = w.data.service_start_evidence;
-  assert.ok(ev, '应写入 service_start_evidence');
-  assert.equal(ev.photos.length, 2, '记录 2 张照片');
-  assert.equal(ev.photos[0].kind, 'scene');
-  assert.equal(ev.photos[1].kind, 'closeup');
-  assert.equal(ev.partner_location.latitude, 30.6, '记录耍伴实时位置纬度');
-  assert.equal(ev.partner_location.accuracy, 15);
-  assert.equal(ev.site_location.name, '成都市武侯区xx', '履约地点取自订单 location');
-  assert.equal(ev.submitted_by, PARTNER);
+  assert.equal(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
+  assert.equal(r.code, 'oa_legacy_retired');
+  assert.equal((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
 });
 
 test('detail 回传 service_start_evidence → 双方订单详情可见履约留痕(fileID 原样)', async () => {

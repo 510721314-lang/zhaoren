@@ -368,8 +368,10 @@ const CASES = [
   { fn: 'order-action', name: 'cancel_S1_release_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S1', user_openid: USER, partner_openid: PARTNER, demand_id: 'e'.repeat(32), total_fen: 1000 } }, demand: { ['e'.repeat(32)]: { _id: 'e'.repeat(32), status: 'matched' } } }),
     event: { action: 'cancel', mock_openid: PARTNER, order_id: OID, reason: '不需要了' } },
-  // start_service 自 2026-10-14(需求B)起强制要求 start_evidence(照片+实时位置); 基线(_orig_baseline.js)忽略该字段,
-  // 故入参补齐后两侧返回值逐字一致(无需 KNOWN_EVOLUTION)。校验/落库由 order_start_evidence.test.js 独立守护。
+  // start_service 自 2026-10-14(需求B)起强制要求 start_evidence(照片+实时位置); 基线(_orig_baseline.js)忽略该字段。
+  // 批4(2026-11-01 形态B 入口软退役): 旧 start_service/complete_service 入口统一返回 oa_legacy_retired,
+  // 故本组 4 例(start_perm/complete_status/start_S2_ok/complete_S3_ok)与基线存在预期差异, 已在 KNOWN_EVOLUTION 登记;
+  // 退役行为由 order-action.entry.test.js / order_start_evidence.test.js 独立守护。
   { fn: 'order-action', name: 'start_S2_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2', user_openid: USER, partner_openid: PARTNER, total_fen: 1000 } } }),
     event: { action: 'start_service', mock_openid: PARTNER, order_id: OID,
@@ -687,6 +689,12 @@ function loadWith(dir, file, sdk) {
     // nudge_partner 响应新增 sub_sent/sub_err(additive 字段); 基线无模板故 RE 为空串、当前返回 NO_TMPL。
     // 行为由真机送达验证(REGISTRY #115)与前端三分支文案守护。
     'auto_order_nudge_partner',
+    // 2026-11-01 批4 形态B: 旧 B1 链路入口软退役(start_service/complete_service → oa_legacy_retired, 基线仍走原逻辑);
+    // 退役行为由 order-action.entry.test.js(2 例)与 order_start_evidence.test.js(3 例)独立守护。
+    // auto_order_start_service / auto_order_complete_service: handler 本体仍导出(可回滚), 自动种子仍枚举到它们,
+    // 同样因入口守卫而 REV 与基线不同, 一并登记。
+    'start_perm', 'complete_status', 'start_S2_ok', 'complete_S3_ok',
+    'auto_order_start_service', 'auto_order_complete_service',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {
