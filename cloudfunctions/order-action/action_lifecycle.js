@@ -36,7 +36,8 @@ async function cancel(ctx) {
   await logStatus(order_id, fromStatus, 'S6', role === 'user' ? 'user_cancel' : 'partner_cancel', openid);
 
   let demandReleased = false;
-  if (fromStatus === 'S1' && order.demand_id) {
+  // 2026-11-01: 补齐 S0 待支付取消也释放需求(此前仅 S1;S0 用户自取消后订单转 S6,定时器只扫 S0 → 需求永久悬挂 matched)
+  if ((fromStatus === 'S1' || fromStatus === 'S0') && order.demand_id) {
     try {
       const dr = await col('demand').where({ _id: order.demand_id, status: 'matched' }).update({
         data: { status: 'matching', matched_openid: null, updated_at: now }

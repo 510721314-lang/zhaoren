@@ -104,6 +104,22 @@ test('cancel: CAS 未抢到且订单未变 S6 → oa_status_conflict', async () 
   assert.strictEqual(r.code, 'oa_status_conflict');
 });
 
+// 7b. cancel: S0 待支付由发单人取消 → 需求同步释放(ISS-010 补漏, 2026-11-01)
+test('cancel: S0 待支付取消 → 需求释放(matched→matching 且清 matched_openid)', async () => {
+  const DID = 'b'.repeat(32);
+  const store = baseStore({ status: 'S0', demand_id: DID });
+  store.demand = { [DID]: { _id: DID, status: 'matched', matched_openid: PARTNER, is_deleted: false } };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'cancel', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.demand_released, true, 'S0 取消须释放需求');
+  const dw = (sdk.writes.demand || []).find((w) => w.where && w.where._id === DID);
+  assert.ok(dw, '应写入 demand 释放');
+  assert.strictEqual(dw.data.status, 'matching');
+  assert.strictEqual(dw.data.matched_openid, null, '须清 matched_openid(ISS-010)');
+});
+
 // 8. CAS 未抢到: 开始履约竞争落败 → oa_status_conflict
 // 注: 2026-10-14(需求B)起 start_service 强制 start_evidence, 须先满足资料门才能走到 CAS 分支
 test('start_service: CAS 未抢到 → oa_status_conflict', async () => {
