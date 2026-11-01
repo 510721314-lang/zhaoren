@@ -107,7 +107,7 @@
 | nearby-list | home-action.nearby |
 | nearby-map | user-login.peek_login / report_map_gps / nearby_map_list / set_map_share |
 | orders | order-action.my_orders / detail |
-| order-detail | order-action.detail / timeline / notice_poll / notice_read / start_service / complete_service / resume_service / partial_confirm / ratio_confirm / modify_confirm / modify_reject / no_show_report_detail / no_show_report_withdraw / complaint_withdraw；payment-mock.tip_list / mock_tip；safety-report.status / (安全上报) |
+| order-detail | order-action.detail / timeline / notice_poll / notice_read / start_apply / start_confirm / start_reject / finish_apply / finish_confirm / finish_reject / resume_service / partial_confirm / ratio_confirm / modify_confirm / modify_reject / no_show_report_detail / no_show_report_withdraw / complaint_withdraw；payment-mock.tip_list / mock_tip；safety-report.status / (安全上报) |
 | my-demands | demand-publish.my_demands |
 | chat | im-conv.open / messages；order-action.get_confirmation / notice_poll / (履约动作)；im-send.send_text / send_kefu |
 | message | im-conv.my_convs；order-action.notice_list |

@@ -41,9 +41,9 @@
 | `frozen` | bool | 争议/申诉期间冻结操作位 |
 | `fund` | `{paid_fen, refunded_fen, settle_state, settled_at}` | 资金正交位（分）；`settle_state: pending/ready/done` |
 
-### 9.1.3 迁移表（22 条，`TRANSITIONS`）
+### 9.1.3 迁移表（`TRANSITIONS` 共 28 条；下表列主轴旧编号 1–22，履约双确认 23–30 见 §9.2 与履约规范）
 
-`from × event → to` 白名单，[L103-L126](file:///c:/zhaoren/cloudfunctions/_shared/order_state.js#L103-L126)。`to=null` 表示目标由业务上下文决定（回原状态 / 平台裁决出口）。
+`from × event → to` 白名单，[L114-L146](file:///c:/zhaoren/cloudfunctions/_shared/order_state.js#L114-L146)。`to=null` 表示目标由业务上下文决定（回原状态 / 平台裁决出口）。
 
 | # | event | role | from | to | 超时/兜底 |
 |---|---|---|---|---|---|
@@ -51,7 +51,6 @@
 | 2 | pay | user | S0 | S2 | 30min→S6(释放 demand) |
 | 3 | cancel | both | S1,S0 | S6 | 已付原路退 |
 | 4 | cancel_request | both | S2 | null | 挂起；对方 2h 确认，超时转裁决 |
-| 5 | start_service | partner | S2 | S3 | start_time+Xh 未开始→提醒走申诉/取消 |
 | 6 | modify | both | S2,S2_5 | null | confirmHours→自动拒绝 |
 | 7 | interrupt_report | both | S3 | S3.5 | 24h→S4 |
 | 8 | resume | both | S3.5 | S3 | — |
@@ -59,7 +58,6 @@
 | 10 | milestone | both | S3 | S3 | 确认窗自动确认 |
 | 11 | extend_req | both | S3 | S3 | extend_confirm_min→自动拒绝 |
 | 12 | extend_paid | user | S3 | S3 | 未付不加结算基数 |
-| 13 | complete | partner | S3 | S5 | 里程碑 100% 或双方豁免 |
 | 14 | ratio_agree | both | S4 | S5 | 双方各确认一次；裁限期→平台介入 |
 | 15 | evaluate | user | S5 | S8 | 48h→auto_done；信用分± |
 | 16 | complaint_open | both | S2,S3,S3.5,S4,S5,S8 | null | 目标态=原状态+frozen（不改主轴） |
@@ -69,6 +67,10 @@
 | 20 | after_sale_expire | system | S8 | S10 | 售后窗口届满 |
 | 21 | no_show_decide | platform | `*` | null | 一期零赔付，仅扣信用分/停用 |
 | 22 | settle | system | S8,S9,S10 | null | 余额=Σ基数−已提现 |
+
+> 2026-11-01 形态A 收口：原 #5 `start_service`（S2→S3 直连）与 #13 `complete`（S3→S5 直连）两条旧 B1 链路已删除，
+> 编号保留空洞（不复用，避免与历史 docs/日志的 no.N 交叉引用错位）；现由 #23–#24（`start_apply` / `start_confirm`）
+> 与 #27–#28（`finish_apply` / `finish_confirm`）取代，旧动作名调用入口返回 `oa_legacy_retired`。
 
 ### 9.1.4 CAS 乐观锁与强制拦截
 

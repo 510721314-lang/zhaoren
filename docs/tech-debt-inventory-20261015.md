@@ -32,8 +32,8 @@
 
 | # | 负债 | 证据 | 口径 |
 |---|---|---|---|
-| P1-1 | 旧 `start_service`（状态机 no.5 直连 S2→S3）服务端保留、无前端入口 | `cloudfunctions/order-action/action_lifecycle.js:149` | 收口属状态机改动，须单独书面授权 + 向后兼容方案 |
-| P1-2 | 旧 `complete_service`（no.13 直连 S3→S5）保留共存 | `cloudfunctions/order-action/action_lifecycle.js:687` | 同上 |
+| P1-1 | ~~旧 `start_service`（状态机 no.5 直连 S2→S3）服务端保留、无前端入口~~ **已偿还（2026-11-01 形态A 收口）** | 原 `cloudfunctions/order-action/action_lifecycle.js:149`；现仅 `index.js:458` 墓碑守卫 | 用户 2026-11-01 书面授权（「接受建议」），形态A：删 handler + 删 `order_state` no.5 声明（30→28 条），旧动作名调用返回 `oa_legacy_retired`；回滚=恢复 handler+导出+声明两行 |
+| P1-2 | ~~旧 `complete_service`（no.13 直连 S3→S5）保留共存~~ **已偿还（2026-11-01 形态A 收口）** | 原 `cloudfunctions/order-action/action_lifecycle.js:687`；现仅 `index.js:458` 墓碑守卫 | 同上；现由 `finish_apply`(no.27)+`finish_confirm`(no.28) 双确认链路取代 |
 | P1-3 | `start_photo`（REGISTRY #65）服务端保留、S3 前端入口已移除（凭证前置到 S2） | REGISTRY #65 | 验收=确认前端无残留调用，不回开 |
 | P1-4 | demand-match `hall_list` 标 deprecated 仍在线（广场已走 home-action.square） | `cloudfunctions/demand-match/index.js:389` | 下线前须确认无旧版客户端调用 |
 | P1-5 | MVP 禁做项的代码 TODO：短信发送占位、人脸三分支占位；#64 mock 现金（is_mock=true） | `user-login/action_auth.js:45`、`user-login/action_account.js:167` | 产品决策债，商业化批次偿还；禁止接真实打款 |
