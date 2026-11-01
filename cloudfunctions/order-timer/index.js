@@ -534,17 +534,19 @@ exports.main = async (event, context) => {
   // 履约双确认超时(阶段G, 2026-10-15): 规范《线下陪伴履约流程规范》§C8 —— S2.6 开始履约申请 15min 未响应 / S3.6 完毕确认 30min 未响应 → 转 S10.5 争议
   const startApplyMin = num(cfg.start_apply_timeout_min, 15);
   const finishConfirmMin = num(cfg.finish_confirm_timeout_min, 30);
+  // 批2(2026-11-01): 到点未履约提醒延迟(分钟), 默认 30; 与申诉窗口 no_show_report_window_h 无关
+  const noShowGraceMin = num(cfg.no_show_grace_min, 30);
   // G3(2026-10-20) 超时前提醒: S2_6/S3_6 窗口内各 2 档(缺省 5/10 与 10/20, 后台可配)
   const remindMin = remindCfg(cfg);
 
-  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], skipped: [] };
+  const out = { s1_cancel: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
   const sectionCtx = {
     event, now, cfg, out, _backlog, adminOpenids, isAdmin, isTimer,
     s1Min, interruptH, evalH, defaultStar, msConfirmMin, afterSaleDays, partialJudgeDays,
-    disputeEscDays, modifyConfirmH, extendConfirmMin, startApplyMin, finishConfirmMin,
+    disputeEscDays, modifyConfirmH, extendConfirmMin, startApplyMin, finishConfirmMin, noShowGraceMin,
     cloud, db, _, col, log, BATCH, SCAN_PAGE, SCAN_MAX, DEFAULT_SCAN_EXEMPT, SCAN_REPUSH_MS,
     PRUNE_DAYS, PRUNE_CAP,
     trackBacklog, scanAll, getConfig, num, logStatus, casStatus, scanExemptList, isScanExemptEvent,
@@ -606,6 +608,9 @@ exports.main = async (event, context) => {
   // ───────── 4.9 爽约申诉举证逾期(ISS-011, 2026-10-31): 标记逾期 + 升级管理员(不自动裁定) ─────────
   await SECTIONS.processNoShowDefenseOverdue(sectionCtx);
 
+  // ───────── 4.10 到点未履约提醒(批2, 2026-11-01): S2 过约定开始 grace 分钟 → 双方各 1 条"可提交爽约申诉"(不判定) ─────────
+  await SECTIONS.processNoShowGuide(sectionCtx);
+
   // ───────── 5. error_scan 巡检(D7) ─────────
   let errorScanResult = null;
   try { errorScanResult = await errorScan(now, cfg, adminOpenids); }
@@ -632,7 +637,7 @@ exports.main = async (event, context) => {
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
       urge_remind: urgeRemind,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin, start_apply_remind1_min: remindMin.startApplyRemind1Min, start_apply_remind2_min: remindMin.startApplyRemind2Min, finish_confirm_remind1_min: remindMin.finishConfirmRemind1Min, finish_confirm_remind2_min: remindMin.finishConfirmRemind2Min },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin, start_apply_remind1_min: remindMin.startApplyRemind1Min, start_apply_remind2_min: remindMin.startApplyRemind2Min, finish_confirm_remind1_min: remindMin.finishConfirmRemind1Min, finish_confirm_remind2_min: remindMin.finishConfirmRemind2Min, no_show_grace_min: noShowGraceMin },
       s1_cancel: out.s1_cancel,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
@@ -649,6 +654,7 @@ exports.main = async (event, context) => {
       start_apply_remind: out.start_apply_remind,
       finish_confirm_remind: out.finish_confirm_remind,
       no_show_overdue: out.no_show_overdue,
+      no_show_guide: out.no_show_guide,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
@@ -666,7 +672,8 @@ exports.main = async (event, context) => {
         finish_confirm_timeout: out.finish_confirm_timeout.length,
         start_apply_remind: out.start_apply_remind.length,
         finish_confirm_remind: out.finish_confirm_remind.length,
-        no_show_overdue: out.no_show_overdue.length
+        no_show_overdue: out.no_show_overdue.length,
+        no_show_guide: out.no_show_guide.length
       }
     }
   };

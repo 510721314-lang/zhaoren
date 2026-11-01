@@ -109,6 +109,8 @@ const SEED_CONFIG = {
   interrupt_timeout_h: 24,   // S3.5 履约中断 24 小时 → 默认转 S4
   eval_window_h: 48,         // S5 完成后 48 小时未评价 → 系统默认 4 星转 S9
   dispute_escalate_d: 30,  // PRD S10.5 争议升级天数 · 2026-10-13 已落地: 超期→幂等标记+P1 dispute_escalate_overdue 平台事件(见 order-timer §4.8; 裁决仍人工)
+  // 批2(2026-11-01): 约定开始后多久给双方发"可提交爽约申诉"提醒(分钟); 只提醒不判定, 与 no_show_report_window_h(申诉时限)独立
+  no_show_grace_min: 30,
   // aa_tiers 已下线: 前端 AA_OPTIONS 硬编码, 格式不同; 第二批云化 AA_OPTIONS 时再按 admin_config.aa_tiers 接通
   // 信用分(PRD 8.1 SSOT)
   min_credit_take_order: 600,

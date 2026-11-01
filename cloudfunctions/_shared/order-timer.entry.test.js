@@ -210,4 +210,29 @@ test('爽约申诉举证逾期 → no_show_overdue=1 且仅标记不裁定', asy
   assert.strictEqual(notice.data.to_openid, ADMIN);
 });
 
+// 18. 批2(2026-11-01): 到点未履约 → 双方各 1 条 no_show_guide(只提醒不判定); 未到点/已冻结/已提醒 均不发
+test('S2 过约定开始 30 分钟 → no_show_guide=1 且双方各 1 条站内信', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({
+    C1: ord('C1', 'S2', { start_time: now - 60 * MIN }),
+    C2: ord('C2', 'S2', { start_time: now - 60 * MIN, frozen: true }),          // 已冻结(争议/申诉在途) → 不发
+    C3: ord('C3', 'S2', { start_time: now - 60 * MIN, no_show_guide_at: 1 }),   // 已提醒过(幂等位) → 不发
+    C4: ord('C4', 'S2', { start_time: now + 60 * MIN })                        // 未到点 → 不发
+  }));
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.counts.no_show_guide, 1);
+  assert.deepStrictEqual(r.data.no_show_guide, ['ORD-C1']);
+  assert.strictEqual(r.data.thresholds.no_show_grace_min, 30, '缺省 grace=30 分钟');
+  // 只写幂等位, 不改状态/不冻结/不扣分
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'C1' && w.data && w.data.no_show_guide_at);
+  assert.ok(upd && typeof upd.data.no_show_guide_at === 'number', '写入 no_show_guide_at 幂等位');
+  assert.strictEqual(upd.data.status, undefined, '不改订单状态');
+  assert.strictEqual(upd.data.frozen, undefined, '不冻结订单');
+  // 双方各 1 条中性文案
+  const notices = (sdk.writes.system_notice || []).filter((w) => w.data && w.data.type === 'no_show_guide');
+  assert.strictEqual(notices.length, 2, '用户 + 耍伴各 1 条');
+  assert.deepStrictEqual(notices.map((w) => w.data.to_openid).sort(), [PARTNER, USER].sort());
+  assert.strictEqual(notices[0].data.action_key, 'jump_order');
+});
+
 test.after(() => { Module._load = origLoad; });

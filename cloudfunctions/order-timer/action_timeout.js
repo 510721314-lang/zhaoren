@@ -253,6 +253,46 @@ async function processNoShowDefenseOverdue(ctx) {
   } catch (e) { log.d(`no_show overdue scan fail: ${e.message}`); }
 }
 
+// ── 批2(2026-11-01): 到点未履约 → 提醒双方"可提交爽约申诉"(只提醒, 不判定) ──
+// 缺口: 申诉窗口=约定开始后 no_show_report_window_h(默认 48h), 但此前只有"对方已提交申诉"才有通知
+//   (order-action action_dispute 给被诉方发举证提醒), 受害方无人提醒 ⇒ 错过窗口.
+// 口径: 仅 status='S2'(已支付未开始) 且 start_time 已过 grace 分钟; 不改状态/不冻结/不扣分/不自动裁定;
+//   幂等位 no_show_guide_at(条件更新抢到才发, 与 ISS-011 overdue_escalated_at 同一范式, 一生仅一次).
+async function processNoShowGuide(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, now, out, noShowGraceMin } = ctx;
+  try {
+    const graceMin = noShowGraceMin > 0 ? noShowGraceMin : 30;
+    const cut = now - graceMin * 60 * 1000;
+    const rows = await scanAll('order_main', () => ({
+      status: 'S2',
+      start_time: _.lt(cut),
+      no_show_guide_at: _.exists(false),
+      frozen: _.neq(true),
+      is_deleted: _.neq(true)
+    }));
+    trackBacklog('order_main', rows.length >= SCAN_MAX ? rows : []);
+    const sent = [];
+    await Promise.allSettled(rows.map(async (o) => {
+      if (!(o.start_time && o.start_time < cut)) return; // 二次守卫: 未到点/无开始时间不发
+      const upd = await col('order_main').where({ _id: o._id, no_show_guide_at: _.exists(false) })
+        .update({ data: { no_show_guide_at: now, updated_at: now } });
+      if (!upd.stats || upd.stats.updated !== 1) return; // 已被并发轮次提醒过 → 跳过
+      // 双方各 1 条中性文案(不指名谁爽约); 定时器无小程序上下文, 只发站内信
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      await Promise.allSettled(receivers.map((openid) => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'no_show_guide',
+        title: '已过约定开始时间',
+        body: `约定时间已过 ${graceMin} 分钟。若对方未到场，可在申诉时限内提交爽约申诉，平台会核实处理`,
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }})));
+      sent.push(o.order_no || o._id);
+      log.d(`no_show guide -> ${o.order_no || o._id}`);
+    }));
+    out.no_show_guide.push(...sent);
+  } catch (e) { log.d(`no_show guide scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processS1Timeout,
   processS0Timeout,
@@ -261,4 +301,5 @@ module.exports = {
   processStartApplyRemind,
   processFinishConfirmRemind,
   processNoShowDefenseOverdue,
+  processNoShowGuide,
 };
