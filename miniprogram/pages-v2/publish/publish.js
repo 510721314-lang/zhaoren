@@ -635,6 +635,8 @@ Page({
     if (!opts.length) {
       // 场景未配服务项(理论上不会发生, 服务端要求 content_options 非空): 不弹窗, 发布时会提示
       this.setData({ optionSheetVisible: false, optionList: [] });
+      // 空选项兜底(2026-11-01): 后台把该场景子项全隐藏时, 避免点「修改 ›」后静默无反应
+      wx.showToast({ title: '该场景暂未配置服务项', icon: 'none' });
       return;
     }
     const chosen = this.data.form.content_options || [];
