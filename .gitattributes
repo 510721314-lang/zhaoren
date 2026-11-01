@@ -4,3 +4,7 @@
 # 仅约束 cloudfunctions；miniprogram 与本地 .ps1(含中文 BOM 纪律)维持 core.autocrlf 现状不动。
 cloudfunctions/**/*.js   text eol=lf
 cloudfunctions/**/*.json text eol=lf
+# 规则体系 md 强制 LF（2026-11-01）：体积门禁按 LF 归一化字节计，但新机 autocrlf=true 检出成 CRLF
+# 会凭空多出「行数」字节（5 文件 379 行 = +379B，30656→31035 > 30720）→ 从源头锁 LF，避免新电脑基线上限假红。
+.trae/rules/*.md   text eol=lf
+.trae/rules.md     text eol=lf
