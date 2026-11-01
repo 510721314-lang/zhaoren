@@ -314,14 +314,22 @@ exports.main = async (event, context) => {
       log.w(`eval_reward grant fail: ${e.message}`);
     }
     // 通知 B 被评价了
+    // 批5(2026-11-01): 1~2 星判为「差评」(原实现一律写"好评", 与评价页 好评≥4/中评=3/差评≤2 口径矛盾);
+    // 同时把站内信写入由 fire-and-forget 改为 await, 防函数返回后被运行时回收导致通知丢失(批5 写入必达口径)
+    const evalWord = star >= 4 ? '好评' : star === 3 ? '中评' : '差评';
+    const evalBody = star <= 2
+      ? `用户给你 ${star} 星${evalWord}, 如有异议可联系客服复核`
+      : `用户给你 ${star} 星${evalWord}`;
     const db2 = cloud.database();
-    db2.collection('system_notice').add({ data: {
-      to_openid: order.partner_openid, order_id, type: 'evaluated',
-      title: '你已被评价',
-      body: `用户给你 ${star} 星好评`,
-      action_key: 'jump_order', action_payload: { order_id },
-      created_at: now, read: false
-    }}).catch(e => log.d('[notice] evaluated fail:', e.message));
+    try {
+      await db2.collection('system_notice').add({ data: {
+        to_openid: order.partner_openid, order_id, type: 'evaluated',
+        title: '你已被评价',
+        body: evalBody,
+        action_key: 'jump_order', action_payload: { order_id },
+        created_at: now, read: false
+      }});
+    } catch (e) { log.d('[notice] evaluated fail:', e.message); }
     await writeAudit(db, log, {
       openid, role: 'user', category: 'business', action: 'evaluation_submit',
       target_type: 'evaluation', target_id: '',

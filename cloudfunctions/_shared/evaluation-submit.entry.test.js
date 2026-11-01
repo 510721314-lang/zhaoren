@@ -167,4 +167,28 @@ test('submit: 评价激励缺省 0 → 不发放(无 eval_reward 流水)', async
   assert.strictEqual(rewards.length, 0);
 });
 
+// 14. 批5(2026-11-01): 被评价站内信文案须与星级口径一致(1~2 星=差评, 不得再写"好评") + 低分附客服复核引导
+test('submit: star=1 → 被评价通知为「差评」并提示客服复核', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'submit', order_id: OID, star: 1, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const n = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'evaluated');
+  assert.ok(n, '应写 type=evaluated 站内信');
+  assert.strictEqual(n.data.to_openid, PARTNER);
+  assert.ok(/差评/.test(n.data.body), 'body 应含「差评」');
+  assert.ok(!/好评/.test(n.data.body), 'body 不得出现「好评」');
+  assert.ok(/客服/.test(n.data.body), '低分应提示联系客服复核');
+});
+
+test('submit: star=5 → 被评价通知为「好评」', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'submit', order_id: OID, star: 5, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const n = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'evaluated');
+  assert.ok(n, '应写 type=evaluated 站内信');
+  assert.ok(/5 星好评/.test(n.data.body), 'body 应为 5 星好评');
+});
+
 test.after(() => { Module._load = origLoad; });
