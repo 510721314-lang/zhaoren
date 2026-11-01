@@ -13,6 +13,9 @@
 .ev__star { font-size: var(--font-display-xxl); color: var(--bg-segment); margin: 0 8rpx; }
 .ev__star.is-on { color: var(--func-warning); }
 .ev__stars-tip { text-align: center; font-size: var(--font-sm); color: var(--text-3); }
+/* 批3(2026-11-01): 低分(≤2 星)客服复核引导行 */
+.ev__review-tip { margin-top: 16rpx; display: flex; align-items: center; justify-content: center; gap: 8rpx; font-size: var(--font-sm); color: var(--text-3); }
+.ev__review-link { color: var(--brand-primary); font-weight: 600; padding: 4rpx 8rpx; }
 
 .ev__tag-group-title { margin: 16rpx 0 8rpx; font-size: var(--font-xs); color: var(--text-4); }
 .ev__tags { display: flex; flex-wrap: wrap; gap: 12rpx; }

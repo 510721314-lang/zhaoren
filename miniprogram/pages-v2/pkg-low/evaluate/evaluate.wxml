@@ -28,6 +28,11 @@
         <view class="ev__star {{stars >= item ? 'is-on' : ''}}" wx:for="{{[1,2,3,4,5]}}" wx:key="*this" data-star="{{item}}" bindtap="onStarTap">★</view>
       </view>
       <view class="ev__stars-tip">{{stars === 0 ? '请选择' : stars >= 4 ? '好评' : stars === 3 ? '中评' : '差评'}}</view>
+      <!-- 批3(2026-11-01): ≤2 星(差评)提供客服复核入口; 仅引导, 不改星级、不阻断提交 -->
+      <view class="ev__review-tip" wx:if="{{stars > 0 && stars <= 2}}">
+        <text>对本次服务不满意？</text>
+        <text class="ev__review-link" bindtap="onContactKefu">联系客服复核</text>
+      </view>
     </view>
 
     <!-- 快捷标签 -->

@@ -182,5 +182,12 @@ Page({
       wx.showToast({ title: '网络异常,请重试', icon: 'none' });
     });
   },
+  // 批3(2026-11-01): 低分(≤2 星)引导联系客服复核; 仅跳自建客服会话, 不改星级/不阻断提交
+  onContactKefu() {
+    wx.navigateTo({
+      url: '/pages-v2/pkg-low/kefu/kefu',
+      fail: () => wx.showToast({ title: '客服打开失败', icon: 'none' })
+    });
+  },
   onReserve() { require('../../../utils/redline.js').reserveNotice(); }
 });
