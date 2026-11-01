@@ -399,9 +399,9 @@ IDE 左侧「云开发」→ 云函数 → 选中 `order-timer` → 「云端测
 | D4 | 跳客服可用 | | 会话页截图 | | | |
 | D5 | 提交不回归 | | toast 文案 + 订单状态 | | | |
 | D6 | 兜底 toast | | 截图 | | | |
-| F1 | start_apply→同意→S3 | | 状态 S2_6→S3 + 到场卡 | | | |
-| F2 | finish_apply→确认→S5 | | 状态 S3_6→S5 + 凭证卡 | | | |
-| F3 | 旧入口消失 | | 详情页按钮 + `oa_legacy_retired` | | | |
+| F1 | start_apply→同意→S3 | 通过（主链） | 状态 S2_6→S3 + 到场卡 | 云端 `order_status_log`（订单 `20261101335070180519`）：`S2→S2_6`［start_apply 13:02:57］→ `S2_6→S3`［start_confirm 13:03:20］；**负向未验**（照片/定位失败应停留 S2 不提交） | 2026-11-01 | 用户真机 + 云端回执 |
+| F2 | finish_apply→确认→S5 | 通过（主链） | 状态 S3_6→S5 + 凭证卡 | 同单：`S3→S3_6`［finish_apply 13:04:24］（前置 `milestone` 100% 13:03:44）→ `S3_6→S5`［finish_confirm 13:05:06］；**负向未验**（<100% 时按钮应置灰） | 2026-11-01 | 用户真机 + 云端回执 |
+| F3 | 旧入口消失 | 通过 | 详情页仅新链路按钮 | 云端状态轴全链**无 `start_service` / `complete_service`**（仅 start_apply/start_confirm/finish_apply/finish_confirm）；契约测试 2 例断言 `oa_legacy_retired`；远端 `action_lifecycle.js` 两 handler 0 命中 | 2026-11-01 | 用户真机 + 云端回执 |
 | G1 | 1 星→差评 | | 站内信正文截图 | | | |
 | G2 | 5 星→好评 | | 站内信正文截图 | | | |
 | G3 | 通知即时可见 | | 提交后立即可见 | | | |
