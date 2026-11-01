@@ -47,6 +47,8 @@ const INDEXES = [
   { coll: 'order_main', name: 'idx_user_status', keys: { user_openid: 1, status: 1 } },
   { coll: 'order_main', name: 'idx_created', keys: { created_at: -1 } },
   { coll: 'pay_transaction', name: 'idx_order_id', keys: { order_id: 1 } },
+  // 2026-11-01: 流水单号全局唯一(pay/refund/tip/eval_reward 各带前缀, 由 genPayNo 生成) → 防并发双写
+  { coll: 'pay_transaction', name: 'uk_pay_no', keys: { pay_no: 1 }, unique: true },
   { coll: 'order_status_log', name: 'idx_order_created', keys: { order_id: 1, created_at: -1 } },
   { coll: 'im_conversation', name: 'uk_order_id', keys: { order_id: 1 }, unique: true },
   // 会话监管: 后台按 order_no 定位会话(2026-10-01 admin-action im_message_admin_list)
