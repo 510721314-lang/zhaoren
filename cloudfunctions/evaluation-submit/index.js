@@ -11,6 +11,8 @@ const log = require('./logger');
 const { writeAudit } = require('./audit');
 // 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
 const { starCreditDelta } = require('./credit_rules');
+// 2026-11-01: 评价奖励流水补业务单号(与 payment-mock genPayNo 同源口径: 前缀+时间戳+16 hex 随机)
+const crypto = require('crypto');
 
 const BLOCK_WORDS = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
@@ -87,6 +89,8 @@ async function grantEvalRewards(order, now) {
     try {
       if (fen > 0) {
         await col('pay_transaction').add({ data: {
+          // pay_no 唯一索引(uk_pay_no): 缺该字段会在第二次写入时撞 null 唯一键 → 每次发放必带唯一单号
+          pay_no: `REW${now}${crypto.randomBytes(8).toString('hex')}`,
           order_id: order._id, openid, type: 'eval_reward', role, amount_fen: fen,
           status: 'success', is_mock: true, created_at: now, updated_at: now, is_deleted: false
         }});
