@@ -37,7 +37,7 @@
         ④bindtap setScene/openOptionSheet → triggerEvent('scene',{code})/('open-sheet'))
        「选择服务内容」bottom-sheet 弹层与逻辑编排(setScene 免责声明→清空→开窗 / _openOptionSheet / toggleOption / confirmOptions)一律留页面(沿用阶段3 B「弹层留页面」口径)
        .pub__scene-*/.pub__gb-badge/.pub__opt-row|-label|-picked|-chip|-empty|-edit 为本块独占 → 随块迁入组件 wxss; .pub__block/.pub__label/.pub__required 为页面共用原语留页面 -->
-  <scene-picker scenes="{{scenes}}" scene-code="{{form.scene_code}}" content-options="{{form.content_options}}" bindscene="setScene" bindopen-sheet="openOptionSheet" />
+  <scene-picker scenes="{{scenes}}" scene-code="{{form.scene_code}}" content-options="{{form.content_options}}" bindscene="setScene" bind:open-sheet="openOptionSheet" />
 
   <!-- B3.2 W9 宠物照料授权书(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权、不得履约) -->
   <view class="pub__block" wx:if="{{form.scene_code === 'W9'}}">
