@@ -1123,7 +1123,7 @@ Page({
 
   // ── §11 完成 / 部分履约 / 恢复 (onFinishService / onToPartial / onResumeService / onRatioConfirm) ──
   // 阶段F(2026-10-15, 规范 §2.3): 耍伴「发起履约完毕确认」→ 先采集完成照片+定位(凭证前置), 再 S3→S3_6
-  // 水印时间取服务端时间戳(规范 §F3); 旧 complete_service(no.13 直连 S3→S5)停用, 保留共存待收口
+  // 水印时间取服务端时间戳(规范 §F3); 旧 complete_service(直连 S3→S5)已于 2026-11-01 形态A 收口删除, 入口由 order-action/index.js 墓碑守卫返回 oa_legacy_retired
   onFinishService() {
     const that = this;
     this._modal({
