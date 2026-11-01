@@ -109,15 +109,16 @@ function orthoDefaults() {
   };
 }
 
-// ── 目标状态迁移表(§3.3, 22 条; from×event→to 白名单) ──
+// ── 目标状态迁移表(§3.3, 20 条; from×event→to 白名单) ──
 // to=null 表示目标由业务上下文决定(回原状态 / 平台裁决出口), 不做固定目标校验。
 const TRANSITIONS = [
   { no: 1, event: 'confirm_done', role: 'both', from: ['S1'], to: 'S0', guard: '8 位确认全满', money: '', timeout: '15min→S6(释放 demand)' },
   { no: 2, event: 'pay', role: 'user', from: ['S0'], to: 'S2', guard: '支付流水成功', money: 'type=pay 流水', timeout: '30min→S6(释放 demand)' },
   { no: 3, event: 'cancel', role: 'both', from: ['S1', 'S0'], to: 'S6', guard: '', money: '已付则原路退', timeout: '' },
   { no: 4, event: 'cancel_request', role: 'both', from: ['S2'], to: null, guard: '挂起(不改主轴)', money: '按 PRD 取消梯度退款', timeout: '对方 2h 确认; 超时转裁决' },
-  { no: 5, event: 'start_service', role: 'partner', from: ['S2'], to: 'S3', guard: '未冻结', money: '', timeout: 'start_time+Xh 未开始→提醒走申诉/取消' },
-  // ⚠️ no.5(直连 S2→S3)与 no.13(直连 S3→S5)为旧 B1/完毕链路, 阶段 A 保留共存, 待阶段 C/F 切换 handler 到 start_apply/finish_apply 后收口移除(防中途状态机拒绝线上请求)。
+  // [2026-11-01 形态A 收口] no.5(event=start_service 直连 S2→S3)与 no.13(event=complete 直连 S3→S5)已删除:
+  // 两条均为旧 B1/完毕链路, 现由 start_apply+start_confirm(no.23-24) 与 finish_apply+finish_confirm(no.27-28) 取代。
+  // 编号保留空洞(no.5/no.13 不再复用), 避免与历史文档/日志交叉引用错位。
   { no: 6, event: 'modify', role: 'both', from: ['S2', 'S2_5'], to: null, guard: '未冻结', money: '', timeout: 'confirmHours(后台可配)→自动拒绝' },
   { no: 7, event: 'interrupt_report', role: 'both', from: ['S3'], to: 'S3.5', guard: '原因必填, 未冻结', money: '', timeout: '24h→S4' },
   { no: 8, event: 'resume', role: 'both', from: ['S3.5'], to: 'S3', guard: '', money: '', timeout: '' },
@@ -125,7 +126,6 @@ const TRANSITIONS = [
   { no: 10, event: 'milestone', role: 'both', from: ['S3'], to: 'S3', guard: '', money: '', timeout: '确认窗(可配)自动确认' },
   { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_min(后台可配, 分钟, 默认 20; 0=跟随 confirmHours) 未回应→自动拒绝' },
   { no: 12, event: 'extend_paid', role: 'user', from: ['S3'], to: 'S3', guard: '加时补付流水成功', money: 'type=pay(sub=extend)', timeout: '未付不加结算基数' },
-  { no: 13, event: 'complete', role: 'partner', from: ['S3'], to: 'S5', guard: '里程碑 100% 或双方豁免', money: '', timeout: '' },
   { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '双方各确认一次', money: '按 PRD 分段结算', timeout: '裁限期→平台介入' },
   { no: 15, event: 'evaluate', role: 'user', from: ['S5'], to: 'S8', guard: '无已有评价', money: '信用分±; settle ready', timeout: '48h→auto_done' },
   { no: 16, event: 'complaint_open', role: 'both', from: ['S2', 'S3', 'S3.5', 'S4'], to: null, guard: '售后/履约窗口内(目标态=原状态+frozen, 不改主轴); 2026-10-15 需求变更: 用户确认履约完毕(S5)起关闭投诉入口 → 移除 S5/S8, 与 action_dispute.COMPLAINT_OPEN_STATUS 对齐', money: '', timeout: '一审时限→升级二审/催办' },

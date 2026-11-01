@@ -1,8 +1,8 @@
 // @VERIFIED 2026-10-13 已真机验证：order-action 投诉冻结位+S2协商取消链双出口+争议裁决超期升级(人工裁决,禁自动)+退款上限/回滚+CAS 乐观锁（依据：project_memory L41-52, L89, L182, L191）
 // 对应 PRD 章节：3.3 四确认机制 / 3.5 订单交易系统 / 附录G 状态机 / 8.3 超时规则 / 1.7.1 青少年保护
 // order-action 订单动作(四确认 + 取消 + 状态机扩展) · 身份取自 getWXContext().OPENID
-// 31 个 action: get_confirmation / chat_poll / update_item / confirm_item / confirm_all /
-//              cancel / start_service / complete_service / milestone_submit / milestone_confirm /
+// 29 个 action: get_confirmation / chat_poll / update_item / confirm_item / confirm_all /
+//              cancel / milestone_submit / milestone_confirm /
 //              modify / modify_confirm / modify_reject /
 //              extend / extend_confirm / extend_reject /
 //              resume_service / partial_confirm / ratio_confirm / complaint / complaint_withdraw /
@@ -427,7 +427,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'chat_poll', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_service', 'start_apply', 'start_confirm', 'start_reject', 'start_photo', 'finish_apply', 'finish_confirm', 'finish_reject', 'complete_service', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'chat_poll', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_apply', 'start_confirm', 'start_reject', 'start_photo', 'finish_apply', 'finish_confirm', 'finish_reject', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };
@@ -450,11 +450,11 @@ exports.main = async (event, context) => {
     }
   }
 
-  // 批4(2026-11-01 用户批准·形态B 入口软退役): 旧 B1 链路已停用 ——
+  // 批4(2026-11-01 用户批准·形态A 收口): 旧 B1 链路 handler 已从 action_lifecycle.js 删除 ——
   //   start_service(S2→S3 直连, 绕过耍伴 start_apply + 需求方 start_confirm, 也无距离/精度门)
   //   complete_service(S3→S5 直连, 绕过 finish_apply + finish_confirm 双确认)
-  // 前端已全量切换到 start_apply/finish_apply(全仓 miniprogram 零调用这两个 action), 此处仅在入口拒绝,
-  // handler 本体仍保留在 action_lifecycle.js(删守卫即可回滚), 防历史客户端/脚本走旁路。
+  // 保留此墓碑守卫(而非直接落到 HANDLERS 未命中的 oa_unknown_action), 使历史客户端/脚本仍收到
+  // 语义明确的 oa_legacy_retired + 引导文案; 回滚方式 = 恢复 action_lifecycle.js 两个 handler + 导出。
   if (action === 'start_service' || action === 'complete_service') {
     return { ok: false, code: 'oa_legacy_retired', msg: '该履约动作已停用, 请走履约申请与确认流程' };
   }
@@ -477,7 +477,7 @@ exports.main = async (event, context) => {
 
   // （get_confirmation/update_item/confirm_item/confirm_all 已抽离到 ./action_confirm.js，由上方 HANDLERS 分发表处理）
 
-  // （cancel/start_service/complete_service/milestone_* 已抽离到 ./action_lifecycle.js）
+  // （cancel/milestone_* 已抽离到 ./action_lifecycle.js）
 
   // （改期/加时/比例 helpers + modify*/extend*/partial_confirm/ratio_confirm 已抽离到 ./action_modify_extend.js）
 

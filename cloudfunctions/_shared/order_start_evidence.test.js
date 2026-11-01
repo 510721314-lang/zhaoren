@@ -1,7 +1,8 @@
 // order-action 履约留痕测试(零依赖 node:test)
-// 批4(2026-11-01 用户批准·形态B 入口软退役): 旧 start_service 入口已停用, 一律返回 oa_legacy_retired,
-//   因此原先「缺照片/缺位置/资料齐全」三例已不可达, 本文件改为锁定「入口拒绝 + 不落库」。
-//   履约留痕的 fail-closed 规则现由 start_photo(凭证前置)承担, 行为守护见 order_start_photo.test.js。
+// 批4(2026-11-01 用户批准·形态A 收口): 旧 start_service handler 已从 action_lifecycle.js 删除, 入口仅留墓碑守卫,
+//   一律返回 oa_legacy_retired; 原先「缺照片/缺位置/资料齐全」三例随 handler 删除一并移除(分支不再可达)。
+//   入口退役行为由 order-action.entry.test.js 锁定; 履约留痕的 fail-closed 规则现由 start_apply / start_photo 承担,
+//   行为守护见 order_start_apply.test.js / order_start_photo.test.js。
 // 保留 detail 回传用例: order_main.service_start_evidence 的历史字段仍需在订单详情原样回传。
 // 说明: mock OPENID 非空(真实调用面); mock_openid 旁路仅用于云端测试面板。
 const test = require('node:test');
@@ -37,54 +38,6 @@ function loadOrderAction(sdk) {
   Module._load = orig;
   return mod;
 }
-
-function fullEvidence() {
-  return {
-    photos: [
-      { file_id: 'cloud://x/1.jpg', kind: 'scene', at: 1700000000000 },
-      { file_id: 'cloud://x/2.jpg', kind: 'closeup', at: 1700000000000 }
-    ],
-    partner_location: { latitude: 30.6, longitude: 104.1, accuracy: 15, address: '成都市锦江区yy', at: 1700000000000 }
-  };
-}
-
-// 批4 形态B: 缺照片(原 oa_start_evidence_required)分支已不可达 → 统一断言入口退役
-test('start_service 入口软退役: 资料不全也直接 oa_legacy_retired 且不落库', async () => {
-  const sdk = makeSdk({ openid: PARTNER, store: store() });
-  const mod = loadOrderAction(sdk);
-  const r = await mod.main({
-    action: 'start_service', order_id: OID, mock_openid: PARTNER,
-    start_evidence: { partner_location: { latitude: 30.6, longitude: 104.1 } }
-  }, {});
-  assert.equal(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
-  assert.equal(r.code, 'oa_legacy_retired');
-  assert.equal((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
-});
-
-// 批4 形态B: 缺位置(原 oa_start_location_required)分支已不可达 → 统一断言入口退役
-test('start_service 入口软退役: 缺实时位置也直接 oa_legacy_retired 且不落库', async () => {
-  const sdk = makeSdk({ openid: PARTNER, store: store() });
-  const mod = loadOrderAction(sdk);
-  const r = await mod.main({
-    action: 'start_service', order_id: OID, mock_openid: PARTNER,
-    start_evidence: { photos: [{ file_id: 'cloud://x/1.jpg' }] }
-  }, {});
-  assert.equal(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
-  assert.equal(r.code, 'oa_legacy_retired');
-  assert.equal((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
-});
-
-// 批4 形态B: 资料齐全(原 S2→S3 成功路径)也已不可达 → 一律拒绝, 不得写 status=S3
-test('start_service 入口软退役: 资料齐全也被拒, 不写 status=S3', async () => {
-  const sdk = makeSdk({ openid: PARTNER, store: store() });
-  const mod = loadOrderAction(sdk);
-  const r = await mod.main({
-    action: 'start_service', order_id: OID, mock_openid: PARTNER, start_evidence: fullEvidence()
-  }, {});
-  assert.equal(r.ok, false, `应拒绝: ${JSON.stringify(r)}`);
-  assert.equal(r.code, 'oa_legacy_retired');
-  assert.equal((sdk.writes.order_main || []).length, 0, '拒绝时不得写 order_main');
-});
 
 test('detail 回传 service_start_evidence → 双方订单详情可见履约留痕(fileID 原样)', async () => {
   // 独立守护: ab_equivalence 的 detail_ok 在 KNOWN_EVOLUTION(详情字段扩充), 故新字段须另有行为断言

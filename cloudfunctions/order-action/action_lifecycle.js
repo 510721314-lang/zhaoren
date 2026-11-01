@@ -59,86 +59,7 @@ async function cancel(ctx) {
   return { ok: true, data: { order_id, status: 'S6', demand_released: demandReleased } };
 }
 
-async function start_service(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
-  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
-  const order = await getOrder(order_id);
-  if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
-  const role = roleOf(order, openid);
-  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
-  if (role !== 'partner') return { ok: false, code: 'oa_start_perm', msg: '仅耍伴可开始履约' };
-  if (order.status !== 'S2') return { ok: false, code: 'oa_start_status', msg: `订单当前状态(${order.status})不可开始履约` };
-  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可开始履约' };
-
-  const now = Date.now();
-  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
-  const device = String(event.device || '').slice(0, 200);
-
-  // ── 需求B 开始履约留痕(强制, fail-closed): 1~3 张现场照片(客户端已叠地址+时间水印) + 耍伴实时精确位置 ──
-  // 真实客户端必须传 start_evidence; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 order-create 接单同口径。
-  const isMockCall = (wxCtx && !wxCtx.OPENID) && !!event.mock_openid;
-  const se = event.start_evidence || {};
-  const sePhotos = Array.isArray(se.photos)
-    ? se.photos.filter((p) => p && typeof p.file_id === 'string' && p.file_id).slice(0, 3)
-    : [];
-  const seLoc = se.partner_location || {};
-  const seLat = Number(seLoc.latitude);
-  const seLng = Number(seLoc.longitude);
-  if (!isMockCall) {
-    if (!sePhotos.length) {
-      return { ok: false, code: 'oa_start_evidence_required', msg: '开始履约需提交 1~3 张现场照片(带地址与时间水印)' };
-    }
-    if (!(seLat && seLng)) {
-      return { ok: false, code: 'oa_start_location_required', msg: '开始履约需获取你的实时位置, 请授权定位后重试' };
-    }
-  }
-  const won = await casStatus(order_id, 'S2', {
-    status: 'S3', service_started_at: now, updated_at: now,
-    milestone: { current: 0, confirmed: [false, false, false], evidence: [], submitted_at: null },
-    service_start_evidence: {
-      // 照片(云存储 fileID): kind=scene 周边环境 / closeup 局部; 客户端可选, 服务端仅归一化
-      photos: sePhotos.map((p) => ({
-        file_id: p.file_id,
-        kind: p.kind === 'closeup' ? 'closeup' : 'scene',
-        at: Number(p.at) || now
-      })),
-      // 耍伴端实时精确位置(客户端 wx.getLocation 采集, 含精度与逆地理地址)
-      partner_location: (seLat && seLng) ? {
-        latitude: seLat, longitude: seLng,
-        accuracy: Math.round(Number(seLoc.accuracy) || 0),
-        address: String(seLoc.address || '').slice(0, 200),
-        at: Number(seLoc.at) || now
-      } : null,
-      // 需求的最终用户履约地点: 服务端自取订单 location(下单时来自需求), 客户端不可伪造
-      site_location: order.location ? {
-        name: String(order.location.name || '').slice(0, 100),
-        address: String(order.location.address || order.location.name || '').slice(0, 200),
-        latitude: Number(order.location.latitude) || 0,
-        longitude: Number(order.location.longitude) || 0
-      } : null,
-      submitted_by: openid,
-      submitted_at: now
-    }
-  }, 'start_service');
-  if (!won) {
-    const latest = await getOrder(order_id);
-    if (latest && latest.status === 'S3') {
-      await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_service', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
-      return { ok: true, data: { order_id, status: 'S3', service_started_at: latest.service_started_at || now, idempotent: true } };
-    }
-    return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
-  }
-  await logStatus(order_id, 'S2', 'S3', 'start_service', openid);
-  log.d(`service started: ${order.order_no} S2→S3`);
-  writeNotice({
-    to_openid: order.user_openid, order_id, type: 'start',
-    title: '耍伴已开始履约', body: `${order.partner_nickname || '耍伴'} 已到达服务地点, 履约开始`,
-    action_key: 'jump_order', action_payload: { order_id }
-  });
-  await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_service', target_type: 'order', target_id: order_id, detail: { status: 'S3' }, result: 'ok', client_ip: clientIp, device });
-  return { ok: true, data: { order_id, status: 'S3', service_started_at: now } };
-}
-
+// [2026-11-01 形态A 收口] 旧 start_service(S2→S3 直连) handler 已删除；入口由 index.js 墓碑守卫返回 oa_legacy_retired
 // ── 履约双确认 · 阶段C-1(2026-10-14, 依据《线下陪伴履约流程规范与流程图》§2.2) ──
 // 开始履约申请的定位阈值(规范 §五 默认值: 距离 200m / 精度 ≤50m; 阶段 H 后台化前先用常量兜底, 与前端 CONFIG.FULFILL 同值)
 const FULFILL_DISTANCE_MAX_M = 200;
@@ -147,7 +68,7 @@ const FULFILL_ACCURACY_MAX_M = 50;
 const START_APPLY_COOLDOWN_MS = 60 * 1000;
 
 // 开始履约申请(耍伴发起, S2→S2_6): 凭证前置(2026-10-15 需求变更)——定位快照 + 现场照片(1~3 张)同一次 CAS 落库 + 存证先行;
-// 需求方确认(阶段D)后才进入 S3 真正开始履约。旧 start_service(no.5 直连 S2→S3)保留共存, 待前端切换后收口。
+// 需求方确认(阶段D)后才进入 S3 真正开始履约。旧 start_service(no.5 直连 S2→S3)已于 2026-11-01 形态A 收口删除, 入口由 index.js 墓碑守卫返回 oa_legacy_retired。
 async function start_apply(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
@@ -169,7 +90,7 @@ async function start_apply(ctx) {
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
 
-  // 定位快照(fail-closed): 真实客户端必须传 start_location; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 start_service 同口径
+  // 定位快照(fail-closed): 真实客户端必须传 start_location; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 order-create 同口径
   const isMockCall = (wxCtx && !wxCtx.OPENID) && !!event.mock_openid;
   const sl = event.start_location || {};
   const rawLat = Number(sl.latitude);
@@ -195,7 +116,7 @@ async function start_apply(ctx) {
   }
 
   // 凭证前置(2026-10-15 需求变更): 现场照片(1~3 张, 客户端已叠地址+时间水印)必须随申请一并提交
-  // 真实客户端必须传 start_evidence; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 start_service 同口径。
+  // 真实客户端必须传 start_evidence; 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 order-create 同口径。
   const se = event.start_evidence || {};
   const sePhotos = Array.isArray(se.photos)
     ? se.photos.filter((p) => p && typeof p.file_id === 'string' && p.file_id).slice(0, 3)
@@ -272,47 +193,7 @@ async function start_apply(ctx) {
   return { ok: true, data: { order_id, status: 'S2_6', start_apply_at: now } };
 }
 
-async function complete_service(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
-  if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
-  const order = await getOrder(order_id);
-  if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
-  const role = roleOf(order, openid);
-  if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
-  if (role !== 'partner') return { ok: false, code: 'oa_complete_perm', msg: '仅耍伴可完成履约' };
-  if (order.status !== 'S3') return { ok: false, code: 'oa_complete_status', msg: `订单当前状态(${order.status})不可完成履约` };
-  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可完成履约' };
-
-  const ms = order.milestone || { current: 0 };
-  if (ms.current < 3) {
-    return { ok: false, code: 'oa_milestone_required', msg: `请先提交履约进度到100%(当前${ms.current}/3)再完成履约` };
-  }
-
-  const now = Date.now();
-  const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
-  const device = String(event.device || '').slice(0, 200);
-  const won = await casStatus(order_id, 'S3', {
-    status: 'S5', service_completed_at: now, updated_at: now
-  }, 'complete');
-  if (!won) {
-    const latest = await getOrder(order_id);
-    if (latest && latest.status === 'S5') {
-      await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complete_service', target_type: 'order', target_id: order_id, detail: { idempotent: true }, result: 'ok', client_ip: clientIp, device });
-      return { ok: true, data: { order_id, status: 'S5', service_completed_at: latest.service_completed_at || now, idempotent: true } };
-    }
-    return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
-  }
-  await logStatus(order_id, 'S3', 'S5', 'complete_service', openid);
-  log.d(`service completed: ${order.order_no} S3→S5`);
-  writeNotice({
-    to_openid: order.user_openid, order_id, type: 'finish',
-    title: '履约已完成', body: '耍伴已完成全部履约, 请对服务进行评价',
-    action_key: 'jump_evaluate', action_payload: { order_id }
-  });
-  await writeAudit(db, log, { openid, role, category: 'business', action: 'order_complete_service', target_type: 'order', target_id: order_id, detail: { status: 'S5', total_fen: Number(order.total_fen) || 0 }, result: 'ok', client_ip: clientIp, device });
-  return { ok: true, data: { order_id, status: 'S5', service_completed_at: now } };
-}
-
+// [2026-11-01 形态A 收口] 旧 complete_service(S3→S5 直连) handler 已删除；入口由 index.js 墓碑守卫返回 oa_legacy_retired
 async function milestone_submit(ctx) {
   const { event, order_id, openid, getOrder, roleOf, checkText, col, wxCtx, db, log, writeNotice, writeAudit } = ctx;
   const MS_LABEL = { 1: '30%', 2: '60%', 3: '100%' };
@@ -628,8 +509,8 @@ async function start_photo(ctx) {
     return { ok: true, data: { order_id, status: 'S3', idempotent: true } };
   }
 
-  // fail-closed(与服务端 B1 start_service 同口径): 真实客户端须传 1~3 张有效照片 + 实时位置;
-  // 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 order-create/start_service 同约定。
+  // fail-closed(与 B1 旧链路同源的存证要求): 真实客户端须传 1~3 张有效照片 + 实时位置;
+  // 服务端自测链路(mock_openid 且无真实 OPENID)跳过, 与 order-create 同约定。
   const isMockCall = (wxCtx && !wxCtx.OPENID) && !!event.mock_openid;
   const se = event.start_evidence || {};
   const photos = Array.isArray(se.photos)
@@ -685,7 +566,7 @@ async function start_photo(ctx) {
 // ── 履约双确认 · 阶段F(2026-10-15, 规范 §2.3 履约完毕流程 / §2.4 存证) ──
 // 发起履约完毕确认(耍伴, S3→S3_6): 凭证前置(规范 §2.3 第3条「先上传完成照片+定位快照, 再发起确认」),
 // 单次调用同时落 service_finish_evidence 并迁移状态(存证先行); evidence 结构与阶段E start_photo 同源, 供前端复用渲染。
-// 旧 complete_service(no.13 直连 S3→S5)保留共存, 待前端切换后另行收口(收口属状态机改动, 须单独授权)。
+// 旧 complete_service(no.13 直连 S3→S5)已于 2026-11-01 形态A 收口删除, 入口由 index.js 墓碑守卫返回 oa_legacy_retired。
 async function finish_apply(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
@@ -697,7 +578,7 @@ async function finish_apply(ctx) {
   if (order.status !== 'S3') return { ok: false, code: 'oa_finish_apply_status', msg: `订单当前状态(${order.status})不可发起完毕确认` };
   if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可发起完毕确认' };
 
-  // 里程碑门槛(沿用旧 complete_service 口径): 须先提交到 100%
+  // 里程碑门槛(沿用旧 complete_service 的 100% 门槛口径): 须先提交到 100%
   const ms = order.milestone || { current: 0 };
   if (ms.current < 3) {
     return { ok: false, code: 'oa_finish_apply_milestone', msg: `请先提交履约进度到100%(当前${ms.current}/3)再发起完毕确认` };
@@ -880,4 +761,4 @@ async function finish_reject(ctx) {
   return { ok: true, data: { order_id, status: 'S3', finish_reject_count: rejectCount } };
 }
 
-module.exports = { cancel, start_service, complete_service, milestone_submit, milestone_confirm, resume_service, user_confirm_start, start_apply, start_confirm, start_reject, server_now, start_photo, finish_apply, finish_confirm, finish_reject };
+module.exports = { cancel, milestone_submit, milestone_confirm, resume_service, user_confirm_start, start_apply, start_confirm, start_reject, server_now, start_photo, finish_apply, finish_confirm, finish_reject };

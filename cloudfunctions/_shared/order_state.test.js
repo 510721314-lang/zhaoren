@@ -27,9 +27,15 @@ test('履约存证: 字段集/坐标系/阶段常量符合规范', () => {
 });
 
 // ── 迁移表 ──
-test('迁移表: 30 条, no 连续 1..30', () => {
-  assert.strictEqual(S.TRANSITIONS.length, 30);
-  S.TRANSITIONS.forEach((t, i) => assert.strictEqual(t.no, i + 1));
+// 2026-11-01 形态A 收口: 删除旧 B1 链路两条(原 no.5 start_service / no.13 complete) → 30 条变 28 条;
+// 编号保留空洞(no.5/no.13 不再复用, 避免与 docs/注释里的 no.N 交叉引用错位), 故只校验「唯一且递增」。
+test('迁移表: 28 条, no 唯一且严格递增', () => {
+  assert.strictEqual(S.TRANSITIONS.length, 28);
+  let prev = 0;
+  for (const t of S.TRANSITIONS) {
+    assert.ok(t.no > prev, `no 非递增: #${t.no} <= #${prev}`);
+    prev = t.no;
+  }
 });
 
 test('迁移表: 每条 from 非空 且 取值均在 ALL_STATES 或通配 * 内', () => {
@@ -48,8 +54,6 @@ test('canTransition 正向: 关键迁移均命中白名单', () => {
   assert.ok(S.canTransition('pay', 'S0', 'S2'));
   assert.ok(S.canTransition('cancel', 'S1', 'S6'));
   assert.ok(S.canTransition('cancel', 'S0', 'S6'));            // 数组 from 命中
-  assert.ok(S.canTransition('start_service', 'S2', 'S3'));
-  assert.ok(S.canTransition('complete', 'S3', 'S5'));
   assert.ok(S.canTransition('evaluate', 'S5', 'S8'));
   assert.ok(S.canTransition('ratio_agree', 'S4', 'S5'));
   assert.ok(S.canTransition('after_sale_expire', 'S8', 'S10'));
@@ -85,7 +89,7 @@ test('canTransition: to=null 的规则(目标由业务决定)只校验 from', ()
 });
 
 test('canTransition 拒绝: 非法 from / 非法 to / 未知 event', () => {
-  assert.ok(!S.canTransition('start_service', 'S0', 'S3'));    // from 不在白名单
+  assert.ok(!S.canTransition('start_apply', 'S0', 'S2_6'));    // from 不在白名单
   assert.ok(!S.canTransition('pay', 'S0', 'S5'));              // to 不匹配
   assert.ok(!S.canTransition('no_such_event', 'S0', 'S2'));    // 未知事件
 });
@@ -190,7 +194,7 @@ test('casTransition: 影子校验仅对白名单外迁移回调(onShadow), 不�
 });
 
 test('transitionAllowed: 事件驱动白名单判定', () => {
-  assert.strictEqual(S.transitionAllowed('start_service', 'S2', 'S3'), true);   // 命中
+  assert.strictEqual(S.transitionAllowed('start_apply', 'S2', 'S2_6'), true);   // 命中
   assert.strictEqual(S.transitionAllowed('cancel', ['S1', 'S0'], 'S6'), true);  // 命中(数组 from)
   assert.strictEqual(S.transitionAllowed('cancel', 'S2', 'S3'), false);         // 未命中
   assert.strictEqual(S.transitionAllowed(undefined, 'S2', 'S3'), true);         // 未提供 event → 放行(兼容)
