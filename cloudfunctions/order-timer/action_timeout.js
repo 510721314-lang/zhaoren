@@ -259,13 +259,17 @@ async function processNoShowDefenseOverdue(ctx) {
 // 口径: 仅 status='S2'(已支付未开始) 且 start_time 已过 grace 分钟; 不改状态/不冻结/不扣分/不自动裁定;
 //   幂等位 no_show_guide_at(条件更新抢到才发, 与 ISS-011 overdue_escalated_at 同一范式, 一生仅一次).
 async function processNoShowGuide(ctx) {
-  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, now, out, noShowGraceMin } = ctx;
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, now, out, noShowGraceMin, cfg, num } = ctx;
   try {
     const graceMin = noShowGraceMin > 0 ? noShowGraceMin : 30;
     const cut = now - graceMin * 60 * 1000;
+    // 只提醒"刚过点"的单: 下界锚定申诉窗口(no_show_report_window_h, 默认 48h) ——
+    //   超出申诉窗口的历史 S2 单再提醒已无意义(且会误报"已过 30 分钟"), 一律不发。
+    const winH = num(cfg && cfg.no_show_report_window_h, 48);
+    const floor = cut - winH * 60 * 60 * 1000;
     const rows = await scanAll('order_main', () => ({
       status: 'S2',
-      start_time: _.lt(cut),
+      start_time: _.gte(floor).and(_.lt(cut)),
       no_show_guide_at: _.exists(false),
       frozen: _.neq(true),
       is_deleted: _.neq(true)
@@ -273,7 +277,7 @@ async function processNoShowGuide(ctx) {
     trackBacklog('order_main', rows.length >= SCAN_MAX ? rows : []);
     const sent = [];
     await Promise.allSettled(rows.map(async (o) => {
-      if (!(o.start_time && o.start_time < cut)) return; // 二次守卫: 未到点/无开始时间不发
+      if (!(o.start_time && o.start_time < cut && o.start_time >= floor)) return; // 二次守卫
       const upd = await col('order_main').where({ _id: o._id, no_show_guide_at: _.exists(false) })
         .update({ data: { no_show_guide_at: now, updated_at: now } });
       if (!upd.stats || upd.stats.updated !== 1) return; // 已被并发轮次提醒过 → 跳过

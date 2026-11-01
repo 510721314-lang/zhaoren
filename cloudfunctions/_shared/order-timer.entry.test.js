@@ -217,7 +217,8 @@ test('S2 过约定开始 30 分钟 → no_show_guide=1 且双方各 1 条站内�
     C1: ord('C1', 'S2', { start_time: now - 60 * MIN }),
     C2: ord('C2', 'S2', { start_time: now - 60 * MIN, frozen: true }),          // 已冻结(争议/申诉在途) → 不发
     C3: ord('C3', 'S2', { start_time: now - 60 * MIN, no_show_guide_at: 1 }),   // 已提醒过(幂等位) → 不发
-    C4: ord('C4', 'S2', { start_time: now + 60 * MIN })                        // 未到点 → 不发
+    C4: ord('C4', 'S2', { start_time: now + 60 * MIN }),                       // 未到点 → 不发
+    C5: ord('C5', 'S2', { start_time: now - 100 * H })                         // 超出申诉窗口(48h)的历史单 → 不发
   }));
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.data.counts.no_show_guide, 1);
