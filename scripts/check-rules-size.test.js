@@ -20,7 +20,7 @@ function mkFixture(overrides = {}, baselineOverride = null) {
             '---', 'alwaysApply: true', '---', '',
             ...Array.from({ length: 10 }, (_, i) => `## ${i}. 核心节${i}`),
             '## 10–34. 索引式摘要',
-            '- §10–§11 摘要占位',
+            '- §10–§34 摘要占位',
             '## 附录A · 不可变红线',
             '- 订单 13 态状态机',
             '- 系统默认评价',
@@ -217,5 +217,12 @@ test('N17 [RATE-ARCHIVE] 全量归档净增超速率门', () => {
     }), ({ code, out }) => {
         assert.strictEqual(code, 1);
         assert.match(out, /FAIL \[RATE-ARCHIVE\]/);
+    });
+});
+
+test('N18 [SUMMARY-GAP] §10+ 有归档正文但 core 摘要未覆盖', () => {
+    withFixture({ '.trae/rules/project-rules-core.md': t => t.replace('- §10–§34 摘要占位', '- §10–§33 摘要占位') }, null, ({ code, out }) => {
+        assert.strictEqual(code, 1);
+        assert.match(out, /FAIL \[SUMMARY-GAP\] §34/);
     });
 });

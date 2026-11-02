@@ -105,6 +105,23 @@ const sectionNums = [core, index, archiveText].map(t => {
 const intervalMax = intervals.length ? Math.max(...intervals.map(i => i[1])) : 0;
 const maxSection = Math.max(...sectionNums, intervalMax);
 
+// T-7.41：§10+ 必须被 core 摘要区覆盖（防「归档+索引有正文、core 摘要没提 → 模型永远看不到」）
+// 只解析「## 10–34.」到「## 附录A」之间，避免 §0–§9 正文里的零散 §N 引用被误算成覆盖
+const sumStart = core.indexOf('## 10–34.');
+const sumEnd = core.indexOf('## 附录A');
+const summaryBlock = sumStart >= 0 ? core.slice(sumStart, sumEnd > sumStart ? sumEnd : core.length) : '';
+const coveredBySummary = new Set();
+for (const m of summaryBlock.matchAll(/§\s*(\d+)(?:\s*[–-]\s*§?\s*(\d+))?/g)) {
+    const a = parseInt(m[1], 10);
+    const b = m[2] ? parseInt(m[2], 10) : a;
+    for (let n = a; n <= b; n++) coveredBySummary.add(n);
+}
+for (let n = 10; n <= maxSection; n++) {
+    if (!coveredBySummary.has(n)) {
+        fails.push(`[SUMMARY-GAP] §${n} 未进 core 摘要区（归档有正文但模型看不到；请在「## 10–34.」段补齐 § 区间）`);
+    }
+}
+
 for (let n = 10; n <= maxSection; n++) {
     if (!core.includes(`## ${n}.`) && !index.includes(`| §${n} |`) && !coveredByInterval(n)) {
         fails.push(`[COVERAGE] §${n} 未出现在 project-rules-core.md，也未被 project_rules-20261013.md 的索引行或区间覆盖`);
