@@ -10,7 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const root = path.resolve(__dirname, '..');
+// RULES_ROOT 仅供门禁自测（scripts/check-rules-size.test.js）指向临时夹具；生产恒为仓库根
+const root = process.env.RULES_ROOT ? path.resolve(process.env.RULES_ROOT) : path.resolve(__dirname, '..');
 const rulesDir = path.join(root, '.trae', 'rules');
 const rulesMd = path.join(root, '.trae', 'rules.md');
 const corePath = path.join(rulesDir, 'project-rules-core.md');
@@ -24,6 +25,15 @@ const KNOWN_ORPHANS = {};
 
 const fails = [];
 const warns = [];
+
+// L0 常驻上限与水位（T-7.34）：baseline 缺失/不可解析即 FAIL（fail-closed，防静默放行）
+const baselinePath = path.join(root, 'scripts', 'rules-size-baseline.json');
+let baseline = null;
+try {
+    baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+} catch (e) {
+    fails.push('[BASELINE] 缺少或无法解析 scripts/rules-size-baseline.json（T-7.34 水位门禁 fail-closed）');
+}
 
 // LF 归一化 + 去 BOM 后的 UTF-8 字节数：跨机（CRLF/LF 检出）与中文编辑工具补 BOM 均不影响结果
 // （2026-11-01 负向测试实证：带 BOM 的文件会被 startsWith('---') 误判成无 front-matter，故先剥 BOM）
@@ -101,6 +111,27 @@ for (let n = 10; n <= maxSection; n++) {
     }
     if (!new RegExp(`^## ${n}\\.`, 'm').test(archiveText)) {
         fails.push(`[ARCHIVE] 归档缺少 §${n} 正文节（摘要与索引指向空锚点）`);
+    }
+}
+
+// L0 常驻硬上限 + 水位门（T-7.34）：3 文件 / 22 条 / 12KB 目标位；超目标位后任何净新增一律拦（配额制）
+if (baseline && baseline.l0) {
+    const l0 = baseline.l0;
+    if (inject.length > l0.maxFiles) fails.push(`[L0-FILES] 常驻注入文件 ${inject.length} 个 > 上限 ${l0.maxFiles}`);
+    const coreSections = (core.match(/^## /gm) || []).length;
+    if (coreSections > l0.maxItems) fails.push(`[L0-ITEMS] core 常驻章节 ${coreSections} 条 > 上限 ${l0.maxItems}`);
+    if (injectTotal > l0.targetBytes) {
+        warns.push(`[L0-TARGET] inject ${injectTotal}B 已超 12KB 目标位 ${l0.targetBytes}B：后续新增须先淘汰/下沉旧条`);
+    }
+    const growth = injectTotal - (baseline.injectBytes || 0);
+    if (growth > (baseline.rateLimitBytes || 0)) {
+        fails.push(`[RATE] inject 较水位净增 ${growth}B > ${baseline.rateLimitBytes}B/commit：先淘汰旧条，或显式更新 rules-size-baseline.json`);
+    }
+    if (injectTotal > l0.targetBytes && growth > 0) {
+        fails.push(`[QUOTA] 已超 ${l0.targetBytes}B 目标位仍净增 ${growth}B（配额制：满额须先淘汰旧条再新增）`);
+    }
+    if (-growth > (baseline.staleToleranceBytes || 0)) {
+        warns.push(`[BASELINE-STALE] inject 较水位缩小 ${-growth}B，请刷新 scripts/rules-size-baseline.json`);
     }
 }
 

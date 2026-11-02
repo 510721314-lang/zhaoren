@@ -1,0 +1,15 @@
+{
+  "note": "常驻规则体积水位（T-7.34 防复发）。改规则后必须评估：净增长 > rateLimitBytes 即 FAIL；已超 l0.targetBytes 时任何净新增即 FAIL（须先淘汰/下沉旧条）；缩水 > staleToleranceBytes 会提示刷新本文件。更新本文件属于「显式评审动作」，须单独 commit 并写理由。",
+  "updatedAt": "2026-11-02",
+  "updatedBy": "T-7.34 初始化（S1/S2/S3 瘦身后水位）",
+  "injectBytes": 16125,
+  "injectFiles": 3,
+  "injectSections": 12,
+  "rateLimitBytes": 1024,
+  "staleToleranceBytes": 512,
+  "l0": {
+    "maxFiles": 3,
+    "maxItems": 22,
+    "targetBytes": 12288
+  }
+}
