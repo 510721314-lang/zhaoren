@@ -34,6 +34,7 @@ const VERIFY_ONLY = new Set([
     'check-manual-links.js',             // 手册 file:/// 链接
     'check-once-prompts.js',             // 被动提示幂等基线
     'check-nightmask.js',                // 提审合规：功能不可用页必挂 night-mask（2026-11-02 补挂）
+    'check-doc-links.js',                // live docs 链接可达（T-7.40）
 ]);
 const TOOL = new Set([
     'check-handoff-coverage.js',         // 需 2 个 HANDOFF 路径参数，一次性比对工具
