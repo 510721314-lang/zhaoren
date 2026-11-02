@@ -19,10 +19,8 @@ const archivePath = path.join(root, '.trae', 'documents', 'project-rules-full-20
 
 const INJECT_LIMIT = 30 * 1024;      // 常驻注入预算（数值沿用原 30720B，只是不再把不注入的文件算进来）
 const CONDITIONAL_LIMIT = 2 * 1024;  // globs 定向规则上限
-// 已知「不注入且无引用」待清项：显式登记并只告警，禁止静默豁免（P1 把 rules.md 改成指针后删除本条）
-const KNOWN_ORPHANS = {
-    '.trae/rules.md': '待 P1 指针化；当前由下方 [RULESMD] 三章关键词校验兜住',
-};
+// 已知「不注入且无引用」待清项（2026-11-02 S3 已清零：.trae/rules.md 已指针化并被索引引用）
+const KNOWN_ORPHANS = {};
 
 const fails = [];
 const warns = [];
@@ -106,8 +104,13 @@ for (let n = 10; n <= maxSection; n++) {
     }
 }
 
-for (const kw of ['不可变红线', 'MVP 禁做清单', '技术栈']) {
-    if (!read(rulesMd).includes(kw)) fails.push(`[RULESMD] .trae/rules.md 缺少「${kw}」章节标题`);
+// .trae/rules.md 已指针化（2026-11-02 S3）：只校验它仍指向 core/归档，正文不再驻留本文件
+for (const kw of ['project-rules-core.md', 'project-rules-full-20261029.md']) {
+    if (!read(rulesMd).includes(kw)) fails.push(`[RULESMD] .trae/rules.md 指针缺少对「${kw}」的引用`);
+}
+// 业务红线已迁入 core 常驻（附录A）：防搬迁丢失，锁标题 + 首条 + 末条三处锚点
+for (const kw of ['附录A · 不可变红线', '订单 13 态状态机', '系统默认评价']) {
+    if (!core.includes(kw)) fails.push(`[CORE] project-rules-core.md 附录A 缺少「${kw}」（业务红线搬迁丢失）`);
 }
 
 for (const w of warns) console.error(w);
