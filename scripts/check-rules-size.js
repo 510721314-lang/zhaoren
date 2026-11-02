@@ -135,6 +135,32 @@ if (baseline && baseline.l0) {
     }
 }
 
+// T-7.36：conditional 速率门（硬上限仍由 CONDITIONAL_LIMIT 把，这里防「定向桶慢慢堆满」）
+if (baseline) {
+    const condGrowth = condTotal - (baseline.conditionalBytes || 0);
+    if (condGrowth > (baseline.conditionalRateLimitBytes || 0)) {
+        fails.push(`[RATE-COND] conditional 较水位净增 ${condGrowth}B > ${baseline.conditionalRateLimitBytes}B/commit（先删旧条或显式更新 baseline）`);
+    }
+    if (-condGrowth > (baseline.staleToleranceBytes || 0)) {
+        warns.push(`[BASELINE-STALE] conditional 较水位缩小 ${-condGrowth}B，请刷新 scripts/rules-size-baseline.json`);
+    }
+
+    // T-7.36：全量归档增长门（归档不注入，但无限增长会拖慢 Grep/检索）
+    const archiveFull = fs.existsSync(archivePath) ? bytes(archivePath) : 0;
+    const archGrowth = archiveFull - (baseline.archiveFullBytes || 0);
+    if (archGrowth > (baseline.archiveRateLimitBytes || 0)) {
+        fails.push(`[RATE-ARCHIVE] 全量归档较水位净增 ${archGrowth}B > ${baseline.archiveRateLimitBytes}B/commit（新增规则应优先精简旧条）`);
+    }
+
+    // T-7.36：.trae/rules.md 指针防回退（禁止被写回正文）
+    if (bytes(rulesMd) > (baseline.pointerMaxBytes || 0)) {
+        fails.push(`[POINTER-SIZE] .trae/rules.md ${bytes(rulesMd)}B > 指针上限 ${baseline.pointerMaxBytes}B（疑似写回正文）`);
+    }
+    if (/^## /m.test(read(rulesMd))) {
+        fails.push('[POINTER-BODY] .trae/rules.md 出现章节标题，指针文件被写回正文');
+    }
+}
+
 // .trae/rules.md 已指针化（2026-11-02 S3）：只校验它仍指向 core/归档，正文不再驻留本文件
 for (const kw of ['project-rules-core.md', 'project-rules-full-20261029.md']) {
     if (!read(rulesMd).includes(kw)) fails.push(`[RULESMD] .trae/rules.md 指针缺少对「${kw}」的引用`);

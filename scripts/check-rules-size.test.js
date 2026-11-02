@@ -47,9 +47,19 @@ function mkFixture(overrides = {}, baselineOverride = null) {
         fs.writeFileSync(abs, typeof content === 'function' ? content(fs.readFileSync(abs, 'utf8')) : content, 'utf8');
     }
     const actual = INJECT_PATHS.reduce((a, p) => a + bytesOf(path.join(dir, p)), 0);
+    const condActual = fs.existsSync(path.join(dir, '.trae/rules/miniprogram-config-guard.md'))
+        ? bytesOf(path.join(dir, '.trae/rules/miniprogram-config-guard.md')) : 0;
+    const archiveActual = bytesOf(path.join(dir, '.trae/documents/project-rules-full-20261029.md'));
     let baseline = baselineOverride;
-    if (typeof baseline === 'function') baseline = baseline(actual);
-    if (!baseline) baseline = { injectBytes: actual, rateLimitBytes: 1024, staleToleranceBytes: 512, l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 } };
+    if (typeof baseline === 'function') baseline = baseline({ inject: actual, cond: condActual, archive: archiveActual });
+    if (!baseline) {
+        baseline = {
+            injectBytes: actual, rateLimitBytes: 1024, staleToleranceBytes: 512,
+            conditionalBytes: condActual, conditionalRateLimitBytes: 256,
+            archiveFullBytes: archiveActual, archiveRateLimitBytes: 8192, pointerMaxBytes: 1200,
+            l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 },
+        };
+    }
     const bAbs = path.join(dir, 'scripts/rules-size-baseline.json');
     fs.mkdirSync(path.dirname(bAbs), { recursive: true });
     if (baseline !== 'missing') fs.writeFileSync(bAbs, JSON.stringify(baseline), 'utf8');
@@ -134,14 +144,14 @@ test('N8 [RULESMD] 指针文件缺少对 core 的引用', () => {
 });
 
 test('N9 [RATE] 净增超 1KB/commit', () => {
-    withFixture({}, actual => ({ injectBytes: actual - 1500, rateLimitBytes: 1024, staleToleranceBytes: 512, l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 } }), ({ code, out }) => {
+    withFixture({}, ({ inject }) => ({ injectBytes: inject - 1500, rateLimitBytes: 1024, staleToleranceBytes: 512, l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 } }), ({ code, out }) => {
         assert.strictEqual(code, 1);
         assert.match(out, /FAIL \[RATE\]/);
     });
 });
 
 test('N10 [QUOTA] 已超 12KB 目标位仍净增', () => {
-    withFixture({ '.trae/rules/project-rules-core.md': t => t + '\n' + 'z'.repeat(12000) }, actual => ({ injectBytes: actual - 500, rateLimitBytes: 2048, staleToleranceBytes: 512, l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 } }), ({ code, out }) => {
+    withFixture({ '.trae/rules/project-rules-core.md': t => t + '\n' + 'z'.repeat(12000) }, ({ inject }) => ({ injectBytes: inject - 500, rateLimitBytes: 2048, staleToleranceBytes: 512, l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 } }), ({ code, out }) => {
         assert.strictEqual(code, 1);
         assert.match(out, /FAIL \[QUOTA\]/);
     });
@@ -168,5 +178,44 @@ test('N13 [BASELINE] 缺水位文件应 fail-closed', () => {
     withFixture({}, 'missing', ({ code, out }) => {
         assert.strictEqual(code, 1);
         assert.match(out, /FAIL \[BASELINE\]/);
+    });
+});
+
+test('N14 [POINTER-BODY] rules.md 指针被写回正文（出现章节标题）', () => {
+    withFixture({ '.trae/rules.md': '# 指针\n## 正文\n- `.trae/rules/project-rules-core.md`\n- `.trae/documents/project-rules-full-20261029.md`' }, null, ({ code, out }) => {
+        assert.strictEqual(code, 1);
+        assert.match(out, /FAIL \[POINTER-BODY\]/);
+    });
+});
+
+test('N15 [POINTER-SIZE] rules.md 超指针上限', () => {
+    withFixture({ '.trae/rules.md': `# 指针\n${'x'.repeat(1300)}\n- \`.trae/rules/project-rules-core.md\`\n- \`.trae/documents/project-rules-full-20261029.md\`` }, null, ({ code, out }) => {
+        assert.strictEqual(code, 1);
+        assert.match(out, /FAIL \[POINTER-SIZE\]/);
+    });
+});
+
+test('N16 [RATE-COND] conditional 净增超速率门', () => {
+    const guard = `---\nalwaysApply: false\nglobs: miniprogram/**\n---\n${'c'.repeat(400)}`;
+    withFixture({ '.trae/rules/miniprogram-config-guard.md': guard }, ({ inject, cond, archive }) => ({
+        injectBytes: inject, rateLimitBytes: 1024, staleToleranceBytes: 512,
+        conditionalBytes: cond - 400, conditionalRateLimitBytes: 256,
+        archiveFullBytes: archive, archiveRateLimitBytes: 8192, pointerMaxBytes: 1200,
+        l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 },
+    }), ({ code, out }) => {
+        assert.strictEqual(code, 1);
+        assert.match(out, /FAIL \[RATE-COND\]/);
+    });
+});
+
+test('N17 [RATE-ARCHIVE] 全量归档净增超速率门', () => {
+    withFixture({ '.trae/documents/project-rules-full-20261029.md': t => t + '\n' + 'a'.repeat(9000) }, ({ inject, archive }) => ({
+        injectBytes: inject, rateLimitBytes: 1024, staleToleranceBytes: 512,
+        conditionalBytes: 0, conditionalRateLimitBytes: 256,
+        archiveFullBytes: archive - 9000, archiveRateLimitBytes: 8192, pointerMaxBytes: 1200,
+        l0: { maxFiles: 3, maxItems: 22, targetBytes: 12288 },
+    }), ({ code, out }) => {
+        assert.strictEqual(code, 1);
+        assert.match(out, /FAIL \[RATE-ARCHIVE\]/);
     });
 });
