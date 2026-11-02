@@ -42,7 +42,14 @@
 
 ## 未决项
 
-1. **B1/B2/C1/C2 只读核查待用户协助**，三选一：①用户执行 `tcb login` 后我用 CLI 查询；②用户手动导出 `partner_profile` JSON 到本地目录；③用户操作控制台并回贴 6 条记录的 `sub_msgs` 内容。
+1. **B1/C1 已核查（tcb CLI 登录后完成，全程零桌面操作）**：
+   - **B1 存量结构**（`nosql find partner_profile` 6 条实录）：
+     - 9/10 订阅位为存量布尔结构（`authorized:true` + `updated_at`，无 `granted_count/sent_count`）；仅 1 个订阅位为新计数结构。
+     - 逐条：①`a9defcfd…4394a1de`：`demand_grab` 存量布尔、`demand_urge` 存量布尔+`quota_empty_at`；②`f9ecc4af…19c8`：无 `sub_msgs` 字段；③`a9defcfd…afa0fea`：`demand_grab` 存量布尔、`confirm_comm` **新计数（granted_count=3 / sent_count=0 / last_authorized_at）**、`demand_urge` 存量布尔+`quota_empty_at`；④`d83520e2…13cf`：grab+urge 均存量布尔；⑤`3d00e15d…2dea`（test_partner_001）：无 `sub_msgs`；⑥`1a3ef1dd…b9d8`：grab+urge 均存量布尔。
+     - F1 实锤：存量布尔不带计数在场（线上第 2 次催办即 `NO_QUOTA` 无微信通知）；另发现 `confirm_comm.granted_count=3` 超设计上限 2（累计授权口径），留待用户决定是否归口。
+   - **C1 部署版本**（`fn list` 回读 ModTime）：`partner-action` 17:18:56 / `order-action` 17:19:11 / `order-timer` 17:19:25 / `payment-mock` 15:47:41，均 Active / Nodejs16.13，与 deploy-log「2026-11-02 三函数 7/7 SHA + payment-mock」行吻合。
+   - **B2 通道结论**：`fn log` 个人版（baas_personal）无 CLS 检索（payment-mock 与 order-action 今日全窗均 `data:[]`，耗时历史不可得）；`fn invoke balance_info` 不注入 OPENID → `pay_no_openid`（8 查询路径未走到），但取到 Report：冷启动 1251ms、no_openid 分支 Duration 300ms。**真实验证 8 查询是否近 3s 超时，只能走开发者工具云端测试面板（带模拟 openid）或真机**——按 §37 需另行逐项授权才可动面板。
+   - **C2 通道结论**：`env usage`/`env info` 回「不是资源点计费模式，无法查看用量/指标明细」→ 个人版 CLI 无配额接口；配额余量只能控制台「概览/用量」页人工查看（PackageId=baas_personal / Status=NORMAL / IsAutoRenew=true）。
 2. **临时截图已删除**（2026-11-02 用户授权）：`C:\Users\DC\AppData\Local\Temp\zr-audit\shot*.png` 共 9 张（shot4 未生成），目录已清空。
 3. **台账未更新**：`docs/CHANGELOG.md` 与 `docs/FUNCTION-REGISTRY.md` 需单独授权后追加。
 4. **全局权限未改**：`permission/global.json` 与 `plugin-config.json` 属用户级配置，建议用户自行调整，AI 不代改。
