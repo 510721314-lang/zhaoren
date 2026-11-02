@@ -38,7 +38,7 @@
 | `scripts/check-gate-mounts.js` / `.test.js` | VERIFY_ONLY 登记新门禁 |
 | `package.json` | `verify` 与 `verify:offline` 双链挂载新门禁 |
 
-提交状态：截至落盘时**未 commit、未 push**；实际提交与否以 `git log` 为准（规则 §9 要求单独 docs commit）。
+提交状态：规则+脚本 `c273561`、docs `b05f54e`、会话记录补记 `598e1bf`（均未 push）；本文件本轮补记 B2/C2 实测后另起 docs commit。
 
 ## 未决项
 
@@ -49,9 +49,16 @@
      - F1 实锤：存量布尔不带计数在场（线上第 2 次催办即 `NO_QUOTA` 无微信通知）；另发现 `confirm_comm.granted_count=3` 超设计上限 2（累计授权口径），留待用户决定是否归口。
    - **C1 部署版本**（`fn list` 回读 ModTime）：`partner-action` 17:18:56 / `order-action` 17:19:11 / `order-timer` 17:19:25 / `payment-mock` 15:47:41，均 Active / Nodejs16.13，与 deploy-log「2026-11-02 三函数 7/7 SHA + payment-mock」行吻合。
    - **B2 通道结论**：`fn log` 个人版（baas_personal）无 CLS 检索（payment-mock 与 order-action 今日全窗均 `data:[]`，耗时历史不可得）；`fn invoke balance_info` 不注入 OPENID → `pay_no_openid`（8 查询路径未走到），但取到 Report：冷启动 1251ms、no_openid 分支 Duration 300ms。**真实验证 8 查询是否近 3s 超时，只能走开发者工具云端测试面板（带模拟 openid）或真机**——按 §37 需另行逐项授权才可动面板。
+   - **B2 面板实测（2026-11-02 用户逐项授权，选「切 dev 再跑面板」）**：`init-db.force_set_env(dev)` 生效（4h 自毁计时）→ 控制台「云函数 → payment-mock → 云端测试」，事件 `{"action":"balance_info","mock_openid":"oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c"}`，请求 ID `34b3a225-39ed-4906-913f-8992a353d231`：
+     - 返回 `{"ok":true,"data":{"withdrawable_fen":76700,"splitting_fen":568884,"processing_fen":0,"month_income_fen":0,"total_income_fen":146700,"tip_income_fen":0,"total_completed":16,"today_pending":0,"week_income_fen":0,"credit_level":"L1"}}`；
+     - 日志 `payment-mock action=balance_info openid=oLDJ73Yz… env=dev`（证明 dev 旁路按 `openid.js` 设计放行 mock 身份）；
+     - 性能：冷启动 `InitFunction 558ms`、**运行 351ms**、计费 400ms、内存 26.09MB（Memory 256MB）→ **8 字段全返回且远低于 3s 超时，B2 无超时风险**；
+     - **已恢复**：`force_set_env(prod)` → `env=prod`、`force_expire_at=null`，dev 旁路已关闭（面板全程仅语义树操作，无坐标点击/截屏）。
+     - 待核口径：`splitting_fen 568884（¥5688.84）> total_income_fen 146700（¥1467.00）`，若两者为「待分账/累计收入」则金额倒挂，建议后续核对聚合口径（只读数未改码）。
    - **C2 通道结论**：`env usage`/`env info` 回「不是资源点计费模式，无法查看用量/指标明细」→ 个人版 CLI 无配额接口；配额余量只能控制台「概览/用量」页人工查看（PackageId=baas_personal / Status=NORMAL / IsAutoRenew=true）。
+   - **C2 实测（用户 2026-11-02 截图「套餐用量」页回传）**：调用次数 本日 **1.3 万** / 累计 **18.32 万** / 20 万（**91.6%，「即将超额」，余 ~1.68 万次**）；计算资源 **7030.73/15 万 CU（4.7%）**；其余 9 项额度正常。判读：余量 >1 万，尚未触发冻结规则「禁止并行部署/触发器变更」线，但按今日消耗约 1–2 天到线 → 重操作一律串行。
 2. **临时截图已删除**（2026-11-02 用户授权）：`C:\Users\DC\AppData\Local\Temp\zr-audit\shot*.png` 共 9 张（shot4 未生成），目录已清空。
-3. **台账未更新**：`docs/CHANGELOG.md` 与 `docs/FUNCTION-REGISTRY.md` 需单独授权后追加。
+3. **台账**：`docs/CHANGELOG.md` 已追加（§37 整改行 `c273561`）；本轮 B2/C2 实测结论经用户授权补记于本文件与 CHANGELOG；`docs/FUNCTION-REGISTRY.md` 按双专家结论不登记（治理类不入功能台账）。
 4. **全局权限未改**：`permission/global.json` 与 `plugin-config.json` 属用户级配置，建议用户自行调整，AI 不代改。
 
 ## 下次入口
