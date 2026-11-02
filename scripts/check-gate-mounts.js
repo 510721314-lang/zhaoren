@@ -36,6 +36,7 @@ const VERIFY_ONLY = new Set([
     'check-nightmask.js',                // 提审合规：功能不可用页必挂 night-mask（2026-11-02 补挂）
     'check-doc-links.js',                // live docs 链接可达（T-7.40）
     'check-ledger-placeholders.js',      // 台账占位/冲突标记（T-7.42）
+    'check-test-globs.js',               // 测试 glob 覆盖（T-7.43）
 ]);
 const TOOL = new Set([
     'check-handoff-coverage.js',         // 需 2 个 HANDOFF 路径参数，一次性比对工具
