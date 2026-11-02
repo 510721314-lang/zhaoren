@@ -5,6 +5,8 @@ description: "通过 Computer Use 驱动微信开发者工具内置云开发控�
 
 # 云开发控制台云端测试面板驱动（zhaoren 专用）
 
+> **授权前置（规则 §37，2026-11-02）**：本技能涉及桌面控制，使用前必须取得用户对本次任务的逐项书面授权（目标窗口/目的/动作上限）；禁止 Win32 注入与坐标点击，只允许 Computer Use 语义树；语义树不可用即停止回报。
+
 ## 背景：为什么需要它
 
 - 微信开发者工具 CLI 只有 list/info/deploy/inc-deploy/download，**没有调用云函数的命令**。
@@ -20,7 +22,7 @@ description: "通过 Computer Use 驱动微信开发者工具内置云开发控�
    ```
    锁屏后用 computer-use 对 LockApp pid 按一次 Return 可解（本机无密码）。
 2. **云开发控制台是独立窗口，关掉后只能从 IDE 主窗口工具栏重开**：主 IDE 窗口内容不暴露无障碍树（只有 pane），要点工具栏"云开发"图标。
-   - **新版 IDE 2.0（2.02.2609102 起）没有"云开发"文字按钮**，入口=工具栏右上角 **∞ 双环图标**（悬停 tooltip「云开发」）。2026-09-13 窗口化主窗口（rect 277,50,1502,800）时逻辑坐标约 **(1173,70)**；它左侧紧邻"上传"，点错会弹上传确认框（点"取消"）。定位法：悬停读 tooltip 再点，别猜。坐标点击用 PowerShell `SetCursorPos`+`mouse_event` 硬件级。
+   - **新版 IDE 2.0（2.02.2609102 起）没有"云开发"文字按钮**，入口=工具栏右上角 **∞ 双环图标**（悬停 tooltip「云开发」）。2026-09-13 窗口化主窗口（rect 277,50,1502,800）时逻辑坐标约 **(1173,70)**；它左侧紧邻"上传"，点错会弹上传确认框（点"取消"）。定位法：悬停读 tooltip 再点，别猜。所有点击一律 `perform_action invoke`；禁止坐标点击与 Win32 注入（`SetCursorPos`/`mouse_event`/`ShowWindow` 等），见 §37。
    - **360 安全卫士（360tray）会抢前台导致 SetForegroundWindow/click 全部失效**（GetForegroundWindow 甚至返回 0）。2026-09-13 360 已卸载，AttachThreadInput 置前恢复正常。
    - **反复锁屏真凶曾是 ToDesk**（config.ini `PrivateScreenLockScreen=0`/`autoLockScreen=0` 已改），不是系统空闲锁。
    - 控制台窗口的 pid/windowId 每次重开都变（19660 下 81463948 → 33753470 → 28967582）；本地 HTTP 端口也变（50202→53259）。用 `get_app_state {pid}` 的窗口映射重新发现，**注意正则要抓 `- windowId=N pid=.. "云开发控制台` 行，别被主窗口里的同名 pane 文本骗到**。
