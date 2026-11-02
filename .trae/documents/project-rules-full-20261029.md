@@ -646,3 +646,11 @@ alwaysApply: true
 - **被动提示（他人动作/轮询触发）三必须**：①判据带业务阶段，禁只判「有订单/有变化」；②幂等键写 Storage `once:<scene>:<id>:<阶段>`，禁只靠页面内存 `this.__x`（页面重建即失效）；③阶段并入键，状态推进才允许重提示。主动提示（本人点击）可用内存标记。
 - **门禁**：`scripts/check-once-prompts.js` 对内存标记双向精确校验（多做/少做均 FAIL），基线 `scripts/once-prompts-baseline.json`，双挂载 verify/offline。
 - **验收**：提示类功能须入 `FUNCTION-REGISTRY`，并写满「首进/重进/状态已推进」三场景。
+
+## 35. 通道可用性与门禁自省纪律（2026-11-02 实证新增）
+
+**R1 push 通道按「代理 → TLS 后端 → HTTP 版本」三层判读，不按单一报错下结论**：同一天内实测四种失败形态——`Empty reply from server`、直连 `Failed to connect after 21318 ms`、schannel `failed to receive handshake`、openssl `unexpected eof while reading`——**形态不同不等于原因相同**，须逐层换参复测。本机可用组合：`http.proxy=http://127.0.0.1:7890`（先 `Test-NetConnection 127.0.0.1 -Port 7890` 确认在听）+ `http.sslBackend=openssl`（schannel 失败）+ `http.version=HTTP/1.1`（规避中间设备 h2 缺陷）。该组合已固化到仓库级与全局 `git config`，此后直接 `git push` 即可；撤销用 `git config --global/local --unset <key>`。
+**R2 SSH 失败先看解析 IP**：`ssh -T git@github.com` 报 `Connection closed` 时，若 `ssh.github.com:443` 解析到 `198.18.x.x`（本机代理/VPN 的 fake-IP 段），说明 SSH 被 TUN 接管，**不是密钥未注册**；先关 TUN 或改代理规则，禁止反复 `ssh -T` 试错。
+**R3 门禁判据标签与测试夹具必须避开自身扫描词**：新增扫描类门禁时，判据标签（如 `[COMMIT-…]`）、测试文本、台账描述都可能被门禁自己命中（本会话实测：判据标签含占位词 → 最新台账被自己的门禁拦下）。落位要求：①标签用中性词；②测试用拼接构造假样本（假凭据/占位词一律不写成连续字面量）；③本门禁脚本与自测文件列入扫描豁免（如 `SELF` 正则）。
+**R4 门禁失败必须硬停，串联命令禁裸 `;`**：`cmd1; cmd2; git commit …` 在 PowerShell 中即使 cmd1 失败也会继续执行（本会话曾因此把未过门禁的状态 commit+push）。正确写法：`node scripts/check-x.js; if ($LASTEXITCODE -ne 0) { Write-Host 'FAILED'; exit 1 }; git commit …`。
+**R5 门禁体系防复发四层**：①**体积**（inject/conditional/归档 水位 + 速率门 + 配额制）；②**结构**（索引区间覆盖 + 归档正文节 + core 摘要覆盖 `[SUMMARY-GAP]`）；③**引用**（悬空 `§N`、live docs 链接、台账占位/冲突标记）；④**挂载**（每个门禁显式归类并三向一致 `[UNCLASSIFIED]`/`[STALE]`/`[MISSING-FILE]`；每个 `*.test.js` 必被 `npm test` glob 覆盖）。**每条新判据必须配负向用例**（植入违规 → EXIT=1 → 还原 → PASS），否则视为「可能永远绿」的空门禁。

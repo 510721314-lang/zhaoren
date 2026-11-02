@@ -107,7 +107,7 @@ const maxSection = Math.max(...sectionNums, intervalMax);
 
 // T-7.41：§10+ 必须被 core 摘要区覆盖（防「归档+索引有正文、core 摘要没提 → 模型永远看不到」）
 // 只解析「## 10–34.」到「## 附录A」之间，避免 §0–§9 正文里的零散 §N 引用被误算成覆盖
-const sumStart = core.indexOf('## 10–34.');
+const sumStart = core.search(/^## 10[–-][0-9]+\./m);
 const sumEnd = core.indexOf('## 附录A');
 const summaryBlock = sumStart >= 0 ? core.slice(sumStart, sumEnd > sumStart ? sumEnd : core.length) : '';
 const coveredBySummary = new Set();
