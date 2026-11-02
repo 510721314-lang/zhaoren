@@ -22,6 +22,7 @@ const DEPLOY_CRITICAL = new Set([
     'check-miniprogram-syntax.js',       // 小程序语法（上传即炸）
     'check-rules-size.js',               // 规则体系体积/水位
     'check-rule-refs.js',                // 悬空 §N 引用
+    'check-secrets.js',                  // 凭据泄漏（T-7.39）
     'check-gate-mounts.js',              // 本审计自身
 ]);
 const VERIFY_ONLY = new Set([
