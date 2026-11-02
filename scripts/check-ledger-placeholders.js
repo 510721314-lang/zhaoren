@@ -44,7 +44,7 @@ for (const f of files) {
     const lines = read(f).split('\n');
     lines.forEach((ln, i) => {
         if (/^(<<<<<<< |>>>>>>> )/.test(ln)) fails.push(`[CONFLICT] ${rel}:${i + 1} Git 冲突标记`);
-        if (/commit\s*[`「]?待填/.test(ln)) fails.push(`[COMMIT-TODO] ${rel}:${i + 1} 提交号仍为「待填」占位`);
+        if (/commit\s*[`「]?待填/.test(ln)) fails.push(`[COMMIT-UNCLOSED] ${rel}:${i + 1} 提交号未回填`);
     });
 }
 

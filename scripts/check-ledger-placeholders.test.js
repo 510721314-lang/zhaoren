@@ -50,7 +50,7 @@ test('M1 Git 冲突标记应 FAIL', () => {
 test('M2 提交号仍是待填占位应 FAIL', () => {
     withFixture({ 'docs/a.md': '结论：commit `待填`\n' }, ({ code, out }) => {
         assert.strictEqual(code, 1);
-        assert.match(out, /FAIL \[COMMIT-TODO\] docs\/a\.md:1/);
+        assert.match(out, /FAIL \[COMMIT-UNCLOSED\] docs\/a\.md:1/);
     });
 });
 
