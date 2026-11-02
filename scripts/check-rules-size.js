@@ -77,20 +77,29 @@ const core = read(corePath);
 const index = read(indexPath);
 const archiveText = fs.existsSync(archivePath) ? read(archivePath) : '';
 
+// 索引支持「区间映射」（2026-11-02 S1）：如 `§0–§9`、`§10–§34`；覆盖判据按区间认，不再要求逐节 `| §N |` 行
+const intervals = [];
+for (const m of index.matchAll(/§\s*(\d+)\s*[–—\-~]\s*§?\s*(\d+)/g)) {
+    intervals.push([parseInt(m[1], 10), parseInt(m[2], 10)]);
+}
+const coveredByInterval = n => intervals.some(([a, b]) => n >= a && n <= b);
+
 for (let n = 0; n <= 9; n++) {
     if (!core.includes(`## ${n}.`)) fails.push(`[CORE] project-rules-core.md 缺少核心节标题 "## ${n}."`);
 }
 
-// 上限不再硬编码：由 core / 索引 / 归档三处现有的最大 §N 自动推导（新增 §35 只写一处即会被拦）
+// 上限不再硬编码：由 core / 索引 / 归档三处现有的最大 §N 自动推导，并纳入索引区间上界
+// （区间上界也参与推导：若索引声明到 §35 而归档无 §35 正文，则由下面 [ARCHIVE] 拦下，不留静默空洞）
 const sectionNums = [core, index, archiveText].map(t => {
     const m = t.match(/^## [0-9]+\./gm) || [];
     return m.length ? Math.max(...m.map(s => parseInt(s.replace(/\D/g, ''), 10))) : 0;
 });
-const maxSection = Math.max(...sectionNums);
+const intervalMax = intervals.length ? Math.max(...intervals.map(i => i[1])) : 0;
+const maxSection = Math.max(...sectionNums, intervalMax);
 
 for (let n = 10; n <= maxSection; n++) {
-    if (!core.includes(`## ${n}.`) && !index.includes(`| §${n} |`)) {
-        fails.push(`[COVERAGE] §${n} 未出现在 project-rules-core.md 或 project_rules-20261013.md 索引`);
+    if (!core.includes(`## ${n}.`) && !index.includes(`| §${n} |`) && !coveredByInterval(n)) {
+        fails.push(`[COVERAGE] §${n} 未出现在 project-rules-core.md，也未被 project_rules-20261013.md 的索引行或区间覆盖`);
     }
     if (!new RegExp(`^## ${n}\\.`, 'm').test(archiveText)) {
         fails.push(`[ARCHIVE] 归档缺少 §${n} 正文节（摘要与索引指向空锚点）`);
