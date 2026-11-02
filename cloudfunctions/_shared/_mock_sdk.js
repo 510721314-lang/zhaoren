@@ -186,7 +186,8 @@ const commandProxy = new Proxy({}, {
     database() { calls.push({ method: 'database' }); return db; },
     getWXContext() { return { OPENID: openid }; },
     openapi: {
-      subscribeMessage: { send: async () => ({ errMsg: 'send:ok' }) },
+      // 2026-11-02 方案A: 允许测试注入订阅发送失败(如 errCode=43101), 默认成功
+      subscribeMessage: { send: opts.subMsgSend || (async () => ({ errMsg: 'send:ok' })) },
       security: { msgSecCheck: async () => ({ errCode: 0 }) }
     },
     // 测试断言面

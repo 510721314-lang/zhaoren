@@ -196,7 +196,7 @@ Page({
       tmplIds: [tmplId],
       success: (res) => {
         const accept = !!(res && res[tmplId] === 'accept');
-        callCloud('partner-action', { action: 'sub_authorize', tmpl: 'confirm_comm', authorized: accept }).catch(() => {});
+        callCloud('partner-action', { action: 'sub_authorize', tmpl: 'confirm_comm', authorized: accept, count: accept ? 1 : 0 }).catch(() => {});
       },
       fail: () => {}
     });

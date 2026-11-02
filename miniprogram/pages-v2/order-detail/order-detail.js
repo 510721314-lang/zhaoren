@@ -481,7 +481,15 @@ Page({
       success: (res) => {
         if (!res.confirm) return;
         const urge = o.urge || { count: 0, max: 2, can_urge: true };
-        const nudgeLabel = urge.can_urge ? `📢 催办 (${urge.count}/${urge.max})` : `📢 已催办 (${urge.count}/${urge.max})`;
+        // 2026-11-02: 按原因码显示按钮文案，修掉「已催办 (0/2)」这类误导
+        const urgeReason = {
+          oa_urge_not_started: '未到开始时间',
+          oa_urge_cancel_pending: '取消处理中',
+          oa_urge_frozen: '订单处理中',
+          oa_urge_limit: `已达上限(${urge.count}/${urge.max})`,
+          oa_urge_status: '当前不可催办'
+        }[String(urge.code || '')] || `已催办(${urge.count}/${urge.max})`;
+        const nudgeLabel = urge.can_urge ? `📢 催办 (${urge.count}/${urge.max})` : `📢 ${urgeReason}`;
         wx.showActionSheet({
           itemList: ['💬 联系耍伴', '📅 发起改期', nudgeLabel],
           success: (r) => {
@@ -490,7 +498,7 @@ Page({
             else if (r.tapIndex === 2) {
               // 催办耍伴: 每单上限 urge_max 次（后端 CAS 兜底）；耍伴收站内+订阅（已授权时）
               if (!urge.can_urge) {
-                wx.showToast({ title: `已达催办上限(${urge.max}次)`, icon: 'none' });
+                wx.showToast({ title: urgeReason, icon: 'none' });
                 return;
               }
               wx.showLoading({ title: '发送中', mask: true });
@@ -503,11 +511,11 @@ Page({
                   // 2026-10-30: 按订阅发送结果区分文案(一次性订阅: 一次授权只对应 1 条微信提醒)
                   if (rr.data && rr.data.sub_sent === false) {
                     const subErr = String(rr.data.sub_err || '');
-                    if (subErr === '43101' || subErr === 'NO_AUTH') {
+                    if (subErr === '43101' || subErr === 'NO_AUTH' || subErr === 'NO_QUOTA') {
                       // 额度用尽/对方未开提醒: 站内通知已送达, 用弹窗给出明确去处(替代一闪而过、无行动项的 toast)
                       wx.showModal({
                         title: '已催办 · 站内已送达',
-                        content: '微信提醒每次授权只能发 1 条，对方需在小程序内重新开启。可先发消息提醒对方。',
+                        content: '微信提醒每次授权仅 1 条（最多累积 2 条），当前额度已用完，对方需在小程序内重新开启。可先发消息提醒对方。',
                         confirmText: '去聊天',
                         cancelText: '知道了',
                         success: (m) => { if (m.confirm) this.goChat(); }

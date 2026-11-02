@@ -86,6 +86,58 @@ test('nudge_partner: 合法催办 → ok + 写 order_main 与 system_notice', as
   assert.strictEqual(notice.data.to_openid, PARTNER);
 });
 
+// 5b. 2026-11-02 方案A: 额度已用完 → 发送前拦截(NO_QUOTA), 不调微信接口
+test('nudge_partner: 订阅额度已用完 → NO_QUOTA 且不调用微信', async () => {
+  const store = baseStore();
+  store.admin_config.global.sub_msg_templates = { demand_urge: { tmpl_id: 'TMPL_URGE' } };
+  store.partner_profile = { p1: { _id: 'p1', openid: PARTNER, sub_msgs: { demand_urge: { authorized: true, granted_count: 1, sent_count: 1 } } } };
+  let calls = 0;
+  const sdk = makeSdk({ openid: USER, store, subMsgSend: async () => { calls++; return { errMsg: 'send:ok' }; } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'nudge_partner', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.sub_sent, false);
+  assert.strictEqual(r.data.sub_err, 'NO_QUOTA');
+  assert.strictEqual(calls, 0, '额度为 0 时不得调用微信发送');
+});
+
+// 5c. 2026-11-02 方案A: 43101 → 计数收口(authorized=false) + 站内「已用完」通知
+test('nudge_partner: 43101 → 授权关闭且写 sub_quota 站内通知', async () => {
+  const store = baseStore();
+  store.admin_config.global.sub_msg_templates = { demand_urge: { tmpl_id: 'TMPL_URGE' } };
+  store.partner_profile = { p1: { _id: 'p1', openid: PARTNER, sub_msgs: { demand_urge: { authorized: true, granted_count: 2, sent_count: 1 } } } };
+  const sdk = makeSdk({
+    openid: USER, store,
+    subMsgSend: async () => { const e = new Error('43101'); e.errCode = 43101; throw e; }
+  });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'nudge_partner', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.sub_sent, false);
+  assert.strictEqual(String(r.data.sub_err), '43101');
+  const upd = (sdk.writes.partner_profile || []).find((w) => w.doc === 'p1');
+  assert.ok(upd, '应更新耍伴订阅状态');
+  assert.strictEqual(upd.data.sub_msgs.demand_urge.authorized, false);
+  assert.strictEqual(upd.data.sub_msgs.demand_urge.sent_count, 2);
+  const quotaNotice = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'sub_quota');
+  assert.ok(quotaNotice, '额度用尽应写站内「已用完」通知');
+  assert.strictEqual(quotaNotice.data.to_openid, PARTNER);
+});
+
+// 5d. 2026-11-02 方案A: 成功发送消费 1 条, 2 条授权发 1 条后仍有 1 条
+test('nudge_partner: 发送成功 → sent_count+1, 剩余 1 条仍 authorized', async () => {
+  const store = baseStore();
+  store.admin_config.global.sub_msg_templates = { demand_urge: { tmpl_id: 'TMPL_URGE' } };
+  store.partner_profile = { p1: { _id: 'p1', openid: PARTNER, sub_msgs: { demand_urge: { authorized: true, granted_count: 2, sent_count: 0 } } } };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'nudge_partner', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.data.sub_sent, true);
+  const upd = (sdk.writes.partner_profile || []).find((w) => w.doc === 'p1');
+  assert.strictEqual(upd.data.sub_msgs.demand_urge.sent_count, 1);
+  assert.strictEqual(upd.data.sub_msgs.demand_urge.authorized, true);
+});
+
 // 6. cancel: 非订单参与方 → oa_not_participant（roleOf 门，与 nudge 的精确匹配门互补）
 test('cancel: 非参与方 → oa_not_participant', async () => {
   const sdk = makeSdk({ openid: 'o_stranger', store: baseStore() });

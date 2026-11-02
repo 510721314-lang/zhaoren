@@ -18,6 +18,8 @@ const { getGlobalConfig } = require('./config_cache');  // 2026-10-28 用量治�
 const { casTransition } = require('./order_state');
 // Wave2 止血⑥: S2 履约催办三段式纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
 const { dueStages } = require('./urge_rules');
+// 订阅消息统一封装(2026-11-02 方案A): 规范源 _shared/sub_msg.js, 修改后跑 sync-sub-msg.ps1
+const { stateOf, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
 // 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
 const { starCreditDelta } = require('./credit_rules');
 // G3 超时前提醒纯规则(规范源 _shared/timeout_remind_rules.js, 修改后跑 sync-timeout-remind-rules.ps1)
@@ -278,7 +280,10 @@ function fmtDate(ts) {
 //   配额耗尽(errno 43101, 一次性订阅 quota) / 字段不足 → 一律 catch 吞掉, 绝不阻断 system_notice 与原流程。
 // 字段映射通过 admin_config.sub_msg_templates.demand_grab.fields 配置化下发(缺省 thing1=内容, thing2=场景, time=开始时间),
 // 关键字→值 的 key 由模板字段号决定(thing1/thing2/time几), 不硬编码。
-async function sendDemandSub(d, subTmpl, openid, httpsPusher) {
+async function sendDemandSub(d, subTmpl, openid, profile, httpsPusher) {
+  const prev = profile && profile.sub_msgs && profile.sub_msgs.demand_grab;
+  const st = stateOf(prev);
+  if (!st.canSend) return;                                   // 未授权/额度已用完 → 仅站内
   const map = Object.assign(
     { thing1: 'subject', thing2: 'scene', time: 'start_time' },
     (subTmpl.fields && typeof subTmpl.fields === 'object') ? subTmpl.fields : {}
@@ -304,28 +309,32 @@ async function sendDemandSub(d, subTmpl, openid, httpsPusher) {
     data,
     miniprogramState: subTmpl.miniprogram_state || 'formal'
   };
-  try {
-    // 批 6.1: 配置了 sub_msg_https(appid+secret) 则走 HTTPS 直连微信, 否则回退云调用
-    if (httpsPusher) {
-      entry.channel = 'https';
-      await httpsPusher.send(sendArgs);
-    } else {
-      entry.channel = 'cloud';
-      await cloud.openapi.subscribeMessage.send({
-        touser: sendArgs.touser, templateId: sendArgs.templateId,
-        page: sendArgs.page, data: sendArgs.data, miniprogramState: sendArgs.miniprogramState
-      });
-    }
-  } catch (e) {
-    entry.status = 'fail';
-    entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
-    entry.errMsg = String((e && (e.errMsg || e.message)) || '');
-    throw e; // 保持调用处 .catch 语义: log.w + 不阻断流程
-  } finally {
+  // 2026-11-02 方案A: 统一走 _shared/sub_msg.js sendOnce(唯一 send 入口);
+  // 配置了 HTTPS 直连(push_https) 时作为 sender 传入, 否则默认云调用。
+  const sender = httpsPusher ? (a) => httpsPusher.send(a) : null;
+  const res = await sendOnce(cloud, sendArgs, sender);
+  entry.channel = sender ? 'https' : 'cloud';
+  if (res.sent) {
     try {
-      await col('demand').doc(d._id).update({ data: { sub_msg_send_logs: _.push([entry]), updated_at: Date.now() } });
-    } catch (e2) {}
+      await col('partner_profile').doc(profile._id).update({ data: {
+        sub_msgs: withKey(profile.sub_msgs, 'demand_grab', sentPatch(prev, Date.now())), updated_at: Date.now()
+      } });
+    } catch (e1) {}
+  } else {
+    entry.status = 'fail';
+    entry.errCode = res.errCode;
+    entry.errMsg = res.errMsg;
+    if (String(res.errCode) === '43101') {
+      try {
+        await col('partner_profile').doc(profile._id).update({ data: {
+          sub_msgs: withKey(profile.sub_msgs, 'demand_grab', exhaustedPatch(prev, Date.now())), updated_at: Date.now()
+        } });
+      } catch (e3) {}
+    }
   }
+  try {
+    await col('demand').doc(d._id).update({ data: { sub_msg_send_logs: _.push([entry]), updated_at: Date.now() } });
+  } catch (e2) {}
 }
 async function processDemandNotify(now, cfg) {
   const done = [];
@@ -357,9 +366,9 @@ async function processDemandNotify(now, cfg) {
       const hl = p.home_location || {};
       if (!hasLoc || !validLngLat(hl.latitude, hl.longitude)) continue;
       if (haversineKm(dLoc.latitude, dLoc.longitude, hl.latitude, hl.longitude) > eff) continue;
-      // 订阅授权标记: 抢单提醒已授权(partner_profile.sub_msgs.demand_grab.authorized===true)
-      const sub = !!(p.sub_msgs && p.sub_msgs.demand_grab && p.sub_msgs.demand_grab.authorized === true);
-      targets.push({ openid: p.openid, sub });
+      // 订阅授权/额度: 2026-11-02 方案A 统一按计数判定(存量布尔模型按 1 条兼容)
+      const sub = stateOf(p.sub_msgs && p.sub_msgs.demand_grab).canSend;
+      targets.push({ openid: p.openid, sub, profile: p });
     }
     let pushed = 0;
     if (targets.length) {
@@ -374,10 +383,10 @@ async function processDemandNotify(now, cfg) {
       pushed = results.filter((r) => r.status === 'fulfilled').length;
       // 订阅消息增强(不阻断): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)仅告警(log.w)不阻断流程
       const subTmpl = (cfg.sub_msg_templates && cfg.sub_msg_templates.demand_grab) || null;
-      const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub).map((t) => t.openid) : [];
+      const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub) : [];
       if (subTargets.length) {
-        await Promise.allSettled(subTargets.map((openid) => sendDemandSub(d, subTmpl, openid, httpsPusher).catch((e) => {
-          log.w(`sub_msg send fail ${openid}: errCode=${(e && e.errCode) || ''} ${(e && (e.errMsg || e.message)) || ''}`);
+        await Promise.allSettled(subTargets.map((t) => sendDemandSub(d, subTmpl, t.openid, t.profile, httpsPusher).catch((e) => {
+          log.w(`sub_msg send fail ${t.openid}: errCode=${(e && e.errCode) || ''} ${(e && (e.errMsg || e.message)) || ''}`);
         })));
       }
     }

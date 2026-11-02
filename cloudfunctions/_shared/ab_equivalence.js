@@ -676,6 +676,9 @@ function loadWith(dir, file, sdk) {
     // 2026-11-02 P2-12/13: balance_info 新增 today_pending / week_income_fen(additive, 旧字段保留);
     // 行为由 payment-mock.entry.test.js 新增 1 例独立守护(今日待履约计数 + 本周收入字段)
     'pm_balance_info', 'auto_pm_balance_info',
+    // 2026-11-02 方案A: sub_authorize 响应 sub_msgs 新增 granted_count/sent_count/last_authorized_at(additive);
+    // 行为由 partner-action.entry.test.js 新增 2 例独立守护(count=2 累积 / 关闭清零)
+    'pa_sub_ok', 'auto_pa_sub_authorize',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

@@ -1,4 +1,6 @@
 // action_config.js — 从 index.js 物理抽出, 行为逐字不变; 共享符号经 ctx 注入, 禁 require('./index')
+// 订阅消息授权状态机(2026-11-02 方案A): 规范源 _shared/sub_msg.js, 修改后跑 sync-sub-msg.ps1
+const { authorizePatch, revokePatch, withKey } = require('./sub_msg');
 
     // 0. 申请成为耍伴 (upsert partner_profile)
     //    审核红线: 仅 admin_config.auto_approve_partner === true 时自动开通;
@@ -362,14 +364,19 @@ async function subAuthorizeAction(ctx) {
       if (['demand_grab', 'demand_urge', 'confirm_comm'].indexOf(tmpl) < 0) return { ok: false, code: 'pa_sub_tmpl_bad', msg: '不支持的订阅模板' };
       const profile = await getProfile(openid);
       if (!profile) return { ok: false, code: 'pa_no_profile', msg: '你还不是耍伴' };
-      const sub_msgs = Object.assign({}, profile.sub_msgs || {}, {
-        [tmpl]: { authorized: !!event.authorized, updated_at: Date.now() }
-      });
-      await col('partner_profile').doc(profile._id).update({ data: { sub_msgs, updated_at: Date.now() } });
+      // 2026-11-02 方案A: 一次性订阅按“条”计数。客户端上报本次实际 accept 次数(1/2), 缺省 1。
+      // 存量为布尔模型时 stateOf 按 granted_count=1 兼容; 关闭开关则清零。
+      const now = Date.now();
+      const prev = profile.sub_msgs && profile.sub_msgs[tmpl];
+      const on = !!event.authorized;
+      const count = on ? Math.max(1, Math.min(2, Number(event.count) || 1)) : 0;
+      const next = on ? authorizePatch(prev, count, now) : revokePatch(prev, now);
+      const sub_msgs = withKey(profile.sub_msgs, tmpl, next);
+      await col('partner_profile').doc(profile._id).update({ data: { sub_msgs, updated_at: now } });
       await writeAudit(db, log, {
         openid, role: 'partner', category: 'business', action: 'partner_sub_authorize',
         target_type: 'partner_profile', target_id: profile._id,
-        detail: { tmpl, authorized: !!event.authorized }, result: 'ok', client_ip: clientIp, device
+        detail: { tmpl, authorized: on, count }, result: 'ok', client_ip: clientIp, device
       });
       return { ok: true, data: { sub_msgs } };
 }

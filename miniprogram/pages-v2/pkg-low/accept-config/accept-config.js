@@ -499,19 +499,25 @@ Page({
       }
       // 2026-10-30 实测证实: 一次点击连调 2 次可累积 2 条一次性订阅额度(仅催办提醒 demand_urge)
       // 依据: 开关开启后需求方连催 2 次, order_main.sub_msg_send_logs 两条均 status=ok
+      let accepted = 1;   // 2026-11-02 方案A: 上报本次实际 accept 次数, 供服务端计数
       if (isUrge) {
         try {
           const res2 = await wx.requestSubscribeMessage({ tmplIds: [cfg.tmplId] });
-          if (res2 && res2[cfg.tmplId] === 'accept') {
-            // 第 2 条额度已累积(若无"总是保持"选择, 此处会再弹一次授权框)
-          }
+          if (res2 && res2[cfg.tmplId] === 'accept') accepted = 2;
         } catch (e2) {}
       }
+      const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl, authorized: true, count: accepted });
+      this.setData({ [authKey]: r.ok ? true : this.data[authKey] });
+      wx.showToast({
+        title: r.ok ? `已开启${label}` : (r.msg || '操作失败'),
+        icon: 'none'
+      });
+      return;
     }
-    const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl, authorized: on });
-    this.setData({ [authKey]: r.ok ? on : this.data[authKey] });
+    const r = await callCloud('partner-action', { action: 'sub_authorize', tmpl, authorized: false, count: 0 });
+    this.setData({ [authKey]: r.ok ? false : this.data[authKey] });
     wx.showToast({
-      title: r.ok ? (on ? `已开启${label}` : `已关闭${label}`) : (r.msg || '操作失败'),
+      title: r.ok ? `已关闭${label}` : (r.msg || '操作失败'),
       icon: 'none'
     });
   },

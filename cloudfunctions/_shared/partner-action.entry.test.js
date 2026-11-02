@@ -82,6 +82,27 @@ test('sub_authorize confirm_comm 合法 → 落库 sub_msgs.confirm_comm', async
   assert.strictEqual(r.data.sub_msgs.confirm_comm.authorized, true);
 });
 
+// 2026-11-02 方案A: count=2 → granted_count=2; 关闭 → 清零
+test('sub_authorize demand_urge count=2 → granted_count=2 且 authorized=true', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ partner_profile: { p1: { _id: 'p1', openid: USER } } }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sub_authorize', tmpl: 'demand_urge', authorized: true, count: 2, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.sub_msgs.demand_urge.granted_count, 2);
+  assert.strictEqual(r.data.sub_msgs.demand_urge.sent_count, 0);
+  assert.strictEqual(r.data.sub_msgs.demand_urge.authorized, true);
+});
+
+test('sub_authorize 关闭 → 计数清零且 authorized=false', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ partner_profile: { p1: { _id: 'p1', openid: USER, sub_msgs: { demand_urge: { authorized: true, granted_count: 2, sent_count: 1 } } } } }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sub_authorize', tmpl: 'demand_urge', authorized: false, count: 0, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.sub_msgs.demand_urge.granted_count, 0);
+  assert.strictEqual(r.data.sub_msgs.demand_urge.sent_count, 0);
+  assert.strictEqual(r.data.sub_msgs.demand_urge.authorized, false);
+});
+
 // get_exam_questions 科目不存在 → pa_exam_bad_subject
 test('get_exam_questions 科目不存在 → pa_exam_bad_subject', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore() });

@@ -28,6 +28,8 @@ const { noShowCfg, canSubmitReport, defenseDeadlineOf, canWithdrawReport, REPORT
 const { casTransition } = require('./order_state');
 // Wave2 止血⑥: S2 履约催办纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
 const { canManualUrge } = require('./urge_rules');
+// 订阅消息统一封装(2026-11-02 方案A): 规范源 _shared/sub_msg.js, 修改后跑 sync-sub-msg.ps1
+const { stateOf, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
@@ -237,19 +239,20 @@ function allConfirmed(items) {
 }
 
 // Wave2 止血⑥: 催办提醒订阅发送（手动催办由小程序端触发 → 云调用有效；失败/未授权/未配模板一律降级，不阻断）
+// 2026-11-02 方案A: 一次性订阅按“条”计数; 发送前先查计数, 成功后消费 1 条, 43101 收口并写站内。
 async function sendUrgeSub(order, config, now, used) {
   const tmpl = (config && config.sub_msg_templates && config.sub_msg_templates.demand_urge) || null;
-  // 2026-10-30 T-7.26 配套: 早退分支回传原因码, 避免前端把"未授权/未配模板"误报成"发送失败"
   if (!tmpl || !tmpl.tmpl_id) return { sent: false, errCode: 'NO_TMPL', errMsg: '' };  // 未配模板 → 静默降级
   const p = order.partner_openid;
   if (!p) return { sent: false, errCode: 'NO_OPENID', errMsg: '' };
-  let authorized = false;                                    // 耍伴需已授权 demand_urge
+  let prof = {};
   try {
     const pr = await col('partner_profile').where({ openid: p }).limit(1).get();
-    const prof = (pr.data && pr.data[0]) || {};
-    authorized = !!(prof.sub_msgs && prof.sub_msgs.demand_urge && prof.sub_msgs.demand_urge.authorized === true);
+    prof = (pr.data && pr.data[0]) || {};
   } catch (e) { return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
-  if (!authorized) return { sent: false, errCode: 'NO_AUTH', errMsg: '' };
+  const prev = prof.sub_msgs && prof.sub_msgs.demand_urge;
+  const st = stateOf(prev);                                  // 存量布尔模型按 1 条兼容
+  if (!st.canSend) return { sent: false, errCode: st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH', errMsg: '' };
   const fields = Object.assign({ thing4: 'urge_content', time3: 'urge_time' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
   const pad = (n) => (n < 10 ? '0' + n : '' + n);
@@ -264,60 +267,60 @@ async function sendUrgeSub(order, config, now, used) {
     else if (typeof s === 'string') v = String(s);
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
-  if (!Object.keys(data).length) return;
-  // 2026-10-29: 发送结果落库 order_main.sub_msg_send_logs(成功/失败均记), 补送达验证留痕
-  // 2026-10-30: 改为返回 {sent,errCode,errMsg}(不再抛出), 供 nudge_partner 回传前端区分"已送达/额度用尽/发送失败"
+  if (!Object.keys(data).length) return { sent: false, errCode: 'NO_DATA', errMsg: '' };
+  // 发送结果落库 order_main.sub_msg_send_logs(成功/失败均记), 补送达验证留痕
   const entry = { key: 'demand_urge', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
-  try {
-    await cloud.openapi.subscribeMessage.send({
-      touser: p, templateId: tmpl.tmpl_id, page: tmpl.page || 'pages-v2/order-detail/order-detail',
-      data, miniprogramState: tmpl.miniprogram_state || 'formal'
-    });
-    return { sent: true, errCode: '', errMsg: '' };
-  } catch (e) {
+  const res = await sendOnce(cloud, {
+    touser: p, templateId: tmpl.tmpl_id, page: tmpl.page || 'pages-v2/order-detail/order-detail',
+    data, miniprogramState: tmpl.miniprogram_state || 'formal'
+  });
+  if (res.sent) {
+    // 成功即消费 1 条; 用尽则 authorized=false, 使接单配置开关回到“关”
+    try {
+      await col('partner_profile').doc(prof._id).update({ data: {
+        sub_msgs: withKey(prof.sub_msgs, 'demand_urge', sentPatch(prev, Date.now())), updated_at: Date.now()
+      } });
+    } catch (e1) {}
+  } else {
     entry.status = 'fail';
-    entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
-    entry.errMsg = String((e && (e.errMsg || e.message)) || '');
-    // 2026-10-30 T-7.26: 43101 = 一次性订阅额度已用尽 → 关闭授权标记, 使接单配置「催办提醒」开关回到"关", 引导耍伴重新授权
-    if (String(entry.errCode) === '43101') {
+    entry.errCode = res.errCode;
+    entry.errMsg = res.errMsg;
+    // 43101 = 一次性订阅额度已用尽 → 计数收口 + 站内通知(解释开关为何关闭 + 一键重开)
+    if (String(res.errCode) === '43101') {
       try {
-        await col('partner_profile').where({ openid: p }).update({
-          data: {
-            'sub_msgs.demand_urge.authorized': false,
-            'sub_msgs.demand_urge.quota_empty_at': Date.now()
-          }
-        });
+        await col('partner_profile').doc(prof._id).update({ data: {
+          sub_msgs: withKey(prof.sub_msgs, 'demand_urge', exhaustedPatch(prev, Date.now())), updated_at: Date.now()
+        } });
       } catch (e3) {}
-      // 2026-10-30: 额度用尽时给耍伴写一条站内通知(解释开关为何自动关闭 + 一键去重新开启; 站内必达, 不依赖微信)
-      writeNotice({
-        to_openid: p,
-        order_id: order._id,
-        type: 'sub_quota',
-        title: '微信催办提醒已用完',
-        body: '点此重新开启，可再收 1 条催办提醒',
-        action_key: 'jump_accept_config'
-      });
+      try {
+        await writeNotice({
+          to_openid: p, order_id: order._id, type: 'sub_quota',
+          title: '微信催办提醒已用完',
+          body: '点此重新开启，可再收 1 条催办提醒',
+          action_key: 'jump_accept_config'
+        });
+      } catch (e4) {}
     }
-    return { sent: false, errCode: entry.errCode, errMsg: entry.errMsg };
-  } finally {
-    try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
   }
+  try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+  return { sent: res.sent, errCode: res.errCode, errMsg: res.errMsg };
 }
 
 // 2026-10-17: 四确认沟通订阅发送（用户在四确认面板提交修改/沟通 → 耍伴端微信订阅消息, 离端即时提醒）
-// 未配模板/耍伴未授权/发送失败一律静默降级(退回站内 system_notice + 聊天页端内弹窗), 绝不阻断原流程
+// 2026-11-02 方案A: 与催办共用计数状态机; 43101 收口并写站内, 不再静默 throw。
 async function sendCommSub(order, config, item) {
   const tmpl = (config && config.sub_msg_templates && config.sub_msg_templates.confirm_comm) || null;
-  if (!tmpl || !tmpl.tmpl_id) return;                       // 未配模板 → 静默降级
+  if (!tmpl || !tmpl.tmpl_id) return { sent: false, errCode: 'NO_TMPL', errMsg: '' };
   const p = order.partner_openid;
-  if (!p) return;
-  let authorized = false;                                    // 耍伴需已授权 confirm_comm(一次性订阅)
+  if (!p) return { sent: false, errCode: 'NO_OPENID', errMsg: '' };
+  let prof = {};
   try {
     const pr = await col('partner_profile').where({ openid: p }).limit(1).get();
-    const prof = (pr.data && pr.data[0]) || {};
-    authorized = !!(prof.sub_msgs && prof.sub_msgs.confirm_comm && prof.sub_msgs.confirm_comm.authorized === true);
-  } catch (e) { return; }
-  if (!authorized) return;
+    prof = (pr.data && pr.data[0]) || {};
+  } catch (e) { return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
+  const prev = prof.sub_msgs && prof.sub_msgs.confirm_comm;
+  const st = stateOf(prev);
+  if (!st.canSend) return { sent: false, errCode: st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH', errMsg: '' };
   const fields = Object.assign({ thing1: 'comm_item', time2: 'comm_time', thing3: 'comm_scene' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
   const pad = (n) => (n < 10 ? '0' + n : '' + n);
@@ -333,23 +336,41 @@ async function sendCommSub(order, config, item) {
     else if (typeof s === 'string') v = String(s);
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
-  if (!Object.keys(data).length) return;
-  // 2026-10-29: 同 sendUrgeSub, 发送结果落 order_main.sub_msg_send_logs(成功/失败均记)
+  if (!Object.keys(data).length) return { sent: false, errCode: 'NO_DATA', errMsg: '' };
   const entry = { key: 'confirm_comm', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
-  try {
-    await cloud.openapi.subscribeMessage.send({
-      touser: p, templateId: tmpl.tmpl_id,
-      page: tmpl.page || `pages-v2/chat/chat?orderId=${order._id}`,
-      data, miniprogramState: tmpl.miniprogram_state || 'formal'
-    });
-  } catch (e) {
+  const res = await sendOnce(cloud, {
+    touser: p, templateId: tmpl.tmpl_id,
+    page: tmpl.page || `pages-v2/chat/chat?orderId=${order._id}`,
+    data, miniprogramState: tmpl.miniprogram_state || 'formal'
+  });
+  if (res.sent) {
+    try {
+      await col('partner_profile').doc(prof._id).update({ data: {
+        sub_msgs: withKey(prof.sub_msgs, 'confirm_comm', sentPatch(prev, Date.now())), updated_at: Date.now()
+      } });
+    } catch (e1) {}
+  } else {
     entry.status = 'fail';
-    entry.errCode = (e && e.errCode !== undefined) ? e.errCode : '';
-    entry.errMsg = String((e && (e.errMsg || e.message)) || '');
-    throw e;
-  } finally {
-    try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+    entry.errCode = res.errCode;
+    entry.errMsg = res.errMsg;
+    if (String(res.errCode) === '43101') {
+      try {
+        await col('partner_profile').doc(prof._id).update({ data: {
+          sub_msgs: withKey(prof.sub_msgs, 'confirm_comm', exhaustedPatch(prev, Date.now())), updated_at: Date.now()
+        } });
+      } catch (e3) {}
+      try {
+        await writeNotice({
+          to_openid: p, order_id: order._id, type: 'sub_quota',
+          title: '微信沟通提醒已用完',
+          body: '点此重新开启，可再收 1 条沟通提醒',
+          action_key: 'jump_accept_config'
+        });
+      } catch (e4) {}
+    }
   }
+  try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+  return { sent: res.sent, errCode: res.errCode, errMsg: res.errMsg };
 }
 
 // ── action 分发表：已物理抽到同级 action_*.js 的 handler 在此注册，ctx 注入共享符号 ──

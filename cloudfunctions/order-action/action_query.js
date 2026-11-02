@@ -109,6 +109,7 @@ async function detail(ctx) {
     count: Number(order.urge_count) || 0,
     max: urgeGate.max || (cfg && cfg.urge_max_count) || 2,
     can_urge: role === 'user' && urgeGate.ok,
+    code: urgeGate.ok ? '' : (urgeGate.code || ''),   // 2026-11-02: 供前端按原因显示按钮文案
     auto_reminded: !!order.urge_t1_at,
     logs: Array.isArray(order.urge_logs) ? order.urge_logs.slice(-3) : []
   };
