@@ -18,6 +18,13 @@ function stateOf(raw) {
   return { granted, sent, canSend: s.authorized === true && granted > sent };
 }
 
+// 2026-11-02 P0热修(F1): 旧版发送成功未落 sent_count, 存量布尔 true 无法判断是否已消费,
+// 本地硬拦会静默漏发(用户"没收到任何通知")。只要 granted > sent 就值得尝试, 由微信侧 43101 兜底收口。
+function softCanSend(raw) {
+  const st = stateOf(raw);
+  return st.granted > st.sent;
+}
+
 // 授权：累计 granted_count（客户端上报本次实际 accept 次数 1/2），保留已发送计数
 function authorizePatch(raw, count, now) {
   const st = stateOf(raw);
@@ -91,4 +98,4 @@ async function sendOnce(cloud, args, sender) {
   }
 }
 
-module.exports = { stateOf, authorizePatch, revokePatch, sentPatch, exhaustedPatch, withKey, sendOnce, MAX_GRANT };
+module.exports = { stateOf, softCanSend, authorizePatch, revokePatch, sentPatch, exhaustedPatch, withKey, sendOnce, MAX_GRANT };

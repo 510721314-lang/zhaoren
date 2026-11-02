@@ -19,7 +19,7 @@ const { casTransition } = require('./order_state');
 // Wave2 止血⑥: S2 履约催办三段式纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
 const { dueStages } = require('./urge_rules');
 // 订阅消息统一封装(2026-11-02 方案A): 规范源 _shared/sub_msg.js, 修改后跑 sync-sub-msg.ps1
-const { stateOf, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
+const { softCanSend, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
 // 信用分规则(规范源 _shared/credit_rules.js, 修改后跑 sync-credit-rules.ps1)
 const { starCreditDelta } = require('./credit_rules');
 // G3 超时前提醒纯规则(规范源 _shared/timeout_remind_rules.js, 修改后跑 sync-timeout-remind-rules.ps1)
@@ -282,8 +282,8 @@ function fmtDate(ts) {
 // 关键字→值 的 key 由模板字段号决定(thing1/thing2/time几), 不硬编码。
 async function sendDemandSub(d, subTmpl, openid, profile, httpsPusher) {
   const prev = profile && profile.sub_msgs && profile.sub_msgs.demand_grab;
-  const st = stateOf(prev);
-  if (!st.canSend) return;                                   // 未授权/额度已用完 → 仅站内
+  // 2026-11-02 P0热修(F1): 存量布尔可能已被旧版消费但无 sent_count → 放宽为"有额度就尝试", 43101 兜底
+  if (!softCanSend(prev)) return;                            // 未授权/额度确已用完 → 仅站内
   const map = Object.assign(
     { thing1: 'subject', thing2: 'scene', time: 'start_time' },
     (subTmpl.fields && typeof subTmpl.fields === 'object') ? subTmpl.fields : {}
@@ -367,7 +367,7 @@ async function processDemandNotify(now, cfg) {
       if (!hasLoc || !validLngLat(hl.latitude, hl.longitude)) continue;
       if (haversineKm(dLoc.latitude, dLoc.longitude, hl.latitude, hl.longitude) > eff) continue;
       // 订阅授权/额度: 2026-11-02 方案A 统一按计数判定(存量布尔模型按 1 条兼容)
-      const sub = stateOf(p.sub_msgs && p.sub_msgs.demand_grab).canSend;
+      const sub = softCanSend(p.sub_msgs && p.sub_msgs.demand_grab);
       targets.push({ openid: p.openid, sub, profile: p });
     }
     let pushed = 0;

@@ -29,7 +29,7 @@ const { casTransition } = require('./order_state');
 // Wave2 止血⑥: S2 履约催办纯规则(规范源 _shared/urge_rules.js, 修改后跑 sync-urge-rules.ps1)
 const { canManualUrge } = require('./urge_rules');
 // 订阅消息统一封装(2026-11-02 方案A): 规范源 _shared/sub_msg.js, 修改后跑 sync-sub-msg.ps1
-const { stateOf, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
+const { stateOf, softCanSend, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
@@ -252,7 +252,17 @@ async function sendUrgeSub(order, config, now, used) {
   } catch (e) { return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
   const prev = prof.sub_msgs && prof.sub_msgs.demand_urge;
   const st = stateOf(prev);                                  // 存量布尔模型按 1 条兼容
-  if (!st.canSend) return { sent: false, errCode: st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH', errMsg: '' };
+  // 2026-11-02 P0热修(F1): 存量可能已被旧版消费但无 sent_count → 放宽为"有额度就尝试", 43101 兜底
+  if (!softCanSend(prev)) {
+    const localErr = st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH';
+    // P0热修(F4): 本地拦截也留痕, 便于事后查证"为什么没收到"
+    try {
+      await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([
+        { key: 'demand_urge', openid: p, at: Date.now(), channel: 'local', status: 'fail', errCode: localErr, errMsg: 'skipped_by_local' }
+      ]) } });
+    } catch (e5) {}
+    return { sent: false, errCode: localErr, errMsg: '' };
+  }
   const fields = Object.assign({ thing4: 'urge_content', time3: 'urge_time' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
   const pad = (n) => (n < 10 ? '0' + n : '' + n);
@@ -320,7 +330,16 @@ async function sendCommSub(order, config, item) {
   } catch (e) { return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
   const prev = prof.sub_msgs && prof.sub_msgs.confirm_comm;
   const st = stateOf(prev);
-  if (!st.canSend) return { sent: false, errCode: st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH', errMsg: '' };
+  // 2026-11-02 P0热修(F1/F4): 同催办链, 放宽本地判定 + 拦截留痕
+  if (!softCanSend(prev)) {
+    const localErr = st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH';
+    try {
+      await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([
+        { key: 'confirm_comm', openid: p, at: Date.now(), channel: 'local', status: 'fail', errCode: localErr, errMsg: 'skipped_by_local' }
+      ]) } });
+    } catch (e5) {}
+    return { sent: false, errCode: localErr, errMsg: '' };
+  }
   const fields = Object.assign({ thing1: 'comm_item', time2: 'comm_time', thing3: 'comm_scene' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
   const pad = (n) => (n < 10 ? '0' + n : '' + n);

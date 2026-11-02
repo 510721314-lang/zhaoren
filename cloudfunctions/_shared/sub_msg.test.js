@@ -1,7 +1,7 @@
 // cloudfunctions/_shared/sub_msg.test.js — 订阅消息计数状态机单测(方案A 2026-11-02)
 const test = require('node:test');
 const assert = require('node:assert');
-const { stateOf, authorizePatch, revokePatch, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
+const { stateOf, softCanSend, authorizePatch, revokePatch, sentPatch, exhaustedPatch, withKey, sendOnce } = require('./sub_msg');
 
 test('存量布尔模型: authorized=true 按 1 条授权兼容', () => {
   const st = stateOf({ authorized: true });
@@ -11,6 +11,21 @@ test('存量布尔模型: authorized=true 按 1 条授权兼容', () => {
 test('存量未授权/空值 → 不可发送', () => {
   assert.deepStrictEqual(stateOf({ authorized: false }), { granted: 0, sent: 0, canSend: false });
   assert.deepStrictEqual(stateOf(undefined), { granted: 0, sent: 0, canSend: false });
+});
+
+// 2026-11-02 P0热修(F1): 存量布尔可能已被旧版消费(无 sent_count), 放宽判定后允许尝试一次, 由 43101 收口
+test('softCanSend: 存量布尔 true 即使 canSend 为真也放行尝试', () => {
+  assert.strictEqual(softCanSend({ authorized: true }), true);
+  assert.strictEqual(softCanSend(undefined), false);
+  assert.strictEqual(softCanSend({ authorized: false }), false);
+});
+
+test('softCanSend: authorized=false 但计数仍有余额 → 放行尝试', () => {
+  assert.strictEqual(softCanSend({ authorized: false, granted_count: 2, sent_count: 0 }), true);
+});
+
+test('softCanSend: 额度确已用尽(granted==sent) → 拦截', () => {
+  assert.strictEqual(softCanSend({ authorized: true, granted_count: 2, sent_count: 2 }), false);
 });
 
 test('授权 2 条 → granted_count=2, 尚未发送仍可发', () => {
