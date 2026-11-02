@@ -80,8 +80,9 @@ Page({
         };
         d.fundAmountMap = amtMap;
         d.fundAmount = amtMap[this.data.fundActive] || amtMap.withdrawable;
-        d.weekIncomeYuan = ((b.month_income_fen || 0) / 100).toFixed(2);
-        d.todayCount = b.total_completed || 0;
+        // P2-12/13(2026-11-02): 改用服务端口径; 旧字段仅在云函数未更新时兜底, 避免过渡期显示 0
+        d.weekIncomeYuan = ((typeof b.week_income_fen === 'number' ? b.week_income_fen : (b.month_income_fen || 0)) / 100).toFixed(2);
+        d.todayCount = typeof b.today_pending === 'number' ? b.today_pending : (b.total_completed || 0);
         d.creditLevel = b.credit_level || 'L1';
       }
       if (incR.ok) {

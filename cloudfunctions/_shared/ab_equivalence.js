@@ -673,6 +673,9 @@ function loadWith(dir, file, sdk) {
     // nudge_partner 响应新增 sub_sent/sub_err(additive 字段); 基线无模板故 RE 为空串、当前返回 NO_TMPL。
     // 行为由真机送达验证(REGISTRY #115)与前端三分支文案守护。
     'auto_order_nudge_partner',
+    // 2026-11-02 P2-12/13: balance_info 新增 today_pending / week_income_fen(additive, 旧字段保留);
+    // 行为由 payment-mock.entry.test.js 新增 1 例独立守护(今日待履约计数 + 本周收入字段)
+    'pm_balance_info', 'auto_pm_balance_info',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

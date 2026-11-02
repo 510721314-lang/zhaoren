@@ -143,4 +143,23 @@ test('balance_info: 打赏计入可结算收入', async () => {
   assert.strictEqual(r.data.withdrawable_fen, 52000);
 });
 
+// 11. P2-12/13: 今日待履约只计今日 start_time 且状态未完成(S2/S3/S3.5); 本周收入为新增字段
+test('balance_info: today_pending 只计今日 start_time 且状态未完成', async () => {
+  const now = new Date();
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const store = baseStore();
+  store.order_main = {
+    o1: { _id: 'o1', partner_openid: OPENID, status: 'S3', start_time: t0 + 3600000 },
+    o2: { _id: 'o2', partner_openid: OPENID, status: 'S2', start_time: t0 + 7200000 },
+    o3: { _id: 'o3', partner_openid: OPENID, status: 'S5', start_time: t0 + 10800000 },
+    o4: { _id: 'o4', partner_openid: OPENID, status: 'S3', start_time: t0 - 86400000 },
+    o5: { _id: 'o5', partner_openid: 'o_other', status: 'S3', start_time: t0 + 3600000 }
+  };
+  const sdk = makeSdk({ openid: OPENID, store, agg: baseAgg({ order_main: [{ total: 12000, tip: 800 }] }), countFromStore: true });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'balance_info', mock_openid: OPENID }, {});
+  assert.strictEqual(r.data.today_pending, 2);
+  assert.strictEqual(r.data.week_income_fen, 12800);
+});
+
 test.after(() => { Module._load = origLoad; });

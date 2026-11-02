@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { detect: detectRenamedCopies } = require('./shared-copy-detect');
 
 const ROOT = path.join(__dirname, '..');
 const CF = path.join(ROOT, 'cloudfunctions');
@@ -72,6 +73,10 @@ const KNOWN_DRIFT = {
   ]
 };
 
+// KNOWN_RENAMED(2026-11-02 P2-6 F5 收尾): 「改名副本」显式豁免表, 键为 `函数目录/相对路径`。
+// 空表即「零豁免」; 如确需保留改名副本, 必须在此登记并写理由, 否则按 FAIL 拦截。
+const KNOWN_RENAMED = {};
+
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 let fail = 0;
 let owed = 0;
@@ -112,6 +117,19 @@ for (const f of fs.readdirSync(SH)) {
     fail++;
   }
 }
+
+// ── F5(2026-11-02 P2-6 收尾): 「改名副本」盲区 —— M1/M2 只认同名文件 ──
+// _shared/foo.js 被复制成 a/foo_v2.js 时 M1 判 0 消费方、SYNC_MAP 也无需登记, 副本漂移从此静默;
+// 此处按内容 SHA 递归比对函数目录(含子目录), 与 _shared 某文件字节相同但路径不同即拦截。
+const renamedHits = detectRenamedCopies(SH, CF, fnDirs);
+for (const hit of renamedHits) {
+  const key = `${hit.dir}/${hit.file}`;
+  const known = KNOWN_RENAMED[key];
+  if (known) { console.warn(`[RENAMED-COPY-KNOWN] ${key} ≡ _shared/${hit.canonical} (${known})`); continue; }
+  console.error(`[RENAMED-COPY] ${key} 与 _shared/${hit.canonical} 内容完全相同但路径不同 → 改名副本未登记(改回同名副本 + SYNC_MAP, 或登记 KNOWN_RENAMED)`);
+  fail++;
+}
+if (renamedHits.length === 0) console.log('[OK] 无改名副本(内容级扫描)');
 
 // ── F6(2026-10-19): KNOWN_DRIFT 逐项「漂移性质」断言 —— 豁免不是永久保护 ──
 // 提取 module.exports 顶层导出标识符集合(浅层解析, 覆盖 { a, b } 与 { a: x } 两种写法)

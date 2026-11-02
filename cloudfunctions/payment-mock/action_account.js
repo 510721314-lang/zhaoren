@@ -8,15 +8,29 @@ async function balanceInfoAction(ctx) {
       await settleDueWithdrawals(openid);  // T+1 到账回写(mock)
       const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const monthMs = monthStart.getTime();
-      // 6 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级, 冷启动压到 2s 内
+      // P2-12/13(2026-11-02): 工作台「今日待履约」「本周收入」口径修正
+      // 今日待履约 = start_time 落在今天且仍未完成的订单(S2/S3/S3.5); 本周收入 = 本周一 00:00 起已结算收入
+      const nowD = new Date();
+      const todayStart = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
+      const todayStartMs = todayStart.getTime();
+      const dayMs = 86400000;
+      const weekStart = new Date(todayStartMs);
+      const dow = weekStart.getDay() || 7;   // 周日=0 按 7 处理, 一周从周一起算
+      weekStart.setDate(weekStart.getDate() - (dow - 1));
+      const weekStartMs = weekStart.getTime();
+      // 8 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级/今日待履约/本周收入
       // 收入口径 = 服务收入 + 打赏(2026-10-05 打赏计入耍伴可结算收入, 与订单记录分列展示)
-      const [settled, wR, splitting, monthList, countR, pp] = await Promise.all([
+      const [settled, wR, splitting, monthList, countR, pp, pendingR, weekR] = await Promise.all([
         col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid: partnerOpenid, is_deleted: false }).group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
         col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
-        col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] }))
+        col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] })),
+        // P2-12: 今日待履约(按 start_time 当日区间 + 未完成状态, 不再用累计完成数)
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S3.5']), start_time: _.gte(todayStartMs).and(_.lt(todayStartMs + dayMs)), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+        // P2-13: 本周收入(本周一 00:00 起, 与钱包「本月收入」互补)
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(weekStartMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] }))
       ]);
       // 余额口径统一走 _shared/money_rules.js computeBalance(与 withdraw 同源防漂移)
       const bal = computeBalance({ settledAgg: settled.list && settled.list[0], withdrawGroups: (wR && wR.list) || [] });
@@ -43,6 +57,8 @@ async function balanceInfoAction(ctx) {
           total_income_fen: settledFen,   // 累计收入 = 已结算总收入(2026-09-24 wallet 累计收入显示修复)
           tip_income_fen: settledTipFen,  // 其中打赏累计(订单记录与钱包对账用)
           total_completed: countR.total || 0,
+          today_pending: pendingR.total || 0,                 // P2-12: 今日待履约(替代原 total_completed 的误用)
+          week_income_fen: aggRowSum(weekR.list && weekR.list[0]),  // P2-13: 本周收入(周一 00:00 起)
           credit_level: creditLevel
         }
       };

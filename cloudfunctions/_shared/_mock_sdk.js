@@ -149,6 +149,11 @@ const commandProxy = new Proxy({}, {
           },
           async count() {
             calls.push({ method: 'where.count', name, query: q });
+            // countFromStore: 按 where 条件真实计数(默认仍返回 0, 保持既有用例语义不变)
+            if (opts.countFromStore) {
+              const all = store[name] ? Object.values(store[name]) : [];
+              return { total: all.filter(matchDoc).length };
+            }
             return { total: 0 };
           },
           async update(data) {
