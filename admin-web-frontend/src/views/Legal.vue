@@ -11,7 +11,7 @@
       <template #header>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <b>协议文档库</b>
-          <el-button v-if="versions.length === 0" size="small" type="primary" plain :loading="seeding" @click="seed">
+          <el-button v-if="versions.length === 0 && isR1" size="small" type="primary" plain :loading="seeding" @click="seed">
             初始化版本库（迁移存量文案）
           </el-button>
         </div>
@@ -36,7 +36,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="260">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="isR1" size="small" type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" plain @click="openHistory(row.doc_type, '', row.label)">版本历史</el-button>
             <el-button v-if="row.version" size="small" text type="primary" @click="preview(row.label + ' · v' + row.version, row.content)">预览</el-button>
           </template>
@@ -60,6 +60,7 @@
               : '新增行已占用剩余可选场景，先取消一行再新增'">
             <span>
               <el-button
+                v-if="isR1"
                 size="small" type="primary" plain
                 :disabled="availableScenes.length === 0"
                 @click="addSceneRow">+ 新增场景</el-button>
@@ -106,11 +107,11 @@
 
           <div style="margin-left:auto;display:flex;gap:8px">
             <el-button v-if="!row.isNew" size="small" text type="primary" @click="openHistory('scene_disclaimer', row.code, row.name + '（' + row.code + '）')">版本历史</el-button>
-            <el-button size="small" :disabled="!rowDirty(row)" @click="resetSceneRow(row)">重置</el-button>
-            <el-button size="small" type="primary" :loading="row.saving"
+            <el-button v-if="isR1" size="small" :disabled="!rowDirty(row)" @click="resetSceneRow(row)">重置</el-button>
+            <el-button v-if="isR1" size="small" type="primary" :loading="row.saving"
                        :disabled="!row.text.trim() || !rowDirty(row) || (row.isNew && !row.code)"
                        @click="saveSceneRow(row)">保存</el-button>
-            <el-button size="small" type="danger" plain :loading="row.saving" @click="removeSceneRow(row)">{{ row.isNew ? '取消' : '停用' }}</el-button>
+            <el-button v-if="isR1" size="small" type="danger" plain :loading="row.saving" @click="removeSceneRow(row)">{{ row.isNew ? '取消' : '停用' }}</el-button>
           </div>
         </div>
         <el-input v-model="row.text" type="textarea" :rows="4" :maxlength="4000" show-word-limit
@@ -146,7 +147,7 @@
             <el-input v-model="patch.legal_pet_authorization" type="textarea" :rows="6" :maxlength="8000" show-word-limit />
           </el-form-item>
           <div style="text-align:right">
-            <el-button type="warning" :loading="savingHotfix" @click="saveHotfix">直接覆盖保存</el-button>
+            <el-button v-if="isR1" type="warning" :loading="savingHotfix" @click="saveHotfix">直接覆盖保存</el-button>
           </div>
         </el-form>
       </el-collapse-item>
@@ -169,8 +170,8 @@
         保存后生成 <b>v{{ (editRow.version || 0) + 1 }}</b> 并立即生效；旧版本自动归档保留。
       </el-alert>
       <template #footer>
-        <el-button @click="resetDocEdit">重置</el-button>
-        <el-button type="primary" :loading="publishing" :disabled="!editForm.content.trim()" @click="saveDocEdit">
+        <el-button v-if="isR1" @click="resetDocEdit">重置</el-button>
+        <el-button v-if="isR1" type="primary" :loading="publishing" :disabled="!editForm.content.trim()" @click="saveDocEdit">
           保存 v{{ (editRow.version || 0) + 1 }}
         </el-button>
       </template>
@@ -197,7 +198,7 @@
         <el-table-column label="操作" width="170">
           <template #default="{ row }">
             <el-button size="small" text type="primary" :disabled="!row.content" @click="preview('v' + row.version, row.content)">查看</el-button>
-            <el-button v-if="row.status !== 'published' && row.content" size="small" text type="warning" :loading="rolling" @click="rollback(row)">回滚到此版</el-button>
+            <el-button v-if="row.status !== 'published' && row.content && isR1" size="small" text type="warning" :loading="rolling" @click="rollback(row)">回滚到此版</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -226,6 +227,8 @@ const DOC_META = [
   { doc_type: 'pet_authorization', label: '宠物照料授权书', maxLen: 8000 }
 ];
 
+// P3-15 ④(2026-11-03): legal 写操作仅 R1 有权限(ROLE_GRANTS 未登记 publish/retire → R2/R3 必 role_forbidden), 前端按角色隐藏写按钮
+const isR1 = computed(() => (localStorage.getItem('admin_role') || 'R1') === 'R1');
 const cfgData = ref(null);
 const versions = ref([]);            // legal_doc 全量版本（含 scene_disclaimer）
 const loading = ref(false);
