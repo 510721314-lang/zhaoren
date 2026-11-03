@@ -37,20 +37,22 @@ const FIELD_CN = { time: '时间', location: '地点', content: '内容', fee: '
 // ── 统一订单概要(所有涉及订单信息的提示/通知前置): #订单号 · 场景名 · ¥金额 · 发布时间 · 服务时间 · 履约时长 · 人数 · 履约地点 · AA区间 ──
 // 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
 const { SCENE_NAMES: SCENE_CN } = require('./scene_meta');
+// 2026-11-03 P3-23: 云函数 TZ=UTC，展示/通知时间统一按北京时间(+8)格式化
+const CN_OFF_MS = 8 * 3600 * 1000;
 function fmtDT(ts) {
   if (!ts) return '';
-  const d = new Date(ts);
+  const d = new Date(Number(ts) + CN_OFF_MS);
   if (isNaN(d.getTime())) return '';
   const p = (n) => (n < 10 ? '0' + n : '' + n);
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 // 精简时间: MM-DD HH:mm(概要行内更紧凑)
 function fmtDTShort(ts) {
   if (!ts) return '';
-  const d = new Date(ts);
+  const d = new Date(Number(ts) + CN_OFF_MS);
   if (isNaN(d.getTime())) return '';
   const p = (n) => (n < 10 ? '0' + n : '' + n);
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 // 统一订单概要 → 结构化三行(便于排版阅读): l1主信息 / l2时间 / l3地点+AA
 function buildOrderSummary(o) {

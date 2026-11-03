@@ -75,12 +75,14 @@ function isFreeChat(order, config) {
 }
 
 // 统一订单概要 → 结构化三行(便于排版阅读) · 与 order-action buildOrderSummary 保持一致
+// 2026-11-03 P3-23: 云函数 TZ=UTC，展示时间统一按北京时间(+8)格式化
+const CN_OFF_MS = 8 * 3600 * 1000;
 function fmtDTShort(ts) {
   if (!ts) return '';
-  const d = new Date(ts);
+  const d = new Date(Number(ts) + CN_OFF_MS);
   if (isNaN(d.getTime())) return '';
   const p = (n) => (n < 10 ? '0' + n : '' + n);
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 function buildOrderSummary(o) {
   if (!o) return { l1: '', l2: '', l3: '' };
