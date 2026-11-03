@@ -31,7 +31,7 @@ async function admin_account_create(ctx) {
 }
 
 async function admin_account_set_status(ctx) {
-  const { event, col, _, openid, operatorAccount, logEvent, ok, fail } = ctx;
+  const { event, col, _, openid, operatorAccount, logEvent, log, ok, fail } = ctx;
   const { account, status } = event;
   const acc = String(account || '').trim();
   if (!['active', 'disabled'].includes(status)) return fail('acc_bad_status', '状态只能是 active/disabled');
@@ -46,7 +46,7 @@ async function admin_account_set_status(ctx) {
   if (status === 'disabled') {
     await col('admin_web_sessions').where({ account: acc, is_deleted: _.neq(true) }).update({
       data: { is_deleted: true, updated_at: Date.now() }
-    }).catch(() => {});
+    }).catch((e) => log.d(`admin sessions revoke fail: account=${acc} ${(e && e.message) || e}`));
   }
   await logEvent('P2', 'admin_account_set_status', openid, { account: acc, status, by: operatorAccount });
   return ok({ account: acc, status });

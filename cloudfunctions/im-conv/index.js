@@ -138,7 +138,7 @@ async function clearUnread(convId, role, conv) {
   const patch = role === 'user' ? { user_unread: 0 } : { partner_unread: 0 };
   try {
     await col('im_conversation').doc(convId).update({ data: Object.assign({ updated_at: Date.now() }, patch) });
-  } catch (e) {}
+  } catch (e) { log.d(`clearUnread update fail: conv=${convId} ${(e && e.message) || e}`); }
 }
 
 // 批量取用户公开资料(昵称/头像)
