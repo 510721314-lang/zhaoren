@@ -249,7 +249,8 @@ exports.main = async (event, context) => {
   }
   if (action === 'admin_logout') {
     try {
-      const r = await adminLogoutShared({ event: body, col });
+      // P3-1(2026-11-03): 传入最小日志口, 使 admin_logout 会话置删失败可留痕(原实现无 log)
+      const r = await adminLogoutShared({ event: body, col, log: { d: function (m) { console.log(m); } } });
       return makeJson(r);
     } catch (e) { return makeJson({ ok: false, code: 'logout_error', msg: e.message }, 502); }
   }

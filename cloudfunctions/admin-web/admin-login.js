@@ -57,9 +57,11 @@ async function admin_login(ctx) {
 }
 
 async function admin_logout(ctx) {
-  const { event, col } = ctx;
+  const { event, col, log } = ctx;
   const t = String(event.__admin_token || '');
-  if (t) await col('admin_web_sessions').doc(t).update({ data: { is_deleted: true, updated_at: Date.now() } }).catch(() => {});
+  // P3-1(2026-11-03): 会话置删失败此前全静默; 仅记 token 长度与错误, 不落 token 原文
+  if (t) await col('admin_web_sessions').doc(t).update({ data: { is_deleted: true, updated_at: Date.now() } })
+    .catch((e) => { if (log && log.d) log.d(`admin_logout session revoke fail: token_len=${t.length} ${(e && e.message) || e}`); });
   return { ok: true, data: {} };
 }
 
