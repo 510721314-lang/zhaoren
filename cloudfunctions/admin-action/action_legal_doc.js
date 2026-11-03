@@ -96,8 +96,32 @@ async function legal_doc_list(ctx) {
       created_at: d.created_at || 0,
       created_by: d.created_by || '',
       rolled_back_from: d.rolled_back_from || 0,
-      content: d.content || ''
+      // P3-15③(2026-11-03): 列表不再下发正文(最多 200 版×2 万字), 仅给长度; 正文按需走 legal_doc_get
+      content_len: (d.content || '').length
     }))
+  });
+}
+
+// 读取单个版本正文（配合列表去 content：预览/编辑/历史查看按需拉取）
+async function legal_doc_get(ctx) {
+  const { event, ok, fail, col } = ctx;
+  const t = resolveTarget(event, fail);
+  if (t.error) return t.error;
+  const version = parseInt(event.version, 10);
+  if (!version || version < 1) return fail('legal_bad_version', 'version 须为正整数');
+  const r = await col('legal_doc')
+    .where(Object.assign({ doc_type: t.doc_type }, t.scope ? { scope: t.scope } : {}, { version }))
+    .limit(1).get().catch(() => ({ data: [] }));
+  const d = (r.data && r.data[0]) || null;
+  if (!d) return fail('legal_version_not_found', `${t.doc_type}${t.scope ? ':' + t.scope : ''} v${version} 不存在`);
+  return ok({
+    _id: d._id,
+    doc_type: d.doc_type,
+    scope: d.scope || '',
+    version: d.version,
+    status: d.status,
+    title: d.title || '',
+    content: d.content || ''
   });
 }
 
@@ -295,4 +319,4 @@ async function legal_doc_seed(ctx) {
   return ok({ seeded, skipped });
 }
 
-module.exports = { legal_doc_list, legal_doc_publish, legal_doc_rollback, legal_doc_retire, legal_doc_seed };
+module.exports = { legal_doc_list, legal_doc_get, legal_doc_publish, legal_doc_rollback, legal_doc_retire, legal_doc_seed };

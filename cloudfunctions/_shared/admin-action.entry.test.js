@@ -309,6 +309,17 @@ test('legal_doc_publish: 合法 → ok 且版本 v1、双写 admin_config 旧字
   assert.strictEqual(cfgW.data.legal_versions.service_agreement, 1, '应写版本快照供 config_public 暴露');
 });
 
+test('legal_doc_get: 非法版本/不存在/缺 scope → 对应错误码', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r1 = await main({ action: 'legal_doc_get', doc_type: 'service_agreement', version: 0 }, {});
+  assert.strictEqual(r1.code, 'legal_bad_version');
+  const r2 = await main({ action: 'legal_doc_get', doc_type: 'service_agreement', version: 9 }, {});
+  assert.strictEqual(r2.code, 'legal_version_not_found');
+  const r3 = await main({ action: 'legal_doc_get', doc_type: 'scene_disclaimer', version: 1 }, {});
+  assert.strictEqual(r3.code, 'legal_bad_scope');
+});
+
 test('legal_doc_publish: 空内容/非法类型/超长 → 对应错误码且不落库', async () => {
   const sdk = makeSdk({ openid: ADMIN, store: store('prod', [ADMIN]) });
   const { main } = loadIndex(sdk);

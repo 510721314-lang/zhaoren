@@ -39,7 +39,7 @@ const ROLE_GRANTS = {
   'dashboard': ['R3'],
   'config_get': ['R3'], 'config_log_list': ['R3'],
   // 法律文档版本库(批1a): 只读列表放开 R3; 发布/回滚/存量初始化属敏感写, 未列出即仅 R1
-  'legal_doc_list': ['R3'],
+  'legal_doc_list': ['R3'], 'legal_doc_get': ['R3'],
   'home_activity_list': ['R3'], 'home_activity_create': ['R3'], 'home_activity_update': ['R3'], 'home_activity_delete': ['R3'], 'upload_image': ['R3'],
   'notice_send': ['R3'],
   'kefu_conv_list': ['R3'], 'kefu_conv_reply': ['R3'],

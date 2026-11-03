@@ -32,13 +32,13 @@
           <template #default="{ row }">{{ row.created_by || '—' }}</template>
         </el-table-column>
         <el-table-column label="字数" width="90">
-          <template #default="{ row }">{{ row.content ? row.content.length : 0 }}</template>
+          <template #default="{ row }">{{ row.content_len || 0 }}</template>
         </el-table-column>
         <el-table-column label="操作" min-width="260">
           <template #default="{ row }">
             <el-button v-if="isR1" size="small" type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" plain @click="openHistory(row.doc_type, '', row.label)">版本历史</el-button>
-            <el-button v-if="row.version" size="small" text type="primary" @click="preview(row.label + ' · v' + row.version, row.content)">预览</el-button>
+            <el-button v-if="row.version" size="small" text type="primary" @click="previewDoc(row)">预览</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -197,8 +197,8 @@
         <el-table-column prop="remark" label="说明" min-width="160" />
         <el-table-column label="操作" width="170">
           <template #default="{ row }">
-            <el-button size="small" text type="primary" :disabled="!row.content" @click="preview('v' + row.version, row.content)">查看</el-button>
-            <el-button v-if="row.status !== 'published' && row.content && isR1" size="small" text type="warning" :loading="rolling" @click="rollback(row)">回滚到此版</el-button>
+            <el-button size="small" text type="primary" :disabled="!(row.content_len > 0)" @click="previewHistory(row)">查看</el-button>
+            <el-button v-if="row.status !== 'published' && row.content_len > 0 && isR1" size="small" text type="warning" :loading="rolling" @click="rollback(row)">回滚到此版</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -314,7 +314,8 @@ function rebuildDocs() {
       version: pub ? pub.version : 0,
       effective_at: pub ? pub.effective_at : 0,
       created_by: pub ? pub.created_by : '',
-      content: pub ? pub.content : ''
+      // P3-15③(2026-11-03): 列表接口已去 content, 仅保留长度; 正文按需走 legal_doc_get
+      content_len: pub ? (pub.content_len || 0) : 0
     };
   });
 }
@@ -391,13 +392,21 @@ async function seed() {
 }
 
 // ── 五类文档：编辑弹窗（重置 / 保存） ──
-function openEdit(row) {
-  editRow.doc_type = row.doc_type;
+async function openEdit(row) {
+  const docType = row.doc_type;
+  let content = row.content || '';
+  // P3-15③: 列表已去正文, 有生效版本时按需拉取单版正文
+  if (!content && row.version) {
+    const r = await call('legal_doc_get', { doc_type: docType, version: row.version });
+    if (!r.ok) { ElMessage.error(r.msg || r.code || '正文加载失败'); return; }
+    content = (r.data && r.data.content) || '';
+  }
+  editRow.doc_type = docType;
   editRow.label = row.label;
   editRow.version = row.version || 0;
   editRow.maxLen = row.maxLen;
   editForm.title = '';
-  editForm.content = row.content || fieldFallback(row.doc_type);
+  editForm.content = content || fieldFallback(docType);
   editForm.orig = editForm.content;
   editForm.remark = '';
   editVisible.value = true;
@@ -549,6 +558,21 @@ function preview(title, text) {
   previewTitle.value = title;
   previewText.value = text || '';
   previewVisible.value = true;
+}
+
+// P3-15③(2026-11-03): 列表已去 content, 预览按需单条拉取正文
+async function previewDoc(row) {
+  const r = await call('legal_doc_get', { doc_type: row.doc_type, version: row.version });
+  if (!r.ok) { ElMessage.error(r.msg || r.code || '正文加载失败'); return; }
+  preview(row.label + ' · v' + row.version, (r.data && r.data.content) || '');
+}
+
+async function previewHistory(row) {
+  const payload = { doc_type: historyRow.doc_type, version: row.version };
+  if (historyRow.scope) payload.scope = historyRow.scope;
+  const r = await call('legal_doc_get', payload);
+  if (!r.ok) { ElMessage.error(r.msg || r.code || '正文加载失败'); return; }
+  preview('v' + row.version, (r.data && r.data.content) || '');
 }
 
 // ── 紧急热修（整块覆盖，不产生版本） ──
