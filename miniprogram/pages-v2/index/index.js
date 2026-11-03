@@ -333,8 +333,9 @@ Page({
         break;
       }
       case 'scene_list': {
-        const url = '/pages-v2/square/square' + (p.scene_code ? '?scene_code=' + p.scene_code : '');
-        wx.redirectTo({ url });
+        // P3-13 A2(2026-11-03): square 是 tabBar 页, redirectTo 必失败; 改 switchTab, 场景码经 Storage 一次性传递
+        try { wx.setStorageSync('square_scene_code', p.scene_code || ''); } catch (e) {}
+        wx.switchTab({ url: '/pages-v2/square/square', fail: () => wx.showToast({ title: '广场打开失败', icon: 'none' }) });
         break;
       }
       case 'activity_detail': {

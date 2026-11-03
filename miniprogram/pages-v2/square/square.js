@@ -42,7 +42,10 @@ Page({
   onLoad() {
     // onLoad 已拉首屏, 首次 onShow 跳过避免双拉; 发布返回时 onShow 正常刷新
     this.__skipNextShow = true;
-    this.setData({ chips: this.buildChips() });
+    // P3-13 A2: 首页运营位「跳广场某场景」经 Storage 传参(tab 页不能带 query)
+    let sc = '';
+    try { sc = wx.getStorageSync('square_scene_code'); if (sc) wx.removeStorageSync('square_scene_code'); } catch (e) {}
+    this.setData(sc ? { chips: this.buildChips(), activeChip: sc } : { chips: this.buildChips() });
     this.fetchSquare(true);   // S8: 冷启动允许先用 SWR 本地缓存秒开
     this.fetchActivities();
   },
@@ -156,8 +159,9 @@ Page({
         break;
       }
       case 'scene_list': {
-        const url = '/pages-v2/square/square' + (p.scene_code ? '?scene_code=' + p.scene_code : '');
-        wx.redirectTo({ url });
+        // P3-13 A2(2026-11-03): 已在广场页, 直接切场景 chip; 原 redirectTo 指向 tabBar 页必失败
+        if (p.scene_code) this.setData({ activeChip: p.scene_code }, () => this.buildList());
+        else wx.showToast({ title: '场景参数缺失', icon: 'none' });
         break;
       }
       // webview 分支暂不启用: 无承载页 + 未配业务域名, 并入默认提示(运营配 H5 活动后再接入)

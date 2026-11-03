@@ -100,7 +100,19 @@ Page({
       }
       // P2-11: 最近进行中订单, 供 SOS 上报 & 时间轴占位
       const doingList = (ordR.ok && ordR.data && ordR.data.list) || [];
-      d.todayOrders = doingList;
+      // P3-17(2026-11-03): 时间轴卡字段映射(my_orders 只返回 scene_name/location_name/start_time 等, 原字段全空)
+      d.todayOrders = doingList.map((o) => {
+        const st = o.start_time ? new Date(o.start_time) : null;
+        const time = st ? ('0' + st.getHours()).slice(-2) + ':' + ('0' + st.getMinutes()).slice(-2) : '';
+        return {
+          _id: o.order_id,
+          sceneName: o.scene_name || '',
+          time,
+          locationName: o.location_name || '',
+          partnerName: o.demand_title || '',
+          sceneColor: 'var(--brand)'
+        };
+      });
       d.currentOrderId = doingList.length > 0 ? doingList[0].order_id : '';
       d.todaySummary = {
         count: d.todayCount,
