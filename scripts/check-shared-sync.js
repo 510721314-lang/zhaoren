@@ -134,6 +134,43 @@ for (const hit of renamedHits) {
 }
 if (renamedHits.length === 0) console.log('[OK] 无改名副本(内容级扫描)');
 
+// ── F8(2026-11-03 技术评审 B1): 「改名 + 内容漂移」双重逃逸 ──
+// M1 只认「同名未登记」, F5 只认「与规范源字节完全相同的改名副本」; 若副本改名且内容也漂移, 两者同时不命中 → 静默漂移。
+// 判据: 函数目录内任意 .js, 其 module.exports 顶层导出集合 ⊆ _shared/<某规范源> 的导出集合, 且非该规范源的同名副本、内容也不与之字节相同 → 疑似改名副本。
+// 摸底(2026-11-03): 20 个函数目录 228 个 .js 全量扫描命中 0 条, 故按阻断处理; 确需保留请登记 KNOWN_RENAMED(键 `函数目录/相对路径`)。
+function walkJs(dir, out = []) {
+  for (const n of fs.readdirSync(dir)) {
+    if (n === 'node_modules') continue;
+    const p = path.join(dir, n);
+    if (fs.statSync(p).isDirectory()) walkJs(p, out);
+    else if (n.endsWith('.js')) out.push(p);
+  }
+  return out;
+}
+let copySuspects = 0;
+for (const d of fnDirs) {
+  for (const f of walkJs(path.join(CF, d))) {
+    const base = path.basename(f);
+    if (registered.has(base) || base === '_orig_baseline.js') continue; // 同名副本由 SYNC_MAP 校验; 基线快照非运行代码
+    const keys = exportKeys(f);
+    if (!keys || keys.size === 0) continue;
+    const rel = `${d}/${path.relative(path.join(CF, d), f).replace(/\\/g, '/')}`;
+    const hit = [...registered].find((cn) => {
+      const ck = exportKeys(path.join(SH, cn));
+      if (!ck || ck.size === 0) return false;
+      if ([...keys].every((k) => ck.has(k))) return sha(f) !== sha(path.join(SH, cn)); // 字节相同 → 已由 F5 拦截
+      return false;
+    });
+    if (!hit) continue;
+    copySuspects++;
+    const known = KNOWN_RENAMED[rel];
+    if (known) { console.warn(`[COPY-SUSPECT-KNOWN] ${rel} ⊆ _shared/${hit} (${known})`); continue; }
+    console.error(`[COPY-SUSPECT] ${rel} 导出集合 ⊆ _shared/${hit} 但文件名与内容均不同 → 疑似改名副本漂移(改回同名副本 + SYNC_MAP, 或登记 KNOWN_RENAMED)`);
+    fail++;
+  }
+}
+if (!copySuspects) console.log('[OK] 无「改名+漂移」疑似副本');
+
 // ── F6(2026-10-19): KNOWN_DRIFT 逐项「漂移性质」断言 —— 豁免不是永久保护 ──
 // 提取 module.exports 顶层导出标识符集合(浅层解析, 覆盖 { a, b } 与 { a: x } 两种写法)
 function exportKeys(file) {
