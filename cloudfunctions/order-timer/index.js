@@ -381,6 +381,9 @@ async function processDemandNotify(now, cfg) {
         created_at: now, read: false
       }})));
       pushed = results.filter((r) => r.status === 'fulfilled').length;
+      // P3-1(2026-11-03): allSettled 的 rejected 通知此前静默(只体现在 pushed 变小), 补日志便于事后定位
+      const noticeFail = results.filter((r) => r.status === 'rejected');
+      if (noticeFail.length) log.d(`demand_grab notice fail: ${noticeFail.length}/${results.length} ${(noticeFail[0].reason && (noticeFail[0].reason.message || String(noticeFail[0].reason))) || ''}`);
       // 订阅消息增强(不阻断): 仅当模板已配 + 耍伴已授权; 发送失败(配额/云调用未开/字段不足)仅告警(log.w)不阻断流程
       const subTmpl = (cfg.sub_msg_templates && cfg.sub_msg_templates.demand_grab) || null;
       const subTargets = (subTmpl && subTmpl.tmpl_id) ? targets.filter((t) => t.sub) : [];

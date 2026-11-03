@@ -264,7 +264,7 @@ exports.main = async (event, context) => {
         kefu_status: 'unhandled', updated_at: now
       } });
       if (chk.degraded) {
-        try { await col('im_message').doc(r._id).update({ data: { sec_degraded: true, sec_degraded_at: now } }); } catch (e) {}
+        try { await col('im_message').doc(r._id).update({ data: { sec_degraded: true, sec_degraded_at: now } }); } catch (e) { log.d(`kefu sec_degraded mark fail: msg=${r._id} ${(e && e.message) || e}`); }
       }
       const msg = { msg_id: r._id, conv_id: convId, from_openid: openid, from_role: 'user_kefu', text, created_at: now };
       log.d(`kefu msg sent: conv=${convId} len=${text.length} degraded=${!!chk.degraded}`);
@@ -404,7 +404,7 @@ exports.main = async (event, context) => {
       const msg = await appendMessage(conv, order, role, openid, 'text', text, '');
       // 内容安全降级留痕: msgSecCheck 异常时放行但标记 sec_degraded, 供后台补审(IM 强交互链路不 fail-closed)
       if (chk.degraded) {
-        try { await col('im_message').doc(msg.msg_id).update({ data: { sec_degraded: true, sec_degraded_at: Date.now() } }); } catch (e) {}
+        try { await col('im_message').doc(msg.msg_id).update({ data: { sec_degraded: true, sec_degraded_at: Date.now() } }); } catch (e) { log.d(`sec_degraded mark fail: msg=${msg.msg_id} ${(e && e.message) || e}`); }
       }
       log.d(`im text sent: order=${order.order_no} by=${role} len=${text.length} degraded=${!!chk.degraded}`);
       await writeAudit(db, log, {
