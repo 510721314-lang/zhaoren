@@ -78,8 +78,15 @@
 import {
   Setting, User, Tickets, Money, DataAnalysis, Reading, Lock, Tools
 } from '@element-plus/icons-vue';
+import { call } from '../api/admin';
 
-function onLogout() {
+// 2026-11-03(方案A): 退出时先服务端失效会话(admin_logout), 再清本地凭证;
+// 接口失败不阻断本地退出(网络异常时仍可离开), 但成功后旧 token 立即不可用。
+async function onLogout() {
+  try { await call('admin_logout', {}); } catch (e) { /* 失败也继续本地清理 */ }
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_role');
+  localStorage.removeItem('admin_account');
   localStorage.removeItem('admin_web_key');
   window.location.hash = '#/login';
 }
