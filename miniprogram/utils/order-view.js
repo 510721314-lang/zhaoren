@@ -75,10 +75,18 @@ function computeNextStep(order, now = Date.now()) {
         tone: 'primary', action: { key: 'chat', text: '进入聊天' }
       };
 
-    case 'S2':
+    case 'S2': {
+      // P3-23②(2026-11-03): 到点后不再提示"到达后"，改提示已到服务时间（可催办/申诉）
+      const st2 = Number(order.start_time) || 0;
+      const started = st2 > 0 && now >= st2;
       return role === 'partner'
-        ? { icon: '🚀', title: '准备履约', subtitle: '服务时间到达后点"开始履约"', tone: 'info' }
-        : { icon: '🕐', title: '等待服务开始', subtitle: `服务时间 ${order.service_date} ${order.service_time}`, tone: 'mute' };
+        ? (started
+          ? { icon: '🚀', title: '已到服务时间', subtitle: '请点"开始履约"发起到场申请', tone: 'info' }
+          : { icon: '🚀', title: '准备履约', subtitle: '服务时间到达后点"开始履约"', tone: 'info' })
+        : (started
+          ? { icon: '⏰', title: '已到服务时间', subtitle: '对方尚未开始履约，可在详情页催办或发起爽约申诉', tone: 'warn' }
+          : { icon: '🕐', title: '等待服务开始', subtitle: `服务时间 ${order.service_date} ${order.service_time}`, tone: 'mute' });
+    }
 
     case 'S2_6':
       // 履约双确认(2026-10-14 阶段C/D): 耍伴已发起到场申请, 等需求方确认
@@ -312,6 +320,7 @@ function buildOrderView(d, now = Date.now()) {
     demand_title: d.demand_title || '',                   // 需求标题(2026-10-16 新增展示, 服务端拆 demand.remark 下发)
     demand_desc: d.demand_desc || '',                     // 需求详细描述(同上)
     status: normalizeStatus(d.status),
+    start_time: st,                                       // P3-23②(2026-11-03): 供 nextStep 判断是否已到服务时间
     my_role: d.role || '',
     complaint,                                            // 投诉详情(原因全文/发起方/状态/处理结论/退款)
     money,                                                // 资金明细(实付/已退/结算状态)
