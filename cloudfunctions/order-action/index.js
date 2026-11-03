@@ -333,14 +333,23 @@ async function sendUrgeSub(order, config, now, used) {
 // 2026-11-02 方案A: 与催办共用计数状态机; 43101 收口并写站内, 不再静默 throw。
 async function sendCommSub(order, config, item) {
   const tmpl = (config && config.sub_msg_templates && config.sub_msg_templates.confirm_comm) || null;
-  if (!tmpl || !tmpl.tmpl_id) return { sent: false, errCode: 'NO_TMPL', errMsg: '' };
+  // 2026-11-03 P0-5②: 早退分支留痕（此前 NO_TMPL/NO_OPENID/READ_FAIL/NO_DATA 直接 return 不写日志，
+  // 导致日志为空时无法区分「未触发」与「触发后早退」，P0-5②-B 实证因此卡住）
+  const logLocal = async (code) => {
+    try {
+      await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([
+        { key: 'confirm_comm', openid: order.partner_openid || '', at: Date.now(), channel: 'local', status: 'fail', errCode: code, errMsg: 'early_return' }
+      ]) } });
+    } catch (e0) {}
+  };
+  if (!tmpl || !tmpl.tmpl_id) { await logLocal('NO_TMPL'); return { sent: false, errCode: 'NO_TMPL', errMsg: '' }; }
   const p = order.partner_openid;
-  if (!p) return { sent: false, errCode: 'NO_OPENID', errMsg: '' };
+  if (!p) { await logLocal('NO_OPENID'); return { sent: false, errCode: 'NO_OPENID', errMsg: '' }; }
   let prof = {};
   try {
     const pr = await col('partner_profile').where({ openid: p }).limit(1).get();
     prof = (pr.data && pr.data[0]) || {};
-  } catch (e) { return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
+  } catch (e) { await logLocal('READ_FAIL'); return { sent: false, errCode: 'READ_FAIL', errMsg: '' }; }
   const prev = prof.sub_msgs && prof.sub_msgs.confirm_comm;
   const st = stateOf(prev);
   // 2026-11-02 P0热修(F1/F4): 同催办链, 放宽本地判定 + 拦截留痕
@@ -366,7 +375,7 @@ async function sendCommSub(order, config, item) {
     else if (typeof s === 'string') v = String(s);
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }
-  if (!Object.keys(data).length) return { sent: false, errCode: 'NO_DATA', errMsg: '' };
+  if (!Object.keys(data).length) { await logLocal('NO_DATA'); return { sent: false, errCode: 'NO_DATA', errMsg: '' }; }
   const entry = { key: 'confirm_comm', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
   const res = await sendOnce(cloud, {
     touser: p, templateId: tmpl.tmpl_id,
