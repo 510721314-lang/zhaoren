@@ -29,7 +29,7 @@ async function processS1Timeout(ctx) {
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
-    }));
+    })).then((rs) => { rs.forEach((r) => { if (r.status === 'rejected') log.d(`s1 timeout notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); }); });
     s1OK.forEach(o => { out.s1_cancel.push(o.order_no); log.d(`timeout S1→S6: ${o.order_no}`); });
   } catch (e) { log.d(`s1 scan fail: ${e.message}`); }
 }
@@ -65,7 +65,7 @@ async function processS0Timeout(ctx) {
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
-    }));
+    })).then((rs) => { rs.forEach((r) => { if (r.status === 'rejected') log.d(`s0 timeout notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); }); });
     s0OK.forEach(o => { out.s0_close.push(o.order_no); log.d(`timeout S0→S6: ${o.order_no}`); });
   } catch (e) { log.d(`s0 scan fail: ${e.message}`); }
 }
@@ -105,7 +105,7 @@ async function processStartApplyTimeout(ctx) {
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
-    }));
+    })).then((rs) => { rs.forEach((r) => { if (r.status === 'rejected') log.d(`s2_6 dispute notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); }); });
     ok.forEach(o => { out.start_apply_timeout.push(o.order_no); log.d(`timeout S2_6→S10.5: ${o.order_no}`); });
   } catch (e) { log.d(`s2_6 scan fail: ${e.message}`); }
 }
@@ -140,7 +140,7 @@ async function processFinishConfirmTimeout(ctx) {
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
-    }));
+    })).then((rs) => { rs.forEach((r) => { if (r.status === 'rejected') log.d(`s3_6 dispute notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); }); });
     ok.forEach(o => { out.finish_confirm_timeout.push(o.order_no); log.d(`timeout S3_6→S10.5: ${o.order_no}`); });
   } catch (e) { log.d(`s3_6 scan fail: ${e.message}`); }
 }
@@ -240,13 +240,14 @@ async function processNoShowDefenseOverdue(ctx) {
       if (!upd.stats || upd.stats.updated !== 1) return;
       marked.push(r);
       // 仅站内信(定时器无小程序上下文, 云调用订阅消息必报 -501001); 收件人=管理员
-      await Promise.allSettled((adminOpenids || []).map((openid) => col('system_notice').add({ data: {
+      const rsOverdue = await Promise.allSettled((adminOpenids || []).map((openid) => col('system_notice').add({ data: {
         to_openid: openid, order_id: r.order_id || '', type: 'no_show_overdue',
         title: '爽约申诉举证逾期,待裁定',
         body: '举证窗口已过,请运营核实后裁定(可径行裁定,系统不自动裁决)',
         action_key: '', action_payload: { report_id: r._id },
         created_at: now, read: false
-      }})));
+        }})));
+      rsOverdue.forEach((x) => { if (x.status === 'rejected') log.d(`no_show overdue notice fail: ${(x.reason && (x.reason.message || x.reason)) || ''}`); });
     }));
     out.no_show_overdue.push(...marked.map((r) => r._id));
     marked.forEach((r) => log.d(`no_show overdue escalate: ${r._id}`));
@@ -283,13 +284,14 @@ async function processNoShowGuide(ctx) {
       if (!upd.stats || upd.stats.updated !== 1) return; // 已被并发轮次提醒过 → 跳过
       // 双方各 1 条中性文案(不指名谁爽约); 定时器无小程序上下文, 只发站内信
       const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
-      await Promise.allSettled(receivers.map((openid) => col('system_notice').add({ data: {
+      const rsGuide = await Promise.allSettled(receivers.map((openid) => col('system_notice').add({ data: {
         to_openid: openid, order_id: o._id, type: 'no_show_guide',
         title: '已过约定开始时间',
         body: `约定时间已过 ${graceMin} 分钟。若对方未到场，可在申诉时限内提交爽约申诉，平台会核实处理`,
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
-      }})));
+        }})));
+      rsGuide.forEach((x) => { if (x.status === 'rejected') log.d(`no_show guide notice fail: ${(x.reason && (x.reason.message || x.reason)) || ''}`); });
       sent.push(o.order_no || o._id);
       log.d(`no_show guide -> ${o.order_no || o._id}`);
     }));

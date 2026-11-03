@@ -23,7 +23,7 @@ async function processSuspendRestore(ctx) {
           title: '账号已恢复', body: '账号停用期已结束,已恢复',
           read: false, created_at: now, updated_at: now, is_deleted: false
         }});
-      } catch (e) {}
+      } catch (e) { log.d(`account_restored notice fail: ${(e && e.message) || e}`); }
       out.account_restored.push(u.openid || String(u._id));
       log.d(`suspend auto-restored: openid_len=${String(u.openid || '').length}`);
     }));
