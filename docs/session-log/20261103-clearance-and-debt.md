@@ -86,7 +86,7 @@
 | 编号 | 事项 | 前置 |
 |---|---|---|
 | T-8.3 | 三处 `update` 改 `sub_msgs.<key>: _.set(patch)` | 等 T-8.1 真机通过后立项出方案 |
-| T-8.4 | `splitting_fen` 与 `total_income_fen` 口径核对 | 只读，随时可做 |
+| T-8.4 | `splitting_fen` 与 `total_income_fen` 口径核对 | **已核实 2026-11-03**：非倒挂（在途 vs 已结算）；S6 已剔除（tech-debt P3-22，部署待授权） |
 | T-8.6 | push 4 个本地提交 | **已闭环 2026-11-03**（ahead=0） |
 
 ## 6. 下次入口
