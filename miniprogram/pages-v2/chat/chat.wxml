@@ -3,7 +3,7 @@
 
   <!-- C1 头部 -->
   <view class="chat__header">
-    <view class="chat__back" bindtap="goOrderDetail">‹</view>
+    <view class="chat__back" bindtap="goBack">‹</view>
     <view class="chat__title"><block wx:if="{{counterpart}}">{{counterpart}} · {{sceneName}}</block><block wx:else>加载中...</block></view>
     <view class="chat__order-entry" bindtap="goOrderDetail">📋</view>
   </view>

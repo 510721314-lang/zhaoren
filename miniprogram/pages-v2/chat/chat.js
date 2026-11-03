@@ -854,6 +854,14 @@ Page({
     });
   },
 
+  // 2026-11-03(A+C·A): 左上 ‹ 恢复「返回上一页」语义。原实现误绑 goOrderDetail(redirectTo)，
+  // 会销毁聊天页并强制落到订单详情，消息页→聊天后无法返回。
+  goBack() {
+    const pages = getCurrentPages();
+    if (pages.length > 1) wx.navigateBack({ delta: 1 });
+    else wx.switchTab({ url: '/pages-v2/index/index', fail: () => {} });
+  },
+
   // ───────── C1 订单卡片入口 ─────────
   goOrderDetail() {
     if (!this.data.orderId) return;
