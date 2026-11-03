@@ -26,7 +26,7 @@ async function processInterruptPartial(ctx) {
         action_key: 'jump_order', action_payload: { order_id: o._id },
         created_at: now, read: false
       }}));
-    }));
+    })).then((rs) => { rs.forEach((r) => { if (r.status === 'rejected') log.d(`interrupt_partial notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); }); });
     s35OK.forEach(o => { out.interrupt_partial.push(o.order_no); log.d(`timeout S3.5→S4: ${o.order_no}`); });
   } catch (e) { log.d(`s3.5 scan fail: ${e.message}`); }
 }
@@ -124,10 +124,11 @@ async function processAutoEval(ctx) {
             data: { partner_credit_score: _.inc(totalDelta), updated_at: now }
           });
           // 批量写信用分 log(每笔一条, 保留审计链)
-          await Promise.allSettled(entries.map(e => col('credit_score_log').add({ data: {
+          const rsCredit = await Promise.allSettled(entries.map(e => col('credit_score_log').add({ data: {
             openid: pOpenid, type: 'evaluation', is_system: true, delta: e.delta,
             order_id: e.order_id, created_at: now, updated_at: now, is_deleted: false
           }})));
+          rsCredit.forEach((r) => { if (r.status === 'rejected') log.d(`credit_score_log write fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); });
         } catch (e) { log.d(`auto eval credit fail (${pOpenid}): ${e.message}`); }
       }));
     }

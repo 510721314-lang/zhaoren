@@ -188,13 +188,14 @@ async function errorScan(now, cfg, adminOpenids) {
         issues.stuck_withdrawals ? `卡死提现(>48h在途) ${issues.stuck_withdrawals} 笔` : '',
         issues.gateway_bad_keys ? `网关鉴权失败突增 ${issues.gateway_bad_keys} 次` : ''
       ].filter(Boolean).join('; ');
-      await Promise.allSettled(adminOpenids.map((openid) => col('system_notice').add({ data: {
+      const rsErrScan = await Promise.allSettled(adminOpenids.map((openid) => col('system_notice').add({ data: {
         to_openid: openid, order_id: '', type: 'error_scan', severity,
         title: `巡检报告[${severity}]: 发现 ${issueCount} 条异常`,
         body,
         action_key: '', action_payload: {},
         created_at: now, read: false
       }})));
+      rsErrScan.forEach((r) => { if (r.status === 'rejected') log.d(`error_scan notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); });
       pushed = true;
     }
   }
@@ -432,7 +433,7 @@ async function processUrgeReminder(now, cfg) {
           title: s.title, body: s.body,
           action_key: 'jump_order', action_payload: { order_id: o._id },
           created_at: now, read: false
-        }}).catch(() => {});
+        }}).catch((e) => log.d(`urge notice fail: ${(e && e.message) || e}`));
       }
       done[s.stage].push(o.order_no);
       log.d(`urge ${s.stage} -> ${s.to}: ${o.order_no}`);

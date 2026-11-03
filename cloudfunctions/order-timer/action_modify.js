@@ -49,7 +49,7 @@ async function processModifyTimeout(ctx) {
         }}));
       });
       return notices;
-    }));
+    })).then((rs) => { rs.forEach((r) => { if (r.status === 'rejected') log.d(`modify_reject notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); }); });
     mOK.forEach(x => { out.modify_auto_reject.push(x.o.order_no); log.d(`timeout S2_5→${x.toStatus} modify auto-reject: ${x.o.order_no}`); });
   } catch (e) { log.d(`s2.5 scan fail: ${e.message}`); }
 }
@@ -82,7 +82,7 @@ async function processExtendTimeout(ctx) {
     }));
     await Promise.allSettled(eOK.map(x => logStatus(x.o._id, 'S3', 'S3', 'timeout_extend_auto_reject', 'system')));
     // 只通知发起人(与手动拒绝口径一致); type 必须是 extend_reject —— 详情页 8s notice_poll 命中即震动+弹窗
-    await Promise.allSettled(eOK.filter(x => x.pe.by_openid).map(x => col('system_notice').add({ data: {
+    const rsExtend = await Promise.allSettled(eOK.filter(x => x.pe.by_openid).map(x => col('system_notice').add({ data: {
       to_openid: x.pe.by_openid,
       order_id: x.o._id,
       type: 'extend_reject',
@@ -92,6 +92,7 @@ async function processExtendTimeout(ctx) {
       action_payload: { order_id: x.o._id },
       created_at: now, read: false
     }})));
+    rsExtend.forEach((r) => { if (r.status === 'rejected') log.d(`extend_reject notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); });
     eOK.forEach(x => { out.extend_auto_reject.push(x.o.order_no); log.d(`timeout S3 extend auto-reject: ${x.o.order_no}`); });
   } catch (e) { log.d(`s3 extend scan fail: ${e.message}`); }
 }
