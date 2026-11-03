@@ -34,6 +34,8 @@ $COLLECTIONS = @(
   'user_profile', 'partner_exam', 'partner_apply',
   'dispute', 'withdraw_request', 'credit_log',
   'insurance_record', 'report', 'sms_log', 'device_bind',
+  # ── B-3(2026-11-03): 与 admin-action EXPORT_COLLECTIONS / raw-export / manual-backup 补齐 ──
+  'exam_bank', 'config_history',
   # ── 批1a(2026-10-25): 法律文档版本库 ──
   'legal_doc'
 )
