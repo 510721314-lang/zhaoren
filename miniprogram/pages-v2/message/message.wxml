@@ -36,7 +36,7 @@
         wx:for="{{orderList}}"
         wx:key="_id"
         data-id="{{item._id}}"
-        bindtap="onConvTap"
+        bindtap="onCardTap"
       >
         <view class="msg__avatar">{{item.avatar}}
           <text class="msg__badge" wx:if="{{item.unread_count}}">{{item.unread_count}}</text>
@@ -63,6 +63,8 @@
             </view>
           </view>
         </view>
+        <!-- 2026-11-03(A+C·C): 卡片主体进订单详情, 「💬」单独进聊天(与卡主体点击分区) -->
+        <view class="msg__chat-btn" data-id="{{item._id}}" catchtap="onConvTap">💬</view>
       </view>
     </block>
   </view>

@@ -147,6 +147,16 @@
   font-size: var(--font-xs);
   color: var(--brand-primary);
 }
+/* 2026-11-03(A+C·C): 会话卡片「发消息」小按钮, 与卡片主体(跳订单详情)分区点击 */
+.msg__chat-btn {
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  padding: 8rpx 10rpx;
+  font-size: 32rpx;
+  line-height: 1;
+  border-radius: 12rpx;
+  background: var(--bg-segment);
+}
 .msg__empty-tip {
   text-align: center;
   font-size: var(--font-sm);

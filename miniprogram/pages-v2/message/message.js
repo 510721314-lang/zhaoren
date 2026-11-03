@@ -158,6 +158,19 @@ Page({
   // M1 长按菜单已于 2026-10-28 移除入口并删除实现（删除仅改本地数组、刷新即回，属半实现，提审期不暴露）；
   //   如需恢复「置顶」：从 git 历史（v1.6.56 之前）取回 onLongPress 实现，并在 message.wxml 会话项加回 bindlongpress="onLongPress"
 
+  // 2026-11-03(A+C·C): 卡片主体 → 订单详情; 右侧「💬」仍走 onConvTap → 聊天。
+  // 无 order_id 的会话(如客服占位)回落到聊天, 避免死点。
+  onCardTap(e) {
+    const id = e.currentTarget.dataset.id;
+    const target = this.data.orderList.find((c) => c._id === id);
+    const orderId = (target && target.order_id) || '';
+    if (!orderId) { this.onConvTap(e); return; }
+    wx.navigateTo({
+      url: `/pages-v2/order-detail/order-detail?orderId=${orderId}`,
+      fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' })
+    });
+  },
+
   onConvTap(e) {
     const id = e.currentTarget.dataset.id;
     const target = this.data.orderList.find((c) => c._id === id);
