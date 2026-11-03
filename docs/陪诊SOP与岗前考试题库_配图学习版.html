@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>陪诊业务 SOP 与岗前考试题库 · 配图学习版</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #0F766E;        /* 主色：医护青 */
+  --primary-dark: #0B3B36;
+  --primary-soft: #E6F2F0;   /* 低饱和浅底 */
+  --accent: #D8434E;         /* 红线警示 */
+  --accent-soft: #FCEBEA;
+  --amber: #B45309;          /* 时限强调（低饱和） */
+  --amber-soft: #FBF1E2;
+  --text: #1F2937;
+  --muted: #5B6B68;
+  --line: #D8E4E1;
+  --bg: #0B3B36;             /* body 兜底 = 封面深色 */
+}
+@page { size: 720px 1020px; margin: 0; }
+html, body { margin: 0; padding: 0; background: var(--bg); }
+body {
+  width: 720px; font-family: "Noto Sans SC", sans-serif; color: var(--text);
+  line-break: strict; word-break: normal; font-size: 13px; line-height: 1.65;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+p, td, li, div { overflow-wrap: break-word; }
+* { box-sizing: border-box; }
+.main-content { background: #F7FAF9; }
+.page-pad { padding: 30px 44px 34px; }
+
+/* ========== 封面 ========== */
+.cover {
+  width: 720px; height: 1020px; background: var(--primary-dark);
+  color: #EAF4F2; position: relative; break-after: page;
+  padding: 84px 64px; overflow: hidden;
+}
+.cover::before {
+  content: ""; position: absolute; right: -120px; top: -120px; width: 420px; height: 420px;
+  border-radius: 50%; border: 2px solid rgba(230,242,240,.14);
+}
+.cover::after {
+  content: ""; position: absolute; right: -40px; top: -40px; width: 260px; height: 260px;
+  border-radius: 50%; border: 2px solid rgba(230,242,240,.20);
+}
+.cover-kicker { font-size: 12px; letter-spacing: 6px; color: #8FBDB5; margin-bottom: 22px; }
+.cover-title {
+  font-family: "Noto Serif SC", serif; font-weight: 900; font-size: 56px;
+  line-height: 1.22; margin: 0 0 18px;
+}
+.cover-sub { font-size: 20px; color: #B9D6D0; font-weight: 500; margin-bottom: 44px; }
+.cover-badges { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 52px; max-width: 100%; }
+.cover-badge {
+  border: 1px solid rgba(143,189,181,.5); color: #CFE6E1; font-size: 12px;
+  padding: 5px 14px; border-radius: 999px;
+}
+.cover-summary {
+  background: rgba(230,242,240,.08); border-left: 3px solid #8FBDB5;
+  padding: 18px 22px; font-size: 13px; line-height: 1.9; color: #C9DEDA; max-width: 480px;
+}
+.cover-summary b { color: #FFFFFF; }
+.cover-foot {
+  position: absolute; left: 64px; right: 64px; bottom: 60px;
+  border-top: 1px solid rgba(143,189,181,.35); padding-top: 16px;
+  font-size: 11px; color: #8FBDB5; display: flex; justify-content: space-between;
+}
+
+/* ========== 章节骨架 ========== */
+.chapter { break-before: page; }
+.ch-kicker { font-size: 11px; letter-spacing: 4px; color: var(--primary); font-weight: 700; margin-bottom: 6px; }
+.ch-head h2 {
+  font-family: "Noto Serif SC", serif; font-size: 26px; font-weight: 900;
+  margin: 0 0 6px; color: var(--primary-dark);
+}
+.ch-sub { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
+.ch-head { border-bottom: 2px solid var(--primary); padding-bottom: 14px; margin-bottom: 20px; }
+.h3 { font-size: 16px; font-weight: 700; color: var(--primary-dark); margin: 24px 0 10px; display: flex; align-items: center; gap: 8px; }
+.h3-bar { width: 5px; height: 16px; background: var(--primary); border-radius: 2px; flex: 0 0 auto; }
+.sec { margin-bottom: 14px; }
+.sec-t { font-size: 14px; font-weight: 700; color: var(--primary-dark); margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; }
+.sec-t .no { background: var(--primary); color: #fff; font-size: 11px; border-radius: 4px; padding: 1px 7px; flex: 0 0 auto; }
+.body-p { margin: 0 0 10px; text-align: justify; }
+b { color: var(--primary-dark); }
+.mono { font-family: "Noto Sans SC", sans-serif; }
+
+/* ========== 通用组件 ========== */
+.grid2 { display: flex; flex-wrap: wrap; gap: 12px; max-width: 100%; }
+.grid2 > * { flex: 1 1 300px; min-width: 260px; max-width: 100%; }
+.grid3 { display: flex; flex-wrap: wrap; gap: 10px; max-width: 100%; }
+.grid3 > * { flex: 1 1 190px; min-width: 170px; max-width: 100%; }
+.card {
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; break-inside: avoid;
+}
+.card-t { font-size: 13px; font-weight: 700; color: var(--primary-dark); margin-bottom: 6px; }
+.card-p { font-size: 12.5px; color: var(--text); margin: 0; text-align: justify; }
+table.tbl { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); font-size: 12px; break-inside: avoid; }
+table.tbl th { background: var(--primary); color: #fff; font-weight: 700; padding: 7px 9px; text-align: left; }
+table.tbl td { border-top: 1px solid var(--line); padding: 7px 9px; vertical-align: top; }
+table.tbl tr:nth-child(even) td { background: #F1F7F5; }
+.small { font-size: 11px; color: var(--muted); }
+.note {
+  background: var(--amber-soft); border-left: 3px solid var(--amber); border-radius: 0 8px 8px 0;
+  padding: 10px 14px; font-size: 12.5px; margin: 12px 0; break-inside: avoid;
+}
+.note b { color: var(--amber); }
+.tip {
+  background: var(--primary-soft); border-left: 3px solid var(--primary); border-radius: 0 8px 8px 0;
+  padding: 10px 14px; font-size: 12.5px; margin: 12px 0; break-inside: avoid;
+}
+.tip b { color: var(--primary); }
+.fig {
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 18px 12px; margin: 12px 0; break-inside: avoid;
+}
+.fig-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 2px; margin-bottom: 12px; }
+.fig-cap { font-size: 11px; color: var(--muted); margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* 图1 角色关系 */
+.role-row { display: flex; flex-wrap: wrap; gap: 10px; max-width: 100%; }
+.role {
+  flex: 1 1 120px; min-width: 110px; max-width: 100%; text-align: center;
+  background: var(--primary-soft); border: 1px solid var(--primary); border-radius: 8px; padding: 10px 8px;
+}
+.role.hot { background: var(--primary); color: #fff; }
+.role .r-name { font-weight: 700; font-size: 13px; }
+.role .r-def { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+.role.hot .r-def { color: #CFE6E1; }
+
+/* 图2 三阶段时间轴 */
+.tl { position: relative; margin-left: 10px; }
+.tl::before { content: ""; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 2px; background: var(--primary); opacity: .35; }
+.tl-item { position: relative; padding: 0 0 16px 38px; }
+.tl-item:last-child { padding-bottom: 2px; }
+.tl-dot {
+  position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.tl-t { font-weight: 700; font-size: 13.5px; color: var(--primary-dark); }
+.tl-d { font-size: 12px; color: var(--muted); margin-top: 2px; text-align: justify; }
+.tl-time { display: inline-block; background: var(--amber-soft); color: var(--amber); font-size: 11px; border-radius: 4px; padding: 1px 8px; margin-top: 4px; font-weight: 700; }
+
+/* 图3 时限速记 */
+.time-grid { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.time-chip {
+  flex: 1 1 200px; min-width: 180px; max-width: 100%; display: flex; align-items: center; gap: 10px;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; break-inside: avoid;
+}
+.time-num { font-weight: 900; font-size: 17px; color: var(--amber); flex: 0 0 auto; min-width: 78px; }
+.time-txt { font-size: 12px; line-height: 1.45; }
+
+/* 图4 边界对照 */
+.bnd { display: flex; flex-wrap: wrap; gap: 12px; max-width: 100%; }
+.bnd > div { flex: 1 1 300px; min-width: 270px; max-width: 100%; border-radius: 10px; padding: 12px 14px; break-inside: avoid; }
+.bnd-ok { background: var(--primary-soft); border: 1px solid var(--primary); }
+.bnd-no { background: var(--accent-soft); border: 1px solid var(--accent); }
+.bnd-t { font-weight: 900; font-size: 14px; margin-bottom: 8px; }
+.bnd-ok .bnd-t { color: var(--primary); }
+.bnd-no .bnd-t { color: var(--accent); }
+.bnd ol { margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.8; }
+.bnd-no li { border-bottom: 1px dashed #EAC6C3; }
+.bnd-no li:last-child { border-bottom: none; }
+
+/* 图6 闭环 */
+.loop-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; max-width: 100%; }
+.loop-step {
+  flex: 1 1 140px; min-width: 130px; max-width: 100%; background: var(--primary-soft);
+  border: 1px solid var(--primary); border-radius: 8px; padding: 9px 12px; break-inside: avoid;
+}
+.loop-step .ls-t { font-weight: 700; font-size: 12.5px; color: var(--primary-dark); }
+.loop-step .ls-d { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+
+/* ========== 题库卡片 ========== */
+.q-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  padding: 13px 16px; margin-bottom: 12px; break-inside: avoid;
+}
+.q-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; max-width: 100%; }
+.q-no { font-weight: 900; color: var(--primary); font-size: 13.5px; margin-right: 4px; }
+.q-tag { background: var(--primary-soft); color: var(--primary); font-size: 10.5px; border-radius: 4px; padding: 1px 7px; font-weight: 700; }
+.q-tag.tag-multi { background: var(--amber-soft); color: var(--amber); }
+.tag-diff-easy { background: #EAF3EE; color: #2F7D51; }
+.tag-diff-mid { background: #FBF1E2; color: var(--amber); }
+.tag-diff-hard { background: var(--accent-soft); color: var(--accent); }
+.q-know { font-size: 10.5px; color: var(--muted); margin-left: auto; }
+.q-stem { font-weight: 700; font-size: 13px; margin-bottom: 8px; line-height: 1.6; }
+.q-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin-bottom: 8px; }
+.opt { display: flex; gap: 7px; font-size: 12px; line-height: 1.55; }
+.opt-letter { font-weight: 700; color: var(--primary); flex: 0 0 auto; }
+.q-answer { background: var(--primary-soft); border-radius: 6px; padding: 5px 12px; font-size: 12px; color: var(--primary-dark); }
+.q-answer b, .q-analysis b { color: var(--primary); }
+.q-analysis { font-size: 11.5px; color: var(--muted); padding: 6px 12px 0; line-height: 1.6; }
+table.ans-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); font-size: 11.5px; break-inside: avoid; }
+table.ans-table th { background: var(--primary); color: #fff; padding: 5px 6px; font-weight: 700; }
+table.ans-table td { border: 1px solid var(--line); padding: 4px 8px; text-align: center; }
+.ans-cell { font-weight: 900; color: var(--primary); background: #F1F7F5; }
+
+/* ========== 尾页 ========== */
+.ending {
+  break-before: page; width: 720px; height: 1020px; background: var(--primary-dark);
+  color: #CFE6E1; display: flex; flex-direction: column; justify-content: center; align-items: center;
+  text-align: center; padding: 80px;
+}
+.ending .e-t { font-family: "Noto Serif SC", serif; font-size: 34px; font-weight: 900; color: #fff; margin-bottom: 18px; }
+.ending .e-p { font-size: 13px; line-height: 2; max-width: 460px; }
+
+@media screen {
+  html { background: #233; }
+  body { margin: 0 auto; transform-origin: top center; zoom: 0.9; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 封面 ================= -->
+<div class="cover">
+  <div class="cover-kicker">INTERNAL TRAINING HANDBOOK</div>
+  <h1 class="cover-title">陪诊业务 SOP<br>与岗前考试题库</h1>
+  <div class="cover-sub">配图学习版 · 图解流程 + 90 题带解析题库</div>
+  <div class="cover-badges">
+    <span class="cover-badge">编制依据 GB/T 47801—2026</span>
+    <span class="cover-badge">版本 V1.1</span>
+    <span class="cover-badge">三套试卷 · 每套全覆盖</span>
+  </div>
+  <div class="cover-summary">
+    <b>本册结构</b><br>
+    第一部分　SOP 图解精要 —— 服务定位与边界、三阶段流程、关键时限、应急处置与合规红线，全部以图表呈现；<br>
+    第二部分　岗前考试题库 —— A/B/C 三卷共 90 题，逐题附答案与 SOP 条款解析；<br>
+    第三部分　覆盖矩阵与组卷说明 —— 12 个知识模块 × 三卷分布，备考一目了然。
+  </div>
+  <div class="cover-foot">
+    <span>适用对象：陪诊师 · 客服与调度 · 质量管理</span>
+    <span>用途：培训教材 / 考核依据 / 题库数据源</span>
+  </div>
+</div>
+
+<div class="main-content">
+<div class="page-pad">
+
+<!-- ================= 第一部分 ================= -->
+<div class="chapter">
+  <div class="ch-head">
+    <div class="ch-kicker">PART 01 · 学习精要</div>
+    <h2>第一部分　SOP 图解精要</h2>
+    <p class="ch-sub">《陪诊业务标准作业流程》核心内容可视化整理 —— 先看图建立框架，再逐节记忆要点</p>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.1</span>怎么用这本手册</div>
+    <p class="body-p">本手册把合订本第一部分（SOP 正文）、第二部分（题库）、第三部分（覆盖矩阵）整合为学习路径：<b>先读第一部分图表建立整体框架</b>，再进入第二部分刷题，遇到错题回到对应 SOP 章节原文复核（每题解析均标注条款出处）。岗前考试 80 分为通过线，先培训、后上岗。</p>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.2</span>五个基本角色 —— 谁是谁</div>
+    <div class="fig">
+      <div class="fig-title">图 1　角色关系速览（SOP 1.4）</div>
+      <div class="role-row">
+        <div class="role"><div class="r-name">服务提供者</div><div class="r-def">机构：提供陪诊服务并获取收益</div></div>
+        <div class="role"><div class="r-name">顾　客</div><div class="r-def">订合同、付费用：本人 / 家属 / 代理人均可</div></div>
+        <div class="role hot"><div class="r-name">陪诊师</div><div class="r-def">直接提供陪同就医服务的人员（就医助手）</div></div>
+        <div class="role"><div class="r-name">服务对象</div><div class="r-def">就医不便者，或追求更好就医体验的个人</div></div>
+        <div class="role"><div class="r-name">医务人员</div><div class="r-def">作出一切医疗决策的主体</div></div>
+      </div>
+      <div class="fig-cap">注意区分：「顾客」是合同相对人，可以不是服务对象本人；「陪诊师」不是医务人员。</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.3</span>服务定位：一句话记住</div>
+    <div class="tip"><b>陪诊服务 = 辅助性 + 事务性 + 陪伴性服务，不构成诊疗行为。</b><br>
+    陪诊师是"就医助手"，不是"医疗人员"。诊断、治疗、用药等一切医疗决策，由医务人员及服务对象（或其法定监护人）作出，陪诊师不得越界（SOP 1.5.1）。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.4</span>服务边界：能做 12 项 · 不能做 7 项</div>
+    <div class="fig">
+      <div class="fig-title">图 2　服务边界正负面清单（SOP 1.5.2 / 1.5.3，附录 C 速查卡）</div>
+      <div class="bnd">
+        <div class="bnd-ok">
+          <div class="bnd-t">✓ 可以做（12 项）</div>
+          <ol>
+            <li>领取预约号</li>
+            <li>代买 / 代取基础医疗用品（轮椅、陪护床、口罩等）</li>
+            <li>引导至指定科室、检查室或治疗区域</li>
+            <li>预约检查、做检查准备</li>
+            <li>样本送检</li>
+            <li>领取药物和检查结果，必要时代发快递</li>
+            <li>记录医嘱</li>
+            <li>代取、复印病历、诊断证明等医疗文书</li>
+            <li>办理出入院手续</li>
+            <li>办理缴费</li>
+            <li>生活辅助（交通餐饮预订、物品保管等）</li>
+            <li>情感支持（陪伴、倾听、回应、安抚）</li>
+          </ol>
+        </div>
+        <div class="bnd-no">
+          <div class="bnd-t">✗ 不能做（7 项 · 红线）</div>
+          <ol>
+            <li>检查结果判读</li>
+            <li>参与医疗操作</li>
+            <li>提供医疗建议</li>
+            <li>代替服务对象或家属选择 / 同意治疗方案</li>
+            <li>调整用药方案</li>
+            <li>关键医疗信息的隐瞒、篡改和选择性传递</li>
+            <li>签署具有法律效力的医疗文书</li>
+          </ol>
+        </div>
+      </div>
+      <div class="fig-cap">考试要点：两份清单的条目数量（12 / 7）及归属判断是高频考点。判读化验单、推荐替代药品、代签手术同意书均属红线。</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.5</span>六项服务原则（SOP 1.6）</div>
+    <div class="grid3">
+      <div class="card"><div class="card-t">① 以服务对象为中心</div><p class="card-p">需求与利益放首位，专业化、个性化、人性化。</p></div>
+      <div class="card"><div class="card-t">② 合法守规、诚信经营</div><p class="card-p">遵守法规与医疗机构管理规定，不隐瞒、不欺骗。</p></div>
+      <div class="card"><div class="card-t">③ 专业性与安全性</div><p class="card-p">具备医疗卫生基础知识与应急能力，保障安全。</p></div>
+      <div class="card"><div class="card-t">④ 隐私保护</div><p class="card-p">个人信息与病情隐私，未经同意不得泄露。</p></div>
+      <div class="card"><div class="card-t">⑤ 尊重与理解</div><p class="card-p">尊重自主选择权、决策权、习惯、宗教信仰与习俗。</p></div>
+      <div class="card"><div class="card-t">⑥ 持续改进</div><p class="card-p">建立"服务—评价—改进"闭环，持续提升质量。</p></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.6</span>机构条件与人员准入（SOP 2.1 / 2.2）</div>
+    <div class="grid2">
+      <div class="card"><div class="card-t">机构五项条件</div><p class="card-p">① 依法登记、独立法人、经营范围含陪诊类目；② 固定场所 + 独立档案存储区；③ 服务调度系统 + 投诉处理岗位；④ 服务责任险及意外险投保机制；⑤ 培训考核、全流程追溯、隐私保护、投诉响应、应急处置等制度，并公示资质与收费。</p></div>
+      <div class="card"><div class="card-t">陪诊师准入硬门槛</div><p class="card-p">① 年满 18 周岁、完全民事行为能力；② 身心健康、无传染病及精神病史，持有效健康证明或二级以上医院近 3～6 个月体检合格证明；③ 无刑事处罚、无医疗行业失信、无侵害消费者权益前科，提供无犯罪记录证明；④ 高中 / 中专及以上学历（医学、护理等相关背景优先，非硬性）；⑤ 机构<b>每年</b>背景与健康复核，不合格终止聘用。</p></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.7</span>培训、用品与保险（SOP 2.3 / 2.4）</div>
+    <p class="body-p"><b>先培训、后上岗：</b>岗前培训含医疗场景常识（挂号流程、科室布局、自助终端）、基本安全知识（疏散路线、跌倒晕厥应对）、沟通技巧、应急处理、隐私保护五大模块；在岗培训定期开展专项培训与急救技能（CPR、AED）；培训形式含课堂教学、岗位实操、专项强化、阶梯式再培训，考核与再考核结合，记录归档纳入人员档案。</p>
+    <div class="note"><b>保险行业参考（非强制）：</b>服务责任险单次事故赔付不低于 100 万元、年度累计不低于 500 万元；覆盖服务全流程及服务结束后合理时限内责任，凭证公示并主动出示。统一工装与工作标识（胸牌、工作证）挂牌上岗；辅助设备使用前消毒并确认无故障。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.8</span>服务流程总览：三阶段一条线（SOP 第 3 章）</div>
+    <div class="fig">
+      <div class="fig-title">图 3　三阶段服务流程（国家标准划分）</div>
+      <div class="tl">
+        <div class="tl-item"><div class="tl-dot">1</div>
+          <div class="tl-t">服务信息提供 —— 公示 · 咨询对接 · 需求评估</div>
+          <div class="tl-d">明码标价、资质公示；接单后主动联系，采集信息建档；客观推荐医院科室，<b>严禁宣称"优先挂号""优先检查""走后门"</b>。</div>
+          <span class="tl-time">时限：接单后 1 小时内首次联系</span></div>
+        <div class="tl-item"><div class="tl-dot">2</div>
+          <div class="tl-t">委托与受理 —— 风险识别 · 方案 · 合同 · 收费 · 诊前准备</div>
+          <div class="tl-d">评估行动 / 认知能力与高风险情形；协商确认服务方案；签服务协议（电子协议须符合《电子签名法》）；明码标价；提醒携带证件资料、查科室分布与交通。</div>
+          <span class="tl-time">时限：服务开始前全部完成</span></div>
+        <div class="tl-item"><div class="tl-dot">3</div>
+          <div class="tl-t">服务交付 —— 到达核验 · 挂号候诊 · 诊室 · 检查 · 缴费取药 · 收尾</div>
+          <div class="tl-d">按正负面清单执行，全程留痕；突发情况按 6.9 应急处置；服务评价与投诉管理贯穿全过程，形成闭环。</div>
+          <span class="tl-time">时限：提前 1 个工作日提醒 · 提前 30 分钟到达 · 结束 2 小时内整理记录</span></div>
+      </div>
+      <div class="fig-cap">三个阶段 + 贯穿始终的"服务评价与持续改进"，构成完整闭环。</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.9</span>关键时限速记卡（高频考点）</div>
+    <div class="fig">
+      <div class="fig-title">图 4　七个必背时限数字</div>
+      <div class="time-grid">
+        <div class="time-chip"><span class="time-num">1 小时</span><span class="time-txt">接单后 1 小时内首次联系服务对象或家属（4.2）</span></div>
+        <div class="time-chip"><span class="time-num">1 个工作日</span><span class="time-txt">提前提醒携带身份证、医保卡、病历等资料（5.5）</span></div>
+        <div class="time-chip"><span class="time-num">8 小时</span><span class="time-txt">空腹检查提前告知禁食禁水；憋尿检查提前告知饮水要求（5.5）</span></div>
+        <div class="time-chip"><span class="time-num">30 分钟</span><span class="time-txt">提前到达约定医院集合地点（6.1）</span></div>
+        <div class="time-chip"><span class="time-num">15 分钟</span><span class="time-txt">暂时离开（缴费取报告等）不超过 15 分钟，且须提前告知返回时间（6.2）</span></div>
+        <div class="time-chip"><span class="time-num">2 小时</span><span class="time-txt">服务结束 2 小时内整理就诊记录并录入系统（6.8）</span></div>
+        <div class="time-chip"><span class="time-num">24 小时</span><span class="time-txt">服务结束 24 小时内使用《回访调查表》（附录 A）完成回访（7.1）</span></div>
+      </div>
+      <div class="fig-cap">易混淆：2 小时（整理记录）≠ 24 小时（回访）；15 分钟（离开）≠ 30 分钟（到达）。</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.10</span>阶段一 · 服务信息提供（SOP 4.1～4.3）</div>
+    <p class="body-p"><b>公示：</b>服务内容、收费项目和标准、投诉电话、陪诊师资质，在经营场所及线上平台真实公示。<b>信息采集：</b>基本信息（姓名、性别、年龄、医保类型、联系方式）、就诊医院与科室、预约挂号情况、既往病史、过敏史、当前症状、行动能力、辅助设备需求、特殊需求（方言沟通、陪同检查性别要求等），同步录入机构系统建档。<b>特殊群体：</b>65 岁以上老人、残障人士、孕妇、术后复诊者，额外确认家属紧急联系人、既往病历存放、是否需要协助接送。<b>推荐：</b>客观推荐适宜医院科室专家，综合考虑专科优势、专家擅长领域与资源可及性，避免利益驱动；不提供诊疗建议、不代替选择治疗方案。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.11</span>阶段二 · 委托与受理（SOP 5.1～5.5）</div>
+    <p class="body-p"><b>风险识别：</b>识别行动 / 认知能力与潜在风险；重症、急性传染病、需紧急救治等高风险情形，如实告知顾客并协商是否承接，必要时建议先就医。<b>服务方案：</b>协商确认就诊机构与时间、预约挂号方式、陪同内容、集散地点、往返交通、拟咨询的医学问题。<b>合同：</b>正式服务前签订纸质或电子协议；必备条款七项 —— 服务时长、服务项目、收费标准、双方权利义务、责任免除、隐私保护约定、投诉处理流程；无 / 限制民事行为能力人<b>必须由法定监护人签署</b>；签订后出具服务确认单。</p>
+    <p class="body-p"><b>收费：</b>明码标价、公示收费，不得收取公示以外费用（市场参考：一线城市时薪约 50～100 元、单次 200～400 元；二线约 200 元/次；跑腿单项约 100 元）。<b>诊前准备：</b>提前 1 个工作日提醒携带资料；空腹项目提前 8 小时告知禁食禁水；未挂号者协助官方平台实名预约，<b>严禁"号贩子"渠道</b>；提前查询科室分布、出诊医生、停车与交通；辅助设备提前确认租借或自备消毒。</p>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.12</span>阶段三 · 现场陪同交付（SOP 6.1～6.8）</div>
+    <div class="fig">
+      <div class="fig-title">图 5　交付环节八个动作要点</div>
+      <table class="tbl">
+        <thead><tr><th style="width:26%">环节</th><th>核心要求（速记）</th></tr></thead>
+        <tbody>
+          <tr><td><b>6.1 到达核验</b></td><td>提前 30 分钟到达；出示证件、核对身份；统一工装挂牌，不戴夸张饰品，不吸烟喧哗。</td></tr>
+          <tr><td><b>6.2 挂号候诊</b></td><td>全程保持在视线范围内；暂时离开≤15 分钟且先告知；不让行动不便、意识不清者单独留在公共区域。</td></tr>
+          <tr><td><b>6.3 诊室陪同</b></td><td>经服务对象<b>及医生</b>同意后进入；协助陈述病情、客观记录医嘱；不干扰诊疗、不作任何诊疗决定。</td></tr>
+          <tr><td><b>6.4 检查陪同</b></td><td>核对项目与注意事项；隐私部位检查先征求意见，陪同须服务对象与医务人员<b>双重同意</b>。</td></tr>
+          <tr><td><b>6.5 缴费取药</b></td><td>留存凭证、费用透明；取药核对名称、规格、数量、用法用量并说明禁忌；<b>不得建议增减药量、换药或推荐非医嘱药品保健品</b>。</td></tr>
+          <tr><td><b>6.6 报告与复诊</b></td><td>当日未出的报告，经同意后代领或代发快递；协助预约复诊时间。</td></tr>
+          <tr><td><b>6.7 出入院</b></td><td>住院协助登记、预缴；出院协助结算、领药、病历复印与报销。</td></tr>
+          <tr><td><b>6.8 收尾交接</b></td><td>送至约定地点；清点物品资料药品；告知复查与用药注意；2 小时内录入记录并同步家属。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.13</span>突发情况应急处置（SOP 6.9）</div>
+    <div class="grid3">
+      <div class="card"><div class="card-t">突发症状（晕倒 / 过敏 / 胸痛）</div><p class="card-p">第一时间呼叫医院急诊人员，同步联系家属告知情况，保留急救记录；持急救证者按规范实施 CPR / AED，<b>不得擅自实施超出能力范围的医疗处置</b>。</p></div>
+      <div class="card"><div class="card-t">号源失效 / 设备故障 / 临时停诊</div><p class="card-p">第一时间向服务对象及家属说明，协助退号、改约、更换医生；<b>不得隐瞒、不得擅自变更就诊安排</b>。</p></div>
+      <div class="card"><div class="card-t">与院方或患者发生纠纷</div><p class="card-p">理性克制，优先保障就诊进度；无法解决立即联系机构管理人员；<b>不得冲突、不得影响医疗秩序</b>。</p></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.14</span>服务评价与持续改进（SOP 第 7 章）</div>
+    <div class="fig">
+      <div class="fig-title">图 6　"服务—评价—改进"闭环</div>
+      <div class="loop-row">
+        <div class="loop-step"><div class="ls-t">① 24 小时内回访</div><div class="ls-d">电话 / 微信 / 问卷，用附录 A《回访调查表》，结果录入系统</div></div>
+        <div class="loop-step"><div class="ls-t">② 满意度调查</div><div class="ls-d">覆盖职业素养、专业能力、服务态度、流程熟悉度、响应及时性</div></div>
+        <div class="loop-step"><div class="ls-t">③ 投诉处理</div><div class="ls-d">公示渠道、专人响应、规定时限、完整记录；协商不成引导调解或法律途径</div></div>
+        <div class="loop-step"><div class="ls-t">④ 持续改进</div><div class="ls-d">分类分析找短板，用流程图 / PDCA 优化；改进明确责任人与时限，共性问题公示</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.15</span>风险管控与合规红线（SOP 8.1～8.4）</div>
+    <div class="fig">
+      <div class="fig-title">图 7　八项禁止行为清单（SOP 8.1）</div>
+      <div class="bnd-no" style="border-radius:10px; padding:12px 14px;">
+        <ol style="column-count:2; column-gap:24px; padding-left:20px;">
+          <li>检查结果判读、参与医疗操作、提供医疗建议</li>
+          <li>代替选择或同意治疗方案</li>
+          <li>调整用药方案</li>
+          <li>隐瞒、篡改、选择性传递关键医疗信息</li>
+          <li>签署具有法律效力的医疗文书</li>
+          <li>违规加号、贩卖号源（"号贩子""黄牛"）</li>
+          <li>虚假宣传"优先挂号""优先检查""走后门"</li>
+          <li>收取合同外费用或索取不正当利益</li>
+        </ol>
+      </div>
+    </div>
+    <div class="note"><b>隐私与信息安全：</b>服务档案专人管理、依规保存；人员离职后对其服务过的客户信息删除或保密处理，不得带走自用。<b>应急管理：</b>预案覆盖突发疾病、意外伤害、医疗纠纷等场景；定期培训演练、记录归档、事后复盘修订。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="no">1.16</span>第一部分自测清单（进入题库前过一遍）</div>
+    <div class="grid2">
+      <div class="card"><div class="card-t">概念与边界</div><p class="card-p">☐ 能区分顾客 / 服务对象 / 陪诊师<br>☐ 背出 12 项可做服务中的至少 10 项<br>☐ 背出 7 项红线并理解每条为什么<br>☐ 能说出"不构成诊疗行为"的含义</p></div>
+      <div class="card"><div class="card-t">流程与时限</div><p class="card-p">☐ 说得出三阶段名称及每阶段关键动作<br>☐ 七个时限数字脱口而出<br>☐ 知道进诊室、隐私检查的"双重同意"规则<br>☐ 三类突发情况的第一反应各是什么</p></div>
+      <div class="card"><div class="card-t">管理要求</div><p class="card-p">☐ 机构五项条件与人员准入硬门槛<br>☐ 岗前培训五大模块 + 先培训后上岗<br>☐ 合同必备七项条款与监护人签署规则</p></div>
+      <div class="card"><div class="card-t">合规与闭环</div><p class="card-p">☐ 八项禁止行为清单<br>☐ 24 小时回访 → 满意度 → 投诉 → 改进闭环<br>☐ 隐私保护与离职后信息处理要求</p></div>
+    </div>
+    <div class="tip"><b>全部打勾后，进入第二部分 A 卷开考。</b>若某项犹疑，先回到对应小节复习再刷题。</div>
+  </div>
+
+</div><!-- /chapter 第一部分 -->
+
+<!-- ================= 第二部分 ================= -->
+<div class="chapter">
+  <div class="ch-head">
+    <div class="ch-kicker">PART 02 · 题库实战</div>
+    <h2>第二部分　岗前考试题库（3 套 · 90 题）</h2>
+    <p class="ch-sub">A / B / C 三卷均为独立完整的上岗资格卷：每套 30 题覆盖 12 个知识模块，三卷题目不重复。单选 20×3 分 + 多选 10×4 分 = 100 分，80 分通过，建议 60 分钟。</p>
+  </div>
+  <div class="sec">
+    <div class="sec-t"><span class="no">2.1</span>题型与评分规则</div>
+    <div class="grid2">
+      <div class="card"><div class="card-t">单项选择题 20 题 × 3 分 = 60 分</div><p class="card-p">四个选项，仅一个正确，严格比对判分。</p></div>
+      <div class="card"><div class="card-t">多项选择题 10 题 × 4 分 = 40 分</div><p class="card-p">五个选项，2～5 个正确。全对 4 分；<b>少选 2 分</b>（所选全对但不完整）；错选 / 含错误项 / 不选 0 分。</p></div>
+    </div>
+    <div class="tip"><b>备考建议：</b>先做 A 卷摸底 → 对照第一部分图表复盘错题（每题解析标注 SOP 条款）→ 再做 B、C 卷检验。三卷中的情境题（如"代签手术同意书""推荐便宜药""发朋友圈"）都对应 1.4 节的红线清单。</div>
+    <div class="note"><b>使用说明：</b>每卷题卡自带「答案」与「解析」区块，适合先做题、后核对；卷末附该卷答案速查表，方便快速对分。每题解析标注 SOP 条款出处（如 SOP 1.5.3），可回第一部分对应小节复习。</div>
+  </div>
+</div>
+
+<!-- A/B/C 三卷 -->
+
+<div class="chapter">
+  <div class="ch-head"><div class="ch-kicker">第二部分 · 题库</div>
+    <h2>A 卷 · 陪诊上岗资格考试</h2>
+    <p class="ch-sub">满分 100 分（单选 20×3 + 多选 10×4）　建议时长 60 分钟　80 分及以上通过　先做题、后核对答案与解析</p></div>
+  <h3 class="h3"><span class="h3-bar"></span>单项选择题（20 题 × 3 分）</h3>
+  
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-01</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M1</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.4 术语与定义</span></div>
+  <div class="q-stem">1. 依据 SOP 1.4 的术语定义，"服务对象"是指：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>与服务提供者订立服务合同、购买服务的个人</span></div><div class="opt"><span class="opt-letter">B</span><span>直接为服务对象提供陪同就医服务的人员</span></div><div class="opt"><span class="opt-letter">C</span><span>通过提供陪同就医服务获取收益的机构</span></div><div class="opt"><span class="opt-letter">D</span><span>因行动、认知、地域差异等原因导致就医不便者，或追求更好就医体验的个人</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.4 明确：服务对象是指因行动、认知、地域差异等原因导致就医不便者，或追求更好就医体验的个人。A 为"顾客"，B 为"陪诊师"，C 为"服务提供者"。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-02</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M1</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.5.1 服务定位</span></div>
+  <div class="q-stem">2. 关于陪诊服务的性质定位，正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>辅助性、事务性与陪伴性服务，不构成诊疗行为</span></div><div class="opt"><span class="opt-letter">B</span><span>诊疗行为的延伸组成部分，需承担部分医疗责任</span></div><div class="opt"><span class="opt-letter">C</span><span>医疗护理服务，须具备护士执业资格方可从事</span></div><div class="opt"><span class="opt-letter">D</span><span>院前急救医疗服务，可执行紧急医疗处置</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.1：陪诊服务属于辅助性、事务性与陪伴性服务，不构成诊疗行为；陪诊师是"就医助手"，不是"医疗人员"。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-03</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.5.2 可开展的服务</span></div>
+  <div class="q-stem">3. 下列哪项属于陪诊师可开展的服务？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>判读检查结果</span></div><div class="opt"><span class="opt-letter">B</span><span>调整用药方案</span></div><div class="opt"><span class="opt-letter">C</span><span>签署具有法律效力的医疗文书</span></div><div class="opt"><span class="opt-letter">D</span><span>记录医嘱</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.2 表1 第 7 项为"记录医嘱"。A、B 属 1.5.3 不应开展服务，D 属表2 第 7 项红线。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-04</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.5.2 / 1.5.3 服务边界</span></div>
+  <div class="q-stem">4. 下列哪项**不属于**"不应开展的服务（红线）"？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>提供医疗建议</span></div><div class="opt"><span class="opt-letter">B</span><span>样本送检</span></div><div class="opt"><span class="opt-letter">C</span><span>调整用药方案</span></div><div class="opt"><span class="opt-letter">D</span><span>参与医疗操作</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> "样本送检"属于 SOP 1.5.2 表1 第 5 项可开展服务；A、C、D 均属表2 不应开展的服务清单。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-05</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.5.2 / 1.5.3 服务边界</span></div>
+  <div class="q-stem">5. SOP 列出的"可开展的服务"与"不应开展的服务"分别有多少项？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>7 项与 12 项</span></div><div class="opt"><span class="opt-letter">B</span><span>10 项与 8 项</span></div><div class="opt"><span class="opt-letter">C</span><span>12 项与 5 项</span></div><div class="opt"><span class="opt-letter">D</span><span>12 项与 7 项</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.2 表1 可开展服务共 12 项；1.5.3 表2 不应开展服务（红线）共 7 项，两者构成附录 C 速查卡的正负面清单。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-07</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M3</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.6 服务原则</span></div>
+  <div class="q-stem">6. 下列哪项**不属于** SOP 规定的服务原则？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>合法守规、诚信经营</span></div><div class="opt"><span class="opt-letter">B</span><span>专业性与安全性</span></div><div class="opt"><span class="opt-letter">C</span><span>为提高就诊效率，必要时可代替服务对象作出医疗决策</span></div><div class="opt"><span class="opt-letter">D</span><span>持续改进</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.6 服务原则包括以服务对象为中心、合法守规诚信经营、专业性与安全性、隐私保护、尊重与理解、持续改进。代替服务对象决策违反 1.5.3 红线及"尊重与理解"原则。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-09</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">2.2 人员准入标准</span></div>
+  <div class="q-stem">7. 陪诊师准入的年龄与民事行为能力要求是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>年满 16 周岁即可</span></div><div class="opt"><span class="opt-letter">B</span><span>年满 18 周岁，具备完全民事行为能力</span></div><div class="opt"><span class="opt-letter">C</span><span>年满 20 周岁</span></div><div class="opt"><span class="opt-letter">D</span><span>年满 22 周岁且已婚</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3：年满 18 周岁，具备完全民事行为能力。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-10</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">2.2 人员准入标准</span></div>
+  <div class="q-stem">8. 陪诊师的学历准入要求为：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>初中及以上学历</span></div><div class="opt"><span class="opt-letter">B</span><span>大专及以上医学专业学历</span></div><div class="opt"><span class="opt-letter">C</span><span>本科及以上学历</span></div><div class="opt"><span class="opt-letter">D</span><span>高中（或中专）及以上学历</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3：具备高中（或中专）及以上学历；医学、护理、药学、公共卫生、社工等相关专业或从业经历者优先（优先项，非硬性门槛）。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-12</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M5</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">2.3 培训与考核</span></div>
+  <div class="q-stem">9. 关于培训与上岗的关系，正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>先培训、后上岗，须完成岗前培训并考核合格后方可上岗</span></div><div class="opt"><span class="opt-letter">B</span><span>可先上岗，在服务中边干边学</span></div><div class="opt"><span class="opt-letter">C</span><span>只要有医学背景即可免培训上岗</span></div><div class="opt"><span class="opt-letter">D</span><span>未通过考核者可先跟随老员工独立提供服务</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.3：先培训、后上岗；陪诊师须完成岗前培训并通过考核合格后方可上岗，未通过考核者不得提供服务。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-14</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M6</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">第 3 章 服务流程总览</span></div>
+  <div class="q-stem">10. 依据国家标准，陪诊服务流程划分为哪三个阶段？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>咨询、签约、陪诊</span></div><div class="opt"><span class="opt-letter">B</span><span>服务信息提供、委托与受理、服务交付</span></div><div class="opt"><span class="opt-letter">C</span><span>挂号、就诊、取药</span></div><div class="opt"><span class="opt-letter">D</span><span>需求评估、风险识别、应急处置</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 第 3 章表4：服务信息提供、委托与受理、服务交付；服务评价与投诉管理贯穿全过程。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-15</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M6</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">4.2 / 表4 时限要求</span></div>
+  <div class="q-stem">11. 接单后，陪诊师或客服人员主动联系服务对象或其家属的时限要求是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>1 小时内</span></div><div class="opt"><span class="opt-letter">B</span><span>4 小时内</span></div><div class="opt"><span class="opt-letter">C</span><span>12 小时内</span></div><div class="opt"><span class="opt-letter">D</span><span>24 小时内</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.2 与表4：接单后 1 小时内首次联系。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-16</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">4.1 服务信息公示</span></div>
+  <div class="q-stem">12. 下列内容中，严禁在服务信息公示或宣传中出现的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>明码标价的收费项目和标准</span></div><div class="opt"><span class="opt-letter">B</span><span>投诉电话</span></div><div class="opt"><span class="opt-letter">C</span><span>"优先挂号""优先安排检查""联系医生走后门"等承诺</span></div><div class="opt"><span class="opt-letter">D</span><span>陪诊师资质信息</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.1：公示信息须真实有效，不得夸大宣传、虚假承诺；严禁宣称"优先挂号""优先安排检查""联系医生走后门"等内容。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-17</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.2 咨询与需求对接</span></div>
+  <div class="q-stem">13. 下列哪项**不属于**咨询与需求对接阶段应采集的信息？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>既往病史、过敏史、当前症状</span></div><div class="opt"><span class="opt-letter">B</span><span>行动能力及是否需要轮椅或平车等辅助设备</span></div><div class="opt"><span class="opt-letter">C</span><span>服务对象的家庭收入与资产状况</span></div><div class="opt"><span class="opt-letter">D</span><span>特殊需求（方言沟通、陪同检查性别要求等）</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.2 明确采集范围为基本信息、就诊信息、病史症状、行动能力与特殊需求；家庭收入与资产状况与服务无关，且属过度收集个人信息。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-19</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.3 服务合同订立</span></div>
+  <div class="q-stem">14. 下列哪项**不属于**服务合同的必备条款？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务时长、服务项目</span></div><div class="opt"><span class="opt-letter">B</span><span>陪诊师个人家庭住址</span></div><div class="opt"><span class="opt-letter">C</span><span>双方权利义务、责任免除条款</span></div><div class="opt"><span class="opt-letter">D</span><span>隐私保护约定、投诉处理流程</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.3 必备条款为服务时长、服务项目、收费标准、双方权利义务、责任免除条款、隐私保护约定、投诉处理流程。陪诊师家庭住址非必备，且涉及人员隐私。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-20</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.3 服务合同订立</span></div>
+  <div class="q-stem">15. 服务对象为无民事行为能力人或限制民事行为能力人时，服务协议应由谁签署？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>由其法定监护人签署，不得由无授权第三方代签</span></div><div class="opt"><span class="opt-letter">B</span><span>由陪诊师代为签署以提高效率</span></div><div class="opt"><span class="opt-letter">C</span><span>由服务对象本人签署即可</span></div><div class="opt"><span class="opt-letter">D</span><span>由医院护士长见证签署</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.3：必须由其法定监护人签署，不得由无授权第三方代签。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-22</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.3 诊室陪同与医嘱记录</span></div>
+  <div class="q-stem">16. 陪诊师进入诊室的前提条件是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>只要服务对象同意即可进入</span></div><div class="opt"><span class="opt-letter">B</span><span>出示工作证后可直接进入</span></div><div class="opt"><span class="opt-letter">C</span><span>经服务对象及医生同意后进入</span></div><div class="opt"><span class="opt-letter">D</span><span>涉及老年服务对象时一律必须进入</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.3：经服务对象及医生同意后进入诊室。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-23</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.4 检查陪同</span></div>
+  <div class="q-stem">17. 检查涉及隐私部位时，正确的做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>直接陪同，无需征求意见</span></div><div class="opt"><span class="opt-letter">B</span><span>一律拒绝陪同，由服务对象自行完成</span></div><div class="opt"><span class="opt-letter">C</span><span>由陪诊师视现场情况自行决定是否陪同</span></div><div class="opt"><span class="opt-letter">D</span><span>须先征求服务对象意见，如需陪同应得到服务对象与医务人员的双重同意</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.4：涉及隐私部位的检查须先征求服务对象意见，如需陪同应得到服务对象与医务人员的双重同意。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-25</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M10</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">6.9 突发情况应急处置</span></div>
+  <div class="q-stem">18. 服务对象在候诊区突然晕倒，陪诊师首先应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>先自行判断病情并喂服随身药物</span></div><div class="opt"><span class="opt-letter">B</span><span>第一时间呼叫医院急诊人员，同步联系家属告知情况，保留相关急救记录</span></div><div class="opt"><span class="opt-letter">C</span><span>立即背扶服务对象离开医院</span></div><div class="opt"><span class="opt-letter">D</span><span>等待家属到场后再行处理</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.9：突发症状应第一时间呼叫医院急诊人员，同步联系家属告知情况，保留相关急救记录；持急救证人员按规范实施 CPR、AED，不得擅自实施超出能力范围的医疗处置。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-27</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M11</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">7.1 服务回访</span></div>
+  <div class="q-stem">19. 服务结束后开展回访的时限要求是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务结束后 2 小时内</span></div><div class="opt"><span class="opt-letter">B</span><span>12 小时内</span></div><div class="opt"><span class="opt-letter">C</span><span>24 小时内</span></div><div class="opt"><span class="opt-letter">D</span><span>72 小时内</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 7.1：服务结束后 24 小时内开展回访（电话、微信或问卷）；注意与"服务结束 2 小时内整理就诊记录"（6.8）区分。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-29</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M12</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">8.2 隐私与信息安全</span></div>
+  <div class="q-stem">20. 陪诊师离职或解除聘用关系后，对其服务过的客户信息应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>进行删除或保密处理</span></div><div class="opt"><span class="opt-letter">B</span><span>继续用于个人客户维护</span></div><div class="opt"><span class="opt-letter">C</span><span>交接给其他陪诊师继续使用</span></div><div class="opt"><span class="opt-letter">D</span><span>由本人自行决定是否保留</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.2：人员离职或解除聘用关系后，对其服务过的客户信息进行删除或保密处理。</div>
+</div>
+  <h3 class="h3"><span class="h3-bar"></span>多项选择题（10 题 × 4 分）</h3>
+  
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-06</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.5.2 可开展的服务</span></div>
+  <div class="q-stem">1. 下列属于陪诊师可开展服务的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>领取预约号</span></div><div class="opt"><span class="opt-letter">B</span><span>样本送检</span></div><div class="opt"><span class="opt-letter">C</span><span>记录医嘱</span></div><div class="opt"><span class="opt-letter">D</span><span>检查结果判读</span></div><div class="opt"><span class="opt-letter">E</span><span>调整用药方案</span></div></div>
+  <div class="q-answer"><b>答案</b> ABC</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.2 表1 第 1、5、7 项；D、E 属 1.5.3 表2 红线（第 1、5 项）。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-08</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M3</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.6 服务原则</span></div>
+  <div class="q-stem">2. SOP 规定的服务原则包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>以服务对象为中心</span></div><div class="opt"><span class="opt-letter">B</span><span>合法守规、诚信经营</span></div><div class="opt"><span class="opt-letter">C</span><span>专业性与安全性</span></div><div class="opt"><span class="opt-letter">D</span><span>隐私保护、尊重与理解</span></div><div class="opt"><span class="opt-letter">E</span><span>持续改进</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.6 逐条列出上述六项原则（隐私保护与尊重与理解合并为 D 项）。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-11</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.2 人员准入标准</span></div>
+  <div class="q-stem">3. 下列属于陪诊师准入硬性要求的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>年满 18 周岁，具备完全民事行为能力</span></div><div class="opt"><span class="opt-letter">B</span><span>身心健康，持有效期内健康证明或二级及以上医院近 3～6 个月体检合格证明</span></div><div class="opt"><span class="opt-letter">C</span><span>无刑事处罚记录、无医疗相关行业失信记录、提供无犯罪记录证明</span></div><div class="opt"><span class="opt-letter">D</span><span>具备高中（或中专）及以上学历</span></div><div class="opt"><span class="opt-letter">E</span><span>必须持有医师执业证书或护士执业证书</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3 四项硬性要求；E 中医学、护理等相关专业或从业经历仅为"优先"条件，执业资格并非准入前提。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-13</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M5</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.3 培训与考核</span></div>
+  <div class="q-stem">4. 岗前培训的内容包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>医疗场景常识（挂号流程、医院与科室布局、自助终端设备使用）</span></div><div class="opt"><span class="opt-letter">B</span><span>基本安全知识（应急疏散路线、跌倒与晕厥等突发应对）</span></div><div class="opt"><span class="opt-letter">C</span><span>沟通技巧</span></div><div class="opt"><span class="opt-letter">D</span><span>应急处理</span></div><div class="opt"><span class="opt-letter">E</span><span>隐私保护</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.3 岗前培训内容原文，五大模块缺一不可。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-18</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.2 咨询与需求对接</span></div>
+  <div class="q-stem">5. 咨询与需求对接阶段应采集的信息包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务对象的银行账户信息</span></div><div class="opt"><span class="opt-letter">B</span><span>姓名、性别、年龄、医保类型、联系方式</span></div><div class="opt"><span class="opt-letter">C</span><span>就诊医院与科室、预约挂号情况</span></div><div class="opt"><span class="opt-letter">D</span><span>既往病史、过敏史、当前症状</span></div><div class="opt"><span class="opt-letter">E</span><span>行动能力、是否需要辅助设备、特殊需求（方言沟通、陪同检查性别要求等）</span></div></div>
+  <div class="q-answer"><b>答案</b> BCDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.2 信息采集范围；A 与服务无关且属过度收集敏感金融信息。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-21</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.2 服务方案制定</span></div>
+  <div class="q-stem">6. 服务方案应经供需双方协商确认的内容包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>医生的诊断结论</span></div><div class="opt"><span class="opt-letter">B</span><span>就诊机构、就诊时间</span></div><div class="opt"><span class="opt-letter">C</span><span>预约挂号方式</span></div><div class="opt"><span class="opt-letter">D</span><span>陪同内容、集散地点、往返交通方式</span></div><div class="opt"><span class="opt-letter">E</span><span>拟咨询的医学问题</span></div></div>
+  <div class="q-answer"><b>答案</b> BCDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.2 原文；A 由医生在诊疗过程中作出，不属于服务方案协商内容。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-24</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.5 缴费与取药</span></div>
+  <div class="q-stem">7. 缴费与取药环节的规范要求包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>根据费用类别协助缴费，留存缴费凭证或发票，费用透明</span></div><div class="opt"><span class="opt-letter">B</span><span>可根据自身经验推荐更便宜的替代药品</span></div><div class="opt"><span class="opt-letter">C</span><span>取药时核对药品名称、规格、数量、用法用量</span></div><div class="opt"><span class="opt-letter">D</span><span>向服务对象清晰说明用药时间、禁忌及不良反应应对方式</span></div><div class="opt"><span class="opt-letter">E</span><span>不得建议服务对象增减药量、更换药品，不得推荐非医嘱的药品或保健品</span></div></div>
+  <div class="q-answer"><b>答案</b> ACDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.5 原文；B 属"调整用药方案""提供医疗建议"，为 1.5.3 红线行为。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-26</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M10</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">6.9 突发情况应急处置</span></div>
+  <div class="q-stem">8. 服务对象突发晕倒、过敏、胸痛等症状时，正确的处置包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>第一时间呼叫医院急诊人员</span></div><div class="opt"><span class="opt-letter">B</span><span>同步联系家属告知情况</span></div><div class="opt"><span class="opt-letter">C</span><span>可自行决定给服务对象服用其随身自带的药物</span></div><div class="opt"><span class="opt-letter">D</span><span>保留相关急救记录</span></div><div class="opt"><span class="opt-letter">E</span><span>持急救证人员按规范实施 CPR、AED 等操作，不得擅自实施超出能力范围的医疗处置</span></div></div>
+  <div class="q-answer"><b>答案</b> ABDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.9 原文；C 属擅自实施医疗处置，超出陪诊服务边界。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-28</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M11</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">第 7 章 服务评价与持续改进</span></div>
+  <div class="q-stem">9. 关于服务评价与持续改进，下列做法正确的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务结束后 24 小时内使用《陪诊服务回访调查表》开展回访，结果录入机构系统</span></div><div class="opt"><span class="opt-letter">B</span><span>客户满意度调查覆盖职业素养、专业能力、服务态度、医院流程熟悉度、响应及时性等维度</span></div><div class="opt"><span class="opt-letter">C</span><span>对客户投诉可暂不回应，避免影响扩大</span></div><div class="opt"><span class="opt-letter">D</span><span>对回访、满意度调查、投诉及检查结果分类分析，运用流程图、PDCA 循环持续优化流程</span></div><div class="opt"><span class="opt-letter">E</span><span>改进措施明确责任人与完成时限，共性问题在机构平台公示</span></div></div>
+  <div class="q-answer"><b>答案</b> ABDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 7.1～7.4 原文；C 与 7.3"设立专职部门或人员，及时响应并反馈投诉"相违背。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">A-30</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M12</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">8.1～8.4 风险管控与合规红线</span></div>
+  <div class="q-stem">10. 下列符合 SOP 风险管控与合规要求的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>严禁借陪诊名义违规加号、贩卖号源，严禁虚假宣传"优先挂号""优先检查""走后门"</span></div><div class="opt"><span class="opt-letter">B</span><span>机构应投保服务责任险与意外险，覆盖服务全流程及服务结束后合理时限内的责任</span></div><div class="opt"><span class="opt-letter">C</span><span>服务档案专人管理、依规保存，未经同意不得泄露服务对象病情隐私</span></div><div class="opt"><span class="opt-letter">D</span><span>制定涵盖突发疾病、意外伤害、医疗纠纷等场景的应急预案并定期演练</span></div><div class="opt"><span class="opt-letter">E</span><span>可根据服务难度收取合同约定以外的"辛苦费"</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.1～8.4 原文；E 属表5 第 8 项禁止行为（收取合同约定以外费用或索取不正当利益）。</div>
+</div>
+  <h3 class="h3"><span class="h3-bar"></span>A 卷 答案速查表</h3>
+  <table class="ans-table"><thead><tr>
+<th>题号</th><th>模块</th><th>题型</th><th>答案</th><th>题号</th><th>模块</th><th>题型</th><th>答案</th>
+</tr></thead><tbody><tr><td>A-01</td><td>M1</td><td>单选</td><td class="ans-cell">D</td><td>A-16</td><td>M7</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>A-02</td><td>M1</td><td>单选</td><td class="ans-cell">A</td><td>A-17</td><td>M7</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>A-03</td><td>M2</td><td>单选</td><td class="ans-cell">D</td><td>A-18</td><td>M7</td><td>多选</td><td class="ans-cell">BCDE</td></tr><tr><td>A-04</td><td>M2</td><td>单选</td><td class="ans-cell">B</td><td>A-19</td><td>M8</td><td>单选</td><td class="ans-cell">B</td></tr><tr><td>A-05</td><td>M2</td><td>单选</td><td class="ans-cell">D</td><td>A-20</td><td>M8</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>A-06</td><td>M2</td><td>多选</td><td class="ans-cell">ABC</td><td>A-21</td><td>M8</td><td>多选</td><td class="ans-cell">BCDE</td></tr><tr><td>A-07</td><td>M3</td><td>单选</td><td class="ans-cell">C</td><td>A-22</td><td>M9</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>A-08</td><td>M3</td><td>多选</td><td class="ans-cell">ABCDE</td><td>A-23</td><td>M9</td><td>单选</td><td class="ans-cell">D</td></tr><tr><td>A-09</td><td>M4</td><td>单选</td><td class="ans-cell">B</td><td>A-24</td><td>M9</td><td>多选</td><td class="ans-cell">ACDE</td></tr><tr><td>A-10</td><td>M4</td><td>单选</td><td class="ans-cell">D</td><td>A-25</td><td>M10</td><td>单选</td><td class="ans-cell">B</td></tr><tr><td>A-11</td><td>M4</td><td>多选</td><td class="ans-cell">ABCD</td><td>A-26</td><td>M10</td><td>多选</td><td class="ans-cell">ABDE</td></tr><tr><td>A-12</td><td>M5</td><td>单选</td><td class="ans-cell">A</td><td>A-27</td><td>M11</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>A-13</td><td>M5</td><td>多选</td><td class="ans-cell">ABCDE</td><td>A-28</td><td>M11</td><td>多选</td><td class="ans-cell">ABDE</td></tr><tr><td>A-14</td><td>M6</td><td>单选</td><td class="ans-cell">B</td><td>A-29</td><td>M12</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>A-15</td><td>M6</td><td>单选</td><td class="ans-cell">A</td><td>A-30</td><td>M12</td><td>多选</td><td class="ans-cell">ABCD</td></tr></tbody></table>
+</div>
+<div class="chapter">
+  <div class="ch-head"><div class="ch-kicker">第二部分 · 题库</div>
+    <h2>B 卷 · 陪诊上岗资格考试</h2>
+    <p class="ch-sub">满分 100 分（单选 20×3 + 多选 10×4）　建议时长 60 分钟　80 分及以上通过　先做题、后核对答案与解析</p></div>
+  <h3 class="h3"><span class="h3-bar"></span>单项选择题（20 题 × 3 分）</h3>
+  
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-01</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M1</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.4 术语与定义</span></div>
+  <div class="q-stem">1. 关于"顾客"的表述，正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>顾客必须是服务对象本人</span></div><div class="opt"><span class="opt-letter">B</span><span>顾客可以是服务对象本人，也可以是其家属或代理人</span></div><div class="opt"><span class="opt-letter">C</span><span>顾客即直接提供陪诊服务的人员</span></div><div class="opt"><span class="opt-letter">D</span><span>家属一律不能作为顾客签订服务合同</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.4：顾客是与服务提供者订立服务合同、购买服务的个人，可以是服务对象本人，也可以是服务对象的家属或代理人。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-02</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M1</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.5.1 服务定位</span></div>
+  <div class="q-stem">2. 陪诊过程中，诊断、治疗、用药等一切医疗决策由谁作出？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>由医务人员及服务对象（或其法定监护人）作出，陪诊师不得越界</span></div><div class="opt"><span class="opt-letter">B</span><span>由陪诊师依据经验作出，医生确认即可</span></div><div class="opt"><span class="opt-letter">C</span><span>由陪诊机构管理人员作出</span></div><div class="opt"><span class="opt-letter">D</span><span>由陪诊师与服务对象共同协商决定</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.1：诊断、治疗、用药等一切医疗决策由医务人员及服务对象（或其法定监护人）作出，陪诊师不得越界。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-03</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.5.2 可开展的服务</span></div>
+  <div class="q-stem">3. 下列哪项属于陪诊师可开展的服务？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>判读化验单并说明是否正常</span></div><div class="opt"><span class="opt-letter">B</span><span>为服务对象调整降压药剂量</span></div><div class="opt"><span class="opt-letter">C</span><span>情感支持（陪伴、倾听、回应、安抚等）</span></div><div class="opt"><span class="opt-letter">D</span><span>代签术前知情同意书</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.2 表1 第 12 项"情感支持（陪伴、倾听、回应、安抚等）"；A 属检查结果判读，B 属调整用药方案，D 属签署法律效力医疗文书，均为红线。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-04</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.5.3 不应开展的服务</span></div>
+  <div class="q-stem">4. 医生给出两套治疗方案请家属选择，家属请陪诊师帮忙拿主意。陪诊师正确的做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>依据陪诊经验代为选定其中一套</span></div><div class="opt"><span class="opt-letter">B</span><span>建议选择费用更低的一套</span></div><div class="opt"><span class="opt-letter">C</span><span>建议选择恢复更快的一套</span></div><div class="opt"><span class="opt-letter">D</span><span>说明不得代替服务对象或家属选择或同意治疗方案，建议其向医生充分咨询后自行决定</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.3 表2 第 4 项、8.1 表5 第 2 项：不得代替服务对象或家属选择或同意治疗方案。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-05</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.5.2 / 1.5.3 服务边界</span></div>
+  <div class="q-stem">5. 下列哪项**不属于**陪诊师可开展的服务？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>为服务对象解读 CT 影像片并说明可能是什么病</span></div><div class="opt"><span class="opt-letter">B</span><span>引导服务对象至指定科室、检查室或治疗区域</span></div><div class="opt"><span class="opt-letter">C</span><span>预约检查、做检查准备</span></div><div class="opt"><span class="opt-letter">D</span><span>代取、复印病历、诊断证明等医疗文书</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> 解读影像并给出疾病判断属"检查结果判读""提供医疗建议"，为 1.5.3 表2 第 1、3 项红线；B、C、D 分属表1 第 3、4、8 项可开展服务。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-07</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M3</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.6 服务原则（隐私保护）</span></div>
+  <div class="q-stem">6. 陪诊师小王将当日服务对象的病情与就诊照片（未做脱敏）发到个人社交平台"记录工作日常"。该行为主要违反了哪项服务原则？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>以服务对象为中心</span></div><div class="opt"><span class="opt-letter">B</span><span>隐私保护</span></div><div class="opt"><span class="opt-letter">C</span><span>持续改进</span></div><div class="opt"><span class="opt-letter">D</span><span>专业性与安全性</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.6：隐私保护要求严格保护服务对象个人信息及病情隐私，未经同意不得泄露；亦违反 8.2 隐私与信息安全规定。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-09</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.2 人员准入标准</span></div>
+  <div class="q-stem">7. 关于陪诊师健康状况的要求，正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>仅需本人书面声明健康即可</span></div><div class="opt"><span class="opt-letter">B</span><span>需提供近 12 个月内任意诊所出具的证明</span></div><div class="opt"><span class="opt-letter">C</span><span>有传染病史但已治愈五年以上即可直接上岗</span></div><div class="opt"><span class="opt-letter">D</span><span>身心健康，无传染病、精神病史，持有效期内健康证明，或二级及以上医院近 3～6 个月体检合格证明</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3 健康状况条目原文。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-10</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.2 人员准入标准（背景复核）</span></div>
+  <div class="q-stem">8. 机构对在岗人员进行背景与健康复核的频次及处理要求是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>每季度一次，不合格者降级使用</span></div><div class="opt"><span class="opt-letter">B</span><span>每半年一次，不合格者暂停接单一个月</span></div><div class="opt"><span class="opt-letter">C</span><span>每年一次，复核不合格者终止聘用</span></div><div class="opt"><span class="opt-letter">D</span><span>仅在入职时核查一次，此后无需复核</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3 背景复核：机构每年对人员进行背景与健康复核，复核不合格者终止聘用。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-12</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M5</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.3 培训与考核（在岗培训）</span></div>
+  <div class="q-stem">9. 在岗培训中要求定期开展的急救技能是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>心肺复苏（CPR）与自动体外除颤器（AED）使用</span></div><div class="opt"><span class="opt-letter">B</span><span>静脉输液与肌肉注射</span></div><div class="opt"><span class="opt-letter">C</span><span>伤口清创缝合</span></div><div class="opt"><span class="opt-letter">D</span><span>影像设备操作</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.3：在岗培训包括急救技能（CPR、AED 使用等）；B、C、D 属医疗操作，超出陪诊服务范围。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-14</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M6</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">3 / 表4 委托与受理时限</span></div>
+  <div class="q-stem">10. 委托与受理阶段（风险识别、方案制定、合同订立、收费确认、诊前准备）的时限要求是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务结束后 24 小时内完成</span></div><div class="opt"><span class="opt-letter">B</span><span>服务开始前全部完成</span></div><div class="opt"><span class="opt-letter">C</span><span>服务交付过程中同步完成即可</span></div><div class="opt"><span class="opt-letter">D</span><span>无明确时限要求</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 表4：委托与受理阶段时限为"服务开始前全部完成"。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-15</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M6</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">6.1 / 表4 时限要求</span></div>
+  <div class="q-stem">11. 陪诊师应提前多久到达约定的医院集合地点？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>5 分钟</span></div><div class="opt"><span class="opt-letter">B</span><span>30 分钟</span></div><div class="opt"><span class="opt-letter">C</span><span>15 分钟</span></div><div class="opt"><span class="opt-letter">D</span><span>20 分钟</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.1 与表4：提前 30 分钟到达约定集合地点。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-16</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.2 特殊群体需求</span></div>
+  <div class="q-stem">12. 对 65 岁以上老人、残障人士、孕妇、术后复诊等特殊群体，正确的做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>额外确认家属紧急联系人、既往病历存放情况、是否需要协助接送等延伸需求</span></div><div class="opt"><span class="opt-letter">B</span><span>仅确认就诊科室即可，避免打扰客户</span></div><div class="opt"><span class="opt-letter">C</span><span>一律要求其家属必须全程到场</span></div><div class="opt"><span class="opt-letter">D</span><span>无需额外确认，按标准流程执行</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.2：对特殊群体额外确认家属紧急联系人、既往病历存放情况、是否需要协助接送等延伸需求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-17</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.3 就医需求评估与机构推荐</span></div>
+  <div class="q-stem">13. 关于就医需求评估与机构推荐，下列做法正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>优先推荐与机构有合作分成的医院</span></div><div class="opt"><span class="opt-letter">B</span><span>直接替服务对象确定最终治疗方案</span></div><div class="opt"><span class="opt-letter">C</span><span>先解读检查报告再据此推荐科室</span></div><div class="opt"><span class="opt-letter">D</span><span>客观推荐适宜医院、科室及专家，综合考虑专科优势、专家擅长领域与医疗资源可及性</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.3：综合考虑医院专科优势、专家擅长领域与医疗资源可及性，避免利益驱动的不当推荐；陪诊师不提供诊疗建议，不代替选择治疗方案。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-19</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.3 服务合同订立</span></div>
+  <div class="q-stem">14. 采用电子服务协议时，应当符合哪部法律的要求？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>《民法典》合同编</span></div><div class="opt"><span class="opt-letter">B</span><span>《电子签名法》</span></div><div class="opt"><span class="opt-letter">C</span><span>《消费者权益保护法实施条例》</span></div><div class="opt"><span class="opt-letter">D</span><span>《个人信息保护法》</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.3：电子协议应符合《电子签名法》要求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-20</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.5 诊前准备协助</span></div>
+  <div class="q-stem">15. 服务对象未提前挂号且号源紧张时，陪诊师正确的做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>协助通过医院官方挂号平台实名预约，严禁通过"号贩子"等非法渠道获取号源</span></div><div class="opt"><span class="opt-letter">B</span><span>联系熟悉的医生直接加号</span></div><div class="opt"><span class="opt-letter">C</span><span>通过第三方平台购买高价号源</span></div><div class="opt"><span class="opt-letter">D</span><span>让服务对象自行凌晨排队</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.5：协助通过医院官方挂号平台实名预约，严禁通过"号贩子"等非法渠道获取号源；8.1 表5 第 6 项禁止借陪诊名义违规加号、贩卖号源。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-22</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.2 挂号与候诊陪同</span></div>
+  <div class="q-stem">16. 陪诊过程中如需暂时离开（如排队缴费、取报告），离开时间不得超过：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>5 分钟</span></div><div class="opt"><span class="opt-letter">B</span><span>10 分钟</span></div><div class="opt"><span class="opt-letter">C</span><span>15 分钟</span></div><div class="opt"><span class="opt-letter">D</span><span>20 分钟</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.2：须提前告知并明确返回时间，离开时间不超过 15 分钟。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-23</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.2 挂号与候诊陪同</span></div>
+  <div class="q-stem">17. 候诊期间，关于服务对象看护的正确做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>委托同院其他患者代为照看以节省时间</span></div><div class="opt"><span class="opt-letter">B</span><span>让意识不清的服务对象自行在院区内散步熟悉环境</span></div><div class="opt"><span class="opt-letter">C</span><span>全程保持在服务对象视线范围内，不得让行动不便、意识不清者单独留在医院公共区域</span></div><div class="opt"><span class="opt-letter">D</span><span>陪诊师可全程在休息区等候，无需保持在视线范围内</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.2：全程在服务对象视线范围内；不得让行动不便、意识不清的服务对象单独留在医院公共区域。A、B、C 均属转嫁或放弃看护责任。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-25</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M10</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">6.9 突发情况应急处置</span></div>
+  <div class="q-stem">18. 到达医院后发现预约的医生临时停诊，陪诊师应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>先不告知，自行联系其他医生接诊</span></div><div class="opt"><span class="opt-letter">B</span><span>直接取消本次服务并离开</span></div><div class="opt"><span class="opt-letter">C</span><span>第一时间向服务对象及家属说明情况，协助办理退号、改约、更换医生等手续，不得隐瞒情况，不得擅自变更就诊安排</span></div><div class="opt"><span class="opt-letter">D</span><span>建议服务对象自行回家，改日再来</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.9：号源失效、设备故障、医生临时停诊应第一时间说明情况，协助办理退号、改约、更换医生等手续，不得隐瞒情况，不得擅自变更就诊安排。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-27</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M11</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">7.1 服务回访</span></div>
+  <div class="q-stem">19. 服务回访应当使用的表单是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>《投诉登记表》</span></div><div class="opt"><span class="opt-letter">B</span><span>《服务质量评价表》</span></div><div class="opt"><span class="opt-letter">C</span><span>《客户满意度调查表》（附录B）</span></div><div class="opt"><span class="opt-letter">D</span><span>《陪诊服务回访调查表》（附录A）</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 7.1：使用《陪诊服务回访调查表》（见附录A）收集服务评价；附录B 用于定期客户满意度调查。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-29</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M12</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">8.3 保险与责任承担</span></div>
+  <div class="q-stem">20. 发生责任事故后，机构应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>隐瞒事故以避免影响机构声誉</span></div><div class="opt"><span class="opt-letter">B</span><span>待客户投诉后再行处理</span></div><div class="opt"><span class="opt-letter">C</span><span>由陪诊师个人承担全部赔偿</span></div><div class="opt"><span class="opt-letter">D</span><span>及时报险、留存证据、依约理赔</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.3：发生责任事故时及时报险、留存证据、依约理赔；保险覆盖服务全流程及服务结束后合理时限内的相关责任。</div>
+</div>
+  <h3 class="h3"><span class="h3-bar"></span>多项选择题（10 题 × 4 分）</h3>
+  
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-06</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.5.3 不应开展的服务</span></div>
+  <div class="q-stem">1. 下列属于"不应开展的服务（红线）"的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>参与医疗操作</span></div><div class="opt"><span class="opt-letter">B</span><span>提供医疗建议</span></div><div class="opt"><span class="opt-letter">C</span><span>代替服务对象或家属选择或同意治疗方案</span></div><div class="opt"><span class="opt-letter">D</span><span>办理出入院手续</span></div><div class="opt"><span class="opt-letter">E</span><span>代取、复印病历、诊断证明等医疗文书</span></div></div>
+  <div class="q-answer"><b>答案</b> ABC</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.3 表2 第 2、3、4 项；D、E 属表1 可开展服务第 9、8 项。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-08</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M3</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.6 服务原则</span></div>
+  <div class="q-stem">2. 服务对象坚持要挂某位专家号，但该专家当日停诊。符合服务原则的做法体现为：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>以服务对象为中心，尊重其自主选择权与决策权</span></div><div class="opt"><span class="opt-letter">B</span><span>合法守规、诚信经营，如实告知停诊情况不隐瞒</span></div><div class="opt"><span class="opt-letter">C</span><span>尊重与理解，尊重其个人习惯与就医偏好</span></div><div class="opt"><span class="opt-letter">D</span><span>可隐瞒停诊事实，先带其到院再随机安排其他医生</span></div><div class="opt"><span class="opt-letter">E</span><span>专业性与安全性，协助办理退号、改约或更换医生</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCE</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.6 六项原则与 6.9"不得隐瞒情况"要求；D 违反诚信经营与 6.9 规定。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-11</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.1 机构资质与经营条件</span></div>
+  <div class="q-stem">3. 机构应当具备的条件包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>依法登记成立，具备独立法人资格，经营范围涵盖陪诊相关类目</span></div><div class="opt"><span class="opt-letter">B</span><span>固定经营场所、独立的档案存储区域</span></div><div class="opt"><span class="opt-letter">C</span><span>服务调度系统及投诉处理岗位</span></div><div class="opt"><span class="opt-letter">D</span><span>服务责任险及意外险投保机制</span></div><div class="opt"><span class="opt-letter">E</span><span>人员培训考核、服务全流程追溯、用户隐私保护、投诉响应处理、应急事件处置等管理制度</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.1 逐条列明上述五项条件。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-13</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M5</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.3 培训与考核</span></div>
+  <div class="q-stem">4. 关于培训与考核，下列表述正确的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>先培训、后上岗，考核合格方可提供服务</span></div><div class="opt"><span class="opt-letter">B</span><span>培训形式包括课堂教学、岗位实操、专项强化、阶梯式再培训</span></div><div class="opt"><span class="opt-letter">C</span><span>实施考核与再考核</span></div><div class="opt"><span class="opt-letter">D</span><span>培训记录归档并纳入人员档案</span></div><div class="opt"><span class="opt-letter">E</span><span>在岗培训应包含急救技能（CPR、AED 使用）</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.3 全部条目均包含上述要求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-18</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.2 特殊群体需求</span></div>
+  <div class="q-stem">5. 对 65 岁以上老人、残障人士、孕妇、术后复诊等特殊群体，应额外确认的延伸需求包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>家属紧急联系人</span></div><div class="opt"><span class="opt-letter">B</span><span>代为决定治疗方案</span></div><div class="opt"><span class="opt-letter">C</span><span>既往病历存放情况</span></div><div class="opt"><span class="opt-letter">D</span><span>是否需要协助接送</span></div></div>
+  <div class="q-answer"><b>答案</b> ACD</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.2 明确三项延伸需求；B 属 1.5.3 红线，陪诊师不得代替决策。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-21</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.3 服务合同订立</span></div>
+  <div class="q-stem">6. 服务合同的必备条款包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务时长、服务项目</span></div><div class="opt"><span class="opt-letter">B</span><span>收费标准</span></div><div class="opt"><span class="opt-letter">C</span><span>陪诊师的血型与既往病史</span></div><div class="opt"><span class="opt-letter">D</span><span>双方权利义务、责任免除条款</span></div><div class="opt"><span class="opt-letter">E</span><span>隐私保护约定、投诉处理流程</span></div></div>
+  <div class="q-answer"><b>答案</b> ABDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.3 必备条款共七项；C 与服务无关且涉及个人隐私。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-24</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.1 到达与身份核验</span></div>
+  <div class="q-stem">7. 到达与身份核验环节的规范要求包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>提前 30 分钟到达约定的医院集合地点</span></div><div class="opt"><span class="opt-letter">B</span><span>主动出示工作证件，核对服务对象身份，协助存放随身物品</span></div><div class="opt"><span class="opt-letter">C</span><span>在医院大厅大声呼叫服务对象姓名以尽快会合</span></div><div class="opt"><span class="opt-letter">D</span><span>全程佩戴统一工作标识，穿着干净整洁的工装，不佩戴夸张饰品</span></div><div class="opt"><span class="opt-letter">E</span><span>不在医院内吸烟、大声喧哗</span></div></div>
+  <div class="q-answer"><b>答案</b> ABDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.1 原文；C 违反"不大声喧哗"要求，且易泄露服务对象信息。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-26</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M10</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.9 突发情况应急处置</span></div>
+  <div class="q-stem">8. 遇到号源失效、检查设备故障、医生临时停诊等情况，正确的处置包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>第一时间向服务对象及家属说明情况</span></div><div class="opt"><span class="opt-letter">B</span><span>为节省时间可自行决定更换医院</span></div><div class="opt"><span class="opt-letter">C</span><span>协助办理退号、改约、更换医生等手续</span></div><div class="opt"><span class="opt-letter">D</span><span>不得隐瞒情况</span></div><div class="opt"><span class="opt-letter">E</span><span>不得擅自变更就诊安排</span></div></div>
+  <div class="q-answer"><b>答案</b> ACDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.9 原文；B 属擅自变更就诊安排，为禁止行为。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-28</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M11</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">7.3 投诉处理</span></div>
+  <div class="q-stem">9. 关于投诉处理，下列做法正确的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>在显著位置公布投诉电话、意见箱等投诉渠道</span></div><div class="opt"><span class="opt-letter">B</span><span>对投诉客户一律不予回应，避免影响扩大</span></div><div class="opt"><span class="opt-letter">C</span><span>设立专职部门或人员，及时响应并反馈投诉</span></div><div class="opt"><span class="opt-letter">D</span><span>规定投诉处置时限并监督执行</span></div><div class="opt"><span class="opt-letter">E</span><span>完整记录投诉内容及处理结果</span></div></div>
+  <div class="q-answer"><b>答案</b> ACDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 7.3 原文；B 与"及时响应并反馈投诉"要求相违背。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">B-30</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M12</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">8.1～8.4 风险管控与合规红线</span></div>
+  <div class="q-stem">10. 下列符合 SOP 风险管控要求的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>制定涵盖突发疾病、意外伤害、医疗纠纷等场景的应急预案并定期演练</span></div><div class="opt"><span class="opt-letter">B</span><span>人员离职或解除聘用关系后，对其服务过的客户信息进行删除或保密处理</span></div><div class="opt"><span class="opt-letter">C</span><span>严禁收取合同约定以外费用或索取不正当利益</span></div><div class="opt"><span class="opt-letter">D</span><span>事件处置记录归档，事后复盘总结并修订预案</span></div><div class="opt"><span class="opt-letter">E</span><span>可通过"号贩子"渠道为客户加急获取专家号并加收服务费</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.1～8.4 原文；E 违反表5 第 6 项（禁止违规加号、贩卖号源）与第 8 项（禁止收取合同外费用）。</div>
+</div>
+  <h3 class="h3"><span class="h3-bar"></span>B 卷 答案速查表</h3>
+  <table class="ans-table"><thead><tr>
+<th>题号</th><th>模块</th><th>题型</th><th>答案</th><th>题号</th><th>模块</th><th>题型</th><th>答案</th>
+</tr></thead><tbody><tr><td>B-01</td><td>M1</td><td>单选</td><td class="ans-cell">B</td><td>B-16</td><td>M7</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>B-02</td><td>M1</td><td>单选</td><td class="ans-cell">A</td><td>B-17</td><td>M7</td><td>单选</td><td class="ans-cell">D</td></tr><tr><td>B-03</td><td>M2</td><td>单选</td><td class="ans-cell">C</td><td>B-18</td><td>M7</td><td>多选</td><td class="ans-cell">ACD</td></tr><tr><td>B-04</td><td>M2</td><td>单选</td><td class="ans-cell">D</td><td>B-19</td><td>M8</td><td>单选</td><td class="ans-cell">B</td></tr><tr><td>B-05</td><td>M2</td><td>单选</td><td class="ans-cell">A</td><td>B-20</td><td>M8</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>B-06</td><td>M2</td><td>多选</td><td class="ans-cell">ABC</td><td>B-21</td><td>M8</td><td>多选</td><td class="ans-cell">ABDE</td></tr><tr><td>B-07</td><td>M3</td><td>单选</td><td class="ans-cell">B</td><td>B-22</td><td>M9</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>B-08</td><td>M3</td><td>多选</td><td class="ans-cell">ABCE</td><td>B-23</td><td>M9</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>B-09</td><td>M4</td><td>单选</td><td class="ans-cell">D</td><td>B-24</td><td>M9</td><td>多选</td><td class="ans-cell">ABDE</td></tr><tr><td>B-10</td><td>M4</td><td>单选</td><td class="ans-cell">C</td><td>B-25</td><td>M10</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>B-11</td><td>M4</td><td>多选</td><td class="ans-cell">ABCDE</td><td>B-26</td><td>M10</td><td>多选</td><td class="ans-cell">ACDE</td></tr><tr><td>B-12</td><td>M5</td><td>单选</td><td class="ans-cell">A</td><td>B-27</td><td>M11</td><td>单选</td><td class="ans-cell">D</td></tr><tr><td>B-13</td><td>M5</td><td>多选</td><td class="ans-cell">ABCDE</td><td>B-28</td><td>M11</td><td>多选</td><td class="ans-cell">ACDE</td></tr><tr><td>B-14</td><td>M6</td><td>单选</td><td class="ans-cell">B</td><td>B-29</td><td>M12</td><td>单选</td><td class="ans-cell">D</td></tr><tr><td>B-15</td><td>M6</td><td>单选</td><td class="ans-cell">B</td><td>B-30</td><td>M12</td><td>多选</td><td class="ans-cell">ABCD</td></tr></tbody></table>
+</div>
+<div class="chapter">
+  <div class="ch-head"><div class="ch-kicker">第二部分 · 题库</div>
+    <h2>C 卷 · 陪诊上岗资格考试</h2>
+    <p class="ch-sub">满分 100 分（单选 20×3 + 多选 10×4）　建议时长 60 分钟　80 分及以上通过　先做题、后核对答案与解析</p></div>
+  <h3 class="h3"><span class="h3-bar"></span>单项选择题（20 题 × 3 分）</h3>
+  
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-01</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M1</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.4 术语与定义</span></div>
+  <div class="q-stem">1. 依据 SOP 1.4，"社会化陪同就医服务（陪诊服务）"是指：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>由医院护工提供的病房照护服务</span></div><div class="opt"><span class="opt-letter">B</span><span>由医务人员上门开展的诊疗活动</span></div><div class="opt"><span class="opt-letter">C</span><span>由志愿者提供的无偿导诊服务</span></div><div class="opt"><span class="opt-letter">D</span><span>服务机构安排经培训考核合格的服务人员，为独立就医困难或有更好就医体验需求的服务对象，提供诊疗向导、代替排队、领取药品、陪伴交流等协助就医的服务活动</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.4 陪诊服务定义原文；核心要素为"机构安排""培训考核合格""协助就医"。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-02</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M1</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.4 术语与定义</span></div>
+  <div class="q-stem">2. SOP 所称"陪同就医服务人员（陪诊师）"是指：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>直接为服务对象提供社会化陪同就医服务的人员</span></div><div class="opt"><span class="opt-letter">B</span><span>通过提供陪同就医服务获取收益的机构</span></div><div class="opt"><span class="opt-letter">C</span><span>与服务提供者订立服务合同的个人</span></div><div class="opt"><span class="opt-letter">D</span><span>在医疗机构执业的医务人员</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.4：陪诊师是直接为服务对象提供社会化陪同就医服务的人员；B 为服务提供者，C 为顾客。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-03</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">1.5.2 可开展的服务</span></div>
+  <div class="q-stem">3. 下列哪项属于陪诊师可开展的服务？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>代取、复印病历、诊断证明等医疗文书</span></div><div class="opt"><span class="opt-letter">B</span><span>为服务对象解释肿瘤标志物升高的临床意义</span></div><div class="opt"><span class="opt-letter">C</span><span>根据血压记录调整降压药剂量</span></div><div class="opt"><span class="opt-letter">D</span><span>代替家属在手术同意书上签字</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.2 表1 第 8 项；B 属检查结果判读，C 属调整用药方案，D 属签署法律效力医疗文书，均为红线。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-04</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">1.5.3 / 8.1 服务边界</span></div>
+  <div class="q-stem">4. 家属因故未到场，电话要求陪诊师代为签署手术同意书。陪诊师应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>为节省时间代为签署</span></div><div class="opt"><span class="opt-letter">B</span><span>以见证人身份签在"家属"栏</span></div><div class="opt"><span class="opt-letter">C</span><span>拒绝代签，并说明签署具有法律效力的医疗文书属于禁止行为，请家属尽快到场或依法办理授权委托</span></div><div class="opt"><span class="opt-letter">D</span><span>经家属电话口头同意后代为签署</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.1 表5 第 5 项、1.5.3 表2 第 7 项：不得签署具有法律效力的医疗文书。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-05</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">1.5.3 / 6.3 服务边界（情境）</span></div>
+  <div class="q-stem">5. 服务对象拿到化验单后询问"这几项箭头是不是有问题"，陪诊师最恰当的做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>凭自身医学知识直接给出是否正常、可能是什么病的判断</span></div><div class="opt"><span class="opt-letter">B</span><span>说明判读检查结果不属于陪诊服务范围，建议请接诊医生解读</span></div><div class="opt"><span class="opt-letter">C</span><span>拍照发到工作群，请其他同事一起判断后答复</span></div><div class="opt"><span class="opt-letter">D</span><span>建议客户自行上网搜索参考值比对</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.5.3 表2 第 1 项、8.1 表5 第 1 项：检查结果判读属禁止行为。陪诊师应说明边界并引导服务对象向医生求证。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-07</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M3</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.6 服务原则</span></div>
+  <div class="q-stem">6. 下列哪项**不属于** SOP 规定的服务原则？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>以服务对象为中心</span></div><div class="opt"><span class="opt-letter">B</span><span>隐私保护</span></div><div class="opt"><span class="opt-letter">C</span><span>疗效优先，必要时可由陪诊师代为决定检查项目</span></div><div class="opt"><span class="opt-letter">D</span><span>尊重与理解</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.6 六项原则不含"由陪诊师代为决定"；代为决定检查项目违反 1.5.3 红线与"尊重与理解"原则。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-09</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.2 人员准入标准（品行记录）</span></div>
+  <div class="q-stem">7. 下列关于陪诊师品行记录的要求，表述错误的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>无刑事处罚记录</span></div><div class="opt"><span class="opt-letter">B</span><span>无医疗相关行业失信记录</span></div><div class="opt"><span class="opt-letter">C</span><span>无侵害消费者权益前科</span></div><div class="opt"><span class="opt-letter">D</span><span>仅需本人承诺，无需提供无犯罪记录证明</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3 明确要求提供无犯罪记录证明，不能仅以本人承诺替代。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-10</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">2.1 机构资质与经营条件</span></div>
+  <div class="q-stem">8. 机构营业执照的经营范围应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>登记为一般咨询服务即可，无需体现陪诊类目</span></div><div class="opt"><span class="opt-letter">B</span><span>涵盖陪诊（陪同就医）服务相关类目，不得超范围经营</span></div><div class="opt"><span class="opt-letter">C</span><span>由合作医院授权即可，无需登记</span></div><div class="opt"><span class="opt-letter">D</span><span>凭行业自律开展，不受经营范围限制</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.1：依法登记成立，具备独立法人资格，营业执照经营范围涵盖陪诊（陪同就医）服务相关类目，不得超范围经营。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-12</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M5</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">2.4 服务用品与保险</span></div>
+  <div class="q-stem">9. 关于服务用品与标识，下列做法正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>为拉近与客户距离，可不佩戴工作标识</span></div><div class="opt"><span class="opt-letter">B</span><span>统一工装与工作标识（胸牌、工作证），挂牌上岗</span></div><div class="opt"><span class="opt-letter">C</span><span>工装由陪诊师自行决定，无需统一</span></div><div class="opt"><span class="opt-letter">D</span><span>可佩戴夸张饰品以体现个人风格</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.4：统一工装与工作标识（胸牌、工作证），挂牌上岗；6.1 同时要求不佩戴夸张饰品。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-14</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M6</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">6.8 / 表4 时限要求</span></div>
+  <div class="q-stem">10. 服务结束后，整理当日就诊记录并录入机构系统的时限是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>30 分钟内</span></div><div class="opt"><span class="opt-letter">B</span><span>1 小时内</span></div><div class="opt"><span class="opt-letter">C</span><span>2 小时内</span></div><div class="opt"><span class="opt-letter">D</span><span>24 小时内</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.8 与表4：服务结束后 2 小时内整理当日就诊记录并录入机构系统。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-15</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M6</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">5.5 / 表4 时限要求</span></div>
+  <div class="q-stem">11. 提醒服务对象携带身份证、医保卡、既往病历等资料，应提前：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>1 小时</span></div><div class="opt"><span class="opt-letter">B</span><span>2 小时</span></div><div class="opt"><span class="opt-letter">C</span><span>12 小时</span></div><div class="opt"><span class="opt-letter">D</span><span>1 个工作日</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.5 与表4：提前 1 个工作日提醒；注意与"接单后 1 小时内联系""提前 30 分钟到达"区分。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-16</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-easy">易</span>
+    <span class="q-know">4.1 服务信息公示</span></div>
+  <div class="q-stem">12. 机构应在经营场所醒目位置及官方线上平台公示的信息是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务内容、收费项目和标准、投诉电话及陪诊师资质信息</span></div><div class="opt"><span class="opt-letter">B</span><span>仅公示投诉电话即可</span></div><div class="opt"><span class="opt-letter">C</span><span>仅公示服务内容，收费标准可面议</span></div><div class="opt"><span class="opt-letter">D</span><span>陪诊师个人联系方式与家庭住址</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.1 与 2.1：公示服务内容、收费项目和标准、投诉电话及陪诊师资质信息；陪诊师个人住址属隐私，不应公示。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-17</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.2 咨询与需求对接</span></div>
+  <div class="q-stem">13. 咨询阶段采集的信息应当如何处理？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>记录在陪诊师个人手机备忘录中即可</span></div><div class="opt"><span class="opt-letter">B</span><span>同步录入机构服务系统，形成专属服务档案</span></div><div class="opt"><span class="opt-letter">C</span><span>服务结束后统一销毁，无需留档</span></div><div class="opt"><span class="opt-letter">D</span><span>仅口头交接给当日陪诊师</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.2：采集信息同步录入机构服务系统，形成专属服务档案；亦符合 8.2 档案专人管理要求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-19</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.5 诊前准备协助</span></div>
+  <div class="q-stem">14. 对需要空腹的检查项目，应提前告知禁食禁水要求的时间是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>提前 2 小时</span></div><div class="opt"><span class="opt-letter">B</span><span>提前 4 小时</span></div><div class="opt"><span class="opt-letter">C</span><span>提前 8 小时</span></div><div class="opt"><span class="opt-letter">D</span><span>提前 12 小时</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.5：空腹检查项目提前 8 小时告知禁食禁水要求；需憋尿检查的项目提前告知饮水量及憋尿时间。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-20</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.4 收费管理</span></div>
+  <div class="q-stem">15. 关于收费管理，下列做法正确的是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>可根据服务对象意愿临时加价并收取现金</span></div><div class="opt"><span class="opt-letter">B</span><span>服务中产生的额外支出由陪诊师自行决定收取</span></div><div class="opt"><span class="opt-letter">C</span><span>收费标准仅口头告知即可，无需公示</span></div><div class="opt"><span class="opt-letter">D</span><span>明码标价、合理定价，不得收取公示以外的费用</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.4：收费项目和标准在服务场所醒目位置公示，不得收取公示以外费用；同时 8.1 表5 第 8 项禁止收取合同外费用或索取不正当利益。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-22</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.5 缴费与取药</span></div>
+  <div class="q-stem">16. 取药时服务对象问"这个药太贵，能不能换成便宜点的"，陪诊师应当：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>根据自身经验推荐一种更便宜的替代药品</span></div><div class="opt"><span class="opt-letter">B</span><span>说明不得建议更换药品，建议其向医生或药师咨询，可协助向医生转达诉求</span></div><div class="opt"><span class="opt-letter">C</span><span>直接按说明书减半剂量服用以节省费用</span></div><div class="opt"><span class="opt-letter">D</span><span>推荐一款非医嘱的保健品替代</span></div></div>
+  <div class="q-answer"><b>答案</b> B</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.5：不得建议服务对象增减药量、更换药品，不得推荐非医嘱的药品或保健品；陪诊师可协助其向医生表达诉求，由医生决定。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-23</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.6 报告领取与复诊安排</span></div>
+  <div class="q-stem">17. 当日不能出具检查报告时，陪诊师正确的做法是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>直接代为领取，无需另行征求意见</span></div><div class="opt"><span class="opt-letter">B</span><span>不再跟进，由服务对象自行处理</span></div><div class="opt"><span class="opt-letter">C</span><span>经服务对象同意后代为领取或代发快递</span></div><div class="opt"><span class="opt-letter">D</span><span>将报告拍照后发至个人社交账号留存</span></div></div>
+  <div class="q-answer"><b>答案</b> C</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.6：当日不能出具的，经服务对象同意后代为领取或代发快递；D 违反 8.2 隐私保护要求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-25</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M10</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">6.9 突发情况应急处置</span></div>
+  <div class="q-stem">18. 陪诊过程中与医院工作人员发生争执，正确的处置是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>与对方据理力争直至当场解决</span></div><div class="opt"><span class="opt-letter">B</span><span>立即报警并中止服务</span></div><div class="opt"><span class="opt-letter">C</span><span>让服务对象自行与对方协商</span></div><div class="opt"><span class="opt-letter">D</span><span>保持理性克制，优先保障服务对象就诊进度；无法自行解决的，立即联系机构管理人员协调处理，不得发生冲突、不得影响正常医疗秩序</span></div></div>
+  <div class="q-answer"><b>答案</b> D</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.9 纠纷处置原文。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-27</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M11</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">7.2 满意度调查与质量评价</span></div>
+  <div class="q-stem">19. 下列哪项**不属于**客户满意度调查覆盖的维度？</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>陪诊师的个人收入水平</span></div><div class="opt"><span class="opt-letter">B</span><span>陪诊师职业素养</span></div><div class="opt"><span class="opt-letter">C</span><span>专业能力、服务态度</span></div><div class="opt"><span class="opt-letter">D</span><span>医院流程熟悉度、响应及时性</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 7.2：调查覆盖陪诊师职业素养、专业能力、服务态度、医院流程熟悉度、响应及时性等维度，不含个人收入。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-29</span>
+    <span class="q-tag ">单选 3分</span>
+    <span class="q-tag">M12</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">8.4 应急管理</span></div>
+  <div class="q-stem">20. 机构应急预案应覆盖的场景是：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>突发疾病、意外伤害、医疗纠纷等</span></div><div class="opt"><span class="opt-letter">B</span><span>仅突发疾病</span></div><div class="opt"><span class="opt-letter">C</span><span>仅火灾与自然灾害</span></div><div class="opt"><span class="opt-letter">D</span><span>仅设备故障与停水停电</span></div></div>
+  <div class="q-answer"><b>答案</b> A</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.4：制定涵盖突发疾病、意外伤害、医疗纠纷等场景的应急预案，明确应急流程、责任分工与处置措施。</div>
+</div>
+  <h3 class="h3"><span class="h3-bar"></span>多项选择题（10 题 × 4 分）</h3>
+  
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-06</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M2</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.5.3 / 8.1 禁止行为</span></div>
+  <div class="q-stem">1. 下列属于禁止行为的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>检查结果判读、参与医疗操作、提供医疗建议</span></div><div class="opt"><span class="opt-letter">B</span><span>记录医嘱、办理缴费</span></div><div class="opt"><span class="opt-letter">C</span><span>代替服务对象或家属选择或同意治疗方案</span></div><div class="opt"><span class="opt-letter">D</span><span>调整用药方案</span></div><div class="opt"><span class="opt-letter">E</span><span>关键医疗信息的隐瞒、篡改和选择性传递</span></div></div>
+  <div class="q-answer"><b>答案</b> ACDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.1 表5 第 1～4 项；B 属 1.5.2 表1 第 7、10 项可开展服务。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-08</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M3</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">1.6 服务原则</span></div>
+  <div class="q-stem">2. 下列符合服务原则的做法有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>以服务对象为中心，将其需求和利益放在首位</span></div><div class="opt"><span class="opt-letter">B</span><span>专业性与安全性，具备医疗卫生基础知识和应急能力</span></div><div class="opt"><span class="opt-letter">C</span><span>隐私保护，未经同意不泄露服务对象病情</span></div><div class="opt"><span class="opt-letter">D</span><span>尊重与理解，尊重其自主选择权、个人习惯、宗教信仰和民族习俗</span></div><div class="opt"><span class="opt-letter">E</span><span>为提高效率，可代服务对象签署医疗文书</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 1.6 原文；E 属 8.1 表5 第 5 项禁止行为。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-11</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M4</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.2 人员准入与复核</span></div>
+  <div class="q-stem">3. 下列符合陪诊师准入与复核要求的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>持有效期内健康证明，或二级及以上医院近 3～6 个月体检合格证明</span></div><div class="opt"><span class="opt-letter">B</span><span>机构每年对人员进行背景与健康复核，不合格者终止聘用</span></div><div class="opt"><span class="opt-letter">C</span><span>提供无犯罪记录证明</span></div><div class="opt"><span class="opt-letter">D</span><span>医学、护理、药学、公共卫生、社工等相关专业或从业经历者优先</span></div><div class="opt"><span class="opt-letter">E</span><span>必须持有医师执业证书方可上岗</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.2 表3；E 中执业资格并非硬性准入要求，相关专业背景仅为优先条件。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-13</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M5</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">2.4 服务用品与保险</span></div>
+  <div class="q-stem">4. 关于保险，下列表述正确的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>机构应投保服务责任险及意外险</span></div><div class="opt"><span class="opt-letter">B</span><span>鼓励为陪诊师与服务对象购买相关保险</span></div><div class="opt"><span class="opt-letter">C</span><span>保险应覆盖陪诊服务全流程及服务结束后合理时限内的相关责任</span></div><div class="opt"><span class="opt-letter">D</span><span>行业参考：服务责任险单次事故赔付不低于 100 万元、年度累计不低于 500 万元</span></div><div class="opt"><span class="opt-letter">E</span><span>仅需为机构自有财产投保即可</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 2.4 与 8.3 原文；E 缩小了保险责任范围，不符合要求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-18</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M7</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">4.3 就医需求评估与机构推荐</span></div>
+  <div class="q-stem">5. 推荐医院、科室及专家时应当综合考虑的因素有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>医院专科优势</span></div><div class="opt"><span class="opt-letter">B</span><span>专家擅长领域</span></div><div class="opt"><span class="opt-letter">C</span><span>医疗资源可及性</span></div><div class="opt"><span class="opt-letter">D</span><span>机构与医院的合作分成比例</span></div><div class="opt"><span class="opt-letter">E</span><span>陪诊师个人的收入提成</span></div></div>
+  <div class="q-answer"><b>答案</b> ABC</div>
+  <div class="q-analysis"><b>解析</b> SOP 4.3：综合考虑医院专科优势、专家擅长领域与医疗资源可及性，避免利益驱动的不当推荐。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-21</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M8</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">5.5 诊前准备协助</span></div>
+  <div class="q-stem">6. 诊前准备协助的内容包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>提醒携带身份证、医保卡（或电子医保凭证）、既往病历、检查报告、影像资料及常用药品清单</span></div><div class="opt"><span class="opt-letter">B</span><span>通过"号贩子"加急获取号源以节省时间</span></div><div class="opt"><span class="opt-letter">C</span><span>空腹检查项目提前 8 小时告知禁食禁水要求</span></div><div class="opt"><span class="opt-letter">D</span><span>需憋尿检查的项目提前告知饮水量及憋尿时间</span></div><div class="opt"><span class="opt-letter">E</span><span>提前查询医院科室分布、挂号缴费与检查室位置、当日出诊医生、停车及周边交通情况</span></div></div>
+  <div class="q-answer"><b>答案</b> ACDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 5.5 全部条目；B 属 8.1 表5 第 6 项禁止行为。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-24</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M9</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">6.4 检查陪同</span></div>
+  <div class="q-stem">7. 检查陪同的规范要求包括：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>提前核对检查项目、检查注意事项，确认服务对象已完成检查前准备</span></div><div class="opt"><span class="opt-letter">B</span><span>协助排队预约检查时间，对空腹、憋尿等特殊要求的检查再次提醒注意事项</span></div><div class="opt"><span class="opt-letter">C</span><span>检查过程中协助服务对象穿脱衣物、摆放体位</span></div><div class="opt"><span class="opt-letter">D</span><span>检查完成后自行决定是否向服务对象解释结果含义</span></div><div class="opt"><span class="opt-letter">E</span><span>涉及隐私部位的检查须先征求服务对象意见，如需陪同应取得服务对象与医务人员双重同意</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCE</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.4 原文；D 属检查结果判读，为 8.1 表5 禁止行为。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-26</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M10</span>
+    <span class="q-tag tag-diff-hard">难</span>
+    <span class="q-know">6.9 突发情况应急处置</span></div>
+  <div class="q-stem">8. 关于突发情况应急处置，下列做法正确的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务对象突发症状时第一时间呼叫医院急诊人员并同步联系家属</span></div><div class="opt"><span class="opt-letter">B</span><span>保留相关急救记录</span></div><div class="opt"><span class="opt-letter">C</span><span>不得擅自实施超出能力范围的医疗处置</span></div><div class="opt"><span class="opt-letter">D</span><span>与医院工作人员发生纠纷时保持理性克制，立即联系机构管理人员协调</span></div><div class="opt"><span class="opt-letter">E</span><span>医生临时停诊时可自行决定更换医院，事后补报即可</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 6.9 原文；E 属擅自变更就诊安排，为禁止行为。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-28</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M11</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">7.4 服务改进机制</span></div>
+  <div class="q-stem">9. 关于服务改进机制，下列做法正确的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>对回访、满意度调查、投诉及检查结果分类分析，识别流程短板</span></div><div class="opt"><span class="opt-letter">B</span><span>运用流程图、PDCA 循环等工具持续优化服务流程</span></div><div class="opt"><span class="opt-letter">C</span><span>改进措施只需口头传达，无需记录</span></div><div class="opt"><span class="opt-letter">D</span><span>改进措施明确责任人与完成时限</span></div><div class="opt"><span class="opt-letter">E</span><span>共性问题在机构平台公示</span></div></div>
+  <div class="q-answer"><b>答案</b> ABDE</div>
+  <div class="q-analysis"><b>解析</b> SOP 7.4 原文；C 不符合"改进措施明确责任人与完成时限、共性问题公示"的要求。</div>
+</div>
+<div class="q-card">
+  <div class="q-head"><span class="q-no">C-30</span>
+    <span class="q-tag tag-multi">多选 4分</span>
+    <span class="q-tag">M12</span>
+    <span class="q-tag tag-diff-mid">中</span>
+    <span class="q-know">8.2 / 8.3 / 8.4 风险管控</span></div>
+  <div class="q-stem">10. 下列符合隐私、保险与应急管理要求的有：</div>
+  <div class="q-opts"><div class="opt"><span class="opt-letter">A</span><span>服务全过程保护服务对象个人信息与病情隐私，未经同意不得泄露</span></div><div class="opt"><span class="opt-letter">B</span><span>服务档案专人管理、依规保存</span></div><div class="opt"><span class="opt-letter">C</span><span>机构投保服务责任险与意外险，保险凭证在经营场所公示并向服务对象主动出示</span></div><div class="opt"><span class="opt-letter">D</span><span>定期组织应急培训与演练，演练与事件处置记录归档</span></div><div class="opt"><span class="opt-letter">E</span><span>可将服务对象病历资料带回家中妥善保管，便于下次服务使用</span></div></div>
+  <div class="q-answer"><b>答案</b> ABCD</div>
+  <div class="q-analysis"><b>解析</b> SOP 8.2、8.3、8.4 原文；E 违反隐私保护与档案专人管理要求。</div>
+</div>
+  <h3 class="h3"><span class="h3-bar"></span>C 卷 答案速查表</h3>
+  <table class="ans-table"><thead><tr>
+<th>题号</th><th>模块</th><th>题型</th><th>答案</th><th>题号</th><th>模块</th><th>题型</th><th>答案</th>
+</tr></thead><tbody><tr><td>C-01</td><td>M1</td><td>单选</td><td class="ans-cell">D</td><td>C-16</td><td>M7</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>C-02</td><td>M1</td><td>单选</td><td class="ans-cell">A</td><td>C-17</td><td>M7</td><td>单选</td><td class="ans-cell">B</td></tr><tr><td>C-03</td><td>M2</td><td>单选</td><td class="ans-cell">A</td><td>C-18</td><td>M7</td><td>多选</td><td class="ans-cell">ABC</td></tr><tr><td>C-04</td><td>M2</td><td>单选</td><td class="ans-cell">C</td><td>C-19</td><td>M8</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>C-05</td><td>M2</td><td>单选</td><td class="ans-cell">B</td><td>C-20</td><td>M8</td><td>单选</td><td class="ans-cell">D</td></tr><tr><td>C-06</td><td>M2</td><td>多选</td><td class="ans-cell">ACDE</td><td>C-21</td><td>M8</td><td>多选</td><td class="ans-cell">ACDE</td></tr><tr><td>C-07</td><td>M3</td><td>单选</td><td class="ans-cell">C</td><td>C-22</td><td>M9</td><td>单选</td><td class="ans-cell">B</td></tr><tr><td>C-08</td><td>M3</td><td>多选</td><td class="ans-cell">ABCD</td><td>C-23</td><td>M9</td><td>单选</td><td class="ans-cell">C</td></tr><tr><td>C-09</td><td>M4</td><td>单选</td><td class="ans-cell">D</td><td>C-24</td><td>M9</td><td>多选</td><td class="ans-cell">ABCE</td></tr><tr><td>C-10</td><td>M4</td><td>单选</td><td class="ans-cell">B</td><td>C-25</td><td>M10</td><td>单选</td><td class="ans-cell">D</td></tr><tr><td>C-11</td><td>M4</td><td>多选</td><td class="ans-cell">ABCD</td><td>C-26</td><td>M10</td><td>多选</td><td class="ans-cell">ABCD</td></tr><tr><td>C-12</td><td>M5</td><td>单选</td><td class="ans-cell">B</td><td>C-27</td><td>M11</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>C-13</td><td>M5</td><td>多选</td><td class="ans-cell">ABCD</td><td>C-28</td><td>M11</td><td>多选</td><td class="ans-cell">ABDE</td></tr><tr><td>C-14</td><td>M6</td><td>单选</td><td class="ans-cell">C</td><td>C-29</td><td>M12</td><td>单选</td><td class="ans-cell">A</td></tr><tr><td>C-15</td><td>M6</td><td>单选</td><td class="ans-cell">D</td><td>C-30</td><td>M12</td><td>多选</td><td class="ans-cell">ABCD</td></tr></tbody></table>
+</div>
+
+<!-- ================= 第三部分 ================= -->
+<div class="chapter">
+  <div class="ch-head">
+    <div class="ch-kicker">PART 03 · 备考地图</div>
+    <h2>第三部分　知识模块覆盖矩阵</h2>
+    <p class="ch-sub">12 个知识模块 × 三卷分布 —— 找到薄弱模块，回第一部分对应小节定向复习</p>
+  </div>
+  <div class="fig">
+    <div class="fig-title">图 8　12 模块 × A/B/C 卷覆盖矩阵（每卷均全覆盖）</div>
+    <table class="tbl">
+      <thead><tr><th>模块</th><th>知识模块名称</th><th>对应 SOP</th><th>每卷题量</th><th>三卷题号分布</th></tr></thead>
+      <tbody><tr><td class="mono">M1</td><td>术语与服务定位</td><td class="mono">1.4、1.5.1</td><td>2题</td><td class="mono small">A-01·A-02 / B-01·B-02 / C-01·C-02</td></tr><tr><td class="mono">M2</td><td>服务边界（12 项可 / 7 项不可）</td><td class="mono">1.5.2、1.5.3</td><td>4题</td><td class="mono small">A-03~06 / B-03~06 / C-03~06</td></tr><tr><td class="mono">M3</td><td>服务原则</td><td class="mono">1.6</td><td>2题</td><td class="mono small">A-07·A-08 / B-07·B-08 / C-07·C-08</td></tr><tr><td class="mono">M4</td><td>机构资质与人员准入</td><td class="mono">2.1、2.2</td><td>3题</td><td class="mono small">A-09~11 / B-09~11 / C-09~11</td></tr><tr><td class="mono">M5</td><td>培训考核、用品与保险</td><td class="mono">2.3、2.4</td><td>2题</td><td class="mono small">A-12·A-13 / B-12·B-13 / C-12·C-13</td></tr><tr><td class="mono">M6</td><td>流程总览与时限要求</td><td class="mono">第 3 章</td><td>2题</td><td class="mono small">A-14·A-15 / B-14·B-15 / C-14·C-15</td></tr><tr><td class="mono">M7</td><td>阶段一：服务信息提供</td><td class="mono">4.1~4.3</td><td>3题</td><td class="mono small">A-16~18 / B-16~18 / C-16~18</td></tr><tr><td class="mono">M8</td><td>阶段二：委托与受理</td><td class="mono">5.1~5.5</td><td>3题</td><td class="mono small">A-19~21 / B-19~21 / C-19~21</td></tr><tr><td class="mono">M9</td><td>阶段三：现场陪同交付</td><td class="mono">6.1~6.8</td><td>3题</td><td class="mono small">A-22~24 / B-22~24 / C-22~24</td></tr><tr><td class="mono">M10</td><td>突发情况应急处置</td><td class="mono">6.9</td><td>2题</td><td class="mono small">A-25·A-26 / B-25·B-26 / C-25·C-26</td></tr><tr><td class="mono">M11</td><td>服务评价与持续改进</td><td class="mono">第 7 章</td><td>2题</td><td class="mono small">A-27·A-28 / B-27·B-28 / C-27·C-28</td></tr><tr><td class="mono">M12</td><td>风险管控与合规红线</td><td class="mono">8.1~8.4</td><td>2题</td><td class="mono small">A-29·A-30 / B-29·B-30 / C-29·C-30</td></tr></tbody>
+    </table>
+  </div>
+  <div class="sec">
+    <div class="sec-t"><span class="no">3.1</span>三套试卷难度分布</div>
+    <table class="tbl" style="max-width:420px;">
+      <thead><tr><th>卷别</th><th>易</th><th>中</th><th>难</th><th>合计</th></tr></thead>
+      <tbody>
+        <tr><td>A 卷</td><td>11</td><td>14</td><td>5</td><td>30</td></tr>
+        <tr><td>B 卷</td><td>6</td><td>18</td><td>6</td><td>30</td></tr>
+        <tr><td>C 卷</td><td>8</td><td>16</td><td>6</td><td>30</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sec">
+    <div class="sec-t"><span class="no">3.2</span>组卷与判分要点（小程序数据源说明）</div>
+    <p class="body-p">三卷可整卷抽考，也可从 90 题池按 M1～M12 模块权重随机组卷（保持单选 20 + 多选 10、100 分制）；多选按"全对 4 / 少选 2 / 错选 0"计分；总分 ≥ 80 通过，未通过须补考并重新培训。每题字段（题号、题型、分值、模块、知识点、难度、答案、解析）固定可解析，解析中的 SOP 条款号可回链第一部分原文。</p>
+  </div>
+</div>
+
+</div><!-- /page-pad -->
+</div><!-- /main-content -->
+
+<!-- ================= 尾页 ================= -->
+<div class="ending">
+  <div class="e-t">学完三步走</div>
+  <div class="e-p">
+    ① 读懂第一部分八张图，尤其背熟「12 项可做 / 7 项红线」与七个时限数字；<br>
+    ② 完成 A / B / C 三卷自测，目标稳定 80 分以上；<br>
+    ③ 错题对照解析中的 SOP 条款回炉，形成"培训—考核—上岗"闭环。<br><br>
+    依据：《社会化陪同就医服务基本要求》（GB/T 47801—2026）· V1.1
+  </div>
+</div>
+
+</body>
+</html>
