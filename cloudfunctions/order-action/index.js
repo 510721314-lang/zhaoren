@@ -240,6 +240,19 @@ function allConfirmed(items) {
 
 // Wave2 止血⑥: 催办提醒订阅发送（手动催办由小程序端触发 → 云调用有效；失败/未授权/未配模板一律降级，不阻断）
 // 2026-11-02 方案A: 一次性订阅按“条”计数; 发送前先查计数, 成功后消费 1 条, 43101 收口并写站内。
+// 2026-11-03: 订阅消息落地页补 orderId（URL 已含该参数则保留），防点击后详情页缺订单号
+function pageOf(base, key, val) {
+  const p = String(base || '');
+  if (new RegExp('[?&]' + key + '=').test(p)) return p;
+  return p + (p.indexOf('?') >= 0 ? '&' : '?') + key + '=' + encodeURIComponent(String(val || ''));
+}
+// 2026-11-03: 云函数运行在 UTC，订阅消息时间统一按北京时间(+8)格式化
+function bjTimeStr(ts) {
+  const d = new Date(Number(ts || Date.now()) + 8 * 3600 * 1000);
+  const p2 = (n) => (n < 10 ? '0' + n : '' + n);
+  return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+}
+
 async function sendUrgeSub(order, config, now, used) {
   const tmpl = (config && config.sub_msg_templates && config.sub_msg_templates.demand_urge) || null;
   if (!tmpl || !tmpl.tmpl_id) return { sent: false, errCode: 'NO_TMPL', errMsg: '' };  // 未配模板 → 静默降级
@@ -265,9 +278,7 @@ async function sendUrgeSub(order, config, now, used) {
   }
   const fields = Object.assign({ thing4: 'urge_content', time3: 'urge_time' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
-  const pad = (n) => (n < 10 ? '0' + n : '' + n);
-  const d = new Date(now);
-  const tstr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const tstr = bjTimeStr(now);
   const data = {};
   for (const kw of Object.keys(fields)) {
     const s = fields[kw];
@@ -281,7 +292,7 @@ async function sendUrgeSub(order, config, now, used) {
   // 发送结果落库 order_main.sub_msg_send_logs(成功/失败均记), 补送达验证留痕
   const entry = { key: 'demand_urge', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
   const res = await sendOnce(cloud, {
-    touser: p, templateId: tmpl.tmpl_id, page: tmpl.page || 'pages-v2/order-detail/order-detail',
+    touser: p, templateId: tmpl.tmpl_id, page: pageOf(tmpl.page || 'pages-v2/order-detail/order-detail', 'orderId', order._id),
     data, miniprogramState: tmpl.miniprogram_state || 'formal'
   });
   if (res.sent) {
@@ -342,9 +353,7 @@ async function sendCommSub(order, config, item) {
   }
   const fields = Object.assign({ thing1: 'comm_item', time2: 'comm_time', thing3: 'comm_scene' },
     (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
-  const pad = (n) => (n < 10 ? '0' + n : '' + n);
-  const d = new Date();
-  const tstr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const tstr = bjTimeStr(Date.now());
   const data = {};
   for (const kw of Object.keys(fields)) {
     const s = fields[kw];
@@ -359,7 +368,7 @@ async function sendCommSub(order, config, item) {
   const entry = { key: 'confirm_comm', openid: p, at: Date.now(), channel: 'cloud', status: 'ok', errCode: '', errMsg: '' };
   const res = await sendOnce(cloud, {
     touser: p, templateId: tmpl.tmpl_id,
-    page: tmpl.page || `pages-v2/chat/chat?orderId=${order._id}`,
+    page: pageOf(tmpl.page || 'pages-v2/chat/chat', 'orderId', order._id),
     data, miniprogramState: tmpl.miniprogram_state || 'formal'
   });
   if (res.sent) {
