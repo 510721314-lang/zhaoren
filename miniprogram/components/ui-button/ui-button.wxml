@@ -1,3 +1,0 @@
-<button class="ui-btn ui-btn--{{type}} {{block ? 'ui-btn--block' : ''}}" disabled="{{disabled || loading}}" loading="{{loading}}" hover-class="ui-btn--press" bindtap="onTap">
-  <slot />
-</button>
