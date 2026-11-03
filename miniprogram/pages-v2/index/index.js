@@ -132,6 +132,7 @@ Page({
         const u = r.data.user;
         const isPartner = (u.roles || []).indexOf('partner') >= 0;
         this.setData({ user: u, isPartner });
+        this.__badgeAt = Date.now();   // P3-20④: 本次 peek_login 已含未读数, 首次 onShow 的 refreshNoticeBadge 不再重复拉取
         if (isPartner) { this.fetchNearby(); this.startNearbyPoll(); }   // 附近可接单池仅耍伴端拉取 + 新单轮询
       }
     });

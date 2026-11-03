@@ -23,7 +23,8 @@ async function balanceInfoAction(ctx) {
       const [settled, wR, splitting, monthList, countR, pp, pendingR, weekR] = await Promise.all([
         col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('withdraw_record').aggregate().match({ openid: partnerOpenid, is_deleted: false }).group({ _id: '$status', total: $.sum('$amount_fen') }).end().catch(() => ({ list: [] })),
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5','S6']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
+        // 2026-11-03 裁定: S6(已取消)不计入在途待结算, splitting 仅含 S2/S3/S5
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S5']), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(monthMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] })),
         col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
         col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] })),

@@ -643,7 +643,7 @@ function loadWith(dir, file, sdk) {
     'auto_admin_config_restore', 'auto_admin_import_collection', // 新增备份恢复 action(原 admin_unknown_action; 配合 .predeploy/restore.ps1 闭环 DB 恢复)
     'oc_create_build_path', 'auto_oc_create_from_take', // 2026-10-14 修复拆分前既有块作用域越界: create_from_take 成功路径 7 变量提升到 try 外, 基线仍抛 ReferenceError、修复后返回成功(成功路径另由 order_create_take_success.test.js 独立守护)
     'ot_s1', 'ot_s0', 'ot_s35', 'ot_s25', 'ot_s3_extend', 'ot_suspend', 'ot_milestone', 'ot_s5', 'ot_s8', 'ot_s4', 'ot_dispute', 'ot_timer_empty', // 2026-10-15 阶段G: order-timer 返回体新增 thresholds(start_apply_timeout_min/finish_confirm_timeout_min) + 两段字段/counts(start_apply_timeout/finish_confirm_timeout: S2.6→S10.5/no.26, S3.6→S10.5/no.30); 新行为由 order_timeout.test.js 独立守护(5 例), ot_s3_extend/ot_suspend 既有行为由 order-timer.entry.test.js 新增 2 例独立守护
-    'my_orders_partner', 'my_orders_user', 'notice_list', // 2026-10-17 订单列表/通知列表新增 demand_title/demand_desc(需求标题/详细描述, 按 demand.remark 全角｜拆分反查 demand) — 行为由 order-action.entry.test.js 新增 3 例独立守护
+    // P3-10(2026-11-03): 'my_orders_partner'/'my_orders_user'/'notice_list' 三条白名单已 stale(两侧自然等价), 删除以免漂移被静默兜住; 独立行为断言仍由 order-action.entry.test.js 守护
     'dp_my_demands_ok', // 2026-10-17 my_demands 新增 demand_title/demand_desc(需求标题/详细描述, 按 demand.remark 全角｜拆分; 文档自身含 remark, 无需反查) — 行为由 demand-publish.entry.test.js 新增 2 例独立守护
     'auto_pa_take_readiness', // 2026-10-21 接单引导链: 新增 take_readiness 只读探针(原 pa_unknown_action); 行为由 partner-action.entry.test.js 新增 7 例独立守护
     'auto_pa_init_draft',     // 2026-10-23 批3a P2-10-a: 新增 init_draft 入驻草稿初始化(原 pa_unknown_action, 基线无此 action); draft 不授角色/不进审核队列/不可接单, 行为由 partner-action.entry.test.js 新增 8 例独立守护

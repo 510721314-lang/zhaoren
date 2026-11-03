@@ -323,7 +323,7 @@ function resumeOnboardIntentAfterReset() {
     success: () => {
       setTimeout(() => {
         if (it.kind === 'publish') {
-          wx.navigateTo({ url: '/pages-v2/publish/publish' + (it.scene ? '?sceneCode=' + it.scene : ''), fail: () => {} });
+          wx.navigateTo({ url: '/pages-v2/publish/publish' + (it.scene ? '?sceneCode=' + it.scene : ''), fail: () => wx.showToast({ title: '请从首页重新进入发布', icon: 'none' }) });
         } else if (it.kind === 'take') {
           // 批3c(2026-10-23): 登录/实名回来 → 直接续跑入驻链(按云端缺项定位), 定位失败再回原单
           const chain = require('./onboard-chain.js');
