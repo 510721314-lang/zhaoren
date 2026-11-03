@@ -44,6 +44,11 @@ function Write-Log([string]$Result, [string]$Detail) {
   Add-Content -Path $LOG_FILE -Value $line -Encoding UTF8
   Write-Host "[LOG] $Result ($dur s): $detail"
 }
+# ── 阶段心跳(2026-11-03 B-1): 供外部观测当前阶段; 成功/失败后清理 ──
+$HEARTBEAT_PATH = Join-Path $LOG_DIR '.backup.heartbeat'
+function Write-Heartbeat([string]$Stage) {
+  try { Set-Content -Path $HEARTBEAT_PATH -Value "$Stage pid=$PID at=$(Get-Date -Format s)" -Encoding UTF8 } catch {}
+}
 # ── 备份互斥锁(2026-10-28) ──
 # 事故: full(14:30) 与每小时 incremental 并发 —— 两者同时争用同一 IDE CLI 下载函数代码/网关导出,
 #   full 由正常 ~41 分钟拖到 6.5 小时(14:30→21:02), 17:30 被任务 PT3H 超时终止(wscript 被杀但 PowerShell 子进程继续),
@@ -60,7 +65,21 @@ function Enter-BackupLock([string]$m) {
     $script:lockStream.Write($bytes, 0, $bytes.Length)
     $script:lockStream.Flush()
     return $true
-  } catch { return $false }
+  } catch {
+    # B-1(2026-11-03): 陈旧锁接管——持锁进程已不存在时删除残留锁并重试一次
+    try {
+      $txt = [string](Get-Content $LOCK_PATH -Raw -ErrorAction SilentlyContinue)
+      $mm = [regex]::Match($txt, 'pid=(\d+)')
+      if ($mm.Success) {
+        $opid = [int]$mm.Groups[1].Value
+        if (-not (Get-Process -Id $opid -ErrorAction SilentlyContinue)) {
+          Remove-Item $LOCK_PATH -Force -ErrorAction SilentlyContinue
+          return (Enter-BackupLock $m)
+        }
+      }
+    } catch {}
+    return $false
+  }
 }
 
 function Test-HWritable {
@@ -222,13 +241,24 @@ if ($Mode -eq 'full') {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     Write-Host "===== FULL START: $dir ====="
     # 1) git bundle 全量
+    Write-Heartbeat 'L1_git_bundle'
     $bundle = Join-Path $dir ('zhaoren-full-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bundle')
     Invoke-Bundle $bundle
     # 2) worktree 热备
+    Write-Heartbeat 'L2_worktree_robocopy'
     Invoke-RoboCopy (Join-Path $dir 'files')
     # 3) manual-backup 全链(L2~L7: DB 37 表脱敏 + 函数代码下载 + 索引台账)
-    & (Join-Path $PROJECT '.predeploy\manual-backup.ps1') -AdminKey $ak
-    if ($LASTEXITCODE -ne 0) { throw "manual-backup.ps1 exit=$LASTEXITCODE" }
+    #    B-1(2026-11-03): 外层 30 分钟总超时, 防整链挂起; 超时杀进程并 FAIL(锁随进程退出释放)
+    Write-Heartbeat 'L3_manual_backup'
+    $mbPs = Join-Path $PROJECT '.predeploy\manual-backup.ps1'
+    $mb = Start-Process -FilePath 'powershell' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$mbPs,'-AdminKey',$ak) -NoNewWindow -PassThru
+    $mbExited = $false
+    try { $mb | Wait-Process -Timeout 1800 -ErrorAction Stop; $mbExited = $true } catch { $mbExited = $false }
+    if (-not $mbExited -or -not $mb.HasExited) {
+      try { Stop-Process -Id $mb.Id -Force -ErrorAction SilentlyContinue } catch {}
+      throw 'manual-backup timeout 30min (killed)'
+    }
+    if ($mb.ExitCode -ne 0) { throw "manual-backup.ps1 exit=$($mb.ExitCode)" }
     $srcBak = Get-ChildItem 'C:\zhaoren-bak' -Directory -Filter 'zhaoren_backup_*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $srcBak -or -not (Test-Path (Join-Path $srcBak.FullName 'manifest.json'))) { throw 'manual-backup 产物缺失 manifest.json' }
     $mf = Get-Content (Join-Path $srcBak.FullName 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -236,6 +266,7 @@ if ($Mode -eq 'full') {
     Move-Item $srcBak.FullName (Join-Path $dir 'db_export')
     Write-Host "[L2-L7] 37 表脱敏链完成并搬入 db_export"
     # 4) B 通道: tcb 直连原值加密
+    Write-Heartbeat 'L4_raw_export'
     Invoke-RawExport (Join-Path $dir 'raw')
     # 4.5) 外部目录快照: Trae 会话记忆 + 交付物文档(2026-10-22 用户批准纳入; 容量<4MB, 日期子目录防覆盖)
     $externalDefs = @(
@@ -253,18 +284,24 @@ if ($Mode -eq 'full') {
       Write-Host "[EXT] $($def.Name) -> $dst ($n files)"
     }
     # 5) CHECKSUMS + 保留清理
+    Write-Heartbeat 'L5_checksums_cleanup'
     Get-CheckSums $dir
     Remove-OldFull
     # 6) 异地自动推送(lark mirror): staging → overwrite push(重试2) → smart 复核; 失败 WARN 不阻断本地备份
+    Write-Heartbeat 'L6_lark_push'
     $larkTag = 'lark=WARN(未执行)'
     try {
       $lark = Invoke-LarkPush $dir $bundle
       if ($lark.ok) { $larkTag = 'lark=OK'; Write-Host "[LARK] 异地推送+复核完成" }
       else { $larkTag = 'lark=WARN: ' + $lark.detail; Write-Host "[LARK-WARN] $larkTag" }
     } catch { $larkTag = 'lark=WARN: ' + $_.Exception.Message; Write-Host "[LARK-WARN] $larkTag" }
+    Remove-Item $HEARTBEAT_PATH -Force -ErrorAction SilentlyContinue
     Write-Log 'SUCCESS' "full -> $dir $larkTag"
     exit 0
   } catch {
+    # B-1(2026-11-03): 显式释放锁与心跳, 不依赖进程退出
+    try { if ($script:lockStream) { $script:lockStream.Dispose(); $script:lockStream = $null } } catch {}
+    Remove-Item $HEARTBEAT_PATH -Force -ErrorAction SilentlyContinue
     Write-Log 'FAIL' $_.Exception.Message
     exit 1
   }

@@ -127,15 +127,30 @@ if ($cliBat) {
   $fnNames = @(Get-ChildItem "$PROJECT_DIR\cloudfunctions" -Directory -ErrorAction SilentlyContinue |
     Where-Object { Test-Path (Join-Path $_.FullName 'index.js') } | ForEach-Object { $_.Name })
   $downloaded = 0; $failed = @()
+  $hbFile = Join-Path (Join-Path $BackupDir 'meta') 'heartbeat.txt'
   foreach ($fn in $fnNames) {
     $target = Join-Path $fnRoot $fn
     $errFile = Join-Path $fnRoot "$fn.err.txt"
+    # B-1(2026-11-03): 单函数下载 90s 超时, 防 CLI 挂起拖死整条备份链; 每函数前后写心跳
+    Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_START $fn" -ErrorAction SilentlyContinue
     $p = Start-Process -FilePath $cliBat `
       -ArgumentList @('cloud','functions','download','--env',$CLOUD_ENV,'--name',$fn,'--path',$target,'--project',$PROJECT_DIR) `
-      -RedirectStandardOutput (Join-Path $fnRoot "$fn.std.txt") -RedirectStandardError $errFile -NoNewWindow -Wait -PassThru
+      -RedirectStandardOutput (Join-Path $fnRoot "$fn.std.txt") -RedirectStandardError $errFile -NoNewWindow -PassThru
+    $exited = $false
+    try { $p | Wait-Process -Timeout 90 -ErrorAction Stop; $exited = $true } catch { $exited = $false }
+    if (-not $exited -or -not $p.HasExited) {
+      try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+      Write-Host "[TIMEOUT] L6 download $fn > 90s, killed" -ForegroundColor Red
+      Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_TIMEOUT $fn" -ErrorAction SilentlyContinue
+      $failed += $fn
+      continue
+    }
     $size = ((Get-ChildItem $target -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum)
-    if ($p.ExitCode -eq 0 -and $size -gt 0) { $downloaded++ }
-    else { $failed += $fn }
+    if ($p.ExitCode -eq 0 -and $size -gt 0) {
+      $downloaded++
+      Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_OK $fn" -ErrorAction SilentlyContinue
+    }
+    else { $failed += $fn; Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_FAIL $fn exit=$($p.ExitCode)" -ErrorAction SilentlyContinue }
   }
   if ($downloaded -gt 0) { $fnCodeDir = $fnRoot; Write-Host "[OK] $downloaded/$($fnNames.Count) 函数已下载到 $fnRoot" -ForegroundColor Green }
   if ($failed.Count) { Write-Host "[WARN] 下载失败: $($failed -join ',')" -ForegroundColor Magenta }
