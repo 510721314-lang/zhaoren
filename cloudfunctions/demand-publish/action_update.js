@@ -286,7 +286,7 @@ async function update_action(ctx) {
               level: 'P3', type: 'evidence_write_fail', openid,
               payload: { node: 'update', scene, demand_id, message: String((ee && ee.message) || ee) },
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
-            }}).catch(() => {});
+            }}).catch((e2) => log.d(`platform_event fallback fail(update): ${(e2 && e2.message) || e2}`));
           }
         }
         // ── W9 留证: 首次确认宠物照料授权书(该需求此前无凭证)时补留证 ──
@@ -311,7 +311,7 @@ async function update_action(ctx) {
               level: 'P3', type: 'evidence_write_fail', openid,
               payload: { node: 'update_pet', scene, demand_id, message: String((ee && ee.message) || ee) },
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
-            }}).catch(() => {});
+            }}).catch((e2) => log.d(`platform_event fallback fail(update_pet): ${(e2 && e2.message) || e2}`));
           }
         }
         await writeAudit(db, log, {

@@ -496,7 +496,7 @@ async function publish_action(ctx) {
             level: 'P3', type: 'evidence_write_fail', openid,
             payload: { node: 'publish', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
             created_at: Date.now(), updated_at: Date.now(), is_deleted: false
-          }}).catch(() => {});
+          }}).catch((e2) => log.d(`platform_event fallback fail(publish): ${(e2 && e2.message) || e2}`));
         }
 
         // ── W9 留证: 宠物照料授权书(电子确认, PRD R9 授权凭证; 不阻断主流程) ──
@@ -524,7 +524,7 @@ async function publish_action(ctx) {
               level: 'P3', type: 'evidence_write_fail', openid,
               payload: { node: 'publish_pet', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
-            }}).catch(() => {});
+            }}).catch((e2) => log.d(`platform_event fallback fail(publish_pet): ${(e2 && e2.message) || e2}`));
           }
         }
 
@@ -552,7 +552,7 @@ async function publish_action(ctx) {
               level: 'P3', type: 'evidence_write_fail', openid,
               payload: { node: 'publish_proxy', scene, demand_id: addRes._id, message: String((ee && ee.message) || ee) },
               created_at: Date.now(), updated_at: Date.now(), is_deleted: false
-            }}).catch(() => {});
+            }}).catch((e2) => log.d(`platform_event fallback fail(publish_proxy): ${(e2 && e2.message) || e2}`));
           }
         }
 
