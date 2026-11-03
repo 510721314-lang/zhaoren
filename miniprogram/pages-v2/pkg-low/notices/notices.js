@@ -134,7 +134,14 @@ Page({
     const key = n.action_key;
     const payload = n.action_payload || {};
     if (key === 'jump_chat') {
-      wx.navigateTo({ url: `/pages-v2/chat/chat?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
+      // 2026-11-03(方案A): 有 order_id 的聊天类通知统一进订单详情(与消息页口径一致);
+      // 聊天仍可从详情页「进入聊天完成四确认」进入; 无订单号的纯消息通知留在通知页。
+      const oid = payload.order_id || n.order_id;
+      if (oid) {
+        wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oid}`, fail: () => wx.showToast({ title: '详情页暂不可用', icon: 'none' }) });
+      } else {
+        wx.showToast({ title: '该通知暂无关联订单', icon: 'none' });
+      }
     } else if (key === 'jump_order' || key === 'jump_accept_modify') {
       wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
     } else if (key === 'jump_pay') {
