@@ -28,7 +28,7 @@ Page({
 
   goDetail(e) {
     const openid = e.currentTarget.dataset.openid;
-    wx.navigateTo({ url: '/pages-v2/admin/user-detail?openid=' + openid });
+    wx.navigateTo({ url: '/pages-v2/admin/user-detail?openid=' + openid, fail: () => wx.showToast({ title: '用户详情页暂未开放', icon: 'none' }) });   // P3-13 A1: 目标页未注册, 补 fail 兜底防静默
   },
 
   onShareAppMessage() { return { title: '用户管理', path: '/pages-v2/index/index' }; }

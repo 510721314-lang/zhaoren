@@ -84,6 +84,8 @@ Page({
         d.weekIncomeYuan = ((typeof b.week_income_fen === 'number' ? b.week_income_fen : (b.month_income_fen || 0)) / 100).toFixed(2);
         d.todayCount = typeof b.today_pending === 'number' ? b.today_pending : (b.total_completed || 0);
         d.creditLevel = b.credit_level || 'L1';
+        // P3-16(2026-11-03): 信用分与等级统一取 partner_profile.score, 避免两源不一致
+        if (typeof b.credit_score === 'number') d['user.partner_credit_score'] = b.credit_score;
       }
       if (incR.ok) {
         d.incomeList = (incR.data.list || []).slice(0, Number(CONFIG.WORKBENCH.incomeShow) || 5).map((i) => ({

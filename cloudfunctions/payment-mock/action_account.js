@@ -60,7 +60,9 @@ async function balanceInfoAction(ctx) {
           total_completed: countR.total || 0,
           today_pending: pendingR.total || 0,                 // P2-12: 今日待履约(替代原 total_completed 的误用)
           week_income_fen: aggRowSum(weekR.list && weekR.list[0]),  // P2-13: 本周收入(周一 00:00 起)
-          credit_level: creditLevel
+          credit_level: creditLevel,
+          // P3-16(2026-11-03): 信用分与等级统一取 partner_profile.score; 无档案返回 null, 前端保留原值
+          credit_score: (pp.data && pp.data[0] && typeof pp.data[0].score === 'number') ? pp.data[0].score : null
         }
       };
 }
