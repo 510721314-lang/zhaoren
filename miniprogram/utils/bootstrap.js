@@ -335,7 +335,8 @@ function resumeOnboardIntentAfterReset() {
         }
       }, 120);
     },
-    fail: () => {}
+    // F4(2026-11-04): 原 fail 静默 → 用户会卡在登录/实名页且无任何反馈(§5 禁吞异常)
+    fail: () => wx.showToast({ title: '请从首页重新进入', icon: 'none' })
   });
   return true;
 }
