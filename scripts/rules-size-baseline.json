@@ -1,8 +1,8 @@
 {
   "note": "常驻规则体系水位（T-7.34/T-7.36/T-7.39 防复发）。改规则后必须评估：inject 净增长 > rateLimitBytes、或已超 l0.targetBytes 时任何净增 → FAIL；conditional / 全量归档 净增长超各自速率门 → FAIL；.trae/rules.md 被写回正文（超 pointerMaxBytes 或出现章节标题）→ FAIL；缩水 > staleToleranceBytes 会提示刷新本文件。更新本文件属于「显式评审动作」，须单独 commit 并写理由。",
-  "updatedAt": "2026-11-02",
-  "updatedBy": "§36 交付节奏与完成度优先纪律入库（inject +101B / 归档 +1252B）；水位同步刷新",
-  "injectBytes": 15811,
+  "updatedAt": "2026-11-04",
+  "updatedBy": "水位刷新（显式评审动作）：①补记既存漂移 407B（§35/§37 两次改动仅动 core 未刷水位，致 baseline 滞后）；②§7 新增「停手上报与专家协助」硬门 458B；合计 inject 15811B→16676B。已超 12KB 目标位 292B，后续新增规则须先淘汰旧条",
+  "injectBytes": 16676,
   "injectFiles": 3,
   "injectSections": 12,
   "rateLimitBytes": 1024,
