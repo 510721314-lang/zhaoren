@@ -4,6 +4,8 @@ alwaysApply: true
 
 # 提审冻结期规则（v1.6.x · 2026-10 起）
 
+> **2026-11-04 裁定：不设提审冻结期**；§3 配额门控暂停适用，其余条款继续有效（详见 HANDOFF T-8.13）。
+
 ## 1. 真值优先级（冲突时按此裁决）
 1. 云端回读：`tcb fn detail` / `tcb fn code download` / 控制台用量实测
 2. 仓库台账：`docs/HANDOFF-20261103.md`（唯一现行）→ `docs/CHANGELOG.md` → `docs/tech-debt-inventory-20261015.md`
