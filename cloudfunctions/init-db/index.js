@@ -94,7 +94,12 @@ const INDEXES = [
   { coll: 'exam_sessions', name: 'idx_subject_submitted', keys: { subject: 1, submitted_at: -1 } },
   { coll: 'certificates', name: 'idx_openid_subject_issued', keys: { openid: 1, subject: 1, issued_at: -1 } },
   { coll: 'study_records', name: 'uk_openid_subject_chapter', keys: { openid: 1, subject: 1, chapter_id: 1 }, unique: true },
-  { coll: 'study_content', name: 'idx_subject_module_chapter_sort', keys: { subject: 1, module_id: 1, chapter_id: 1, sort: 1 } }
+  { coll: 'study_content', name: 'idx_subject_module_chapter_sort', keys: { subject: 1, module_id: 1, chapter_id: 1, sort: 1 } },
+  // 2026-11-04 P3-12 / P3-15①：云端已建（以 `listIndexes` 原始回执为证，见 tech-debt P3-12/P3-15）
+  //   order-timer scanAll 各 status 段等值 seek + _id 游标（复合 _id 键 CloudBase 实测可建）
+  { coll: 'order_main', name: 'idx_status_id', keys: { status: 1, _id: 1 } },
+  //   法律文档版本库 (doc_type, scope, version) 唯一（防并发发布产生重复版本）
+  { coll: 'legal_doc', name: 'uniq_doc_type_scope_version', keys: { doc_type: 1, scope: 1, version: 1 }, unique: true }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)
