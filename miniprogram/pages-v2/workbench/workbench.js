@@ -6,6 +6,13 @@ const redline = require('../../utils/redline.js');
 
 const { callCloud } = require('../../utils/cloud.js');
 
+// F2(2026-11-04): 日期工具, 时间轴筛选与周日历计数共用(按本地时区取 YYYY-MM-DD)
+const pad2 = (n) => ('0' + n).slice(-2);
+const ymdOf = (t) => {
+  const x = t ? new Date(t) : null;
+  return (x && !isNaN(x.getTime())) ? x.getFullYear() + '-' + pad2(x.getMonth() + 1) + '-' + pad2(x.getDate()) : '';
+};
+
 Page({
   data: {
     acceptingOrders: true,
@@ -63,8 +70,8 @@ Page({
       callCloud('payment-mock', { action: 'balance_info' }).catch(() => ({ ok: false })),
       callCloud('payment-mock', { action: 'income_list', limit: Number(CONFIG.WORKBENCH.incomeShow) || 5 }).catch(() => ({ ok: false })),
       callCloud('partner-action', { action: 'my_profile' }).catch(() => ({ ok: false })),
-      // P2-11: 取耍伴最近进行中订单, 供 SOS 上报填 orderId
-      callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'doing', page_size: 1 }).catch(() => ({ ok: false })),
+      // P2-11: 进行中订单全量(≤20), 供 SOS 上报填 orderId + 时间轴/周日历
+      callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'doing', page_size: 20 }).catch(() => ({ ok: false })),
       // F1a(2026-11-04): 取耍伴待确认订单(S1), 供 W6 待办卡; 仅展示, 确认/拒绝跳详情
       callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'confirm', page_size: 5 }).catch(() => ({ ok: false }))
     ]).then(([balR, incR, prfR, ordR, cfmR]) => {
@@ -103,7 +110,10 @@ Page({
       // P2-11: 最近进行中订单, 供 SOS 上报 & 时间轴占位
       const doingList = (ordR.ok && ordR.data && ordR.data.list) || [];
       // P3-17(2026-11-03): 时间轴卡字段映射(my_orders 只返回 scene_name/location_name/start_time 等, 原字段全空)
-      d.todayOrders = doingList.map((o) => {
+      // F2(2026-11-04): 留存进行中全量, 供周日历计数与点选某日筛选
+      this.allDoing = doingList;
+      this._todayKey = ymdOf(new Date());
+      this._mapOrder = (o) => {
         const st = o.start_time ? new Date(o.start_time) : null;
         const time = st ? ('0' + st.getHours()).slice(-2) + ':' + ('0' + st.getMinutes()).slice(-2) : '';
         return {
@@ -117,7 +127,12 @@ Page({
           partnerName: o.demand_title || '',
           sceneColor: 'var(--brand)'
         };
-      });
+      };
+      // F2(2026-11-04): 时间轴默认只显示今天, 按开始时间升序
+      d.todayOrders = doingList
+        .filter((o) => ymdOf(o.start_time) === this._todayKey)
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+        .map(this._mapOrder);
       d.currentOrderId = doingList.length > 0 ? doingList[0].order_id : '';
       // F1a(2026-11-04): W6 待办卡数据源 = my_orders(partner, confirm=S1); 字段按模板口径映射
       const cfmList = (cfmR.ok && cfmR.data && cfmR.data.list) || [];
@@ -136,17 +151,22 @@ Page({
         count: d.todayCount,
         upcoming: d.incomeList && d.incomeList.length ? `${d.incomeList[0].scene || ''} 待处理` : '暂无进行中订单'
       };
-      // 周日历 (静态占位, 后续接真实排期)
+      // F2(2026-11-04): 周日历接真实排期(未来7天, 按进行中订单的服务日计数出小圆点)
+      const cntByDay = {};
+      doingList.forEach((o) => {
+        const k = ymdOf(o.start_time);
+        if (k) cntByDay[k] = (cntByDay[k] || 0) + 1;
+      });
       const today = new Date();
       const wdNames = ['日', '一', '二', '三', '四', '五', '六'];
       const weekDays = [];
       for (let i = 0; i < 7; i++) {
         const dt = new Date(today.getTime() + i * 86400000);
-        const mm = String(dt.getMonth() + 1).padStart(2, '0');
-        const dd = String(dt.getDate()).padStart(2, '0');
-        weekDays.push({ wd: wdNames[dt.getDay()], dateStr: `${mm}/${dd}`, isToday: i === 0, hasOrder: false });
+        const key = ymdOf(dt);
+        weekDays.push({ key, wd: wdNames[dt.getDay()], dateStr: pad2(dt.getMonth() + 1) + '/' + pad2(dt.getDate()), isToday: i === 0, hasOrder: !!cntByDay[key] });
       }
       d.weekDays = weekDays;
+      d.activeDayIndex = 0;
       this.setData(Object.assign(d, { loading: false }));
     }).catch(() => {
       this.setData({ loading: false, loadError: true });
@@ -174,10 +194,16 @@ Page({
     });
   },
 
-  // W3 周日历: 选中某天 (当前仅切换高亮, 真实排期待接)
+  // W3 周日历: 点选某天 → 时间轴按该日筛选(默认今天); F2(2026-11-04) 接真实排期
   onWeekDayTap(e) {
-    const idx = e.currentTarget.dataset.index;
-    this.setData({ activeDayIndex: idx });
+    const idx = Number(e.currentTarget.dataset.index);
+    const day = (this.data.weekDays || [])[idx];
+    if (!day || !this._mapOrder) return;
+    const list = (this.allDoing || [])
+      .filter((o) => ymdOf(o.start_time) === day.key)
+      .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+      .map((o) => this._mapOrder(o));
+    this.setData({ activeDayIndex: idx, todayOrders: list });
   },
 
   // W3 时间轴操作

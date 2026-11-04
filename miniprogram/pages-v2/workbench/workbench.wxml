@@ -62,7 +62,7 @@
           </view>
         </view>
       </view>
-      <view class="wb__empty" wx:else>今日暂无订单</view>
+      <view class="wb__empty" wx:else>该日暂无订单</view>
     </view>
 
     <!-- W4 资金四态速览 -->
