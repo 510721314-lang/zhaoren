@@ -1,4 +1,10 @@
 {
   "timeout": 10,
-  "triggers": []
+  "triggers": [
+    {
+      "name": "warmup-15min",
+      "type": "timer",
+      "config": "0 */15 7-22 * * * *"
+    }
+  ]
 }

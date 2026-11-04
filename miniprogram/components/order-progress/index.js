@@ -19,6 +19,9 @@ const BRANCH_RULE = {
   S9:    { anchor: 'S5', terminal: true,  preview: false },
   S10_5: { anchor: 'S8', terminal: false, preview: true }
 };
+// 2026-11-04 P3-23: 灰显预告态专用文案（真态仍取 ORDER_STATUS 的 name，SSOT 不改）
+//   S2 时轴下「开始履约申请中」易被读成当前态 → 预告改「待发起开始履约」
+const PREVIEW_NAME = { S2_6: '待发起开始履约' };
 
 Component({
   properties: {
@@ -68,7 +71,7 @@ Component({
           const active = k === s;
           return {
             code: cfg.code,
-            name: cfg.name,
+            name: active ? cfg.name : (PREVIEW_NAME[k] || cfg.name),
             active,
             // 颜色取 SSOT token；灰显态由 wxss 默认中性色处理
             activeStyle: active ? `background:${cfg.bgTag};color:${cfg.colorTag};` : ''

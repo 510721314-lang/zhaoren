@@ -328,7 +328,7 @@ function resumeOnboardIntentAfterReset() {
           // 批3c(2026-10-23): 登录/实名回来 → 直接续跑入驻链(按云端缺项定位), 定位失败再回原单
           const chain = require('./onboard-chain.js');
           chain.enterByReadiness().then((entered) => {
-            if (!entered && it.demand_id) wx.navigateTo({ url: '/pages-v2/demand-detail/demand-detail?id=' + it.demand_id, fail: () => {} });
+            if (!entered && it.demand_id) wx.navigateTo({ url: '/pages-v2/demand-detail/demand-detail?id=' + it.demand_id, fail: () => wx.showToast({ title: '请到订单列表重新进入', icon: 'none' }) });
           });
         } else {
           wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });

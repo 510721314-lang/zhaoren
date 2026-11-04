@@ -181,6 +181,30 @@ async function writeVersion(ctx, opt) {
   }
   await col('admin_config').where({ _id: 'global' }).update({ data: cfgData });
 
+  // 2026-11-04 P3-15②: 双写漂移告警 —— 发布后回读 admin_config，与本次写入应达到的值不一致则记 platform_event
+  //   仅 publish（status !== 'retired'）比对；retire 走删除语义，不参与比对，避免误报
+  //   回读失败只 log.d，不影响发布主流程返回（保持原返回结构）
+  if (status !== 'retired') {
+    try {
+      const rb = await col('admin_config').where({ _id: 'global' }).limit(1).get();
+      const cfgNow = (rb && rb.data && rb.data[0]) || {};
+      let drift = '';
+      if (doc_type === 'scene_disclaimer') {
+        if (((cfgNow.legal_scene_disclaimers || {})[scope]) !== content) drift = 'legal_scene_disclaimers';
+        if (((cfgNow.legal_scene_versions || {})[scope]) !== version) drift = drift ? `${drift},legal_scene_versions` : 'legal_scene_versions';
+      } else {
+        const field = CONFIG_FIELD[doc_type];
+        if (cfgNow[field] !== content) drift = field;
+        if (((cfgNow.legal_versions || {})[doc_type]) !== version) drift = drift ? `${drift},legal_versions` : 'legal_versions';
+      }
+      if (drift) {
+        await logEvent('P2', 'legal_doc_drift', openid, {
+          doc_type, scope: scope || '', version, fields: drift, content_len: content.length
+        });
+      }
+    } catch (e) { log.d(`legal_doc drift check fail: ${e.message}`); }
+  }
+
   // ── 审计：platform_event + config_history ──
   const auditPayload = {
     doc_type,

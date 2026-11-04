@@ -1,18 +1,19 @@
-// @VERIFIED 2026-10-13 已真机验证：zz-warmup cron 全天候每5分钟预热(约1.7万次/月,占基础版4%)+触发器更新走 tcb fn trigger 绕白名单（依据：project_memory L108, L266）
+// @VERIFIED 2026-10-13 已真机验证：zz-warmup cron 预热+触发器更新走 tcb fn trigger 绕白名单（依据：project_memory L108, L266）
+//   2026-11-04 起 cron 改为单触发器 `0 */15 7-22 * * * *`（原为全天候每 5 分钟）
 // zz-warmup 首屏云函数保温探针(S9 性能优化)
-// 2026-10-26 用量治理：**定时触发器已全部下线（0 次/天）**，首屏冷启动回到 ~1.6-1.9s（功能无损）
+// 2026-10-26 用量治理：定时触发器曾全部下线（0 次/天），首屏冷启动回到 ~1.6-1.9s（功能无损）
 //   原因：标准触发器(全天 288/天) + 微信云开发触发器(7-22 192/天) 并存 → 480 次/天 × 3 调用 = 1,440 次/天
-//   恢复时（正式上线后）：只建一个触发器，cron `0 */15 7-22 * * * *`（64 次/天 × 3 = 192 次/天）
-//   config.json 的 triggers 已清空，防止下次部署自动重建高频触发器
+// 2026-11-04 恢复：只建一个触发器，cron `0 */15 7-22 * * * *`（64 次/天 × 3 = 192 次/天）；熔断已移除
+//   配合同日「暂不考虑配额」口径（HANDOFF T-7.29/T-8.13）
 // 目的: 定时唤醒首屏关键云函数(home-action / user-login), 规避实例休眠冷启动
 //       实测冷启动 ~1.6-1.9s → 保温后热态 ~0.3s, 首页冷启可交互 1.9s → 0.6-0.9s
-// 触发: ① 定时触发器（2026-10-26 起已全部下线，仅保留手动/云端测试）
+// 触发: ① 定时触发器（2026-11-04 起：单触发器 `0 */15 7-22 * * * *`）
 //       ② 云端测试面板手动 {"action":"run"} 验证(手动调用不受时段限制)
 // 安全原则:
 //   - 只调用「只读 / 无 openid 也安全 / 零写入副作用」的轻量 action
 //   - 各目标独立 try/catch + 超时竞速, 单目标失败不影响其他
 //   - 幂等: 重复执行无副作用, 可安全高频触发
-// 调用量预算: 当前 0 次/天(触发器已下线); 恢复后 64 触发/天 × 3 调用 = 192 次/天
+// 调用量预算: 恢复后 64 触发/天 × 3 调用 = 192 次/天
 //   恢复前(5 分钟/全天)为 288 次/天 × 3 = 864 次/天, 叠加重复触发器曾达 1,440 次/天
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -26,8 +27,9 @@ const TARGETS = [
   { name: 'user-login', data: { action: 'peek_login' } }
 ];
 
-const ACTIVE_START = 0;    // 全天候保温: 北京时间 00:00 起(含)
-const ACTIVE_END = 24;     // 上界 24:00, 覆盖 23:xx 全时段
+// 2026-11-04: 与 cron 窗口 `0 */15 7-22` 对齐（北京时 07:00–21:59）
+const ACTIVE_START = 7;    // 北京时间 07:00 起(含)
+const ACTIVE_END = 22;     // 上界 22:00, 覆盖 21:xx 全时段
 const CALL_TIMEOUT_MS = 8000;
 
 // 显式按 UTC+8 取小时, 不依赖运行实例本地时区配置
@@ -67,12 +69,6 @@ async function warmOne(target) {
 
 exports.main = async (event) => {
   const manual = !!(event && event.action === 'run');
-  // 2026-10-26 用量治理熔断: 定时触发直接空转(每次仅 1 次自身调用, 不再唤起 2 个目标函数)
-  //   触发次数 480/天 × 3 调用 = 1,440/天 → 480/天; 控制台触发器删除受限, 以此为保底
-  //   恢复上线: 置 false 并重建单个触发器(cron `0 */15 7-22 * * * *`)
-  if (!manual) {
-    return { ok: true, skipped: true, reason: 'trigger_disabled_20261026', ts: Date.now() };
-  }
   const hour = bjHour();
   const inWindow = hour >= ACTIVE_START && hour < ACTIVE_END;
 
