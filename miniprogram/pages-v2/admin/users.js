@@ -28,7 +28,8 @@ Page({
 
   goDetail(e) {
     const openid = e.currentTarget.dataset.openid;
-    wx.navigateTo({ url: '/pages-v2/admin/user-detail?openid=' + openid, fail: () => wx.showToast({ title: '用户详情页暂未开放', icon: 'none' }) });   // P3-13 A1: 目标页未注册, 补 fail 兜底防静默
+    // F5(2026-11-04): 目标页已补(admin/user-detail), 参数名与向后端 user_detail 的 target_openid 对齐
+    wx.navigateTo({ url: '/pages-v2/admin/user-detail?target_openid=' + openid, fail: () => wx.showToast({ title: '打开用户详情失败', icon: 'none' }) });
   },
 
   onShareAppMessage() { return { title: '用户管理', path: '/pages-v2/index/index' }; }

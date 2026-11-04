@@ -1,0 +1,84 @@
+<view class="ud" wx:if="{{isAdmin}}">
+  <!-- 加载/失败/正常 三态 -->
+  <view class="ud-tip" wx:if="{{loading}}">加载中…</view>
+  <view class="ud-tip" wx:elif="{{errMsg}}">{{errMsg}}</view>
+
+  <block wx:else>
+    <!-- 头部：身份与状态 -->
+    <view class="ud-head">
+      <image class="ud-avatar" src="{{d.avatar}}" mode="aspectFill" wx:if="{{d.avatar}}" />
+      <view class="ud-avatar ud-avatar--ph" wx:else>{{d.nickname[0]}}</view>
+      <view class="ud-head-main">
+        <view class="ud-name">{{d.nickname}}</view>
+        <view class="ud-sub">{{d.roles}} · {{d.age}}岁 · {{d.realnameTx}}</view>
+      </view>
+      <view class="ud-badge {{d.status}}">{{d.statusTx}}</view>
+    </view>
+    <view class="ud-reason" wx:if="{{d.bannedReason}}">处置原因：{{d.bannedReason}}</view>
+
+    <!-- 信用分 -->
+    <view class="ud-card">
+      <view class="ud-card-title">信用分</view>
+      <view class="ud-row">
+        <text class="ud-k">需求方</text>
+        <text class="ud-v ud-v--num">{{d.userScore}}</text>
+      </view>
+      <view class="ud-row">
+        <text class="ud-k">耍伴</text>
+        <text class="ud-v ud-v--num">{{d.partnerScore}}</text>
+      </view>
+    </view>
+
+    <!-- 行为统计 -->
+    <view class="ud-card">
+      <view class="ud-card-title">行为统计</view>
+      <view class="ud-row"><text class="ud-k">发布需求</text><text class="ud-v">{{d.demandCount}}</text></view>
+      <view class="ud-row"><text class="ud-k">作为需求方下单</text><text class="ud-v">{{d.orderAsUser}}</text></view>
+      <view class="ud-row"><text class="ud-k">作为耍伴接单</text><text class="ud-v">{{d.orderAsPartner}}</text></view>
+    </view>
+
+    <!-- 账号信息 -->
+    <view class="ud-card">
+      <view class="ud-card-title">账号信息</view>
+      <view class="ud-row"><text class="ud-k">手机号（脱敏）</text><text class="ud-v">{{d.phone}}</text></view>
+      <view class="ud-row"><text class="ud-k">注册时间</text><text class="ud-v">{{d.created}}</text></view>
+      <view class="ud-row ud-row--col"><text class="ud-k">openid</text><text class="ud-v ud-v--mono">{{d.openid}}</text></view>
+    </view>
+
+    <!-- 紧急联系人 -->
+    <view class="ud-card">
+      <view class="ud-card-title">紧急联系人</view>
+      <block wx:if="{{d.ec}}">
+        <view class="ud-row"><text class="ud-k">姓名</text><text class="ud-v">{{d.ec.name || '—'}}</text></view>
+        <view class="ud-row"><text class="ud-k">电话（脱敏）</text><text class="ud-v">{{d.ec.phone || '—'}}</text></view>
+        <view class="ud-row"><text class="ud-k">关系</text><text class="ud-v">{{d.ec.relation || '—'}}</text></view>
+      </block>
+      <view class="ud-empty" wx:else>未填写紧急联系人</view>
+    </view>
+
+    <!-- 耍伴档案 -->
+    <view class="ud-card" wx:if="{{d.partner}}">
+      <view class="ud-card-title">耍伴档案</view>
+      <view class="ud-row"><text class="ud-k">入驻状态</text><text class="ud-v">{{d.partner.status}}</text></view>
+      <view class="ud-row"><text class="ud-k">接单开关</text><text class="ud-v">{{d.partner.acceptSwitch}}</text></view>
+      <view class="ud-row"><text class="ud-k">可接场景数</text><text class="ud-v">{{d.partner.sceneCount}}</text></view>
+      <view class="ud-row"><text class="ud-k">申请时间</text><text class="ud-v">{{d.partner.appliedAt}}</text></view>
+    </view>
+
+    <!-- 信用流水 -->
+    <view class="ud-card">
+      <view class="ud-card-title">最近信用流水</view>
+      <view class="ud-log" wx:for="{{d.logs}}" wx:key="time">
+        <view class="ud-log-l">
+          <view class="ud-log-reason">{{item.reason || item.type}}</view>
+          <view class="ud-log-time">{{item.time}}</view>
+        </view>
+        <view class="ud-log-r">
+          <text class="ud-delta {{item.up ? 'is-up' : 'is-down'}}">{{item.delta}}</text>
+          <text class="ud-log-score">→ {{item.score}}</text>
+        </view>
+      </view>
+      <view class="ud-empty" wx:if="{{d.logs.length === 0}}">暂无信用变动记录</view>
+    </view>
+  </block>
+</view>

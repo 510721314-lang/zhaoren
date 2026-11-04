@@ -32,7 +32,8 @@
         "demands",
         "orders",
         "finance",
-        "config"
+        "config",
+        "user-detail"
       ]
     },
     {
