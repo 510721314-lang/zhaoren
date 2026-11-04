@@ -49,6 +49,26 @@
     <text class="chat__pending-body">{{pendingBanner.body}}</text>
   </view>
 
+  <!-- C3.2 四确认变更在途(2026-11-04): 接受后才改值; 发起方等待, 对方可接受/拒绝 -->
+  <view class="chat__change-card" wx:if="{{pendingChange}}">
+    <view class="chat__change-head">
+      <text class="chat__change-title">🔁 变更「{{pendingChange.field_cn}}」</text>
+      <text class="chat__change-by">{{pendingChange.by_text}}发起</text>
+    </view>
+    <view class="chat__change-diff">
+      <text class="chat__change-old">{{pendingChange.old_text}}</text>
+      <text class="chat__change-arrow">→</text>
+      <text class="chat__change-new">{{pendingChange.new_text}}</text>
+    </view>
+    <view class="chat__change-reason" wx:if="{{pendingChange.reason}}">📝 {{pendingChange.reason}}</view>
+    <text class="chat__change-expire">{{pendingChange.expire_text}}</text>
+    <view class="chat__change-btns" wx:if="{{pendingChange.can_respond}}">
+      <button class="chat__btn chat__btn--ghost" data-decision="reject" bindtap="onRespondChange" hover-class="btn-press">拒绝</button>
+      <button class="chat__btn chat__btn--primary" data-decision="accept" bindtap="onRespondChange" hover-class="btn-press">接受</button>
+    </view>
+    <view class="chat__change-wait" wx:else>等待对方反馈，期间暂停确认与修改…</view>
+  </view>
+
   <!-- C4.0 一键全部确认(双方均可; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
   <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked}}" bindtap="onConfirmAll" hover-class="btn-press">
     <text>✅ 四项一键全部确认</text>
@@ -104,10 +124,10 @@
     <picker mode="time" value="{{editTimeHm}}" bindchange="onEditTimeHm">
       <view class="chat__edit-field"><text>开始时间</text><text class="chat__edit-val">{{editTimeHm || '请选择'}}</text></view>
     </picker>
-    <view class="chat__edit-tip">修改后四项确认将全部重置,需双方重新确认</view>
+    <view class="chat__edit-tip">提交后需对方接受;接受后四项确认将全部重置,需双方重新确认</view>
     <view slot="footer" class="chat__other-btns">
       <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
-      <button class="chat__btn chat__btn--primary" bindtap="confirmEditTime" hover-class="btn-press">确认修改</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditTime" hover-class="btn-press">提交变更</button>
     </view>
   </bottom-sheet>
 
@@ -119,10 +139,10 @@
         <text>{{item.name}}</text>
       </view>
     </checkbox-group>
-    <view class="chat__edit-tip">修改后四项确认将全部重置,需双方重新确认</view>
+    <view class="chat__edit-tip">提交后需对方接受;接受后四项确认将全部重置,需双方重新确认</view>
     <view slot="footer" class="chat__other-btns">
       <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
-      <button class="chat__btn chat__btn--primary" bindtap="confirmEditContent" hover-class="btn-press">确认修改</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditContent" hover-class="btn-press">提交变更</button>
     </view>
   </bottom-sheet>
 
@@ -132,10 +152,10 @@
       <text>调整后总价</text>
       <input class="chat__edit-input" type="digit" value="{{editFeeYuan}}" placeholder="单位:元" bindinput="onEditFeeInput" />
     </view>
-    <view class="chat__edit-tip">修改后四项确认将全部重置,需双方重新确认;平台将按新金额重新计算服务费</view>
+    <view class="chat__edit-tip">提交后需对方接受;接受后四项确认将全部重置,需双方重新确认;平台将按新金额重新计算服务费</view>
     <view slot="footer" class="chat__other-btns">
       <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
-      <button class="chat__btn chat__btn--primary" bindtap="confirmEditFee" hover-class="btn-press">确认修改</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditFee" hover-class="btn-press">提交变更</button>
     </view>
   </bottom-sheet>
 

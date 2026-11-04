@@ -286,3 +286,17 @@
 .chat__edit-input { flex: 1; margin-left: 24rpx; text-align: right; font-size: var(--font-md); }
 .chat__edit-opt { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 8rpx; font-size: var(--font-md); }
 .chat__edit-tip { padding: 20rpx 8rpx 4rpx; font-size: var(--font-xs); color: var(--func-warning); }
+
+/* C3.2 四确认变更在途卡(2026-11-04) */
+.chat__change-card { display: flex; flex-direction: column; margin: 16rpx 24rpx 0; padding: 20rpx 24rpx; background: var(--bg-card); border: 1rpx solid var(--border-1); border-left: 6rpx solid var(--brand-primary); border-radius: var(--r-md); font-size: var(--font-sm); flex-shrink: 0; }
+.chat__change-head { display: flex; align-items: center; justify-content: space-between; }
+.chat__change-title { font-weight: 600; color: var(--text-1); }
+.chat__change-by { font-size: var(--font-xs); color: var(--text-3); }
+.chat__change-diff { display: flex; flex-wrap: wrap; align-items: center; margin-top: 10rpx; color: var(--text-1); }
+.chat__change-old { color: var(--text-3); text-decoration: line-through; }
+.chat__change-arrow { margin: 0 10rpx; color: var(--text-3); }
+.chat__change-new { font-weight: 600; color: var(--brand-primary); }
+.chat__change-reason { margin-top: 8rpx; font-size: var(--font-xs); color: var(--text-2); }
+.chat__change-expire { margin-top: 6rpx; font-size: var(--font-xs); color: var(--func-warning); }
+.chat__change-btns { display: flex; gap: 20rpx; margin-top: 16rpx; }
+.chat__change-wait { margin-top: 12rpx; font-size: var(--font-xs); color: var(--text-3); }

@@ -1,6 +1,6 @@
 // PRD章节: 3.4 IM聊天 / 3.4.1.1 模板消息四确认 / 3.4.2 限制规则 / 3.4.4 消息留存
 // P0-2: 全部接云端 —— im-conv(open/messages) + im-send(send_template/send_text)
-//       + order-action(get_confirmation/confirm_item/update_item)
+//       + order-action(get_confirmation/confirm_item/change_apply/change_respond)
 // 红线: 四确认完成前仅可发送系统模板消息(后端强制); 确认状态为双方8位模型, 双侧确认才算该项完成
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
@@ -31,6 +31,7 @@ Page({
     chatBlocked: false,  // S6/S10
     orderStatus: '',
     pendingBanner: null, // 加时/改期在途请求醒目横幅
+    pendingChange: null, // 2026-11-04: S1 变更协商在途(时间/地点/内容/费用/其他), 对方接受后才生效
     orderSummary: '',    // 订单概要(弹窗/横幅前置)
     messages: [],
     // C5 模板快捷键
@@ -236,6 +237,21 @@ Page({
         canRespond: true
       };
     }
+    // 2026-11-04: S1 变更协商在途态(对方接受才生效); 前端只展示必要字段
+    const CHANGE_CN = { time: '时间', location: '地点', content: '内容', fee: '费用', other: '其他' };
+    const pc = d.pending_change || null;
+    const pendingChange = pc ? {
+      field: pc.field,
+      field_cn: CHANGE_CN[pc.field] || pc.field,
+      old_text: this.__changeValueText(pc.field, pc.old_value),
+      new_text: this.__changeValueText(pc.field, pc.new_value),
+      by_role: pc.by_role || '',
+      by_text: pc.by_role === 'user' ? '发单人' : '耍伴',
+      reason: pc.reason || '',
+      expire_text: pc.expire_at ? `${this.fmtDateTime(pc.expire_at)} 前反馈` : '请在 15 分钟内反馈',
+      can_respond: !!pc.can_respond,
+      token: pc.token || ''
+    } : null;
     this.setData({
       items,
       progress,
@@ -244,6 +260,7 @@ Page({
       freeChat: unlocked || this.data.freeChat,
       orderStatus: nextStatus,
       pendingBanner,
+      pendingChange,
       orderSummary: this.__orderSummary(d)
     }, () => {
       this.updateMsgStatuses();
@@ -497,9 +514,14 @@ Page({
         extend_confirm: '✅ 对方已同意加时',
         extend_reject: '❌ 对方已拒绝加时',
         modify_confirm: '✅ 对方已同意改期',
-        modify_reject: '❌ 对方已拒绝改期'
+        modify_reject: '❌ 对方已拒绝改期',
+        // 2026-11-04: 四确认变更协商的生效/拒绝结果(仅发起方收到)
+        change_accept: '✅ 对方已接受变更',
+        change_reject: '❌ 对方已拒绝变更'
       };
       const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
+      // 2026-11-04: 收到「对方申请变更」→ 震动+弹窗, 引导回顶部变更卡处理
+      const applyHit = !respondHit ? fresh.find((n) => n && n.type === 'change_apply') : null;
       // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）
       // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
       // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
@@ -515,6 +537,19 @@ Page({
           content: respondHit.body || '',
           showCancel: false,
           confirmText: '知道了'
+        });
+      } else if (applyHit) {
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: '对方申请变更',
+          content: `${applyHit.body || '对方申请变更订单内容'}\n请在上方变更卡查看并接受/拒绝`,
+          confirmText: '去处理',
+          cancelText: '稍后',
+          confirmColor: '#07C160',
+          fail: () => {},
+          success: (res) => {
+            if (res.confirm) wx.pageScrollTo({ scrollTop: 0, duration: 200 }); // 变更卡在页面顶部
+          }
         });
       } else if (commHit) {
         // 先记账再弹窗: 弹窗未关时下一轮轮询(5s)不会重复弹出
@@ -630,10 +665,15 @@ Page({
       .then(() => this.sendTemplate(tmId)), Promise.resolve());
   },
 
-  // ───────── 调整确认项(update_item, 后端重置全部8位) ─────────
+  // ───────── 调整确认项(2026-11-04: 改为发起变更 change_apply, 对方接受后才改值并重置8位) ─────────
   startEdit(field) {
     if (this.data.orderStatus !== 'S1') {
       wx.showToast({ title: '订单当前状态不可修改', icon: 'none' });
+      return;
+    }
+    // 有在途变更时后端会拒绝(oa_change_pending), 前端提前拦截避免白提交
+    if (this.data.pendingChange) {
+      wx.showToast({ title: '有变更待对方反馈,暂不可改', icon: 'none' });
       return;
     }
     if (field === 'location') {
@@ -646,7 +686,7 @@ Page({
             longitude: res.longitude,
             city: ''
           };
-          this.updateItem('location', value);
+          this.applyChange('location', value);
         }
       });
       return;
@@ -699,7 +739,7 @@ Page({
       wx.showToast({ title: '服务时间必须是未来时间', icon: 'none' });
       return;
     }
-    this.updateItem('time', ts);
+    this.applyChange('time', ts);
   },
 
   confirmEditContent() {
@@ -708,7 +748,7 @@ Page({
       wx.showToast({ title: '请至少保留一项服务内容', icon: 'none' });
       return;
     }
-    this.updateItem('content', value);
+    this.applyChange('content', value);
   },
 
   confirmEditFee() {
@@ -722,25 +762,69 @@ Page({
       wx.showToast({ title: '金额格式有误', icon: 'none' });
       return;
     }
-    this.updateItem('fee', fen);
+    this.applyChange('fee', fen);
   },
 
-  updateItem(item, value) {
+  // 发起变更(后端 change_apply): 仅记录在途申请, 对方接受后才改值 + 重置 8 位
+  applyChange(field, value) {
     wx.showLoading({ title: '提交中', mask: true });
     callCloud('order-action', {
-      action: 'update_item', order_id: this.data.orderId, item, value
+      action: 'change_apply', order_id: this.data.orderId, field, value
     }).then((r) => {
       wx.hideLoading();
       if (!r.ok) {
-        wx.showModal({ title: '修改失败', content: r.msg || '请稍后重试', showCancel: false });
+        wx.showModal({ title: '提交失败', content: r.msg || '请稍后重试', showCancel: false });
         return;
       }
       this.setData({ editSheet: '' });
-      wx.showToast({ title: '已修改,双方需重新确认', icon: 'none', duration: 2000 });
+      wx.showToast({ title: '已提交,等待对方反馈', icon: 'none', duration: 2000 });
       return this.refreshConfirmation();
     }).catch(() => {
       wx.hideLoading();
       wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    });
+  },
+
+  // 在途变更: 对方反馈(接受=改值+重置8位; 拒绝=原值不变+确认位保留)
+  onRespondChange(e) {
+    const decision = e.currentTarget.dataset.decision;
+    const pc = this.data.pendingChange;
+    if (!pc) return;
+    if (decision !== 'accept' && decision !== 'reject') return;
+    const isAccept = decision === 'accept';
+    wx.showModal({
+      title: isAccept ? '接受变更' : '拒绝变更',
+      content: isAccept
+        ? `「${pc.field_cn}」将改为 ${pc.new_text}。接受后四项确认全部重置，需双方重新确认。`
+        : `「${pc.field_cn}」保持原值 ${pc.old_text}，已完成的确认位不受影响。`,
+      confirmText: isAccept ? '接受' : '拒绝',
+      cancelText: '取消',
+      confirmColor: isAccept ? '#07C160' : '#E64340',
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '提交中', mask: true });
+        callCloud('order-action', {
+          action: 'change_respond', order_id: this.data.orderId, decision, token: pc.token
+        }).then((r) => {
+          wx.hideLoading();
+          if (!r.ok) {
+            wx.showModal({ title: '处理失败', content: r.msg || '请稍后重试', showCancel: false });
+            return;
+          }
+          const d = r.data || {};
+          wx.showToast({
+            title: !isAccept
+              ? '已拒绝,原值不变'
+              : (d.bits_reset ? '已接受,四项已重置' : '已接受,已记录其他事项'),
+            icon: 'none', duration: 2000
+          });
+          return this.refreshConfirmation();
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+        });
+      }
     });
   },
 
@@ -885,6 +969,17 @@ Page({
     if (!ms) return '';
     const d = new Date(Number(ms));
     return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+  // 2026-11-04: 变更值统一展示(时间/地点/内容/费用/其他), 旧值新值同口径
+  __changeValueText(field, v) {
+    if (field === 'time') return this.fmtDateTime(v) || '未设置';
+    if (field === 'fee') return '¥' + (Number(v || 0) / 100).toFixed(2);
+    if (field === 'location') return (v && v.name) ? String(v.name) : '未设置';
+    if (field === 'content') {
+      const arr = Array.isArray(v) ? v : (v ? [v] : []);
+      return arr.length ? arr.join('/') : '未设置';
+    }
+    return String(v || '') || '未填写';
   },
   scrollBottom() {
     setTimeout(() => {
