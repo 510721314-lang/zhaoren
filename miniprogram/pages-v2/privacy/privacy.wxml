@@ -17,7 +17,7 @@
       <view class="sec-title">二、信息收集</view>
       <view class="para">本平台仅在以下场景收集相应信息，均在功能使用时由您主动触发授权：</view>
       <view class="para">2.1 <text class="tag">身份唯一标识</text> 微信 openid（用户首次进入小程序时自动获取，用于识别您的身份和关联订单）</view>
-      <view class="para">2.2 <text class="tag">联系信息</text> 手机号（通过微信 getPhoneNumber 能力获取，仅在您点击「手机号登录」「账号密码登录（校验用）」时触发）</view>
+      <view class="para">2.2 <text class="tag">联系信息</text> 手机号（由您在发布需求、填写代发人或紧急联系人时主动填写，用于订单联系与履约沟通；接单方经平台保护号联系，不展示完整号码）</view>
       <view class="para">2.3 <text class="tag">地理信息</text> 当前位置（用于接单大厅距离排序、订单履约位置确认；仅在您发布需求或接单时触发 getLocation/chooseLocation）</view>
       <view class="para">2.4 <text class="tag">紧急联系人</text> 姓名、手机号、关系（仅在耍伴入驻时要求填写，用于平台风控和 SOS 求助场景）</view>
       <view class="para">2.5 <text class="tag">实名认证</text> 身份证号（耍伴入驻时必填，采用加密存储，仅做实名核验和后台脱敏展示，不用于其他任何目的）</view>
