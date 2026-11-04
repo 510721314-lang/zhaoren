@@ -672,3 +672,14 @@ alwaysApply: true
 **R4 范围最小化**：computer-use 只作用于授权点名的窗口/面板；禁止跨应用导航，禁止改动用户工作区布局与焦点。
 **R5 Shell 不构成桌面授权**：Shell 沙箱只约束文件与网络（见 `permission/global.json` 的 `shellSandbox`/`filesystem`/`network`），不约束 UI 注入；Shell 内调用 Win32 同样受 R1 约束，禁止以「Shell 已批准」替代「桌面已授权」。
 **R6 门禁与文档**：`scripts/check-no-desktop-injection.js` 扫描 `.ps1`/`.js` 中的上述 API，双挂载 verify/offline；技能文档不得再教硬件级点击（脚本不扫 md，靠评审与本条约束）。
+
+## 38. TCB CLI 直连数据库的流程测试纪律（2026-11-05 S1 变更协商实证新增）
+
+> 背景：REGISTRY #144（S1 四确认变更协商）需在无真机、无云函数 invoke 通道下验证「在途快照 → 接受/拒绝 → 落库语义 → 前端视图映射」。本次用 `cloudbase db nosql execute` 直连线上库跑通 16 项断言（16/16 PASS），并据此确认视图路径与落库口径。本节固化该通道的边界与取证口径。
+
+**R1 通道边界必须诚实声明**：CLI 的 `db nosql execute` 只能 CRUD，**没有 invoke 云函数的能力**；`admin-web` 网关只转发 `admin-action`。因此 CLI 只能自证「数据库落库语义 + 前端视图映射」，**云函数内部运行时分支与真机 UI 不可自证**——禁止以「CLI 测试通过」写「已验证」，台账状态仍为「待验证（真机）」。
+**R2 JSON 入参禁经 PowerShell 拼接**：`--command '<JSON>'` 在 PS5 会被引号/转义拆坏（实测 JSON 内容丢失、命令静默失败）。唯一写法：`.cjs` 脚本内 `spawnSync(process.execPath, [CLI 入口, 'db','nosql','execute','--env-id',ENV,'--command',JSON.stringify(cmd),'--json'], { shell:false })`；禁止手拼字符串、禁止 `shell:true`。
+**R3 回读先解码 BSON**：查询结果里的 `$numberLong/$numberInt/$numberDouble/$date` 必须先统一解码为 JS 值再断言；直接比对裸对象会把「字段存在」误判成「值正确」。
+**R4 断言用线上同源视图函数，且核对嵌套层级**：`require` 仓库内真实的 `miniprogram/utils/order-view.js`，不要自造预期；`buildOrderView` 返回 `{ order, scene, statusInfo, ... }`，视图字段在 `view.order.*`，WXML 绑定路径必须与之一致。断言路径写错会制造假缺陷（本次首批 4 条 FAIL 即 `v.pending_change` 写错层级造成，非代码缺陷）——**禁止据假缺陷改生产代码**。
+**R5 写测试的隔离与清理**：只用 `is_test:true` 造单（克隆真实单改状态），禁止碰真实业务单；测后软删（`is_deleted:true`）并回读核验「剩余未软删测试单 = 0」；一次性脚本放 `.tmp-tcb/`（gitignore，不入库）。
+**R6 S1 造单有时效**：S1 单 15 分钟内被定时器自动转 S6（实测 `created_at→updated_at` 约 1933s）。测前必须重造（`reset_s1_order.cjs` 类脚本），测中核对 `status/created_at/updated_at`，避免把「超时取消」误读为「新功能生效」。
