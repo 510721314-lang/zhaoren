@@ -199,6 +199,15 @@ async function detail(ctx) {
       service_finish_evidence: order.service_finish_evidence || null,
       modify_count: Number(order.modify_count) || 0,
       pending_modify: order.pending_modify || null,
+      // 2026-11-04: S1 变更协商在途态(详情页只读展示; 不回 token, 处理统一收口到聊天页)
+      pending_change: order.pending_change ? {
+        field: order.pending_change.field,
+        old_value: order.pending_change.old_value,
+        new_value: order.pending_change.new_value,
+        by_role: order.pending_change.by_role,
+        reason: String(order.pending_change.reason || '').slice(0, 60),
+        expire_at: Number(order.pending_change.expire_at) || 0
+      } : null,
       // 改期结果(2026-10-12): 供详情页**双方**展示最近一次改期处理结果(同意/拒绝), 前端据此在 S2/S2_5 展示
       modify_confirmed_at: Number(order.modify_confirmed_at) || 0,
       modify_rejected_at: Number(order.modify_rejected_at) || 0,

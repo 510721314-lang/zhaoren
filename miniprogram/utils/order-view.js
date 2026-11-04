@@ -249,6 +249,28 @@ function buildOrderView(d, now = Date.now()) {
     if (isNaN(dd.getTime())) return '';
     return `${pad(dd.getMonth() + 1)}-${pad(dd.getDate())} ${pad(dd.getHours())}:${pad(dd.getMinutes())}`;
   };
+  // 2026-11-04: S1 变更协商在途(只读): 字段中文 + 旧值→新值 + 发起角色 + 反馈截止(不接受/拒绝, 处理统一回聊天页)
+  const CHANGE_CN = { time: '时间', location: '地点', content: '内容', fee: '费用', other: '其他' };
+  const changeText = (field, v) => {
+    if (field === 'time') return fmtTs(v) || '未设置';
+    if (field === 'fee') return '¥' + (Number(v || 0) / 100).toFixed(2);
+    if (field === 'location') return (v && v.name) ? String(v.name) : '未设置';
+    if (field === 'content') {
+      const arr = Array.isArray(v) ? v : (v ? [v] : []);
+      return arr.length ? arr.join('/') : '未设置';
+    }
+    return String(v || '') || '未填写';
+  };
+  const pcRaw = d.pending_change || null;
+  const pendingChange = pcRaw ? {
+    field: pcRaw.field,
+    field_cn: CHANGE_CN[pcRaw.field] || pcRaw.field,
+    old_text: changeText(pcRaw.field, pcRaw.old_value),
+    new_text: changeText(pcRaw.field, pcRaw.new_value),
+    by_text: pcRaw.by_role === 'user' ? '发单人' : '耍伴',
+    reason: pcRaw.reason || '',
+    expire_text: pcRaw.expire_at ? `${fmtTs(pcRaw.expire_at)} 前反馈` : ''
+  } : null;
   const complaint = cRaw ? {
     status: cRaw.status || 'open',
     status_text: cRaw.status === 'withdrawn' ? '已撤回' : (cRaw.status === 'resolved' ? '平台已处理' : '处理中'),
@@ -337,6 +359,7 @@ function buildOrderView(d, now = Date.now()) {
     modify_result: modifyResult,
     pending_modify: pendingModify,
     pending_extend: pendingExtend,
+    pending_change: pendingChange,                        // 2026-11-04: S1 四确认变更协商在途(只读横幅)
     scene_code: d.scene,
     scene_content_text: ((d.content_options && d.content_options.length ? d.content_options : (d.content_option ? [d.content_option] : [])) || []).join('/'),
     partner_name: d.partner_nickname,

@@ -134,6 +134,14 @@
 
       <!-- S1 待确认 -->
       <block wx:elif="{{order.status === 'S1'}}">
+        <!-- 2026-11-04: 四确认变更协商在途(只读; 接受/拒绝统一在聊天页变更卡处理) -->
+        <view class="od__pending-banner od__pending-banner--wait" wx:if="{{order.pending_change}}">
+          <view class="od__pending-banner-title">🔁 变更「{{order.pending_change.field_cn}}」待反馈</view>
+          <view class="od__pending-banner-sub">原「{{order.pending_change.old_text}}」→ 新「{{order.pending_change.new_text}}」</view>
+          <view class="od__pending-banner-sub">{{order.pending_change.by_text}}发起 · {{order.pending_change.expire_text}}</view>
+          <view class="od__pending-banner-reason" wx:if="{{order.pending_change.reason}}">📝 {{order.pending_change.reason}}</view>
+          <view class="od__pending-banner-reason">处理入口：进入聊天页的变更卡接受或拒绝</view>
+        </view>
         <button class="od__btn od__btn--primary" bindtap="goChat" hover-class="btn-press">进入聊天完成四确认</button>
       </block>
 
