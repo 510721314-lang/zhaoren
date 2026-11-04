@@ -21,7 +21,7 @@
       <view class="para">2.3 <text class="tag">地理信息</text> 当前位置（用于接单大厅距离排序、订单履约位置确认；仅在您发布需求或接单时触发 getLocation/chooseLocation）</view>
       <view class="para">2.4 <text class="tag">紧急联系人</text> 姓名、手机号、关系（仅在耍伴入驻时要求填写，用于平台风控和 SOS 求助场景）</view>
       <view class="para">2.5 <text class="tag">实名认证</text> 身份证号（耍伴入驻时必填，采用加密存储，仅做实名核验和后台脱敏展示，不用于其他任何目的）</view>
-      <view class="para">2.6 <text class="tag">人脸信息</text> 人脸图像（仅在实名核验环节由您主动发起采集，用于身份核验；本平台不存储原始人脸图像，仅留存核验结果与流水号）</view>
+      <view class="para">2.6 <text class="tag">人脸信息</text> 当前版本不采集人脸图像：实名核验仅比对您填写的姓名与身份证号；正式人脸核验通道上线后将另行弹窗征得您的明示同意</view>
       <view class="para">2.7 <text class="tag">通讯内容</text> 文本消息（IM 聊天功能的正常业务数据，消息过期自动清理）</view>
       <view class="para">2.8 <text class="tag">设备与日志</text> 基础设备信息、操作日志（用于平台安全审计和异常排查，定期清理）</view>
     </view>
