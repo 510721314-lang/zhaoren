@@ -96,7 +96,7 @@
 
   <!-- C5 模板快捷键行 -->
   <view class="chat__quick" wx:if="{{!unlocked && !chatBlocked}}">
-    <view class="chat__quick-item" wx:for="{{quickKeys}}" wx:key="id" data-id="{{item.id}}" bindtap="onQuickKey">
+    <view class="chat__quick-item" wx:for="{{quickKeys}}" wx:key="id" wx:if="{{item.id !== 'TM5' || orderStatus === 'S1'}}" data-id="{{item.id}}" bindtap="onQuickKey">
       <view class="chat__quick-ic">{{item.icon}}</view>
       <view class="chat__quick-name">{{item.name}}</view>
     </view>
@@ -156,6 +156,19 @@
     <view slot="footer" class="chat__other-btns">
       <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
       <button class="chat__btn chat__btn--primary" bindtap="confirmEditFee" hover-class="btn-press">提交变更</button>
+    </view>
+  </bottom-sheet>
+
+  <!-- 特殊需求弹层(TM5「填写需求」→ other 变更; 接受后仅记录, 不重置四项确认) -->
+  <bottom-sheet visible="{{editSheet === 'other'}}" title="✨ 特殊需求" bind:close="closeEditSheet" has-footer="{{true}}">
+    <view class="chat__edit-field">
+      <text>需求说明</text>
+      <input class="chat__edit-input" value="{{otherText}}" placeholder="如:需要一把折叠椅" maxlength="200" bindinput="onOtherInput" />
+    </view>
+    <view class="chat__edit-tip">提交后需对方接受;接受后仅记录为「其他事项」，不重置四项确认</view>
+    <view slot="footer" class="chat__other-btns">
+      <button class="chat__btn chat__btn--ghost" bindtap="closeEditSheet" hover-class="btn-press">取消</button>
+      <button class="chat__btn chat__btn--primary" bindtap="confirmEditOther" hover-class="btn-press">提交需求</button>
     </view>
   </bottom-sheet>
 

@@ -46,12 +46,13 @@ Page({
     // C6 输入
     inputText: '',
     rateCooldown: 0,     // 私信频控倒计时(秒); >0 时发送按钮置灰
-    // 编辑弹层: '' | 'time' | 'content' | 'fee' (location 走 chooseLocation 无弹层)
+    // 编辑弹层: '' | 'time' | 'content' | 'fee' | 'other' (location 走 chooseLocation 无弹层)
     editSheet: '',
     editDate: '',
     editTimeHm: '',
     editFeeYuan: '',
     editContentOpts: [],
+    otherText: '',      // TM5「特殊需求」文本(other 变更)
     // 滚动锚点
     scrollToView: '',
     loading: false,
@@ -765,6 +766,23 @@ Page({
     this.applyChange('fee', fen);
   },
 
+  // TM5「特殊需求」输入 → other 变更(后端只记 extra_note, 不重置 8 位)
+  onOtherInput(e) { this.setData({ otherText: e.detail.value }); },
+
+  confirmEditOther() {
+    const txt = String(this.data.otherText || '').trim();
+    if (!txt) {
+      wx.showToast({ title: '请填写特殊需求', icon: 'none' });
+      return;
+    }
+    // 与后端 order_reason_max_len 同源(缺省 200)
+    if (txt.length > CONFIG.ORDER.reasonMaxLen) {
+      wx.showToast({ title: `最多 ${CONFIG.ORDER.reasonMaxLen} 字`, icon: 'none' });
+      return;
+    }
+    this.applyChange('other', txt);
+  },
+
   // 发起变更(后端 change_apply): 仅记录在途申请, 对方接受后才改值 + 重置 8 位
   applyChange(field, value) {
     wx.showLoading({ title: '提交中', mask: true });
@@ -833,6 +851,19 @@ Page({
     const tmId = e.currentTarget.dataset.id;
     if (this.data.chatBlocked) {
       wx.showToast({ title: '订单已取消/关闭,无法发送', icon: 'none' });
+      return;
+    }
+    // 2026-11-04: 「其他」不再发空模板卡, 直接收集文本 → other 变更(仅 S1, 接受后不重置确认位)
+    if (tmId === 'TM5') {
+      if (this.data.orderStatus !== 'S1') {
+        wx.showToast({ title: '当前状态不可提交特殊需求', icon: 'none' });
+        return;
+      }
+      if (this.data.pendingChange) {
+        wx.showToast({ title: '有变更待对方反馈,暂不可改', icon: 'none' });
+        return;
+      }
+      this.setData({ editSheet: 'other', otherText: '' });
       return;
     }
     this.sendTemplate(tmId);
