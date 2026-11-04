@@ -109,6 +109,9 @@ Page({
           sceneName: o.scene_name || '',
           time,
           locationName: o.location_name || '',
+          // P2-1(2026-11-04): my_orders 已返回 location_lat/lng(action_query.js), 供「导航」调 wx.openLocation
+          lat: (typeof o.location_lat === 'number') ? o.location_lat : null,
+          lng: (typeof o.location_lng === 'number') ? o.location_lng : null,
           partnerName: o.demand_title || '',
           sceneColor: 'var(--brand)'
         };
@@ -163,12 +166,31 @@ Page({
   },
 
   // W3 时间轴操作
-  onNavigate() {
-    // 占位处理: 订单数据结构接经纬度后改为 wx.openLocation; 当前路径被 todayOrders.length wx:if 保护不可达
-    wx.showToast({ title: '导航暂不可用', icon: 'none' });
+  // P2-1(2026-11-04): 接 my_orders 的 location_lat/lng; 无坐标(老订单)回落 toast, 不静默
+  onNavigate(e) {
+    const id = (e && e.currentTarget && e.currentTarget.dataset) ? e.currentTarget.dataset.id : '';
+    const it = (this.data.todayOrders || []).filter((x) => x._id === id)[0];
+    if (!it || it.lat === null || it.lng === null) {
+      wx.showToast({ title: '该订单暂无地点坐标', icon: 'none' });
+      return;
+    }
+    wx.openLocation({
+      latitude: it.lat,
+      longitude: it.lng,
+      name: it.locationName || it.sceneName || '服务地点',
+      address: it.locationName || '',
+      scale: 18,
+      fail: () => wx.showToast({ title: '导航打开失败', icon: 'none' })
+    });
   },
-  onContactUser() {
-    wx.showToast({ title: '请从消息列表进入沟通', icon: 'none' });
+  // P2-2(2026-11-04): 直接进订单会话(聊天页校验 32 位订单 id, 四确认前仅模板消息)
+  onContactUser(e) {
+    const id = (e && e.currentTarget && e.currentTarget.dataset) ? e.currentTarget.dataset.id : '';
+    if (!id) { wx.showToast({ title: '订单参数缺失', icon: 'none' }); return; }
+    wx.navigateTo({
+      url: '/pages-v2/chat/chat?orderId=' + id,
+      fail: () => wx.showToast({ title: '进入会话失败', icon: 'none' })
+    });
   },
 
   // W4 资金
