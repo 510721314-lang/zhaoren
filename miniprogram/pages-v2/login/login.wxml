@@ -1,3 +1,4 @@
+<!-- @VERIFIED 2026-11-04 已真机验证：登录页 UI 一档+二档（卡片化/垂直居中/整行勾选/渐变按钮） -->
 <view class="v2 login">
   <view style="height: {{statusBarHeight * 2}}rpx;"></view>
 
