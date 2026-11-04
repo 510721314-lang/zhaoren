@@ -183,10 +183,20 @@ Page({
     }
     const demand = this.data.demand;
     if (!demand) return;
+    // 2026-11-05: 双保险——已接单/已被接的需求不再走接单链路(按钮已按状态隐藏, 防旧包或异常状态)
+    if (demand.taken || demand.taken_by_me) {
+      wx.showToast({ title: '该需求已被接单', icon: 'none' });
+      return;
+    }
     // 直接进接单链路: 免责声明 modal(同意并接单) → 定位 → 建单
     // 不用 bottom-sheet 二次确认(真机渲染不可靠, 与免责声明根治同一方案)
     takeOrder(demand, {
       onSuccess: (data) => {
+        // 2026-11-05: 接单成功即失效首页/广场 SWR 列表缓存(否则 10 分钟内仍把已接单需求显示为可接单)
+        try {
+          wx.removeStorageSync('swr_home_square_v1');
+          wx.removeStorageSync('swr_square_page_v1');
+        } catch (e) {}
         // 导航先行、反馈后置: toast 放 success 回调, 消灭「toast+导航」竞态(灰度基础库回归过)
         wx.redirectTo({
           url: `/pages-v2/chat/chat?orderId=${data.order_id}`,
@@ -204,6 +214,11 @@ Page({
         }
       }
     });
+  },
+
+  // 2026-11-05: 本人已接单时的提示(详情接口不返回 order_id, 故引导到消息中心进入订单)
+  onTakenHint() {
+    wx.showToast({ title: '已接单，请到消息中心', icon: 'none' });
   },
 
   onEdit() {

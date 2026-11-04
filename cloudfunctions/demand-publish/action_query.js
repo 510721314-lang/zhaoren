@@ -156,11 +156,16 @@ async function detail_action(ctx) {
           status: d.status,
           is_owner: d.creator_openid === openid,
           // 非发布者是否可接单: 选单走报名流程放行; 抢单需 broadcast; 定向需在受邀名单
+          // 2026-11-05: 补 status 判定——原实现不看状态, 已接单的需求详情仍渲染「接单」按钮, 二次点击必报错
           can_take: d.creator_openid === openid
             ? false
-            : ((d.match_mode || 'broadcast') === 'select'
-              || !!d.broadcast
-              || ((d.invited || []).indexOf(openid) >= 0)),
+            : (d.status === 'matching'
+              && ((d.match_mode || 'broadcast') === 'select'
+                || !!d.broadcast
+                || ((d.invited || []).indexOf(openid) >= 0))),
+          // 2026-11-05: 本人已接单 / 已被接单标记, 供详情页按钮三态渲染
+          taken_by_me: d.status === 'matched' && d.matched_openid === openid,
+          taken: d.status !== 'matching',
           publisher: {
             surname,
             real_name_verified: true,

@@ -68,8 +68,10 @@
         <view class="dd__grab-price" wx:if="{{demand.project_attr === 'commercial'}}">¥{{demand.budget}}<text class="dd__grab-unit" wx:if="{{demand.pricing_type !== 'fixed'}}">/小时</text><text class="dd__grab-unit" wx:else> · 一口价</text></view>
         <view class="dd__grab-price" wx:else>公益免费</view>
       </view>
-      <!-- 定向需求: 非受邀耍伴不可接单(can_take 由服务端按 invited/broadcast 计算) -->
-      <button class="dd__btn dd__btn--primary" wx:if="{{demand.can_take}}" bindtap="onGrab" hover-class="btn-press">{{certified ? '⚡ 接单' : '需' + scene.cert}}</button>
+      <!-- 2026-11-05: 四态——本人已接单 / 已被接单 / 可接单 / 定向不可接(can_take 由服务端按 status+invited+broadcast 计算) -->
+      <button class="dd__btn dd__btn--primary" wx:if="{{demand.taken_by_me}}" bindtap="onTakenHint" hover-class="btn-press">✅ 已接单</button>
+      <button class="dd__btn dd__btn--disabled" wx:elif="{{demand.taken}}" disabled>🔒 已被接单</button>
+      <button class="dd__btn dd__btn--primary" wx:elif="{{demand.can_take}}" bindtap="onGrab" hover-class="btn-press">{{certified ? '⚡ 接单' : '需' + scene.cert}}</button>
       <button class="dd__btn dd__btn--disabled" wx:else disabled>🔒 仅指定耍伴可接</button>
     </block>
   </view>
