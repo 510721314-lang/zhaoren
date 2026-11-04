@@ -26,6 +26,9 @@ home-action
 blog-action
 admin-web
 
+# ── 运维类（长期在线，非临时；2026-11-04 用户批准登记）──
+zz-warmup
+
 # 说明：
 # - cloudfunctions/_shared/ 为共享代码暂存目录（无 index.js，不可部署，不列入本清单）
 # - 调试类临时云函数一律不列入白名单（rules 第 5 章：临时函数需 zz- 前缀 + 守卫 + 登记

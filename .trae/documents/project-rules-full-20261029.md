@@ -409,7 +409,7 @@ alwaysApply: true
 
 ## 五、代码规范
 1. 目录结构：miniprogram/（pages/ components/ utils/ images/）+ cloudfunctions/（每业务一个云函数目录）+ .trae/rules.md；
-2. 云函数清单与职责（本期全部实现，命名不可改）：user-login、demand-publish、demand-match、partner-apply、partner-action、order-create、order-action、order-timer、payment-mock、safety-report、im-conv、im-send、evaluation-submit、admin-action；另含部署工具函数 init-db（一次性初始化集合、索引、admin_config 种子配置，不参与业务运行）；
+2. 云函数清单与职责（本期全部实现，命名不可改）：user-login、demand-publish、demand-match、partner-apply、partner-action、order-create、order-action、order-timer、payment-mock、safety-report、im-conv、im-send、evaluation-submit、admin-action；另含部署工具函数 init-db（一次性初始化集合、索引、admin_config 种子配置，不参与业务运行）；**另含运维函数 zz-warmup（首屏保温，自 S9 起长期在线，2026-11-04 用户批准登记为正式运维函数，不再按「zz- 临时函数」口径排除）**；
 3. 每个云函数文件头写注释：// 对应 PRD 章节：xxx；
 4. 云函数统一返回 {ok:true, data} 或 {ok:false, code:'模块_原因', msg:'中文提示'}；对外中文提示，日志英文编号；
 5. 所有写操作幂等：同一订单的同一动作重复提交返回首次结果，不重复执行；
