@@ -284,11 +284,13 @@ async function change_respond(ctx) {
     const conf = await getConfirmation(order_id);
     if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
     const newItems = {};
+    // 2026-11-05：费用变更接受即双方就新价达成一致 → 费用位直接置双确认，不再让双方重复点「确认费用」；其余三项照旧重置
     for (const f of CONFIRM_FIELDS) {
+      const agreed = pc.field === 'fee' && f === 'fee';
       newItems[f] = {
         value: f === pc.field ? pc.new_value : conf.items[f].value,
-        user_ok: false,
-        partner_ok: false
+        user_ok: agreed,
+        partner_ok: agreed
       };
     }
     const v = conf.version || 1;
@@ -336,10 +338,14 @@ async function change_respond(ctx) {
 
   // 生效通知：发起人需重新确认（其他项不涉及确认位）
   if (pc.field !== 'other') {
+    // 2026-11-05：费用项接受后已自动确认，通知文案不能再写「四项已重置」
+    const acceptBody = pc.field === 'fee'
+      ? '对方接受了「费用」的变更,费用已确认,其余三项请重新确认'
+      : `对方接受了「${FIELD_CN[pc.field] || pc.field}」的变更,四项确认已重置,请重新确认`;
     await writeNotice({
       to_openid: proposer, order_id, type: 'change_accept',
       title: '变更已生效',
-      body: `对方接受了「${FIELD_CN[pc.field] || pc.field}」的变更,四项确认已重置,请重新确认`,
+      body: acceptBody,
       action_key: 'jump_chat', action_payload: { order_id }
     });
   } else {
