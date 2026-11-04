@@ -679,6 +679,9 @@ function loadWith(dir, file, sdk) {
     // 2026-11-02 方案A: sub_authorize 响应 sub_msgs 新增 granted_count/sent_count/last_authorized_at(additive);
     // 行为由 partner-action.entry.test.js 新增 2 例独立守护(count=2 累积 / 关闭清零)
     'pa_sub_ok', 'auto_pa_sub_authorize',
+    // 2026-11-04 四确认变更协商: 新增 change_apply / change_respond(S1 发起→对方反馈→闭环; 基线无此 action);
+    // 指定口径 D1-D6 见 action_change.js 头注; 行为由 order-action.entry.test.js 新增 8 例独立守护
+    'auto_order_change_apply', 'auto_order_change_respond',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

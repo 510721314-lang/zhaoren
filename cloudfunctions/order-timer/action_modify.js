@@ -97,7 +97,49 @@ async function processExtendTimeout(ctx) {
   } catch (e) { log.d(`s3 extend scan fail: ${e.message}`); }
 }
 
+// ───────── 3.7 S1 变更协商超时(2026-11-04)：对方逾时未反馈 → 自动拒绝，值不变、8 位确认保留 ─────────
+async function processChangeTimeout(ctx) {
+  const { _, col, log, logStatus, trackBacklog, SCAN_MAX, scanAll, now, out } = ctx;
+  try {
+    const s1s = await scanAll('order_main', () => ({ status: 'S1', pending_change: _.exists(true) }));
+    trackBacklog('S1_change', s1s.length >= SCAN_MAX ? s1s : []);
+    const okList = [];
+    await Promise.allSettled(s1s.map(async (o) => {
+      const pc = o.pending_change || {};
+      const deadline = Number(pc.expire_at) || 0;
+      if (!deadline || deadline >= now) return;
+      // token 精确锁定本次申请，避免与对方刚提交的接受/拒绝竞态
+      const r = await col('order_main')
+        .where({ _id: o._id, status: 'S1', 'pending_change.token': pc.token })
+        .update({ data: { pending_change: _.remove(), change_auto_rejected_at: now, updated_at: now } });
+      if (!r.stats || r.stats.updated !== 1) { out.skipped.push(o.order_no + ':S1变更竞态'); return; }
+      okList.push({ o, pc });
+    }));
+    // 2026-11-04: 超时自动拒绝留状态流水(S1→S1, 系统口径; 与 S3 加时超时同款, 不写 audit_log 避免断开审计哈希链)
+    await Promise.allSettled(okList.map(x => logStatus(x.o._id, 'S1', 'S1', 'timeout_change_auto_reject', 'system')));
+    // 通知双方(发起人/接收人文案区分)；type=change_reject 供详情页 notice_poll 命中震动
+    const rs = await Promise.allSettled(okList.flatMap(({ o, pc }) => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid,
+        order_id: o._id,
+        type: 'change_reject',
+        title: '变更申请已超时拒绝',
+        body: openid === pc.by_openid
+          ? '你的变更申请因对方超时未反馈,已自动拒绝,原内容不变'
+          : '对方的变更申请已超时自动拒绝,原内容不变',
+        action_key: 'jump_order',
+        action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
+    rs.forEach((r) => { if (r.status === 'rejected') log.d(`change_reject notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); });
+    okList.forEach(({ o, pc }) => { out.change_auto_reject.push(o.order_no); log.d(`timeout S1 change auto-reject: ${o.order_no} field=${pc.field}`); });
+  } catch (e) { log.d(`s1 change scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processModifyTimeout,
   processExtendTimeout,
+  processChangeTimeout,
 };

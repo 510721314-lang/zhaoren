@@ -52,6 +52,18 @@ async function get_confirmation(ctx) {
         add_amount_fen: pe.add_amount_fen,
         reason: (pe.reason || '').slice(0, 60),
         can_respond: pe.by_openid !== openid
+      } : null,
+      // 2026-11-04: S1 变更协商（时间/地点/内容/费用/其他）在途态，供前端渲染接受/拒绝卡片
+      pending_change: order.pending_change ? {
+        field: order.pending_change.field,
+        old_value: order.pending_change.old_value,
+        new_value: order.pending_change.new_value,
+        by_openid: order.pending_change.by_openid,
+        by_role: order.pending_change.by_role,
+        reason: (order.pending_change.reason || '').slice(0, 60),
+        expire_at: order.pending_change.expire_at || 0,
+        token: order.pending_change.token || '',
+        can_respond: order.pending_change.by_openid !== openid
       } : null
     }
   };
@@ -70,6 +82,10 @@ async function update_item(ctx) {
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (order.status !== 'S1') {
     return { ok: false, code: 'oa_not_editable', msg: '订单当前状态不可修改确认项' };
+  }
+  // 2026-11-04: 有在途变更时禁止直接改值，避免与 change_apply 协商链路互相覆盖
+  if (order.pending_change) {
+    return { ok: false, code: 'oa_change_pending', msg: '有变更待对方反馈，请先处理后再修改' };
   }
 
   const config = await getConfig();
@@ -185,6 +201,10 @@ async function confirm_item(ctx) {
   if (order.status !== 'S1') {
     return { ok: false, code: 'oa_not_confirmable', msg: '订单当前状态不可确认' };
   }
+  // 2026-11-04: 变更协商未闭环前不得确认，防止带着未审阅的新值把 8 位集满进入 S0
+  if (order.pending_change) {
+    return { ok: false, code: 'oa_change_pending', msg: '有变更待对方反馈，确认暂停' };
+  }
 
   const conf = await getConfirmation(order_id);
   if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
@@ -281,6 +301,10 @@ async function confirm_all(ctx) {
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (order.status !== 'S1') {
     return { ok: false, code: 'oa_not_confirmable', msg: '订单当前状态不可确认' };
+  }
+  // 2026-11-04: 变更协商未闭环前不得一键全确认，防未审阅新值把 8 位集满
+  if (order.pending_change) {
+    return { ok: false, code: 'oa_change_pending', msg: '有变更待对方反馈，确认暂停' };
   }
   const conf = await getConfirmation(order_id);
   if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };

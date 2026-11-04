@@ -33,7 +33,7 @@ const { stateOf, softCanSend, sentPatch, exhaustedPatch, withKey, sendOnce } = r
 
 const CONFIRM_FIELDS = ['time', 'location', 'content', 'fee'];
 // 确认项中文名(通知文案用)
-const FIELD_CN = { time: '时间', location: '地点', content: '内容', fee: '费用' };
+const FIELD_CN = { time: '时间', location: '地点', content: '内容', fee: '费用', other: '其他' };
 // ── 统一订单概要(所有涉及订单信息的提示/通知前置): #订单号 · 场景名 · ¥金额 · 发布时间 · 服务时间 · 履约时长 · 人数 · 履约地点 · AA区间 ──
 // 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
 const { SCENE_NAMES: SCENE_CN } = require('./scene_meta');
@@ -421,6 +421,7 @@ const HANDLERS = Object.assign(
   require('./action_confirm'),
   require('./action_lifecycle'),
   require('./action_modify_extend'),
+  require('./action_change'),
   require('./action_dispute'),
   require('./action_timeline')
 );
@@ -487,7 +488,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'chat_poll', 'update_item', 'confirm_item', 'confirm_all', 'cancel', 'start_apply', 'start_confirm', 'start_reject', 'start_photo', 'finish_apply', 'finish_confirm', 'finish_reject', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'chat_poll', 'update_item', 'confirm_item', 'confirm_all', 'change_apply', 'change_respond', 'cancel', 'start_apply', 'start_confirm', 'start_reject', 'start_photo', 'finish_apply', 'finish_confirm', 'finish_reject', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };

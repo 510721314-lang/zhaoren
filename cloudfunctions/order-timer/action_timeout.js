@@ -9,7 +9,7 @@ async function processS1Timeout(ctx) {
     trackBacklog('S1', s1s.length >= SCAN_MAX ? s1s : []);
     const s1OK = [];
     await Promise.allSettled(s1s.map(async (o) => {
-      const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now }, 'cancel');
+      const won = await casStatus(o._id, 'S1', { status: 'S6', updated_at: now, pending_change: _.remove() }, 'cancel');
       if (!won) { out.skipped.push(o.order_no + ':S1竞态'); return; }
       if (o.demand_id) {
         await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({

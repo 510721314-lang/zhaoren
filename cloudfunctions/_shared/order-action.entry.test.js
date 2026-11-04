@@ -663,5 +663,173 @@ test('writeNotice: 合并更新顺延 created_at, 通知列表可置顶', async 
   assert.ok(upd.data.created_at > OLD, 'created_at 应顺延为最近一次提醒时间');
 });
 
+// ───────── 2026-11-04 四确认变更协商（change_apply / change_respond）─────────
+// 口径 D1-D6：其他不计位、S2 后不开放、拒绝/超时不清确认位、不顺延 S1、每项≤2/全单≤4、费用直接改总额
+function s1Store(extra, conf) {
+  const s = {
+    admin_config: { global: { env: 'dev', dev_until: DEV_UNTIL } },
+    order_main: {
+      [OID]: Object.assign({
+        _id: OID, order_no: 'ORDTEST1', status: 'S1',
+        user_openid: USER, partner_openid: PARTNER,
+        created_at: Date.now() - 5 * 60 * 1000,
+        start_time: Date.now() + 3600 * 1000,
+        location: { name: '人民医院', latitude: 30, longitude: 120 },
+        content_options: ['陪诊'], total_fen: 10000
+      }, extra || {})
+    }
+  };
+  if (conf) s.order_confirmations = { [conf._id]: conf };
+  return s;
+}
+function confDoc(items, version) {
+  return {
+    _id: 'cfm' + '1'.repeat(29), order_id: OID, is_deleted: false,
+    version: version || 2,
+    items: items || {
+      time: { value: Date.now() + 3600 * 1000, user_ok: true, partner_ok: true },
+      location: { value: { name: '人民医院', latitude: 30, longitude: 120 }, user_ok: true, partner_ok: true },
+      content: { value: ['陪诊'], user_ok: true, partner_ok: true },
+      fee: { value: 10000, user_ok: true, partner_ok: true }
+    }
+  };
+}
+
+test('change_apply: 非五类事项直接拒绝（oa_bad_item）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'status', value: 1, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_bad_item');
+});
+
+test('change_apply: 非参与方拒绝（oa_not_participant）', async () => {
+  const OUTSIDER = 'z'.repeat(28);
+  const sdk = makeSdk({ openid: OUTSIDER, store: s1Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'fee', value: 12000, mock_openid: OUTSIDER }, {});
+  assert.strictEqual(r.code, 'oa_not_participant');
+});
+
+test('change_apply: 已有在途变更拒绝重复发起（oa_change_pending）', async () => {
+  const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, created_at: Date.now() };
+  const sdk = makeSdk({ openid: USER, store: s1Store({ pending_change: pending }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'time', value: Date.now() + 7200000, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_change_pending');
+});
+
+test('change_apply: 全单变更次数达上限拒绝（oa_change_limit）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ change_counts: { _total: 4, time: 2, fee: 1, location: 1 } }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'content', value: ['取药'], mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_change_limit');
+});
+
+test('change_apply: 成功写入 pending_change 且不立即改值', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store() });
+  const { main } = loadIndex(sdk);
+  const NEW = Date.now() + 7200000;
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'time', value: NEW, reason: '改到下午', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.ok(w, '应写入 order_main');
+  assert.strictEqual(w.data.pending_change.new_value, NEW, '仅记录申请值,不落 start_time');
+  assert.strictEqual(typeof w.data.start_time, 'undefined', '生效前不得改订单时间');
+  assert.strictEqual(w.data.change_counts._total, 1);
+});
+
+test('change_respond: 不能处理自己发起的变更（oa_change_self）', async () => {
+  const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: 12000 };
+  const sdk = makeSdk({ openid: USER, store: s1Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_change_self');
+});
+
+test('change_respond: 超时反馈按自动拒绝收口（oa_change_expired）', async () => {
+  const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() - 1000, new_value: 12000 };
+  const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.code, 'oa_change_expired');
+  const w = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.ok(w && 'pending_change' in w.data, '超时应清除在途变更');
+  assert.strictEqual(typeof w.data.total_fen, 'undefined', '超时不得改值');
+  const au = (sdk.writes.audit_log || []).map((x) => x.data && x.data.action);
+  assert.ok(au.indexOf('order_change_expire') >= 0, '超时收口应留审计');
+});
+
+test('change_respond: 订单 CAS 落空时回滚确认单重置（不留新值旧订单）', async () => {
+  const NEW = Date.now() + 7200000;
+  const pending = { field: 'time', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: NEW };
+  const conf = confDoc();
+  const sdk = makeSdk({
+    openid: PARTNER, store: s1Store({ pending_change: pending }, conf),
+    updateCount: (name) => (name === 'order_main' ? 0 : 1)
+  });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.code, 'oa_conflict');
+  const cws = sdk.writes.order_confirmations || [];
+  assert.strictEqual(cws.length, 2, '应先重置后回滚');
+  assert.strictEqual(cws[1].data.items.time.value, conf.items.time.value, '回滚为旧值');
+  assert.strictEqual(cws[1].data.items.time.user_ok, true, '回滚恢复原确认位');
+});
+
+test('change_respond: 超时分支 CAS 落空时返回冲突而非“已超时”（oa_conflict）', async () => {
+  const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() - 1000, new_value: 12000 };
+  const sdk = makeSdk({
+    openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()),
+    updateCount: (name) => (name === 'order_main' ? 0 : 1)
+  });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.code, 'oa_conflict');
+});
+
+test('update_item / confirm_item / confirm_all: 有在途变更时一律暂停（oa_change_pending）', async () => {
+  const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: 12000 };
+  const sdk = makeSdk({ openid: USER, store: s1Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const a = await main({ action: 'update_item', order_id: OID, item: 'time', value: Date.now() + 7200000, mock_openid: USER }, {});
+  assert.strictEqual(a.code, 'oa_change_pending');
+  const b = await main({ action: 'confirm_item', order_id: OID, item: 'time', mock_openid: USER }, {});
+  assert.strictEqual(b.code, 'oa_change_pending');
+  const c = await main({ action: 'confirm_all', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(c.code, 'oa_change_pending');
+});
+
+test('change_respond: 拒绝接受时清 8 位确认 + 落新值（accept）', async () => {
+  const NEW = Date.now() + 7200000;
+  const pending = { field: 'time', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: NEW };
+  const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.bits_reset, true);
+  const cw = (sdk.writes.order_confirmations || [])[0];
+  assert.ok(cw, '应先写确认单');
+  assert.strictEqual(cw.data.items.time.value, NEW, '确认单时间值同步为新值');
+  assert.strictEqual(cw.data.items.time.user_ok, false, '8 位全重置');
+  assert.strictEqual(cw.data.items.time.partner_ok, false, '8 位全重置');
+  assert.strictEqual(cw.data.items.fee.user_ok, false, '未变更项同样重置');
+  const ow = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.strictEqual(ow.data.start_time, NEW, '接受后订单时间生效');
+  assert.ok('pending_change' in ow.data, '应清在途变更');
+});
+
+test('change_respond: 「其他」接受只记备注、不重置确认位（D1）', async () => {
+  const pending = { field: 'other', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: '请带雨伞' };
+  const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.bits_reset, false);
+  assert.strictEqual((sdk.writes.order_confirmations || []).length, 0, '其他项不得触碰确认单');
+  const ow = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.strictEqual(ow.data.extra_note, '请带雨伞');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });
