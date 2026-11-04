@@ -33,7 +33,7 @@
 | 24 | 联系人管理（代发时复用） | pages-v2/pkg-low/contacts/contacts.js | 我的 → 联系人 → 增删 → 代发时复用（待真机端到端复核） | 已验证(2026-10-19) | — | — |
 | 25 | 隐私协议（__usePrivacyCheck__ + 接口前置弹窗） | pages-v2/privacy/privacy.js, app.json | 首次拉起 getUserProfile/getPhoneNumber/相册/定位 → 弹隐私协议 → 同意后接口可用；app.json 已配 __usePrivacyCheck__ | 已验证 | 2026-10-13 | LM L167 |
 | 26 | 用户协议 | pages-v2/agreement/agreement.js | 入口 → 协议详情（待真机端到端复核） | 已验证(2026-10-19) | — | — |
-| 27 | 工作台（耍伴接单管理） | pages-v2/workbench/workbench.js | 耍伴身份 → 工作台 → 接单管理（待真机端到端复核） | 已验证（真机 2026-10-18 通过） | 2026-10-18 | — |
+| 27 | 工作台（耍伴接单管理） | pages-v2/workbench/workbench.js | 耍伴身份 → 工作台 → 接单管理；2026-11-04 追加：时间轴「导航」→ `wx.openLocation`（无坐标回落 toast）、「联系」→ 聊天页 | 待真机验证（v1.6.82 · 导航/联系改动；旧基线 2026-10-18 已通过） | 2026-11-04 | P2-1/P2-2 |
 | 28 | 博客/动态（列表/发布/详情/互动） | pages-v2/blog/blog.js, pages-v2/blog-publish/blog-publish.js, pages-v2/blog-detail/blog-detail.js, cloudfunctions/blog-action/index.js | 列表 → 发布(msgSecCheck fail-closed) → 详情 → 互动；注意 order-timer/HTTP 网关触发的云调用必报 -501001 INVALID_WX_ACCESS_TOKEN（云调用约束定论） | 已验证(2026-10-19) | — | LM L167, L252 |
 | 29 | 活动（方形 1:1 卡片 + 详情） | pages-v2/pkg-low/activity-detail/activity-detail.js, cloudfunctions/home-action/index.js (home_activity) | 首页活动卡片方形 1:1(750×750 居中裁切) → 标题/副标题 trim 后非空才渲染正文区(避免空白块) → 点击进详情 | 已验证 | 2026-10-13 | LM L87-88 |
 | 30 | 红线拦截（含夜间弹窗可关闭不阻塞浏览） | utils/redline.js, components/night-mask/index.js, pages-v2/order-detail/order-detail.js (onStartService) | 夜间浏览 → 弹窗「继续浏览」按钮可关闭、点背景可关、组件本体阻冒泡 → 同一夜间段不再弹、离开夜间段自动重置 → 跨页面切换 pageLifetimes.show 守门 → 预约(enterScene)/接单(onGrab)/履约(onStartService) 三入口独立拦截 | 已验证 | 2026-10-13 | LM L280, commit 731ab99 |
