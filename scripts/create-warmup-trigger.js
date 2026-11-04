@@ -12,7 +12,8 @@ const PROJECT_PATH = require('path').join(__dirname, '..');
 const ENV_ID = 'cloud1-d9gkefwcp5c777088';
 const FN_NAME = 'zz-warmup';
 const TRIGGER_NAME = 'warmupTimer';
-const CRON = '0 */5 * * * * *';
+// 2026-11-04 恢复口径：单触发器 7-22 每 15 分钟（64 次/天 × 3 调用 ≈ 192 次/天）
+const CRON = '0 */15 7-22 * * * *';
 
 async function main() {
   const project = new ci.Project({
