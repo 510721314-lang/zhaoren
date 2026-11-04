@@ -37,6 +37,22 @@ function currentValue(order, field) {
   if (field === 'fee') return order.total_fen || 0;
   return order.extra_note || '';
 }
+// 2026-11-05：判断新旧值是否等价（数组先排序，避免勾选顺序不同被误判为"已变更"；对象按 key 浅比较）
+function sameValue(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const x = Array.isArray(a) ? a.slice().sort() : [];
+    const y = Array.isArray(b) ? b.slice().sort() : [];
+    return x.length === y.length && x.every((v, i) => v === y[i]);
+  }
+  if (typeof a === 'object' && typeof b === 'object') {
+    const ka = Object.keys(a).sort();
+    const kb = Object.keys(b).sort();
+    return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+  }
+  return false;
+}
 // 校验变更值 → { ok, orderPatch } 或 { ok:false, code, msg }
 async function validateValue(ctx, order, field, value, config) {
   const { col, splitOrderAmount, now, reasonMaxLen } = ctx;
@@ -126,8 +142,22 @@ async function change_apply(ctx) {
   const config = await getConfig();
   const max = reasonMaxLen(config);
   const now = Date.now();
+  const s1Min = Number(config.s1_timeout_min) > 0 ? Number(config.s1_timeout_min) : 15;
+  // D4：不顺延 S1 窗口，取两者较小
+  const expireAt = Math.min(now + CHANGE_RESPOND_MIN * 60000, (Number(order.created_at) || now) + s1Min * 60000);
+  // 2026-11-05：窗口已无剩余时间时禁止发起，避免生成"一出生就超时"的空变更（白占配额+白推超时通知）
+  if (expireAt <= now) {
+    return { ok: false, code: 'oa_change_window_closed', msg: '四确认窗口即将结束，请直接确认或取消订单' };
+  }
+
   const rv = await validateValue(ctx, order, field, value, config);
   if (!rv.ok) return rv;
+
+  // 2026-11-05：与原值相同视为未变更，直接拒绝且不占次数（弹层里勾了又取消常会提交相同内容）
+  const oldValue = currentValue(order, field);
+  if (sameValue(oldValue, value)) {
+    return { ok: false, code: 'oa_change_same', msg: '与原内容相同，无需提交变更' };
+  }
 
   // 内容安全：content / other 是自由文本，必须过 msgSecCheck（降级词库 fail-closed）
   if (field === 'content' || field === 'other') {
@@ -136,13 +166,10 @@ async function change_apply(ctx) {
     if (!chk.pass) return { ok: false, code: 'oa_content_blocked', msg: chk.reason || '内容不合规' };
   }
 
-  const s1Min = Number(config.s1_timeout_min) > 0 ? Number(config.s1_timeout_min) : 15;
-  // D4：不顺延 S1 窗口，取两者较小
-  const expireAt = Math.min(now + CHANGE_RESPOND_MIN * 60000, (Number(order.created_at) || now) + s1Min * 60000);
   const token = newToken(now);
   const pending = {
     field,
-    old_value: currentValue(order, field),
+    old_value: oldValue,
     new_value: value,
     by_openid: openid,
     by_role: role,

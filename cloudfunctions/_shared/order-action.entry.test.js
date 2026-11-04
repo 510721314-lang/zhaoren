@@ -711,6 +711,24 @@ test('change_apply: 非参与方拒绝（oa_not_participant）', async () => {
   assert.strictEqual(r.code, 'oa_not_participant');
 });
 
+// 2026-11-05：勾选后又取消、最终内容与原值相同 → 拒绝，不生成空变更（不占配额）
+test('change_apply: 与原值相同拒绝（oa_change_same）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'content', value: ['陪诊'], mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_change_same');
+});
+
+// 2026-11-05：S1 窗口已耗尽时发起 → expire_at 落在过去，拒绝避免"发起即超时"
+test('change_apply: S1 窗口已耗尽拒绝发起（oa_change_window_closed）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ created_at: Date.now() - 16 * 60 * 1000 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'fee', value: 12000, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_change_window_closed');
+});
+
 test('change_apply: 已有在途变更拒绝重复发起（oa_change_pending）', async () => {
   const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, created_at: Date.now() };
   const sdk = makeSdk({ openid: USER, store: s1Store({ pending_change: pending }) });
