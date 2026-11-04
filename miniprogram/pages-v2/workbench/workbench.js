@@ -64,8 +64,10 @@ Page({
       callCloud('payment-mock', { action: 'income_list', limit: Number(CONFIG.WORKBENCH.incomeShow) || 5 }).catch(() => ({ ok: false })),
       callCloud('partner-action', { action: 'my_profile' }).catch(() => ({ ok: false })),
       // P2-11: 取耍伴最近进行中订单, 供 SOS 上报填 orderId
-      callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'doing', page_size: 1 }).catch(() => ({ ok: false }))
-    ]).then(([balR, incR, prfR, ordR]) => {
+      callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'doing', page_size: 1 }).catch(() => ({ ok: false })),
+      // F1a(2026-11-04): 取耍伴待确认订单(S1), 供 W6 待办卡; 仅展示, 确认/拒绝跳详情
+      callCloud('order-action', { action: 'my_orders', role: 'partner', filter: 'confirm', page_size: 5 }).catch(() => ({ ok: false }))
+    ]).then(([balR, incR, prfR, ordR, cfmR]) => {
       const d = {};
       if (prfR.ok && prfR.data && prfR.data.profile) {
         // 接单开关初始值:从云端拿真实状态
@@ -117,6 +119,19 @@ Page({
         };
       });
       d.currentOrderId = doingList.length > 0 ? doingList[0].order_id : '';
+      // F1a(2026-11-04): W6 待办卡数据源 = my_orders(partner, confirm=S1); 字段按模板口径映射
+      const cfmList = (cfmR.ok && cfmR.data && cfmR.data.list) || [];
+      d.pendingOrders = cfmList.map((o) => {
+        const st = o.start_time ? new Date(o.start_time) : null;
+        const pad = (n) => ('0' + n).slice(-2);
+        return {
+          _id: o.order_id,
+          // 对接方(发单人)无昵称字段时, 回落到需求标题/场景名, 不显示空白
+          partner_name: o.demand_title || o.scene_name || '待确认订单',
+          service_date: st ? (st.getMonth() + 1) + '/' + st.getDate() : '',
+          service_time: st ? pad(st.getHours()) + ':' + pad(st.getMinutes()) : ''
+        };
+      });
       d.todaySummary = {
         count: d.todayCount,
         upcoming: d.incomeList && d.incomeList.length ? `${d.incomeList[0].scene || ''} 待处理` : '暂无进行中订单'
@@ -203,12 +218,16 @@ Page({
     this.setData({ fundActive: key, fundAmount: (this.data.fundAmountMap || {})[key] || '0.00' });
   },
 
-  // W6 待办订单 (pendingOrders 当前无云端数据源, 区块 wx:if 保护; 方法保留兜底)
-  onConfirmOrder() {
-    wx.showToast({ title: '请到订单详情确认', icon: 'none' });
-  },
-  onRejectOrder() {
-    wx.showToast({ title: '请到订单详情处理', icon: 'none' });
+  // F1a(2026-11-04): 待办卡按钮改为进订单详情处理(就地四确认/拒单属写状态机, 另案 F1b)
+  onConfirmOrder(e) { this.goOrderDetail(e); },
+  onRejectOrder(e) { this.goOrderDetail(e); },
+  goOrderDetail(e) {
+    const id = (e && e.currentTarget && e.currentTarget.dataset) ? e.currentTarget.dataset.id : '';
+    if (!id) { wx.showToast({ title: '订单参数缺失', icon: 'none' }); return; }
+    wx.navigateTo({
+      url: '/pages-v2/order-detail/order-detail?orderId=' + id,
+      fail: () => wx.showToast({ title: '打开订单失败', icon: 'none' })
+    });
   },
 
   // W5 一键报警: 上报云端 + 可选拨号
