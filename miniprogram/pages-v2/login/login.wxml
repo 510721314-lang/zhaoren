@@ -18,10 +18,12 @@
 
   <!-- 协议 + 登录 -->
   <view class="login__panel">
-    <!-- 整行可点选：行级 catchtap 切换勾选，内部文字仍冒泡阻断直达协议页 -->
-    <view class="login__agree-row" wx:for="{{agreeItems}}" wx:key="key" data-key="{{item.key}}" catchtap="toggleAgreement">
-      <view class="login__check {{agreements[item.key] ? 'is-on' : ''}}" data-key="{{item.key}}" catchtap="toggleAgreement">{{agreements[item.key] ? '✓' : ''}}</view>
-      <text class="login__agree-text" data-key="{{item.key}}" catchtap="openAgreement">{{item.label}}</text>
+    <view class="login__agree-card">
+      <!-- 整行可点选：行级 catchtap 切换勾选，内部文字冒泡阻断直达协议页 -->
+      <view class="login__agree-row" wx:for="{{agreeItems}}" wx:key="key" data-key="{{item.key}}" catchtap="toggleAgreement">
+        <view class="login__check {{agreements[item.key] ? 'is-on' : ''}}" data-key="{{item.key}}" catchtap="toggleAgreement">{{agreements[item.key] ? '✓' : ''}}</view>
+        <text class="login__agree-text" data-key="{{item.key}}" catchtap="openAgreement">{{item.label}}</text>
+      </view>
     </view>
 
     <!-- 微信一键登录 -->

@@ -18,6 +18,8 @@
   margin: 0 auto;
   border-radius: 36rpx;
   background: var(--brand-primary-light);
+  /* 品牌图标加同色光晕，暗底上更有"抬起来"的质感 */
+  box-shadow: 0 16rpx 40rpx rgba(7, 193, 96, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -36,9 +38,14 @@
   letter-spacing: 4rpx;
 }
 .login__sells {
-  margin-top: 56rpx;
+  margin-top: 48rpx;
   display: flex;
   justify-content: space-between;
+  /* 卖点卡片化：四个徽标收成一块，视觉块面更清晰 */
+  background: var(--bg-card);
+  border: 2rpx solid var(--border-1);
+  border-radius: 24rpx;
+  padding: 24rpx 0;
 }
 .login__sell {
   display: flex;
@@ -48,6 +55,10 @@
   color: var(--text-3);
   width: 25%;
 }
+/* 相邻卖点加竖向分割线 */
+.login__sell + .login__sell {
+  border-left: 2rpx solid var(--border-1);
+}
 .login__sell-ic {
   /* 统一 emoji 图标尺寸与行高，消除四个徽标体积不齐 */
   font-size: 48rpx;
@@ -55,14 +66,23 @@
   margin-bottom: 12rpx;
 }
 .login__panel {
-  margin-top: 56rpx;
+  margin-top: 48rpx;
+}
+/* 协议卡片化：三条协议独立成卡片容器，视觉上与卖点区区分 */
+.login__agree-card {
+  background: var(--bg-card);
+  border: 2rpx solid var(--border-1);
+  border-radius: 24rpx;
+  padding: 4rpx 24rpx;
 }
 .login__agree-row {
   display: flex;
   align-items: center;
   /* 行内上下留白扩大触控区域（整行可点） */
-  padding: 12rpx 0;
-  margin-bottom: 4rpx;
+  padding: 16rpx 0;
+}
+.login__agree-row + .login__agree-row {
+  border-top: 2rpx solid var(--border-1);
 }
 .login__check {
   width: 44rpx;
@@ -96,8 +116,9 @@
   color: var(--text-invert);
   font-size: var(--font-lg);
   font-weight: 600;
-  /* 加投影提升主按钮层次，暗底高饱和不再"硬切" */
-  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.22);
+  /* 绿色渐变 + 同色投影，主按钮更有质感（禁用态会在后面覆盖为纯灰） */
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-press) 100%);
+  box-shadow: 0 14rpx 34rpx rgba(7, 193, 96, 0.35);
 }
 .login__btn::after {
   border: none;
