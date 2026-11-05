@@ -34,11 +34,21 @@ $r = Invoke-Gw @{ action = 'config_public' }
 Check 'config_public.ok' ($r -and $r.ok) ($r | ConvertTo-Json -Compress)
 Check 'config_public.tip_enabled' ($r -and $r.ok -and $r.data.payment.tip_enabled -eq $true) 'tip_enabled not delivered; check mock_payment_enabled / admin-action config_public'
 Check 'config_public.switch_access' ($r -and $r.ok -and $r.data.switches.switch_access -eq $true) 'platform in maintenance mode'
-Check 'config_public.time_redline' ($r -and $r.ok -and $r.data.time_redline.open_min -eq 360 -and $r.data.time_redline.close_min -eq 1440) 'time redline params drifted'
+# 2026-11-05: 红线参数以 admin operations 为准做一致性比对（原硬编码 360 在运营改 05:00 后误报）
+$rc = Invoke-Gw @{ action = 'config_get' }
+$eOpen = if ($rc -and $rc.ok -and $rc.data.operations) { $rc.data.operations.time_redline_open_min } else { $null }
+$eClose = if ($rc -and $rc.ok -and $rc.data.operations) { $rc.data.operations.time_redline_close_min } else { $null }
+$trOk = $r -and $r.ok -and $null -ne $eOpen -and $null -ne $eClose -and $r.data.time_redline.open_min -eq $eOpen -and $r.data.time_redline.close_min -eq $eClose
+Check 'config_public.time_redline' $trOk "time redline drifted vs admin operations (admin=$eOpen/$eClose)"
 
 # 2. square probe reachable; count>=10 only when seed data present
 # 2026-11-04: 广场种子 24h 过期, 样本不足(count<10)判 SKIP 而非 FAIL, 避免提审空库误报
 $r = Invoke-Gw @{ action = 'home_probe_square'; limit = 20 }
+# 2026-11-05: 云函数刚部署后首次调用可能冷启动超网关 2.5s，失败重试一次；仍失败才判 FAIL
+if (-not ($r -and $r.ok)) {
+  Start-Sleep -Seconds 3
+  $r = Invoke-Gw @{ action = 'home_probe_square'; limit = 20 }
+}
 $sqCount = if ($r -and $r.ok -and $r.data.list) { @($r.data.list).Count } else { 0 }
 if (-not ($r -and $r.ok)) {
   Check 'home_probe_square' $false "probe failed; $($r | ConvertTo-Json -Compress)"
