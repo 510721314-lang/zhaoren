@@ -1,5 +1,6 @@
 // admin-action · 参数配置只读组（config_get / config_history_list / config_log_list，从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
+const { resolveModify, resolveS2Change } = require('./config_defaults');
 
 function config_get(ctx) {
   const { config, ok, CONFIG_SCHEMA, resolveOperations } = ctx;
@@ -44,16 +45,9 @@ function config_get(ctx) {
     security: {
       security_only_template_before_confirm: config.security_only_template_before_confirm !== false
     },
-    modify_config: Object.assign(
-      {
-        minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24,
-        // 2026-11-05: S2 变更默认值(与 order-action/action_change_s2.js s2Cfg 兜底一致)
-        s2ChangeEnabled: 1, s2ChangeBMinHours: 1, s2ChangeAMinHours: 2,
-        s2ChangeAConfirmMin: 120, s2ChangeBConfirmMin: 15,
-        s2ChangePerFieldMax: 1, s2ChangeTotalMax: 2
-      },
-      config.modify_config || {}
-    ),
+    // 2026-11-05 N-3: 默认值统一由 _shared/config_defaults.js 提供（副本经 sync 同步），不再本文件硬编码
+    modify_config: resolveModify(config),
+    s2_change: resolveS2Change(config),
     idcard_aes_key_set: !!(config.idcard_aes_key && /^[0-9a-f]{64}$/i.test(config.idcard_aes_key)),
     credits: {
       min_credit_take_order: config.min_credit_take_order !== undefined ? config.min_credit_take_order : 600,

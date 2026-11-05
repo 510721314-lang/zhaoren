@@ -1,24 +1,8 @@
 // order-action · 改期/加时/比例分组（从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
-// 改期业务常量(与小程序 config/index.js MODIFY/TIME_REDLINE 对齐; admin_config 可覆盖)
-const MODIFY_DEFAULTS = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
-// 2026-11-05: 后台可配——优先读运营页 schema 写入的顶层键，兼容旧 modify_config 嵌套，范围外回退默认
-function modifyCfg(config) {
-  const c = config || {};
-  const m = c.modify_config || {};
-  const pick = (k, d) => (c[k] !== undefined ? c[k] : m[k] !== undefined ? m[k] : d);
-  const num = (v, d, lo, hi) => {
-    const n = Number(v);
-    return (isFinite(n) && n >= lo && n <= hi) ? Math.floor(n) : d;
-  };
-  return {
-    minLeadHours: num(pick('modifyMinLeadHours', MODIFY_DEFAULTS.minLeadHours), MODIFY_DEFAULTS.minLeadHours, 0, 72),
-    maxTimes: num(pick('modifyMaxTimes', MODIFY_DEFAULTS.maxTimes), MODIFY_DEFAULTS.maxTimes, 0, 10),
-    maxSpanH: num(pick('modifyMaxSpanH', MODIFY_DEFAULTS.maxSpanH), MODIFY_DEFAULTS.maxSpanH, 1, 720),
-    confirmHours: num(pick('modifyConfirmHours', MODIFY_DEFAULTS.confirmHours), MODIFY_DEFAULTS.confirmHours, 1, 168)
-  };
-}
+// 改期业务默认值统一由 _shared/config_defaults.js 提供（2026-11-05 N-3 收敛，副本经 sync 同步）
+const { resolveModify } = require('./config_defaults');
 function redlineBounds(cfg) {
   const c = parseInt(cfg && cfg.time_redline_close_min, 10);
   const o = parseInt(cfg && cfg.time_redline_open_min, 10);
@@ -56,7 +40,7 @@ async function modify(ctx) {
     return { ok: false, code: 'oa_modify_same', msg: '与当前服务时间相同，无需改期' };
   }
   const config = await getConfig();
-  const modifyConfig = modifyCfg(config);
+  const modifyConfig = resolveModify(config);
   const currentModifyCount = Number(order.modify_count) || 0;
   if (currentModifyCount >= modifyConfig.maxTimes) {
     return { ok: false, code: 'oa_modify_exhausted', msg: `改期次数已用完(${modifyConfig.maxTimes}次)` };
@@ -162,7 +146,7 @@ async function modify_confirm_or_reject(ctx) {
   }
 
   const config = await getConfig();
-  const modifyConfig = modifyCfg(config);
+  const modifyConfig = resolveModify(config);
   if (!pending.new_start_time || pending.new_start_time <= now) {
     return { ok: false, code: 'oa_modify_expired', msg: '改期时间已过期,请重新发起' };
   }
@@ -234,7 +218,7 @@ async function extend(ctx) {
   const now = Date.now();
   // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制): 独立键 admin_config.extend_confirm_min(分钟, 默认 20);
   // 配置为 0 时回退「改期确认窗口」(小时→分钟换算), 保留旧版逃生口。expire_at 在申请时算死, 后续改配置不影响在途申请。
-  const modifyConfirmMin = modifyCfg(config).confirmHours * 60;
+  const modifyConfirmMin = resolveModify(config).confirmHours * 60;
   const confirmMin = Number(config.extend_confirm_min) > 0 ? Number(config.extend_confirm_min) : modifyConfirmMin;
   const confirmText = confirmMin % 60 === 0 && confirmMin >= 60 ? `${confirmMin / 60} 小时` : `${confirmMin} 分钟`;
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';

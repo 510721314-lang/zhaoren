@@ -35,23 +35,8 @@ function sameValue(a, b) {
   }
   return false;
 }
-// 后台可配项：优先读运营页写入的顶层键(CONFIG_SCHEMA 驱动)，兼容旧的 modify_config 嵌套键，全部带安全兜底
-function s2Cfg(config) {
-  const c = config || {};
-  const m = c.modify_config || {};
-  const pick = (k, d) => (c[k] !== undefined ? c[k] : m[k] !== undefined ? m[k] : d);
-  const num = (v, d) => { const n = Number(v); return (isFinite(n) && n >= 0) ? n : d; };
-  const bMinH = num(pick('s2ChangeBMinHours', 1), 1);
-  return {
-    enabled: Number(pick('s2ChangeEnabled', 1)) === 1,
-    bMinH,
-    aMinH: Math.max(bMinH, num(pick('s2ChangeAMinHours', 2), 2)),
-    aConfirmMin: Math.min(1440, Math.max(1, num(pick('s2ChangeAConfirmMin', 120), 120))),
-    bConfirmMin: Math.min(1440, Math.max(1, num(pick('s2ChangeBConfirmMin', 15), 15))),
-    perFieldMax: num(pick('s2ChangePerFieldMax', 1), 1),
-    totalMax: num(pick('s2ChangeTotalMax', 2), 2)
-  };
-}
+// S2 变更规则默认值统一由 _shared/config_defaults.js 提供（2026-11-05 N-3 收敛，副本经 sync 同步）
+const { resolveS2Change } = require('./config_defaults');
 // 值校验：地点需 name+经纬度；内容需非空数组（与 S1 同口径）
 function validateValue(field, value) {
   if (field === 'location') {
@@ -85,7 +70,7 @@ async function s2_change_apply(ctx) {
   if (isFrozen(order)) return { ok: false, code: 'oa_frozen', msg: '订单争议处理中，暂不可变更' };
 
   const config = await getConfig();
-  const c = s2Cfg(config);
+  const c = resolveS2Change(config);
   if (!c.enabled) return { ok: false, code: 'oa_s2c_off', msg: '该阶段变更功能未开启' };
 
   // 单订单仅一条在途变更；改期(S2_5)/开始履约(S2_6) 由 status 拦截，这里再兜底残留字段
@@ -101,10 +86,10 @@ async function s2_change_apply(ctx) {
   const startTime = Number(order.start_time) || 0;
   const T = startTime - now;
   // 时间窗：T < B 禁止；T > A 为 A 窗；其余为 B 窗
-  if (T < c.bMinH * 3600000) {
+  if (T < c.bMinHours * 3600000) {
     return { ok: false, code: 'oa_s2c_blocked', msg: '临近履约时间，请按原信息履约或申请取消订单' };
   }
-  const win = T > c.aMinH * 3600000 ? 'A' : 'B';
+  const win = T > c.aMinHours * 3600000 ? 'A' : 'B';
   const confirmMin = win === 'A' ? c.aConfirmMin : c.bConfirmMin;
 
   // 频率上限（发起即计数，拒绝/超时同样消耗）

@@ -1,5 +1,7 @@
 // @VERIFIED 2026-10-13 已真机验证：order-timer 游标分页(禁用 skip)+单轮500硬上限+9段 scanAll+trackBacklog+R2争议升级/停用恢复（依据：project_memory L103-106, L113, L210）
 // 对应 PRD 章节：PRD 8.3 订单超时与梯度退款统一规则 / 附录G 状态机
+// 2026-11-05 N-3: 改期默认值统一由 _shared/config_defaults.js 副本提供（sync-config-defaults.ps1 同步）
+const { resolveModify } = require('./config_defaults');
 // order-timer 超时自动流转 · 定时触发器(2026-10-28 16:45 起每30分钟, 原15/10/5分钟; 配额应急, 自动流转最多延迟30分钟) + 云端测试(action=run)
 // 规则(rules.md §14):
 //   S1 待确认 15 分钟未完成四确认 → 自动 S6 并释放需求回 matching
@@ -537,10 +539,9 @@ exports.main = async (event, context) => {
   const afterSaleDays = num(cfg.after_sale_days, 15);       // Wave2 止血: S8 售后窗口(天) → 届满归档 S10
   const partialJudgeDays = num(cfg.partial_judge_days, 7);  // Wave2 止血: S4 裁定期(天) → 届满转平台介入
   const disputeEscDays = num(cfg.dispute_escalate_d, 30);   // 争议单超期升级天数(留存负债闭环 2026-10-13)
-  // 改期确认时限: 统一读 admin_config.modify_config.confirmHours(与 order-action 创建时算死 expire_at 同一口径)
+  // 改期确认时限: 统一读 admin_config（2026-11-05 N-3: 默认值与解析统一由 _shared/config_defaults.js 副本提供）
   // 不再读独立键 modify_confirm_h(admin-action 白名单已移除, 存量历史无 expire_at 的订单仍走此兜底)
-  const mcDefaults = { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 };
-  const modifyConfirmH = num(Object.assign({}, mcDefaults, cfg.modify_config || {}).confirmHours, 24);
+  const modifyConfirmH = resolveModify(cfg).confirmHours;
   // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制, 默认 20 分钟): 独立键 extend_confirm_min, 0 → 回退改期 confirmHours(换算分钟)
   // (与申请时算 expire_at 同一口径)
   const extendConfirmMin = num(cfg.extend_confirm_min, 20) > 0 ? num(cfg.extend_confirm_min, 20) : modifyConfirmH * 60;

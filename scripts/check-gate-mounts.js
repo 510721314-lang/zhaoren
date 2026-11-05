@@ -29,6 +29,7 @@ const VERIFY_ONLY = new Set([
     'check-syntax.js',                   // 云函数语法（服务端可兜底，不阻断部署）
     'check-ssot.js',                     // 配置单一事实源
     'check-collections-consistency.js',  // 集合名单五处一致性（B-3，2026-11-05）
+    'check-config-defaults.js',          // 配置默认值 canonical/副本/前端一致（N-3，2026-11-05）
     'check-handlers.js',                 // HANDLERS 注册完整性
     'check-index-ledger.js',             // 索引台账（需缓存文件）
     'check-deploy-config.js',            // 部署配置（--offline 形态）

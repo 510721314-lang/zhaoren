@@ -58,6 +58,9 @@ const SYNC_MAP = {
   // admin_config 进程内缓存(2026-10-28 用量治理): 规范源 → 4 个高频读配置函数副本;
   //   消除「每次调用读 1 次 admin_config」(实测占 DB 请求 23.6%); 修改后跑 sync-config-cache.ps1
   'config_cache.js': ['order-action', 'order-timer', 'user-login', 'partner-action'],
+  // 2026-11-05 N-3: 改期/S2 变更规则默认值唯一规范源，副本经 sync-config-defaults.ps1 同步
+  'config_defaults.js': ['order-action', 'admin-action', 'order-timer'],
+  'config_defaults.json': ['order-action', 'admin-action', 'order-timer'],
   // 订阅消息统一封装(2026-11-02 方案A): 授权/发送计数状态 + 唯一 send 入口;
   //   消费方 order-action(催办/沟通) / order-timer(抢单) / partner-action(授权计数)
   'sub_msg.js': ['order-action', 'order-timer', 'partner-action']

@@ -4,6 +4,8 @@
 // 否则拒绝并写 platform_event(P1, admin_probe)。
 // 例外: claim_admin —— 白名单为空时首个调用者自助初始化管理员(仅可成功一次)。
 const cloud = require('wx-server-sdk');
+// 2026-11-05 N-3: 改期/S2 规则默认值唯一规范源（副本经 sync-config-defaults.ps1 同步）
+const { MODIFY_DEFAULTS, S2_CHANGE_DEFAULTS } = require('./config_defaults');
 const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -170,19 +172,19 @@ const CONFIG_SCHEMA = [
   { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4, d: '评价超时未评时系统给出的默认星级' },
   // ── S2 变更规则(2026-11-05): 已支付待履约阶段「地点/内容」协商; 费用与时间不在此通道 ──
   // 读取侧 order-action/action_change_s2.js s2Cfg: 顶层键优先, 兼容旧 modify_config 嵌套
-  { f: 's2ChangeEnabled', t: 'int', g: 'S2变更规则', label: '启用(1开/0关)', min: 0, max: 1, def: 1, d: 'S2 地点/内容变更总开关；0=禁止发起（在途申请仍可反馈）' },
-  { f: 's2ChangeBMinHours', t: 'int', g: 'S2变更规则', label: 'B 窗下限', unit: '小时', min: 1, max: 24, def: 1, d: '距履约时间的下限：小于该小时数禁止发起变更（默认 1 小时）' },
-  { f: 's2ChangeAMinHours', t: 'int', g: 'S2变更规则', label: 'A 窗门槛', unit: '小时', min: 1, max: 72, def: 2, d: 'A 窗门槛：距履约大于该小时数走 A 窗（默认 2 小时）；B 窗下限~门槛之间为 B 窗' },
-  { f: 's2ChangeAConfirmMin', t: 'int', g: 'S2变更规则', label: 'A 窗确认窗口', unit: '分钟', min: 1, max: 1440, def: 120, d: 'A 窗内对方反馈时限（分钟），且不晚于履约前 15 分钟' },
-  { f: 's2ChangeBConfirmMin', t: 'int', g: 'S2变更规则', label: 'B 窗确认窗口', unit: '分钟', min: 1, max: 1440, def: 15, d: 'B 窗内对方反馈时限（分钟），且不晚于履约前 15 分钟' },
-  { f: 's2ChangePerFieldMax', t: 'int', g: 'S2变更规则', label: '每项次数上限', unit: '次', min: 0, max: 5, def: 1, d: '同一订单同一事项最多发起次数；发起即计数（拒绝/超时也消耗）' },
-  { f: 's2ChangeTotalMax', t: 'int', g: 'S2变更规则', label: '全单次数上限', unit: '次', min: 0, max: 10, def: 2, d: '同一订单地点+内容累计发起次数上限' },
+  { f: 's2ChangeEnabled', t: 'int', g: 'S2变更规则', label: '启用(1开/0关)', min: 0, max: 1, def: S2_CHANGE_DEFAULTS.enabled, d: 'S2 地点/内容变更总开关；0=禁止发起（在途申请仍可反馈）' },
+  { f: 's2ChangeBMinHours', t: 'int', g: 'S2变更规则', label: 'B 窗下限', unit: '小时', min: 1, max: 24, def: S2_CHANGE_DEFAULTS.bMinHours, d: '距履约时间的下限：小于该小时数禁止发起变更（默认 1 小时）' },
+  { f: 's2ChangeAMinHours', t: 'int', g: 'S2变更规则', label: 'A 窗门槛', unit: '小时', min: 1, max: 72, def: S2_CHANGE_DEFAULTS.aMinHours, d: 'A 窗门槛：距履约大于该小时数走 A 窗（默认 2 小时）；B 窗下限~门槛之间为 B 窗' },
+  { f: 's2ChangeAConfirmMin', t: 'int', g: 'S2变更规则', label: 'A 窗确认窗口', unit: '分钟', min: 1, max: 1440, def: S2_CHANGE_DEFAULTS.aConfirmMin, d: 'A 窗内对方反馈时限（分钟），且不晚于履约前 15 分钟' },
+  { f: 's2ChangeBConfirmMin', t: 'int', g: 'S2变更规则', label: 'B 窗确认窗口', unit: '分钟', min: 1, max: 1440, def: S2_CHANGE_DEFAULTS.bConfirmMin, d: 'B 窗内对方反馈时限（分钟），且不晚于履约前 15 分钟' },
+  { f: 's2ChangePerFieldMax', t: 'int', g: 'S2变更规则', label: '每项次数上限', unit: '次', min: 0, max: 5, def: S2_CHANGE_DEFAULTS.perFieldMax, d: '同一订单同一事项最多发起次数；发起即计数（拒绝/超时也消耗）' },
+  { f: 's2ChangeTotalMax', t: 'int', g: 'S2变更规则', label: '全单次数上限', unit: '次', min: 0, max: 10, def: S2_CHANGE_DEFAULTS.totalMax, d: '同一订单地点+内容累计发起次数上限' },
   // ── 改期规则(2026-11-05 移入运营页): 此前仅存在于已下线 Config.vue, C 端文案与存储配置脱节 ──
   // 读取侧 order-action/action_modify_extend.js modifyCfg: 顶层键优先, 兼容旧 modify_config 嵌套
-  { f: 'modifyMinLeadHours', t: 'int', g: '改期规则', label: '提前申请(小时)', unit: '小时', min: 0, max: 72, def: 4, d: '距新服务时间至少提前多少小时才可申请改期（0=不限制）' },
-  { f: 'modifyMaxTimes', t: 'int', g: '改期规则', label: '最多改期次数', unit: '次', min: 0, max: 10, def: 2, d: '同一订单最多改期次数（0=禁止改期）' },
-  { f: 'modifyMaxSpanH', t: 'int', g: '改期规则', label: '改期幅度上限', unit: '小时', min: 1, max: 720, def: 72, d: '新时间与原服务时间的最大差值（超出拦截）' },
-  { f: 'modifyConfirmHours', t: 'int', g: '改期规则', label: '对方确认窗口', unit: '小时', min: 1, max: 168, def: 24, d: '改期申请等待对方同意/拒绝的时限，超时自动拒绝' },
+  { f: 'modifyMinLeadHours', t: 'int', g: '改期规则', label: '提前申请(小时)', unit: '小时', min: 0, max: 72, def: MODIFY_DEFAULTS.minLeadHours, d: '距新服务时间至少提前多少小时才可申请改期（0=不限制）' },
+  { f: 'modifyMaxTimes', t: 'int', g: '改期规则', label: '最多改期次数', unit: '次', min: 0, max: 10, def: MODIFY_DEFAULTS.maxTimes, d: '同一订单最多改期次数（0=禁止改期）' },
+  { f: 'modifyMaxSpanH', t: 'int', g: '改期规则', label: '改期幅度上限', unit: '小时', min: 1, max: 720, def: MODIFY_DEFAULTS.maxSpanH, d: '新时间与原服务时间的最大差值（超出拦截）' },
+  { f: 'modifyConfirmHours', t: 'int', g: '改期规则', label: '对方确认窗口', unit: '小时', min: 1, max: 168, def: MODIFY_DEFAULTS.confirmHours, d: '改期申请等待对方同意/拒绝的时限，超时自动拒绝' },
   // ── 时间红线 ──
   { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止', unit: '分钟', min: 0, max: 1440, def: 1440, d: '每日接单截止时刻（自 0:00 起算的分钟数）；0=全天开放不受限', clock: true, clockZero: '全天开放' },
   { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放', unit: '分钟', min: 0, max: 1440, def: 360, d: '每日接单开放起始时刻（自 0:00 起算的分钟数）；可接单时段为「开放时刻 ~ 截止时刻」', clock: true },

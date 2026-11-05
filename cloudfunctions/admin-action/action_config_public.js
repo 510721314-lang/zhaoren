@@ -1,32 +1,12 @@
 // admin-action · 公开配置 config_public（免鉴权，从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
+const { resolveModify, resolveS2Change } = require('./config_defaults');
 
 function config_public(ctx) {
   const { config } = ctx;
   const cfgRaw = config || {};
   const nsInt = (v, def) => (v === undefined || v === null || v === '' ? def : Number(v));
-  // 2026-11-05: 改期/S2 变更规则做「默认值合并」后再下发，避免库里缺字段时前端回退硬编码导致文案与规则不一致
-  const mc = cfgRaw.modify_config || {};
-  const pick = (k, d) => (cfgRaw[k] !== undefined ? cfgRaw[k] : mc[k] !== undefined ? mc[k] : d);
-  const num = (v, d, lo, hi) => {
-    const n = Number(v);
-    return (isFinite(n) && n >= lo && n <= hi) ? Math.floor(n) : d;
-  };
-  const modifyResolved = {
-    minLeadHours: num(pick('modifyMinLeadHours', 4), 4, 0, 72),
-    maxTimes: num(pick('modifyMaxTimes', 2), 2, 0, 10),
-    maxSpanH: num(pick('modifyMaxSpanH', 72), 72, 1, 720),
-    confirmHours: num(pick('modifyConfirmHours', 24), 24, 1, 168)
-  };
-  const s2Resolved = {
-    enabled: Number(pick('s2ChangeEnabled', 1)) === 1,
-    b_min_hours: num(pick('s2ChangeBMinHours', 1), 1, 1, 24),
-    a_min_hours: num(pick('s2ChangeAMinHours', 2), 2, 1, 72),
-    a_confirm_min: num(pick('s2ChangeAConfirmMin', 120), 120, 1, 1440),
-    b_confirm_min: num(pick('s2ChangeBConfirmMin', 15), 15, 1, 1440),
-    per_field_max: num(pick('s2ChangePerFieldMax', 1), 1, 0, 5),
-    total_max: num(pick('s2ChangeTotalMax', 2), 2, 0, 10)
-  };
+  // 2026-11-05 N-3: 改期/S2 规则默认值统一由 _shared/config_defaults.js 提供（副本经 sync 同步）
   const subGrab = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.demand_grab) || {};
   const demandGrab = subGrab.tmpl_id ? {
     enabled: true,
@@ -82,8 +62,15 @@ function config_public(ctx) {
       per_order_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_order_max_fen,
       per_day_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_day_max_fen
     },
-    modify_config: modifyResolved,
-    s2_change: s2Resolved,
+    modify_config: resolveModify(cfgRaw),
+    s2_change: (() => {
+      const s = resolveS2Change(cfgRaw);
+      return {
+        enabled: s.enabled, b_min_hours: s.bMinHours, a_min_hours: s.aMinHours,
+        a_confirm_min: s.aConfirmMin, b_confirm_min: s.bConfirmMin,
+        per_field_max: s.perFieldMax, total_max: s.totalMax
+      };
+    })(),
     switches: {
       switch_access: cfgRaw.switch_access !== false,
       switch_blog: cfgRaw.switch_blog !== false,

@@ -1,0 +1,17 @@
+{
+  "MODIFY_DEFAULTS": {
+    "minLeadHours": 4,
+    "maxTimes": 2,
+    "maxSpanH": 72,
+    "confirmHours": 24
+  },
+  "S2_CHANGE_DEFAULTS": {
+    "enabled": 1,
+    "bMinHours": 1,
+    "aMinHours": 2,
+    "aConfirmMin": 120,
+    "bConfirmMin": 15,
+    "perFieldMax": 1,
+    "totalMax": 2
+  }
+}

@@ -127,6 +127,8 @@ function flatten(obj, prefix) {
 
 function bootstrap() {
   if (!wx.cloud) return Promise.resolve(false);
+  // 2026-11-05 N-7: 冷启动先用上次成功的云端配置（7 天内），再异步刷新；断网/冷启动不再直接落到硬编码
+  hydrateFromCache();
   // 审计留痕: 登录链路关键调用携带设备摘要
   let device = '';
   try { const s = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
@@ -139,13 +141,33 @@ function bootstrap() {
     const flat = flatten(cloudConfig);
     deepAssign(CONFIG, flat, CLOUD_MAP);
     if (cloudConfig.version) CONFIG.VERSION = cloudConfig.version;
-    // 注: 不再往 Storage 写 env —— 该调用走 admin-action(需管理员白名单),
-    // 普通用户必然鉴权失败, 写不进去; 实名门禁已改为直读 userInfo.is_realname_done
+    saveCache(flat);
     return true;
   }).catch(() => {
     // 静默降级: 云函数冷启动/无网络/鉴权失败都不阻塞启动
     return false;
   });
+}
+
+// 只缓存 CLOUD_MAP 明确映射的键（避免把无关/敏感字段写入本地）
+const CONFIG_CACHE_KEY = 'cloud_config_cache_v1';
+const CONFIG_CACHE_TTL_MS = 7 * 24 * 3600 * 1000;
+function saveCache(flat) {
+  try {
+    const subset = {};
+    Object.keys(CLOUD_MAP).forEach((k) => { if (flat[k] !== undefined) subset[k] = flat[k]; });
+    wx.setStorageSync(CONFIG_CACHE_KEY, { v: 1, ts: Date.now(), flat: subset });
+  } catch (e) {}
+}
+function hydrateFromCache() {
+  try {
+    const c = wx.getStorageSync(CONFIG_CACHE_KEY);
+    if (!c || c.v !== 1 || !c.flat || !c.ts || Date.now() - c.ts > CONFIG_CACHE_TTL_MS) return false;
+    deepAssign(CONFIG, c.flat, CLOUD_MAP);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 module.exports = { bootstrap, CLOUD_MAP };
