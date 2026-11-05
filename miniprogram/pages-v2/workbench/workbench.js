@@ -20,6 +20,7 @@ Page({
     todayCount: 0,
     weekIncomeYuan: '0.00',
     creditLevel: 'L2',
+    creditScore: 0,
     weekDays: [],
     todayOrders: [],
     // T-7.3 附近新单轮询(仅耍伴端, workbench 同步)
@@ -94,7 +95,10 @@ Page({
         d.todayCount = typeof b.today_pending === 'number' ? b.today_pending : (b.total_completed || 0);
         d.creditLevel = b.credit_level || 'L1';
         // P3-16(2026-11-03): 信用分与等级统一取 partner_profile.score, 避免两源不一致
-        if (typeof b.credit_score === 'number') d['user.partner_credit_score'] = b.credit_score;
+        // 2026-11-05: 收敛为单一展示字段 creditScore, 无档案时回退账户原值
+        d.creditScore = typeof b.credit_score === 'number'
+          ? b.credit_score
+          : ((this.data.user && this.data.user.partner_credit_score) || 0);
       }
       if (incR.ok) {
         d.incomeList = (incR.data.list || []).slice(0, Number(CONFIG.WORKBENCH.incomeShow) || 5).map((i) => ({

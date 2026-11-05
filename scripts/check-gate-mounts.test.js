@@ -9,7 +9,7 @@ const { spawnSync } = require('child_process');
 const GATE = path.resolve(__dirname, 'check-gate-mounts.js');
 
 const DEPLOY = ['check-shared-sync.js', 'check-require-scope.js', 'check-cloud-timeout-policy.js', 'check-location-timeout-policy.js', 'check-miniprogram-syntax.js', 'check-rules-size.js', 'check-rule-refs.js', 'check-secrets.js', 'check-gate-mounts.js'];
-const VERIFY_ONLY = ['check-syntax.js', 'check-ssot.js', 'check-handlers.js', 'check-index-ledger.js', 'check-deploy-config.js', 'check-manual-links.js', 'check-doc-links.js', 'check-ledger-placeholders.js', 'check-test-globs.js', 'check-once-prompts.js', 'check-nightmask.js', 'check-sub-msg-consistency.js', 'check-no-desktop-injection.js'];
+const VERIFY_ONLY = ['check-syntax.js', 'check-ssot.js', 'check-collections-consistency.js', 'check-handlers.js', 'check-index-ledger.js', 'check-deploy-config.js', 'check-manual-links.js', 'check-doc-links.js', 'check-ledger-placeholders.js', 'check-test-globs.js', 'check-once-prompts.js', 'check-nightmask.js', 'check-sub-msg-consistency.js', 'check-no-desktop-injection.js'];
 const TOOL = ['check-handoff-coverage.js'];
 
 function mkFixture(opt = {}) {

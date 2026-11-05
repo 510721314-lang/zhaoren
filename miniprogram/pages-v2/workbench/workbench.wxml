@@ -30,7 +30,7 @@
         <view class="wb__data-label">本周收入</view>
       </view>
       <view class="wb__data-card">
-        <view class="wb__data-num">{{user.partner_credit_score}}</view>
+        <view class="wb__data-num">{{creditScore}}</view>
         <view class="wb__data-label">信用分 · {{creditLevel}}</view>
       </view>
     </view>
