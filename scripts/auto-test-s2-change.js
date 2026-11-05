@@ -306,6 +306,210 @@ async function t(name, fn) {
     assert.ok(Math.abs(wo.data.pending_modify.expire_at - (Date.now() + 24 * H)) < 5000, '确认窗口应≈24 小时');
   });
 
+  // ── 5. 上线清零清单 §3「可服务端自证」四项（2026-11-05 追加）──────────
+  // 5.1 3.12 #144 S1 四确认变更回归（action_confirm.js update_item）
+  // 造 S1 单 + 确认单（4 项 × user/partner 全 false，version 1）
+  function s1Store() {
+    const order = baseOrder({ status: 'S1' });
+    return storeOf(order, {
+      order_confirmations: {
+        [CID]: {
+          _id: CID, order_id: OID, is_deleted: false, version: 1,
+          items: {
+            time: { value: order.start_time, user_ok: false, partner_ok: false },
+            location: { value: order.location, user_ok: false, partner_ok: false },
+            content: { value: order.content_options, user_ok: false, partner_ok: false },
+            fee: { value: 10000, user_ok: false, partner_ok: false }
+          }
+        }
+      }
+    });
+  }
+  await t('3.12 #144 S1 改「时间」→ 8 位全重置 + version 递增', async () => {
+    const sdk = makeSdk({ openid: USER, store: s1Store() });
+    const main = loadIndex(sdk);
+    const newTs = Date.now() + 24 * H;
+    const r = await main({ action: 'update_item', order_id: OID, item: 'time', value: newTs });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.data.reset, true);
+    assert.strictEqual(r.data.confirmed_count, 0);
+    const wc = (sdk.writes.order_confirmations || [])[0];
+    assert.ok(wc, '应写入确认单');
+    for (const f of ['time', 'location', 'content', 'fee']) {
+      assert.strictEqual(wc.data.items[f].user_ok, false, f + '.user_ok 应重置');
+      assert.strictEqual(wc.data.items[f].partner_ok, false, f + '.partner_ok 应重置');
+    }
+    assert.strictEqual(wc.data.version, 2, 'version 应从 1 递增到 2');
+    const wo = firstWrite(sdk, 'order_main', 'where');
+    assert.strictEqual(wo.data.start_time, newTs, 'S1 时间变更应同步订单服务时间');
+  });
+  await t('3.12 #144 确认项编辑入口仅 S1（S2 下拒绝）', async () => {
+    const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder()) });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'update_item', order_id: OID, item: 'content', value: ['陪聊', '做饭'] });
+    assert.strictEqual(r.code, 'oa_not_editable');
+  });
+  await t('3.12 #144 S1 不出现 S2 变更入口（s2_change_apply 拒绝）', async () => {
+    const sdk = makeSdk({ openid: USER, store: s1Store() });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '做饭'], reason: '临时调整服务内容的说明' });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.code, 'oa_s2c_status'); // action_change_s2.js:67-69 仅 S2 放行
+  });
+
+  // 5.2 3.3/3.4 #133/#132 催办订阅消息（剩余额度 + 方案A 计数）
+  // sub_msg 状态机口径见 _shared/sub_msg.js stateOf/softCanSend/sentPatch/exhaustedPatch
+  const PID = 'p'.repeat(32);
+  // 独立 sdk/store：保证 60 秒频控（system_notice 查询）互不影响；订单已过开始时间以避开 oa_urge_not_started
+  function urgeSdk(subState, subMsgSend) {
+    const order = baseOrder({ status: 'S2', start_time: Date.now() - 2 * H, urge_count: 0 });
+    return makeSdk({
+      openid: USER,
+      subMsgSend,
+      store: storeOf(order, {
+        admin_config: {
+          global: {
+            env: 'prod', urge_max_count: 2,
+            sub_msg_templates: { demand_urge: { tmpl_id: 'tmpl-1', miniprogram_state: 'trial', fields: { thing4: 'urge_content', time3: 'urge_time' } } }
+          }
+        },
+        partner_profile: { [PID]: { _id: PID, openid: PARTNER, sub_msgs: { demand_urge: subState } } }
+      })
+    });
+  }
+  // 取 order_main 上所有 sub_msg_send_logs 推送项（_.push([entry]) 在 mock 里归一为哨兵）
+  function pushedLogs(sdk) {
+    const out = [];
+    for (const w of (sdk.writes.order_main || [])) {
+      const v = w.data && w.data.sub_msg_send_logs;
+      if (!v) continue;
+      if (v.__sentinel === 'push') out.push(...((v.args && v.args[0]) || []));
+      else if (Array.isArray(v)) out.push(...v);
+    }
+    return out;
+  }
+  function profilePatch(sdk) {
+    const w = (sdk.writes.partner_profile || []).find((x) => !!x.doc);
+    return w && w.data && w.data.sub_msgs && w.data.sub_msgs.demand_urge;
+  }
+  await t('3.3 #133 存量布尔 authorized=true → 仍发送并留痕 cloud/ok', async () => {
+    const sdk = urgeSdk({ authorized: true });  // 存量形态：无 granted_count/sent_count
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'nudge_partner', order_id: OID });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.data.sub_sent, true, '存量布尔应经 softCanSend 放行');
+    const logs = pushedLogs(sdk);
+    const e = logs[logs.length - 1];
+    assert.strictEqual(e.key, 'demand_urge');
+    assert.strictEqual(e.channel, 'cloud');
+    assert.strictEqual(e.status, 'ok');
+  });
+  await t('3.4 #132 发送成功消费 1 条（granted 2 → sent 1，仍 authorized）', async () => {
+    const sdk = urgeSdk({ authorized: true, granted_count: 2, sent_count: 0 });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'nudge_partner', order_id: OID });
+    assert.strictEqual(r.data.sub_sent, true);
+    const st = profilePatch(sdk);
+    assert.ok(st, '应写入 partner_profile.sub_msgs.demand_urge');
+    assert.strictEqual(st.sent_count, 1, 'sentPatch 应 sent+1');
+    assert.strictEqual(st.granted_count, 2);
+    assert.strictEqual(st.authorized, true, 'granted>sent 应仍可发');
+    assert.ok(typeof st.last_sent_at === 'number');
+  });
+  await t('3.3 云侧 43101 → exhaustedPatch + system_notice(sub_quota)', async () => {
+    const sdk = urgeSdk({ authorized: true, granted_count: 1, sent_count: 0 },
+      async () => { throw { errCode: 43101, errMsg: 'quota exhausted' }; });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'nudge_partner', order_id: OID });
+    assert.strictEqual(r.data.sub_sent, false);
+    assert.strictEqual(String(r.data.sub_err), '43101');
+    const st = profilePatch(sdk);
+    assert.strictEqual(st.authorized, false, 'exhaustedPatch 应关授权');
+    assert.strictEqual(st.sent_count, 1, 'sent_count 应抬到 granted_count');
+    assert.ok(typeof st.quota_empty_at === 'number');
+    const notice = (sdk.writes.system_notice || []).find((w) => w.data && w.data.type === 'sub_quota');
+    assert.ok(notice, '43101 应写 system_notice type=sub_quota');
+    assert.strictEqual(notice.data.action_key, 'jump_accept_config');
+  });
+  await t('3.4 本地已无额度（granted>sent 不成立）→ NO_QUOTA 拦截且不云调用', async () => {
+    let sentTimes = 0;
+    const sdk = urgeSdk({ authorized: false, granted_count: 2, sent_count: 2 },
+      async () => { sentTimes++; return { errMsg: 'send:ok' }; });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'nudge_partner', order_id: OID });
+    assert.strictEqual(r.data.sub_sent, false);
+    assert.strictEqual(r.data.sub_err, 'NO_QUOTA');
+    assert.strictEqual(sentTimes, 0, '本地无额度不应发起云调用');
+    const logs = pushedLogs(sdk);
+    const e = logs[logs.length - 1];
+    assert.strictEqual(e.channel, 'local');
+    assert.strictEqual(e.status, 'fail');
+    assert.strictEqual(e.errCode, 'NO_QUOTA');
+  });
+  await t('3.4 本地无授权（granted=0）→ NO_AUTH 拦截', async () => {
+    const sdk = urgeSdk({ authorized: false, granted_count: 0, sent_count: 0 });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'nudge_partner', order_id: OID });
+    assert.strictEqual(r.data.sub_sent, false);
+    assert.strictEqual(r.data.sub_err, 'NO_AUTH');
+    const logs = pushedLogs(sdk);
+    assert.strictEqual(logs[logs.length - 1].errCode, 'NO_AUTH');
+  });
+
+  // 5.3 3.6 #141 云函数时间 +8：bjTimeStr（index.js:252）未导出，由催办订阅入参 time3 可观测
+  const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
+  // 独立手算（不复用 index.js 的 bjTimeStr，避免自指）：时间戳 +8h 后取 UTC 分量
+  function bjExpect(ts) {
+    const d = new Date(Number(ts) + CN_OFFSET_MS);
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  }
+  await t('3.6 #141 催办 time3 = 发送时刻北京时间(+8)', async () => {
+    let cap = null;
+    const sdk = urgeSdk({ authorized: true, granted_count: 2, sent_count: 0 },
+      async (opts) => { cap = opts; return { errMsg: 'send:ok' }; });
+    const main = loadIndex(sdk);
+    const before = bjExpect(Date.now());
+    await main({ action: 'nudge_partner', order_id: OID });
+    const after = bjExpect(Date.now());   // 容忍跨分钟边界：发送时刻落在 [before, after]
+    assert.ok(cap, '应发起订阅消息');
+    assert.ok([before, after].includes(cap.data.time3.value),
+      `time3=${cap.data.time3 && cap.data.time3.value} 应≈${before}`);
+    assert.strictEqual(cap.templateId, 'tmpl-1');
+    assert.strictEqual(cap.miniprogramState, 'trial');
+    assert.ok(String(cap.page).includes('orderId=' + OID), '落地页应带 orderId');
+  });
+  await t('3.6 #141 time3 格式为 YYYY-MM-DD HH:MM 且非订单 start_time', async () => {
+    let cap = null;
+    const sdk = urgeSdk({ authorized: true, granted_count: 2, sent_count: 0 },
+      async (opts) => { cap = opts; return { errMsg: 'send:ok' }; });
+    const main = loadIndex(sdk);
+    await main({ action: 'nudge_partner', order_id: OID });
+    assert.match(cap.data.time3.value, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    const startStr = bjExpect(sdk._store.order_main[OID].start_time); // start_time = now-2h
+    assert.notStrictEqual(cap.data.time3.value, startStr, 'time3 应取发送时刻，而非服务开始时间');
+  });
+
+  // 5.4 3.7 #142 S2 到点文案：直接断言纯函数 miniprogram/utils/order-view.js computeNextStep（L78-89）
+  const { computeNextStep } = require('../miniprogram/utils/order-view.js');
+  await t('3.7 #142 S2 到点(用户) → 已到服务时间(warn)', async () => {
+    const now = 1700000000000;
+    const r = computeNextStep({ status: 'S2', my_role: 'user', start_time: now - 1, service_date: '10-12', service_time: '20:00' }, now);
+    assert.strictEqual(r.title, '已到服务时间');
+    assert.strictEqual(r.tone, 'warn');
+  });
+  await t('3.7 #142 S2 到点(耍伴) → 已到服务时间 + 引导开始履约', async () => {
+    const now = 1700000000000;
+    const r = computeNextStep({ status: 'S2', my_role: 'partner', start_time: now - 1, service_date: '10-12', service_time: '20:00' }, now);
+    assert.strictEqual(r.title, '已到服务时间');
+    assert.ok(r.subtitle.includes('开始履约'));
+  });
+  await t('3.7 #142 S2 未到点文案不变', async () => {
+    const now = 1700000000000;
+    const r = computeNextStep({ status: 'S2', my_role: 'user', start_time: now + H, service_date: '10-12', service_time: '20:00' }, now);
+    assert.strictEqual(r.title, '等待服务开始');
+    assert.ok(r.subtitle.includes('10-12 20:00'));
+  });
+
   // ── 汇总 ────────────────────────────────────────────────────────
   results.forEach((r) => console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.ok ? '' : '  → ' + r.err}`));
   const fail = results.filter((r) => !r.ok);

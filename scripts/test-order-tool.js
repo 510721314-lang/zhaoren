@@ -25,7 +25,7 @@ function find(cmd) {
 }
 function write(cmd) {
   const r = execTcbCommands([{ TableName: cmd.insert || cmd.update, CommandType: 'COMMAND', Command: JSON.stringify(cmd) }]);
-  if (r.status !== 0) throw new Error('tcb write failed: ' + (r.stderr || ''));
+  if (r.status !== 0) throw new Error('tcb write failed: ' + ((r.stderr || '') + ' | OUT: ' + (r.stdout || '').slice(-300)));
   return r;
 }
 function arg(name, def) {
