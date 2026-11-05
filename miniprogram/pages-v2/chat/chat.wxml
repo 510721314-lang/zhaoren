@@ -79,7 +79,7 @@
   </view>
 
   <!-- C4.0 一键全部确认(双方均可; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
-  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked}}" bindtap="onConfirmAll" hover-class="btn-press">
+  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked && orderStatus !== 'S2'}}" bindtap="onConfirmAll" hover-class="btn-press">
     <text>✅ 四项一键全部确认</text>
   </view>
 

@@ -619,6 +619,11 @@ Page({
   },
 
   confirmItem(field) {
+    // 2026-11-05: S2 已支付后确认位不再可改(异常数据兜底), 提前拦截避免"确认失败"弹窗
+    if (this.data.orderStatus === 'S2') {
+      wx.showToast({ title: '已支付,无需再确认', icon: 'none' });
+      return;
+    }
     this.__requestCommSub();   // 2026-10-17: 点按手势内请求「对方发起沟通」订阅授权(耍伴端, 未配模板/已请求过则跳过)
     wx.showLoading({ title: '提交中', mask: true });
     callCloud('order-action', {
@@ -641,6 +646,11 @@ Page({
   onConfirmAll() {
     if (this.data.chatBlocked) {
       wx.showToast({ title: '订单已取消/关闭,无法确认', icon: 'none' });
+      return;
+    }
+    // 2026-11-05: S2 已支付后不再允许四确认操作（正常数据不会出现, 异常数据兜底）
+    if (this.data.orderStatus === 'S2') {
+      wx.showToast({ title: '已支付,无需再确认', icon: 'none' });
       return;
     }
     wx.showModal({
