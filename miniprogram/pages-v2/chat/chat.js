@@ -798,6 +798,11 @@ Page({
   // 2026-11-05: S2 走 s2_change_apply(仅地点/内容, 原因必填≥10字), 接受后只改该项、不重置确认位
   applyChange(field, value) {
     const isS2 = this.data.orderStatus === 'S2';
+    // 2026-11-05 修复: 前端原先无条件先弹原因, 未改动也要求填原因; 服务端 oa_s2c_same 在原因校验之前, 本地提前拦截
+    if (isS2 && this.__s2SameValue(field, value)) {
+      wx.showToast({ title: '内容未变更,无需提交', icon: 'none' });
+      return;
+    }
     const submit = (reason) => {
       const payload = { action: isS2 ? 's2_change_apply' : 'change_apply', order_id: this.data.orderId, field, value };
       if (isS2) payload.reason = reason;
@@ -1038,6 +1043,23 @@ Page({
     if (!ms) return '';
     const d = new Date(Number(ms));
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+  // 2026-11-05: S2 同值判定(与后端 action_change_s2 sameValue 同口径: 内容按集合比较, 地点按 name+经纬度)
+  __s2SameValue(field, value) {
+    const it = (this.data.items || {})[field] || {};
+    const cur = it.value;
+    if (field === 'content') {
+      const a = Array.isArray(cur) ? cur.slice().sort() : [];
+      const b = Array.isArray(value) ? value.slice().sort() : [];
+      return a.length === b.length && a.every((x, i) => x === b[i]);
+    }
+    if (field === 'location') {
+      if (!cur || !value) return false;
+      return String(cur.name || '') === String(value.name || '')
+        && Number(cur.latitude) === Number(value.latitude)
+        && Number(cur.longitude) === Number(value.longitude);
+    }
+    return false;
   },
   fmtDateTime(ms) {
     if (!ms) return '';
