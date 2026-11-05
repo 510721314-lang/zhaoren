@@ -10,7 +10,7 @@
 | 分组 | 数量 | 状态 |
 |---|---|---|
 | P0 提审阻断类 | 5 | 4 结案；**P0-3 待配额复测** |
-| P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 待发布关闸**；P1-3/4/5 有意保留 |
+| P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 13 | 5 已偿还；**P2-2/P2-3/P2-4 开放**；P2-7~10、12/13 真机待验 |
 | P3 卫生/已接受 | 25 | 15 已结案/已偿还；**10 项开放**（见 §3） |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
@@ -24,13 +24,13 @@
 
 | # | 事项 | 状态 | 证据 | 处置 |
 |---|---|---|---|---|
-| P1-6 | `realname_face_mode=mock` 为提审期临时放宽（原 `wx`） | ⬜ 当前 mock | 云端回读 `realname_face_mode=mock`（2026-11-05） | **发布同轮**：①`config_set realname_face_mode='wx'`；②`admin-action realname_reset_simulated` 清打标账号；未关闸＝任何人可自授实名 |
+| P1-6 | `realname_face_mode=mock` 为提审期临时放宽（原 `wx`） | ✅ 已决策保持（2026-11-05 你拍板） | 云端回读 `realname_face_mode=mock`（2026-11-05） | **发布不关回 `wx`、不执行 `realname_reset_simulated` 清打标**；风险接受：mock 下实名可自授（提审说明已写「当前版本不做人脸采集」）；真实核身接线单独立项（提审后） |
 | P0-3 | 云函数调用额度（20 万/周期） | ⬜ 待复测 | 2026-10-28 周期累计约 19.35 万、余约 0.65 万；优化后估算 1,000–1,300 调用/天、2,200–2,800 DB/天 | **11-05 套餐重置后**按单触发器 `0 */15 7-22 * * * *` 恢复保温，观察 1–2 天日曲线，确认 ≤1,500 调用/天 |
 | N-1 | REGISTRY **#144 / #145 / #146** 待真机 | ⬜ 3 条 | REGISTRY 状态列「待验证」 | 按 [runbook §3.10–3.12](runbooks/release-zero-checklist.md) 真机通过后转「已验证」并补 `// @VERIFIED` |
 | N-2 | `is_test` 测试单残留 | ⬜ 6 张未软删（`F`/`K`/`I`/`J`/`L`/`M`） | 云端回读（2026-11-05） | 验收后执行 `node scripts/test-order-tool.js cleanup`（旧 `.tmp-tcb/cleanup-test-orders.js` 亦可），回读「剩余未软删 = 0」 |
 | 发布同轮 | 三订阅模板 `miniprogram_state` `trial → formal` | ⬜ 三模板均 trial | 云端回读 `sub_msg_templates`（2026-11-05） | 正式发布当天改，改后回读确认（HANDOFF T-8.15） |
 | 发布同轮 | 补 2 条「自定义」隐私声明（手填手机号、设备信息） | ⬜ | [release-zero-checklist §4.2](runbooks/release-zero-checklist.md) | 后台指引补充，与端内 `privacy.wxml` 2.2/2.8 对齐 |
-| 发布同轮 | `mock_payment_enabled` 口径拍板 | ⬜ 当前 true | 云端回读 `true` | MVP 模拟支付；提审说明写明「不产生真实扣款」，是否保持由用户拍板 |
+| 发布同轮 | `mock_payment_enabled` 口径拍板 | ✅ 已拍板保持开启（2026-11-05） | 云端回读 `true` | MVP 模拟支付；2026-11-05 你拍板**保持开启**，提审说明写明「不产生真实扣款」；接真实支付另立评估 |
 
 ---
 
@@ -43,7 +43,7 @@
 | P1-3 | `start_photo` 服务端保留、S3 前端入口已移除 | 有意保留（全量 grep 0 命中，不回开） |
 | P1-4 | `demand-match.hall_list` 标 deprecated 仍在线 | 有意保留；**下线动作留提审后**（静态零调用已证） |
 | P1-5 | MVP 禁做项占位：短信发送、人脸三分支、mock 现金 `is_mock=true` | 有意保留；禁止接真实打款 |
-| P1-6 | `realname_face_mode=mock` 临时放宽 | ⬜ **见 §0**（发布同轮关闸） |
+| P1-6 | `realname_face_mode=mock` 临时放宽 | ✅ 已决策保持 mock（2026-11-05 你拍板：发布不关回 `wx`、不清打标；真实核身接线提审后立项） |
 | P1-7 | `auto_approve_partner` 曾被临时置 true 且无审计 | ✅ 已偿还（2026-11-01 回 false；2026-11-05 回读仍 false） |
 | P1-8 | `order_main.uk_order_no` 等 5 条唯一索引存在性 | ✅ 已核实（2026-10-22 引擎取证 5/5 `unique=true`） |
 
