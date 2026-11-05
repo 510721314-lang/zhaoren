@@ -35,19 +35,21 @@ function sameValue(a, b) {
   }
   return false;
 }
-// 后台可配项（admin_config.modify_config），全部带安全兜底
+// 后台可配项：优先读运营页写入的顶层键(CONFIG_SCHEMA 驱动)，兼容旧的 modify_config 嵌套键，全部带安全兜底
 function s2Cfg(config) {
-  const m = (config && config.modify_config) || {};
+  const c = config || {};
+  const m = c.modify_config || {};
+  const pick = (k, d) => (c[k] !== undefined ? c[k] : m[k] !== undefined ? m[k] : d);
   const num = (v, d) => { const n = Number(v); return (isFinite(n) && n >= 0) ? n : d; };
-  const bMinH = num(m.s2ChangeBMinHours, 1);
+  const bMinH = num(pick('s2ChangeBMinHours', 1), 1);
   return {
-    enabled: m.s2ChangeEnabled === undefined ? true : Number(m.s2ChangeEnabled) === 1,
+    enabled: Number(pick('s2ChangeEnabled', 1)) === 1,
     bMinH,
-    aMinH: Math.max(bMinH, num(m.s2ChangeAMinHours, 2)),
-    aConfirmMin: Math.min(1440, Math.max(1, num(m.s2ChangeAConfirmMin, 120))),
-    bConfirmMin: Math.min(1440, Math.max(1, num(m.s2ChangeBConfirmMin, 15))),
-    perFieldMax: num(m.s2ChangePerFieldMax, 1),
-    totalMax: num(m.s2ChangeTotalMax, 2)
+    aMinH: Math.max(bMinH, num(pick('s2ChangeAMinHours', 2), 2)),
+    aConfirmMin: Math.min(1440, Math.max(1, num(pick('s2ChangeAConfirmMin', 120), 120))),
+    bConfirmMin: Math.min(1440, Math.max(1, num(pick('s2ChangeBConfirmMin', 15), 15))),
+    perFieldMax: num(pick('s2ChangePerFieldMax', 1), 1),
+    totalMax: num(pick('s2ChangeTotalMax', 2), 2)
   };
 }
 // 值校验：地点需 name+经纬度；内容需非空数组（与 S1 同口径）

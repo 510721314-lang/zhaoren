@@ -168,6 +168,15 @@ const CONFIG_SCHEMA = [
   { f: 'finish_confirm_remind1_min', t: 'int', g: '订单超时', label: 'S3.6完毕确认·第1次提醒', unit: '分钟', min: 0, max: 1440, def: 10, d: 'S3.6(完毕确认)后第 1 次「超时前提醒」时刻(相对申请时刻)；缺省 10 分钟' },
   { f: 'finish_confirm_remind2_min', t: 'int', g: '订单超时', label: 'S3.6完毕确认·第2次提醒', unit: '分钟', min: 0, max: 1440, def: 20, d: 'S3.6 第 2 次超时前提醒时刻；缺省 20 分钟（应 ≤ S3.6完毕确认超时 - 5）' },
   { f: 'default_star', t: 'int', g: '订单超时', label: '默认星级', unit: '星', min: 1, max: 5, def: 4, d: '评价超时未评时系统给出的默认星级' },
+  // ── S2 变更规则(2026-11-05): 已支付待履约阶段「地点/内容」协商; 费用与时间不在此通道 ──
+  // 读取侧 order-action/action_change_s2.js s2Cfg: 顶层键优先, 兼容旧 modify_config 嵌套
+  { f: 's2ChangeEnabled', t: 'int', g: 'S2变更规则', label: '启用(1开/0关)', min: 0, max: 1, def: 1, d: 'S2 地点/内容变更总开关；0=禁止发起（在途申请仍可反馈）' },
+  { f: 's2ChangeBMinHours', t: 'int', g: 'S2变更规则', label: 'B 窗下限', unit: '小时', min: 1, max: 24, def: 1, d: '距履约时间的下限：小于该小时数禁止发起变更（默认 1 小时）' },
+  { f: 's2ChangeAMinHours', t: 'int', g: 'S2变更规则', label: 'A 窗门槛', unit: '小时', min: 1, max: 72, def: 2, d: 'A 窗门槛：距履约大于该小时数走 A 窗（默认 2 小时）；B 窗下限~门槛之间为 B 窗' },
+  { f: 's2ChangeAConfirmMin', t: 'int', g: 'S2变更规则', label: 'A 窗确认窗口', unit: '分钟', min: 1, max: 1440, def: 120, d: 'A 窗内对方反馈时限（分钟），且不晚于履约前 15 分钟' },
+  { f: 's2ChangeBConfirmMin', t: 'int', g: 'S2变更规则', label: 'B 窗确认窗口', unit: '分钟', min: 1, max: 1440, def: 15, d: 'B 窗内对方反馈时限（分钟），且不晚于履约前 15 分钟' },
+  { f: 's2ChangePerFieldMax', t: 'int', g: 'S2变更规则', label: '每项次数上限', unit: '次', min: 0, max: 5, def: 1, d: '同一订单同一事项最多发起次数；发起即计数（拒绝/超时也消耗）' },
+  { f: 's2ChangeTotalMax', t: 'int', g: 'S2变更规则', label: '全单次数上限', unit: '次', min: 0, max: 10, def: 2, d: '同一订单地点+内容累计发起次数上限' },
   // ── 时间红线 ──
   { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止', unit: '分钟', min: 0, max: 1440, def: 1440, d: '每日接单截止时刻（自 0:00 起算的分钟数）；0=全天开放不受限', clock: true, clockZero: '全天开放' },
   { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放', unit: '分钟', min: 0, max: 1440, def: 360, d: '每日接单开放起始时刻（自 0:00 起算的分钟数）；可接单时段为「开放时刻 ~ 截止时刻」', clock: true },
