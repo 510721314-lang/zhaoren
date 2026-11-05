@@ -112,6 +112,15 @@
 
 ---
 
+### §5.1 专家核验新发现（2026-11-06，登记不处理）
+
+| # | 负债 | 证据 | 影响 | 处置 |
+|---|---|---|---|---|
+| C1 | `zz-seed-orders` 的 `genNo`（秒级时间戳 + 3 位 base36，约 9.7 万空间）同秒批量造单可能撞 `uk_order_no`；`index.js` L561/L756 直接 `add` 无重试且 `.catch(()=>{})` 吞错，仍按 `tasks.length` 报「全建成」 | `cloudfunctions/zz-seed-orders/index.js:661-664`、`L561`、`L596`、`L756` | 演示/种子数据**假成功**（少建却显示完成） | 提审后处理：`genNo` 加随机位 + 失败计数如实返回；当前不影响真实下单 |
+| C2 | `admin-action` 的 `order_main` 导入 `mode='append'` 无冲突兜底：任一已存单号（含软删占位）会让整块 500 条 add 抛 `E11000`，灾备恢复中断 | `cloudfunctions/admin-action/action_import.js:70-74`（`replace` 因先硬删才安全，见 `:59-66`） | 灾备恢复流程风险 | 提审后处理；文档已约束 `order_main` 只用 `mode='replace'`（见 [03-data-model](dev-manual/03-data-model.md) L87） |
+
+---
+
 ## §6 维护与体检
 
 - 规则体系季度体检：见[原清单 §规则体检台账](tech-debt-inventory-20261015.md)（下次到期 2027-01-05，`npm run rules:report`）。

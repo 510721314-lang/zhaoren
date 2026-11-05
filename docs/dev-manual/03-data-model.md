@@ -84,7 +84,7 @@
 | demand | idx_hall_broadcast_status_created | is_deleted↑, status↑, broadcast↑, created_at↓, expire_at↑ | |
 | demand | idx_hall_scene_status_created | is_deleted↑, status↑, broadcast↑, scene↑, created_at↓, expire_at↑ | |
 | demand | grab_pending_scan | grab_notify_pending↑, status↑, created_at↓ | 2026-10-28 init-db 已补声明（非唯一） |
-| order_main | uk_order_no | order_no↑ | ✅ |
+| order_main | uk_order_no | order_no↑ | ✅ 全表唯一、**无部分索引**：`is_deleted=true` 的订单仍占用 order_no，脚本禁复用历史单号；`import_collection` 对 order_main 只允许 `mode='replace'`（2026-11-06 专家核验） |
 | order_main | idx_demand_id | demand_id↑ | |
 | order_main | idx_partner_status | partner_openid↑, status↑ | |
 | order_main | idx_user_status | user_openid↑, status↑ | |
