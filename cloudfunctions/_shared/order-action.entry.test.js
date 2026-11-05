@@ -868,5 +868,87 @@ test('change_respond: 「其他」接受只记备注、不重置确认位（D1�
   assert.strictEqual(ow.data.extra_note, '请带雨伞');
 });
 
+// ───────── 2026-11-05 S2 已支付待履约「地点/内容」变更（s2_change_apply / s2_change_respond）─────────
+// 口径：仅 S2；仅地点/内容；T<1h 禁止；原因≥10字；接受只改该项并置双确认，其余确认位保持原状
+function s2Store(extra, conf) {
+  const s = s1Store(Object.assign({ status: 'S2', start_time: Date.now() + 5 * 3600 * 1000 }, extra || {}), conf);
+  return s;
+}
+
+test('s2_change_apply: 仅地点/内容，费用直接拒绝（oa_s2c_field）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s2Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'fee', value: 12000, reason: '临时需要调整服务费用', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_s2c_field');
+});
+
+test('s2_change_apply: 非 S2 状态拒绝（oa_s2c_status）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 30, longitude: 120 }, reason: '医院临时更换了院区', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_status');
+});
+
+test('s2_change_apply: 距履约不足 1 小时拒绝（oa_s2c_blocked）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: Date.now() + 30 * 60 * 1000 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 30, longitude: 120 }, reason: '医院临时更换了院区', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_blocked');
+});
+
+test('s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s2Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 30, longitude: 120 }, reason: '换地方', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_reason');
+});
+
+test('s2_change_apply: 与原值相同拒绝（oa_s2c_same）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s2Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪诊'], reason: '内容需要重新协商确认', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_same');
+});
+
+test('s2_change_apply: 成功写入 stage=S2 的在途变更且不立即改值', async () => {
+  const NEW_LOC = { name: '新院区', latitude: 30.1, longitude: 120.1 };
+  const sdk = makeSdk({ openid: USER, store: s2Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: NEW_LOC, reason: '医院临时更换就诊院区', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.strictEqual(w.data.pending_change.stage, 'S2');
+  assert.strictEqual(w.data.pending_change.new_value.name, '新院区', '仅记录申请值');
+  assert.strictEqual(typeof w.data.location, 'undefined', '生效前不得改订单地点');
+  assert.strictEqual(w.data.s2_change_counts._total, 1);
+});
+
+test('s2_change_respond: 非本阶段在途变更拒绝（oa_s2c_none）', async () => {
+  const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: 12000 };
+  const sdk = makeSdk({ openid: PARTNER, store: s2Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_none');
+});
+
+test('s2_change_respond: 接受只改地点并置双确认，其余确认位保持原状（不重置）', async () => {
+  const NEW_LOC = { name: '新院区', latitude: 30.1, longitude: 120.1 };
+  const pending = { stage: 'S2', field: 'location', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: NEW_LOC };
+  const sdk = makeSdk({ openid: PARTNER, store: s2Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, true);
+  const cw = (sdk.writes.order_confirmations || [])[0];
+  assert.strictEqual(cw.data.items.location.value.name, '新院区');
+  assert.strictEqual(cw.data.items.location.user_ok, true, '变更项双确认');
+  assert.strictEqual(cw.data.items.location.partner_ok, true, '变更项双确认');
+  assert.strictEqual(cw.data.items.time.user_ok, true, '其余确认位保持原状');
+  assert.strictEqual(cw.data.items.fee.partner_ok, true, '其余确认位保持原状');
+  const ow = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.strictEqual(ow.data.location.name, '新院区', '接受后订单地点生效');
+  assert.ok('pending_change' in ow.data, '应清在途变更');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

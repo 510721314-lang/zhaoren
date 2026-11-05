@@ -45,7 +45,13 @@ function config_get(ctx) {
       security_only_template_before_confirm: config.security_only_template_before_confirm !== false
     },
     modify_config: Object.assign(
-      { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 },
+      {
+        minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24,
+        // 2026-11-05: S2 变更默认值(与 order-action/action_change_s2.js s2Cfg 兜底一致)
+        s2ChangeEnabled: 1, s2ChangeBMinHours: 1, s2ChangeAMinHours: 2,
+        s2ChangeAConfirmMin: 120, s2ChangeBConfirmMin: 15,
+        s2ChangePerFieldMax: 1, s2ChangeTotalMax: 2
+      },
       config.modify_config || {}
     ),
     idcard_aes_key_set: !!(config.idcard_aes_key && /^[0-9a-f]{64}$/i.test(config.idcard_aes_key)),

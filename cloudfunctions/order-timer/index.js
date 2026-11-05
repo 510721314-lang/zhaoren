@@ -552,7 +552,7 @@ exports.main = async (event, context) => {
   // G3(2026-10-20) 超时前提醒: S2_6/S3_6 窗口内各 2 档(缺省 5/10 与 10/20, 后台可配)
   const remindMin = remindCfg(cfg);
 
-  const out = { s1_cancel: [], change_auto_reject: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], skipped: [] };
+  const out = { s1_cancel: [], change_auto_reject: [], s2_change_auto_reject: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
@@ -573,6 +573,9 @@ exports.main = async (event, context) => {
 
   // ───────── 1.5 S1 四确认变更协商超时(2026-11-04): 对方逾时未反馈 → 自动拒绝(值不变/8位保留) ─────────
   await SECTIONS.processChangeTimeout(sectionCtx);
+
+  // ───────── 1.6 S2 已支付待履约「地点/内容」变更超时(2026-11-05) → 自动拒绝(值不变/状态保持 S2) ─────────
+  await SECTIONS.processS2ChangeTimeout(sectionCtx);
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 + 释放需求(与 S1 对称, 修 D12) ─────────
   await SECTIONS.processS0Timeout(sectionCtx);
@@ -656,6 +659,7 @@ exports.main = async (event, context) => {
       thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin, start_apply_remind1_min: remindMin.startApplyRemind1Min, start_apply_remind2_min: remindMin.startApplyRemind2Min, finish_confirm_remind1_min: remindMin.finishConfirmRemind1Min, finish_confirm_remind2_min: remindMin.finishConfirmRemind2Min, no_show_grace_min: noShowGraceMin },
       s1_cancel: out.s1_cancel,
       change_auto_reject: out.change_auto_reject,
+      s2_change_auto_reject: out.s2_change_auto_reject,
       s0_close: out.s0_close,
       interrupt_partial: out.interrupt_partial,
       modify_auto_reject: out.modify_auto_reject,

@@ -56,6 +56,19 @@
             <el-form-item label="改期确认窗口(小时)"><el-input-number v-model="patch.modify_config.confirmHours" :min="1" :max="168" /></el-form-item>
           </el-form>
         </el-collapse-item>
+        <!-- S2 已支付待履约变更规则(2026-11-05 新增; 仅地点/内容, 费用与时间不在此通道) -->
+        <el-collapse-item title="⑤b S2 变更规则（地点/内容）" name="s2change">
+          <el-form :model="patch.modify_config" label-width="220px">
+            <el-form-item label="启用(1开/0关)"><el-input-number v-model="patch.modify_config.s2ChangeEnabled" :min="0" :max="1" /></el-form-item>
+            <el-form-item label="B 窗下限(小时)"><el-input-number v-model="patch.modify_config.s2ChangeBMinHours" :min="1" :max="24" /></el-form-item>
+            <el-form-item label="A 窗门槛(小时)"><el-input-number v-model="patch.modify_config.s2ChangeAMinHours" :min="1" :max="72" /></el-form-item>
+            <el-form-item label="A 窗确认窗口(分钟)"><el-input-number v-model="patch.modify_config.s2ChangeAConfirmMin" :min="1" :max="1440" /></el-form-item>
+            <el-form-item label="B 窗确认窗口(分钟)"><el-input-number v-model="patch.modify_config.s2ChangeBConfirmMin" :min="1" :max="1440" /></el-form-item>
+            <el-form-item label="每项变更次数上限"><el-input-number v-model="patch.modify_config.s2ChangePerFieldMax" :min="0" :max="5" /></el-form-item>
+            <el-form-item label="全单变更次数上限"><el-input-number v-model="patch.modify_config.s2ChangeTotalMax" :min="0" :max="10" /></el-form-item>
+          </el-form>
+          <p style="color:#909399;font-size:12px">T=履约时间-当前时间：T 大于 A 窗门槛= A 窗；B 窗下限 ≤ T ≤ A 窗门槛= B 窗；T 小于下限= 禁止发起。确认窗口不晚于履约前 15 分钟。</p>
+        </el-collapse-item>
         <!-- 保险与极速提现 -->
         <el-collapse-item title="⑥ 保险/极速提现(fen)" name="insurance">
           <el-form :model="patch" label-width="240px">

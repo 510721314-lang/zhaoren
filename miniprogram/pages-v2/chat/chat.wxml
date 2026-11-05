@@ -32,6 +32,15 @@
     <text>{{orderSummary ? orderSummary + ' · ' : ''}}💰 对方已支付，请依约履约 ›</text>
   </view>
 
+  <!-- S2 已支付待履约: 地点/内容变更协商入口(2026-11-05; 费用与时间不在本通道, 时间走详情页改期) -->
+  <view class="chat__limit" wx:if="{{orderStatus === 'S2' && !pendingChange && !chatBlocked}}">
+    <text>✏️ 距履约≥1小时可协商 </text>
+    <text class="chat__pay-go" data-field="location" bindtap="onS2ChangeTap">改地点</text>
+    <text> · </text>
+    <text class="chat__pay-go" data-field="content" bindtap="onS2ChangeTap">改内容</text>
+    <text> ›</text>
+  </view>
+
   <!-- C2 四确认进度条 -->
   <confirm-progress progress="{{progress}}"></confirm-progress>
 

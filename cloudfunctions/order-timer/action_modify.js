@@ -138,8 +138,50 @@ async function processChangeTimeout(ctx) {
   } catch (e) { log.d(`s1 change scan fail: ${e.message}`); }
 }
 
+// ───────── 3.8 S2 已支付待履约「地点/内容」变更超时(2026-11-05)：对方逾时未反馈 → 自动拒绝，值不变 ─────────
+// 与 S1 段的差别：只处理 stage='S2' 的 pending_change，避免与 S1 在途变更串扫；
+// 订单状态保持 S2（不变状态、不动确认位），仅清字段 + 双向通知 + 写状态流水。
+async function processS2ChangeTimeout(ctx) {
+  const { _, col, log, logStatus, trackBacklog, SCAN_MAX, scanAll, now, out } = ctx;
+  try {
+    const s2s = await scanAll('order_main', () => ({ status: 'S2', pending_change: _.exists(true) }));
+    trackBacklog('S2_change', s2s.length >= SCAN_MAX ? s2s : []);
+    const okList = [];
+    await Promise.allSettled(s2s.map(async (o) => {
+      const pc = o.pending_change || {};
+      if (pc.stage !== 'S2') return;
+      const deadline = Number(pc.expire_at) || 0;
+      if (!deadline || deadline >= now) return;
+      const r = await col('order_main')
+        .where({ _id: o._id, status: 'S2', 'pending_change.token': pc.token })
+        .update({ data: { pending_change: _.remove(), s2_change_auto_rejected_at: now, updated_at: now } });
+      if (!r.stats || r.stats.updated !== 1) { out.skipped.push(o.order_no + ':S2变更竞态'); return; }
+      okList.push({ o, pc });
+    }));
+    await Promise.allSettled(okList.map(x => logStatus(x.o._id, 'S2', 'S2', 'timeout_s2_change_auto_reject', 'system')));
+    const rs = await Promise.allSettled(okList.flatMap(({ o, pc }) => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid,
+        order_id: o._id,
+        type: 'change_reject',
+        title: '变更申请已超时拒绝',
+        body: openid === pc.by_openid
+          ? '你的变更申请因对方超时未反馈,已自动拒绝,请按原信息履约'
+          : '对方的变更申请已超时自动拒绝,请按原信息履约',
+        action_key: 'jump_order',
+        action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
+    rs.forEach((r) => { if (r.status === 'rejected') log.d(`s2_change_reject notice fail: ${(r.reason && (r.reason.message || r.reason)) || ''}`); });
+    okList.forEach(({ o, pc }) => { out.s2_change_auto_reject.push(o.order_no); log.d(`timeout S2 change auto-reject: ${o.order_no} field=${pc.field}`); });
+  } catch (e) { log.d(`s2 change scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processModifyTimeout,
   processExtendTimeout,
   processChangeTimeout,
+  processS2ChangeTimeout,
 };

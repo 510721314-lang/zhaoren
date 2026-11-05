@@ -667,9 +667,15 @@ Page({
   },
 
   // ───────── 调整确认项(2026-11-04: 改为发起变更 change_apply, 对方接受后才改值并重置8位) ─────────
+  // 2026-11-05: S2 已支付待履约另开「地点/内容」协商通道(费用/时间一律禁止, 时间走订单详情「申请改期」)
   startEdit(field) {
-    if (this.data.orderStatus !== 'S1') {
+    const st = this.data.orderStatus;
+    if (st !== 'S1' && st !== 'S2') {
       wx.showToast({ title: '订单当前状态不可修改', icon: 'none' });
+      return;
+    }
+    if (st === 'S2' && field !== 'location' && field !== 'content') {
+      wx.showToast({ title: field === 'time' ? '请到详情页申请改期' : '该阶段不可修改此项', icon: 'none' });
       return;
     }
     // 有在途变更时后端会拒绝(oa_change_pending), 前端提前拦截避免白提交
@@ -712,6 +718,11 @@ Page({
       const cur = (this.data.items && this.data.items.fee && this.data.items.fee.value) || 0;
       this.setData({ editSheet: 'fee', editFeeYuan: cur ? String(cur / 100) : '' });
     }
+  },
+
+  // 2026-11-05: S2 聊天页顶部「改地点/改内容」入口(仅这两项开放)
+  onS2ChangeTap(e) {
+    this.startEdit(e.currentTarget.dataset.field);
   },
 
   closeEditSheet() { this.setData({ editSheet: '' }); },
@@ -784,22 +795,45 @@ Page({
   },
 
   // 发起变更(后端 change_apply): 仅记录在途申请, 对方接受后才改值 + 重置 8 位
+  // 2026-11-05: S2 走 s2_change_apply(仅地点/内容, 原因必填≥10字), 接受后只改该项、不重置确认位
   applyChange(field, value) {
-    wx.showLoading({ title: '提交中', mask: true });
-    callCloud('order-action', {
-      action: 'change_apply', order_id: this.data.orderId, field, value
-    }).then((r) => {
-      wx.hideLoading();
-      if (!r.ok) {
-        wx.showModal({ title: '提交失败', content: r.msg || '请稍后重试', showCancel: false });
-        return;
-      }
-      this.setData({ editSheet: '' });
-      wx.showToast({ title: '已提交,等待对方反馈', icon: 'none', duration: 2000 });
-      return this.refreshConfirmation();
-    }).catch(() => {
-      wx.hideLoading();
-      wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+    const isS2 = this.data.orderStatus === 'S2';
+    const submit = (reason) => {
+      const payload = { action: isS2 ? 's2_change_apply' : 'change_apply', order_id: this.data.orderId, field, value };
+      if (isS2) payload.reason = reason;
+      wx.showLoading({ title: '提交中', mask: true });
+      callCloud('order-action', payload).then((r) => {
+        wx.hideLoading();
+        if (!r.ok) {
+          wx.showModal({ title: '提交失败', content: r.msg || '请稍后重试', showCancel: false });
+          return;
+        }
+        this.setData({ editSheet: '' });
+        wx.showToast({ title: '已提交,等待对方反馈', icon: 'none', duration: 2000 });
+        return this.refreshConfirmation();
+      }).catch(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+      });
+    };
+    if (!isS2) { submit(''); return; }
+    // S2 临期变更需留痕原因(服务端 oa_s2c_reason 强制校验)
+    wx.showModal({
+      title: '变更原因',
+      editable: true,
+      placeholderText: '请填写变更原因(不少于10字)',
+      confirmText: '提交',
+      cancelText: '取消',
+      success: (res) => {
+        if (!res.confirm) return;
+        const reason = String(res.content || '').trim();
+        if (reason.length < 10) {
+          wx.showToast({ title: '原因不少于10字', icon: 'none' });
+          return;
+        }
+        submit(reason);
+      },
+      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' })
     });
   },
 
@@ -810,12 +844,16 @@ Page({
     if (!pc) return;
     if (decision !== 'accept' && decision !== 'reject') return;
     const isAccept = decision === 'accept';
+    // 2026-11-05: S2 变更走 s2_change_respond, 接受只改该项(其余确认位不动)
+    const isS2 = this.data.orderStatus === 'S2';
     wx.showModal({
       title: isAccept ? '接受变更' : '拒绝变更',
       content: isAccept
-        ? (pc.field === 'fee'
-          ? `「${pc.field_cn}」将改为 ${pc.new_text}。接受后费用即确认生效，其余三项需重新确认。`
-          : `「${pc.field_cn}」将改为 ${pc.new_text}。接受后四项确认全部重置，需双方重新确认。`)
+        ? (isS2
+          ? `「${pc.field_cn}」将改为 ${pc.new_text}。接受后按新信息履约，其余确认项不受影响。`
+          : (pc.field === 'fee'
+            ? `「${pc.field_cn}」将改为 ${pc.new_text}。接受后费用即确认生效，其余三项需重新确认。`
+            : `「${pc.field_cn}」将改为 ${pc.new_text}。接受后四项确认全部重置，需双方重新确认。`))
         : `「${pc.field_cn}」保持原值 ${pc.old_text}，已完成的确认位不受影响。`,
       confirmText: isAccept ? '接受' : '拒绝',
       cancelText: '取消',
@@ -825,7 +863,8 @@ Page({
         if (!res.confirm) return;
         wx.showLoading({ title: '提交中', mask: true });
         callCloud('order-action', {
-          action: 'change_respond', order_id: this.data.orderId, decision, token: pc.token
+          action: isS2 ? 's2_change_respond' : 'change_respond',
+          order_id: this.data.orderId, decision, token: pc.token
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
@@ -836,8 +875,9 @@ Page({
           wx.showToast({
             title: !isAccept
               ? '已拒绝,原值不变'
-              : (pc.field === 'fee' ? '已接受,费用已确认'
-                : (d.bits_reset ? '已接受,四项已重置' : '已接受,已记录其他事项')),
+              : (isS2 ? '已接受,信息已更新'
+                : (pc.field === 'fee' ? '已接受,费用已确认'
+                  : (d.bits_reset ? '已接受,四项已重置' : '已接受,已记录其他事项'))),
             icon: 'none', duration: 2000
           });
           return this.refreshConfirmation();

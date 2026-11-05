@@ -629,6 +629,8 @@ function loadWith(dir, file, sdk) {
   // 来源: 3509ef1(投诉放开 S2 起 / 动态时间线 / detail 字段扩充) · 安全整改(错误消息脱敏去 openid) · 批3(config_schema 新增 extend_confirm_h/scene_option_display_max)。
   const KNOWN_EVOLUTION = new Set([
     'dp_detail_ok',                             // 2026-11-05 新增 taken_by_me/taken 字段(已接单需求按钮三态), 与拆分前基线差异属预期
+    'auto_order_s2_change_apply',               // 2026-11-05 新增 S2 地点/内容变更发起 action(基线无此 action → oa_unknown_action), 预期演进
+    'auto_order_s2_change_respond',             // 2026-11-05 新增 S2 变更反馈 action(基线无此 action), 预期演进
     'detail_ok', 'auto_order_detail',          // detail 字段扩充(modify_*_at / complaint / fund / refund / dispute / fees / frozen); 2026-10-16 再新增 demand_title/demand_desc(需求标题/详细描述, 按 demand.remark 全角｜拆分) — 行为由 order-action.entry.test.js 新增 2 例独立守护
     'confirm_all_not_participant',              // 错误消息脱敏(不再回显参与方 openid)
     'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
