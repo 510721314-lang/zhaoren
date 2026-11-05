@@ -54,10 +54,10 @@ module.exports = { foo_action };
 8. 独立 commit（可单独 revert）
 
 ## 等价性验证（A/B 深比较）
-- 夹具：`cloudfunctions/_shared/ab_equivalence.js` —— 同输入跑「拆分前(_orig_baseline.js)」vs「当前 index.js」，`normalize` 把 >1e12 的数字当时间戳归一成 `<ts>`
-- baseline 必须用**拆分前**的 index：`git show <拆分前commit>:cloudfunctions/<fn>/index.js > <fn>/_orig_baseline.js`（不能自录自比，那恒真）
+- 夹具：`cloudfunctions/_shared/ab_equivalence.js` —— 同输入跑「拆分前(cloudfunctions_baseline/<fn>.js)」vs「当前 index.js」，`normalize` 把 >1e12 的数字当时间戳归一成 `<ts>`
+- baseline 必须用**拆分前**的 index：`git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions_baseline/<fn>.js`（不能自录自比，那恒真；2026-11-05 起统一放仓库根，不随函数打包）
 - 每抽一组向 `CASES` 加该组的 early-return / 正常输入用例；`node cloudfunctions/_shared/ab_equivalence.js`，意外差异数必须为 0
-- **`_orig_baseline.js` 冻结入库常驻、测完不删**（2026-10-13 起改定：作为后续每次改动的 A/B 常驻锚点；早期文档"测完删除"口径已作废）
+- **`cloudfunctions_baseline/<fn>.js` 冻结入库常驻、测完不删**（2026-10-13 起改定：作为后续每次改动的 A/B 常驻锚点；2026-11-05 迁出部署目录；早期文档"测完删除"口径已作废）
 
 ## A/B 门禁的三类盲区（2026-10-14 双专家评审实证，拆分收尾必查）
 A/B「0 差异」**只证明单次调用返回值一致**，下列问题全部能在 0 差异下漏网，必须各补一道独立测试/核对：
@@ -100,4 +100,4 @@ A/B「0 差异」**只证明单次调用返回值一致**，下列问题全部�
 - payment-mock：874→186 行，4 个 handler（14 action；withdraw/fast_withdraw 落穿共享 case）
 - order-create：804→193 行，2 个 handler（非 case 结构：早返回块 + 尾部续写体）
 - demand-publish：1746→457 行，5 个 handler（10 action）
-- 每个函数均：冻结 `_orig_baseline.js` 入库 + A/B 常驻门禁 + 串行部署 + download SHA256 核验；详见 docs/FUNCTION-REGISTRY.md #51-59
+- 每个函数均：冻结 `cloudfunctions_baseline/<fn>.js` 入库 + A/B 常驻门禁 + 串行部署 + download SHA256 核验；详见 docs/FUNCTION-REGISTRY.md #51-59
