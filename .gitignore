@@ -44,3 +44,6 @@ zhaoren_backup_*/
 
 # MCP server 本地私有配置（含本机 CLI 绝对路径；.mcp.example.json 模板入库）
 .mcp.json
+
+# A/B 基线临时副本（2026-11-05 P2-3：跑 npm test 时生成，脚本退出即删；异常中断残留不入库）
+cloudfunctions/*/__baseline_tmp.js

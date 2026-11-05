@@ -599,31 +599,54 @@ const AUTO_SEEDS = [
 ];
 const ALL_CASES = CASES.concat(AUTO_SEEDS);
 
-function loadWith(dir, file, sdk) {
+function loadFile(full, sdk) {
   let active = sdk;
   const orig = Module._load;
   Module._load = function (r) { if (r === 'wx-server-sdk') return active; return orig.apply(this, arguments); };
-  const full = path.join(__dirname, '..', dir, file);
   delete require.cache[require.resolve(full)];
   const mod = require(full);
   Module._load = orig;
   return mod;
 }
+function loadWith(dir, file, sdk) {
+  return loadFile(path.join(__dirname, '..', dir, file), sdk);
+}
+// 2026-11-05 P2-3: 基线迁出部署目录 → cloudfunctions_baseline/<fn>.js（不再随云函数打包），内容冻结不变。
+// 基线内含运行时懒加载的相对依赖（./openid 等），必须在原函数目录内解析 →
+// 测试开始时每个函数临时落一份 __baseline_tmp.js（gitignore），A/B 结束即删，仓库与部署保持干净。
+function baselinePath(dir) {
+  return path.join(__dirname, '..', '..', 'cloudfunctions_baseline', dir + '.js');
+}
+const BASELINE_TMP = '__baseline_tmp.js';
+function baselineTmpPath(dir) {
+  return path.join(__dirname, '..', dir, BASELINE_TMP);
+}
+function cleanupBaselineTmp(dirs) {
+  for (const d of dirs) {
+    try { require('fs').unlinkSync(baselineTmpPath(d)); } catch (e) {}
+  }
+}
 
 (async () => {
-  // 批5.1: 基线缺失即 FAIL(不再静默 SKIP), 强制维护 _orig_baseline.js。
-  // 基线 = 拆分前单体版本: git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions/<fn>/_orig_baseline.js
+  // 批5.1: 基线缺失即 FAIL(不再静默 SKIP), 强制维护基线文件。
+  // 2026-11-05 P2-3: 基线迁出部署目录 → cloudfunctions_baseline/<fn>.js（避免 1.07 万行随函数打包）
+  // 基线 = 拆分前单体版本: git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions_baseline/<fn>.js
   const dirs = Array.from(new Set(ALL_CASES.map((c) => c.fn || 'order-action')));
   const missing = dirs.filter((d) => {
-    try { require('fs').accessSync(path.join(__dirname, '..', d, '_orig_baseline.js')); return false; }
+    try { require('fs').accessSync(baselinePath(d)); return false; }
     catch (e) { return true; }
   });
   if (missing.length) {
-    console.error('[FAIL] A/B equivalence: 缺少基线文件 _orig_baseline.js');
+    console.error('[FAIL] A/B equivalence: 缺少基线文件 cloudfunctions_baseline/<fn>.js');
     console.error('       缺基线的函数: ' + missing.join(', '));
-    console.error('       生成方式: git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions/<fn>/_orig_baseline.js');
+    console.error('       生成方式: git show <拆分前commit>:cloudfunctions/<fn>/index.js > cloudfunctions_baseline/<fn>.js');
     process.exit(2);
   }
+  // 临时基副本：供基线内懒加载的 ./openid 等相对依赖在函数目录内解析
+  const fs = require('fs');
+  cleanupBaselineTmp(dirs);
+  for (const d of dirs) fs.copyFileSync(baselinePath(d), baselineTmpPath(d));
+  process.on('exit', () => cleanupBaselineTmp(dirs));
   // 已知「有意行为演进」白名单: 拆分后各批次对这些路径做了有意改动,
   // 与拆分前基线的差异属预期, 不计为回归; 未登记的新差异一律 FAIL。
   // 来源: 3509ef1(投诉放开 S2 起 / 动态时间线 / detail 字段扩充) · 安全整改(错误消息脱敏去 openid) · 批3(config_schema 新增 extend_confirm_h/scene_option_display_max)。
@@ -691,7 +714,7 @@ function loadWith(dir, file, sdk) {
     const dir = c.fn || 'order-action';
     const st = c.store || baseStore();
     // 两个独立 sdk 实例，相同 store 快照
-    const a = loadWith(dir, '_orig_baseline.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
+    const a = loadWith(dir, BASELINE_TMP, makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
     const b = loadWith(dir, 'index.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
     // 捕获任一侧抛错：两边抛同类同因错误也算等价（mock 能力边界内的行为一致）
     const run = async (m) => { try { return { ok: true, v: await m.main(JSON.parse(JSON.stringify(c.event)), {}) }; } catch (e) { return { ok: false, v: String(e && e.message || e) }; } };
