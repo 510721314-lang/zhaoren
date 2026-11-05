@@ -14,9 +14,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const { execTcbCommands } = require('./tcb-exec');
 function findExisting(orderNo) {
   const r = execTcbCommands([{ TableName: 'order_main', CommandType: 'COMMAND', Command: JSON.stringify({
-    find: 'order_main', filter: { order_no: orderNo }, projection: { _id: 1, order_no: 1, status: 1, start_time: 1 }, limit: 1
+    find: 'order_main', filter: { order_no: orderNo }, projection: { _id: 1, order_no: 1, status: 1, start_time: 1, is_deleted: 1 }, limit: 1
   }) }]);
   const row = (r.parsed || [])[0];
+  // 2026-11-06 修正：软删单不可复用（uk_order_no 仍占位），否则会拿软删单跑断言造成假通过
+  if (row && row.is_deleted) return null;
   return row ? { order_no: row.order_no, _id: row._id, status: row.status, start: row.start_time } : null;
 }
 function createOrder(args) {

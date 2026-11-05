@@ -28,16 +28,34 @@ function write(cmd) {
   if (r.status !== 0) throw new Error('tcb write failed: ' + ((r.stderr || '') + ' | OUT: ' + (r.stdout || '').slice(-300)));
   return r;
 }
-function arg(name, def) {
-  const i = process.argv.indexOf('--' + name);
-  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
+// 2026-11-06 加固：未知参数不再静默丢弃（曾因 `cleanup --only DBG` 的 --only 被忽略而执行全量删除）
+// 值项=1 表示必须跟值；cleanup 无任何参数，传任何 --xxx 一律报错，避免"以为只删一类实则删全部"
+const SPEC = { create: { status: 1, suffix: 1, 'start-hours': 1 }, cleanup: {} };
+function parseArgs(action) {
+  const spec = SPEC[action] || {};
+  const argv = process.argv.slice(3);
+  const out = {};
+  for (let i = 0; i < argv.length; i++) {
+    const t = argv[i];
+    if (!t.startsWith('--')) throw new Error('多余参数 ' + t + '（只接受 --key value 形式）');
+    const k = t.slice(2);
+    if (!(k in spec)) throw new Error('未知参数 --' + k + '；' + action + ' 支持: ' + (Object.keys(spec).join(' ') || '无参数'));
+    const v = argv[i + 1];
+    if (spec[k] && (v === undefined || v.startsWith('--'))) throw new Error('--' + k + ' 缺值');
+    if (v === undefined) { out[k] = true; continue; }
+    out[k] = v;
+    i++;
+  }
+  return out;
 }
 
 function create() {
-  const status = arg('status', 'S2');
-  const suffix = arg('suffix', 'X');
-  const hours = Number(arg('start-hours', '3'));
+  const a = parseArgs('create');
+  const status = a.status || 'S2';
+  const suffix = a.suffix || 'X';
+  const hours = a['start-hours'] !== undefined ? Number(a['start-hours']) : 3;
   if (!['S1', 'S2'].includes(status)) throw new Error('status 仅支持 S1/S2');
+  if (!Number.isFinite(hours)) throw new Error('--start-hours 必须是数字（小时，可为负）');
   const NOW = Date.now();
 
   // 模板：优先同状态真实单，否则取最近任意真实单
@@ -79,6 +97,9 @@ function create() {
   };
   write({ insert: 'order_main', documents: [o] });
   write({ insert: 'order_confirmations', documents: [c] });
+  // 2026-11-06 加固：不再只信本地变量，回读断言落库结果（§31/§38）
+  const back = find({ find: 'order_main', filter: { _id: o._id }, projection: { status: 1, order_no: 1 }, limit: 1 })[0];
+  if (!back || back.status !== status) throw new Error('回读校验失败：期望 status=' + status + '，实得 ' + JSON.stringify(back || null));
   console.log(JSON.stringify({
     order_no: o.order_no, _id: o._id, status, start: dtOf(o.start_time),
     start_hours: hours, confirm_all: okAll, template: tpl.order_no, conf_template: confTpl ? confTpl._id : null
@@ -87,8 +108,10 @@ function create() {
 }
 
 function cleanup() {
+  parseArgs('cleanup'); // 无任何合法参数：传 --only/--bogus 等一律拒绝，杜绝"以为只删一类实则全量"
   const NOW = Date.now();
-  const rows = find({ find: 'order_main', filter: { order_no: { $regex: '^' + PREFIX }, is_deleted: false }, projection: { _id: 1 } });
+  // 计数口径与更新条件对齐（原 L91 未带 is_test，导致 cleaned 报数与实际删除集合不一致）
+  const rows = find({ find: 'order_main', filter: { order_no: { $regex: '^' + PREFIX }, is_test: true, is_deleted: false }, projection: { _id: 1 } });
   const ids = rows.map((r) => r._id);
   write({ update: 'order_main', updates: [{ q: { order_no: { $regex: '^' + PREFIX }, is_test: true }, u: { $set: { is_deleted: true, updated_at: NOW } }, multi: true }] });
   if (ids.length) write({ update: 'order_confirmations', updates: [{ q: { order_id: { $in: ids } }, u: { $set: { is_deleted: true, updated_at: NOW } }, multi: true }] });
@@ -97,6 +120,11 @@ function cleanup() {
 }
 
 const action = process.argv[2];
-if (action === 'create') create();
-else if (action === 'cleanup') cleanup();
-else { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 9).join('\n')); process.exit(1); }
+try {
+  if (action === 'create') create();
+  else if (action === 'cleanup') cleanup();
+  else { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 9).join('\n')); process.exit(1); }
+} catch (e) {
+  console.error('ERROR: ' + (e && e.message ? e.message : e));
+  process.exit(1);
+}
