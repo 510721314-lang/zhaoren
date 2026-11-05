@@ -14,7 +14,7 @@
 | P2 结构性债 | 13 | 5 已偿还；**P2-2/P2-3/P2-4 开放**；P2-7~10、12/13 真机待验 |
 | P3 卫生/已接受 | 25 | 15 已结案/已偿还；**10 项开放**（见 §3） |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
-| 本会话新增 N-3~N-7 | 5 | 全部登记（见 §5） |
+| 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
 关键计数（2026-11-05 实测）：`npm test` A/B **456 EQUIVALENT / 79 known-evolution**；入口测试 `order-action.entry.test.js` **67/67**；索引台账 **49 条**；`_shared` 同步门禁 **ALL OK**；空 catch 净口径约 **155 处**（窄类 25/25 已收口）。
 
@@ -27,7 +27,7 @@
 | P1-6 | `realname_face_mode=mock` 为提审期临时放宽（原 `wx`） | ⬜ 当前 mock | 云端回读 `realname_face_mode=mock`（2026-11-05） | **发布同轮**：①`config_set realname_face_mode='wx'`；②`admin-action realname_reset_simulated` 清打标账号；未关闸＝任何人可自授实名 |
 | P0-3 | 云函数调用额度（20 万/周期） | ⬜ 待复测 | 2026-10-28 周期累计约 19.35 万、余约 0.65 万；优化后估算 1,000–1,300 调用/天、2,200–2,800 DB/天 | **11-05 套餐重置后**按单触发器 `0 */15 7-22 * * * *` 恢复保温，观察 1–2 天日曲线，确认 ≤1,500 调用/天 |
 | N-1 | REGISTRY **#144 / #145 / #146** 待真机 | ⬜ 3 条 | REGISTRY 状态列「待验证」 | 按 [runbook §3.10–3.12](runbooks/release-zero-checklist.md) 真机通过后转「已验证」并补 `// @VERIFIED` |
-| N-2 | `is_test` 测试单残留 | ⬜ 6 张未软删（`F`/`K`/`I`/`J`/`L`/`M`） | 云端回读（2026-11-05） | 验收后执行 `.tmp-tcb/cleanup-test-orders.js`，回读「剩余未软删 = 0」 |
+| N-2 | `is_test` 测试单残留 | ⬜ 6 张未软删（`F`/`K`/`I`/`J`/`L`/`M`） | 云端回读（2026-11-05） | 验收后执行 `node scripts/test-order-tool.js cleanup`（旧 `.tmp-tcb/cleanup-test-orders.js` 亦可），回读「剩余未软删 = 0」 |
 | 发布同轮 | 三订阅模板 `miniprogram_state` `trial → formal` | ⬜ 三模板均 trial | 云端回读 `sub_msg_templates`（2026-11-05） | 正式发布当天改，改后回读确认（HANDOFF T-8.15） |
 | 发布同轮 | 补 2 条「自定义」隐私声明（手填手机号、设备信息） | ⬜ | [release-zero-checklist §4.2](runbooks/release-zero-checklist.md) | 后台指引补充，与端内 `privacy.wxml` 2.2/2.8 对齐 |
 | 发布同轮 | `mock_payment_enabled` 口径拍板 | ⬜ 当前 true | 云端回读 `true` | MVP 模拟支付；提审说明写明「不产生真实扣款」，是否保持由用户拍板 |
@@ -104,11 +104,11 @@
 
 | # | 负债 | 证据 | 影响 | 建议处置 |
 |---|---|---|---|---|
-| N-3 | **配置默认值多处重复**：`admin-action/index.js`（CONFIG_SCHEMA def）、`action_config_read.js`、`action_config_public.js`、`action_change_s2.js#s2Cfg`、`action_modify_extend.js#modifyCfg`、`miniprogram/config/index.js` 各自维护一套默认值 | 本次改 7+4 个键时需同步 5–6 处；`MODIFY.confirmHours` 曾出现 2 vs 24 不一致 | 收敛为 `_shared/config_defaults.js`（含 sync 脚本）单一规范源；提审后立项 |
-| N-4 | **死代码 `admin-web-frontend/src/views/Config.vue`**：`router` 已把 `/config` 重定向 `/operations`，该文件不进入构建，但仍含「⑤b S2 变更规则」与改期表单 | dist 中 0 命中 `s2Change*`；曾导致后台误判「表单已上线」 | 删除该文件，或文件头加显式「已废弃，勿改」；1 文件零风险 |
-| N-5 | **顶层键 + `modify_config` 嵌套双读兼容层**：`s2Cfg`/`modifyCfg` 均为「顶层优先、嵌套兜底」 | 两套存储口径长期并存，易出现「改了 A 没改 B」 | 设定收敛期限：确认旧嵌套值无生产依赖后删除兜底分支 |
-| N-6 | **测试单只能手工 DB 克隆**：无后台造单工具，靠 `.tmp-tcb/create-*.js` 克隆真实单 | 反复出现 `_id` 类型/ObjectId、确认位 0/4 等假故障（本会话 3 次） | 提审后做「后台造测试单」工具，或固定 seed 脚本入库（`is_test:true`） |
-| N-7 | **前端配置异步竞态**：bootstrap 异步拉 `config_public`，未完成时页面用 `config/index.js` 硬编码兜底 | 已用 `onLoad/onShow` 重算缓解（order-detail/chat），仍非强一致；断网时提示可能与后台不一致 | 接受为设计边界；如需强一致需把 bootstrap Promise 化并在关键页 await |
+| N-3 | **配置默认值多处重复**：`admin-action/index.js`（CONFIG_SCHEMA def）、`action_config_read.js`、`action_config_public.js`、`action_change_s2.js#s2Cfg`、`action_modify_extend.js#modifyCfg`、`miniprogram/config/index.js` 各自维护一套默认值 | 本次改 7+4 个键时需同步 5–6 处；`MODIFY.confirmHours` 曾出现 2 vs 24 不一致 | ✅ **已偿还（2026-11-05，`a1f3dac`）**：新增 `_shared/config_defaults.json`（canonical）+ `config_defaults.js`（`resolveModify`/`resolveS2Change`）+ `sync-config-defaults.ps1`（3 副本 SHA 校验）；CONFIG_SCHEMA 11 个 def、config_read/config_public/change_s2/modify_extend/order-timer 全部改调 resolver；新增 `check-config-defaults.js` 门禁 |
+| N-4 | **死代码 `admin-web-frontend/src/views/Config.vue`**：`router` 已把 `/config` 重定向 `/operations`，该文件不进入构建，但仍含「⑤b S2 变更规则」与改期表单 | dist 中 0 命中 `s2Change*`；曾导致后台误判「表单已上线」 | ✅ **已偿还（2026-11-05，`a1f3dac`）**：文件已删除；`/config` 仍重定向 `/operations`，schema 驱动表单为唯一入口 |
+| N-5 | **顶层键 + `modify_config` 嵌套双读兼容层**：`s2Cfg`/`modifyCfg` 均为「顶层优先、嵌套兜底」 | 两套存储口径长期并存，易出现「改了 A 没改 B」 | ✅ **已收口（2026-11-05，`a1f3dac`）**：`pick` 只读顶层键（`modifyMinLeadHours` 等 / `s2Change*`），删除 `modify_config` 嵌套兜底；部署后网关回读 4/2/72/24 与 1/1/2/120/15/1/2 正常 |
+| N-6 | **测试单只能手工 DB 克隆**：无后台造单工具，靠 `.tmp-tcb/create-*.js` 克隆真实单 | 反复出现 `_id` 类型/ObjectId、确认位 0/4 等假故障（本会话 3 次） | ✅ **已偿还（2026-11-05，`a1f3dac`）**：新增 `scripts/test-order-tool.js`（`create` 克隆最近真实单 + 32 位字符串 `_id` + S2/S1 确认位；`cleanup` 软删并回读） |
+| N-7 | **前端配置异步竞态**：bootstrap 异步拉 `config_public`，未完成时页面用 `config/index.js` 硬编码兜底 | 已用 `onLoad/onShow` 重算缓解（order-detail/chat），仍非强一致；断网时提示可能与后台不一致 | ✅ **已偿还（2026-11-05，`a1f3dac`）**：`bootstrap.js` 增加 `cloud_config_cache_v1`（7 天 TTL、仅 `CLOUD_MAP` 键）；启动先 hydrate 再异步刷新；断网/冷启动先用上次云端配置 |
 
 ---
 
