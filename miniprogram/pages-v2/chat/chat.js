@@ -30,6 +30,7 @@ Page({
     freeChat: false,     // 后端允许自由文本
     chatBlocked: false,  // S6/S10
     orderStatus: '',
+    startTime: 0,        // 2026-11-05: 履约开始时间戳(来自 get_confirmation), 供 S2 变更窗口前置拦截
     pendingBanner: null, // 加时/改期在途请求醒目横幅
     pendingChange: null, // 2026-11-04: S1 变更协商在途(时间/地点/内容/费用/其他), 对方接受后才生效
     s2MinH: (CONFIG.S2_CHANGE && CONFIG.S2_CHANGE.bMinHours) || 1, // 2026-11-05: S2 变更下限(文案随后台覆盖)
@@ -275,6 +276,7 @@ Page({
       unlocked,
       freeChat: unlocked || this.data.freeChat,
       orderStatus: nextStatus,
+      startTime: Number(d.start_time) || this.data.startTime || 0,
       pendingBanner,
       pendingChange,
       orderSummary: this.__orderSummary(d)
@@ -692,6 +694,22 @@ Page({
     if (st === 'S2' && field !== 'location' && field !== 'content') {
       wx.showToast({ title: field === 'time' ? '请到详情页申请改期' : '该阶段不可修改此项', icon: 'none' });
       return;
+    }
+    // 2026-11-05: S2 距履约不足后台下限(bMinHours)时，点「修改」立即提示，避免选完/填完提交才报错
+    if (st === 'S2') {
+      const bMinH = (CONFIG.S2_CHANGE && CONFIG.S2_CHANGE.bMinHours) || 1;
+      const startTs = Number(this.data.startTime) || 0;
+      if (startTs && startTs - Date.now() < bMinH * 3600000) {
+        wx.showModal({
+          title: '暂不可修改',
+          content: startTs <= Date.now()
+            ? '已过约定履约时间，请按原信息履约或申请取消订单'
+            : `距履约不足 ${bMinH} 小时，请按原信息履约或申请取消订单`,
+          showCancel: false,
+          confirmText: '知道了'
+        });
+        return;
+      }
     }
     // 有在途变更时后端会拒绝(oa_change_pending), 前端提前拦截避免白提交
     if (this.data.pendingChange) {
