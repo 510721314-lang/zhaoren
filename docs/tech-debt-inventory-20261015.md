@@ -1,5 +1,7 @@
 # 找人帮忙项目技术负债清单（刷新版）
 
+> 2026-11-05：本清单已**归档**，现行唯一版本见 [tech-debt-inventory-20261105.md](tech-debt-inventory-20261105.md)。以下内容保留历史口径，勿据此排期。
+
 > 盘点日期：2026-10-15　**刷新：2026-10-25 四次刷新（HEAD `45941c6`，本地=origin/master MATCH ahead 0；本批 docs 入库后 HEAD 前移一档，届时工作区仅余 6 份用户文档 `??`）**
 > 基线：HEAD `ab9de38`（本地=origin/master，分叉 0/0，工作区干净）
 > 数据来源：FUNCTION-REGISTRY/CHANGELOG/deploy-log 实测 + 代码扫描（空 catch、文件行数、eol、引用关系均当场命令核实）；2026-10-16 刷新项：待验证 ID 全集、两巨页行数、单测数、空 catch 净口径（163）、P2-5 题库深比（0 漂移）均当场命令重测
