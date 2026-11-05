@@ -81,7 +81,18 @@ Page({
 
 
   onLoad(options) {
+    // 2026-11-05: 改期规则文案随 config_public 覆盖动态刷新(data() 初值仅为兜底)
+    this.__refreshModifyText();
     this.fetchData(options);
+  },
+
+  // 改期规则文案与确认窗口: 每次进入按当前 CONFIG(启动时由 config_public 覆盖)重算
+  __refreshModifyText() {
+    const m = CONFIG.MODIFY || {};
+    this.setData({
+      modifyRuleText: `规则：提前${m.minLeadHours}小时以上/最多${m.maxTimes}次/${m.freeFirst ? '首次免费/' : ''}第二次收${m.secondFeeRate * 100}%手续费/幅度≤${m.maxSpanH}小时`,
+      modifyConfirmH: m.confirmHours
+    });
   },
 
   fetchData(options, silent) {
@@ -324,6 +335,7 @@ Page({
   reload() { this.fetchData(this.__lastOptions || {}); },
 
   onShow() {
+    this.__refreshModifyText();
     this.setData({ isRedline: redline.isInRedline() });
     if (this.data.order && this.data.order.order_id) {
       this.fetchData({ orderId: this.data.order.order_id });
@@ -1049,6 +1061,11 @@ Page({
     const ts = this.buildModifyTs();
     if (!ts || isNaN(ts) || ts <= Date.now()) {
       wx.showToast({ title: '新时间无效', icon: 'none' });
+      return;
+    }
+    // 2026-11-05: 选回原时间视为未变更，不生成无意义的 S2_5 在途申请（服务端 oa_modify_same 兜底）
+    if (ts === Number(this.data.order && this.data.order.start_time)) {
+      wx.showToast({ title: '与当前服务时间相同', icon: 'none' });
       return;
     }
     if (ts - Date.now() < CONFIG.MODIFY.minLeadHours * 3600000) {

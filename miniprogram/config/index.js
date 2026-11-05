@@ -51,8 +51,11 @@ module.exports = {
     reasonMaxLen: 200          // 改期/加时原因字数上限(后台 order_reason_max_len 覆盖)
   },
 
-  // 改期规则（PRD 3.5.3）
-  MODIFY: { maxTimes: 2, freeFirst: true, secondFeeRate: 0.05, minLeadHours: 4, maxSpanH: 72, confirmHours: 2 },
+  // 改期规则（PRD 3.5.3；数值由启动时 config_public.modify_config 覆盖，此处与后台默认同源）
+  MODIFY: { maxTimes: 2, freeFirst: true, secondFeeRate: 0.05, minLeadHours: 4, maxSpanH: 72, confirmHours: 24 },
+
+  // S2 已支付待履约「地点/内容」变更规则（2026-11-05；由 config_public.s2_change 覆盖，仅用于文案与前端预判）
+  S2_CHANGE: { enabled: true, bMinHours: 1, aMinHours: 2, aConfirmMin: 120, bConfirmMin: 15, perFieldMax: 1, totalMax: 2 },
 
   // 取消梯度退款小时阈值（与 CANCEL_REFUND 三档一一对应，PRD 8.3）
   CANCEL_LEAD_HOURS: [24, 4],

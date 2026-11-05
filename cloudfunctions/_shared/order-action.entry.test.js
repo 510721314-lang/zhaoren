@@ -950,5 +950,14 @@ test('s2_change_respond: 接受只改地点并置双确认，其余确认位保�
   assert.ok('pending_change' in ow.data, '应清在途变更');
 });
 
+test('modify: 选回原服务时间拒绝（oa_modify_same）', async () => {
+  const ST = Date.now() + 5 * 3600 * 1000;
+  const sdk = makeSdk({ openid: PARTNER, store: s2Store({ start_time: ST, modify_count: 0 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify', order_id: OID, new_start_time: ST, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_modify_same');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

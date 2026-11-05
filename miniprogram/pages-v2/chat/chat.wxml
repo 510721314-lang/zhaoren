@@ -33,8 +33,8 @@
   </view>
 
   <!-- S2 已支付待履约: 地点/内容变更协商入口(2026-11-05; 费用与时间不在本通道, 时间走详情页改期) -->
-  <view class="chat__limit" wx:if="{{orderStatus === 'S2' && !pendingChange && !chatBlocked}}">
-    <text>✏️ 距履约≥1小时可协商 </text>
+  <view class="chat__limit" wx:if="{{orderStatus === 'S2' && s2Enabled && !pendingChange && !chatBlocked}}">
+    <text>✏️ 距履约≥{{s2MinH}}小时可协商 </text>
     <text class="chat__pay-go" data-field="location" bindtap="onS2ChangeTap">改地点</text>
     <text> · </text>
     <text class="chat__pay-go" data-field="content" bindtap="onS2ChangeTap">改内容</text>

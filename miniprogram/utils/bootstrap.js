@@ -47,6 +47,14 @@ const CLOUD_MAP = {
   'modify_config.maxTimes': 'MODIFY.maxTimes',
   'modify_config.maxSpanH': 'MODIFY.maxSpanH',
   'modify_config.confirmHours': 'MODIFY.confirmHours',
+  // 2026-11-05: S2 地点/内容变更规则(文案与前端预判; 服务端仍以 admin_config 为准)
+  's2_change.enabled': 'S2_CHANGE.enabled',
+  's2_change.b_min_hours': 'S2_CHANGE.bMinHours',
+  's2_change.a_min_hours': 'S2_CHANGE.aMinHours',
+  's2_change.a_confirm_min': 'S2_CHANGE.aConfirmMin',
+  's2_change.b_confirm_min': 'S2_CHANGE.bConfirmMin',
+  's2_change.per_field_max': 'S2_CHANGE.perFieldMax',
+  's2_change.total_max': 'S2_CHANGE.totalMax',
   // ── P0-P2 发布与展示/分页/字数后台化 ──
   'publish.content_options_max': 'PUBLISH.contentOptionsMax',
   'publish.scene_option_display_max': 'PUBLISH.sceneOptionDisplayMax',

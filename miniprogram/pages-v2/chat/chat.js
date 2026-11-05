@@ -32,6 +32,8 @@ Page({
     orderStatus: '',
     pendingBanner: null, // 加时/改期在途请求醒目横幅
     pendingChange: null, // 2026-11-04: S1 变更协商在途(时间/地点/内容/费用/其他), 对方接受后才生效
+    s2MinH: (CONFIG.S2_CHANGE && CONFIG.S2_CHANGE.bMinHours) || 1, // 2026-11-05: S2 变更下限(文案随后台覆盖)
+    s2Enabled: CONFIG.S2_CHANGE ? CONFIG.S2_CHANGE.enabled !== false : true,
     orderSummary: '',    // 订单概要(弹窗/横幅前置)
     messages: [],
     // C5 模板快捷键
@@ -69,7 +71,19 @@ Page({
   },
 
 
+  // 2026-11-05: S2 变更入口文案与开关随 config_public 覆盖刷新(data() 初值仅为兜底)
+  __refreshS2Text() {
+    const c = CONFIG.S2_CHANGE || {};
+    const patch = {};
+    const h = c.bMinHours || 1;
+    const enabled = c.enabled !== false;
+    if (h !== this.data.s2MinH) patch.s2MinH = h;
+    if (enabled !== this.data.s2Enabled) patch.s2Enabled = enabled;
+    if (Object.keys(patch).length) this.setData(patch);
+  },
+
   onLoad(options) {
+    this.__refreshS2Text();
     try {
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
@@ -81,6 +95,7 @@ Page({
   },
 
   onShow() {
+    this.__refreshS2Text();
     this.setData({ isRedline: redline.isInRedline() });
     this.startPolling();
   },
