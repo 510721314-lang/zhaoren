@@ -12,7 +12,7 @@
 | P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合） |
 | P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 13 | 5 已偿还；**P2-2/P2-3/P2-4 开放**；P2-7~10、12/13 真机待验 |
-| P3 卫生/已接受 | 25 | 15 已结案/已偿还；**10 项开放**（见 §3） |
+| P3 卫生/已接受 | 25 | 18 已结案/已偿还（2026-11-06 复核新增 P3-10 / P3-15⑤⑥⑦ / P3-20④）；**真实开放 4 项**：P3-3（手机号明文）、P3-15⑧（批量发布快照）、P3-25（admin-action 拆分）、P3-1（口径已结案）；P3-14b 为已批准零代码豁免 |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
@@ -73,14 +73,14 @@
 | # | 负债 | 证据/影响 | 处置 |
 |---|---|---|---|
 | P3-3 | `emergency_contact.phone` / `demand.contact_phone` 明文 | 隐私合规；`backfill-phone-enc.js` 仅覆盖 `user_account` | 提审后单独立项（设计+评审+真机） |
-| P3-10 | `KNOWN_EVOLUTION` 3 条 stale（`my_orders_partner`/`my_orders_user`/`notice_list`） | 声明表与运行时差集；当前运行时 **79 例** | 提审后删 3 条并复跑 A/B（应仍 EQUIVALENT） |
+| P3-10 | `KNOWN_EVOLUTION` 3 条 stale（`my_orders_partner`/`my_orders_user`/`notice_list`） | 声明表与运行时差集；当前运行时 **79 例** | ✅ **已偿还（2026-11-03，复核于 2026-11-06）**：`ab_equivalence.js` L672 已留档「三条白名单已 stale，删除以免漂移被静默兜住」；当前 A/B 仍 **456 EQUIVALENT / 79 known**，三条独立行为由 `order-action.entry.test.js` 守护 |
 | P3-14b | `bootstrap.js` take 链 `navigateTo` 的 `fail: () => {}` 静默 | 栈满仅丢一次跳转 | 已批准「零代码」豁免；触碰该文件时同修 |
-| P3-15 | 法律合规残留：⑤版本库不可用时回填源为未保存表单；⑥「删除」实为「停用」措辞不统一；⑦满态判定误报；⑧批量发布快照完整性待专项 | admin-web/legal 体验与一致性 | 提审后按 ⑤⑥⑦ 优先 |
+| P3-15 | 法律合规残留：⑤版本库不可用时回填源为未保存表单；⑥「删除」实为「停用」措辞不统一；⑦满态判定误报；⑧批量发布快照完整性待专项 | admin-web/legal 体验与一致性 | **⑤⑥⑦⑧ 全部 ✅ 已偿还（2026-11-06）**：⑤`openEdit` L399-402 在 `legal_doc_get` 失败时 `ElMessage.error` 后 `return`（fail-closed）；⑥`Legal.vue` L59/L82/L114 统一「停用（删除=停用）」措辞；⑦L74/L287 满态判定改为「已配置数 ≥ 场景总数」；⑧`action_legal_doc.js#writeVersion` 三处加固——版本号读取失败 **fail-closed**（原 `.catch(()=>({data:[]}))` 会静默当 0 写 v1）、归档前先取旧生效版 `_id` 并在 `add` 失败时**恢复 archived→published**（消除「旧版已归档、新版不存在」的快照空洞）、`add` 失败返回 `legal_add_fail` 并 `log.e` 留痕 |
 | P3-16 | 工作台信用分两源（`user_account.partner_credit_score` vs `partner_profile.score`） | 可能出现「分数 L2 段却显示 L3」 | **✅ 已偿还（2026-11-05）**：`balance_info` 已返回 `credit_score`（取 `partner_profile.score`）；`workbench` 收敛为单一展示字段 `creditScore`（无档案回退账户原值），WXML 不再直接读 `user.partner_credit_score` |
-| P3-20④ | 首页冷启动 `fetchUser` 与 `refreshNoticeBadge` 各调一次 `peek_login` | 配额微浪费 | 下次首页改动顺带去重 |
+| P3-20④ | 首页冷启动 `fetchUser` 与 `refreshNoticeBadge` 各调一次 `peek_login` | 配额微浪费 | ✅ **已偿还（复核于 2026-11-06）**：`pages-v2/index/index.js` L135 新增 `__badgeAt` 标记——fetchUser 的 `peek_login` 已含未读数，首次 `onShow` 的 `refreshNoticeBadge` 命中标记即跳过；L142-144 另有 30s 节流 |
 | P3-23 | `S2_6` 预告片文案缺「待」字 | 真实态与预告态易混 | **✅ 已偿还（2026-11-05 复核）**：`order-progress/index.js` 已有 `PREVIEW_NAME = { S2_6: '待发起开始履约' }` 并在非当前态分支套用 |
 | P3-25 | `admin-action/index.js` 682 行仍含 `ROLE_GRANTS`+鉴权+schema | 维护成本 | 提审后最小版拆分（`authz.js`，A/B 必须全绿） |
-| P3-1 | 空 catch 净约 155 处（窄类 25/25 已收口） | 多数有意设计 | 已结案口径；仅资金/CAS/发送主路径候选在解冻后复判 |
+| P3-1 | 空 catch 净约 155 处（窄类 25/25 已收口） | 多数有意设计 | **资金/一致性主路径 ✅ 已收口（2026-11-06 复判）**：`payment-mock/action_pay.js` 两处补偿回写（支付失败回滚 `paid_fen`、退款失败回滚 `refunded_fen`）原为 `.catch(()=>{})` 完全无痕，改为 `reportCompensateFail()` → `log.e` + `platform_event(P0, pay_compensate_fail)`；`order-action/action_change.js` L330 确认位回滚补 `log.w`。其余空 catch 维持「有意设计」口径，解冻后复判 |
 | P3-8 | 系统超时转争议不写 `complaint` 集合 | 自动转争议单时间线少 1 条卡片 | 已裁定不修（低危、读方有兜底） |
 
 > 已结案/已偿还：P3-2（testmode 死开关保留）、P3-4（G3 提醒）、P3-5（S2_5 存量兼容）、P3-6（版本号区间补登）、P3-7（时段敏感测试）、P3-9（smoke 编码）、P3-11（CI 噪音）、P3-12（索引/审计清理，49 条台账）、P3-13（路由异常 5 项，A3/A4 决策保留）、P3-18（昵称/头像编辑）、P3-19（前端语法门禁）、P3-21（注释失真）、P3-22（`splitting_fen` 口径）、P3-24（空 catch 抽样结案）。
