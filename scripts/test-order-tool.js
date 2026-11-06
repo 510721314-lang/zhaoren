@@ -30,7 +30,7 @@ function write(cmd) {
 }
 // 2026-11-06 加固：未知参数不再静默丢弃（曾因 `cleanup --only DBG` 的 --only 被忽略而执行全量删除）
 // 值项=1 表示必须跟值；cleanup 无任何参数，传任何 --xxx 一律报错，避免"以为只删一类实则删全部"
-const SPEC = { create: { status: 1, suffix: 1, 'start-hours': 1 }, cleanup: {} };
+const SPEC = { create: { status: 1, suffix: 1, 'start-hours': 1, 'from-order': 1 }, cleanup: {} };
 function parseArgs(action) {
   const spec = SPEC[action] || {};
   const argv = process.argv.slice(3);
@@ -58,8 +58,14 @@ function create() {
   if (!Number.isFinite(hours)) throw new Error('--start-hours 必须是数字（小时，可为负）');
   const NOW = Date.now();
 
-  // 模板：优先同状态真实单，否则取最近任意真实单
-  let tpl = find({ find: 'order_main', filter: { status, is_test: { $ne: true }, is_deleted: { $ne: true } }, sort: { created_at: -1 }, limit: 1 })[0];
+  // 模板：--from-order 指定时按 _id 克隆（用于让夹具参与方与登录账号一致）；
+  //       否则优先同状态真实单，再取最近任意真实单
+  let tpl = null;
+  if (a['from-order']) {
+    tpl = find({ find: 'order_main', filter: { _id: a['from-order'] }, limit: 1 })[0];
+    if (!tpl) throw new Error('--from-order 指定的订单不存在: ' + a['from-order']);
+  }
+  if (!tpl) tpl = find({ find: 'order_main', filter: { status, is_test: { $ne: true }, is_deleted: { $ne: true } }, sort: { created_at: -1 }, limit: 1 })[0];
   if (!tpl) tpl = find({ find: 'order_main', filter: { is_test: { $ne: true }, is_deleted: { $ne: true } }, sort: { created_at: -1 }, limit: 1 })[0];
   if (!tpl) throw new Error('找不到可克隆的真实订单');
   const confTpl = find({ find: 'order_confirmations', filter: { order_id: tpl._id }, limit: 1 })[0];

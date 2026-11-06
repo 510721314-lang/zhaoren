@@ -67,7 +67,8 @@ function record(no, name, state, detail) {
   // 夹具后缀每次随机生成：uk_order_no 唯一索引会让「软删后的旧后缀」永久占位（实测 N/M/P/Q/R 均被占）
   const tag = ('S' + Date.now().toString(36).slice(-3)).toUpperCase();
   const s2 = createOrder(['--status', 'S2', '--suffix', tag, '--start-hours', '-1']);
-  const s1 = createOrder(['--status', 'S1', '--suffix', tag + 'B', '--start-hours', '2.5']);
+  // S1 必须 --from-order 克隆 S2 夹具：否则模板会取到别人名下的 S1 单，参与方≠登录账号 → 详情页打不开
+  const s1 = createOrder(['--status', 'S1', '--suffix', tag + 'B', '--start-hours', '2.5', '--from-order', s2._id]);
   console.log('  S2:', s2.order_no, s2._id);
   console.log('  S1:', s1.order_no, s1._id);
 
@@ -273,19 +274,26 @@ function record(no, name, state, detail) {
   }
   try {
     const { d: od } = await openPage('/pages-v2/orders/orders', 'orders');
-    // 取列表首行（不绑定夹具：页签/角色可能挡掉夹具单），再回查其 start_time 手算比对
-    const row = (od.orders || []).find((x) => x.order_no && x.time_str);
-    if (!row) {
-      record('3.6-a', '订单列表 time_str = 北京时间(+8)', 'NEED-HUMAN', '列表为空（该账号无订单）');
+    // my_orders 同时返回「待接单需求(PENDING)」与订单：前者 order_no 是需求号(DR…)，order_main 里查不到，
+    // 故跳过 PENDING，再对前 10 条一次性 $in 回查 order_main，取第一条真实订单做比对
+    const rows = (od.orders || []).filter((x) => x.order_no && x.time_str && x.status !== 'PENDING').slice(0, 10);
+    if (!rows.length) {
+      record('3.6-a', '订单列表 time_str = 北京时间(+8)', 'NEED-HUMAN', '列表无订单行（仅需求或无数据）');
     } else {
       const oR = execTcbCommands([{ TableName: 'order_main', CommandType: 'COMMAND', Command: JSON.stringify({
-        find: 'order_main', filter: { order_no: row.order_no }, projection: { start_time: 1 }, limit: 1
+        find: 'order_main', filter: { order_no: { $in: rows.map((x) => x.order_no) } }, projection: { order_no: 1, start_time: 1 }, limit: 20
       }) }]);
-      const startMs = numOf(((oR.parsed || [])[0] || {}).start_time, 0);
-      const e = bjOf(startMs);
-      const expectOrders = `${e.mo}月${e.day}日 ${e.h}:${e.mi}`; // orders.js fmtTime 口径（月日不补零）
-      record('3.6-a', '订单列表 time_str = 北京时间(+8)', startMs && row.time_str === expectOrders ? 'PASS' : 'FAIL',
-        row.order_no + ' 期望「' + expectOrders + '」，实得「' + row.time_str + '」');
+      const byNo = {};
+      (oR.parsed || []).forEach((x) => { byNo[x.order_no] = x; });
+      const hit = rows.find((x) => numOf((byNo[x.order_no] || {}).start_time, 0) > 0);
+      if (!hit) {
+        record('3.6-a', '订单列表 time_str = 北京时间(+8)', 'NEED-HUMAN', '前 10 条均未在 order_main 命中 start_time');
+      } else {
+        const e = bjOf(numOf(byNo[hit.order_no].start_time, 0));
+        const expectOrders = `${e.mo}月${e.day}日 ${e.h}:${e.mi}`; // orders.js fmtTime 口径（月日不补零）
+        record('3.6-a', '订单列表 time_str = 北京时间(+8)', hit.time_str === expectOrders ? 'PASS' : 'FAIL',
+          hit.order_no + ' 期望「' + expectOrders + '」，实得「' + hit.time_str + '」');
+      }
     }
   } catch (e) {
     record('3.6-a', '订单列表 time_str = 北京时间(+8)', 'FAIL', String(e && e.message));
