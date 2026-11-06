@@ -72,7 +72,7 @@
 
 | # | 负债 | 证据/影响 | 处置 |
 |---|---|---|---|
-| P3-3 | `emergency_contact.phone` / `demand.contact_phone` 明文 | 隐私合规；`backfill-phone-enc.js` 仅覆盖 `user_account` | 提审后单独立项（设计+评审+真机） |
+| P3-3 | `emergency_contact.phone` / `demand.contact_phone` 明文 | 隐私合规；`backfill-phone-enc.js` 仅覆盖 `user_account` | **进行中（2026-11-06）· 批1 读侧双读已部署**：新增 `safety-report/phone_crypt.js` 副本并让 `safety-report` / `user-login` / `admin-action` / `order-action` / `demand-publish` 五处读取「有 `phone_enc` 解密、无则回退明文」，`contact_phone_mask` 优先展示；门禁 273 files / A/B 456，5 函数部署 success + SHA 回读 MATCH。**待批2 写侧加密**（`set_emergency_contact` / `user_ec_update` / `demand.contact_phone` → `phonePatch` + `_.remove()`）**与批3 存量回填**（`backfill-phone-enc.js` 扩到两集合）；真机待验 EC 回显 + SOS 拨号 |
 | P3-10 | `KNOWN_EVOLUTION` 3 条 stale（`my_orders_partner`/`my_orders_user`/`notice_list`） | 声明表与运行时差集；当前运行时 **79 例** | ✅ **已偿还（2026-11-03，复核于 2026-11-06）**：`ab_equivalence.js` L672 已留档「三条白名单已 stale，删除以免漂移被静默兜住」；当前 A/B 仍 **456 EQUIVALENT / 79 known**，三条独立行为由 `order-action.entry.test.js` 守护 |
 | P3-14b | `bootstrap.js` take 链 `navigateTo` 的 `fail: () => {}` 静默 | 栈满仅丢一次跳转 | 已批准「零代码」豁免；触碰该文件时同修 |
 | P3-15 | 法律合规残留：⑤版本库不可用时回填源为未保存表单；⑥「删除」实为「停用」措辞不统一；⑦满态判定误报；⑧批量发布快照完整性待专项 | admin-web/legal 体验与一致性 | **⑤⑥⑦⑧ 全部 ✅ 已偿还（2026-11-06）**：⑤`openEdit` L399-402 在 `legal_doc_get` 失败时 `ElMessage.error` 后 `return`（fail-closed）；⑥`Legal.vue` L59/L82/L114 统一「停用（删除=停用）」措辞；⑦L74/L287 满态判定改为「已配置数 ≥ 场景总数」；⑧`action_legal_doc.js#writeVersion` 三处加固——版本号读取失败 **fail-closed**（原 `.catch(()=>({data:[]}))` 会静默当 0 写 v1）、归档前先取旧生效版 `_id` 并在 `add` 失败时**恢复 archived→published**（消除「旧版已归档、新版不存在」的快照空洞）、`add` 失败返回 `legal_add_fail` 并 `log.e` 留痕 |
