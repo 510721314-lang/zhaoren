@@ -12,7 +12,7 @@
 | P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合） |
 | P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 13 | 5 已偿还；**P2-2/P2-3/P2-4 开放**；P2-7~10、12/13 真机待验 |
-| P3 卫生/已接受 | 25 | 18 已结案/已偿还（2026-11-06 复核新增 P3-10 / P3-15⑤⑥⑦ / P3-20④）；**真实开放 4 项**：P3-3（手机号明文）、P3-15⑧（批量发布快照）、P3-25（admin-action 拆分）、P3-1（口径已结案）；P3-14b 为已批准零代码豁免 |
+| P3 卫生/已接受 | 25 | 19 已结案/已偿还（2026-11-06 新增 P3-10 / P3-15⑤⑥⑦⑧ / P3-20④ / P3-25）；**真实开放 1 项**：P3-3（手机号明文）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免 |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
@@ -79,7 +79,7 @@
 | P3-16 | 工作台信用分两源（`user_account.partner_credit_score` vs `partner_profile.score`） | 可能出现「分数 L2 段却显示 L3」 | **✅ 已偿还（2026-11-05）**：`balance_info` 已返回 `credit_score`（取 `partner_profile.score`）；`workbench` 收敛为单一展示字段 `creditScore`（无档案回退账户原值），WXML 不再直接读 `user.partner_credit_score` |
 | P3-20④ | 首页冷启动 `fetchUser` 与 `refreshNoticeBadge` 各调一次 `peek_login` | 配额微浪费 | ✅ **已偿还（复核于 2026-11-06）**：`pages-v2/index/index.js` L135 新增 `__badgeAt` 标记——fetchUser 的 `peek_login` 已含未读数，首次 `onShow` 的 `refreshNoticeBadge` 命中标记即跳过；L142-144 另有 30s 节流 |
 | P3-23 | `S2_6` 预告片文案缺「待」字 | 真实态与预告态易混 | **✅ 已偿还（2026-11-05 复核）**：`order-progress/index.js` 已有 `PREVIEW_NAME = { S2_6: '待发起开始履约' }` 并在非当前态分支套用 |
-| P3-25 | `admin-action/index.js` 682 行仍含 `ROLE_GRANTS`+鉴权+schema | 维护成本 | 提审后最小版拆分（`authz.js`，A/B 必须全绿） |
+| P3-25 | `admin-action/index.js` 682 行仍含 `ROLE_GRANTS`+鉴权+schema | 维护成本 | **✅ 已偿还（2026-11-06）**：新增 `authz.js`（`ADMIN_ROLE_LABEL` / `ADMIN_ROLES` / `ROLE_GRANTS` 68 条 + `canAccess` / `forbiddenMsg`）；`index.js` 只保留「取角色 → 判定 → 拒绝留痕」编排。等价性证明 **AUTHZ-EQUIV 4/4**：action 集合一致（68）、每条放行角色一致、`canAccess` 与旧表达式 **276 组全同值**、`forbiddenMsg` 逐字一致；已部署并 `code download` 回读 `index.js` / `authz.js` **SHA256 均 MATCH** |
 | P3-1 | 空 catch 净约 155 处（窄类 25/25 已收口） | 多数有意设计 | **资金/一致性主路径 ✅ 已收口（2026-11-06 复判）**：`payment-mock/action_pay.js` 两处补偿回写（支付失败回滚 `paid_fen`、退款失败回滚 `refunded_fen`）原为 `.catch(()=>{})` 完全无痕，改为 `reportCompensateFail()` → `log.e` + `platform_event(P0, pay_compensate_fail)`；`order-action/action_change.js` L330 确认位回滚补 `log.w`。其余空 catch 维持「有意设计」口径，解冻后复判 |
 | P3-8 | 系统超时转争议不写 `complaint` 集合 | 自动转争议单时间线少 1 条卡片 | 已裁定不修（低危、读方有兜底） |
 
