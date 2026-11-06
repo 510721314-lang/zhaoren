@@ -327,7 +327,7 @@ async function change_respond(ctx) {
     if (confPrev) {
       await col('order_confirmations').where({ _id: confPrev.id, version: confPrev.version })
         .update({ data: { items: confPrev.items, version: confPrev.version + 1, updated_at: now } })
-        .catch(() => {});
+        .catch((e2) => log.w(`[COMPENSATE_FAIL] change_accept conf=${confPrev.id}: ${e2 && e2.message}`));
     }
     return { ok: false, code: 'oa_conflict', msg: '该变更已被处理,请刷新' };
   }

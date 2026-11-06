@@ -1,5 +1,18 @@
 // action_pay.js — 从 index.js 物理抽出, 行为逐字不变; 共享符号经 ctx 注入, 禁 require('./index')
 
+// P3-1(2026-11-06 复判): 事务失败后的补偿回写若再失败, 会留下「支付/退款失败但订单状态与资金位已变」的账实不符,
+// 且原实现 .catch(()=>{}) 完全无痕 → 线上无法发现。统一改为 log.e + platform_event(P0) 留痕(内部再 try 包裹防二次失败)。
+async function reportCompensateFail(col, log, tag, orderId, err) {
+  log.e('[COMPENSATE_FAIL] ' + tag + ' order=' + orderId + ': ' + ((err && err.message) || err));
+  try {
+    await col('platform_event').add({ data: {
+      level: 'P0', type: 'pay_compensate_fail', openid: '',
+      payload: { tag, order_id: orderId, msg: String((err && err.message) || err || '').slice(0, 200) },
+      created_at: Date.now(), updated_at: Date.now(), is_deleted: false
+    }});
+  } catch (_) {}
+}
+
     // 1. 收银台摘要(仅订单 user 可看)
 async function cashierInfoAction(ctx) {
   const { event, openid, clientIp, device, action, SCENE_NAMES, getConfig, getOrder } = ctx;
@@ -137,7 +150,7 @@ async function mockPayAction(ctx) {
         // 补偿须同时回滚 CAS 已写的资金正交位(paid_fen), 否则订单回到未支付(S0)却留有已付金额 → 结算/对账口径不一致
         await col('order_main').where({ _id: order_id, status: 'S2' }).update({
           data: { status: 'S0', fund: { paid_fen: 0, refunded_fen: 0, settle_state: 'pending', settled_at: 0 }, updated_at: Date.now() }
-        }).catch(() => {});
+        }).catch((e2) => reportCompensateFail(col, log, 'mock_pay', order_id, e2));
         return { ok: false, code: 'pay_db_fail', msg: '支付失败,请稍后重试' };
       }
 
@@ -240,7 +253,7 @@ async function mockRefundAction(ctx) {
         // 补偿须同时把 CAS 已写的已退金额清零(fund.refunded_fen), 否则订单回原态却显示"已退"
         await col('order_main').where({ _id: order_id, status: 'S7' }).update({
           data: { status: fromStatus, refunded_at: 0, 'fund.refunded_fen': 0, updated_at: Date.now() }
-        }).catch(() => {});
+        }).catch((e2) => reportCompensateFail(col, log, 'mock_refund', order_id, e2));
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
       }
 

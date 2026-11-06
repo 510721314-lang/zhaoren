@@ -134,32 +134,56 @@ async function writeVersion(ctx, opt) {
   // 2026-10-25 修正: 非 scoped 类型不能带 scope:'' 查询——历史记录（批1a 写入）无 scope 字段，
   // Mongo 语义下 {scope:''} 不匹配缺失字段，会把既有版本全部「查不到」导致回滚失效。故按需拼键。
   const key = scope ? { doc_type, scope } : { doc_type };
+  // fail 兜底: writeVersion 也被 seed 等内部调用, ctx.fail 正常存在; 缺失时给出同结构返回
+  const failFn = ctx.fail || ((c, m) => ({ ok: false, code: c, msg: m }));
   // 版本号单调递增（含 archived/retired 一起取 max，保证回滚也不复用版本号）
-  const lastR = await col('legal_doc').where(key).orderBy('version', 'desc').limit(1).get()
-    .catch(() => ({ data: [] }));
+  // P3-15⑧(2026-11-06): 读失败不再静默当 0 —— 静默会在读抖动时尝试写 v1 与历史撞号，改为 fail-closed
+  let lastR;
+  try {
+    lastR = await col('legal_doc').where(key).orderBy('version', 'desc').limit(1).get();
+  } catch (e) {
+    log.e('[LEGAL_VERSION_READ_FAIL] ' + (e && e.message));
+    return failFn('legal_version_read_fail', '版本号读取失败，请重试');
+  }
   const prevMax = (lastR.data && lastR.data[0] && Number(lastR.data[0].version)) || 0;
   const version = prevMax + 1;
 
   // 旧 published → archived（保留历史，不删除）
-  await col('legal_doc').where(Object.assign({}, key, { status: 'published' }))
-    .update({ data: { status: 'archived', updated_at: now } })
-    .catch((e) => log.d(`legal_doc archive fail: ${e.message}`));
+  // P3-15⑧: 先取旧生效版 _id 再归档，add 失败时据此恢复，杜绝「旧版已归档、新版不存在」的快照空洞
+  const oldPubR = await col('legal_doc').where(Object.assign({}, key, { status: 'published' }))
+    .limit(1).get().catch(() => ({ data: [] }));
+  const oldPubId = (oldPubR.data && oldPubR.data[0] && oldPubR.data[0]._id) || '';
+  if (oldPubId) {
+    await col('legal_doc').doc(oldPubId).update({ data: { status: 'archived', updated_at: now } })
+      .catch((e) => log.d(`legal_doc archive fail: ${e.message}`));
+  }
 
-  const r = await col('legal_doc').add({ data: {
-    doc_type,
-    scope,
-    version,
-    content,
-    title,
-    remark,
-    status,
-    effective_at: now,
-    created_at: now,
-    updated_at: now,
-    created_by: operatorAccount || openid || '',
-    rolled_back_from: rolled_back_from || 0,
-    is_deleted: false
-  }});
+  let r;
+  try {
+    r = await col('legal_doc').add({ data: {
+      doc_type,
+      scope,
+      version,
+      content,
+      title,
+      remark,
+      status,
+      effective_at: now,
+      created_at: now,
+      updated_at: now,
+      created_by: operatorAccount || openid || '',
+      rolled_back_from: rolled_back_from || 0,
+      is_deleted: false
+    }});
+  } catch (e) {
+    log.e('[LEGAL_ADD_FAIL] ' + (e && e.message));
+    // 恢复上一生效版本（best-effort，失败再留痕）
+    if (oldPubId) {
+      await col('legal_doc').doc(oldPubId).update({ data: { status: 'published', updated_at: Date.now() } })
+        .catch((e2) => log.e('[LEGAL_RESTORE_FAIL] ' + (e2 && e2.message)));
+    }
+    return failFn('legal_add_fail', `版本写入失败（${version}），已恢复上一生效版本，请重试`);
+  }
 
   // ── 双写兼容层 ──
   const cfgData = { updated_at: now };
