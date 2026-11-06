@@ -122,19 +122,24 @@ function record(no, name, state, detail) {
   }
 
   // ── 3.7 #142：S2 已过点 → nextStep.title = 已到服务时间 ──
-  try {
-    const page = await openDetail(s2._id);
-    const d = await page.data();
-    const title = (d.nextStep && d.nextStep.title) || '';
-    if (!d.order) {
-      record('3.7', 'S2 到点文案', 'NEED-HUMAN', '详情页未加载订单（IDE 登录账号可能非该单参与方），nextStep=' + JSON.stringify(title));
-    } else if (title === '已到服务时间') {
-      record('3.7', 'S2 到点文案', 'PASS', 'nextStep.title=' + title);
-    } else {
-      record('3.7', 'S2 到点文案', 'FAIL', '期望「已到服务时间」，实得「' + title + '」');
+  // IDE 自动化偶发 getPageMetaByWebviewId null（页面刚 reLaunch 完），重试 3 次再判定
+  for (let i = 0; i < 3; i++) {
+    try {
+      const page = await openDetail(s2._id);
+      const d = await page.data();
+      const title = (d.nextStep && d.nextStep.title) || '';
+      if (!d.order) {
+        record('3.7', 'S2 到点文案', 'NEED-HUMAN', '详情页未加载订单（IDE 登录账号可能非该单参与方），nextStep=' + JSON.stringify(title));
+      } else if (title === '已到服务时间') {
+        record('3.7', 'S2 到点文案', 'PASS', 'nextStep.title=' + title);
+      } else {
+        record('3.7', 'S2 到点文案', 'FAIL', '期望「已到服务时间」，实得「' + title + '」');
+      }
+      break;
+    } catch (e) {
+      if (i === 2) record('3.7', 'S2 到点文案', 'FAIL', String(e && e.message));
+      else await sleep(4000);
     }
-  } catch (e) {
-    record('3.7', 'S2 到点文案', 'FAIL', String(e && e.message));
   }
 
   // ── 3.12 #144：S1 页面不出现「申请变更（地点/内容）」──
@@ -184,6 +189,126 @@ function record(no, name, state, detail) {
       has ? '按钮文案命中「申请变更」' : '未命中，按钮文案=' + JSON.stringify(texts.slice(0, 6)));
   } catch (e) {
     record('3.12+', 'S2 正对照：有申请变更入口', 'NEED-HUMAN', String(e && e.message));
+  }
+
+  // ── 3.11 #146：改期规则后台化 → 详情页规则文案与云端 admin_config 一致 ──
+  // 期望值不写死：直接读云端 modifyMinLeadHours / modifyMaxTimes / modifyMaxSpanH（缺省回 4/2/72）
+  try {
+    const cfgR = execTcbCommands([{ TableName: 'admin_config', CommandType: 'COMMAND', Command: JSON.stringify({
+      find: 'admin_config', filter: { _id: 'global' },
+      projection: { modifyMinLeadHours: 1, modifyMaxTimes: 1, modifyMaxSpanH: 1 }, limit: 1
+    }) }]);
+    const c = (cfgR.parsed || [])[0] || {};
+    // tcb 回读数字是 BSON 包装（{$numberInt:string} / {$numberLong:string}），需先解包再比较
+    const num = (v, dft) => {
+      const raw = (v && typeof v === 'object') ? (v.$numberInt != null ? v.$numberInt : (v.$numberLong != null ? v.$numberLong : v.$numberDouble)) : v;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : dft;
+    };
+    const lead = num(c.modifyMinLeadHours, 4);
+    const times = num(c.modifyMaxTimes, 2);
+    const span = num(c.modifyMaxSpanH, 72);
+    const page = await openDetail(s2._id);
+    const d = await page.data();
+    const txt = d.modifyRuleText || '';
+    const ok = txt.indexOf('提前' + lead + '小时') >= 0 && txt.indexOf('最多' + times + '次') >= 0 && txt.indexOf('幅度≤' + span + '小时') >= 0;
+    record('3.11', '改期规则后台化：页面文案与云端一致', txt ? (ok ? 'PASS' : 'FAIL') : 'NEED-HUMAN',
+      '云端=' + lead + '/' + times + '/' + span + '；页面=' + txt);
+  } catch (e) {
+    record('3.11', '改期规则后台化：页面文案与云端一致', 'FAIL', String(e && e.message));
+  }
+
+  // ── 3.10 #145：S2 变更卡静态结构（变更卡绑定 pending_change；待反馈时隐藏发起入口）──
+  try {
+    const w = require('fs').readFileSync(require('path').join(__dirname, '..', 'miniprogram/pages-v2/order-detail/order-detail.wxml'), 'utf8');
+    const hasCard = /wx:if="\{\{order\.pending_change\}\}"/.test(w) && w.indexOf('变更「') >= 0;
+    const hideEntry = /wx:if="\{\{!order\.pending_change\}\}"[^>]*>[^<]*申请变更/.test(w.replace(/\n/g, ''));
+    record('3.10', 'S2 变更卡与入口互斥（静态结构）', hasCard && hideEntry ? 'PASS' : 'FAIL',
+      '变更卡=' + hasCard + '；入口互斥=' + hideEntry);
+  } catch (e) {
+    record('3.10', 'S2 变更卡与入口互斥（静态结构）', 'FAIL', String(e && e.message));
+  }
+
+  // ── 3.5 #栈满 10 层兜底：navigateTo 必须带 fail 提示「请到订单列表重新进入」──
+  try {
+    const b = require('fs').readFileSync(require('path').join(__dirname, '..', 'miniprogram/utils/bootstrap.js'), 'utf8');
+    const ok = /navigateTo\(\{[^}]*fail:[^}]*请到订单列表重新进入/.test(b.replace(/\n/g, ' '));
+    record('3.5', '栈满跳转兜底文案（静态结构）', ok ? 'PASS' : 'FAIL', ok ? 'bootstrap.js 命中 navigateTo+fail 兜底' : '未命中');
+  } catch (e) {
+    record('3.5', '栈满跳转兜底文案（静态结构）', 'FAIL', String(e && e.message));
+  }
+
+  // ── 3.6 #141：页面侧时间 +8（订单列表 time_str / 会话列表 last_msg_at_display）──
+  // 期望值独立手算：强制按 UTC+8 取分量（不用设备本地时区，避免自指）
+  const numOf = (v, dft) => {
+    const raw = (v && typeof v === 'object') ? (v.$numberLong != null ? v.$numberLong : (v.$numberInt != null ? v.$numberInt : v.$numberDouble)) : v;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : dft;
+  };
+  const bjOf = (ms) => {
+    const d = new Date(ms + 8 * 3600000);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    return {
+      y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, day: d.getUTCDate(),
+      h: pad2(d.getUTCHours()), mi: pad2(d.getUTCMinutes()), s: pad2(d.getUTCSeconds())
+    };
+  };
+  async function openPage(url, readyKey) {
+    for (let i = 0; i < 2; i++) {
+      try {
+        await mp.reLaunch(url);
+        await sleep(4000);
+        const page = await mp.currentPage();
+        for (let k = 0; k < 6; k++) {
+          const d = await page.data().catch(() => ({}) || {});
+          if (d && d[readyKey] && d[readyKey].length) return { page, d };
+          await sleep(2000);
+        }
+        return { page, d: await page.data() };
+      } catch (e) {
+        if (i === 1) throw e;
+        await sleep(5000);
+      }
+    }
+  }
+  try {
+    const { d: od } = await openPage('/pages-v2/orders/orders', 'orders');
+    // 取列表首行（不绑定夹具：页签/角色可能挡掉夹具单），再回查其 start_time 手算比对
+    const row = (od.orders || []).find((x) => x.order_no && x.time_str);
+    if (!row) {
+      record('3.6-a', '订单列表 time_str = 北京时间(+8)', 'NEED-HUMAN', '列表为空（该账号无订单）');
+    } else {
+      const oR = execTcbCommands([{ TableName: 'order_main', CommandType: 'COMMAND', Command: JSON.stringify({
+        find: 'order_main', filter: { order_no: row.order_no }, projection: { start_time: 1 }, limit: 1
+      }) }]);
+      const startMs = numOf(((oR.parsed || [])[0] || {}).start_time, 0);
+      const e = bjOf(startMs);
+      const expectOrders = `${e.mo}月${e.day}日 ${e.h}:${e.mi}`; // orders.js fmtTime 口径（月日不补零）
+      record('3.6-a', '订单列表 time_str = 北京时间(+8)', startMs && row.time_str === expectOrders ? 'PASS' : 'FAIL',
+        row.order_no + ' 期望「' + expectOrders + '」，实得「' + row.time_str + '」');
+    }
+  } catch (e) {
+    record('3.6-a', '订单列表 time_str = 北京时间(+8)', 'FAIL', String(e && e.message));
+  }
+  try {
+    // 会话列表：不绑定夹具（夹具单无消息 → last_msg_at 为空），改取最近一条有 last_msg_at 的会话
+    const cR = execTcbCommands([{ TableName: 'im_conversation', CommandType: 'COMMAND', Command: JSON.stringify({
+      find: 'im_conversation', filter: {}, projection: { _id: 1, order_id: 1, last_msg_at: 1 }, limit: 20, sort: { last_msg_at: -1 }
+    }) }]);
+    const conv = ((cR.parsed || [])[0] && cR.parsed[0]) || {};
+    const msgMs = numOf(conv.last_msg_at, 0);
+    if (!msgMs) {
+      record('3.6-b', '会话列表 last_msg_at_display = +08:00', 'NEED-HUMAN', '云库无任何带 last_msg_at 的会话');
+    } else {
+      const e2 = bjOf(msgMs);
+      const expectIso = `${e2.y}-${String(e2.mo).padStart(2, '0')}-${String(e2.day).padStart(2, '0')}T${e2.h}:${e2.mi}:${e2.s}+08:00`;
+      const { d: md } = await openPage('/pages-v2/message/message', 'orderList');
+      const conv2 = (md.orderList || []).find((x) => x._id === conv._id);
+      record('3.6-b', '会话列表 last_msg_at_display = +08:00', conv2 ? (conv2.last_msg_at_display === expectIso ? 'PASS' : 'FAIL') : 'NEED-HUMAN',
+        conv2 ? '期望「' + expectIso + '」，实得「' + conv2.last_msg_at_display + '」' : '会话列表中未见该会话（可能非本账号/不在首屏）');
+    }
+  } catch (e) {
+    record('3.6-b', '会话列表 last_msg_at_display = +08:00', 'FAIL', String(e && e.message));
   }
 
   const pass = results.filter((r) => r.state === 'PASS').length;
