@@ -145,6 +145,13 @@ async function publish_action(ctx) {
         }
       }
 
+      // P3-3 批2: 联系手机号改密文落库(phone_enc/phone_hash/phone_mask); 无有效密钥则 fail-closed, 防明文再入库
+      const phoneKey = config && config.phone_aes_key;
+      if (!phoneCrypt.isHexKey(phoneKey)) {
+        return { ok: false, code: 'publish_phone_key_missing', msg: '手机号加密未初始化,请联系平台' };
+      }
+      const phoneFields = phoneCrypt.phonePatch(contactPhone, phoneKey);
+
       // 服务端时间红线二次强校验(带完整 admin_config, 与前端 redline.js 同口径)
       if (!isServiceTimeAllowed(start_time, config)) {
         return { ok: false, code: 'publish_redline', msg: '00:00-06:00 为休息时段,请选择 06:00 后的服务时间' };
@@ -224,11 +231,11 @@ async function publish_action(ctx) {
       if (!hasEC) {
         // MVP bootstrap: 首次发布自动创建一个占位紧急联系人
         await col('emergency_contact').add({
-          data: {
-            openid, name: '紧急联系人', phone: '13800000000',
+          data: Object.assign({
+            openid, name: '紧急联系人',
             relation: '家人', is_deleted: false,
             created_at: Date.now(), updated_at: Date.now()
-          }
+          }, phoneCrypt.phonePatch('13800000000', phoneKey))
         });
       }
 
@@ -442,7 +449,8 @@ async function publish_action(ctx) {
         headcount: headcountN,
         gender_pref: genderPref,
         // ── 发布者联系手机号(履约联系用; 真号受限存储, 任何输出不回传; 二期接真实验证/虚拟号) ──
-        contact_phone: contactPhone,
+        // P3-3 批2: 明文 contact_phone 改密文三字段落库(phoneFields)
+        ...phoneFields,
         // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人 ──
         publish_type: publishType,
         service_target: proxySignature

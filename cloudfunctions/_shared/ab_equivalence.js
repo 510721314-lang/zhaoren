@@ -36,7 +36,9 @@ const dpPubStore = (over) => Object.assign({
     rate_min_fen: 3000, rate_max_fen: 10000,
     min_credit_place_order: 600, min_credit_take_order: 600,
     city_enabled: ['成都'], publish_distance_max_km: 50, take_distance_max_km: 50,
-    welfare_fixed_price_fen: 5000
+    welfare_fixed_price_fen: 5000,
+    // P3-3 批2: 手机号改密文落库后, publish 需 64 hex 密钥; 测试固定 key('a'*64)
+    phone_aes_key: 'a'.repeat(64)
   } },
   user_account: { [DPUID]: { _id: DPUID, openid: USER, nickname: '张三', surname: '张', status: 'normal', is_realname_done: true, user_credit_score: 800, age: null, is_deleted: false } },
   emergency_contact: {}, partner_profile: {}, demand_draft: {}, disclaimer_signature: {},

@@ -2,7 +2,7 @@
 
     // 5. 设置紧急联系人(1~2 名)
 async function set_emergency_contact_action(ctx) {
-  const { event, openid, clientIp, device, db, col, log, writeAudit, evalEmergencyCooldown, maskPhone, phoneCrypt } = ctx;
+  const { event, openid, clientIp, device, db, col, _, log, writeAudit, evalEmergencyCooldown, maskPhone, phoneCrypt, ensurePhoneKey } = ctx;
       const { contacts } = event;
       if (!Array.isArray(contacts) || contacts.length === 0 || contacts.length > 2) {
         return { ok: false, code: 'emergency_count', msg: '紧急联系人需 1-2 名' };
@@ -37,16 +37,19 @@ async function set_emergency_contact_action(ctx) {
         const existR = await col('emergency_contact')
           .where({ openid, is_deleted: false }).orderBy('created_at', 'asc').limit(2).get();
         const existDocs = existR.data || [];
+        // P3-3 批2: 手机号改密文落库(phone_enc/phone_hash/phone_mask)并移除明文 phone
+        const ecKey = await ensurePhoneKey();
+        const ecPatch = (p) => Object.assign(phoneCrypt.phonePatch(p, ecKey), { phone: _.remove() });
         await Promise.all(contacts.map((c, i) => {
           if (existDocs[i]) {
-            return col('emergency_contact').doc(existDocs[i]._id).update({ data: {
-              name: c.name, phone: c.phone, relation: c.relation, updated_at: now
-            }});
+            return col('emergency_contact').doc(existDocs[i]._id).update({ data: Object.assign({
+              name: c.name, relation: c.relation, updated_at: now
+            }, ecPatch(c.phone))});
           }
-          return col('emergency_contact').add({ data: {
-            openid, name: c.name, phone: c.phone, relation: c.relation,
+          return col('emergency_contact').add({ data: Object.assign({
+            openid, name: c.name, relation: c.relation,
             created_at: now, updated_at: now, is_deleted: false
-          }});
+          }, ecPatch(c.phone))});
         }));
         // 新数据少于旧数据(如 2 名减为 1 名): 多余旧槽位软删
         for (let i = contacts.length; i < existDocs.length; i++) {

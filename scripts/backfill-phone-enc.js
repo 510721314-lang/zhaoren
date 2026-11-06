@@ -70,6 +70,74 @@ console.log(`scan: 明文文档=${docs.length} 可回填(11位手机号)=${targe
 const legacySms = targets.filter((d) => typeof d.sms_target === 'string' && d.sms_target === d.phone).length;
 console.log(`其中含历史明文 sms_target=${legacySms}`);
 
+// ── P3-3 批3: emergency_contact.phone / demand.contact_phone 存量就地加密 ──
+// 与 user_account 同款两阶段: 先写 phone_enc/hash/mask, 校验齐全后再 unset 明文; 中断可重跑
+const EXTRA = [
+  { coll: 'emergency_contact', field: 'phone' },
+  { coll: 'demand', field: 'contact_phone' }
+];
+const PAGE = 200;
+
+function listPlain(coll, field) {
+  const f = {}; f[field] = { $exists: true, $nin: ['', null] };
+  const out = [];
+  for (let skip = 0; skip < 20000; skip += PAGE) {
+    const page = run([{
+      TableName: coll, CommandType: 'QUERY',
+      Command: JSON.stringify({ find: coll, filter: f, limit: PAGE, skip })
+    }]);
+    out.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return out;
+}
+
+function backfillExtra(spec) {
+  const docs = listPlain(spec.coll, spec.field);
+  const todo = docs.filter((d) => d && d._id && typeof d[spec.field] === 'string'
+    && PHONE_11.test(d[spec.field]) && !d.phone_enc);
+  const bad = docs.length - todo.length;
+  console.log(`[${spec.coll}] 明文=${docs.length} 可回填(11位且未加密)=${todo.length} 跳过=${bad}`);
+  if (!APPLY || !todo.length) return { todo: todo.length, left: docs.length - todo.length };
+
+  let n = 0;
+  for (const part of chunk(todo, 20)) {
+    const updates = part.map((d) => {
+      const p = pc.phonePatch(d[spec.field], key);
+      return { q: { _id: d._id }, u: { $set: { phone_enc: p.phone_enc, phone_hash: p.phone_hash, phone_mask: p.phone_mask } } };
+    });
+    run([{ TableName: spec.coll, CommandType: 'UPDATE', Command: JSON.stringify({ update: spec.coll, updates }) }]);
+    n += part.length;
+    console.log(`[${spec.coll}] set: ${n}/${todo.length}`);
+  }
+
+  // 校验后才删明文, 否则保留可重跑
+  const stillMissing = listPlain(spec.coll, spec.field).filter((d) => d && d._id
+    && PHONE_11.test(d[spec.field] || '') && !d.phone_enc);
+  if (stillMissing.length) {
+    console.error(`ABORT[${spec.coll}]: ${stillMissing.length} 条仍无 phone_enc, 不删明文(可重跑)`);
+    process.exit(2);
+  }
+
+  let m = 0;
+  for (const part of chunk(todo, 20)) {
+    const updates = part.map((d) => {
+      const u = {}; u[spec.field] = '';
+      return { q: { _id: d._id }, u: { $unset: u } };
+    });
+    run([{ TableName: spec.coll, CommandType: 'UPDATE', Command: JSON.stringify({ update: spec.coll, updates }) }]);
+    m += part.length;
+    console.log(`[${spec.coll}] unset: ${m}/${todo.length}`);
+  }
+  const left = listPlain(spec.coll, spec.field).filter((d) => d && _isPlain(d[spec.field])).length;
+  console.log(`[${spec.coll}] DONE 回填=${todo.length} 残留明文=${left}`);
+  return { todo: todo.length, left };
+}
+
+function _isPlain(v) { return typeof v === 'string' && PHONE_11.test(v); }
+
+for (const spec of EXTRA) backfillExtra(spec);
+
 if (!APPLY) { console.log('[DRY-RUN] 未写库。加 --apply 执行。'); process.exit(0); }
 if (!targets.length) console.log('无明文 phone 需回填, 继续执行 sms_target 清理与终校验');
 

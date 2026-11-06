@@ -3,6 +3,17 @@
 // phone_crypt: 手机号密文存储(P0-3 整改)后, 展示一律取落库掩码(displayPhone), 无需解密
 const phoneCrypt = require('./phone_crypt');
 
+// P3-3 批2: 写侧加密需密钥(admin_config.phone_aes_key); 缺失/非法返回空串 → 调用方 fail-closed
+async function readPhoneKey(ctx) {
+  try {
+    const r = await ctx.col('admin_config').doc('global').get();
+    const k = r.data && r.data.phone_aes_key;
+    return phoneCrypt.isHexKey(k) ? k : '';
+  } catch (e) {
+    return '';
+  }
+}
+
 async function user_list(ctx) {
   const { event, pager, col, _, db, isOpenid, ok } = ctx;
   const { keyword, status, is_partner, sort } = event;
@@ -92,17 +103,21 @@ async function user_ec_update(ctx) {
     if (!c.name || !/^1\d{10}$/.test(c.phone || '')) return fail('ec_field', '姓名/手机号格式有误');
   }
   const nowEc = Date.now();
+  // P3-3 批2: 管理员改联系人同样走密文落库; 无密钥时拒绝写入, 避免明文再次入库
+  const ecKey = await readPhoneKey(ctx);
+  if (!ecKey) return fail('ec_no_key', '手机号加密密钥未配置,暂不可修改紧急联系人');
+  const ecPatch = (p) => Object.assign(phoneCrypt.phonePatch(p, ecKey), { phone: _.remove() });
   const existR = await col('emergency_contact')
     .where({ openid: target_openid, is_deleted: false }).orderBy('created_at', 'asc').limit(2).get();
   const existDocs = existR.data || [];
   await Promise.all(contacts.map((c, i) => {
     if (existDocs[i]) {
       return col('emergency_contact').doc(existDocs[i]._id).update({
-        data: { name: c.name, phone: c.phone, relation: c.relation || '', updated_at: nowEc }
+        data: Object.assign({ name: c.name, relation: c.relation || '', updated_at: nowEc }, ecPatch(c.phone))
       });
     }
     return col('emergency_contact').add({
-      data: { openid: target_openid, name: c.name, phone: c.phone, relation: c.relation || '', created_at: nowEc, updated_at: nowEc, is_deleted: false }
+      data: Object.assign({ openid: target_openid, name: c.name, relation: c.relation || '', created_at: nowEc, updated_at: nowEc, is_deleted: false }, ecPatch(c.phone))
     });
   }));
   for (let i = contacts.length; i < existDocs.length; i++) {

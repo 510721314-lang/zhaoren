@@ -35,7 +35,8 @@ function safeStart(now = Date.now()) {
 
 function baseStore(extra = {}) {
   return Object.assign({
-    admin_config: { global: { env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000 } },
+    // P3-3 批2: publish 落库手机号改密文, 需 64 hex 密钥; 测试用固定 key('a'*64) 仅供加密链路跑通
+    admin_config: { global: { env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000, phone_aes_key: 'a'.repeat(64) } },
     user_account: { u1: { _id: 'u1', openid: USER } },
     demand: {}
   }, extra);
@@ -161,6 +162,8 @@ function pubStore(over = {}) {
   return Object.assign({
     admin_config: { global: {
       env: 'dev', dev_until: Date.now() + 2 * 3600 * 1000,
+      // P3-3 批2: 手机号改密文落库后, publish 需 64 hex 密钥方可穿透
+      phone_aes_key: 'a'.repeat(64),
       scene_list: [{ code: 'W1', name: '就医陪诊', options: ['陪同挂号', '取药', '陪检'], visible: true, builtin: true, disclaimer_type: 'medical_disclaimer' }],
       legal_scene_disclaimers: { W1: 'W1 就医陪诊场景免责声明全文' },
       rate_min_fen: 3000, rate_max_fen: 10000,
