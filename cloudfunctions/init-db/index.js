@@ -309,10 +309,15 @@ exports.main = async (event, context) => {
     return { ok: true, mode: 'quick_check', demands, config: cfg, mock_gate: mockGate };
   }
 
-  // ── 测试数据清理(D6): 仅删 is_test=true 文档(D4-5 白名单打标); 默认 dry-run 只统计, 真删须 confirm='PURGE' ──
+  // ── 测试数据清理(D6): 默认只删夹具前缀 TEST840710820 的 is_test 单; 全量 is_test 须显式 scope='all_istest' + expect_orders 数量核对; 默认 dry-run 只统计, 真删须 confirm='PURGE' ──
   if (action === 'purge_test_data') {
     const _ = db.command;
     const confirmed = String(event.confirm || '') === 'PURGE';
+    // 2026-11-06 范围收紧: 默认只清本工具夹具前缀单; 全量 is_test 须显式 scope='all_istest'
+    // 背景: is_test 只是「参与方命中 test_openids」的打标, 真实单号(ORD...)也会命中;
+    // 实测云端 is_test:true 中 86 条为非 TEST 前缀, 原全量硬删不可恢复, 与本模块「绝不误删真实用户数据」冲突
+    const PURGE_PREFIX = 'TEST840710820';
+    const scopeAll = String(event.scope || '') === 'all_istest';
     // 1. 扫描测试主文档(拿 _id 供级联; 上限 1000 防失控)
     const [demandsR, ordersR, demandCnt, orderCnt] = await Promise.all([
       db.collection('demand').where({ is_test: true }).limit(1000).get().catch(() => ({ data: [] })),
@@ -320,9 +325,14 @@ exports.main = async (event, context) => {
       db.collection('demand').where({ is_test: true }).count().catch(() => ({ total: 0 })),
       db.collection('order_main').where({ is_test: true }).count().catch(() => ({ total: 0 }))
     ]);
-    const demandIds = (demandsR.data || []).map((d) => d._id);
-    const orderIds = (ordersR.data || []).map((o) => o._id);
-    const totalOrders = orderCnt.total || 0, totalDemands = demandCnt.total || 0;
+    // 2. 按范围筛选: 默认只留夹具前缀单, 关联 demand 随订单精确匹配(不做独立条件删)
+    const pickedOrders = (ordersR.data || []).filter((o) => scopeAll || String(o.order_no || '').indexOf(PURGE_PREFIX) === 0);
+    const pickedDemandIds = new Set(pickedOrders.map((o) => o.demand_id).filter(Boolean));
+    const pickedDemands = (demandsR.data || []).filter((d) => scopeAll || pickedDemandIds.has(d._id));
+    const orderIds = pickedOrders.map((o) => o._id);
+    const demandIds = pickedDemands.map((d) => d._id);
+    const totalOrders = orderIds.length, totalDemands = demandIds.length;
+    const outOfScopeOrders = (orderCnt.total || 0) - totalOrders;
     const cascadeCols = ['pay_transaction', 'system_notice', 'evaluation', 'disclaimer_signature', 'order_status_log', 'im_message', 'im_conversation'];
     // 2. dry-run: 报告将删数量, 不动任何数据
     if (!confirmed) {
@@ -334,14 +344,25 @@ exports.main = async (event, context) => {
           stats[c] = r.total || 0;
         } catch (e) { stats[c] = 'err:' + String(e.message || e).slice(0, 40); }
       }
+      const preview = {
+        scope: scopeAll ? 'all_istest' : 'test_prefix',
+        out_of_scope_orders: outOfScopeOrders,
+        sample_orders: pickedOrders.slice(0, 10).map((o) => o.order_no)
+      };
       return {
-        ok: true, mode: 'purge_test_data', dry_run: true, stats,
-        hint: "以上为将被删除的数量统计(仅 is_test=true)。确认真删请重发 { action:'purge_test_data', confirm:'PURGE' }"
+        ok: true, mode: 'purge_test_data', dry_run: true, stats, preview,
+        hint: scopeAll
+          ? `全量模式将硬删 ${totalOrders} 单(含真实单号历史单)。真删须重发 { confirm:'PURGE', scope:'all_istest', expect_orders:${totalOrders} }`
+          : `默认范围=夹具前缀 ${PURGE_PREFIX}。真删重发 { confirm:'PURGE' }；另有 ${outOfScopeOrders} 条 is_test 单不在本范围内`
       };
     }
     // 3. 真删护栏: 超限拒绝(防误标/误操作大面积清除)
     if (totalOrders > 500 || totalDemands > 500) {
       return { ok: false, code: 'idb_purge_too_many', msg: `测试数据超单次上限(orders=${totalOrders}, demands=${totalDemands}, 上限 500), 请先分批处理` };
+    }
+    // 3.5 全量模式强制数量核对(防「以为删几条实际删几十条」)
+    if (scopeAll && Number(event.expect_orders) !== totalOrders) {
+      return { ok: false, code: 'idb_purge_expect_mismatch', msg: `scope=all_istest 须传 expect_orders=${totalOrders}，收到 ${event.expect_orders}`, actual_orders: totalOrders, actual_demands: totalDemands };
     }
     const removed = {};
     // 先删级联子表, 再删主表; 失败即中断并报告已删进度(幂等可重跑)
@@ -355,9 +376,11 @@ exports.main = async (event, context) => {
       }
     }
     try {
-      const r1 = await db.collection('order_main').where({ is_test: true }).remove();
+      // 2026-11-06 改为按 _id 精确删, 与上方 pickedOrders/pickedDemands 范围严格一致
+      // 原 where({is_test:true}).remove() 会越过筛选, 把非夹具/非白名单参与方的历史单一起硬删
+      const r1 = orderIds.length ? await db.collection('order_main').where({ _id: _.in(orderIds) }).remove() : { stats: { removed: 0 } };
       removed.order_main = (r1.stats && r1.stats.removed) || 0;
-      const r2 = await db.collection('demand').where({ is_test: true }).remove();
+      const r2 = demandIds.length ? await db.collection('demand').where({ _id: _.in(demandIds) }).remove() : { stats: { removed: 0 } };
       removed.demand = (r2.stats && r2.stats.removed) || 0;
     } catch (e) {
       return { ok: false, code: 'idb_purge_fail', col: 'main', msg: String(e.message || e), removed_partial: removed };
@@ -366,11 +389,11 @@ exports.main = async (event, context) => {
     try {
       await db.collection('platform_event').add({ data: {
         level: 'P2', type: 'purge_test_data', openid: adminIdentity || 'unknown',
-        payload: { scanned_orders: totalOrders, scanned_demands: totalDemands, removed },
+        payload: { scope: scopeAll ? 'all_istest' : 'test_prefix', scanned_orders: totalOrders, scanned_demands: totalDemands, out_of_scope_orders: outOfScopeOrders, removed },
         created_at: Date.now(), updated_at: Date.now(), is_deleted: false
       }});
     } catch (_) {}
-    return { ok: true, mode: 'purge_test_data', dry_run: false, removed, scanned_orders: totalOrders, scanned_demands: totalDemands };
+    return { ok: true, mode: 'purge_test_data', dry_run: false, scope: scopeAll ? 'all_istest' : 'test_prefix', removed, scanned_orders: totalOrders, scanned_demands: totalDemands, out_of_scope_orders: outOfScopeOrders };
   }
 
   // ── 强制迁移 scene_list / system_templates ──
