@@ -112,12 +112,13 @@
 
 ---
 
-### §5.1 专家核验新发现（2026-11-06，登记不处理）
+### §5.1 专家核验新发现（2026-11-06；C1/C2 登记不处理，C3 已修待部署验证）
 
 | # | 负债 | 证据 | 影响 | 处置 |
 |---|---|---|---|---|
 | C1 | `zz-seed-orders` 的 `genNo`（秒级时间戳 + 3 位 base36，约 9.7 万空间）同秒批量造单可能撞 `uk_order_no`；`index.js` L561/L756 直接 `add` 无重试且 `.catch(()=>{})` 吞错，仍按 `tasks.length` 报「全建成」 | `cloudfunctions/zz-seed-orders/index.js:661-664`、`L561`、`L596`、`L756` | 演示/种子数据**假成功**（少建却显示完成） | 提审后处理：`genNo` 加随机位 + 失败计数如实返回；当前不影响真实下单 |
 | C2 | `admin-action` 的 `order_main` 导入 `mode='append'` 无冲突兜底：任一已存单号（含软删占位）会让整块 500 条 add 抛 `E11000`，灾备恢复中断 | `cloudfunctions/admin-action/action_import.js:70-74`（`replace` 因先硬删才安全，见 `:59-66`） | 灾备恢复流程风险 | 提审后处理；文档已约束 `order_main` 只用 `mode='replace'`（见 [03-data-model](dev-manual/03-data-model.md) L87） |
+| C3 | `init-db` 的 `purge_test_data` 删除范围过宽：筛选只做 `where({is_test:true})` 后 `remove()`，而 `is_test` 只是「参与方命中 `admin_config.test_openids`」的打标，**真实单号（`ORD…`）的历史单也会被打标**；云端实测 `is_test:true` 未删单 **91 条中 86 条非 `TEST840710820` 前缀**，且参与方去重后**有 1 个不在现白名单** → 一次 `confirm:'PURGE'` 会硬删真实用户历史单且不可恢复，与本模块「绝不误删真实用户数据」直接冲突 | 原 `cloudfunctions/init-db/index.js:312-390`（`demand`/`order_main` 两处 `where({is_test:true}).remove()`） | 误删真实历史单（硬删，无软删兜底）；取证脚本 `probe-purge-scope-20261106.js` 回执已留档于 CHANGELOG 2026-11-06 行 | ✅ **已修（2026-11-06，代码层）**：默认范围收紧为夹具前缀 `TEST840710820` + 关联 demand 精确匹配；`scope:'all_istest'` 须**同时**传 `expect_orders=<实测数>`（不符返回 `idb_purge_expect_mismatch`）；删除语句由 `where({is_test:true})` 改为 `where({_id:_.in(ids)})`；dry-run 新增 `preview{scope,out_of_scope_orders,sample_orders}`；审计 payload 带 `scope`。**待办：运行时 dry-run 未实跑（`admin_config.env=prod` + `admin_openids` 非空，控制台测试面板无真实 OPENID 会被 `idb_forbidden` 拦下；CLI 不能 invoke，§38）→ 已用「SHA256 字节一致 + 只读复算（夹具 5 单 / 越界 86 单）」替代验证** |
 
 ---
 
