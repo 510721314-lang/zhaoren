@@ -12,7 +12,7 @@
 | P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合） |
 | P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 13 | 5 已偿还；**P2-2/P2-3/P2-4 开放**；P2-7~10、12/13 真机待验 |
-| P3 卫生/已接受 | 25 | 19 已结案/已偿还（2026-11-06 新增 P3-10 / P3-15⑤⑥⑦⑧ / P3-20④ / P3-25）；**真实开放 1 项**：P3-3（手机号明文）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免 |
+| P3 卫生/已接受 | 25 | 20 已结案/已偿还（2026-11-06 新增 P3-10 / P3-15⑤⑥⑦⑧ / P3-20④ / P3-25 / **P3-3**）；**真实开放 0 项**；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免 |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
@@ -72,7 +72,7 @@
 
 | # | 负债 | 证据/影响 | 处置 |
 |---|---|---|---|
-| P3-3 | `emergency_contact.phone` / `demand.contact_phone` 明文 | 隐私合规；`backfill-phone-enc.js` 仅覆盖 `user_account` | **进行中（2026-11-06）· 批1 读侧双读已部署**：新增 `safety-report/phone_crypt.js` 副本并让 `safety-report` / `user-login` / `admin-action` / `order-action` / `demand-publish` 五处读取「有 `phone_enc` 解密、无则回退明文」，`contact_phone_mask` 优先展示；门禁 273 files / A/B 456，5 函数部署 success + SHA 回读 MATCH。**待批2 写侧加密**（`set_emergency_contact` / `user_ec_update` / `demand.contact_phone` → `phonePatch` + `_.remove()`）**与批3 存量回填**（`backfill-phone-enc.js` 扩到两集合）；真机：**EC 回显 ✅ 2026-11-06**（截图完整回显 `13568965386` / `13980000000`，另证 30 天频控 toast「2026-11-16 后可再次修改」生效），**SOS 弹窗 ✅ 2026-11-06**（订单 `#TEST840710820J` 详情弹出「李老师(伙伴)」「老三(配偶)」+ 报警110/急救120，两条联系人由 `safety-report.getMyContacts` 解密读取成功；实际呼出需再点一次确认号码非空） |
+| P3-3 | `emergency_contact.phone` / `demand.contact_phone` 明文 | 隐私合规；`backfill-phone-enc.js` 仅覆盖 `user_account` | **✅ 已偿还（2026-11-06）** · 批1 读侧双读已部署：新增 `safety-report/phone_crypt.js` 副本并让 `safety-report` / `user-login` / `admin-action` / `order-action` / `demand-publish` 五处读取「有 `phone_enc` 解密、无则回退明文」，`contact_phone_mask` 优先展示；门禁 273 files / A/B 456，5 函数部署 success + SHA 回读 MATCH。**批2 写侧加密 ✅ 2026-11-06 已部署**（`set_emergency_contact` / `user_ec_update` / `demand-publish` 三处写入改 `phonePatch` + `phone: _.remove()`，密钥缺失 fail-closed；门禁 A/B 456，3 函数 SHA 回读 MATCH）**批3 存量回填 ✅ 2026-11-06 已执行**（先只读备份到 `.backup-p3b3-2026-11-06T13-52-59`：EC 12 / demand 1286 文档，SHA256 `3A1AE691DA595078` / `76BC9980FD41B754`；`--apply` 回填 EC 12/12、demand 100/100，两阶段「先写密文校验齐全再删明文」；独立复检：密文文档 12+100 **解密往返+HMAC+掩码全一致**、与原备份明文**交集 100%**、残留明文 **0**）。**P3-3 结案**；`demand.service_target.phone` 未纳入（用户确认暂不做）；真机：**EC 回显 ✅ 2026-11-06**（截图完整回显 `13568965386` / `13980000000`，另证 30 天频控 toast「2026-11-16 后可再次修改」生效），**SOS 弹窗 ✅ 2026-11-06**（订单 `#TEST840710820J` 详情弹出「李老师(伙伴)」「老三(配偶)」+ 报警110/急救120，两条联系人由 `safety-report.getMyContacts` 解密读取成功；实际呼出需再点一次确认号码非空） |
 | P3-10 | `KNOWN_EVOLUTION` 3 条 stale（`my_orders_partner`/`my_orders_user`/`notice_list`） | 声明表与运行时差集；当前运行时 **79 例** | ✅ **已偿还（2026-11-03，复核于 2026-11-06）**：`ab_equivalence.js` L672 已留档「三条白名单已 stale，删除以免漂移被静默兜住」；当前 A/B 仍 **456 EQUIVALENT / 79 known**，三条独立行为由 `order-action.entry.test.js` 守护 |
 | P3-14b | `bootstrap.js` take 链 `navigateTo` 的 `fail: () => {}` 静默 | 栈满仅丢一次跳转 | 已批准「零代码」豁免；触碰该文件时同修 |
 | P3-15 | 法律合规残留：⑤版本库不可用时回填源为未保存表单；⑥「删除」实为「停用」措辞不统一；⑦满态判定误报；⑧批量发布快照完整性待专项 | admin-web/legal 体验与一致性 | **⑤⑥⑦⑧ 全部 ✅ 已偿还（2026-11-06）**：⑤`openEdit` L399-402 在 `legal_doc_get` 失败时 `ElMessage.error` 后 `return`（fail-closed）；⑥`Legal.vue` L59/L82/L114 统一「停用（删除=停用）」措辞；⑦L74/L287 满态判定改为「已配置数 ≥ 场景总数」；⑧`action_legal_doc.js#writeVersion` 三处加固——版本号读取失败 **fail-closed**（原 `.catch(()=>({data:[]}))` 会静默当 0 写 v1）、归档前先取旧生效版 `_id` 并在 `add` 失败时**恢复 archived→published**（消除「旧版已归档、新版不存在」的快照空洞）、`add` 失败返回 `legal_add_fail` 并 `log.e` 留痕 |
