@@ -17,6 +17,8 @@ const _ = db.command;
 const col = (n) => db.collection(n);
 const log = require('./logger');
 const { writeAudit } = require('./audit');
+// P3-3(2026-11-06 批1): 紧急联系人手机号加密读(规范源 _shared/phone_crypt.js, 改动后跑 sync-phone-crypt.ps1)
+const phoneCrypt = require('./phone_crypt');
 
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
 const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
@@ -82,6 +84,17 @@ function roleOf(order, openid) {
   return null;
 }
 
+// P3-3: 手机号 AES 密钥(admin_config.phone_aes_key); 读不到返回空串 → 调用方回退明文(兼容存量)
+async function getPhoneKey() {
+  try {
+    const r = await col('admin_config').doc('global').get();
+    const k = r.data && r.data.phone_aes_key;
+    return phoneCrypt.isHexKey(k) ? k : '';
+  } catch (e) {
+    return '';
+  }
+}
+
 // 取本人紧急联系人(真实号码,仅本人可读,用于 SOS 一键拨号)
 async function getMyContacts(openid) {
   try {
@@ -89,7 +102,10 @@ async function getMyContacts(openid) {
       .where({ openid, is_deleted: false })
       .limit(2)
       .get();
-    return (r.data || []).map((c) => ({ name: c.name, phone: c.phone, relation: c.relation || '' }));
+    const docs = r.data || [];
+    // P3-3 批1: 有 phone_enc 则解密; 无密钥/解密失败回退明文(存量兼容); 两者皆无返回空串
+    const key = docs.some((c) => c.phone_enc) ? await getPhoneKey() : '';
+    return docs.map((c) => ({ name: c.name, phone: phoneCrypt.readPhone(c, key), relation: c.relation || '' }));
   } catch (e) {
     return [];
   }

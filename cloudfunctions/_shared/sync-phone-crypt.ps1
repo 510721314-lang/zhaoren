@@ -1,4 +1,4 @@
-# Sync phone_crypt.js (canonical) -> local copies in user-login, demand-publish, admin-action
+# Sync phone_crypt.js (canonical) -> local copies in user-login, demand-publish, admin-action, safety-report
 # Usage: powershell -File cloudfunctions/_shared/sync-phone-crypt.ps1
 # Canonical source: _shared/phone_crypt.js ; run this script after ANY edit to it.
 $ErrorActionPreference = 'Stop'
@@ -7,7 +7,8 @@ $src  = Join-Path $root '_shared\phone_crypt.js'
 $dsts = @(
   (Join-Path $root 'user-login\phone_crypt.js'),
   (Join-Path $root 'demand-publish\phone_crypt.js'),
-  (Join-Path $root 'admin-action\phone_crypt.js')
+  (Join-Path $root 'admin-action\phone_crypt.js'),
+  (Join-Path $root 'safety-report\phone_crypt.js')
 )
 if (-not (Test-Path $src)) { throw "canonical source missing: $src" }
 foreach ($d in $dsts) {

@@ -77,7 +77,8 @@ async function detail(ctx) {
       const dm = dmR && dmR.data;
       if (dm) {
         const items = [];
-        const ownerMasked = maskContact(dm.contact_phone);
+        // P3-3 批1: 优先落库掩码(密文文档无明文 contact_phone), 回退旧字段现算
+        const ownerMasked = dm.contact_phone_mask || maskContact(dm.contact_phone);
         if (ownerMasked) items.push({ who: '需求发布者', masked: ownerMasked });
         const isProxy = dm.publish_type === 'proxy' && dm.service_target;
         if (isProxy) {

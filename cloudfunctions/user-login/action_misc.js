@@ -2,7 +2,7 @@
 
     // 5. 设置紧急联系人(1~2 名)
 async function set_emergency_contact_action(ctx) {
-  const { event, openid, clientIp, device, db, col, log, writeAudit, evalEmergencyCooldown, maskPhone } = ctx;
+  const { event, openid, clientIp, device, db, col, log, writeAudit, evalEmergencyCooldown, maskPhone, phoneCrypt } = ctx;
       const { contacts } = event;
       if (!Array.isArray(contacts) || contacts.length === 0 || contacts.length > 2) {
         return { ok: false, code: 'emergency_count', msg: '紧急联系人需 1-2 名' };
@@ -58,7 +58,7 @@ async function set_emergency_contact_action(ctx) {
         await col('user_account').where({ openid }).update({ data: { emergency_changed_at: now } });
         // 变更通知留痕: 原联系人收到通知的合规要求, 真实短信通道随企业资质最后一步接入;
         // 现阶段落审计 + system_notice 证据链, 提审演示可说明
-        const oldMasked = existDocs.map((d) => ({ name: d.name || '', phone: maskPhone(d.phone || '') }));
+        const oldMasked = existDocs.map((d) => ({ name: d.name || '', phone: phoneCrypt.displayPhone(d) }));
         await writeAudit(db, log, {
           openid, role: 'user', category: 'account', action: 'emergency_contact_change',
           target_type: 'user_account', target_id: (me && me._id) || '',
@@ -82,11 +82,18 @@ async function set_emergency_contact_action(ctx) {
 
     // 5b. 查询我的紧急联系人(本人管理页回显, 返回完整手机号; 最多 2 名)
 async function get_emergency_contact_action(ctx) {
-  const { event, openid, clientIp, device, col } = ctx;
+  const { event, openid, clientIp, device, col, phoneCrypt, getConfig } = ctx;
       try {
         const r = await col('emergency_contact').where({ openid, is_deleted: false }).limit(2).get();
-        const contacts = (r.data || []).map(c => ({
-          name: c.name || '', phone: c.phone || '', relation: c.relation || ''
+        const docs = r.data || [];
+        // P3-3 批1: 有 phone_enc 则解密; 无密钥/解密失败回退明文(存量兼容)
+        let key = '';
+        if (docs.some((c) => c.phone_enc)) {
+          const cfg = await getConfig().catch(() => null);
+          key = (cfg && phoneCrypt.isHexKey(cfg.phone_aes_key)) ? cfg.phone_aes_key : '';
+        }
+        const contacts = docs.map(c => ({
+          name: c.name || '', phone: phoneCrypt.readPhone(c, key), relation: c.relation || ''
         }));
         return { ok: true, data: { contacts } };
       } catch (e) {

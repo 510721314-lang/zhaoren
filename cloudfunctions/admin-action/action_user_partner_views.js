@@ -69,7 +69,8 @@ async function user_detail(ctx) {
     } : null,
     emergency_contact: ecR.data && ecR.data[0] ? maskDoc({
       name: ecR.data[0].name || ecR.data[0].contact_name || '',
-      phone: ecR.data[0].phone || ecR.data[0].contact_phone || '',
+      // P3-3 批1: 优先落库掩码(密文文档无明文 phone), 回退旧字段
+      phone: phoneCrypt.displayPhone(ecR.data[0]) || ecR.data[0].contact_phone || '',
       relation: ecR.data[0].relation || ''
     }) : null,
     stats: { demand_count: dCnt.total || 0, order_as_user: oUser.total || 0, order_as_partner: oPartner.total || 0 },
