@@ -319,6 +319,118 @@ function record(no, name, state, detail) {
     record('3.6-b', '会话列表 last_msg_at_display = +08:00', 'FAIL', String(e && e.message));
   }
 
+  // ── P2-7~P2-10 / P2-12~13：把「已实施·真机待验」转成可重复断言（只读源码，不改小程序）──
+  const fsR = require('fs');
+  const pathR = require('path');
+  const ROOT = pathR.join(__dirname, '..');
+  const readSrc = (rel) => fsR.readFileSync(pathR.join(ROOT, rel), 'utf8');
+  // 取函数体（从 `名字(...) {` 到首个顶格 `  },`，够截取页面方法体）
+  const bodyOf = (src, name) => {
+    const m = src.match(new RegExp(name + '\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n  \\},'));
+    return m ? m[1] : '';
+  };
+
+  // ── P2-7 A10：提交前存快照 → onLoad 回填；回填路径须与草稿恢复同源（注释明写「改一处必须改两处」）──
+  try {
+    const pubSrc = readSrc('miniprogram/pages-v2/publish/publish.js');
+    const dkSrc = readSrc('miniprogram/utils/draft-store.js');
+    const orderOk = pubSrc.indexOf('this._savePublishSnapshot();') >= 0 &&
+      pubSrc.indexOf('this._savePublishSnapshot();') < pubSrc.indexOf("callCloud('demand-publish', params)");
+    const onLoadOk = /if \(!this\.__editMode\) this\._restorePublishSnapshot\(\);/.test(pubSrc);
+    const pubPaths = (bodyOf(pubSrc, '_restorePublishSnapshot') .match(/'form\./g) || []).length;
+    // draft-store.js 是顶层函数（结尾 '\n}' 顶格），不能用 bodyOf 的页面方法终止符
+    const dkStart = dkSrc.indexOf('function restoreDraft');
+    const dkEnd = dkStart >= 0 ? dkSrc.indexOf('\n}', dkStart) : -1;
+    const dkPaths = ((dkEnd > dkStart ? dkSrc.slice(dkStart, dkEnd) : '').match(/'form\./g) || []).length;
+    const sameSource = pubPaths > 0 && pubPaths === dkPaths;
+    record('P2-7', '发布表单快照：提交前存、onLoad 回填、路径与草稿同源',
+      orderOk && onLoadOk && sameSource ? 'PASS' : 'FAIL',
+      '存快照先于提交=' + orderOk + '；onLoad 回填=' + onLoadOk + '；路径数 快照=' + pubPaths + '/草稿=' + dkPaths);
+  } catch (e) {
+    record('P2-7', '发布表单快照：提交前存、onLoad 回填、路径与草稿同源', 'FAIL', String(e && e.message));
+  }
+
+  // ── P2-8 A11：首页「继续完成发布」横幅（intent.kind=publish 触发 + 点击带 sceneCode 跳发布页）──
+  try {
+    const idxSrc = readSrc('miniprogram/pages-v2/index/index.js');
+    const idxWxml = readSrc('miniprogram/pages-v2/index/index.wxml');
+    const tipOk = /wx:if="\{\{resumeTip\}\}"/.test(idxWxml) && idxWxml.indexOf('继续完成发布') >= 0;
+    const condOk = /kind === 'publish'\)\s*resumeTip = \{ sceneCode/.test(idxSrc);
+    const jumpOk = /onResumePublishTap/.test(idxSrc) && /pages-v2\/publish\/publish' \+ \(t\.sceneCode \? '\?sceneCode='/.test(idxSrc);
+    record('P2-8', '首页「继续完成发布」续作条（条件+跳转）',
+      tipOk && condOk && jumpOk ? 'PASS' : 'FAIL',
+      '横幅渲染=' + tipOk + '；触发条件=' + condOk + '；带 sceneCode 跳转=' + jumpOk);
+  } catch (e) {
+    record('P2-8', '首页「继续完成发布」续作条（条件+跳转）', 'FAIL', String(e && e.message));
+  }
+
+  // ── P2-9 B13：首页「继续完成入驻（第 x/y 步）」横幅三字段齐全 ──
+  try {
+    const idxSrc = readSrc('miniprogram/pages-v2/index/index.js');
+    const idxWxml = readSrc('miniprogram/pages-v2/index/index.wxml');
+    const fieldOk = /onboardTip: \{ key, step: st\.index, total: st\.total, label: st\.label/.test(idxSrc);
+    const textOk = idxWxml.indexOf('第 {{onboardTip.step}}/{{onboardTip.total}} 步') >= 0 && idxWxml.indexOf('继续完成入驻') >= 0;
+    const ecOk = idxWxml.indexOf('onboardTip.ecTip') >= 0;  // 缺紧急联系人时的分支文案
+    record('P2-9', '首页「继续完成入驻」进度条（step/total/label + EC 分支）',
+      fieldOk && textOk && ecOk ? 'PASS' : 'FAIL',
+      '三字段=' + fieldOk + '；第x/y步文案=' + textOk + '；EC 分支=' + ecOk);
+  } catch (e) {
+    record('P2-9', '首页「继续完成入驻」进度条（step/total/label + EC 分支）', 'FAIL', String(e && e.message));
+  }
+
+  // ── P2-10 B11：八步入驻链 = STEPS 长度 8，且每步 url 均已在 app.json 注册 ──
+  try {
+    const chainSrc = readSrc('miniprogram/utils/onboard-chain.js');
+    // 只统计 STEPS 数组内的 step，避免把文件里其它 url 常量算进来
+    const stStart = chainSrc.indexOf('const STEPS');
+    const stEnd = stStart >= 0 ? chainSrc.indexOf('];', stStart) : -1;
+    const stepsBlock = stEnd > stStart ? chainSrc.slice(stStart, stEnd) : '';
+    const steps = stepsBlock.match(/\{\s*key:\s*'[a-z]+',\s*label:/g) || [];
+    const urls = (stepsBlock.match(/url:\s*'([^']+)'/g) || []).map((s) => s.replace(/url:\s*'/, '').replace(/'$/, ''));
+    const appJson = JSON.parse(readSrc('miniprogram/app.json'));
+    // 主包 pages + 分包 subPackages（入驻链多在 pkg-low 分包，只查 pages 会误报未注册）
+    const registered = (appJson.pages || []).slice();
+    (appJson.subPackages || appJson.subpackages || []).forEach((sp) => {
+      const root = String(sp.root || '').replace(/\/$/, '');
+      (sp.pages || []).forEach((pg) => registered.push(root ? root + '/' + pg : pg));
+    });
+    const missing = urls.filter((u) => registered.indexOf(u.replace(/^\//, '')) < 0);
+    record('P2-10', '八步入驻链（步数=8，路由全部已注册）',
+      steps.length === 8 && urls.length === 8 && missing.length === 0 ? 'PASS' : 'FAIL',
+      '步数=' + steps.length + '；url=' + urls.length + '；未注册=' + (missing.join(',') || '无'));
+  } catch (e) {
+    record('P2-10', '八步入驻链（步数=8，路由全部已注册）', 'FAIL', String(e && e.message));
+  }
+
+  // ── P2-12 / P2-13：工作台口径接线（today_pending / week_income_fen 优先，回落链明确）──
+  try {
+    const wbSrc = readSrc('miniprogram/pages-v2/workbench/workbench.js');
+    const t12 = /typeof b\.today_pending === 'number'/.test(wbSrc);
+    const t13 = /typeof b\.week_income_fen === 'number'/.test(wbSrc) && /week_income_fen[\s\S]{0,80}?\/ 100\)\.toFixed\(2\)/.test(wbSrc);
+    record('P2-12', '工作台「今日待履约」取 today_pending（静态接线）', t12 ? 'PASS' : 'FAIL', 'today_pending 优先=' + t12);
+    record('P2-13', '工作台「本周收入」取 week_income_fen/100（静态接线）', t13 ? 'PASS' : 'FAIL', 'week_income_fen 优先+两位小数=' + t13);
+  } catch (e) {
+    record('P2-12', '工作台「今日待履约」取 today_pending（静态接线）', 'FAIL', String(e && e.message));
+    record('P2-13', '工作台「本周收入」取 week_income_fen/100（静态接线）', 'FAIL', String(e && e.message));
+  }
+
+  // ── P2-12/13 动态旁证：工作台渲染出数值（todayCount 为数字、weekIncomeYuan 形如 0.00）──
+  try {
+    await mp.reLaunch('/pages-v2/workbench/workbench');
+    await sleep(6000);
+    const wbPage = await mp.currentPage();
+    const wd = (await wbPage.data()) || {};
+    const numOk = typeof wd.todayCount === 'number';
+    const moneyOk = typeof wd.weekIncomeYuan === 'string' && /^\d+\.\d{2}$/.test(wd.weekIncomeYuan);
+    record('P2-12b', '工作台「今日待履约」渲染为数字', numOk ? 'PASS' : 'NEED-HUMAN',
+      'todayCount=' + JSON.stringify(wd.todayCount) + '（非耍伴账号或无数据时可能缺省）');
+    record('P2-13b', '工作台「本周收入」渲染为 x.xx 元', moneyOk ? 'PASS' : 'NEED-HUMAN',
+      'weekIncomeYuan=' + JSON.stringify(wd.weekIncomeYuan));
+  } catch (e) {
+    record('P2-12b', '工作台「今日待履约」渲染为数字', 'FAIL', String(e && e.message));
+    record('P2-13b', '工作台「本周收入」渲染为 x.xx 元', 'FAIL', String(e && e.message));
+  }
+
   const pass = results.filter((r) => r.state === 'PASS').length;
   const fail = results.filter((r) => r.state === 'FAIL').length;
   const need = results.filter((r) => r.state === 'NEED-HUMAN').length;
