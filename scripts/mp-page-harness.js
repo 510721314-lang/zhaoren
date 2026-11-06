@@ -68,7 +68,7 @@ function createPage(opts) {
     }
   }, o.app || {});
 
-  const wxBase = {
+  const wxBase = Object.assign({
     cloud: {
       callFunction(arg) {
         calls.cloud.push({ name: arg && arg.name, data: clone(arg && arg.data) });
@@ -83,7 +83,24 @@ function createPage(opts) {
     reLaunch: record(calls.nav),
     openLocation: record(calls.wx),
     showToast: record(calls.toast),
-    showModal: record(calls.modal),
+    // 弹窗：记录参数并挂 __confirm()/__cancel()，便于测试驱动 success 回调
+    showModal(arg) {
+      const src = arg || {};
+      const rec = clone(src);
+      rec.__confirm = () => { if (typeof src.success === 'function') src.success({ confirm: true, cancel: false }); };
+      rec.__cancel = () => { if (typeof src.success === 'function') src.success({ confirm: false, cancel: true }); };
+      calls.modal.push(rec);
+      return rec;
+    },
+    // 选择器查询：链式空桩（页面只做滚动/测量，测试不校验渲染）
+    createSelectorQuery() {
+      const q = {
+        select: () => q, selectAll: () => q, selectViewport: () => q, in: () => q,
+        boundingClientRect: () => q, scrollOffset: () => q, fields: () => q,
+        exec: (cb) => { if (typeof cb === 'function') cb([]); }
+      };
+      return q;
+    },
     stopPullDownRefresh() {},
     nextTick(fn) { if (typeof fn === 'function') fn(); },
     getStorageSync(k) { return typeof storage[k] === 'undefined' ? '' : storage[k]; },
@@ -96,7 +113,7 @@ function createPage(opts) {
         safeArea: { top: 20, left: 0, right: 375, bottom: 667, width: 375, height: 647 }
       };
     }
-  };
+  }, o.wx || {}); // 用例可覆盖特定 API（如让 getLocation 立即 fail，避免触发 8s 兜底定时器）
 
   // 未显式实现的 wx API：返回空函数并留痕（避免页面 typeof 判定走错分支时抛错）
   const wx = new Proxy(wxBase, {
