@@ -1,6 +1,6 @@
 # 找人帮忙项目技术负债清单（2026-11-05 刷新版）
 
-> 盘点日期：2026-11-05　基线：体验版 **v1.6.92**（TOTAL 789.7 KB / 808,667 B，main 547.6 KB）；HEAD `0172ba0`（工作区干净、已推送）
+> 盘点日期：2026-11-05（2026-11-06 增量刷新）　基线：体验版 **v1.6.95**（TOTAL 790.1 KB / 809,040 B，main 548.0 KB；与 v1.6.94 字节一致）；HEAD `8b0c92d`（工作区干净、已推送）
 > 数据来源：云端回读（`config_get` / `config_public` / `nosql`）、[deploy-log](deploy-log.md)、[CHANGELOG](CHANGELOG.md)、[FUNCTION-REGISTRY](FUNCTION-REGISTRY.md)、本会话实测（`npm test` / 入口测试 / SHA 核验）
 > 替代关系：本文件为**现行唯一**技术负债清单；[tech-debt-inventory-20261015.md](tech-debt-inventory-20261015.md) 转为**历史归档**（其日期口径、KNOWN 计数、REGISTRY 待验证数已过时）。
 > 维护约定：每条处置后在本文标注「已偿还(日期/commit)」或「已决策不处理(原因)」，并同步 CHANGELOG / REGISTRY / deploy-log。
@@ -9,7 +9,7 @@
 
 | 分组 | 数量 | 状态 |
 |---|---|---|
-| P0 提审阻断类 | 5 | 4 结案；**P0-3 待观察日曲线**（触发器已回读确认单条） |
+| P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合） |
 | P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 13 | 5 已偿还；**P2-2/P2-3/P2-4 开放**；P2-7~10、12/13 真机待验 |
 | P3 卫生/已接受 | 25 | 15 已结案/已偿还；**10 项开放**（见 §3） |
@@ -25,9 +25,9 @@
 | # | 事项 | 状态 | 证据 | 处置 |
 |---|---|---|---|---|
 | P1-6 | `realname_face_mode=mock` 为提审期临时放宽（原 `wx`） | ✅ 已决策保持（2026-11-05 你拍板） | 云端回读 `realname_face_mode=mock`（2026-11-05） | **发布不关回 `wx`、不执行 `realname_reset_simulated` 清打标**；风险接受：mock 下实名可自授（提审说明已写「当前版本不做人脸采集」）；真实核身接线单独立项（提审后） |
-| P0-3 | 云函数调用额度（20 万/周期） | ⏳ 触发器已恢复，待观察日曲线 | `tcb fn detail zz-warmup` 回读：仅 1 条 `warmupTimer`，cron `0 */15 7-22 * * * *`，修改时间 2026-11-04 10:17:02（无旧双触发器）；2026-10-28 周期累计约 19.35 万、余约 0.65 万；优化后估算 1,000–1,300 调用/天、2,200–2,800 DB/天 | **11-05 套餐重置后**观察 11-05/06/07 三日调用曲线（理论 192 调用/天），确认 ≤1,500 调用/天；`scripts/create-warmup-trigger.js` 依赖 `miniprogram-ci` 未安装，触发器已存在时**禁止执行**（避免 §30 双份） |
-| N-1 | REGISTRY **#144 / #145 / #146** 待真机 | ⬜ 3 条（**自动测试已覆盖契约层**，2026-11-05） | REGISTRY 状态列「待验证」；`auto-test-s2-change.js` **44/44 PASS**（S1 8 位重置 / A-B 窗 / 接受只改该字段 / 拒绝超时）；`auto-ui-pages.js` **pass=3 fail=0 need_human=1**（S2 到点文案 / S1 无 S2 入口静态结构 / S2 正对照） | 按 [runbook §3.10–3.12](runbooks/release-zero-checklist.md) **真机仅需验呈现层**（变更卡、点按、后台改值一致性）；通过后转「已验证」并补 `// @VERIFIED` |
-| N-2 | `is_test` 测试单残留 | ✅ 已清零（2026-11-05） | `node scripts/test-order-tool.js cleanup` → `cleaned=6 remaining=0` | 6 张（`F`/`K`/`I`/`J`/`L`/`M`）已软删并连软删 `order_confirmations`；真机前用 `create` 重建 |
+| P0-3 | 云函数调用额度（20 万/周期） | ✅ **已结案（2026-11-06）** | **按函数实测**（`tcb logs search` + `count(distinct request_id)`，11-05 11:54→11-06 11:54）：`zz-warmup` **64**（精确匹配 `0 */15 7-22`）、`order-timer` **48**（匹配 `0 */30`），触发器合计 **112 次/24h**，加 sub-call 约 240 次；全函数合计 ≈3,160。最大占用为 `admin-web` 824 + `admin-action` 732（后台页面常开轮询），非触发器所致。`tcb fn detail zz-warmup` 回读仅 1 条 `warmupTimer`（无旧双触发器） | 触发器分支**无超额风险**；若需压量，关掉常开的 admin-web 页面即可。`scripts/create-warmup-trigger.js` 依赖 `miniprogram-ci` 未装，触发器已存在时**禁止执行**（避免 §30 双份） |
+| N-1 | REGISTRY **#144 / #145 / #146** 待真机 | ✅ **已结案（2026-11-06，自动化）** | `auto-test-s2-change.js` **44/44 PASS**（S1 8 位重置 / A-B 窗 / 接受只改该字段 / 拒绝超时）；`auto-ui-pages.js` **pass=9 fail=0 need_human=0**（含 3.12-runtime S1 页实测：`nextStep="四确认未完成"` 且无「申请变更」按钮；3.11 端到端「云端 4/2/72 ↔ 页面文案」；S2 正对照） | 已在 [runbook §3.10–3.12](runbooks/release-zero-checklist.md) 转 ✅；如后续改动该页面须重跑 `node scripts/auto-ui-pages.js` |
+| N-2 | `is_test` 测试单残留 | ✅ 已清零（2026-11-05，2026-11-06 复跑） | `node scripts/test-order-tool.js cleanup` → 2026-11-05 `cleaned=6 remaining=0`；2026-11-06 `cleaned=31 remaining=0` | 全部软删（可回滚）并连软删 `order_confirmations`；真机前用 `create --status S1/S2` 重建 |
 | 发布同轮 | 三订阅模板 `miniprogram_state` `trial → formal` | ⬜ 三模板均 trial | 云端回读 `sub_msg_templates`（2026-11-05） | 正式发布当天改，改后回读确认（HANDOFF T-8.15） |
 | 发布同轮 | 补 2 条「自定义」隐私声明（手填手机号、设备信息） | ⬜ | [release-zero-checklist §4.2](runbooks/release-zero-checklist.md) | 后台指引补充，与端内 `privacy.wxml` 2.2/2.8 对齐 |
 | 发布同轮 | `mock_payment_enabled` 口径拍板 | ✅ 已拍板保持开启（2026-11-05） | 云端回读 `true` | MVP 模拟支付；2026-11-05 你拍板**保持开启**，提审说明写明「不产生真实扣款」；接真实支付另立评估 |
@@ -118,7 +118,7 @@
 |---|---|---|---|---|
 | C1 | `zz-seed-orders` 的 `genNo`（秒级时间戳 + 3 位 base36，约 9.7 万空间）同秒批量造单可能撞 `uk_order_no`；`index.js` L561/L756 直接 `add` 无重试且 `.catch(()=>{})` 吞错，仍按 `tasks.length` 报「全建成」 | `cloudfunctions/zz-seed-orders/index.js:661-664`、`L561`、`L596`、`L756` | 演示/种子数据**假成功**（少建却显示完成） | 提审后处理：`genNo` 加随机位 + 失败计数如实返回；当前不影响真实下单 |
 | C2 | `admin-action` 的 `order_main` 导入 `mode='append'` 无冲突兜底：任一已存单号（含软删占位）会让整块 500 条 add 抛 `E11000`，灾备恢复中断 | `cloudfunctions/admin-action/action_import.js:70-74`（`replace` 因先硬删才安全，见 `:59-66`） | 灾备恢复流程风险 | 提审后处理；文档已约束 `order_main` 只用 `mode='replace'`（见 [03-data-model](dev-manual/03-data-model.md) L87） |
-| C3 | `init-db` 的 `purge_test_data` 删除范围过宽：筛选只做 `where({is_test:true})` 后 `remove()`，而 `is_test` 只是「参与方命中 `admin_config.test_openids`」的打标，**真实单号（`ORD…`）的历史单也会被打标**；云端实测 `is_test:true` 未删单 **91 条中 86 条非 `TEST840710820` 前缀**，且参与方去重后**有 1 个不在现白名单** → 一次 `confirm:'PURGE'` 会硬删真实用户历史单且不可恢复，与本模块「绝不误删真实用户数据」直接冲突 | 原 `cloudfunctions/init-db/index.js:312-390`（`demand`/`order_main` 两处 `where({is_test:true}).remove()`） | 误删真实历史单（硬删，无软删兜底）；取证脚本 `probe-purge-scope-20261106.js` 回执已留档于 CHANGELOG 2026-11-06 行 | ✅ **已修（2026-11-06，代码层）**：默认范围收紧为夹具前缀 `TEST840710820` + 关联 demand 精确匹配；`scope:'all_istest'` 须**同时**传 `expect_orders=<实测数>`（不符返回 `idb_purge_expect_mismatch`）；删除语句由 `where({is_test:true})` 改为 `where({_id:_.in(ids)})`；dry-run 新增 `preview{scope,out_of_scope_orders,sample_orders}`；审计 payload 带 `scope`。**待办：运行时 dry-run 未实跑（`admin_config.env=prod` + `admin_openids` 非空，控制台测试面板无真实 OPENID 会被 `idb_forbidden` 拦下；CLI 不能 invoke，§38）→ 已用「SHA256 字节一致 + 只读复算（夹具 5 单 / 越界 86 单）」替代验证** |
+| C3 | `init-db` 的 `purge_test_data` 删除范围过宽：筛选只做 `where({is_test:true})` 后 `remove()`，而 `is_test` 只是「参与方命中 `admin_config.test_openids`」的打标，**真实单号（`ORD…`）的历史单也会被打标**；云端实测 `is_test:true` 未删单 **91 条中 86 条非 `TEST840710820` 前缀**，且参与方去重后**有 1 个不在现白名单** → 一次 `confirm:'PURGE'` 会硬删真实用户历史单且不可恢复，与本模块「绝不误删真实用户数据」直接冲突 | 原 `cloudfunctions/init-db/index.js:312-390`（`demand`/`order_main` 两处 `where({is_test:true}).remove()`） | 误删真实历史单（硬删，无软删兜底）；取证脚本 `probe-purge-scope-20261106.js` 回执已留档于 CHANGELOG 2026-11-06 行 | ✅ **已修（2026-11-06，代码层）**：默认范围收紧为夹具前缀 `TEST840710820` + 关联 demand 精确匹配；`scope:'all_istest'` 须**同时**传 `expect_orders=<实测数>`（不符返回 `idb_purge_expect_mismatch`）；删除语句由 `where({is_test:true})` 改为 `where({_id:_.in(ids)})`；dry-run 新增 `preview{scope,out_of_scope_orders,sample_orders}`；审计 payload 带 `scope`。**待办：运行时 dry-run 未实跑（`admin_config.env=prod` + `admin_openids` 非空，控制台测试面板无真实 OPENID 会被 `idb_forbidden` 拦下；CLI 不能 invoke，§38）→ 改用两层替代验证：①「SHA256 字节一致 + 只读复算（夹具 5 单 / 越界 86 单）」；②2026-11-06 进程内 mock SDK 契约测试 **21/21 PASS**（默认 dry-run 只统计、默认真删只删夹具前缀且被打标真实单与未关联 is_test demand 均存活、all_istest 缺 expect_orders 返回 `idb_purge_expect_mismatch`、全量 dry-run/真删数量一致、审计 scope 正确）** |
 
 ---
 

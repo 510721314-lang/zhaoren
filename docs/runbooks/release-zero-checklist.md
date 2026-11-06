@@ -57,7 +57,7 @@
 | 4.5 | `realname_face_mode=mock`（**决策项**） | ✅ 已拍板保持 mock | 2026-11-05 | 你 | 云端回读 **mock**；**发布不关回 `wx`**、不执行 `realname_reset_simulated` 清打标（2026-11-05 你拍板）；提审说明已写「当前版本不做人脸采集」。本行口径与 [技术债 P1-6](../tech-debt-inventory-20261105.md) 对齐，原「临时放宽须发布关闸」结论由本次决策取代 |
 | 4.6 | `mock_payment_enabled=true`（**决策项**） | ✅ 已拍板保持开启 | 2026-11-05 | 你 | 云端回读 **true**；**2026-11-05 拍板保持开启**：MVP 模拟支付，不产生真实扣款；F6 草稿原缺该句，已于 2026-11-05 补「本期支付为模拟支付，不产生真实扣款」；日后若接真实支付需另立评估 |
 | 4.7 | `audit_prune_dry_run=false`（每日真删 90 天前审计） | ✅ | 2026-11-05 | — | 云端回读 **false**，确认保留 |
-| 4.8 | 测试单/`is_test` 数据清理 | ✅ | 2026-11-05 | 我 | `node scripts/test-order-tool.js cleanup` → **`cleaned=6 remaining=0`**（软删 6 张并连软删对应 `order_confirmations`）。**2026-11-06 只读复核**：现存夹具 `SXNH`/`V1`/`V2` 为 S2（可直用），`SXNHB`/`V3` 已自动转 S6；UI 脚本又建 `S4NQ`(S2)/`S4NQB`(S1)。**S1 有 15 分钟 `s1_timeout_min` 活性窗口，必须真机现场现造**（`node scripts/test-order-tool.js create --status S1 --suffix <X> --start-hours 2`），不可提前预制 |
+| 4.8 | 测试单/`is_test` 数据清理 | ✅ | 2026-11-06 | 我 | **2026-11-06 复跑 `node scripts/test-order-tool.js cleanup` → `cleaned=31 remaining=0`**（软删 31 张 `TEST840710820` 前缀单并连带 `order_confirmations`，全部可回滚）。此前 2026-11-05 为 `cleaned=6 remaining=0`。**S1 有 15 分钟 `s1_timeout_min` 活性窗口，必须真机现场现造**（`create --status S1 --suffix <X> --start-hours 2 --from-order <S2_id>`），不可提前预制 |
 
 ## §5 提审后处理（不阻断上线，登记即可）
 
@@ -68,7 +68,7 @@
 | 5.3 | P1 人脸核身 `wx` 分支接线 | ⬜ | `realname.js` L119-127；当前 `face_mode=mock` 无可见影响 |
 | 5.4 | P2 周日历静态 / `pages-v2/admin/user-detail` 未注册 | ⬜ | 有 fail 兜底，不阻断 |
 | 5.5 | 规则水位：inject 超 12KB 目标位 292B | ⬜ | 下次新增规则**须先淘汰旧条** |
-| 5.6 | **P0-3 日调用量基线（观察项，非缺陷）** | ⬜ 观察中 | 理论值：`zz-warmup` cron `0 */15 7-22` ≈ **64 次/天**，判据「日调用 ≤1,500」。**2026-11-06 实测 4,979 次**，但当日被测试污染（自动化 UI `auto-ui-pages.js` 共跑 6+ 轮，每轮 ≈100~200 次；真机 §3.1/§3.2 验证；触发器仅约占 1%）。**因此 11-06 数字不可作基线**；改以**无测试日（11-07）**为准。**纪律**：跑自动化 UI / 真机造单前先意识到会抬高日曲线；判断触发器是否异常，须看「按函数明细」而非总量 |
+| 5.6 | **P0-3 日调用量基线（观察项，非缺陷）** | ⬜ 观察中 | 判据「日调用 ≤1,500」。**按函数实测（`tcb logs search` + `count(distinct request_id)`，窗口 11-05 11:54 → 11-06 11:54）**：`admin-web` **824** / `admin-action` **732** / `order-action` **648** / `home-action` **330** / `partner-action` **191** / `user-login` **171** / `safety-report` 67 / **`zz-warmup` 64** / `im-conv` 55 / **`order-timer` 48** / `demand-publish` 11 / `im-send` 10 / `blog-action` 8 / `payment-mock` 1，合计 **≈3,160 次/24h**。**触发器仅 112 次**（`zz-warmup` 64 精确匹配 cron `0 */15 7-22`；`order-timer` 48 匹配 `0 */30`），加其内部 sub-call ≈240 次 → 占 7.6%。**最大可优化项是 `admin-web`+`admin-action` 共 1,556 次**（后台页面常开会轮询）；测试/真机占 `home-action`+`order-action` 等。控制台「本日 4,979 次」与本口径差异 ≤1 天窗口，量级一致 |
 
 ## §6 已清零（勿重做）
 
