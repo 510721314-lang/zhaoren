@@ -51,7 +51,7 @@
 | payment-mock | 支付/退款/打赏/钱包 | 14 |
 | safety-report | 安全上报（SOS/签到/举报） | 8 |
 | user-login | 登录/身份/实名/地图共享 | 20 |
-| zz-seed-orders | 种子订单批量注入（临时自测，勿部署） | 11 |
+| zz-seed-orders | 种子订单批量注入（自测造数，**2026-11-07 起已部署**，Timeout 20s；大批量走开发者工具「云端测试」） | 11 |
 | zz-warmup | 首屏保温探针 | 1 |
 
 > 完整 action 名逐条清单见 [00-factbase.md §1b](file:///c:/zhaoren/docs/dev-manual/00-factbase.md)。

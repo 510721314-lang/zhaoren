@@ -48,6 +48,7 @@ for ($i=0; $i -lt 5; $i++) {
 | 7 | init-db seed 幂等 | 重复跑会覆盖 | seed 加 `env:"dev"` 过滤只补不覆盖 |
 | 8 | config_set 扩展事件键无 A/B 风险 | 自动种子按 action 粒度生成 | 新增事件键（如 scene_reorder/scene_option_reorder）不产生新 diff，可放心扩展（2026-10-13 实证） |
 | 9 | 一次性云端数据操作无 CLI 通道 | CLI 不能远程调云函数 | 经 admin-web 网关（X-Admin-Key，check-heartbeat 同款）逐次调用管理动作；脚本每步后重读实际状态重算（自愈），兼容 gateway_timeout（写可能已生效）；示例 `.tmp-tcb/scene-order-migrate.ps1`（2026-10-13 场景顺序迁移 15 次实证） |
+| 10 | 云函数超时改不动 / 网关先超时（2026-11-07 实证） | ① CLI `cloud functions deploy` **不应用** `config.json` 的 `timeout`（部署后 `tcb fn detail` 仍显示平台默认 3s）；② admin-web 网关 `GATEWAY_HARD_TIMEOUT_MS=3000 / PROXY_TIMEOUT_MS=2500`，经网关调用 >2.5s 必回 504（写可能已完成，前端只见超时） | ①改超时：`config.json` 加 `"timeout"` **且** 在 `cloudbaserc.json` 登记同名条目（`timeout/runtime/handler`），再 `tcb config update fn <name> -e <env>` 推送，最后 `tcb fn detail` 回读「超时时间(S)」实证；②大批量造数（如 `zz-seed-orders` `per=100` 满批）**走微信开发者工具「云端测试」面板**，不经网关 |
 
 ## 前端坑位（必记）
 
