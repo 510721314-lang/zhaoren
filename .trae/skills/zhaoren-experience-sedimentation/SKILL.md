@@ -43,6 +43,7 @@ description: 把一次排查/修复/机制设计得来的可复用结论固化�
 
 - **一次发现通常落 2~3 处**（如 规则 §N + CHANGELOG + 记忆），但**同一事实只描述一次**，其余用引用。
 - 新校验脚本 / 门禁必须**双挂载**（`verify:offline` + `predeploy`），仅挂一处视为无效。
+- **常驻规则写入受配额制约束**：落位到 `alwaysApply:true` 文件前先读 `scripts/rules-size-baseline.json`——若 `injectBytes` 已超 `l0.targetBytes`（2026-11-07 实测 16,676B > 16,384B），**任何净增都触发 `[QUOTA]` FAIL**；须先淘汰等量旧条，或改落技能/项目记忆/台账（不占注入桶）。
 
 ### 第四步 登记与提交
 
