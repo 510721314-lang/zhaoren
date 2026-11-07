@@ -1,7 +1,7 @@
 // @VERIFIED 2026-10-13 已真机验证：安全报备 SOS+P0 platform_event+errorScan 巡检豁免 admin_probe 与 s4_stale_escalate（依据：project_memory L86）
 // 对应 PRD 章节：PRD 3.6 标准化安全报备系统
 // safety-report 安全报备与紧急求助 · 身份取自 getWXContext().OPENID
-// 8 个 action(含 UGC 举报 report_user):
+// 11 个 action(含 UGC 举报 report_user):
 //   sos               紧急求助:写 safety_report(active) + order_main.help_flag=true + platform_event(P0),返回本人紧急联系人
 //   silent_sos        静默求助:同 sos,另存 sub_type='silent'(可被发起人本人撤销)
 //   cancel_silent_sos 撤销静默求助:仅发起人本人且 sub_type='silent',active→cancelled + help_flag=false
@@ -9,7 +9,10 @@
 //   resolve           解除求助:订单参与方均可,active→resolved + help_flag=false + platform_event(P1)
 //   checkin           安全报备(报平安,带位置):写 safety_report(done),不改 help_flag
 //   status            订单安全状态:求助标记/进行中求助/最近报备/本人紧急联系人
-// MVP 口径(rules.md 第五节第9条):点击后立即写 platform_event(P0) + 前端弹紧急联系人一键拨号 + 订单标记求助中;不做真实报警对接
+//   free_sos          自由求助(P2-11 无订单):写 safety_report(order_id='',sub_type='free') + platform_event(P0,safety_sos_free),不读写 order_main
+//   free_sos_status   自由求助状态:本人进行中的自由求助 + 紧急联系人(供工作台决定「上报」或「解除」)
+//   free_sos_resolve  自由求助解除:本人解除 / 管理员白名单凭 report_id 解除(客服兜底),active→resolved + platform_event(P1)
+// 口径(附录A 第9条):订单内=platform_event(P0)+联系人拨号+help_flag;无单=自由求助(P0事件、本人/客服解除、10min冷却)，不读写order_main;不做真实报警对接
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -22,6 +25,9 @@ const phoneCrypt = require('./phone_crypt');
 
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
 const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
+
+// P2-11 自由求助: 解除后 10 分钟冷却(防误触反复轰炸平台安全中心)
+const FREE_SOS_COOLDOWN_MS = 10 * 60 * 1000;
 
 // 自由文本安全检测降级词库(rules.md 六 · msgSecCheck 不可用时降级本地违禁词, 与 demand-publish/im-send 同款)
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
@@ -153,7 +159,8 @@ exports.main = async (event, context) => {
   const { action } = event;
   log.d(`safety-report action=${action} openid=${openid}`);
 
-  if (['sos', 'silent_sos', 'cancel_silent_sos', 'resolve_sos', 'resolve', 'checkin', 'status', 'report_user'].indexOf(action) < 0) {
+  if (['sos', 'silent_sos', 'cancel_silent_sos', 'resolve_sos', 'resolve', 'checkin', 'status', 'report_user',
+    'free_sos', 'free_sos_status', 'free_sos_resolve'].indexOf(action) < 0) {
     return { ok: false, code: 'sr_unknown_action', msg: '未知动作' };
   }
 
@@ -198,6 +205,133 @@ exports.main = async (event, context) => {
       result: 'ok', client_ip: clientIp, device
     });
     return { ok: true, data: { report_id: addR._id, msg: '举报已提交,平台会尽快处理' } };
+  }
+
+  // ───────── 0.5 自由求助(P2-11, 无订单) ─────────
+  // 口径(附录A 第9条): 无单=自由求助(P0事件、本人/客服解除、10min冷却)，不读写 order_main
+  // 必须放在下方 order_id 强校验之前(无单场景 order_id 为空)
+  if (action === 'free_sos' || action === 'free_sos_status' || action === 'free_sos_resolve') {
+    const nowF = Date.now();
+
+    // 本人进行中的自由求助(order_id='' 命中 idx_order_reporter_type_created 前缀)
+    const findActiveFree = () => col('safety_report')
+      .where({ order_id: '', reporter_openid: openid, type: 'sos', sub_type: 'free', status: 'active', is_deleted: false })
+      .orderBy('created_at', 'desc').limit(1).get()
+      .then((r) => (r.data && r.data[0]) || null)
+      .catch(() => null);
+
+    // 状态: 供工作台决定按钮语义(有 active → 解除; 无 → 上报)
+    if (action === 'free_sos_status') {
+      const active = await findActiveFree();
+      const contacts = await getMyContacts(openid);
+      return {
+        ok: true,
+        data: {
+          active: !!active,
+          report_id: active ? active._id : '',
+          created_at: active ? active.created_at : null,
+          my_contacts: contacts
+        }
+      };
+    }
+
+    // 解除: 双通道 —— 本人解除 / 管理员白名单凭 report_id 解除(发起人失去行为能力时客服兜底)
+    if (action === 'free_sos_resolve') {
+      const reportId = String(event.report_id || '');
+      const adminList = await getAdminOpenids();
+      const isAdmin = adminList.indexOf(openid) >= 0;
+      let active = null;
+      if (reportId) {
+        if (!isValidDocId(reportId)) return { ok: false, code: 'sr_bad_report_id', msg: '求助记录 ID 格式不正确' };
+        try { active = (await col('safety_report').doc(reportId).get()).data || null; } catch (e) { active = null; }
+        if (!active || active.type !== 'sos' || active.sub_type !== 'free') {
+          return { ok: false, code: 'sr_not_free_sos', msg: '该记录不是自由求助' };
+        }
+        // 本人可解除自己的记录; 他人记录仅管理员可解除(客服兜底)
+        if (active.reporter_openid !== openid && !isAdmin) {
+          return { ok: false, code: 'sr_not_admin', msg: '无管理员权限' };
+        }
+      } else {
+        active = await findActiveFree();
+        if (!active) return { ok: false, code: 'sr_no_active_sos', msg: '没有进行中的自由求助' };
+        if (active.reporter_openid !== openid) {
+          return { ok: false, code: 'sr_free_not_reporter', msg: '仅求助发起人本人可解除, 如有异常请联系客服' };
+        }
+      }
+      if (active.status !== 'active') return { ok: false, code: 'sr_no_active_sos', msg: '该求助已结束' };
+
+      const byAdmin = isAdmin && !!reportId;
+      try {
+        await col('safety_report').doc(active._id).update({ data: {
+          status: 'resolved', resolved_at: nowF, resolved_by: openid,
+          resolved_role: byAdmin ? 'admin' : 'self', updated_at: nowF
+        }});
+        await logEvent('P1', 'safety_sos_free_resolved', openid, {
+          report_id: active._id, sos_reporter: active.reporter_openid, by_admin: byAdmin
+        });
+        await writeAudit(db, log, {
+          openid, role: 'user', category: 'security', action: 'safety_free_resolve',
+          target_type: 'safety_report', target_id: active._id,
+          detail: { report_id: active._id, by_admin: byAdmin },
+          result: 'ok', client_ip: clientIp, device
+        });
+        return { ok: true, data: { report_id: active._id, status: 'resolved', resolved_by: byAdmin ? 'admin' : 'self' } };
+      } catch (e) {
+        log.d(`free_sos_resolve fail: ${e.message}`);
+        return { ok: false, code: 'sr_resolve_fail', msg: '解除失败,请稍后重试' };
+      }
+    }
+
+    // 发起: 已有 active → 幂等返回(不重复写事件); 解除后 10min 冷却
+    const active = await findActiveFree();
+    if (active) {
+      const contacts = await getMyContacts(openid);
+      return { ok: true, data: { idempotent: true, report_id: active._id, status: 'active', my_contacts: contacts } };
+    }
+    const lastR = await col('safety_report')
+      .where({ order_id: '', reporter_openid: openid, type: 'sos', sub_type: 'free', is_deleted: false })
+      .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
+    const last = lastR.data && lastR.data[0];
+    if (last && last.status !== 'active' && nowF - last.created_at < FREE_SOS_COOLDOWN_MS) {
+      return { ok: false, code: 'sr_free_cooldown', msg: '求助刚解除,请10分钟后再试' };
+    }
+
+    let freeReportId = '';
+    try {
+      const r = await col('safety_report').add({ data: {
+        order_id: '', order_no: '',
+        reporter_openid: openid, reporter_role: 'free',
+        type: 'sos', sub_type: 'free', status: 'active',
+        location: null, note: '',   // MVP 不取位置(紧急场景少一次授权弹窗, 见 PRD-P2-11 FR-05)
+        resolved_at: null, resolved_by: '', resolved_role: '',
+        created_at: nowF, updated_at: nowF, is_deleted: false
+      }});
+      freeReportId = r._id;
+      await logEvent('P0', 'safety_sos_free', openid, {
+        report_id: freeReportId, source: String(event.source || '').slice(0, 32)
+      });
+      log.d(`free SOS triggered: report=${freeReportId}`);
+    } catch (e) {
+      log.d(`free_sos fail: ${e.message}`);
+      return { ok: false, code: 'sr_free_sos_fail', msg: '求助提交失败,请直接拨打 110' };
+    }
+
+    const contacts = await getMyContacts(openid);
+    await writeAudit(db, log, {
+      openid, role: 'user', category: 'security', action: 'safety_free_sos',
+      target_type: 'safety_report', target_id: freeReportId,
+      detail: { report_id: freeReportId, idempotent: false },
+      result: 'ok', client_ip: clientIp, device
+    });
+    return {
+      ok: true,
+      data: {
+        report_id: freeReportId,
+        status: 'active',
+        my_contacts: contacts,
+        tip: '已上报平台安全中心,请立即联系紧急联系人或拨打 110'
+      }
+    };
   }
 
   const { order_id } = event;

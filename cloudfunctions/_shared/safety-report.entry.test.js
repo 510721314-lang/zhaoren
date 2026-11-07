@@ -115,4 +115,76 @@ test('resolve_sos 非管理员 → sr_not_admin', async () => {
   assert.strictEqual(r.code, 'sr_not_admin');
 });
 
+// ───────── P2-11 自由求助(无订单) ─────────
+const FREE_ID = 'f'.repeat(32);
+
+test('free_sos 首次上报 → 写 safety_report + platform_event(P0)', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.ok((sdk.writes.safety_report || []).some((w) => w.add), '应新增自由求助记录');
+  const ev = (sdk.writes.platform_event || []).find((w) => w.add);
+  assert.ok(ev && ev.data.level === 'P0' && ev.data.type === 'safety_sos_free', '应写 P0 自由求助事件');
+});
+
+test('free_sos 已有进行中 → 幂等且不重复写记录', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    safety_report: { [FREE_ID]: {
+      _id: FREE_ID, order_id: '', reporter_openid: USER, type: 'sos', sub_type: 'free',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.idempotent, true);
+  assert.strictEqual((sdk.writes.safety_report || []).filter((w) => w.add).length, 0, '幂等不应新增记录');
+});
+
+test('free_sos 解除后 10 分钟内 → sr_free_cooldown', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    safety_report: { [FREE_ID]: {
+      _id: FREE_ID, order_id: '', reporter_openid: USER, type: 'sos', sub_type: 'free',
+      status: 'resolved', is_deleted: false, created_at: Date.now() - 60 * 1000
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_free_cooldown');
+});
+
+test('free_sos_resolve 本人解除 → active→resolved', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    safety_report: { [FREE_ID]: {
+      _id: FREE_ID, order_id: '', reporter_openid: USER, type: 'sos', sub_type: 'free',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos_resolve', report_id: FREE_ID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.status, 'resolved');
+  assert.strictEqual(r.data.resolved_by, 'self');
+});
+
+test('free_sos_resolve 他人记录且非管理员 → sr_not_admin', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    safety_report: { [FREE_ID]: {
+      _id: FREE_ID, order_id: '', reporter_openid: OTHER, type: 'sos', sub_type: 'free',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos_resolve', report_id: FREE_ID, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_not_admin');
+});
+
+test('free_sos_resolve 无进行中求助 → sr_no_active_sos', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos_resolve', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_no_active_sos');
+});
+
 test.after(() => { Module._load = origLoad; });

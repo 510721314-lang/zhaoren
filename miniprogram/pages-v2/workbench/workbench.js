@@ -275,8 +275,8 @@ Page({
         // currentOrderId 由 fetchData 中 my_orders(doing) 赋值; todayOrders 同样来自该源
         const orderId = this.data.currentOrderId || '';
         if (!orderId) {
-          // 无进行中订单 —— 仍允许用户直接拨号 110, 仅提示无法关联订单上报
-          wx.showToast({ title: '当前无进行中订单, 上报时无法关联', icon: 'none' });
+          // P2-11 自由求助: 无进行中订单时写 platform_event(P0), 不读写 order_main(附录A 第9条)
+          this.freeSosFlow();
         } else {
           callCloud('safety-report', { action: 'sos', order_id: orderId, source: 'workbench' })
             .then((r) => {
@@ -298,6 +298,39 @@ Page({
         }
       }
     });
+  },
+
+  // P2-11 自由求助: 无订单报警 —— 已有进行中的求助则询问解除, 否则上报 P0 事件
+  freeSosFlow() {
+    callCloud('safety-report', { action: 'free_sos_status' }).then((r) => {
+      if (!r.ok) {
+        wx.showToast({ title: '状态查询失败,请直接拨打110', icon: 'none' });
+        return;
+      }
+      if (r.data && r.data.active) {
+        wx.showModal({
+          title: '已有进行中的求助',
+          content: '你已上报过自由求助,是否解除？',
+          confirmText: '解除求助',
+          confirmColor: '#fa5151',
+          fail: () => wx.showToast({ title: '弹窗加载失败', icon: 'none' }),
+          success: (m) => {
+            if (!m.confirm) return;
+            callCloud('safety-report', { action: 'free_sos_resolve', report_id: r.data.report_id }).then((x) => {
+              wx.showToast({ title: x.ok ? '已解除求助' : (x.msg || '解除失败'), icon: 'none' });
+            }).catch(() => wx.showToast({ title: '网络异常,解除失败', icon: 'none' }));
+          }
+        });
+        return;
+      }
+      callCloud('safety-report', { action: 'free_sos', source: 'workbench' }).then((x) => {
+        if (!x.ok) {
+          wx.showToast({ title: '上报失败, 请直接拨打110', icon: 'none' });
+          return;
+        }
+        wx.showToast({ title: '已上报平台安全中心', icon: 'none', duration: 2500 });
+      }).catch(() => wx.showToast({ title: '网络异常, 请直接拨打110', icon: 'none' }));
+    }).catch(() => wx.showToast({ title: '网络异常, 请直接拨打110', icon: 'none' }));
   },
   onReserve() { require('../../utils/redline.js').reserveNotice(); },
 
