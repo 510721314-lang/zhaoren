@@ -378,5 +378,6 @@ Invoke-RestMethod -Uri ".../api" -Method Post -Headers @{'X-Admin-Key'=$k;'Conte
 | npm 报 CommandNotFoundException | PowerShell 默认 alias 指向 `.cmd` 但 exit code 传递不稳 | 显式 `npm.cmd test` |
 | GitHub 测连通 `NET_FAIL` | 网络层断连，不是代理/凭据 | 等几秒重测，勿改代码 |
 | push 报 `Connection was reset` 且代理端口 7890 在监听 | 代理端口活着但**路由不通**（与「死端口」不同形态） | 仍用 `-c http.proxy= -c https.proxy=` 直连重试；先 `Test-NetConnection github.com -Port 443/22` 判层 |
+| 直连 / HTTP1.1 / 代理三种方式都 `Connection was reset` | **443 被中间网络重置**，并非全断网（2026-11-08 实测：`ssh -T git@github.com` 返回 `Permission denied (publickey)` ⇒ 22 端口可达） | 先 `Test-Path ~/.ssh/id_*`：本机无密钥时 SSH 通道不可用，只能 a) 起 7890 代理 b) 新建密钥并在 GitHub 添加 c) 换网；**禁止继续盲试同一通道**（§35「失败即停」） |
 | 后台登录 `401 Request failed with status code 401` | **整行粘贴带 `AWK_KEY=` 前缀**（实测必 401；半角首尾空白会被 HTTP 剥离、不是真凶；全角空格会在浏览器抛非法头异常） | 已实现 `normalizeKey` 自动剥前缀+trim；仍失败则查 `gateway_bad_key` 事件 |
 | 后台页面看不到新改动 | 开的是网关域（CDN 旧构建） | 换托管域 `tcloudbaseapp.com` + Ctrl+F5 |

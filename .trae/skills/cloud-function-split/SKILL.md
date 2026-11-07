@@ -7,6 +7,12 @@ description: 物理拆分微信云函数巨型入口文件(index.js 线性 if(ac
 
 把 `cloudfunctions/<fn>/index.js` 里线性 `if(action==='x'){...}` 链，逐组搬到**同级** `action_*.js`，index 仅留「鉴权/预检 + HANDLERS 分发表 + 共享 helper」。**纯物理搬家，零行为变更，对外契约一字不动。**
 
+## 适用范围（何时拆 / 何时不拆，2026-11-08 实证补充）
+- ✅ **该拆**：入口文件靠**线性 `action === '...'` 链**分发（判定点越多收益越大）。实测口径：`Select-String -Pattern 'action ===|case '` 计数 >5 且文件 >500 行。
+- ✅ **该拆（另一形态）**：定时器入口**无 action 分发**、把多个定时任务串在一个文件里 → 按任务拆 `task_*.js`（风险中高：涉超时红线与触发器语义，须先 commit 再做）。
+- ❌ **不该拆**：`Page({})` 前端巨页（`order-detail.js` / `chat.js` / `publish.js`）——抽 `utils` 要改 `this` 绑定与 setData 路径，属 §5 高危且无测试兜底；行数大但**无 action 分发复杂度**，拆分不减认知负担（已记 `docs/tech-debt-inventory-20261105.md` 的 P2-14）。
+- 违背上述判别硬拆 = 只增风险不改结构，按 §1「最小改动」应拒绝。
+
 ## 硬约束（红线）
 - ❌ 不建子目录（不建 `actions/`、`services/`），handler 与 index **同级** —— 规避 `_shared` 同步脚本路径错位
 - ❌ handler **禁止** `require('./index')`（循环依赖）；共享符号全部经 `ctx` 注入
