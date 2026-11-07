@@ -683,3 +683,12 @@ alwaysApply: true
 **R4 断言用线上同源视图函数，且核对嵌套层级**：`require` 仓库内真实的 `miniprogram/utils/order-view.js`，不要自造预期；`buildOrderView` 返回 `{ order, scene, statusInfo, ... }`，视图字段在 `view.order.*`，WXML 绑定路径必须与之一致。断言路径写错会制造假缺陷（本次首批 4 条 FAIL 即 `v.pending_change` 写错层级造成，非代码缺陷）——**禁止据假缺陷改生产代码**。
 **R5 写测试的隔离与清理**：只用 `is_test:true` 造单（克隆真实单改状态），禁止碰真实业务单；测后软删（`is_deleted:true`）并回读核验「剩余未软删测试单 = 0」；一次性脚本放 `.tmp-tcb/`（gitignore，不入库）。
 **R6 S1 造单有时效**：S1 单 15 分钟内被定时器自动转 S6（实测 `created_at→updated_at` 约 1933s）。测前必须重造（`reset_s1_order.cjs` 类脚本），测中核对 `status/created_at/updated_at`，避免把「超时取消」误读为「新功能生效」。
+
+## 39. 隐私脱敏字段读写对账纪律（2026-11-07 #147 实证新增）
+
+> 背景：#147「需求详情联系电话行不渲染」——P3-3 批1 加密改造把落库侧明文 `contact_phone` 改为 `phonePatch()` 产出的 `phone_enc/phone_hash/phone_mask`，而读侧（demand-publish/action_query.js 与 order-action/action_query.js）仍读旧名 `contact_phone_mask`（该字段名全仓零写入），明文兜底亦已不落库 → 双路全空、字段静默为 undefined。真机三步闭环后固化本节。
+
+**R1 双侧对账硬门**：凡涉及加密/脱敏/字段改名的改造，**读写双侧字段名必须实测对账，禁止单侧推断**。验收最小动作＝读侧 grep（查询投影/action_query）× 落库侧 grep（add/update/phonePatch 写入点）交叉核对；任一侧零命中即断链，禁止只跑一侧就下「已修复」结论。
+**R2 三方对账**：grep 之外必须用云端真实文档回读（tcb / db 导出 / 控制台）核对第三面——线上存量文档的实际字段可能与代码双面都不一致（存量兼容窗口）。
+**R3 读侧修复口径**：优先读新字段名，旧字段名保留为兜底（`d.phone_mask || d.contact_phone_mask || maskContact(d.contact_phone || '')`）；旧读取分支在存量数据确认迁移完毕前禁止删除。
+**R4 同源波及自查**：同一改造波及的所有读点逐个过一遍（本例 order-action L81 耍伴端订单详情同源缺陷即由此带出），禁止只修反馈来源的那一处。
