@@ -15,6 +15,12 @@
           "config": "0 */5 * * * * *"
         }
       ]
+    },
+    {
+      "name": "zz-seed-orders",
+      "timeout": 20,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main"
     }
   ]
 }
