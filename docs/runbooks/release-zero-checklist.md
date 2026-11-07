@@ -50,7 +50,7 @@
 
 | # | 事项 | 状态 | 日期 | 谁做 | 判据/证据 |
 |---|---|---|---|---|---|
-| 4.1 | `miniprogram_state` `trial → formal` | ⬜ | — | 我（你授权后） | 三模板（`demand_grab`/`demand_urge`/`confirm_comm`）回读为 `formal`（HANDOFF T-8.15） |
+| 4.1 | `miniprogram_state` `trial → formal` | ✅ | 2026-11-07 | 我（你授权） | **已提前执行**（2026-11-07 你裁定「系统完善不受体验版约束，必要时可重传体验版」）：`$set` 三个路径后回读 `demand_grab` / `demand_urge` / `confirm_comm` 均 **`formal`**，且 `tmpl_id` / `fields` / `page` 逐字未变（`nModified=1`）；回滚 = 同命令改回 `trial`（1 分钟） |
 | 4.2 | 补 2 条「自定义」声明（手填手机号、设备信息） | ⬜ | — | 你 | 后台指引可见两条自定义；与端内 `privacy.wxml` 2.2/2.8 口径一致 |
 | 4.3 | `auto_approve_partner` 回 `false` | ✅ | 2026-11-05 | — | 云端回读 **false**（无需再改） |
 | 4.4 | `env=prod` | ✅ | 2026-11-05 | — | 云端回读 **prod**（`dev_bypass` 无值） |

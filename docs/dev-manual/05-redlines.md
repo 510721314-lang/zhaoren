@@ -76,7 +76,7 @@
 - 客服会话唯一索引约束：`im_conversation.uk_order_id` 唯一；客服会话用**按用户唯一占位** `order_id: 'kefu_' + openid` 复用该索引（每用户一条）；**禁止回退为空串占位**（原实现导致多用户并发开客服撞唯一键加载失败，2026-10-12 已修）。
 - 巡检（errorScan）仅对真实用户的 P0/safety_sos 事件告警，豁免 `admin_probe`（无身份机器调用）与 `order-timer` 自身 `s4_stale_escalate` 兜底事件。
 - 订阅消息：**云调用（cloud.openapi）仅在小程序端触发的云函数中经微信自动鉴权成功**；定时器/HTTP 网关/控制台/CLI 触发必报 `-501001`。HTTPS 订阅走 opt-in（配置了 `sub_msg_https` 才启用），`defaultPostJson` 设 8s 超时；pusher 在函数级创建 + `getAccessToken` in-flight 去重。
-- 订阅模板选型红线：仅选 `thing`（文本）+ `time`（时间）字段，避开 `phrase`/`amount`/`character_string`/`name`；提审前 `miniprogram_state` 设 `trial`。
+- 订阅模板选型红线：仅选 `thing`（文本）+ `time`（时间）字段，避开 `phrase`/`amount`/`character_string`/`name`；~~提审前 `miniprogram_state` 设 `trial`~~ → **2026-11-07 口径变更**：三模板已置 `formal`（你裁定「系统完善不受体验版约束，必要时可重传体验版」）；过渡期体验版点消息若跳转异常，按需重传体验版或临时回滚 `trial`。
 - 发送结果统一写 `demand.sub_msg_send_logs`（含通道标注），是无日志通道时验证订阅/云调用的有效手段。
 
 ## 5.7 交付与提审策略
