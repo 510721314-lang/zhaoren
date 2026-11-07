@@ -33,6 +33,8 @@ miniprogram/utils/take-order.js        |  20 +-
 - `.catch` 网络异常改为先调 `check_take_result` 捞回：已建单跳转、已释放提示重试（**需重传体验版生效**）
 
 ### 3. zz-seed-orders（临时种子工具，云端已删）
+
+> **2026-11-07 订正**：本节「云端已删」口径**作废**。该函数已于 2026-11-07 完成 T-7.26 物理拆分（index.js 1074 → 316 行）并部署启用，云端 Timeout 由默认 3s 调至 20s，11 个 action 经 admin-web 网关实测可用。现行状态以 [deploy-log.md](file:///c:/zhaoren/docs/deploy-log.md) 的 zz-seed-orders 两条记录为准；本文件其余内容为 2026-10-04 历史快照，不回改。
 - `service_orders`：为考试通过耍伴生成服务中（S3）订单
 - `night_orders`：生成 00:00-06:00 红线内需求/订单（测拦截）
 - `cleanup_seed_orders` / `backfill_matched`：清理与历史 `matched_openid` 回填（72 条中 22 条空值，已回填 found=0）

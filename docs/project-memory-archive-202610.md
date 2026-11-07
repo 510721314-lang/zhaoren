@@ -189,7 +189,7 @@
 - PowerShell 5.1 中文脚本必须使用 UTF-8 带 BOM 编码，与 JSON 文件必须无 BOM 的要求相反，避免解析乱码报错
 - gate.ps1 第 7 步 smoke 的 home_probe_square 偶发 count=0 属冷启动瞬态，重跑 smoke-check.ps1 即可恢复，非数据问题
 - git push 输出被 PowerShell 识别为 stderr 属正常现象，以 rev-list 计数核对实际推送结果；Empty reply from server 为网络抖动，重试即可
-- 云函数目录基线：当前实际 20 个正式业务云函数，5 个临时残留目录（export-config/admin-test/zz-ai-guard/zz-clean-n8b/zz-kefu-clean）已清理，zz-seed-orders/zz-warmup 为临时自测目录勿动勿部署
+- 云函数目录基线：当前实际 20 个正式业务云函数，5 个临时残留目录（export-config/admin-test/zz-ai-guard/zz-clean-n8b/zz-kefu-clean）已清理，zz-seed-orders/zz-warmup 为临时自测目录勿动勿部署（**2026-11-07 订正**：其中 zz-seed-orders 已部署启用、Timeout 20s，「勿动勿部署」口径对其作废；zz-warmup 仍适用。现行见 docs/deploy-log.md）
 - 需求发布时向可接耍伴推送抢单通知的候选数量阈值为20，候选超过20时不即时推送，保留 grab_notify_pending 交 order-timer 每5分钟批量兜底推送，仅当全部推送成功才清除 pending
 - 小程序端「消息」页的系统通知入口需复用 order-action notice_list 渲染，展示「🔔 系统通知」行、未读徽标及最近一条通知标题，新通知类型无需额外修改前端代码
 - 纠纷/申诉历史汇总采用统一时间线结构，合并订单状态流水、投诉记录、爽约申诉、支付/退款流水四类数据，操作人显示为「昵称(角色)」，退款节点附带金额信息
