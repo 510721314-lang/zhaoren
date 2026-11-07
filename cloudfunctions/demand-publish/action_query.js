@@ -149,7 +149,7 @@ async function detail_action(ctx) {
           } : null) : undefined,
           // 发布者联系手机号: 仅本人回传(编辑回填展示用, 脱敏); 真号一律不回传
           // P3-3 批1: 优先落库掩码(密文文档无明文 contact_phone), 回退旧字段现算
-          contact_phone_masked: (d.creator_openid === openid) ? (d.contact_phone_mask || maskContact(d.contact_phone || '')) : undefined,
+          contact_phone_masked: (d.creator_openid === openid) ? (d.phone_mask || d.contact_phone_mask || maskContact(d.contact_phone || '')) : undefined,
           // 原始发布地址(只读留痕, 编辑模式回填用; 安全: 精确坐标仅发布者本人可见, 他人不回传)
           publish_location: (d.creator_openid === openid) ? (d.publish_location || null) : null,
           // 是否入公共大厅(定向需求不在大厅/首页出现)
