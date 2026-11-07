@@ -8,6 +8,8 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-07 | order-action / order-timer / partner-action | d2cc90b | （待 commit） | 未建（本轮同日多笔，回滚口径=d2cc90b） | d2cc90b | T-7.16 sub_msgs 7 处 update 改点路径合并（消并发整对象覆盖）；串行部署 success=true（25 files 87.7 KB / 18 files 51.3 KB / 17 files 42.8 KB），tcb fn code download 回读 3/3 SHA256 MATCH；predeploy EXIT=0 / verify:offline EXIT=0（A/B 456 EQUIVALENT）/ SHARED SYNC ALL OK |
+| 2026-11-07 | demand-publish / order-action | 3b8be0d | fc13e6e | 未建（修复紧随反馈，回滚点=3b8be0d） | 3b8be0d | #147 联系电话掩码字段名订正（读侧 phone_mask 优先）；串行部署 success=true（15 files 45.7 KB / 25 files 87.7 KB），回读 40/40 SHA256 MATCH |
 | 2026-10-07 | admin-web | d13e7ad | ebc2f4b | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0② 网关鉴权失败告警(bad_key/missing_key → platform_event) |
 | 2026-10-07 | order-timer | d13e7ad | ebc2f4b | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0②③ error_scan 巡检项④网关鉴权突增 + auditPrune 90 天留存 |
 | 2026-10-07 | admin-action | d13e7ad | ebc2f4b | zhaoren-deploy-20261007-20261007-081223.bundle | d13e7ad | P0④ config_history 集合 + config_set 快照 + 敏感键掩码 + 保留 100 版 |

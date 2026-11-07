@@ -372,7 +372,8 @@ async function subAuthorizeAction(ctx) {
       const count = on ? Math.max(1, Math.min(2, Number(event.count) || 1)) : 0;
       const next = on ? authorizePatch(prev, count, now) : revokePatch(prev, now);
       const sub_msgs = withKey(profile.sub_msgs, tmpl, next);
-      await col('partner_profile').doc(profile._id).update({ data: { sub_msgs, updated_at: now } });
+      // T-7.16: 点路径合并只写本模板 key, 避免整对象覆盖抹掉并发中的其他模板状态; 返回值仍回传完整 sub_msgs
+      await col('partner_profile').doc(profile._id).update({ data: { ['sub_msgs.' + tmpl]: next, updated_at: now } });
       await writeAudit(db, log, {
         openid, role: 'partner', category: 'business', action: 'partner_sub_authorize',
         target_type: 'partner_profile', target_id: profile._id,

@@ -390,7 +390,8 @@ async function t(name, fn) {
   }
   function profilePatch(sdk) {
     const w = (sdk.writes.partner_profile || []).find((x) => !!x.doc);
-    return w && w.data && w.data.sub_msgs && w.data.sub_msgs.demand_urge;
+    // T-7.16: 点路径合并后 update 载荷键为 'sub_msgs.demand_urge'(仅本模板 key, 不再整对象覆盖)
+    return w && w.data && (w.data['sub_msgs.demand_urge'] || (w.data.sub_msgs && w.data.sub_msgs.demand_urge));
   }
   await t('3.3 #133 存量布尔 authorized=true → 仍发送并留痕 cloud/ok', async () => {
     const sdk = urgeSdk({ authorized: true });  // 存量形态：无 granted_count/sent_count

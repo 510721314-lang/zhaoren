@@ -301,7 +301,7 @@ async function sendUrgeSub(order, config, now, used) {
     // 成功即消费 1 条; 用尽则 authorized=false, 使接单配置开关回到“关”
     try {
       await col('partner_profile').doc(prof._id).update({ data: {
-        sub_msgs: withKey(prof.sub_msgs, 'demand_urge', sentPatch(prev, Date.now())), updated_at: Date.now()
+        ['sub_msgs.demand_urge']: sentPatch(prev, Date.now()), updated_at: Date.now()
       } });
     } catch (e1) {}
   } else {
@@ -312,7 +312,7 @@ async function sendUrgeSub(order, config, now, used) {
     if (String(res.errCode) === '43101') {
       try {
         await col('partner_profile').doc(prof._id).update({ data: {
-          sub_msgs: withKey(prof.sub_msgs, 'demand_urge', exhaustedPatch(prev, Date.now())), updated_at: Date.now()
+          ['sub_msgs.demand_urge']: exhaustedPatch(prev, Date.now()), updated_at: Date.now()
         } });
       } catch (e3) {}
       try {
@@ -385,7 +385,7 @@ async function sendCommSub(order, config, item) {
   if (res.sent) {
     try {
       await col('partner_profile').doc(prof._id).update({ data: {
-        sub_msgs: withKey(prof.sub_msgs, 'confirm_comm', sentPatch(prev, Date.now())), updated_at: Date.now()
+        ['sub_msgs.confirm_comm']: sentPatch(prev, Date.now()), updated_at: Date.now()
       } });
     } catch (e1) {}
   } else {
@@ -395,7 +395,7 @@ async function sendCommSub(order, config, item) {
     if (String(res.errCode) === '43101') {
       try {
         await col('partner_profile').doc(prof._id).update({ data: {
-          sub_msgs: withKey(prof.sub_msgs, 'confirm_comm', exhaustedPatch(prev, Date.now())), updated_at: Date.now()
+          ['sub_msgs.confirm_comm']: exhaustedPatch(prev, Date.now()), updated_at: Date.now()
         } });
       } catch (e3) {}
       try {

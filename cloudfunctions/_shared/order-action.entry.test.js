@@ -117,8 +117,8 @@ test('nudge_partner: 43101 → 授权关闭且写 sub_quota 站内通知', async
   assert.strictEqual(String(r.data.sub_err), '43101');
   const upd = (sdk.writes.partner_profile || []).find((w) => w.doc === 'p1');
   assert.ok(upd, '应更新耍伴订阅状态');
-  assert.strictEqual(upd.data.sub_msgs.demand_urge.authorized, false);
-  assert.strictEqual(upd.data.sub_msgs.demand_urge.sent_count, 2);
+  assert.strictEqual(upd.data['sub_msgs.demand_urge'].authorized, false);
+  assert.strictEqual(upd.data['sub_msgs.demand_urge'].sent_count, 2);
   const quotaNotice = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'sub_quota');
   assert.ok(quotaNotice, '额度用尽应写站内「已用完」通知');
   assert.strictEqual(quotaNotice.data.to_openid, PARTNER);
@@ -134,8 +134,8 @@ test('nudge_partner: 发送成功 → sent_count+1, 剩余 1 条仍 authorized',
   const r = await main({ action: 'nudge_partner', order_id: OID, mock_openid: USER }, {});
   assert.strictEqual(r.data.sub_sent, true);
   const upd = (sdk.writes.partner_profile || []).find((w) => w.doc === 'p1');
-  assert.strictEqual(upd.data.sub_msgs.demand_urge.sent_count, 1);
-  assert.strictEqual(upd.data.sub_msgs.demand_urge.authorized, true);
+  assert.strictEqual(upd.data['sub_msgs.demand_urge'].sent_count, 1);
+  assert.strictEqual(upd.data['sub_msgs.demand_urge'].authorized, true);
 });
 
 // 6. cancel: 非订单参与方 → oa_not_participant（roleOf 门，与 nudge 的精确匹配门互补）

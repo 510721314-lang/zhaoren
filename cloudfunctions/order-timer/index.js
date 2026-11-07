@@ -320,7 +320,7 @@ async function sendDemandSub(d, subTmpl, openid, profile, httpsPusher) {
   if (res.sent) {
     try {
       await col('partner_profile').doc(profile._id).update({ data: {
-        sub_msgs: withKey(profile.sub_msgs, 'demand_grab', sentPatch(prev, Date.now())), updated_at: Date.now()
+        ['sub_msgs.demand_grab']: sentPatch(prev, Date.now()), updated_at: Date.now()
       } });
     } catch (e1) {}
   } else {
@@ -330,7 +330,7 @@ async function sendDemandSub(d, subTmpl, openid, profile, httpsPusher) {
     if (String(res.errCode) === '43101') {
       try {
         await col('partner_profile').doc(profile._id).update({ data: {
-          sub_msgs: withKey(profile.sub_msgs, 'demand_grab', exhaustedPatch(prev, Date.now())), updated_at: Date.now()
+          ['sub_msgs.demand_grab']: exhaustedPatch(prev, Date.now()), updated_at: Date.now()
         } });
       } catch (e3) {}
     }
