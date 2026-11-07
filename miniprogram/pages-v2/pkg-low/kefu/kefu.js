@@ -93,5 +93,6 @@ Page({
     }
   },
 
-  onGoBack() { wx.navigateBack({ fail: () => wx.navigateTo({ url: '/pages-v2/index/index' }) }); }
+  // 2026-11-08 评审修复: /pages-v2/index/index 是 tabBar 页, 原 navigateTo 必失败 → 改 switchTab
+  onGoBack() { wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages-v2/index/index' }) }); }
 });

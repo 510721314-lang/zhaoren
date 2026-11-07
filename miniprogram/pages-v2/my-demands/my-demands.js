@@ -83,6 +83,6 @@ Page({
   },
 
   goPublish() {
-    wx.navigateTo({ url: '/pages-v2/publish/publish' });
+    wx.navigateTo({ url: '/pages-v2/publish/publish', fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' }) });
   }
 });

@@ -63,7 +63,7 @@ Page({
   // 去考前置科目
   onGoPrereq() {
     const code = this.data.prereq ? this.data.prereq.code : 'base';
-    wx.navigateTo({ url: '/pages-v2/pkg-low/exam/exam?subject=' + code, fail: () => {} });
+    wx.navigateTo({ url: '/pages-v2/pkg-low/exam/exam?subject=' + code, fail: () => wx.showToast({ title: '科目页打开失败', icon: 'none' }) });
   },
 
   // 选择答案: 单选覆盖; 多选累加/取消
@@ -125,7 +125,7 @@ Page({
 
   // 通过后返回上一页(接单配置)
   onBack() {
-    wx.navigateBack({ fail: () => wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config' }) });
+    wx.navigateBack({ fail: () => wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.showToast({ title: '接单配置打开失败', icon: 'none' }) }) });
   },
 
   // 失败重考: 重新拉题作答

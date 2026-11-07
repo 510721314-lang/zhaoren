@@ -447,7 +447,7 @@ Page({
       const { gateOnboard } = require('../../utils/bootstrap.js');
       if (!gateOnboard('publish', '发布需求')) return;
     } catch (e) {}
-    wx.navigateTo({ url: '/pages-v2/publish/publish' });
+    wx.navigateTo({ url: '/pages-v2/publish/publish', fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' }) });
   },
   // 访客登录引导入口(头部卡片)
   onGuestLogin() {

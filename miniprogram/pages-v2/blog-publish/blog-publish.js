@@ -35,7 +35,7 @@ Page({
         content: '发布动态前请先授权登录',
         showCancel: false,
         confirmText: '去登录',
-        success: () => wx.redirectTo({ url: '/pages-v2/login/login' })
+        success: () => wx.redirectTo({ url: '/pages-v2/login/login', fail: () => wx.showToast({ title: '登录页打开失败', icon: 'none' }) })
       });
     }
   },

@@ -160,7 +160,7 @@ Page({
 
   goDetail(e) {
     const id = e.currentTarget.dataset.id;
-    wx.navigateTo({ url: '/pages-v2/blog-detail/blog-detail?post_id=' + id });
+    wx.navigateTo({ url: '/pages-v2/blog-detail/blog-detail?post_id=' + id, fail: () => wx.showToast({ title: '帖子打开失败', icon: 'none' }) });
   },
 
   // 作者头像/昵称 → 耍伴公开主页(catchtap 阻止冒泡到卡片 goDetail)
@@ -172,7 +172,7 @@ Page({
 
   goTopic(e) {
     const tag = e.currentTarget.dataset.tag;
-    if (tag) wx.navigateTo({ url: '/pages-v2/blog/blog?tag=' + encodeURIComponent(tag) });
+    if (tag) wx.navigateTo({ url: '/pages-v2/blog/blog?tag=' + encodeURIComponent(tag), fail: () => wx.showToast({ title: '话题页打开失败', icon: 'none' }) });
   },
 
   previewImage(e) {
@@ -188,11 +188,11 @@ Page({
         content: '发布动态前请先授权登录',
         confirmText: '去登录',
         success: (res) => {
-          if (res.confirm) wx.navigateTo({ url: '/pages-v2/login/login' });
+          if (res.confirm) wx.navigateTo({ url: '/pages-v2/login/login', fail: () => wx.showToast({ title: '登录页打开失败', icon: 'none' }) });
         }
       });
       return;
     }
-    wx.navigateTo({ url: '/pages-v2/blog-publish/blog-publish' });
+    wx.navigateTo({ url: '/pages-v2/blog-publish/blog-publish', fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' }) });
   }
 });

@@ -89,7 +89,7 @@ Page({
   // 点话题 → 同话题信息流
   goTopic(e) {
     const tag = e.currentTarget.dataset.tag;
-    if (tag) wx.navigateTo({ url: '/pages-v2/blog/blog?tag=' + encodeURIComponent(tag) });
+    if (tag) wx.navigateTo({ url: '/pages-v2/blog/blog?tag=' + encodeURIComponent(tag), fail: () => wx.showToast({ title: '话题页打开失败', icon: 'none' }) });
   },
 
   loadComments(reset) {
@@ -156,7 +156,7 @@ Page({
         title: '需要先登录',
         content: '评论前请先授权登录',
         confirmText: '去登录',
-        success: (res) => { if (res.confirm) wx.navigateTo({ url: '/pages-v2/login/login' }); }
+        success: (res) => { if (res.confirm) wx.navigateTo({ url: '/pages-v2/login/login', fail: () => wx.showToast({ title: '登录页打开失败', icon: 'none' }) }); }
       });
       return;
     }

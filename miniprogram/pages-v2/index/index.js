@@ -329,7 +329,7 @@ Page({
         const bs = require('../../utils/bootstrap.js');
         if (!bs.gateOnboard('publish', '发布需求', { scene: p.scene || '' })) break;
         const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
-        wx.navigateTo({ url });
+        wx.navigateTo({ url, fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' }) });
         break;
       }
       case 'scene_list': {
@@ -341,7 +341,7 @@ Page({
       case 'activity_detail': {
         const id = p.id || act.id;
         if (id) {
-          wx.navigateTo({ url: '/pages-v2/pkg-low/activity-detail/activity-detail?id=' + id });
+          wx.navigateTo({ url: '/pages-v2/pkg-low/activity-detail/activity-detail?id=' + id, fail: () => wx.showToast({ title: '活动页打开失败', icon: 'none' }) });
         }
         break;
       }

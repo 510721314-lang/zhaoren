@@ -27,7 +27,7 @@ Page({
     callCloud('admin-action', { action: 'admin_list' }).then((r) => {
       if (!r.ok) {
         wx.showToast({ title: '无管理员权限', icon: 'none' });
-        setTimeout(() => wx.redirectTo({ url: '/pages-v2/index/index' }), 800);
+        setTimeout(() => wx.reLaunch({ url: '/pages-v2/index/index', fail: () => wx.showToast({ title: '返回首页失败', icon: 'none' }) }), 800);
         return;
       }
       this.setData({ isAdmin: true });
@@ -59,12 +59,12 @@ Page({
     });
   },
 
-  goUsers() { wx.navigateTo({ url: '/pages-v2/admin/users' }); },
-  goPartners() { wx.navigateTo({ url: '/pages-v2/admin/partners' }); },
-  goDemands() { wx.navigateTo({ url: '/pages-v2/admin/demands' }); },
-  goOrders() { wx.navigateTo({ url: '/pages-v2/admin/orders' }); },
-  goFinance() { wx.navigateTo({ url: '/pages-v2/admin/finance' }); },
-  goConfig() { wx.navigateTo({ url: '/pages-v2/admin/config' }); },
+  goUsers() { wx.navigateTo({ url: '/pages-v2/admin/users', fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) }); },
+  goPartners() { wx.navigateTo({ url: '/pages-v2/admin/partners', fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) }); },
+  goDemands() { wx.navigateTo({ url: '/pages-v2/admin/demands', fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) }); },
+  goOrders() { wx.navigateTo({ url: '/pages-v2/admin/orders', fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) }); },
+  goFinance() { wx.navigateTo({ url: '/pages-v2/admin/finance', fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) }); },
+  goConfig() { wx.navigateTo({ url: '/pages-v2/admin/config', fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) }); },
 
   onShareAppMessage() { return { title: '管理后台', path: '/pages-v2/index/index' }; }
 });

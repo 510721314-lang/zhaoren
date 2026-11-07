@@ -143,18 +143,18 @@ Page({
         wx.showToast({ title: '该通知暂无关联订单', icon: 'none' });
       }
     } else if (key === 'jump_order' || key === 'jump_accept_modify') {
-      wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
+      wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => wx.showToast({ title: '订单页打开失败', icon: 'none' }) });
     } else if (key === 'jump_pay') {
-      wx.navigateTo({ url: `/pages-v2/pay/pay?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
+      wx.navigateTo({ url: `/pages-v2/pay/pay?orderId=${payload.order_id || n.order_id}`, fail: () => wx.showToast({ title: '支付页打开失败', icon: 'none' }) });
     } else if (key === 'jump_evaluate') {
-      wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => {} });
+      wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => wx.showToast({ title: '订单页打开失败', icon: 'none' }) });
     } else if (key === 'jump_wallet') {
-      wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => {} });
+      wx.switchTab({ url: '/pages-v2/profile/profile', fail: () => wx.showToast({ title: '个人中心打开失败', icon: 'none' }) });
     } else if (key === 'jump_demand') {
-      wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${payload.demand_id || ''}`, fail: () => {} });
+      wx.navigateTo({ url: `/pages-v2/demand-detail/demand-detail?id=${payload.demand_id || ''}`, fail: () => wx.showToast({ title: '需求页打开失败', icon: 'none' }) });
     } else if (key === 'jump_accept_config') {
       // 2026-10-30: 订阅额度用尽通知 → 直达「接单配置」重新开启催办提醒
-      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => {} });
+      wx.navigateTo({ url: '/pages-v2/pkg-low/accept-config/accept-config', fail: () => wx.showToast({ title: '接单配置打开失败', icon: 'none' }) });
     }
   },
 
