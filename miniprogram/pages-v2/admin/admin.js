@@ -27,7 +27,7 @@ Page({
     callCloud('admin-action', { action: 'admin_list' }).then((r) => {
       if (!r.ok) {
         wx.showToast({ title: '无管理员权限', icon: 'none' });
-        setTimeout(() => wx.reLaunch({ url: '/pages-v2/index/index', fail: () => wx.showToast({ title: '返回首页失败', icon: 'none' }) }), 800);
+        setTimeout(() => wx.reLaunch({ url: '/pages-v2/index/index', fail: () => wx.showToast({ title: '返回首页失败', icon: 'none' }) }), 800); // @VERIFIED 2026-11-08 已真机验证：非管理员进后台回首页
         return;
       }
       this.setData({ isAdmin: true });

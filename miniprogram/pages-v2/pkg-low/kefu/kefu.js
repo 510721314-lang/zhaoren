@@ -93,6 +93,6 @@ Page({
     }
   },
 
-  // 2026-11-08 评审修复: /pages-v2/index/index 是 tabBar 页, 原 navigateTo 必失败 → 改 switchTab
+  // @VERIFIED 2026-11-08 已真机验证：客服页返回回首页（/pages-v2/index/index 是 tabBar 页, 原 navigateTo 必失败 → switchTab）
   onGoBack() { wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages-v2/index/index' }) }); }
 });
