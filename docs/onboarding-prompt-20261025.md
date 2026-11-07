@@ -45,7 +45,7 @@
 
 - 技术栈：微信原生小程序 + 云开发（CloudBase）；后台 = Vue3 + Vite SPA（`admin-web-frontend/`）+ 网关云函数 `admin-action`。
 - 仓库：`https://github.com/510721314-lang/zhaoren.git`，分支 `master`。
-- 云函数实测 **20** 个（不含 `_shared`）：user-login / demand-publish / demand-match / partner-apply / partner-action / order-create / order-action / order-timer / payment-mock / safety-report / im-conv / im-send / evaluation-submit / admin-action / init-db / home-action / blog-action / admin-web / zz-seed-orders / zz-warmup。**`zz-*` 为临时自测，勿动勿部署。**
+- 云函数实测 **20** 个（不含 `_shared`）：user-login / demand-publish / demand-match / partner-apply / partner-action / order-create / order-action / order-timer / payment-mock / safety-report / im-conv / im-send / evaluation-submit / admin-action / init-db / home-action / blog-action / admin-web / zz-seed-orders / zz-warmup。**`zz-*` 为临时自测，勿动勿部署。**（**2026-11-07 订正**：`zz-seed-orders` 已部署，Timeout 20s；`zz-warmup` 仍勿重复部署/改动）
 - **后台双域名职责不同**：SPA 使用/测试 = `https://cloud1-d9gkefwcp5c777088-1482004365.tcloudbaseapp.com/`；云函数网关 `/api` = `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api`。网关域 `/` 也返回 SPA HTML 但走 CDN 旧缓存 → 「页面没更新」先判域名。
 - 测试标识（**非凭据**）：发布者 openid `oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c`；耍伴 `test_partner_001`。
 
