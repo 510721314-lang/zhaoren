@@ -18,13 +18,22 @@
 
 ### 需填报的信息类型（依代码实测逐一对应）
 
+> **2026-11-08 口径订正**：完整填报资料与逐条可粘贴文案见 [privacy-filing-20261108.md](privacy-filing-20261108.md)。下表为摘要，手机号/设备信息走**标准项**，不走自定义。
+
 | 信息类型 | 触发 API（代码位置） | 用途文案建议 | 必填 |
 |---|---|---|---|
-| **位置信息** | `wx.getLocation`（`demand-detail.js:77`、`nearby-map.js:56/98`、`order-detail.js:610/696`、`partner-detail.js:121`、`safety.js:154/275`）<br>`wx.chooseLocation`（`chat.js:600`、`partner-apply.js:47`、`accept-config.js:341`） | 用于展示附近需求、计算履约距离、安全报备与位置选点 | **是** |
-| **相册/摄像头（图片）** | `wx.chooseMedia`（`blog-publish.js:71`、`partner-profile-edit.js:217`、`no-show-report.js:65`） | 用于上传头像、发布图文、提交爽约凭证 | **是** |
-| **证件信息（姓名、身份证号）** | `pages-v2/pkg-low/realname`（`form.real_name` / `form.idcard`，AES-256-GCM 加密落库） | 用于耍伴实名认证与纠纷取证 | **是** |
-| **手机号** | 表单手填（发布页联系手机号 / 紧急联系人 / 用户绑定手机），**未调用 `getPhoneNumber`**；云端密文落库 `phone_enc`/`phone_hash`/`phone_mask`（`demand-publish/action_publish.js:148`、`user-login/action_auth.js:81`） | 用于订单联系、履约沟通与平台安全风控；加密存储、展示脱敏（138****1234） | **是（走「自定义」声明）** |
-| **微信 OpenID** | 云开发登录态（`cloud.getWXContext()`） | 用于账号识别与订单归属 | **是** |
+| **位置信息** | `wx.getLocation`，统一收口 `utils/location.js`（`getLocationSafe`） | 展示附近需求、计算履约距离、安全报备 | **是** |
+| **选择的位置信息**（独立项） | `wx.chooseLocation`，收口 `utils/publish-locate.js:12-39` | 发布/接单时选择履约地点 | **是** |
+| **选中的照片或视频信息** | `wx.chooseMedia` 6 处调用 / 5 文件 | 上传头像、发布图文、履约与爽约凭证 | **是** |
+| **身份证号码** | `pages-v2/pkg-low/realname`；`user-login/index.js:71-87` `aes-256-gcm` 加密 | 耍伴实名认证与纠纷取证 | **是** |
+| **手机号** | 表单手填，**未调用 `getPhoneNumber`**；密文 `phone_enc`/`phone_hash`/`phone_mask` | 订单联系、履约沟通、安全风控；展示脱敏 | **是（标准项）** |
+| **设备信息** | `app.js:75`、`bootstrap.js:134/228`、`take-order.js:278` | 安全审计、异常排查；不含唯一设备标识符 | **是（标准项）** |
+| **操作日志** | `platform_event` / admin 审计 | 安全审计与纠纷取证 | **是** |
+| **发布内容** | 需求发布、博客图文 | 展示、匹配与履约 | **是** |
+| **订单信息** | `order_main` | 订单流转、结算、信用分 | **是** |
+| **自定义·通讯内容** | `chat` + `im-send` | IM 沟通与纠纷取证 | **是** |
+| **自定义·紧急联系人信息** | 耍伴入驻 | 风控与紧急求助 | **是** |
+| ~~微信 OpenID~~ | 云开发登录链路自动获得，非微信侧接口 | — | **不勾**（端内更详细不构成驳回） |
 
 ### 坑点（必读）
 
