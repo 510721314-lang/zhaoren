@@ -135,23 +135,14 @@ async function tipIncomeListAction(ctx) {
       };
 }
 
-    // ───────── 6c. 一次性回填: 历史打赏流水补 partner_openid/scene(幂等, 可重复调用) ─────────
-async function migrateTipPartnerAction(ctx) {
-  const { event, openid, clientIp, device, action, _, col, getOrder } = ctx;
-      const cursor = await col('pay_transaction').where({ type: 'tip', status: 'success', partner_openid: _.exists(false) }).limit(100).get().catch(() => ({ data: [] }));
-      let fixed = 0;
-      for (const t of (cursor.data || [])) {
-        const o = await getOrder(t.order_id).catch(() => null);
-        if (!o) continue;
-        await col('pay_transaction').doc(t._id).update({ data: { partner_openid: o.partner_openid || '', scene: o.scene || '' } }).catch(() => {});
-        fixed++;
-      }
-      return { ok: true, data: { fixed, remain: fixed } };
-}
+    // 2026-11-08 安全整改: 原 migrate_tip_partner(历史打赏流水补 partner_openid/scene)已删除。
+    // 原因: 该 action 不在 MOCK_ONLY_ACTIONS, 也未做角色/二次鉴权 → 任意登录用户可批量改写财务归属字段。
+    // 影响面: 一次性回填已完成(云端实测 47 笔打赏流水缺 partner_openid 的残留 = 0);
+    //         mock_tip 自 2026-10 起即在流水写入时落快照, 不会产生新的缺失行;
+    //         运维若仍需回填, 走 admin-web 的 fn_migrate_tip_partner(X-Admin-Key 保护, 直查 DB)。
 
 module.exports = {
   balance_info: balanceInfoAction,
   income_list: incomeListAction,
   tip_income_list: tipIncomeListAction,
-  migrate_tip_partner: migrateTipPartnerAction,
 };

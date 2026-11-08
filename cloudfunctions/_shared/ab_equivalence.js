@@ -710,6 +710,11 @@ function cleanupBaselineTmp(dirs) {
     // 2026-11-04 四确认变更协商: 新增 change_apply / change_respond(S1 发起→对方反馈→闭环; 基线无此 action);
     // 指定口径 D1-D6 见 action_change.js 头注; 行为由 order-action.entry.test.js 新增 8 例独立守护
     'auto_order_change_apply', 'auto_order_change_respond',
+    // 2026-11-08 安全整改: 删除 payment-mock 的 migrate_tip_partner(无角色/二次鉴权, 任意登录用户可批量改写
+    // 打赏流水的 partner_openid/scene); 云端实测一次性回填已完成(47 笔打赏流水缺失残留 = 0),
+    // mock_tip 已在写入时落快照, 运维回填改走 admin-web 的 fn_migrate_tip_partner(X-Admin-Key)。
+    // 基线仍有该 action → 当前返回 pay_unknown_action, 属预期演进。
+    'pm_migrate_tip',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {
