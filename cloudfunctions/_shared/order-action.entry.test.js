@@ -895,6 +895,12 @@ test('s2_change_apply: 距履约不足 1 小时拒绝（oa_s2c_blocked）', asyn
   const { main } = loadIndex(sdk);
   const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 30, longitude: 120 }, reason: '医院临时更换了院区', mock_openid: USER }, {});
   assert.strictEqual(r.code, 'oa_s2c_blocked');
+  // 2026-11-08 评审修复(B2): 临期拦截必须留审计，否则「到达被拦」与「未到达」不可区分
+  const au = (sdk.writes.audit_log || []).find((x) => x.data && x.data.action === 'order_s2_change_block_near');
+  assert.ok(au, '临期拦截应写审计 order_s2_change_block_near');
+  assert.strictEqual(au.data.code, 'oa_s2c_blocked');
+  assert.strictEqual(au.data.target_id, OID);
+  assert.strictEqual(au.data.detail.field, 'location');
 });
 
 test('s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）', async () => {

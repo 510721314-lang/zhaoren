@@ -87,6 +87,12 @@ async function s2_change_apply(ctx) {
   const T = startTime - now;
   // 时间窗：T < B 禁止；T > A 为 A 窗；其余为 B 窗
   if (T < c.bMinHours * 3600000) {
+    // 2026-11-08 评审修复(B2): 临期拦截留痕——原实现早退且零日志，导致「请求到达但被拦」与「请求未到达」无法区分
+    await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_s2_change_block_near',
+      target_type: 'order', target_id: order_id,
+      detail: { field, remain_min: Math.round(T / 60000), b_min_hours: c.bMinHours, start_time: startTime },
+      result: 'fail', code: 'oa_s2c_blocked',
+      client_ip: (wxCtx && wxCtx.CLIENTIP) || '', device: String(event.device || '').slice(0, 200) });
     return { ok: false, code: 'oa_s2c_blocked', msg: '临近履约时间，请按原信息履约或申请取消订单' };
   }
   const win = T > c.aMinHours * 3600000 ? 'A' : 'B';
