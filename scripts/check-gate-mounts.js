@@ -44,6 +44,7 @@ const VERIFY_ONLY = new Set([
 ]);
 const TOOL = new Set([
     'check-handoff-coverage.js',         // 需 2 个 HANDOFF 路径参数，一次性比对工具
+    'check-prd-drift.js',                // 2026-11-08 登记：PRD 漂移门（只读）。**暂归 TOOL 不入门禁链**——PRD 现有大批未提交改动且「150 条」断言待改 151，待 PRD 收尾后升为 VERIFY_ONLY 并挂 verify/verify:offline
 ]);
 
 const read = p => fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
