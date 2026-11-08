@@ -903,6 +903,20 @@ test('s2_change_apply: 距履约不足 1 小时拒绝（oa_s2c_blocked）', asyn
   assert.strictEqual(au.data.detail.field, 'location');
 });
 
+// 2026-11-08 D4-1 边界固化: 改期跨度校验（span > maxSpanH）必须拦截超大跨度
+test('modify: 改期跨度超上限拒绝（oa_modify_span）', async () => {
+  // 北京时间「4 天后 10:00」作为新服务时间（落在运营时段内），原服务时间倒推 1000 小时 ⇒ span 1000h > 任何合法上限(≤720)
+  const CN = 8 * 3600 * 1000;
+  const cnDayStart = Math.floor((Date.now() + CN) / 86400000) * 86400000 - CN;
+  const newTs = cnDayStart + 4 * 86400000 + 10 * 3600 * 1000;
+  const startTime = newTs - 1000 * 3600 * 1000;
+  const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: startTime, modify_count: 0 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify', order_id: OID, new_start_time: newTs, reason: '临时有事需要推迟服务时间', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_modify_span');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '被拦截时不得写订单');
+});
+
 test('s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）', async () => {
   const sdk = makeSdk({ openid: USER, store: s2Store() });
   const { main } = loadIndex(sdk);
