@@ -29,7 +29,7 @@
 ### 坑点（必读）
 
 1. **`requiredPrivateInfos` 与隐私指引必须一致**：`app.json` 已声明 `getLocation, chooseLocation`；若指引里漏填「位置信息」，提交会被驳回并提示接口未声明。
-2. **选填项不要多填**：未实际采集的信息（如手机号）若勾选，需提供采集证据，反而增加驳回面。
+2. **选填项不要多填**：未实际采集的信息（如人脸、通讯录、剪切板）若勾选，需提供采集证据，反而增加驳回面。
 3. **`chooseMedia` 无需写进 `requiredPrivateInfos`**，但**必须**在隐私指引勾选「相册/摄像头」，否则首次调用会直接失败（`chooseMedia:fail api scope is not declared`）。
 4. **指引更新有生效延迟**：提交后约 5–30 分钟生效，**不要在生效前上传提审包**，否则审核侧读到旧版本。
 5. **联动**：指引版本变更不影响 `privacy` 页文本，但两者口径必须一致（`pages-v2/privacy/privacy.wxml` 为端内展示版）。
