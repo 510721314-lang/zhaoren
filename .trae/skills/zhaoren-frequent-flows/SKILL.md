@@ -231,6 +231,23 @@ try { (Invoke-WebRequest -Uri https://github.com -UseBasicParsing -TimeoutSec 10
 
 - **本机默认代理死在 7890 端口**——每次 push 必须绕开，漏一次就卡 21 秒超时
 - push 是 `[git.exe]` 子进程，不继承 PowerShell 会话里的代理变量，必须 `-c` 参数显式传
+- **先探端口再决定，别盲试**（2026-11-08 实证）：`foreach ($p in 7890,7897,1080) { Test-NetConnection 127.0.0.1 -Port $p -InformationLevel Quiet }` 全 False ⇒ 代理客户端未启动，带代理必然 `ECONNREFUSED`，直接走直连；直连是否可达**随时间波动**（同日早间 `Recv failure: Connection was reset`，晚间一次成功推送 6 个提交 `8996f00..e2f58a5`）。纪律：每轮只试 1 次，失败即停，不反复重试
+
+### 流程 4.1：IDE 云开发面板代理报错（qbase/GetQbaseInfo｜GetCurrentUserInfo）
+
+症状：IDE 云开发「概览」白屏，提示 `获取账号信息失败 [qbase/GetCurrentUserInfo][UNKNOWN_ERROR] Error: tunneling socket could not be established, cause=connect ECONNREFUSED 127.0.0.1:52xxx`。
+
+判定链（只读，一条命令取证）：
+
+```powershell
+$ie = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+"ProxyEnable=$($ie.ProxyEnable) ProxyServer=$($ie.ProxyServer)"
+Test-NetConnection 127.0.0.1 -Port 52375 -InformationLevel Quiet
+```
+
+- `ProxyEnable=0` 但 `ProxyServer` 残留旧端口 + 该端口无监听 ⇒ IDE 面板仍用废弃代理（面板 webview 读的是自己的代理设置，不受系统开关影响）
+- 处置：IDE **设置 → 代理设置 → 「不使用任何代理」→ 完全退出并重启 IDE** → 面板点「刷新重试」
+- **不影响** CLI 链路：`cloud functions deploy` / `tcb fn code download` / nosql 只读都走 IDE 主进程直连，面板打不开不阻塞部署与核验（2026-11-08 实例：52375 死端口期间部署与 SHA256 回读全部成功）
 
 ---
 

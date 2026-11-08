@@ -15,6 +15,7 @@ description: "Deploy WeChat CloudBase cloud functions for the zhaoren mini progr
   - 多装并存时以「用户当前打开的 IDE 所在安装」的 cli.bat 为准，避免多实例端口漂移。
   - 新装/拷贝后必须先手动启动一次 IDE（创建 User Data 目录并登录），否则 CLI 报 `ENOENT ... Default\.cli` / `Please ensure that the IDE has been properly installed`。
 - 云环境 ID：`cloud1-d9gkefwcp5c777088`（唯一来源 miniprogram/envList.js，勿改）
+- **云函数运行时 TZ=UTC**（`cloudfunctions/order-action/index.js:40-41` 自注）：函数内任何「今日/本周/本月/日界」计算都必须用**固定 +8 偏移 + `Date.UTC(...)`**，禁用 `new Date()` 的本地 getter（`getHours/getDate/getMonth` 按 UTC 求值 ⇒ 日界实际偏到北京 08:00）。实证 2026-11-08：`payment-mock/action_account.js` 的「今日待履约」把北京 00:00–07:59 起的 S2/S3 单（线上抽样 22/113）错归前一日，修复 `e35e498`；写日期口径时建议同时支持 `event.now` 注入以便单测
 - 项目根：`c:\zhaoren`（cloudfunctionRoot = cloudfunctions/）
 - 前置条件：IDE 已打开且「设置 → 安全设置 → 服务端口」已开启。实际端口以 IDE 启动后的 `.ide` 文件内容为准：`%LOCALAPPDATA%\微信开发者工具\User Data\<实例哈希>\Default\.ide`（旧实例残留的 58449 不可信；若 CLI 报 "please restart developer tools / auto testing" 类错误，提示用户检查该开关）。
 
