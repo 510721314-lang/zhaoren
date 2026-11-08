@@ -738,7 +738,28 @@ Page({
     if (st === 'S2') {
       const bMinH = (CONFIG.S2_CHANGE && CONFIG.S2_CHANGE.bMinHours) || 1;
       const startTs = Number(this.data.startTime) || 0;
-      if (startTs && startTs - Date.now() < bMinH * 3600000) {
+      // 2026-11-08 评审修复: 履约时间缺失时原实现直接放行(fail-open), 用户白走选点/提交才被后端拒
+      if (!startTs) {
+        if (this.__s2RefreshTried) {
+          wx.showModal({
+            title: '订单信息未加载',
+            content: '请下拉刷新后重试',
+            showCancel: false,
+            confirmText: '知道了'
+          });
+          return;
+        }
+        // 先重取一次确认单; 取到时间则回到本方法继续原流程, 仍取不到则提示(只重试一次)
+        this.__s2RefreshTried = true;
+        wx.showLoading({ title: '加载中', mask: true });
+        this.refreshConfirmation().then(() => {
+          wx.hideLoading();
+          this.startEdit(field);
+          this.__s2RefreshTried = false;
+        });
+        return;
+      }
+      if (startTs - Date.now() < bMinH * 3600000) {
         wx.showModal({
           title: '暂不可修改',
           content: startTs <= Date.now()
@@ -766,6 +787,17 @@ Page({
             city: ''
           };
           this.applyChange('location', value);
+        },
+        // 2026-11-08 评审修复: 原实现无 fail, 定位被拒/地图失败时完全静默; 取消仍保持静默不扰民
+        fail: (err) => {
+          const msg = (err && err.errMsg) || '';
+          if (/cancel/i.test(msg)) return;
+          wx.showModal({
+            title: '无法选择地点',
+            content: '未获得定位权限或地图打开失败, 请在设置中开启定位后重试',
+            showCancel: false,
+            confirmText: '知道了'
+          });
         }
       });
       return;
