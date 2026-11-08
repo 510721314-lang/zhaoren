@@ -44,6 +44,21 @@
   <!-- C2 四确认进度条 -->
   <confirm-progress progress="{{progress}}"></confirm-progress>
 
+  <!-- C2.1 四项确认常驻清单(2026-11-08): 时间/地点/内容/费用四项内容与双方确认状态同时呈现, 不依赖模板卡是否已发 -->
+  <view class="chat__conf-list" wx:if="{{!unlocked && !chatBlocked && confirmList.length}}">
+    <view class="chat__conf-item {{item.done ? 'is-done' : ''}}" wx:for="{{confirmList}}" wx:key="field">
+      <view class="chat__conf-ic">{{item.icon}}</view>
+      <view class="chat__conf-main">
+        <text class="chat__conf-label">{{item.cn}}</text>
+        <text class="chat__conf-value">{{item.value}}</text>
+      </view>
+      <view class="chat__conf-state">
+        <text class="chat__conf-tag {{item.myOk ? 'is-ok' : ''}}">{{item.myOk ? '我已确认' : '我待确认'}}</text>
+        <text class="chat__conf-tag {{item.peerOk ? 'is-ok' : ''}}">{{item.peerOk ? '对方已确认' : '对方待确认'}}</text>
+      </view>
+    </view>
+  </view>
+
   <!-- C3 限制提示条 -->
   <view class="chat__limit {{unlocked ? 'is-ok' : ''}}">
     <block wx:if="{{chatBlocked}}">⛔ 订单已取消/关闭,会话已停止</block>

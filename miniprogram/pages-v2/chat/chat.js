@@ -26,6 +26,8 @@ Page({
     items: null,
     progress: { time: false, location: false, content: false, fee: false },
     confirmedCount: 0,
+    // 2026-11-08: 四项确认常驻清单(双方均可见四项内容与各自确认进度, 不依赖模板卡是否已发)
+    confirmList: [],
     unlocked: false,     // 四确认 4/4(双侧)
     freeChat: false,     // 后端允许自由文本
     chatBlocked: false,  // S6/S10
@@ -182,15 +184,23 @@ Page({
     once.mark(guideKey);
     wx.showModal({
       title: '开始四确认',
-      content: '订单已创建。请先与对方确认「时间」: 点确定发送时间确认卡, 双方逐项确认后进入待支付。',
+      content: '订单已创建。请与对方逐项确认「时间／地点／内容／费用」: 点确定一次发齐四张确认卡, 双方逐项确认后进入待支付。',
       confirmText: '去确认',
       cancelText: '稍后',
       confirmColor: '#07C160',
       fail: () => {},
       success: (res) => {
-        if (res.confirm) this.sendTemplate('TM1'); // 发送后消息区出现时间确认卡, 双方在卡上确认/修改
+        // 2026-11-08: 一次发齐四项确认卡(原仅发 TM1, 导致窗口内只看到「时间」一项)
+        if (res.confirm) this.__sendAllConfirmTemplates();
       }
     });
+  },
+
+  // 2026-11-08: 串行发齐四项确认模板卡(时间/地点/内容/费用)。
+  // 用 Promise 串行而非定时器, 保证消息流顺序稳定; 单项失败不阻断后续项。
+  __sendAllConfirmTemplates() {
+    const ids = ['TM1', 'TM2', 'TM3', 'TM4'];
+    return ids.reduce((p, id) => p.then(() => this.sendTemplate(id).catch(() => {})), Promise.resolve());
   },
 
   reload() { this.fetchData(); },
@@ -229,6 +239,24 @@ Page({
       content: both('content'), fee: both('fee')
     };
     const count = [progress.time, progress.location, progress.content, progress.fee].filter(Boolean).length;
+    // 2026-11-08: 四项常驻清单 —— 双方均可见「时间/地点/内容/费用」当前值与各自确认状态
+    const CONF_META = [
+      { f: 'time', cn: '时间', icon: '🕐' },
+      { f: 'location', cn: '地点', icon: '📍' },
+      { f: 'content', cn: '内容', icon: '📋' },
+      { f: 'fee', cn: '费用', icon: '💰' }
+    ];
+    const isPartner = this.data.role === 'partner';
+    const confirmList = CONF_META.map((m) => {
+      const it = items[m.f] || {};
+      const myOk = isPartner ? !!it.partner_ok : !!it.user_ok;
+      const peerOk = isPartner ? !!it.user_ok : !!it.partner_ok;
+      return {
+        field: m.f, cn: m.cn, icon: m.icon,
+        value: this.__changeValueText(m.f, it.value),
+        myOk, peerOk, done: myOk && peerOk
+      };
+    });
     const wasUnlocked = this.data.unlocked;
     const unlocked = !!d.all_confirmed;
     const firstLoad = !this.__confLoaded;
@@ -273,6 +301,7 @@ Page({
       items,
       progress,
       confirmedCount: count,
+      confirmList,
       unlocked,
       freeChat: unlocked || this.data.freeChat,
       orderStatus: nextStatus,

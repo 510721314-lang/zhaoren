@@ -179,6 +179,36 @@
   flex-shrink: 0;
 }
 
+/* C2.1 四项确认常驻清单(2026-11-08): 四项内容与双方确认状态同时呈现 */
+.chat__conf-list {
+  margin: 12rpx 24rpx 0;
+  background: var(--bg-card);
+  border: 1rpx solid var(--border-2);
+  border-radius: var(--r-md);
+  flex-shrink: 0;
+}
+.chat__conf-item {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 20rpx;
+  border-bottom: 1rpx solid var(--border-2);
+}
+.chat__conf-item:last-child { border-bottom: none; }
+.chat__conf-ic { width: 40rpx; font-size: var(--font-md); flex-shrink: 0; }
+.chat__conf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat__conf-label { font-size: var(--font-sm); color: var(--text-3); }
+.chat__conf-value {
+  font-size: var(--font-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat__conf-item.is-done .chat__conf-label { color: var(--brand-primary); }
+.chat__conf-state { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+.chat__conf-tag { font-size: var(--font-xs); color: var(--text-3); }
+.chat__conf-tag.is-ok { color: var(--brand-primary); }
+
 /* C6 输入 */
 .chat__input-bar {
   display: flex;
