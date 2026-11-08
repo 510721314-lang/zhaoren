@@ -23,7 +23,7 @@
 | **位置信息** | `wx.getLocation`（`demand-detail.js:77`、`nearby-map.js:56/98`、`order-detail.js:610/696`、`partner-detail.js:121`、`safety.js:154/275`）<br>`wx.chooseLocation`（`chat.js:600`、`partner-apply.js:47`、`accept-config.js:341`） | 用于展示附近需求、计算履约距离、安全报备与位置选点 | **是** |
 | **相册/摄像头（图片）** | `wx.chooseMedia`（`blog-publish.js:71`、`partner-profile-edit.js:217`、`no-show-report.js:65`） | 用于上传头像、发布图文、提交爽约凭证 | **是** |
 | **证件信息（姓名、身份证号）** | `pages-v2/pkg-low/realname`（`form.real_name` / `form.idcard`，AES-256-GCM 加密落库） | 用于耍伴实名认证与纠纷取证 | **是** |
-| **手机号** | 代码未调用 `getPhoneNumber`（**当前不采集**） | — | 否 |
+| **手机号** | 表单手填（发布页联系手机号 / 紧急联系人 / 用户绑定手机），**未调用 `getPhoneNumber`**；云端密文落库 `phone_enc`/`phone_hash`/`phone_mask`（`demand-publish/action_publish.js:148`、`user-login/action_auth.js:81`） | 用于订单联系、履约沟通与平台安全风控；加密存储、展示脱敏（138****1234） | **是（走「自定义」声明）** |
 | **微信 OpenID** | 云开发登录态（`cloud.getWXContext()`） | 用于账号识别与订单归属 | **是** |
 
 ### 坑点（必读）
@@ -166,7 +166,7 @@
 ## 6. 提审前逐项验收（勾选）
 
 - [ ] F1 隐私保护指引已提交且**状态为「已通过」**
-- [ ] F1 指引勾选项 = 位置 / 相册摄像头 / 证件信息 / OpenID（**不含手机号**）
+- [ ] F1 指引勾选项 = 位置 / 相册摄像头 / 证件信息 / OpenID + **手机号（自定义）** + **设备信息（自定义，品牌/型号/系统/平台，不含唯一设备标识符）**
 - [ ] F2 位置接口权限显示「已开通」
 - [x] F3 **三个**模板 `tmpl_id` 已写入 `sub_msg_templates`（2026-10-28 实测：`demand_grab`=`x1TfKgMBQCa2PpfpW10AVewcaFfm8BfuPCKOLk2Dx3Q`、`demand_urge`=`-JfmHqHsI_q3qZHy_yrJloS_a8Xr3uez18YqD041hmg`、`confirm_comm`=`9j-D9hF_b4AMdHqcxsXjEOex0b7t61ZNfM1YGhT-n6o`；库中无 `enabled` 字段，`admin-action/action_config_public.js` 以 `tmpl_id` 存在即下发 `enabled:true`，口径等价）
 - [x] F3 `miniprogram_state` 仍为 `trial`（2026-10-28 实测三键均 `trial`；正式发布日再切）
