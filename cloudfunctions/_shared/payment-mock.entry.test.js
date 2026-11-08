@@ -162,4 +162,32 @@ test('balance_info: today_pending 只计今日 start_time 且状态未完成', a
   assert.strictEqual(r.data.week_income_fen, 12800);
 });
 
+// 12. D4-5(2026-11-08 取证修复): 日界按北京时区固定 +8 偏移, 不依赖云函数运行时 TZ(UTC)
+// 原实现用 new Date() 本地 getter 算日界, 运行时 TZ=UTC 时「今日」会偏成北京 08:00 起算,
+// 导致北京 00:00-07:59 起服务的单漏计入今日待履约(线上抽样 22/113 落在此区间)。
+test('balance_info: 今日待履约按北京日界(固定 +8), 不受运行时 TZ 影响', async () => {
+  const CN = 8 * 3600 * 1000;
+  const DAY = 86400000;
+  // 注入「北京 2026-03-15 02:30」: epoch = 北京墙钟 − 8h
+  const bjNow = Date.UTC(2026, 2, 15, 2, 30, 0) - CN;
+  const bjDayStart = Date.UTC(2026, 2, 15, 0, 0, 0) - CN; // 北京当日 00:00
+  const store = baseStore();
+  store.order_main = {
+    // 北京 02:00 起服务的单: 若按 UTC 日界(北京 08:00)会被漏算
+    early: { _id: 'early', partner_openid: OPENID, status: 'S2', start_time: bjDayStart + 2 * 3600 * 1000 }
+  };
+  const sdk = makeSdk({ openid: OPENID, store, agg: baseAgg(), countFromStore: true });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'balance_info', mock_openid: OPENID, now: bjNow }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.today_pending, 1, '北京 02:00 的单必须计入今日待履约');
+  // 钉死下发到 DB 的区间边界: 今日 = 北京 00:00 起 24h
+  const cnt = sdk.calls.find((c) => c.method === 'where.count' && c.name === 'order_main'
+    && c.query && c.query.start_time && c.query.start_time.__sentinel === 'and_field');
+  assert.ok(cnt, '应下发「今日待履约」区间查询');
+  const [gte, lt] = cnt.query.start_time.args;
+  assert.strictEqual(gte.args[0], bjDayStart, '今日下界 = 北京当日 00:00');
+  assert.strictEqual(lt.args[0], bjDayStart + DAY, '今日上界 = 北京次日 00:00');
+});
+
 test.after(() => { Module._load = origLoad; });

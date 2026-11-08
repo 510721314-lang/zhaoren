@@ -6,18 +6,16 @@ async function balanceInfoAction(ctx) {
       const partnerOpenid = openid;
       if (!partnerOpenid) return { ok: false, code: 'pay_no_openid', msg: '未获取到登录身份' };
       await settleDueWithdrawals(openid);  // T+1 到账回写(mock)
-      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-      const monthMs = monthStart.getTime();
-      // P2-12/13(2026-11-02): 工作台「今日待履约」「本周收入」口径修正
-      // 今日待履约 = start_time 落在今天且仍未完成的订单(S2/S3/S3.5); 本周收入 = 本周一 00:00 起已结算收入
-      const nowD = new Date();
-      const todayStart = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
-      const todayStartMs = todayStart.getTime();
+      // 2026-11-08 D4-5(评审取证修复): 云函数运行时 TZ=UTC, 原「本地时区 getter」会把日界算成北京 08:00;
+      // 改为固定 +8 偏移(不依赖运行时 TZ), 并支持 event.now 注入以便单测
+      const CN_OFFSET = 8 * 3600 * 1000;
+      const nowMs = Number(event && event.now) || Date.now();
+      const cnNow = new Date(nowMs + CN_OFFSET);  // 用 UTC getter 读北京墙钟
       const dayMs = 86400000;
-      const weekStart = new Date(todayStartMs);
-      const dow = weekStart.getDay() || 7;   // 周日=0 按 7 处理, 一周从周一起算
-      weekStart.setDate(weekStart.getDate() - (dow - 1));
-      const weekStartMs = weekStart.getTime();
+      const todayMs = Date.UTC(cnNow.getUTCFullYear(), cnNow.getUTCMonth(), cnNow.getUTCDate()) - CN_OFFSET; // 北京当日 00:00
+      const monthMs = Date.UTC(cnNow.getUTCFullYear(), cnNow.getUTCMonth(), 1) - CN_OFFSET;                 // 北京本月 1 日 00:00
+      const dow = cnNow.getUTCDay() || 7;   // 周日=0 按 7 处理, 一周从周一起算
+      const weekMs = todayMs - (dow - 1) * dayMs;                                                            // 北京本周一 00:00
       // 8 次独立查询合并为 1 批: 已结算收入/提现占用/在途/本月/完成数/信用等级/今日待履约/本周收入
       // 收入口径 = 服务收入 + 打赏(2026-10-05 打赏计入耍伴可结算收入, 与订单记录分列展示)
       const [settled, wR, splitting, monthList, countR, pp, pendingR, weekR] = await Promise.all([
@@ -29,9 +27,9 @@ async function balanceInfoAction(ctx) {
         col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
         col('partner_profile').where({ openid: partnerOpenid }).limit(1).get().catch(() => ({ data: [] })),
         // P2-12: 今日待履约(按 start_time 当日区间 + 未完成状态, 不再用累计完成数)
-        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S3.5']), start_time: _.gte(todayStartMs).and(_.lt(todayStartMs + dayMs)), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
+        col('order_main').where({ partner_openid: partnerOpenid, status: _.in(['S2','S3','S3.5']), start_time: _.gte(todayMs).and(_.lt(todayMs + dayMs)), is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 })),
         // P2-13: 本周收入(本周一 00:00 起, 与钱包「本月收入」互补)
-        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(weekStartMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] }))
+        col('order_main').aggregate().match({ partner_openid: partnerOpenid, status: _.in(['S8','S9','S10']), service_completed_at: _.gte(weekMs), is_deleted: _.neq(true) }).group({ _id: null, total: $.sum('$partner_income_fen'), tip: $.sum('$tip_total_fen') }).end().catch(() => ({ list: [] }))
       ]);
       // 余额口径统一走 _shared/money_rules.js computeBalance(与 withdraw 同源防漂移)
       const bal = computeBalance({ settledAgg: settled.list && settled.list[0], withdrawGroups: (wR && wR.list) || [] });
