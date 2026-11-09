@@ -175,7 +175,7 @@ tcb fn code download <fn> ...                    # 逐文件 SHA256 回读核对
 |---|---|---|
 | `error_scan` 巡检 | [order-timer/index.js:99](../cloudfunctions/order-timer/index.js) | 随 `order-timer` 触发器（`0 */30 * * * * *`，48 次/天）扫描窗口内 `platform_event` P0/P1、`audit_log` fail、卡死提现（>48h）、网关鉴权失败突增 → 推管理员 `system_notice`；游标 `admin_config.error_scan_last_at`，心跳 `error_scan_heartbeat_at`；豁免项 `error_scan_exempt_types` |
 | 网关鉴权告警 | `admin-web` | `bad_key` / `missing_key` 拒绝时 **await** 写 `platform_event(P2, gateway_bad_key)`，密钥本身不入 payload |
-| 事件账 | `platform_event` | P0（紧急求助/资金异常）/ P1（越权/非法流转）/ P2（一般） |
+| 事件账 | `platform_event` | P0（紧急求助/资金异常/**支付事务补偿失败 `pay_compensate_fail`**）/ P1（越权/非法流转）/ P2（一般） |
 | 用量 | 云开发控制台 | 配额与调用量；🔴 阈值见 §3 第 5 条 |
 | 巡检心跳判定 | `error_scan_heartbeat_at` | 超过 2 个周期（>60 分钟）未更新 = 定时链可能已断，立即查 `order-timer` 触发器 |
 

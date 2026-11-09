@@ -83,6 +83,8 @@
 | 20 | `zz-warmup` | 定时 `0 */15 7-22 * * * *` | 1（`run`） | 无（保温专用） | 无业务写入 |
 
 > `order-timer` 的 21 = 4 个 `action_*.js` 段落文件导出的 19 个扫描函数 + `index.js` 内联的 `processDemandNotify` / `processUrgeReminder`（[index.js:342,418](../cloudfunctions/order-timer/index.js)）。它不按 `action` 分发，按触发器整轮执行。
+>
+> **计数口径（2026-11-09 补注）**：`check-handlers.js` 报 **146** 是「`action_*.js` 全部函数导出键」计数（含非 action 辅助函数如 `readImageDims`，跨文件重复导出各计一次），**不等于 action 数**；本表 action 数以 `HANDLERS` 分发键 / `switch` 分支为准。`init-db` 的 9 含 `run_seed`（无 `action` 时默认执行）。
 
 ## 3. 逐函数契约
 
@@ -553,8 +555,40 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 |---|---|
 | `payment-mock` | 支付/退款/加时结算/打赏/提现/AA 记账 |
 | `admin-action` | 用户治理、订单干预、配置读写、审核、财务、法律文档 |
-| `safety-report` | SOS / 静默求助 / 签到 / 举报 |
-| `im-send` | 文本/模板/客服消息与频控 |
+| `safety-report` | ✅ 已详写：见 §4.19 |
+| `im-send` | ✅ 已详写：见 §4.20 |
+
+### 4.19 `safety-report` 逐 action 契约（11）
+
+> 分发：`index.js` 线性 if 链；未知 action → `sr_unknown_action`。全部 action 先 `resolveOpenid`。公共错误：`sr_bad_order_id`（非 32 位 hex）/ `sr_not_found` / `sr_not_participant`。订单内 action 要求 `order.status ∈ ACTIVE_ORDER_STATUS = [S0,S1,S2,S3,S3.5,S4,S5]`（[index.js:27](../cloudfunctions/safety-report/index.js)）。
+
+| action | 入参（event） | 成功 `data` | 主要错误码 |
+|---|---|---|---|
+| `report_user` | `target_type`（`partner_profile`/`blog_post`）、`target_id`、`reason`（≤200）、`target_openid` | `{report_id, msg}`；10 分钟内同人同对象重复 → `{idempotent:true, report_id, msg}` | `sr_bad_target`、`sr_report_missing`、`sr_text_unsafe` |
+| `free_sos` | `source`（≤32，可选） | `{report_id, status:'active', my_contacts, tip}`；已有 active → `{idempotent:true,…}` | `sr_free_cooldown`（解除后 10 分钟冷却）、`sr_free_sos_fail` |
+| `free_sos_status` | 无 | `{active, report_id, created_at, my_contacts}` | — |
+| `free_sos_resolve` | `report_id`（可选；管理员凭 ID 兜底） | `{report_id, status:'resolved', resolved_by:'self' / 'admin'}` | `sr_bad_report_id`、`sr_not_free_sos`、`sr_not_admin`、`sr_no_active_sos`、`sr_free_not_reporter`、`sr_resolve_fail` |
+| `sos` | `order_id`、`location{latitude,longitude,name?}`、`note`（≤200） | `{report_id, help_flag:true, my_contacts, tip}`；已有 active → `{idempotent:true, report_id, help_flag:true, my_contacts}` | `sr_status_not_allowed`、`sr_text_unsafe`、`sr_sos_fail` |
+| `silent_sos` | 同 `sos` | 同 `sos`（`sub_type='silent'`） | 同 `sos` |
+| `cancel_silent_sos` | `order_id` | `{order_id, help_flag:false}` | `sr_no_active_sos`、`sr_not_reporter`、`sr_not_silent`、`sr_cancel_fail` |
+| `resolve_sos` | `order_id`（仅管理员白名单） | `{order_id, help_flag:false, resolved_by:'admin'}` | `sr_not_admin`、`sr_no_active_sos`、`sr_resolve_fail` |
+| `resolve` | `order_id`（仅求助发起人本人） | `{order_id, help_flag:false}` | `sr_no_active_sos`、`sr_resolve_not_reporter`、`sr_resolve_fail` |
+| `checkin` | `order_id`、`location?`、`note?` | `{report_id, type:'checkin', reporter_role, created_at, location, next_checkin_at}`（W1 为 +30 分钟，其余 `null`） | `sr_status_not_allowed`、`sr_checkin_too_frequent`（60 秒频控）、`sr_text_unsafe`、`sr_checkin_fail` |
+| `status` | `order_id` | `{order_id, help_flag, active_sos 或 null, checkins[≤5], my_contacts}` | — |
+
+> 副作用：`sos`/`silent_sos` 写 `order_main.help_flag=true` 与 `platform_event(P0, safety_sos)`，`order.status==='S3'` 时 CAS 联动 `S3→S3.5`（`sos_interrupt`，静默降级不阻断）；`cancel_silent_sos`/`resolve_sos`/`resolve` 回写 `help_flag=false` 并记 P1 事件。`free_sos` 不读写 `order_main`（附录 A 第 9 条）。
+
+### 4.20 `im-send` 逐 action 契约（3）
+
+> 分发：`send_kefu` 独立（不依赖 `order_id`）；`send_template`/`send_text` 共享订单鉴权（`im_bad_order_id` → `im_not_found` → `im_not_participant`；`order.status ∈ [S6,S10]` → `im_chat_closed`；`admin_config.switch_im === false` → `im_disabled`）。`TEXT_MAX_LEN=500`（[index.js:60](../cloudfunctions/im-send/index.js)）。
+
+| action | 入参（event） | 成功 `data` | 主要错误码 |
+|---|---|---|---|
+| `send_kefu` | `conv_id`、`text` | `{msg{msg_id, conv_id, from_openid, from_role:'user_kefu', text, created_at}}`；会话置 `kefu_status:'unhandled'` | `im_bad_conv_id`、`im_not_participant`、`im_empty_text`、`im_text_too_long`、`im_text_blocked`、`im_send_fail` |
+| `send_template` | `order_id`、`template_id` | `{msg, free_chat}`（`free_chat` = 订单状态是否在四确认完成态） | `im_bad_template`、`im_send_fail` + 上述共享码 |
+| `send_text` | `order_id`、`text` | `{msg, free_chat:true}` | `im_template_only`（四确认前）、`im_rate_limited`（附 `retry_after` 秒）、`im_text_blocked`、`im_r3_blocked`（W11 六类红线，写 `platform_event(P1, redline)`）、`im_send_fail` |
+
+> 频控：`send_text` 按会话滑动窗口（`admin_config.im_rate_window_min` 默认 5、`im_rate_max_count` 默认 30）计数，超限返回 `im_rate_limited` + `retry_after`（窗口内最早消息出窗剩余秒数）。内容安全 `checkText` 异常时**放行**并标 `sec_degraded=true`（IM 强交互不 fail-closed），供后台补审。
 
 ## 5. `payment-mock` 资金契约（详表）
 
@@ -604,7 +638,7 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 | 7 | `aa_tier` 非 `0-50`/`0-50元` 且未传 `aa_promise_checked=true` | `pay_aa_promise` |
 | 8 | **CAS**：`{_id, status:'S0'} → S2`，同时写 `fund={paid_fen: total_fen, refunded_fen:0, settle_state:'pending', settled_at:0}`；未抢到先查成功流水判幂等，再区分 `S6 → pay_closed` / 其余 `pay_status_conflict` | `pay_db_fail` / `pay_closed` / `pay_status_conflict` |
 | 9 | **事务**：`pay_transaction`（`pay_no=PAY+YYYYMMDD+16hex`、`channel='mock'`、`is_mock=true`、`status='success'`）+ `order_status_log(S0→S2, mock_pay)` 同成同败 | `pay_db_fail` |
-| 10 | 事务失败补偿：订单回 `S0` 且**资金位清零**（`paid_fen:0`）；补偿再失败写 `platform_event(P0, pay_compile_fail…)` | — |
+| 10 | 事务失败补偿：订单回 `S0` 且**资金位清零**（`paid_fen:0`）；补偿再失败写 `platform_event(P0, pay_compensate_fail…)` | — |
 | 11 | 通知耍伴 `system_notice(type='paid')`（await 落库）；写审计 `business/mock_pay` | — |
 
 > 资金红线：CAS 只允许一方从 `S0` 抢到 `S2`；重复点击落在第 4 步或第 8 步幂等分支。

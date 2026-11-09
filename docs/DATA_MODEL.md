@@ -39,7 +39,7 @@
 | 12 | `emergency_contact` | 紧急联系人 | user-login |
 | 13 | `evaluation` | 订单评价 | evaluation-submit（[index.js:270](../cloudfunctions/evaluation-submit/index.js)） |
 | 14 | `settlement` | 结算单 | order-timer / admin-action |
-| 15 | `platform_event` | 平台事件（P0–P3 巡检源） | 全函数 `logEvent` |
+| 15 | `platform_event` | 平台事件（P0–P3 巡检源）；已知事件：`pay_compensate_fail`（P0，支付事务补偿失败）、`gateway_bad_key`（P2，网关鉴权失败） | 全函数 `logEvent` |
 | 16 | `admin_config` | 运营配置单一源（`doc('global')`） | init-db / admin-action |
 | 17 | `disclaimer_signature` | 协议签署留证 | order-create（[action_take.js:525](../cloudfunctions/order-create/action_take.js)） |
 | 18 | `withdraw_record` | 提现记录 | payment-mock |
@@ -80,7 +80,7 @@
 | 标识 | `order_no`（唯一）、`demand_id`、`user_openid`、`partner_openid` | `uk_order_no` 全表唯一，无部分索引 |
 | 主轴 | `status` | S 码，见 §4 |
 | 正交位 | `eval_state`、`dispute_state`、`dispute_type`、`frozen`、`fund{paid_fen, refunded_fen, settle_state, settled_at}` | 由 `orthoDefaults()` 生成 |
-| 金额 | `amount_fen`、`base_fen` | 整数「分」 |
+| 金额 | `amount_fen`、`base_fen`、`total_fen`、`partner_income_fen`、`tip_total_fen` | 整数「分」；`partner_income_fen` 为耍伴实收快照（钱包聚合直接 sum 该字段） |
 | 挂起链 | `cancel_request{by, reason, pre_amount_fen, expire_at}`、`pending_extend{…}` | S2 协商取消 / 加时申请 |
 
 ### 3.2 其他核心表（字段示例）
@@ -90,7 +90,7 @@
 | `demand` | `creator_openid`、`scene`、`start_time`、`duration_h`、`location`、`publish_location`、`content_options`、`rate_fen`、`budget_fen`、`match_mode`、`status`、`broadcast`、`expire_at`、`is_deleted`、`grab_notify_pending` |
 | `user_account` | `openid`（唯一）、`nickname`、`avatar`、`phone_hash`（确定性 HMAC）、`real_name`、`idcard_enc`、`idcard_mask`、`age`、`is_realname_done`、`credit`、`allow_map_share`、`status` |
 | `partner_profile` | `openid`（唯一）、`nickname`、`accept_scenes`、`scene_rates`、`exam_scores`、`city`、`accept_switch`、`status`、`profile_audited_snapshot` |
-| `pay_transaction` | `pay_no`（唯一）、`order_id`、`order_no`、`type`、`amount_fen`、`fee_fen`、`channel`、`is_mock`、`status`、`paid_at` |
+| `pay_transaction` | `pay_no`（唯一）、`order_id`、`order_no`、`type`、`amount_fen`、`fee_fen`、`channel`、`is_mock`、`status`、`paid_at`、`partner_openid`（打赏专栏按人查询快照）、`scene`（场景快照） |
 | `safety_report` | `order_id`、`reporter_openid`、`type`（sos / checkin / silent）、`status`、`payload` |
 | `im_conversation` | `order_id`（唯一；客服会话用 `kefu_<openid>` 占位）、`order_no`、`members`、`last_msg`、`last_msg_at` |
 | `im_message` | `conv_id`、`from_openid`、`content`、`type`、`created_at` |

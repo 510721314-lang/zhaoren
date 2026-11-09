@@ -225,6 +225,7 @@ admin-web-frontend (SPA)
 ## 附录 A · 云函数 action 清单（静态提取）
 
 > 口径：`module.exports` 顶层键 + `exports.x =` + `case 'x':`，排除 `main`。**该口径可能漏掉以对象字面量/动态注册的 handler**，故数量仅作索引，权威逐条契约在 R4 `API.md`。
+> **已知差异（2026-11-09 审计）**：本表「提取数」为非权威静态提取值，与 `HANDLERS`/`API.md` 口径存在低估——`admin-action` 60 vs **101**、`init-db` 4 vs **9**、`order-action` 19 vs **46 派发键**、`zz-seed-orders` 5 vs **11 导出**；一律以 `API.md` 为准。
 
 | 函数 | 分发形态 | 提取数 | action 名单 |
 |---|---|---|---|

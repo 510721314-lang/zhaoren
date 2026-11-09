@@ -300,9 +300,9 @@ V2.0 的目标只有一个：**把 PRD 拉回与代码、台账一致的真值�
 【已实现】
 - 下单：`order-create`（`check_signed` → `sign_disclaimer` → `check_take_result` → `create_from_take`），前置校验签字与接单结果。
 - 状态机：16 个 S 码，全量流转见附录 B/G；每次流转写 `order_status_log`。
-- 支付：`pages-v2/pay` 收银台 + `payment-mock`（14 个 action）；**全部订单与流水打 `is_mock=true`，页面显著提示「模拟支付，不产生真实扣款」**。
+- 支付：`pages-v2/pay` 收银台 + `payment-mock`（13 个 action）；**全部订单与流水打 `is_mock=true`，页面显著提示「模拟支付，不产生真实扣款」**。
 - 资金四态：分账中 / 可提现 / 提现处理中 / 已提现（`config/enums.js` `FUND_STATUS`）。
-- 退款/取消/改期/加时/催办/部分完成/争议：由 `order-action`（`index.js` + `action_lifecycle.js` + `action_dispute.js` + `action_tip.js`）分发。
+- 退款/取消/改期/加时/催办/部分完成/争议：由 `order-action`（`index.js` + 9 个 `action_*.js`：`action_change.js`/`action_change_s2.js`/`action_confirm.js`/`action_dispute.js`/`action_lifecycle.js`/`action_modify_extend.js`/`action_nudge.js`/`action_query.js`/`action_timeline.js`）分发；`action_tip.js` 属 `payment-mock`（打赏归支付域）。
 - 防连点：写操作按钮统一防双击；关键 action 幂等。
 
 【部分实现】「分账」为本地计算结果（平台抽成 + 耍伴实收），**不涉及真实资金划转**；提现为 mock 记录（`withdraw_record`/`withdraw_lock`）。
@@ -777,18 +777,18 @@ V2.0 的目标只有一个：**把 PRD 拉回与代码、台账一致的真值�
 | `demand-publish` | 发布/编辑/草稿/详情/我的需求/取消 | 含公益与计价 |
 | `demand-match` | 大厅、Top5、报名、确认接单、邀请、广播 | 撮合核心 |
 | `order-create` | 签字校验、下单 | 前置校验 |
-| `order-action` | 状态机流转、生命周期、争议、打赏 | `index.js` + 3 个 `action_*.js` |
+| `order-action` | 状态机流转、生命周期、争议、催办/查询 | `index.js` + 9 个 `action_*.js` |
 | `order-timer` | 超时、自动评价、提醒、巡检 | 每 30 分钟 |
-| `payment-mock` | 模拟支付/退款/提现 | 14 个 action，`is_mock=true` |
+| `payment-mock` | 模拟支付/退款/提现/打赏 | 13 个 action，`is_mock=true` |
 | `evaluation-submit` | 评价提交与默认星级 | — |
 | `im-conv` | 会话、消息拉取、客服会话 | — |
 | `im-send` | 发文本/模板/客服消息 | 内容安全 + 频控 |
 | `safety-report` | SOS、静默求助、报平安、举报、自由求助 | 11 个 action |
 | `home-action` | 首页聚合、广场、场景、附近、活动 | — |
-| `blog-action` | 博客发布/列表/详情/点赞/评论 | 10 个 action |
+| `blog-action` | 博客发布/列表/详情/点赞/评论 | 11 个 action |
 | `admin-action` | 后台全部业务 action | 101 个 action（33 个 `action_*.js`；102 个导出键 − 1 个测试辅助 `readImageDims`），RBAC |
 | `admin-web` | 后台 HTTP 网关 | 鉴权 + 转发 |
-| `init-db` | 建集合/索引/种子/诊断/环境/密钥 | 8 个 action，仅运维 |
+| `init-db` | 建集合/索引/种子/诊断/环境/密钥 | 9 个 action（含 `run_seed`；无 action 时默认执行 `run_seed`），仅运维 |
 | `zz-seed-orders` | 造数（测试） | 11 个 action，20s 超时 |
 | `zz-warmup` | 云函数保温 | 每 15 分钟 |
 

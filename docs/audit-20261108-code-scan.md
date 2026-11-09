@@ -3,6 +3,7 @@
 > 执行方式：技能 `miniprogram-audit`（C1–C6）+ 项目门禁 `npm run verify:offline` + 经验驱动专项扫描（导航兜底 / 静默失败 / 金额浮点 / 空 catch / 配置一致性）。
 > 取证环境：仓库工作区 `c:\zhaoren`，HEAD 与 `origin/master` 存在 3 笔未推提交（详见 §6）。
 > 本报告只读产出，未修改任何代码。
+> **快照声明（2026-11-09 补注）**：本报告数字为 **2026-11-08 工作区快照**（当时 A/B **456** = 237 explicit + 219 auto，tests **866**）；现行基线为 **A/B 455**（237 explicit + 218 auto）、tests **868**（`f3028d5` 起）。差异来自用例演化（+2 新增 / −3 合并 / −1 known-evolution 归类调整），非缺陷；后续引用以 `docs/API.md` 与 `npm run verify:offline` 实测为准。
 
 ## 1. 结论
 
