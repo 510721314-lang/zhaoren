@@ -26,6 +26,10 @@ async function get_confirmation(ctx) {
   const sceneList = (cfg && Array.isArray(cfg.scene_list)) ? cfg.scene_list : [];
   const sceneEntry = sceneList.find((s) => s && s.code === order.scene);
   const batchBlocked = order.scene === 'W9' || !!(sceneEntry && sceneEntry.batch_confirm === false);
+  // 2026-11-09: S1 剩余窗口下发(与 order-timer/action_timeout.js 同口径: created_at + s1_timeout_min);
+  // created_at 缺失返回 0, 前端不倒计时(禁止 now 兜底, 避免据此误判窗口)
+  const s1Min = Number(cfg && cfg.s1_timeout_min) > 0 ? Number(cfg.s1_timeout_min) : 15;
+  const s1ExpireAt = order.created_at ? order.created_at + s1Min * 60000 : 0;
 
   const pm = order.pending_modify;
   const pe = order.pending_extend;
@@ -44,6 +48,9 @@ async function get_confirmation(ctx) {
       total_count: 8,
       all_confirmed: allConfirmed(conf.items),
       batch_blocked: batchBlocked,
+      // 2026-11-09: S1 截止时间 + 服务端当前时间(前端用差值抵消双端时钟偏差)
+      s1_expire_at: s1ExpireAt,
+      server_now: Date.now(),
       version: conf.version || 1,
       pending_modify: pm ? {
         by_openid: pm.by_openid,

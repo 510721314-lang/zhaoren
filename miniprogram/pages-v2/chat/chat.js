@@ -32,6 +32,8 @@ Page({
     freeChat: false,     // 后端允许自由文本
     chatBlocked: false,  // S6/S10
     batchBlocked: false, // 2026-11-09: 特别授权场景(W9 等)禁用一键全部确认
+    s1Left: 0,           // 2026-11-09: S1 剩余秒数(轮询 tick 重算, 0=不显示倒计时条)
+    s1Text: '',          // 2026-11-09: 倒计时展示文本(X分XX秒)
     orderStatus: '',
     startTime: 0,        // 2026-11-05: 履约开始时间戳(来自 get_confirmation), 供 S2 变更窗口前置拦截
     pendingBanner: null, // 加时/改期在途请求醒目横幅
@@ -266,6 +268,14 @@ Page({
     this.__confLoaded = true;
     // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
     const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
+    // 2026-11-09: S1 剩余窗口 —— 用服务端 s1_expire_at-server_now 差值折算本地截止时间, 抵消双端时钟偏差;
+    // created_at 缺失(=0)不倒计时, 禁止 now 兜底
+    if (d.s1_expire_at > 0 && d.server_now > 0) {
+      this.__s1Deadline = Date.now() + (d.s1_expire_at - d.server_now);
+    } else if (nextStatus !== 'S1') {
+      this.__s1Deadline = 0;
+    }
+    const s1Left = (nextStatus === 'S1' && this.__s1Deadline) ? Math.max(0, Math.floor((this.__s1Deadline - Date.now()) / 1000)) : 0;
     // 加时/改期在途请求 → 醒目横幅(对方发起且未处理; 常驻至确认/拒绝/超时; 先给订单概要)
     const pm = d.pending_modify;
     const pe = d.pending_extend;
@@ -311,6 +321,10 @@ Page({
       startTime: Number(d.start_time) || this.data.startTime || 0,
       pendingBanner,
       pendingChange,
+      s1Left,
+      s1Text: s1Left > 0 ? this.__s1Text(s1Left) : '',
+      // 2026-11-09: 轮询发现终态时同步停会话标记(im-conv.open 仅进页快照, 轮询期订单取消不会重推)
+      chatBlocked: (nextStatus === 'S6' || nextStatus === 'S10') ? true : this.data.chatBlocked,
       // 2026-11-09: 特别授权判定以服务端下发 batch_blocked 为单一真值(本地 scene 判定仅兜底)
       batchBlocked: !!d.batch_blocked || this.data.batchBlocked,
       orderSummary: this.__orderSummary(d)
@@ -540,6 +554,11 @@ Page({
     this.__pollTimer = setInterval(() => {
       if (this.data.loading || this.data.loadError) return;
       this.__pollTick += 1;
+      // 2026-11-09: S1 倒计时随 tick 重算(复用 15s 轮询, 不新增定时器)
+      if (this.data.orderStatus === 'S1' && this.__s1Deadline) {
+        const left = Math.max(0, Math.floor((this.__s1Deadline - Date.now()) / 1000));
+        if (left !== this.data.s1Left) this.setData({ s1Left: left, s1Text: this.__s1Text(left) });
+      }
       this.refreshMessages();
       // 四确认/通知降频至 60s(首轮即拉): 通知有本地去重与横幅兜底, 确认状态 60s 内同步可接受
       if (this.__pollTick % 4 === 1) this.pollOrderChat();
@@ -658,6 +677,11 @@ Page({
       wx.showToast({ title: '已支付,无需再确认', icon: 'none' });
       return;
     }
+    // 2026-11-09: S1 窗口已尽前置拦截, 避免白提交后才收到冲突错误
+    if (this.data.orderStatus === 'S1' && this.__s1Deadline && Date.now() >= this.__s1Deadline) {
+      this._handleOaConflict({ code: 'oa_not_confirmable', msg: '确认窗口已结束' });
+      return;
+    }
     this.__requestCommSub();   // 2026-10-17: 点按手势内请求「对方发起沟通」订阅授权(耍伴端, 未配模板/已请求过则跳过)
     wx.showLoading({ title: '提交中', mask: true });
     callCloud('order-action', {
@@ -665,7 +689,7 @@ Page({
     }).then((r) => {
       wx.hideLoading();
       if (!r.ok) {
-        wx.showModal({ title: '确认失败', content: r.msg || '请稍后重试', showCancel: false });
+        this._handleOaConflict(r);   // 2026-11-09: 状态冲突给出路, 不再死路弹窗
         return;
       }
       return this.refreshConfirmation();
@@ -697,6 +721,61 @@ Page({
       return;
     }
     this.confirmItem(field);
+  },
+
+  // 2026-11-09: 确认类操作命中状态冲突时, 刷新订单态并给一次性说明(修复死路弹窗)
+  // 命中码=状态已流转/窗口已尽; 说明弹窗按 §34 幂等(once:s1close:<order_id>:S1), 重进不再重复弹, toast 兜底
+  _handleOaConflict(r) {
+    const code = (r && r.code) || '';
+    if (['oa_not_confirmable', 'oa_not_editable', 'oa_status_conflict', 'oa_change_window_closed'].indexOf(code) < 0) {
+      wx.showModal({ title: '确认失败', content: (r && r.msg) || '请稍后重试', showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    this.refreshConfirmation();
+    const key = 's1close:' + (this.data.orderId || '') + ':S1';
+    if (once.has(key)) {
+      wx.showToast({ title: String((r && r.msg) || '订单状态已变化').slice(0, 14), icon: 'none' });
+      return;
+    }
+    once.mark(key);
+    wx.showModal({
+      title: '确认窗口已结束',
+      content: '四确认窗口已结束或订单状态已变化, 请以订单详情页最新状态为准。',
+      showCancel: false,
+      confirmText: '知道了',
+      confirmColor: '#07C160',
+      fail: () => {}
+    });
+  },
+
+  // 2026-11-09: 变更提交失败分流 —— 窗口将尽关弹层并给「逐项确认」出路, 不再死路弹窗
+  _handleApplyFail(r) {
+    const code = (r && r.code) || '';
+    if (code === 'oa_change_window_closed') {
+      this.setData({ editSheet: '' });   // 先关弹层, 顶部常驻四确认清单立即可见可点
+      this.refreshConfirmation();
+      wx.showModal({
+        title: '确认窗口即将结束',
+        content: '剩余时间不足以完成变更协商。请在四项清单中逐项「确认」, 或取消订单释放需求。',
+        confirmText: '去确认',
+        cancelText: '我知道了',
+        confirmColor: '#07C160',
+        fail: () => {},
+        success: (res) => {
+          if (res.confirm) wx.showToast({ title: '请在清单中逐项确认', icon: 'none' });
+        }
+      });
+      return;
+    }
+    if (code === 'oa_change_limit') {
+      wx.showModal({ title: '变更次数已达上限', content: '每项最多变更2次、整单最多4次。如仍有分歧,可取消订单后重新发布需求。', showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    // 状态类冲突先刷新本地状态再提示(文案来自服务端, 随状态更新)
+    if (['oa_change_pending', 'oa_not_editable', 'oa_status_conflict', 'oa_s2c_window_closed'].indexOf(code) >= 0) {
+      this.refreshConfirmation();
+    }
+    wx.showModal({ title: '提交失败', content: (r && r.msg) || '请稍后重试', showCancel: false, confirmText: '知道了' });
   },
 
   // ───────── ⑥ 一键全部确认(需求发布者; 批量置本方四项确认位) ─────────
@@ -732,7 +811,7 @@ Page({
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {
-            wx.showModal({ title: '确认失败', content: r.msg || '请稍后重试', showCancel: false });
+            this._handleOaConflict(r);   // 2026-11-09: 状态冲突给出路, 不再死路弹窗
             return;
           }
           wx.showToast({ title: '已全部确认', icon: 'success' });
@@ -948,7 +1027,7 @@ Page({
       callCloud('order-action', payload).then((r) => {
         wx.hideLoading();
         if (!r.ok) {
-          wx.showModal({ title: '提交失败', content: r.msg || '请稍后重试', showCancel: false });
+          this._handleApplyFail(r);   // 2026-11-09: 分流 —— 窗口将尽给「逐项确认」出路
           return;
         }
         this.setData({ editSheet: '' });
@@ -1203,6 +1282,11 @@ Page({
     if (!ms) return '';
     const d = new Date(Number(ms));
     return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+  // 2026-11-09: S1 倒计时文本(X分XX秒 / XX秒)
+  __s1Text(left) {
+    const mm = Math.floor(left / 60), ss = left % 60;
+    return mm > 0 ? mm + '分' + (ss < 10 ? '0' : '') + ss + '秒' : ss + '秒';
   },
   // 2026-11-04: 变更值统一展示(时间/地点/内容/费用/其他), 旧值新值同口径
   __changeValueText(field, v) {

@@ -41,6 +41,11 @@
     <text> ›</text>
   </view>
 
+  <!-- 2026-11-09: S1 倒计时条(15s 轮询粒度刷新; 归零后由轮询同步取消态) -->
+  <view class="chat__limit" wx:if="{{orderStatus === 'S1' && s1Left > 0}}">
+    <text>⏳ 距自动取消还剩 {{s1Text}}, 超时订单自动取消并释放需求</text>
+  </view>
+
   <!-- C2 四确认进度条 -->
   <confirm-progress progress="{{progress}}"></confirm-progress>
 
