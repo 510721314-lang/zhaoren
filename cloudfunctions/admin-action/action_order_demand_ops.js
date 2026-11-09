@@ -40,8 +40,9 @@ async function order_force_cancel(ctx) {
   if (!cr.stats || cr.stats.updated !== 1) {
     return fail('cancel_conflict', '订单状态已变化,请刷新后重试');
   }
-  if (o.demand_id && before === 'S1') {
-    await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({ data: { status: 'matching', updated_at: now } }).catch(() => {});
+  // 强制取消 S0/S1 单一并释放需求：回 matching 并清 matched_openid（与超时释放同口径），避免需求卡死或仅原耍伴可接
+  if (o.demand_id) {
+    await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({ data: { status: 'matching', matched_openid: null, updated_at: now } }).catch(() => {});
   }
   try {
     await col('order_status_log').add({ data: {
