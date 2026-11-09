@@ -715,6 +715,9 @@ function cleanupBaselineTmp(dirs) {
     // mock_tip 已在写入时落快照, 运维回填改走 admin-web 的 fn_migrate_tip_partner(X-Admin-Key)。
     // 基线仍有该 action → 当前返回 pay_unknown_action, 属预期演进。
     'pm_migrate_tip',
+    // 2026-11-09 AA 承诺书全档对齐补全: cashier_info 的 need_aa_promise 与 mock_pay 全档强校验同口径
+    // (0-50 档亦需勾选 → true), 修复 0-50 档收银台无勾选入口死路; 行为由 payment-mock.entry.test.js 守护。
+    'pm_cashier_ok', 'auto_pm_cashier_info',
   ]);
   let fails = 0, known = 0;
   for (const c of ALL_CASES) {

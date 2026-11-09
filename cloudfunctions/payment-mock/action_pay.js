@@ -29,8 +29,8 @@ async function cashierInfoAction(ctx) {
       }
       const sceneList = config.scene_list || [];
       const sceneConf = sceneList.find(s => s.code === order.scene) || {};
-      // 0-50 元档免 AA 承诺书(兼容新旧档位取值:'0-50' / '0-50元')
-      const needAaPromise = !!order.aa_tier && ['0-50', '0-50元'].indexOf(order.aa_tier) < 0;
+      // 所有档位需勾选 AA 承诺书(与 mock_pay 全档强校验同口径,修复 0-50 档收银台无勾选入口死路)
+      const needAaPromise = !!order.aa_tier;
 
       return {
         ok: true,
