@@ -93,11 +93,11 @@
 |---|---|---|---|---|
 | P3-26 | 单号/流水号日期前缀按 UTC 本地 getter 生成 | `payment-mock/index.js:46`、`order-create/index.js:123`、`demand-publish/index.js:187`、`admin-action/index.js:237` | 北京 00:00–07:59 建单前缀为前一日，仅影响对账辨识；唯一性由随机位 + 唯一索引保证，不受影响 | **✅ 已修并部署（2026-11-09）**：四处统一 +8 + `getUTC*`；5 函数串行部署 + 回读 SHA256 全 MATCH（见 deploy-log）；待真机抽验单号日期前缀 |
 | P3-27 | 紧急联系人 30 天冷却提示日期按 UTC | `user-login/action_misc.js:27` | 凌晨时段「X 后可再次修改」显示早一天 | **✅ 已修并部署（2026-11-09）**：改 +8 + `getUTC*`；user-login 部署 + 回读 13/13 MATCH；待真机抽验提示日期 |
-| P3-28 | `order-timer` 巡检游标/心跳写入失败被 `.catch(() => {})` 静默 | `order-timer/index.js:208`、`:251` | 游标不推进会导致巡检窗口重复或告警重复，且无日志可查 | 保留控制流，补 `log.w` 留痕（不改行为） |
-| P3-29 | `order-create` 配置读取失败回退硬编码费率/门槛 | `order-create/index.js:58-70` | DB 瞬时失败窗口内按 `platform_fee_rate_fen=1000`、`min_credit_*=600`、`youth_limit_fen=20000` 建单，可能与线上配置不一致 | 回退值改 `_shared/config_defaults.json` 同源；或评估 fail-closed（需拍板） |
-| P3-30 | `app.js` `cloudCall` 超时重试不中止在途调用 | `miniprogram/app.js:79-104` | 读类超时最多产生 3 次实际调用，占用基础版配额（数据幂等无错） | 超时后不重试或复用同一 Promise；需评估弱网体验后拍板 |
+| P3-28 | `order-timer` 巡检游标/心跳写入失败被 `.catch(() => {})` 静默 | `order-timer/index.js:208`、`:251` | 游标不推进会导致巡检窗口重复或告警重复，且无日志可查 | **✅ 已修并部署（2026-11-09）**：两处改 `log.w` 留痕，控制流不变；18/18 SHA256 MATCH（见 deploy-log） |
+| P3-29 | `order-create` 配置读取失败回退硬编码费率/门槛 | `order-create/index.js:58-70` | DB 瞬时失败窗口内按 `platform_fee_rate_fen=1000`、`min_credit_*=600`、`youth_limit_fen=20000` 建单，可能与线上配置不一致 | **✅ 已修并部署（2026-11-09，用户拍板 fail-closed）**：`getConfig` 失败返回 null，建单返 `order_config_unavailable`、签署返 `sign_config_unavailable`；13/13 SHA256 MATCH（见 deploy-log） |
+| P3-30 | `app.js` `cloudCall` 超时重试不中止在途调用 | `miniprogram/app.js:79-104` | 读类超时最多产生 3 次实际调用，占用基础版配额（数据幂等无错） | **✅ 已修（2026-11-09，随下次体验版上传生效）**：超时重试复用同一在途 Promise，仅真实失败才发起新调用；总等待预算不变 |
 
-> 立项依据：[20261109-bug-scan.md](session-log/20261109-bug-scan.md)。五项均**未改代码**，处置时按 §3「先说后做 + 最小改动」逐项走。
+> 立项依据：[20261109-bug-scan.md](session-log/20261109-bug-scan.md)。处置按 §3「先说后做 + 最小改动」逐项走；**当前（2026-11-09）：P3-26/27/28/29 已修并部署；P3-30 已修，随下次体验版上传生效**。
 
 ---
 
