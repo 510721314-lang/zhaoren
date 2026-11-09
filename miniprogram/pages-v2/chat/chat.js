@@ -348,6 +348,30 @@ Page({
           fail: () => wx.showToast({ title: '对方已确认,待付款', icon: 'none' })
         });
       }
+      // 1b) 2026-11-09 S0 需求方端: 四项已全部确认 → 弹窗引导完成支付(once 幂等, 点确定直达收银台)
+      if (this.data.role === 'user' && nextStatus === 'S0' && !shown('user_S0')) {
+        mark('user_S0');
+        wx.showModal({
+          title: '✅ 四项已全部确认',
+          content: `${this.__orderSummary(d)}\n双方确认完毕,请完成支付后耍伴即开始履约`,
+          showCancel: false,
+          confirmText: '去支付',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '四项已确认,待支付', icon: 'none' }),
+          success: (res) => {
+            if (res.confirm) {
+              // redirectTo: 全齐后聊天页使命已完成, 直达收银台(与"去履约"先例同模式)
+              wx.redirectTo({
+                url: `/pages-v2/pay/pay?orderId=${this.data.orderId}`,
+                fail: (err) => {
+                  console.error('[chat] redirectTo pay fail:', err && err.errMsg);
+                  wx.showToast({ title: '支付页打开失败', icon: 'none' });
+                }
+              });
+            }
+          }
+        });
+      }
       // 2) S2 耍伴端: 对方已支付, 去履约
       if (this.data.role === 'partner' && nextStatus === 'S2' && !shown('partner_S2')) {
         mark('partner_S2');

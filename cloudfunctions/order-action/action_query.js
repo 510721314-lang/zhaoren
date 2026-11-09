@@ -440,6 +440,8 @@ async function notice_list(ctx) {
     const dmParts = String((order && dmMap[order.demand_id] && dmMap[order.demand_id].remark) || '').split('｜');
     return Object.assign({}, n, {
       order_summary: order ? buildOrderSummary(order) : '',
+      // 2026-11-09: 下发订单当前状态(联表对象已在手, 零额外查询)——通知点击按状态直达操作入口(S0→支付/S1→四确认/其余→详情)
+      order_status: order ? order.status : '',
       // 需求标题/详细描述(2026-10-17): 通知列表展示; 标题兜底 content_options[0]
       demand_title: dmParts[0] ? dmParts[0].trim() : (((order && order.content_options) || [])[0] || ''),
       demand_desc: dmParts[1] ? dmParts[1].trim() : ''

@@ -131,6 +131,21 @@ Page({
       unread: Math.max(0, this.data.unread - 1)
     });
     // 跳转
+    // 2026-11-09: 状态直达优先 —— 通知带订单当前状态(每次进页/轮询实时联表)时按状态直达操作入口:
+    // S0→收银台 / S1→四确认聊天页 / 其余→订单详情; 无 order_status(老数据/非订单通知)走原 action_key 分支
+    const oidDirect = (n.action_payload && n.action_payload.order_id) || n.order_id;
+    if (oidDirect && n.order_status) {
+      if (n.order_status === 'S0') {
+        wx.navigateTo({ url: `/pages-v2/pay/pay?orderId=${oidDirect}`, fail: () => wx.showToast({ title: '支付页打开失败', icon: 'none' }) });
+        return;
+      }
+      if (n.order_status === 'S1') {
+        wx.navigateTo({ url: `/pages-v2/chat/chat?orderId=${oidDirect}`, fail: () => wx.showToast({ title: '聊天页打开失败', icon: 'none' }) });
+        return;
+      }
+      wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${oidDirect}`, fail: () => wx.showToast({ title: '订单页打开失败', icon: 'none' }) });
+      return;
+    }
     const key = n.action_key;
     const payload = n.action_payload || {};
     if (key === 'jump_chat') {
