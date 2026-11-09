@@ -14,7 +14,7 @@
     <view class="login__sell"><text class="login__sell-ic">🛡</text><text>官方认证</text></view>
     <view class="login__sell"><text class="login__sell-ic">📋</text><text>保险兜底</text></view>
     <view class="login__sell"><text class="login__sell-ic">📍</text><text>零静默定位</text></view>
-    <view class="login__sell"><text class="login__sell-ic">🔒</text><text>资金担保</text></view>
+    <view class="login__sell"><text class="login__sell-ic">🔒</text><text>演示环境</text></view>
   </view>
 
   <!-- 协议 + 登录 -->

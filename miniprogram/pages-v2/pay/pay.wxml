@@ -1,9 +1,9 @@
 <view class="v2 pay">
   <nav-bar title="支付确认"></nav-bar>
 
-  <!-- 支付保障声明: 提审合规, 不出现"内测/模拟"字样 -->
+  <!-- 模拟支付提示（附录 A 第 8 条：收银台必须显著提示「模拟支付，不产生真实扣款」） -->
   <view class="pay__beta-banner" wx:if="{{order}}">
-    🔒 支付由平台担保, 订单未完成可全额退款
+    🔒 模拟支付 · 不产生真实扣款
   </view>
 
   <view class="pay__loading" wx:if="{{loading}}">
@@ -47,12 +47,12 @@
       </view>
     </view>
 
-    <!-- Y3 担保交易说明 -->
+    <!-- Y3 支付说明（模拟支付口径） -->
     <view class="pay__card pay__card--info">
       <view class="pay__info-icon">🔒</view>
       <view class="pay__info-text">
-        <view class="pay__info-title">担保交易</view>
-        <view class="pay__info-desc">资金由微信支付担保托管，履约确认后T+{{arriveDays}}分账给耍伴</view>
+        <view class="pay__info-title">支付说明</view>
+        <view class="pay__info-desc">当前为模拟支付环境，不产生真实扣款；正式支付能力上线后，资金由持牌支付机构托管并按平台规则结算</view>
       </view>
     </view>
 
@@ -73,7 +73,7 @@
     <!-- Y4 支付按钮 -->
     <view class="pay__bottom">
       <button class="pay__btn" hover-class="btn-press" loading="{{paying}}" disabled="{{paying}}" bindtap="onPay">
-        微信支付 ¥{{totalFee}}
+        模拟支付 ¥{{totalFee}}
       </button>
     </view>
   </view>
