@@ -182,9 +182,10 @@ async function checkText(openid, text, blockWords) {
 
 // 生成需求编号 DR + yyyymmdd + 8字节密码学随机
 function genDemandNo() {
-  const d = new Date();
+  // 2026-11-09 P3-26: 运行时 TZ=UTC，单号日期前缀按北京时间(+8)
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
   const pad = (n) => n < 10 ? '0' + n : '' + n;
-  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const ymd = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
   const r = require('crypto').randomBytes(8).toString('hex');
   return `DR${ymd}${r}`;
 }

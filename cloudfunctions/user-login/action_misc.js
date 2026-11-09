@@ -23,8 +23,9 @@ async function set_emergency_contact_action(ctx) {
         const lastChanged = me && me.emergency_changed_at;
         const cd = evalEmergencyCooldown(lastChanged, Date.now(), EMERGENCY_COOLDOWN_MS);
         if (cd.blocked) {
-          const nextAt = new Date(cd.nextAtMs);
-          const nextStr = `${nextAt.getFullYear()}-${String(nextAt.getMonth() + 1).padStart(2, '0')}-${String(nextAt.getDate()).padStart(2, '0')}`;
+          // 2026-11-09 P3-27: 运行时 TZ=UTC，到期日按北京时间(+8)展示
+          const nextAt = new Date(cd.nextAtMs + 8 * 3600 * 1000);
+          const nextStr = `${nextAt.getUTCFullYear()}-${String(nextAt.getUTCMonth() + 1).padStart(2, '0')}-${String(nextAt.getUTCDate()).padStart(2, '0')}`;
           return { ok: false, code: 'emergency_too_frequent', msg: `紧急联系人每30天仅可变更1次, ${nextStr} 后可再次修改` };
         }
       } catch (e) {

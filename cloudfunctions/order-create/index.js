@@ -118,9 +118,10 @@ async function logReject(openid, demand_id, reason) {
 //   建单事务遇 E11000 会重新生成并重试(见 action_take.js), 避免碰撞直接抛给用户;
 // - 兼容性: 历史订单仍为 ORD+yyyymmdd+16hex, 反查逻辑需同时支持两种形态
 function genOrderNo() {
-  const d = new Date();
+  // 2026-11-09 P3-26: 运行时 TZ=UTC，单号日期前缀按北京时间(+8)
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
   const pad = (n) => n < 10 ? '0' + n : '' + n;
-  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const ymd = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
   let r = '';
   for (let i = 0; i < 12; i++) r += String(crypto.randomInt(0, 10));
   return `${ymd}${r}`;

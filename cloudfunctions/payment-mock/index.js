@@ -41,9 +41,10 @@ async function getConfig() {
 }
 
 function genPayNo(prefix) {
-  const d = new Date();
+  // 2026-11-09 P3-26: 运行时 TZ=UTC，单号日期前缀按北京时间(+8)
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
   const pad = (n) => n < 10 ? '0' + n : '' + n;
-  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const ymd = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
   // 8 字节密码学随机(16 hex), 防高并发碰撞(Math.random 6 位约 100 万分之一)
   const r = crypto.randomBytes(8).toString('hex');
   return `${prefix}${ymd}${r}`;
