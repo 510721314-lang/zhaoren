@@ -311,6 +311,8 @@ Page({
       startTime: Number(d.start_time) || this.data.startTime || 0,
       pendingBanner,
       pendingChange,
+      // 2026-11-09: 特别授权判定以服务端下发 batch_blocked 为单一真值(本地 scene 判定仅兜底)
+      batchBlocked: !!d.batch_blocked || this.data.batchBlocked,
       orderSummary: this.__orderSummary(d)
     }, () => {
       this.updateMsgStatuses();
@@ -671,6 +673,30 @@ Page({
       wx.hideLoading();
       wx.showToast({ title: '网络异常,请重试', icon: 'none' });
     });
+  },
+
+  // 2026-11-09: 四项常驻清单行内确认(不依赖模板卡); 四栅: S1/未确认/无变更在途/会话未停
+  onConfirmRow(e) {
+    const field = (e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.field) || '';
+    const it = (this.data.confirmList || []).find((x) => x.field === field);
+    if (!field || !it) return;
+    if (this.data.orderStatus !== 'S1') {
+      wx.showToast({ title: '当前状态不可确认', icon: 'none' });
+      return;
+    }
+    if (this.data.chatBlocked) {
+      wx.showToast({ title: '订单已取消/关闭', icon: 'none' });
+      return;
+    }
+    if (this.data.pendingChange) {
+      wx.showToast({ title: '有变更待对方反馈', icon: 'none' });
+      return;
+    }
+    if (it.myOk) {
+      wx.showToast({ title: '该项已确认', icon: 'none' });
+      return;
+    }
+    this.confirmItem(field);
   },
 
   // ───────── ⑥ 一键全部确认(需求发布者; 批量置本方四项确认位) ─────────

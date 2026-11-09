@@ -2,7 +2,7 @@
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
 async function get_confirmation(ctx) {
-  const { order_id, openid, getOrder, roleOf, getConfirmation, CONFIRM_FIELDS, allConfirmed } = ctx;
+  const { order_id, openid, getOrder, roleOf, getConfirmation, CONFIRM_FIELDS, allConfirmed, getConfig } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -21,6 +21,12 @@ async function get_confirmation(ctx) {
     fields[f] = { value: it.value, user_ok: !!it.user_ok, partner_ok: !!it.partner_ok };
   }
 
+  // 2026-11-09: 特别授权场景由服务端统一下发 batch_blocked, 前端以此为单一真值(后台 scene_list.batch_confirm 配置即生效)
+  const cfg = await getConfig();
+  const sceneList = (cfg && Array.isArray(cfg.scene_list)) ? cfg.scene_list : [];
+  const sceneEntry = sceneList.find((s) => s && s.code === order.scene);
+  const batchBlocked = order.scene === 'W9' || !!(sceneEntry && sceneEntry.batch_confirm === false);
+
   const pm = order.pending_modify;
   const pe = order.pending_extend;
   return {
@@ -37,6 +43,7 @@ async function get_confirmation(ctx) {
       confirmed_count: confirmedCount,
       total_count: 8,
       all_confirmed: allConfirmed(conf.items),
+      batch_blocked: batchBlocked,
       version: conf.version || 1,
       pending_modify: pm ? {
         by_openid: pm.by_openid,

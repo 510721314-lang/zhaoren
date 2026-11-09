@@ -55,6 +55,8 @@
       <view class="chat__conf-state">
         <text class="chat__conf-tag {{item.myOk ? 'is-ok' : ''}}">{{item.myOk ? '我已确认' : '我待确认'}}</text>
         <text class="chat__conf-tag {{item.peerOk ? 'is-ok' : ''}}">{{item.peerOk ? '对方已确认' : '对方待确认'}}</text>
+        <!-- 2026-11-09: 行内逐项确认(不依赖模板卡); 仅 S1/未确认/无变更在途/会话未停可点 -->
+        <text class="chat__conf-tag is-ok" wx:if="{{orderStatus === 'S1' && !item.myOk && !pendingChange && !chatBlocked}}" data-field="{{item.field}}" bindtap="onConfirmRow">确认 ›</text>
       </view>
     </view>
   </view>
@@ -97,7 +99,7 @@
   <view class="chat__limit" wx:if="{{batchBlocked && !chatBlocked && !unlocked}}">🔐 特别授权场景,请逐项核对后确认(不支持一键确认)</view>
 
   <!-- C4.0 一键全部确认(双方均可; 特别授权场景 W9 等由 batchBlocked 隐藏) -->
-  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked && !batchBlocked && orderStatus !== 'S2'}}" bindtap="onConfirmAll" hover-class="btn-press">
+  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked && !batchBlocked && orderStatus === 'S1'}}" bindtap="onConfirmAll" hover-class="btn-press">
     <text>✅ 四项一键全部确认</text>
   </view>
 
