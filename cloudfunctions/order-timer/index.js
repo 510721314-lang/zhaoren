@@ -205,7 +205,9 @@ async function errorScan(now, cfg, adminOpenids) {
   // 同时落异常签名与上次推送时间, 供下轮收敛判定。
   const curPatch = { error_scan_last_at: now, error_scan_heartbeat_at: now, updated_at: now, error_scan_last_sig: sig };
   if (pushed) curPatch.error_scan_last_push_at = now;
-  await col('admin_config').doc('global').update({ data: curPatch }).catch(() => {});
+  // 2026-11-09 P3-28: 写入失败必须留痕(游标/心跳不推进会导致巡检窗口重复), 不再静默
+  await col('admin_config').doc('global').update({ data: curPatch })
+    .catch((e) => log.w('error_scan cursor write fail:', (e && e.message) || e));
   return { issue_count: issueCount, severity, issues, pushed, suppressed: issueCount > 0 && !pushed };
 }
 
@@ -248,7 +250,9 @@ async function auditPrune(now, cfg) {
   // dry-run 不写 last_day, 保持「置 false 后下一个 UTC 19 点档立即真删」的语义。
   const patch = { audit_prune_last: { at: now, dry_run: dryRun, matched, pruned, cutoff, days: PRUNE_DAYS } };
   if (!dryRun) patch.audit_prune_last_day = dayKey;
-  await col('admin_config').doc('global').update({ data: patch }).catch(() => {});
+  // 2026-11-09 P3-28: 结果落库失败必须留痕, 不再静默
+  await col('admin_config').doc('global').update({ data: patch })
+    .catch((e) => log.w('audit_prune result write fail:', (e && e.message) || e));
   return { pruned, dry_run: dryRun, matched, skipped: '' };
 }
 

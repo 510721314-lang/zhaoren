@@ -76,10 +76,12 @@ App({
           const device = `${sys.brand || ''} ${sys.model || ''}|${sys.system || ''}|${sys.platform || ''}`.trim().slice(0, 200);
           sendData = Object.assign({}, data, { device });
         } catch (e) { /* 取不到设备信息则不带 device */ }
+        // 2026-11-09 P3-30: 超时重试复用同一在途调用, 不再重复发起(防读类配额放大)
+        let callPromise = null;
         const doCall = () => {
           attempt++;
           const timer = setTimeout(() => {
-            // 超时: 免费版 3s 硬限, 继续 retry
+            // 超时: 免费版 3s 硬限, 继续 retry(仅重新等待同一在途调用)
             if (attempt <= retries) {
               setTimeout(doCall, waitMs);
             } else {
@@ -87,20 +89,22 @@ App({
             }
           }, timeout);
 
-          wx.cloud.callFunction({
-            name, data: sendData,
-            success: (res) => {
-              clearTimeout(timer);
-              resolve(res.result || { ok: false, code: 'cloud_empty' });
-            },
-            fail: (err) => {
-              clearTimeout(timer);
-              console.error('[cloudCall fail]', name, 'attempt=' + attempt, err && err.errMsg);
-              if (attempt <= retries) {
-                setTimeout(doCall, waitMs);
-              } else {
-                resolve({ ok: false, code: 'cloud_error', msg: '网络异常,请检查网络' });
-              }
+          if (!callPromise) {
+            callPromise = new Promise((res, rej) => {
+              wx.cloud.callFunction({ name, data: sendData, success: res, fail: rej });
+            });
+          }
+          callPromise.then((res) => {
+            clearTimeout(timer);
+            resolve(res.result || { ok: false, code: 'cloud_empty' });
+          }).catch((err) => {
+            clearTimeout(timer);
+            console.error('[cloudCall fail]', name, 'attempt=' + attempt, err && err.errMsg);
+            callPromise = null;   // 已失败, 下一轮重试才发起新调用
+            if (attempt <= retries) {
+              setTimeout(doCall, waitMs);
+            } else {
+              resolve({ ok: false, code: 'cloud_error', msg: '网络异常,请检查网络' });
             }
           });
         };
