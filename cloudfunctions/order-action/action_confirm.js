@@ -306,6 +306,13 @@ async function confirm_all(ctx) {
   if (order.pending_change) {
     return { ok: false, code: 'oa_change_pending', msg: '有变更待对方反馈，确认暂停' };
   }
+  // 2026-11-09: 特别授权场景(W9 等, scene_list.batch_confirm=false 或 W9 兜底)禁一键全部确认, 必须逐项确认
+  const cfg = await getConfig();
+  const sceneList = (cfg && Array.isArray(cfg.scene_list)) ? cfg.scene_list : [];
+  const sceneEntry = sceneList.find((s) => s && s.code === order.scene);
+  if (order.scene === 'W9' || (sceneEntry && sceneEntry.batch_confirm === false)) {
+    return { ok: false, code: 'oa_batch_confirm_blocked', msg: '该订单需逐项确认,不支持一键全部确认' };
+  }
   const conf = await getConfirmation(order_id);
   if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
 

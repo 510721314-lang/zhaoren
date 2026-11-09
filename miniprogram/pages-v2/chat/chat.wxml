@@ -93,8 +93,11 @@
     <view class="chat__change-wait" wx:else>等待对方反馈，期间暂停确认与修改…</view>
   </view>
 
-  <!-- C4.0 一键全部确认(双方均可; 批量置本方四项确认位, 对方已确认项即时进入待支付) -->
-  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked && orderStatus !== 'S2'}}" bindtap="onConfirmAll" hover-class="btn-press">
+  <!-- 2026-11-09: 特别授权场景提示(禁用一键确认, 必须逐项核验) -->
+  <view class="chat__limit" wx:if="{{batchBlocked && !chatBlocked && !unlocked}}">🔐 特别授权场景,请逐项核对后确认(不支持一键确认)</view>
+
+  <!-- C4.0 一键全部确认(双方均可; 特别授权场景 W9 等由 batchBlocked 隐藏) -->
+  <view class="chat__confirm-all" wx:if="{{!unlocked && !chatBlocked && !batchBlocked && orderStatus !== 'S2'}}" bindtap="onConfirmAll" hover-class="btn-press">
     <text>✅ 四项一键全部确认</text>
   </view>
 

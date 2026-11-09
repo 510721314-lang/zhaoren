@@ -31,6 +31,7 @@ Page({
     unlocked: false,     // 四确认 4/4(双侧)
     freeChat: false,     // 后端允许自由文本
     chatBlocked: false,  // S6/S10
+    batchBlocked: false, // 2026-11-09: 特别授权场景(W9 等)禁用一键全部确认
     orderStatus: '',
     startTime: 0,        // 2026-11-05: 履约开始时间戳(来自 get_confirmation), 供 S2 变更窗口前置拦截
     pendingBanner: null, // 加时/改期在途请求醒目横幅
@@ -130,6 +131,8 @@ Page({
         role: d.role || '',
         freeChat: !!d.free_chat,
         chatBlocked: !!d.chat_blocked,
+        // 2026-11-09: 特别授权场景由 scene_list.batch_confirm 或 W9 兜底判定
+        batchBlocked: !!((scene && (scene.code === 'W9' || scene.batchConfirm === false)) || d.scene === 'W9'),
         orderStatus: d.status || '',
         loading: false
       }, () => {
@@ -675,6 +678,11 @@ Page({
   onConfirmAll() {
     if (this.data.chatBlocked) {
       wx.showToast({ title: '订单已取消/关闭,无法确认', icon: 'none' });
+      return;
+    }
+    // 2026-11-09: 特别授权场景必须逐项确认, 不允许一键全部确认
+    if (this.data.batchBlocked) {
+      wx.showToast({ title: '该订单需逐项确认', icon: 'none' });
       return;
     }
     // 2026-11-05: S2 已支付后不再允许四确认操作（正常数据不会出现, 异常数据兜底）
