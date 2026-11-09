@@ -59,14 +59,13 @@ async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
     if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
-  } catch (e) {}
-  return {
-    platform_fee_rate_fen: 1000,
-    min_credit_take_order: 600,
-    min_credit_place_order: 600,
-    youth_limit_fen: 20000,
-    take_distance_max_km: TAKE_MAX_DISTANCE_KM
-  };
+    log.d('order-create config read fail(fail-closed): empty data');
+  } catch (e) {
+    log.d(`order-create config read fail(fail-closed): ${e.message}`);
+  }
+  // 2026-11-09 P3-29: fail-closed —— 配置不可读时不再回退硬编码费率/门槛,
+  // 返回 null 由调用方拦截建单/签署, 避免按与线上不一致的口径分账或放行
+  return null;
 }
 
 // ── 接单配置校验辅助(时间红线 / 价格区间 / 每周时段 / 距离) ──

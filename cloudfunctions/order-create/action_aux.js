@@ -26,6 +26,8 @@ async function signDisclaimerAction(ctx) {
     if (!scene) return { ok: false, code: 'sign_no_scene', msg: '缺少场景' };
     // 免责声明类型: 优先从 admin_config.scene_list 动态读(SSOT), 兜底硬编码映射
     const cfg = await getConfig();
+    // 2026-11-09 P3-29: 配置不可读即拒绝签署(fail-closed), 避免以缺失的文档清单留证
+    if (!cfg) return { ok: false, code: 'sign_config_unavailable', msg: '系统繁忙，请稍后再试' };
     const sceneCfg = (cfg.scene_list || []).find((s) => s && s.code === scene);
     const disclaimerType = (sceneCfg && sceneCfg.disclaimer_type) || {
       W1: 'medical_disclaimer', W2: 'general_disclaimer', W8: 'general_disclaimer',

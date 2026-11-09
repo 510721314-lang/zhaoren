@@ -27,6 +27,9 @@ async function createFromTakeAction(ctx) {
     getDemand(demand_id)
   ]);
 
+  // 2026-11-09 P3-29: 配置不可读即拒绝建单(fail-closed), 禁止按硬编码费率/门槛放行
+  if (!config) return { ok: false, code: 'order_config_unavailable', msg: '系统繁忙，请稍后再试' };
+
   // 平台总开关: 核心交易维护中, 阻断接单建单
   if (config.switch_access === false) {
     return { ok: false, code: 'access_disabled', msg: '平台交易功能维护中,暂无法接单,请稍后再试' };
