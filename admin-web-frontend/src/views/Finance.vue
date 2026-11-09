@@ -16,18 +16,17 @@
           <el-button :loading="statsLoading" @click="loadStats">刷新</el-button>
         </div>
         <el-row v-if="stats" :gutter="16">
-          <el-col :span="6"><el-statistic title="GMV (¥)" :value="stats.total_gmv_fen / 100" :precision="2" /></el-col>
-          <el-col :span="6"><el-statistic title="支付订单" :value="stats.order_count" /></el-col>
-          <el-col :span="6"><el-statistic title="退款订单" :value="stats.refund_count" /></el-col>
-          <el-col :span="6"><el-statistic title="耍伴分账 (¥)" :value="stats.total_partner_income_fen / 100" :precision="2" /></el-col>
+          <el-col :span="6"><el-statistic title="GMV (¥)" :value="stats.summary.gmv_fen / 100" :precision="2" /></el-col>
+          <el-col :span="6"><el-statistic title="支付订单" :value="stats.summary.pay_count" /></el-col>
+          <el-col :span="6"><el-statistic title="退款订单" :value="stats.summary.refund_count" /></el-col>
+          <el-col :span="6"><el-statistic title="耍伴分账 (¥)" :value="stats.summary.partner_income_fen / 100" :precision="2" /></el-col>
         </el-row>
-        <p v-if="stats?.trend_truncated" style="color:#E6A23C;font-size:12px;margin-top:8px">日趋势已截断 ({{ stats.trend?.length || 0 }}/5000)</p>
-        <el-table v-if="stats?.trend?.length" :data="stats.trend" border size="small" style="margin-top:12px">
+        <p v-if="stats?.trend_truncated" style="color:#E6A23C;font-size:12px;margin-top:8px">日趋势已截断 ({{ stats.trend?.days?.length || 0 }}/5000)</p>
+        <el-table v-if="trendRows.length" :data="trendRows" border size="small" style="margin-top:12px">
           <el-table-column prop="date" label="日期" width="120" />
           <el-table-column label="GMV (¥)" width="130"><template #default="{row}">{{ fenToYuan(row.gmv_fen) }}</template></el-table-column>
-          <el-table-column prop="order_count" label="订单" width="80" />
-          <el-table-column prop="refund_count" label="退款" width="80" />
-          <el-table-column label="耍伴收入 (¥)" width="140"><template #default="{row}">{{ fenToYuan(row.partner_income_fen) }}</template></el-table-column>
+          <el-table-column prop="pay_count" label="支付单数" width="100" />
+          <el-table-column label="退款 (¥)" width="120"><template #default="{row}">{{ fenToYuan(row.refund_fen) }}</template></el-table-column>
         </el-table>
       </el-tab-pane>
 
@@ -140,6 +139,18 @@ const wdList = ref([]); const wdTotal = ref(0); const wdPage = ref(1);
 const wdLoading = ref(false); const wdStatus = ref('');
 
 const stuckCount = computed(() => wdList.value.filter(isWithdrawStuck).length);
+
+// 后端 trend 为平行数组(days/gmv_fen/refund_fen/pay_count), 按行拼装供表格渲染
+const trendRows = computed(() => {
+  const t = stats.value?.trend;
+  if (!t || !Array.isArray(t.days)) return [];
+  return t.days.map((d, i) => ({
+    date: d,
+    gmv_fen: t.gmv_fen?.[i] || 0,
+    refund_fen: t.refund_fen?.[i] || 0,
+    pay_count: t.pay_count?.[i] || 0
+  }));
+});
 
 function wdStatusType(s) {
   const m = { pending: 'info', processing: 'warning', success: 'success', failed: 'danger', rejected: 'danger' };
