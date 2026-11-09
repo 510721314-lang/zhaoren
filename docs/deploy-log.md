@@ -8,6 +8,7 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | order-action | 509ffd7 | 7c278b1 | 未建（同日多笔，回滚口径=509ffd7） | 509ffd7 | 四确认死路弹窗修复：`get_confirmation` 下发 `s1_expire_at`+`server_now`（前端倒计时抵消时钟偏差）；CLI 串行部署 success=true（packSize 88.4 KB），`tcb fn code download` 回读 **22/22 JS SHA256 MATCH**；`verify:offline` EXIT=0（tests 868/868、A/B 455 EQUIVALENT） |
 | 2026-11-09 | admin-action | 48a6569 | d080097 | 未建（回滚点=48a6569，已在 origin/master） | 48a6569 | P2-1 强制取消 S0/S1 一并释放需求并清 `matched_openid`；CLI 串行部署 success=true（51 files / 121.0 KB），`tcb fn code download` 回读 **51/51 SHA256 MATCH**；`verify:offline` EXIT=0（tests 868/868、A/B 455）。**注：本次先部署后提交（工作区仅该 1 文件改动），bundle 未建，回滚点 48a6569 可用** |
 | 2026-11-07 | safety-report | 8ed9730 | bf8463d | 未建（同日多笔，回滚口径=8ed9730） | 8ed9730 | P2-11 自由求助 3 action（free_sos/free_sos_status/free_sos_resolve，零 order_main 读写）；CLI 串行部署 success=true（7 files 14.1 KB），tcb fn code download 回读 **7/7 SHA256 MATCH**；predeploy EXIT=0 |
 | 2026-11-07 | order-action / order-timer / partner-action | d2cc90b | （待 commit） | 未建（本轮同日多笔，回滚口径=d2cc90b） | d2cc90b | T-7.16 sub_msgs 7 处 update 改点路径合并（消并发整对象覆盖）；串行部署 success=true（25 files 87.7 KB / 18 files 51.3 KB / 17 files 42.8 KB），tcb fn code download 回读 3/3 SHA256 MATCH；predeploy EXIT=0 / verify:offline EXIT=0（A/B 456 EQUIVALENT）/ SHARED SYNC ALL OK |
