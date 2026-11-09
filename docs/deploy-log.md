@@ -8,6 +8,7 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 小程序（体验版上传） | 54ad018 | 54ad018 | 未归档 | 54ad018 | 体验版 **v1.6.103** 上传：CLI EXIT=0 / ✔ upload / TOTAL 801.5 KB（820,783 B）；描述「四确认全齐支付引导弹窗+通知点击按订单状态直达」；含 chat.js（user_S0 全齐→去支付）、notices.js（状态直达分流）前端改动；order-action 已于本轮先部署（notice_list 下发 order_status）。**注：上传前遇 IDE 代理指向死端口 7890 连续报 ECONNREFUSED，用户恢复代理后上传成功** |
 | 2026-11-09 | order-action | fb50b85 | （待 commit） | 未建（先部署后提交，工作区 3 文件改动） | fb50b85 | 四确认全齐支付引导 + 通知状态直达：`notice_list` decorated 下发 `order_status`（additive，联表对象零额外查询）；CLI 串行部署 success=true（25 files / 88.5 KB），`tcb fn code download` 回读 **22/22 JS SHA256 MATCH**；`verify:offline` EXIT=0（tests 868/868、A/B 455 EQUIVALENT / 82 known）。**注：先部署后提交，回滚点 fb50b85 可用** |
 | 2026-11-09 | payment-mock | fd0cc9f | （待 commit） | 未建（先部署后提交，工作区仅 2 文件改动） | fd0cc9f | AA 承诺书全档对齐补全：`cashier_info` 的 `need_aa_promise` 改 `!!order.aa_tier`（0-50 档收银台补勾选入口，消死路，与 `mock_pay` 全档校验同口径）；A/B KNOWN_EVOLUTION 登记 `pm_cashier_ok`/`auto_pm_cashier_info`；CLI 串行部署 success=true（12 files / 26.3 KB），`tcb fn code download` 回读 **10/10 JS SHA256 MATCH**；`verify:offline` EXIT=0（tests 868/868、A/B 455 EQUIVALENT / 82 known）。**注：先部署后提交，回滚点 fd0cc9f 可用** |
 | 2026-11-09 | 小程序（体验版上传） | 529da59 | 529da59 | 未归档 | 529da59 | 体验版 **v1.6.102** 上传：CLI EXIT=0 / ✔ upload / TOTAL 800.4 KB（819,614 B，主包 556.6 KB）；描述「四确认死路弹窗修复：S1窗口倒计时+状态冲突出路分流」；门禁 EXIT=0（tests 868/868、A/B 455 EQUIVALENT）；git push `509ffd7..529da59` 成功 |
