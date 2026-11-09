@@ -565,20 +565,35 @@ async function createFromTakeAction(ctx) {
     doc_hash: (signed.data[0] && signed.data[0].signature_hash) || '',
     result: 'ok', client_ip: clientIp, device
   });
-  // 抢单成功通知发单人 A: 有人接单了, 可进入聊天开始四确认
-  // 2026-11-09: 补 await —— 原先 fire-and-forget, 函数 return 后实例冻结导致写入被回收,
-  // 发单人「信息中心」查不到该单(与本文件其它通知点/action_pay 同口径); 失败仍 catch 不阻断建单
-  await col('system_notice').add({ data: {
-    to_openid: demand.creator_openid,
-    order_id: orderId,
-    type: 'accept',
-    title: '有人接单了',
-    body: `耍伴 ${demand.partner_nickname || ''} 已承接你的需求, 请进入聊天完成四确认`,
-    action_key: 'jump_order',
-    action_payload: { order_id: orderId },
-    created_at: Date.now(),
-    read: false
-  }}).catch((e) => log.d('[notice] accept write fail:', e.message));
+  // 抢单成功通知双方: A(发单人)「有人接单了」+ B(接单人)「接单成功」
+  // 2026-11-09: ①补 await —— 原先 fire-and-forget, 函数 return 后实例冻结时异步写可能被回收
+  // (真机案例发单人侧写入成功, 保留 await 为偶发丢失加固); ②补接单人侧通知 —— 用户需求
+  // 「接单后无论状态均应在消息中心显示该单动态」, 原先只写发单人导致接单人信息中心无该单
+  const dmTitle = String(demand.remark || '').split('｜')[0] || '你的需求';
+  await Promise.allSettled([
+    col('system_notice').add({ data: {
+      to_openid: demand.creator_openid,
+      order_id: orderId,
+      type: 'accept',
+      title: '有人接单了',
+      body: `耍伴 ${demand.partner_nickname || ''} 已承接你的需求, 请进入聊天完成四确认`,
+      action_key: 'jump_order',
+      action_payload: { order_id: orderId },
+      created_at: Date.now(),
+      read: false
+    }}).catch((e) => log.d('[notice] accept write fail:', e.message)),
+    col('system_notice').add({ data: {
+      to_openid: openid,                 // 接单人侧(与发单人侧同构, 点击经状态直达 S1→聊天页)
+      order_id: orderId,
+      type: 'accepted_mine',
+      title: '接单成功',
+      body: `你已承接「${dmTitle}」, 请进入聊天完成四确认`,
+      action_key: 'jump_order',
+      action_payload: { order_id: orderId },
+      created_at: Date.now(),
+      read: false
+    }}).catch((e) => log.d('[notice] accepted_mine write fail:', e.message))
+  ]);
   return {
     ok: true,
     data: {

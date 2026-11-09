@@ -86,12 +86,20 @@ test('create_from_take 成功路径: 建单三表 + demand CAS matched + 审计 
   const dm = (sdk.writes.demand || []).find((w) => w.data && w.data.status === 'matched');
   assert.ok(dm, 'demand 被 CAS 置为 matched');
 
-  // ④ 后置段(原越界点): 审计 + 发单人接单通知必须落库
+  // ④ 后置段(原越界点): 审计 + 双方接单通知必须落库
   assert.equal((sdk.writes.audit_log || []).length, 1, '审计 order_take 写入 1 条');
   assert.equal(sdk.writes.audit_log[0].data.action, 'order_take');
   assert.equal(sdk.writes.audit_log[0].data.target_id, r.data.order_id);
-  assert.equal((sdk.writes.system_notice || []).length, 1, '接单通知写入 1 条');
-  assert.equal(sdk.writes.system_notice[0].data.to_openid, PARTNER);
+  // 2026-11-10: 接单通知扩为双方 2 条 —— A(发单人,type:accept) + B(接单人,type:accepted_mine)
+  const notices = sdk.writes.system_notice || [];
+  assert.equal(notices.length, 2, '接单通知写入 2 条(发单人+接单人)');
+  const nPartner = notices.find((w) => w.data.to_openid === PARTNER);
+  const nUser = notices.find((w) => w.data.type === 'accepted_mine');
+  assert.ok(nPartner, '发单人侧通知存在');
+  assert.equal(nPartner.data.type, 'accept');
+  assert.ok(nUser, '接单人侧通知存在(accepted_mine)');
+  assert.equal(nUser.data.to_openid, USER);
+  assert.equal(nUser.data.order_id, r.data.order_id, '接单人通知带 order_id(点击直达)');
 });
 
 // ── 2026-10-26 S2: cert_gate_enabled 分支 ──
