@@ -116,6 +116,8 @@ async function grantEvalRewards(order, now) {
   const okPartner = await grantOne(order.partner_openid, 'partner', pFen, pCredit, 'partner_credit_score');
 
   // 通知双方(有激励才发)
+  // 2026-11-09: 改为收集 promise 并 await —— 原先 fire-and-forget, 函数 return 后实例冻结致写入被回收
+  // (与 action_take.js 接单通知同族问题); 无激励仍返回 undefined, allSettled 兼容; 失败仍 catch 不阻断
   const notifyOne = (to, role) => {
     const fen = role === 'user' ? uFen : pFen;
     const credit = role === 'user' ? uCredit : pCredit;
@@ -123,15 +125,17 @@ async function grantEvalRewards(order, now) {
     if (fen > 0) parts.push(`现金 ¥${(fen / 100).toFixed(2)}`);
     if (credit > 0) parts.push(`信用分 +${credit}`);
     if (!parts.length) return;
-    col('system_notice').add({ data: {
+    return col('system_notice').add({ data: {
       to_openid: to, order_id: order._id, type: 'eval_reward',
       title: '评价激励已发放', body: parts.join(' · '),
       action_key: 'jump_order', action_payload: { order_id: order._id },
       created_at: now, read: false
     }}).catch((e) => log.d('[notice] eval_reward fail:', e.message));
   };
-  notifyOne(order.user_openid, 'user');
-  notifyOne(order.partner_openid, 'partner');
+  await Promise.allSettled([
+    notifyOne(order.user_openid, 'user'),
+    notifyOne(order.partner_openid, 'partner')
+  ]);
 
   // 【评审修复 D-1】标记改到"发放尝试之后"写, 且仅在双方均无失败时写:
   // 避免原"先占坑后发放"在发放失败时残留已占标记 → 后续重试被误判 idempotent 而激励永久丢失(静默)

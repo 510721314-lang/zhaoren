@@ -566,7 +566,9 @@ async function createFromTakeAction(ctx) {
     result: 'ok', client_ip: clientIp, device
   });
   // 抢单成功通知发单人 A: 有人接单了, 可进入聊天开始四确认
-  col('system_notice').add({ data: {
+  // 2026-11-09: 补 await —— 原先 fire-and-forget, 函数 return 后实例冻结导致写入被回收,
+  // 发单人「信息中心」查不到该单(与本文件其它通知点/action_pay 同口径); 失败仍 catch 不阻断建单
+  await col('system_notice').add({ data: {
     to_openid: demand.creator_openid,
     order_id: orderId,
     type: 'accept',
