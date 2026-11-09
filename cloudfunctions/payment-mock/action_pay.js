@@ -85,8 +85,8 @@ async function mockPayAction(ctx) {
       if (order.pay_expire_at && order.pay_expire_at < Date.now()) {
         return { ok: false, code: 'pay_expired', msg: '支付超时,请重新下单' };
       }
-      // AA 承诺书:非 0-50 元档位必须勾选(兼容新旧档位取值)
-      if (order.aa_tier && ['0-50', '0-50元'].indexOf(order.aa_tier) < 0 && !aa_promise_checked) {
+      // AA 承诺书:所有档位必须勾选(与发布侧全档强校验一致)
+      if (order.aa_tier && !aa_promise_checked) {
         return { ok: false, code: 'pay_aa_promise', msg: '请先阅读并同意《线下费用自理承诺书》' };
       }
 

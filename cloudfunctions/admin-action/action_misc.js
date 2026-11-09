@@ -62,7 +62,8 @@ async function upload_image(ctx) {
   if (use === 'cover' && dims && Math.abs(dims.width - dims.height) > 1) {
     return fail('up_not_square', `封面图需为 1:1 正方形(当前 ${dims.width}×${dims.height})`);
   }
-  const day = (() => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; })();
+  // 云函数运行时 UTC：按北京时间(+8)取日期，避免北京 00:00-08:00 归到前一天
+  const day = (() => { const d = new Date(Date.now() + 8 * 3600 * 1000); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`; })();
   const cloudPath = `admin_web/activity/${day}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
   let up;
   try {

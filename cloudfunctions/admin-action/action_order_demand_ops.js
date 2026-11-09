@@ -23,7 +23,7 @@ async function demand_offline(ctx) {
 }
 
 async function order_force_cancel(ctx) {
-  const { event, now, openid, isDocId, col, _, logEvent, ok, fail } = ctx;
+  const { event, now, openid, isDocId, col, _, log, logEvent, ok, fail } = ctx;
   const { order_id, note } = event;
   if (!isDocId(order_id)) return fail('order_bad_id', '订单 ID 格式不正确');
   if (!note || !String(note).trim()) return fail('cancel_no_note', '请填写取消原因');
@@ -42,7 +42,7 @@ async function order_force_cancel(ctx) {
   }
   // 强制取消 S0/S1 单一并释放需求：回 matching 并清 matched_openid（与超时释放同口径），避免需求卡死或仅原耍伴可接
   if (o.demand_id) {
-    await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({ data: { status: 'matching', matched_openid: null, updated_at: now } }).catch(() => {});
+    await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({ data: { status: 'matching', matched_openid: null, updated_at: now } }).catch((e) => log.w(`demand release fail(admin force cancel) ${order_id}: ${(e && e.message) || e}`));
   }
   try {
     await col('order_status_log').add({ data: {

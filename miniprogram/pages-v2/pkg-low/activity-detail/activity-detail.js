@@ -38,7 +38,7 @@ Page({
 
   // CTA: 发布需求即报名, 复用需求发布页
   onCtaTap() {
-    wx.navigateTo({ url: '/pages-v2/publish/publish' });
+    wx.navigateTo({ url: '/pages-v2/publish/publish', fail: () => wx.showToast({ title: '页面打开失败,请重试', icon: 'none' }) });
   },
 
   onRetry() {

@@ -462,7 +462,7 @@ const CASES = [
   { fn: 'payment-mock', name: 'pm_pay_bad_id', openid: USER, store: pmStore(), event: { action: 'mock_pay', order_id: 'bad', mock_openid: USER } },
   { fn: 'payment-mock', name: 'pm_pay_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'mock_pay', order_id: OID, mock_openid: USER } },
   { fn: 'payment-mock', name: 'pm_pay_not_owner', openid: STRANGER, store: pmStore(), event: { action: 'mock_pay', order_id: OID, mock_openid: STRANGER } },
-  { fn: 'payment-mock', name: 'pm_pay_ok', openid: USER, store: pmStore(), event: { action: 'mock_pay', order_id: OID, mock_openid: USER } },
+  { fn: 'payment-mock', name: 'pm_pay_ok', openid: USER, store: pmStore(), event: { action: 'mock_pay', order_id: OID, mock_openid: USER, aa_promise_checked: true } },
   { fn: 'payment-mock', name: 'pm_refund_not_found', openid: USER, store: pmStore({ order_main: {} }), event: { action: 'mock_refund', order_id: OID, mock_openid: USER } },
   { fn: 'payment-mock', name: 'pm_refund_not_owner', openid: STRANGER, store: pmStore(), event: { action: 'mock_refund', order_id: OID, mock_openid: STRANGER } },
   { fn: 'payment-mock', name: 'pm_refund_ok', openid: USER, store: pmStore(), event: { action: 'mock_refund', order_id: OID, mock_openid: USER } },
@@ -571,7 +571,7 @@ const AUTO_SEEDS = [
   // payment-mock：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 鉴权/预检门 + 无 ReferenceError
   ...enumerateActions('payment-mock').map((a) => ({
     fn: 'payment-mock', name: `auto_pm_${a}`, openid: USER, store: pmStore(),
-    event: { action: a, mock_openid: USER, order_id: OID, amount_fen: 10000, device: 'test' },
+    event: { action: a, mock_openid: USER, order_id: OID, amount_fen: 10000, device: 'test', aa_promise_checked: true },
   })),
   // home-action：物理拆分后枚举 handler 导出的 action，覆盖分发路由 + 无 ReferenceError
   // (store 用 haStore: env=dev 放行 mock_openid; 通用入参含 limit/page/size 穿透到列表分支)

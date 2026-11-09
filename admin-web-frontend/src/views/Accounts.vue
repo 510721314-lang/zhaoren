@@ -49,7 +49,7 @@
       </el-table-column>
       <el-table-column label="操作" width="100">
         <template #default="{row}">
-          <el-button size="small" :type="row.status==='active'?'danger':'success'" plain @click="toggle(row)">
+          <el-button size="small" :type="row.status==='active'?'danger':'success'" plain :loading="busy === row.account" :disabled="!!busy" @click="toggle(row)">
             {{ row.status==='active' ? '禁用' : '启用' }}
           </el-button>
         </template>
@@ -60,13 +60,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { call } from '../api/admin.js';
 import { formatTime } from '../utils/format.js';
 
 const list = ref([]);
 const loading = ref(false);
 const creating = ref(false);
+const busy = ref('');
 const form = ref({ account: '', password: '', role: 'R3', display_name: '' });
 
 async function load() {
@@ -91,7 +92,14 @@ async function create() {
 }
 
 async function toggle(row) {
-  const r = await call('admin_account_set_status', { account: row.account, status: row.status === 'active' ? 'disabled' : 'active' });
+  if (busy.value) return;
+  const next = row.status === 'active' ? 'disabled' : 'active';
+  try {
+    await ElMessageBox.confirm(`确认将账号「${row.account}」${next === 'disabled' ? '禁用' : '启用'}？`, '二次确认', { type: 'warning' });
+  } catch (e) { return; }
+  busy.value = row.account;
+  const r = await call('admin_account_set_status', { account: row.account, status: next });
+  busy.value = '';
   if (r.ok) { ElMessage.success('已更新'); await load(); }
   else ElMessage.error(r.msg || r.code);
 }

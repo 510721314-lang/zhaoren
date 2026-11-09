@@ -14,7 +14,7 @@ async function processS1Timeout(ctx) {
       if (o.demand_id) {
         await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
           data: { status: 'matching', matched_openid: null, updated_at: now }
-        }).catch(() => {});
+        }).catch((e) => log.w(`demand release fail(S1) ${o.order_no}: ${(e && e.message) || e}`));
       }
       s1OK.push(o);
     }));
@@ -50,7 +50,7 @@ async function processS0Timeout(ctx) {
       if (o.demand_id) {
         await col('demand').where({ _id: o.demand_id, status: 'matched' }).update({
           data: { status: 'matching', matched_openid: null, updated_at: now }
-        }).catch(() => {});
+        }).catch((e) => log.w(`demand release fail(S0) ${o.order_no}: ${(e && e.message) || e}`));
       }
       s0OK.push(o);
     }));

@@ -51,9 +51,10 @@ function calcAgeFromIdCard(id) {
   if (!y || !m || !d) return null;
   const birth = new Date(y, m - 1, d);
   if (isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - y;
-  if (now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d)) age--;
+  // 云函数运行时 UTC：按北京时间(+8)取"今天"，避免生日当天 00:00-08:00 少算一岁
+  const now = new Date(Date.now() + 8 * 3600 * 1000);
+  let age = now.getUTCFullYear() - y;
+  if (now.getUTCMonth() < m - 1 || (now.getUTCMonth() === m - 1 && now.getUTCDate() < d)) age--;
   return age;
 }
 
