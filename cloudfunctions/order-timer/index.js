@@ -272,10 +272,12 @@ function haversineKm(lat1, lng1, lat2, lng2) {
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+// 2026-11-09 P2: 运行时 TZ=UTC，订阅消息时间按北京时间(+8)格式化
+const CN_OFF = 8 * 3600 * 1000;
 function fmtDate(ts) {
-  const d = new Date(ts);
+  const d = new Date(Number(ts) + CN_OFF);
   const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 // ── 需求①增强 · 抢单提醒订阅消息(静默降级) ──
 // 触发: 站内 system_notice 推送的同时, 对「已授权订阅」的耍伴额外发一条微信订阅消息。

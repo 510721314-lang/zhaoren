@@ -210,10 +210,11 @@ function maskDocDeep(doc, depth = 0) {
   return out;
 }
 
+// 2026-11-09 P2: 运行时 TZ=UTC，日界按北京时间(+8)计算，避免 00:00-07:59 数据归前一日
+const CN_OFF = 8 * 3600 * 1000;
 function todayStart() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const d = new Date(Date.now() + CN_OFF);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - CN_OFF;
 }
 
 // ── 分页参数 ──
@@ -248,9 +249,9 @@ const STATUS_LABEL = {
 // 支付流水类型中文名
 const TX_LABEL = { pay: '支付', refund: '退款', tip: '打赏', tip_refund: '打赏退款', withdraw: '提现', settle: '结算' };
 function dayKey(ts) {
-  const d = new Date(ts);
+  const d = new Date(Number(ts) + CN_OFF);
   const pad = (n) => n < 10 ? '0' + n : '' + n;
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 function last7Days() {
   const arr = [];
