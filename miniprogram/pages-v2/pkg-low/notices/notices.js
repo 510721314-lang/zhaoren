@@ -135,7 +135,9 @@ Page({
     // S0→收银台 / S1→四确认聊天页 / 其余→订单详情; 无 order_status(老数据/非订单通知)走原 action_key 分支
     const oidDirect = (n.action_payload && n.action_payload.order_id) || n.order_id;
     if (oidDirect && n.order_status) {
-      if (n.order_status === 'S0') {
+      // 2026-11-10: S0 只有发单人能进收银台(服务端 cashier_info 校验 user_openid);
+      // 耍伴点「四确认全部完成」S0 通知原会误跳收银台报「只能查看自己的订单」, 非发单人一律落到订单详情(天然显示等待支付)
+      if (n.order_status === 'S0' && n.i_am_creator) {
         wx.navigateTo({ url: `/pages-v2/pay/pay?orderId=${oidDirect}`, fail: () => wx.showToast({ title: '支付页打开失败', icon: 'none' }) });
         return;
       }
@@ -160,7 +162,12 @@ Page({
     } else if (key === 'jump_order' || key === 'jump_accept_modify') {
       wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => wx.showToast({ title: '订单页打开失败', icon: 'none' }) });
     } else if (key === 'jump_pay') {
-      wx.navigateTo({ url: `/pages-v2/pay/pay?orderId=${payload.order_id || n.order_id}`, fail: () => wx.showToast({ title: '支付页打开失败', icon: 'none' }) });
+      // 2026-11-10: jump_pay 仅发单人可进收银台; 非本人(i_am_creator=false)改去订单详情, 避免报「只能查看自己的订单」
+      const payOrderId = payload.order_id || n.order_id;
+      const payUrl = n.i_am_creator === false
+        ? `/pages-v2/order-detail/order-detail?orderId=${payOrderId}`
+        : `/pages-v2/pay/pay?orderId=${payOrderId}`;
+      wx.navigateTo({ url: payUrl, fail: () => wx.showToast({ title: '页面打开失败', icon: 'none' }) });
     } else if (key === 'jump_evaluate') {
       wx.navigateTo({ url: `/pages-v2/order-detail/order-detail?orderId=${payload.order_id || n.order_id}`, fail: () => wx.showToast({ title: '订单页打开失败', icon: 'none' }) });
     } else if (key === 'jump_wallet') {

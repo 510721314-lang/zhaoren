@@ -442,6 +442,9 @@ async function notice_list(ctx) {
       order_summary: order ? buildOrderSummary(order) : '',
       // 2026-11-09: 下发订单当前状态(联表对象已在手, 零额外查询)——通知点击按状态直达操作入口(S0→支付/S1→四确认/其余→详情)
       order_status: order ? order.status : '',
+      // 2026-11-10: 通知归属标记——收银台直达前先判是否为该单发单人(cashier_info 服务端仅允许本人),
+      // 否则耍伴点「四确认全部完成」S0 通知会被拒「只能查看自己的订单」(联表对象已在手, 零额外查询)
+      i_am_creator: !!(order && order.user_openid === openid),
       // 需求标题/详细描述(2026-10-17): 通知列表展示; 标题兜底 content_options[0]
       demand_title: dmParts[0] ? dmParts[0].trim() : (((order && order.content_options) || [])[0] || ''),
       demand_desc: dmParts[1] ? dmParts[1].trim() : ''
