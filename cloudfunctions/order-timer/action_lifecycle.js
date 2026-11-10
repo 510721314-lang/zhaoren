@@ -11,6 +11,8 @@ async function processInterruptPartial(ctx) {
     await Promise.allSettled(s35s.map(async (o) => {
       const anchor = o.interrupted_at || o.updated_at || 0;
       if (anchor >= iCut) return;
+      // 2026-11-10 修复(评审): 冻结/争议中的 S3.5 不自动转 S4(原缺校验, 申诉期推进破坏裁定前提)
+      if (o.frozen === true || o.dispute_state === 'open') return;
       const won = await casStatus(o._id, 'S3.5', { status: 'S4', updated_at: now }, 'partial_agree');
       if (!won) { out.skipped.push(o.order_no + ':S3.5竞态'); return; }
       s35OK.push(o);
@@ -146,8 +148,9 @@ async function processS8Archive(ctx) {
     await Promise.allSettled(s8s.map(async (o) => {
       const anchor = o.evaluated_at || o.updated_at || 0;
       if (!anchor || anchor >= aCut) return;
-      // 争议/申诉冻结中的单不归档(解冻回主轴后再走)
-      if (o.frozen === true || (o.dispute_state && o.dispute_state !== 'none')) return;
+      // 争议/申诉「处理中」的单不归档(解冻回主轴后再走);
+      // 2026-11-10 修复(评审): 原条件 `dispute_state !== 'none'` 把已裁决的 resolved 也永久跳过 → S8 永不归档
+      if (o.frozen === true || o.dispute_state === 'open') return;
       // fund 合并: 保留已有字段, 仅标记结算完成(settle_state=done)
       const fund = Object.assign(
         { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'done', settled_at: now },

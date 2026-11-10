@@ -188,7 +188,7 @@ async function s2_change_apply(ctx) {
 // ── 对方反馈：s2_change_respond（accept / reject / 超时收口）───────────────
 async function s2_change_respond(ctx) {
   const { event, order_id, openid, getOrder, roleOf, col, _, log, writeAudit, getConfirmation,
-    writeNotice, FIELD_CN, db, wxCtx } = ctx;
+    writeNotice, FIELD_CN, db, wxCtx, isFrozen } = ctx;
   const { decision, token } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   if (decision !== 'accept' && decision !== 'reject') {
@@ -206,6 +206,11 @@ async function s2_change_respond(ctx) {
   if (pc.stage !== 'S2') return { ok: false, code: 'oa_s2c_none', msg: '该变更不属于本阶段,请刷新' };
   if (pc.by_openid === openid) return { ok: false, code: 'oa_s2c_self', msg: '不能处理自己发起的变更' };
   if (token && pc.token !== token) return { ok: false, code: 'oa_s2c_stale', msg: '该变更已失效,请刷新' };
+  // 2026-11-10 修复(评审): 冻结/争议中禁止「接受」变更(会改服务地点/内容并置双确认);
+  // 拒绝不受限(回退动作, 冻结期允许对方主动关闭在途申请)
+  if (decision === 'accept' && isFrozen(order)) {
+    return { ok: false, code: 'oa_frozen', msg: '订单争议/申诉处理中,暂不可接受变更' };
+  }
 
   const now = Date.now();
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
