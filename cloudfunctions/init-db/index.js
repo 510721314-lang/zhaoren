@@ -236,8 +236,9 @@ exports.main = async (event, context) => {
     try { cfg = (await db.collection('admin_config').doc('global').get()).data; } catch (e) {}
     const adminOpenids = (cfg && cfg.admin_openids) || [];
     const isAdmin = !!adminIdentity && adminOpenids.indexOf(adminIdentity) >= 0;
-    // 鸡生蛋兼容: admin_openids 为空时首次部署放行(等 init-db 建好 admin_config 后 admin-action claim_admin 初始化)
-    if (adminOpenids.length > 0 && !isAdmin) {
+    // 2026-11-10 修复(安全): 原「admin_openids 为空即放行」使空白名单时任何人可匿名清测试单/覆写场景;
+    // 收紧: admin_config 已存在时必须名单非空且命中; 仅 admin_config 不存在(首次部署)放行以保留自建能力
+    if (cfg && (!adminOpenids.length || !isAdmin)) {
       return { ok: false, code: 'idb_forbidden', msg: '无权限,仅管理员可调用此动作' };
     }
   }

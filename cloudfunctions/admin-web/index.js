@@ -229,6 +229,12 @@ exports.main = async (event, context) => {
         await recordGatewayBadKey(auth.msg, req);
         return makeJson({ ok: false, code: auth.msg }, 401);
       }
+      // 2026-11-10 修复(安全): key 未初始化时 bootstrap 分支原放行任意非空 key 的全部动作;
+      // 现收紧为仅允许一次性 generate_admin_web_key, 其余动作一律拒绝(保留首次部署自举能力)
+      if (auth.bootstrap && action !== 'generate_admin_web_key') {
+        await recordGatewayBadKey('key_not_initialized', req);
+        return makeJson({ ok: false, code: 'key_not_initialized' }, 401);
+      }
     }
   }
 

@@ -49,11 +49,15 @@ async function config_set(ctx) {
       touch('env', 'dev');
       touch('dev_until', devUntil);
       touch('dev_bypass', bypass);
+      // 2026-11-10 修复(安全): 同刻写 force_expire_at, 使 init-db 的过期自毁检查生效;
+      // 原只写 dev_until, 唯一自动回滚认 force_expire_at → dev 过期后 mock 实名/打赏入口长期敞开
+      touch('force_expire_at', bypass ? 0 : devUntil);
     } else {
       // 回 prod: 清掉有效期与回滚开关, 避免残留
       touch('env', 'prod');
       touch('dev_until', 0);
       touch('dev_bypass', false);
+      touch('force_expire_at', 0);
     }
   }
 
