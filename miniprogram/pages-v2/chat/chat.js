@@ -372,6 +372,22 @@ Page({
           }
         });
       }
+      // 1c) 2026-11-10(用户需求): 待我处理的变更 → 弹窗引导进入处理(once 按变更 token 幂等, 处理入口=本页变更卡片)
+      const pcn = this.data.pendingChange;
+      if (pcn && pcn.can_respond) {
+        const chKey = 'change_' + (pcn.token || `${pcn.field}:${((d.pending_change || {}).expire_at) || 0}`);
+        if (!shown(chKey)) {
+          mark(chKey);
+          wx.showModal({
+            title: `对方申请变更「${pcn.field_cn}」`,
+            content: `${pcn.old_text} → ${pcn.new_text}\n${pcn.expire_text}，请及时处理`,
+            confirmText: '去处理',
+            cancelText: '稍后',
+            confirmColor: '#07C160',
+            fail: () => wx.showToast({ title: '有变更待你处理', icon: 'none' })
+          });
+        }
+      }
       // 2) S2 耍伴端: 对方已支付, 去履约
       if (this.data.role === 'partner' && nextStatus === 'S2' && !shown('partner_S2')) {
         mark('partner_S2');
@@ -1055,7 +1071,16 @@ Page({
           return;
         }
         this.setData({ editSheet: '' });
-        wx.showToast({ title: '已提交,等待对方反馈', icon: 'none', duration: 2000 });
+        // 2026-11-10(用户需求): 发起成功弹窗引导进入处理界面(原仅 2 秒 toast 易错过);
+        // 弹窗关闭后本页「变更」卡片即处理/查看入口, 同时刷新一次确认态
+        wx.showModal({
+          title: '变更申请已发出',
+          content: '已通知对方处理。等待反馈期间暂停确认与修改，可在本页「变更」卡片查看进度。',
+          showCancel: false,
+          confirmText: '去查看',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '已提交,等待对方反馈', icon: 'none' })
+        });
         return this.refreshConfirmation();
       }).catch(() => {
         wx.hideLoading();
