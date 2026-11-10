@@ -440,10 +440,10 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 - 功能开关：`s2_change_*` 配置未开 → `oa_s2c_off`。
 - 互斥：有在途 `pending_change`（本人或对方）或 `pending_modify`/`pending_extend` → `oa_s2c_busy`。
 - 临近履约时间拦截 → `oa_s2c_blocked`（审计事件 `order_s2_change_block_near`），提示按原信息履约或申请取消。
-- 次数上限、原因长度（≥10 字，`oa_s2c_reason`）、窗口关闭（`oa_s2c_window_closed`）均为配置驱动。
+- 次数上限与窗口关闭为配置驱动；**原因必填**：归一化（去空白/标点/符号）后 ≥10 字（`oa_s2c_reason`，最短字数暂为服务端单点常量，配置化待立项）且需带结构化 `reason_type`（`oa_s2c_reason_type`）；原因同样过内容安全。
 - `pending_change` 带 `stage='S2'`；响应侧若 `stage!=='S2'` → `oa_s2c_none`；token 失配 → `oa_s2c_stale`；超时 → `oa_s2c_expired`。
 - 接受后同样重置四项确认（`items.*.user_ok/partner_ok=false`、`version+1`）。
-- 错误码：`oa_s2c_location_invalid` / `oa_s2c_content_invalid` / `oa_s2c_field` / `oa_s2c_status` / `oa_frozen` / `oa_s2c_off` / `oa_s2c_busy` / `oa_s2c_blocked` / `oa_s2c_limit` / `oa_s2c_same` / `oa_s2c_reason` / `oa_s2c_window_closed` / `oa_s2c_none` / `oa_s2c_self` / `oa_s2c_stale` / `oa_s2c_expired` / `oa_conflict` / `oa_update_fail`。
+- 错误码：`oa_s2c_location_invalid` / `oa_s2c_content_invalid` / `oa_s2c_field` / `oa_s2c_status` / `oa_frozen` / `oa_s2c_off` / `oa_s2c_busy` / `oa_s2c_blocked` / `oa_s2c_limit` / `oa_s2c_same` / `oa_s2c_reason` / `oa_s2c_reason_type` / `oa_s2c_window_closed` / `oa_s2c_none` / `oa_s2c_self` / `oa_s2c_stale` / `oa_s2c_expired` / `oa_conflict` / `oa_update_fail`。
 
 ### 4.12 改期 `modify` / `modify_confirm` / `modify_reject`
 
@@ -459,9 +459,11 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 | 6 | 距新时间 ≥ `minLeadHours` | `oa_modify_lead` |
 | 7 | 新时间落在运营时段 `time_redline_open_min`~`time_redline_close_min`（北京时间） | `oa_modify_redline` |
 | 8 | 与原时间跨度 ≤ `maxSpanH` | `oa_modify_span` |
-| 9 | 原因过内容安全 | `oa_text_unsafe` |
+| 9 | **原因必填**：归一化后 ≥10 字（占位词整句拦截/纯数字拦截） | `oa_modify_reason` |
+| 10 | **原因类型必选**（`time_conflict`/`location_change`/`content_adjust`/`other` 白名单内） | `oa_modify_reason_type` |
+| 11 | 原因过内容安全 | `oa_text_unsafe` |
 
-- 落库：`status='S2_5'`、`pending_modify={from_status,new_start_time,reason,by_openid,by_role,created_at,expire_at=now+confirmMinutes*60000}`、`modify_at`。
+- 落库：`status='S2_5'`、`pending_modify={from_status,new_start_time,reason,reason_type,by_openid,by_role,created_at,expire_at=now+confirmMinutes*60000}`、`modify_at`。
 - 幂等：已是 `S2_5` 且 `pending_modify.by_openid` 为本人 → `ok:true` + `idempotent:true`。
 - 通知：对方 `type='modify'`，`action_key='jump_accept_modify'`（**await 落库**，防云函数冻结丢通知）。
 
@@ -479,16 +481,16 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 | 项 | 契约 |
 |---|---|
 | 状态门 | 仅 `S3`（`oa_extend_status`） |
-| 入参 | `add_hours` 必须 1–12 整数（`oa_extend_hours`）、`reason`（可选，`reasonMaxLen` 截断） |
+| 入参 | `add_hours` 必须 1–12 整数（`oa_extend_hours`）、`reason` **必填**（归一化后 ≥10 字，`oa_extend_reason`；`reason_type` 必选，`oa_extend_reason_type`） |
 | 互斥 | 已有 `pending_extend` → `oa_extend_exist` |
 | 计价 | `pricing_type==='fixed'` → `add_amount_fen=0`；否则 `Math.round(total_fen / duration_h * add_hours)`，≤0 → `oa_extend_price` |
 | 确认窗口 | `extend_confirm_min`（分钟，默认 20）；配置为 0 时回退 `resolveModify().confirmMinutes`；`expire_at` 在申请时算死 |
-| 落库 | `pending_extend={add_hours,add_amount_fen,reason,by_openid,by_role,created_at,expire_at}`、`extend_count+1`、`pending_extend_token=now` |
+| 落库 | `pending_extend={add_hours,add_amount_fen,reason,reason_type,by_openid,by_role,created_at,expire_at}`、`extend_count+1`、`pending_extend_token=now` |
 | 幂等 | 同 `pending_extend.by_openid` → `ok:true` + `idempotent:true` |
 | 确认 | `duration_h+add_hours`、`total_fen+add_amount_fen`；非一口价按 `splitOrderAmount` 重算 `fee_fen`/`partner_income_fen`（一口价保持不变）；清 `pending_extend` 且 `pending_extend_token=0` |
 | 拒绝 | 清 `pending_extend`、`token=0`、写 `extend_rejected_at/by`；状态不变 |
 | 超时 | `order-timer` 的 `extend_auto_reject` 依据 `pending_extend_token` 精确收口 |
-| 错误码 | `oa_extend_hours` / `oa_extend_status` / `oa_extend_exist` / `oa_extend_price` / `oa_text_unsafe` / `oa_extend_no_pending` / `oa_extend_self` / `oa_status_conflict` |
+| 错误码 | `oa_extend_hours` / `oa_extend_status` / `oa_extend_exist` / `oa_extend_price` / `oa_extend_reason` / `oa_extend_reason_type` / `oa_text_unsafe` / `oa_extend_no_pending` / `oa_extend_self` / `oa_status_conflict` |
 
 > 加时不改主轴状态（`S3 → S3`），只增时长与金额；`logStatus` 仍写一条 `user_extend` / `partner_extend` 事件用于时间线。
 
