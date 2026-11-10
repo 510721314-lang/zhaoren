@@ -647,6 +647,10 @@ alwaysApply: true
 - **门禁**：`scripts/check-once-prompts.js` 对内存标记双向精确校验（多做/少做均 FAIL），基线 `scripts/once-prompts-baseline.json`，双挂载 verify/offline。
 - **验收**：提示类功能须入 `FUNCTION-REGISTRY`，并写满「首进/重进/状态已推进」三场景。
 
+**U1 幂等键必须含事件时间（2026-11-10 实证）**：`writeNotice` 对同 `(to_openid, order_id, type, read=false)` 复用同一 `_id` 覆盖合并并刷新 `created_at`，前端仅按 `n.id` 去重会把「第二次改期/第二次变更/第二次催办」误判为已展示而永不提示。键须取 `id + '|' + created_at`，且**内存 Map 与 Storage `once:` 两处同步改**。落点 `utils/order-poll.js` / `chat/chat.js`。
+**U2 提示时效分层治理，禁混批（2026-11-10 评审结论）**：①前端零成本层（去重键、回前台即时补拉、消息中心首条变化重置回第一页）优先做，不增调用量；②配额敏感层（聊天 60s→30s、`order-timer` 30min→5min）须单独立项并先核余量，不得夹带在 bug 修复里；③契约层（`notice_poll` 缺 `server_now`/`since`，`created_at` 被合并改写不可作游标）前后端同批改，属根治项。
+**U3 子代理结论须实证复核后才落笔（2026-11-10 实证）**：双代理评审中「`message.js` 首次 onShow return 导致进页不刷」被推翻——`onLoad` 已 `fetchData(true)`，该标记实为**防双拉**。凡子代理指出「直接 return/未刷新/未轮询」，改码前须读上下文确认意图，并在方案写明剔除理由。
+
 ## 35. 通道可用性与门禁自省纪律（2026-11-02 实证新增）
 
 **R1 push 通道按「代理 → TLS 后端 → HTTP 版本」三层判读，不按单一报错下结论**：同一天内实测四种失败形态——`Empty reply from server`、直连 `Failed to connect after 21318 ms`、schannel `failed to receive handshake`、openssl `unexpected eof while reading`——**形态不同不等于原因相同**，须逐层换参复测。本机可用组合：`http.proxy=http://127.0.0.1:7890`（先 `Test-NetConnection 127.0.0.1 -Port 7890` 确认在听）+ `http.sslBackend=openssl`（schannel 失败）+ `http.version=HTTP/1.1`（规避中间设备 h2 缺陷）。该组合已固化到仓库级与全局 `git config`，此后直接 `git push` 即可；撤销用 `git config --global/local --unset <key>`。
