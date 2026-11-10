@@ -8,6 +8,7 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | demand（数据迁移，无部署） | c5a8438 | （待 commit） | — | c5a8438 | **存量代发手机号明文迁移**：`demand.service_target.phone` → `phone_enc/phone_hash/phone_mask`（AES-256-GCM + HMAC + 掩码），共 **5 条全部成功**、跳过 0；回读 `with_phone_enc=5 / 明文=0 / service_target.phone_mask=5`；脚本仅内存处理、日志脱敏不落真号。**注：无需重部署/上传，纯数据订正** |
 | 2026-11-10 | demand-publish / admin-action | 7ec4b7e | （待 commit） | 未建（先部署后提交，工作区 7 文件） | 7ec4b7e | **BUG 扫描 B6-B7**：demand-publish 代发人手机号密文三字段；admin-action 导出 `admin_web_sessions` 的 `_id` 脱敏；门禁 `phone_crypt.js` 补登记 safety-report（跑 sync 复检一致）。部署 success=true（demand-publish 15 files 45.9 KB / admin-action 51 files 121.9 KB），回读 **2/2 SHA256 MATCH**；`verify:offline` EXIT=0（A/B 455） |
 | 2026-11-10 | 小程序（体验版上传） | 7ec4b7e | （待 commit） | 未归档 | 7ec4b7e | 体验版 **v1.6.109** 上传：CLI EXIT=0 / ✔ upload / TOTAL 804.7 KB（824,037 B，主包 560.3 KB）；描述「BUG扫描B6-B7: 列表分页/金额格式/变更次数文案/首页场景预选/代发手机号加密/导出会话脱敏/门禁补登记」。**注：回退 = mp 后台重传 v1.6.108** |
 | 2026-11-10 | admin-web / init-db / admin-action | a0cc109 | （待 commit） | 未建（先部署后提交，工作区 3 文件） | a0cc109 | **BUG 扫描 B5（权限）**：admin-web 空 key bootstrap 仅放行 `generate_admin_web_key`（其余 401）；init-db 管理门要求名单非空且命中（仅首次部署 cfg 缺失放行）；admin-action `env=dev` 同刻写 `force_expire_at`、回 prod 清零。部署 success=true（admin-web 53 files 548.6 KB / init-db 10 files 22.4 KB / admin-action 51 files 121.6 KB），回读 **3/3 SHA256 MATCH**；后台首页 **HTTP 200 / HTML 正常**；`verify:offline` EXIT=0（A/B 455）。**纯云端，未上传体验版** |
