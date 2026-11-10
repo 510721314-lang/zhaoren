@@ -125,7 +125,7 @@ async function t(name, fn) {
     const now = Date.now();
     const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder({ start_time: now + 3 * H })) });
     const main = loadIndex(sdk);
-    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '散步', '做饭'], reason: '临时调整服务内容的说明' });
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '散步', '做饭'], reason: '临时调整服务内容的说明', reason_type: 'content_adjust' });
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.data.window, 'A');
     assert.ok(Math.abs(r.data.expire_at - (now + 120 * M)) < 5000, 'expire 应≈120 分钟');
@@ -138,7 +138,7 @@ async function t(name, fn) {
     const now = Date.now();
     const sdk = makeSdk({ openid: PARTNER, store: storeOf(baseOrder({ start_time: now + 1.5 * H })) });
     const main = loadIndex(sdk);
-    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 31.1, longitude: 121.2 }, reason: '临时调整履约地点的说明' });
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 31.1, longitude: 121.2 }, reason: '临时调整履约地点的说明', reason_type: 'location_change' });
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.data.window, 'B');
     assert.ok(Math.abs(r.data.expire_at - (now + 15 * M)) < 5000, 'expire 应≈15 分钟');
@@ -158,8 +158,26 @@ async function t(name, fn) {
   await t('S2-原因不足 10 字拦截', async () => {
     const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder()) });
     const main = loadIndex(sdk);
-    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '做饭'], reason: '太短' });
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '做饭'], reason: '太短', reason_type: 'content_adjust' });
     assert.strictEqual(r.code, 'oa_s2c_reason');
+  });
+  await t('S2-原因空格/标点绕过拦截', async () => {
+    const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder()) });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '做饭'], reason: '          ...，。', reason_type: 'content_adjust' });
+    assert.strictEqual(r.code, 'oa_s2c_reason');
+  });
+  await t('S2-原因整句占位词拦截', async () => {
+    const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder()) });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '做饭'], reason: '临时有事', reason_type: 'content_adjust' });
+    assert.strictEqual(r.code, 'oa_s2c_reason');
+  });
+  await t('S2-原因类型缺失拦截', async () => {
+    const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder()) });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 's2_change_apply', order_id: OID, field: 'content', value: ['陪聊', '做饭'], reason: '临时调整服务内容的说明' });
+    assert.strictEqual(r.code, 'oa_s2c_reason_type');
   });
   await t('S2-时间/费用不可走本通道', async () => {
     const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder()) });
@@ -298,12 +316,27 @@ async function t(name, fn) {
     const start = Date.now() + 5 * H;
     const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder({ start_time: start })) });
     const main = loadIndex(sdk);
-    const r = await main({ action: 'modify', order_id: OID, new_start_time: shiftToNoon(start + 24 * H), reason: '测试改期原因说明' });
+    const r = await main({ action: 'modify', order_id: OID, new_start_time: shiftToNoon(start + 24 * H), reason: '项目进度未完成需调整服务时间', reason_type: 'time_conflict' });
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.data.status, 'S2_5');
     const wo = firstWrite(sdk, 'order_main', 'where');
     assert.strictEqual(wo.data.status, 'S2_5');
+    assert.strictEqual(wo.data.pending_modify.reason_type, 'time_conflict');
     assert.ok(Math.abs(wo.data.pending_modify.expire_at - (Date.now() + 10 * 60 * 1000)) < 5000, '确认窗口应≈10 分钟');
+  });
+  await t('改期-原因缺失/不足 10 字拦截', async () => {
+    const start = Date.now() + 5 * H;
+    const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder({ start_time: start })) });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'modify', order_id: OID, new_start_time: shiftToNoon(start + 24 * H), reason: '太短', reason_type: 'time_conflict' });
+    assert.strictEqual(r.code, 'oa_modify_reason');
+  });
+  await t('改期-原因类型缺失拦截', async () => {
+    const start = Date.now() + 5 * H;
+    const sdk = makeSdk({ openid: USER, store: storeOf(baseOrder({ start_time: start })) });
+    const main = loadIndex(sdk);
+    const r = await main({ action: 'modify', order_id: OID, new_start_time: shiftToNoon(start + 24 * H), reason: '项目进度未完成需调整服务时间' });
+    assert.strictEqual(r.code, 'oa_modify_reason_type');
   });
 
   // ── 5. 上线清零清单 §3「可服务端自证」四项（2026-11-05 追加）──────────

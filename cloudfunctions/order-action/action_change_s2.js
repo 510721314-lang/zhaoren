@@ -54,7 +54,7 @@ function validateValue(field, value) {
 // ── 发起变更：s2_change_apply ───────────────────────────────────────────
 async function s2_change_apply(ctx) {
   const { event, order_id, openid, getOrder, roleOf, isFrozen, getConfig, col, _, log, writeAudit, checkText,
-    BLOCK_WORDS_FALLBACK, writeNotice, FIELD_CN, db, wxCtx, reasonMaxLen } = ctx;
+    BLOCK_WORDS_FALLBACK, writeNotice, FIELD_CN, db, wxCtx, reasonMaxLen, reasonQuality, normalizeReasonType } = ctx;
   const { field, value, reason } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   if (S2_CHANGE_FIELDS.indexOf(field) < 0) {
@@ -115,12 +115,16 @@ async function s2_change_apply(ctx) {
     return { ok: false, code: 'oa_s2c_same', msg: '与原内容相同，无需提交变更' };
   }
 
-  // 原因必填 ≥10 字（临期变更留痕，便于客服追溯）
+  // 原因必填 + 质量校验（2026-11-10 评审：归一化计字、整句占位词、结构化原因类型）
   const max = reasonMaxLen(config);
-  const reasonTxt = String(reason || '').trim().slice(0, max);
-  if (reasonTxt.length < 10) {
-    return { ok: false, code: 'oa_s2c_reason', msg: '请填写变更原因(不少于 10 字)' };
-  }
+  const rq = reasonQuality(reason);
+  if (!rq.ok) return { ok: false, code: 'oa_s2c_reason', msg: rq.msg };
+  const reasonTxt = rq.text.slice(0, max);
+  const reasonType = normalizeReasonType(event.reason_type);
+  if (!reasonType) return { ok: false, code: 'oa_s2c_reason_type', msg: '请选择原因类型' };
+  // 原因会展示给对方，必须与 value 同口径过内容安全
+  const chkReason = await checkText(openid, reasonTxt, BLOCK_WORDS_FALLBACK);
+  if (!chkReason.pass) return { ok: false, code: 'oa_content_blocked', msg: '原因不合规,请修改' };
 
   // 内容为自由文本，必须过内容安全检测
   if (field === 'content') {
@@ -143,6 +147,7 @@ async function s2_change_apply(ctx) {
     by_openid: openid,
     by_role: role,
     reason: reasonTxt,
+    reason_type: reasonType,
     created_at: now,
     expire_at: expireAt,
     window: win,

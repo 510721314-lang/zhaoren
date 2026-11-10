@@ -380,7 +380,7 @@ const CASES = [
   // ── P1 E2E: 履约中段链路(改期/部分完成/比例确认/投诉开闭) 全链路成功 + CAS + 副作用 ──
   { fn: 'order-action', name: 'modify_apply_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, start_time: START_TS, modify_count: 0 } } }),
-    event: { action: 'modify', mock_openid: PARTNER, order_id: OID, new_start_time: NEW_TS } },
+    event: { action: 'modify', mock_openid: PARTNER, order_id: OID, new_start_time: NEW_TS, reason: '项目进度未完成需调整服务时间', reason_type: 'time_conflict' } },
   { fn: 'order-action', name: 'modify_confirm_ok', openid: USER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S2_5', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, start_time: START_TS, modify_count: 0, pending_modify: { from_status: 'S2', new_start_time: NEW_TS, by_openid: PARTNER, created_at: START_TS, expire_at: NEW_TS + 86400000 } } } }),
     event: { action: 'modify_confirm', mock_openid: USER, order_id: OID } },
@@ -408,7 +408,7 @@ const CASES = [
     event: { action: 'milestone_confirm', mock_openid: USER, order_id: OID, milestone: 1 } },
   { fn: 'order-action', name: 'extend_apply_ok', openid: PARTNER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, pricing_type: 'fixed', duration_h: 2 } } }),
-    event: { action: 'extend', mock_openid: PARTNER, order_id: OID, add_hours: 2 } },
+    event: { action: 'extend', mock_openid: PARTNER, order_id: OID, add_hours: 2, reason: '现场工作量超出预期需要延长服务', reason_type: 'content_adjust' } },
   { fn: 'order-action', name: 'extend_confirm_ok', openid: USER,
     store: Object.assign(baseStore(), { order_main: { [OID]: { _id: OID, order_no: 'ORD-1', status: 'S3', user_openid: USER, partner_openid: PARTNER, total_fen: 1000, pricing_type: 'fixed', duration_h: 2, fee_fen: 100, partner_income_fen: 900, pending_extend: { add_hours: 2, add_amount_fen: 0, by_openid: PARTNER, created_at: 1, expire_at: Date.now() + 86400000 } } } }),
     event: { action: 'extend_confirm', mock_openid: USER, order_id: OID } },

@@ -639,6 +639,10 @@ Page({
       const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
       // 2026-11-04: 收到「对方申请变更」→ 震动+弹窗, 引导回顶部变更卡处理
       const applyHit = !respondHit ? fresh.find((n) => n && n.type === 'change_apply') : null;
+      // 2026-11-10(3B): 收到「对方发起改期」→ 震动+弹窗引导进入处理(原仅顶部横幅, 易错过确认窗口)
+      const modifyHit = (!respondHit && !applyHit)
+        ? fresh.find((n) => n && n.type === 'modify' && String(n.title || '').indexOf('发起改期') >= 0)
+        : null;
       // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）
       // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
       // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
@@ -667,6 +671,17 @@ Page({
           success: (res) => {
             if (res.confirm) wx.pageScrollTo({ scrollTop: 0, duration: 200 }); // 变更卡在页面顶部
           }
+        });
+      } else if (modifyHit) {
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: '对方发起改期',
+          content: `${modifyHit.body || '对方申请变更服务时间'}\n请在倒计时内处理`,
+          confirmText: '去处理',
+          cancelText: '稍后',
+          confirmColor: '#07C160',
+          fail: () => {},
+          success: (res) => { if (res.confirm) this.goOrderDetail(); }
         });
       } else if (commHit) {
         // 先记账再弹窗: 弹窗未关时下一轮轮询(5s)不会重复弹出
@@ -1090,9 +1105,9 @@ Page({
       wx.showToast({ title: '内容未变更,无需提交', icon: 'none' });
       return;
     }
-    const submit = (reason) => {
+    const submit = (reason, reasonType) => {
       const payload = { action: isS2 ? 's2_change_apply' : 'change_apply', order_id: this.data.orderId, field, value };
-      if (isS2) payload.reason = reason;
+      if (isS2) { payload.reason = reason; payload.reason_type = reasonType; }
       wx.showLoading({ title: '提交中', mask: true });
       callCloud('order-action', payload).then((r) => {
         wx.hideLoading();
@@ -1118,23 +1133,37 @@ Page({
       });
     };
     if (!isS2) { submit(''); return; }
-    // S2 临期变更需留痕原因(服务端 oa_s2c_reason 强制校验)
-    wx.showModal({
-      title: '变更原因',
-      editable: true,
-      placeholderText: '请填写变更原因(不少于10字)',
-      confirmText: '提交',
-      cancelText: '取消',
-      success: (res) => {
-        if (!res.confirm) return;
-        const reason = String(res.content || '').trim();
-        if (reason.length < 10) {
-          wx.showToast({ title: '原因不少于10字', icon: 'none' });
-          return;
-        }
-        submit(reason);
+    // S2 变更：先选结构化原因类型（便于审计），再填不少于 10 字的具体说明
+    const TYPE_OPTS = field === 'location'
+      ? [{ k: 'location_change', t: '地点变动' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }]
+      : [{ k: 'content_adjust', t: '内容调整' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }];
+    wx.showActionSheet({
+      itemList: TYPE_OPTS.map((o) => o.t),
+      success: (a) => {
+        const picked = TYPE_OPTS[a.tapIndex];
+        if (!picked) return;
+        wx.showModal({
+          title: '变更原因',
+          editable: true,
+          placeholderText: '请具体说明（不少于10字），勿填“有事/测试”',
+          confirmText: '提交',
+          cancelText: '取消',
+          success: (res) => {
+            if (!res.confirm) return;
+            const reason = String(res.content || '').trim();
+            if (reason.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').length < (CONFIG.ORDER.reasonMinLen || 10)) {
+              wx.showToast({ title: '原因不少于10字', icon: 'none' });
+              return;
+            }
+            submit(reason, picked.k);
+          },
+          fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' })
+        });
       },
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' })
+      fail: (e) => {
+        if (e && /cancel/.test(e.errMsg || '')) return;
+        wx.showToast({ title: '请选择原因类型', icon: 'none' });
+      }
     });
   },
 

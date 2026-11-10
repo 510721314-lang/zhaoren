@@ -20,7 +20,7 @@ function isModifyTimeAllowed(ts, cfg) {
 }
 
 async function modify(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, isFrozen, getConfig, checkText, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, reasonMaxLen } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, isFrozen, getConfig, checkText, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, reasonMaxLen, reasonQuality, normalizeReasonType } = ctx;
   const { new_start_time, reason } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const newTs = Number(new_start_time);
@@ -65,16 +65,21 @@ async function modify(ctx) {
   const fromStatus = order.status;
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
-  if (reason) {
-    const chk = await checkText(openid, reason);
-    if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
-  }
+  // 2026-11-10 评审：改期原因由选填改为必填 + 质量校验（与 S2 变更同口径）
+  const rq = reasonQuality(reason);
+  if (!rq.ok) return { ok: false, code: 'oa_modify_reason', msg: rq.msg };
+  const reasonText = rq.text.slice(0, reasonMaxLen(config));
+  const reasonType = normalizeReasonType(event.reason_type);
+  if (!reasonType) return { ok: false, code: 'oa_modify_reason_type', msg: '请选择原因类型' };
+  const chk = await checkText(openid, reasonText);
+  if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
   const won = await casStatus(order_id, 'S2', {
     status: 'S2_5',
     pending_modify: {
       from_status: fromStatus,
       new_start_time: newTs,
-      reason: String(reason || '').slice(0, reasonMaxLen(config)),
+      reason: reasonText,
+      reason_type: reasonType,
       by_openid: openid,
       by_role: role,
       created_at: now,
@@ -197,7 +202,7 @@ async function modify_confirm_or_reject(ctx) {
 }
 
 async function extend(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, getConfig, checkText, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, reasonMaxLen, isFrozen } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, getConfig, checkText, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, reasonMaxLen, reasonQuality, normalizeReasonType, isFrozen } = ctx;
   const { add_hours, reason } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
@@ -235,16 +240,21 @@ async function extend(ctx) {
   const confirmText = confirmMin % 60 === 0 && confirmMin >= 60 ? `${confirmMin / 60} 小时` : `${confirmMin} 分钟`;
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
-  if (reason) {
-    const chk = await checkText(openid, reason);
-    if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
-  }
+  // 2026-11-10 评审：加时原因由选填改为必填 + 质量校验（与改期同口径）
+  const rq = reasonQuality(reason);
+  if (!rq.ok) return { ok: false, code: 'oa_extend_reason', msg: rq.msg };
+  const reasonText = rq.text.slice(0, reasonMaxLen(config));
+  const reasonType = normalizeReasonType(event.reason_type);
+  if (!reasonType) return { ok: false, code: 'oa_extend_reason_type', msg: '请选择原因类型' };
+  const chk = await checkText(openid, reasonText);
+  if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
 
   const won = await casStatus(order_id, 'S3', {
     pending_extend: {
       add_hours: addHours,
       add_amount_fen: addAmountFen,
-      reason: String(reason || '').slice(0, reasonMaxLen(config)),
+      reason: reasonText,
+      reason_type: reasonType,
       by_openid: openid,
       by_role: role,
       created_at: now,

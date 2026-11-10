@@ -944,6 +944,21 @@ test('s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）', asyn
   assert.strictEqual(r.code, 'oa_s2c_reason');
 });
 
+// 2026-11-10 评审补测: 原因空格/标点绕过 + 结构化类型必填
+test('s2_change_apply: 原因仅空格标点拒绝（oa_s2c_reason）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s2Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 30, longitude: 120 }, reason: '          ...，。', reason_type: 'location_change', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_reason');
+});
+
+test('s2_change_apply: 原因类型缺失拒绝（oa_s2c_reason_type）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s2Store() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: { name: '新地点', latitude: 30, longitude: 120 }, reason: '医院临时更换就诊院区', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_s2c_reason_type');
+});
+
 test('s2_change_apply: 与原值相同拒绝（oa_s2c_same）', async () => {
   const sdk = makeSdk({ openid: USER, store: s2Store() });
   const { main } = loadIndex(sdk);
@@ -955,7 +970,7 @@ test('s2_change_apply: 成功写入 stage=S2 的在途变更且不立即改值',
   const NEW_LOC = { name: '新院区', latitude: 30.1, longitude: 120.1 };
   const sdk = makeSdk({ openid: USER, store: s2Store() });
   const { main } = loadIndex(sdk);
-  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: NEW_LOC, reason: '医院临时更换就诊院区', mock_openid: USER }, {});
+  const r = await main({ action: 's2_change_apply', order_id: OID, field: 'location', value: NEW_LOC, reason: '医院临时更换就诊院区', reason_type: 'location_change', mock_openid: USER }, {});
   assert.strictEqual(r.ok, true);
   const w = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
   assert.strictEqual(w.data.pending_change.stage, 'S2');
@@ -997,6 +1012,25 @@ test('modify: 选回原服务时间拒绝（oa_modify_same）', async () => {
   const r = await main({ action: 'modify', order_id: OID, new_start_time: ST, mock_openid: PARTNER }, {});
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'oa_modify_same');
+});
+
+// 2026-11-10 评审补测: 改期原因必填 + 类型必选
+test('modify: 原因不足 10 字拒绝（oa_modify_reason）', async () => {
+  const ST = Date.now() + 5 * 3600 * 1000;
+  const newTs = ST + 24 * 3600 * 1000;
+  const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: ST, modify_count: 0 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify', order_id: OID, new_start_time: newTs, reason: '太短', reason_type: 'time_conflict', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_modify_reason');
+});
+
+test('modify: 原因类型缺失拒绝（oa_modify_reason_type）', async () => {
+  const ST = Date.now() + 5 * 3600 * 1000;
+  const newTs = ST + 24 * 3600 * 1000;
+  const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: ST, modify_count: 0 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify', order_id: OID, new_start_time: newTs, reason: '项目进度未完成需调整服务时间', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'oa_modify_reason_type');
 });
 
 // 还原 Module._load，避免污染后续测试文件

@@ -38,6 +38,12 @@ Page({
     modifyReason: '',
     modifyReasonMax: Number(CONFIG.ORDER.reasonMaxLen) || 200,
     extendReasonMax: Number(CONFIG.ORDER.reasonMaxLen) || 200,
+    // 2026-11-10 评审: 原因结构化类型(必选)与最短字数, 与服务端 order-action 同口径
+    reasonMinLen: Number(CONFIG.ORDER.reasonMinLen) || 10,
+    modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }],
+    modifyReasonTypeIndex: -1,
+    extendReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }],
+    extendReasonTypeIndex: -1,
     cancelTiers: CONFIG.CANCEL_REFUND,
     currentCancelIdx: 0,
     modifyDate: '',
@@ -922,7 +928,8 @@ Page({
       extendHours: 1,
       extendRefPriceFen: hourRateFen,
       extendIsFixed: order.pricing_type === 'fixed',
-      extendReason: ''
+      extendReason: '',
+      extendReasonTypeIndex: -1
     });
     // @VERIFIED 2026-10-30 已真机验证：点「加时申请」后自动滚到「提交加时」区域（用户/耍伴同入口）
     // 2026-10-30: 加时面板在页面底部, 展开后滚到底部, 让「提交加时」区域立即可见(与改期面板 onModify 同款处理)
@@ -949,12 +956,24 @@ Page({
       wx.showToast({ title: '加时时长须为1-12小时', icon: 'none' });
       return;
     }
+    // 2026-11-10 评审: 加时原因改为必填 + 类型必选(与服务端 oa_extend_reason/oa_extend_reason_type 同口径)
+    const rt = this.data.extendReasonTypes[this.data.extendReasonTypeIndex];
+    if (!rt) {
+      wx.showToast({ title: '请选择加时原因', icon: 'none' });
+      return;
+    }
+    const reasonTxt = String(this.data.extendReason || '').trim();
+    if (reasonTxt.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').length < this.data.reasonMinLen) {
+      wx.showToast({ title: '原因不少于10字', icon: 'none' });
+      return;
+    }
     wx.showLoading({ title: '提交加时', mask: true });
     callCloud('order-action', {
       action: 'extend',
       order_id: this.data.order._id,
       add_hours: hours,
-      reason: (this.data.extendReason || '').trim().slice(0, this.data.extendReasonMax)
+      reason: reasonTxt.slice(0, this.data.extendReasonMax),
+      reason_type: rt.k
     }).then((r) => {
       wx.hideLoading();
       if (!r.ok) {
@@ -1027,7 +1046,8 @@ Page({
       modifyPanelVisible: true,
       modifyDate: this.data.order.service_date || '',
       modifyTime: this.data.order.service_time || '',
-      modifyReason: ''
+      modifyReason: '',
+      modifyReasonTypeIndex: -1
     });
     // 上拉页面让改期操作面板进入显著位置
     setTimeout(() => {
@@ -1075,6 +1095,14 @@ Page({
     this.setData({ modifyReason: v });
   },
 
+  // 2026-11-10 评审: 原因类型下拉(必选)
+  onModifyReasonTypeChange(e) {
+    this.setData({ modifyReasonTypeIndex: Number(e.detail.value) });
+  },
+  onExtendReasonTypeChange(e) {
+    this.setData({ extendReasonTypeIndex: Number(e.detail.value) });
+  },
+
   // 组合 picker 的日期+时分 → 本地时间戳(拆分阶段1 C1·A3: 纯计算外移 utils/order-view.js, 此薄代理保 this.buildModifyTs() 调用点与 @VERIFIED 行为不变)
   buildModifyTs() {
     return buildModifyTs(this.data.modifyDate, this.data.modifyTime);
@@ -1101,6 +1129,17 @@ Page({
       wx.showToast({ title: `须提前${CONFIG.MODIFY.minLeadHours}小时申请改期`, icon: 'none' });
       return;
     }
+    // 2026-11-10 评审: 改期原因改为必填 + 类型必选(与服务端 oa_modify_reason/oa_modify_reason_type 同口径)
+    const rt = this.data.modifyReasonTypes[this.data.modifyReasonTypeIndex];
+    if (!rt) {
+      wx.showToast({ title: '请选择改期原因', icon: 'none' });
+      return;
+    }
+    const reasonTxt = String(this.data.modifyReason || '').trim();
+    if (reasonTxt.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').length < this.data.reasonMinLen) {
+      wx.showToast({ title: '原因不少于10字', icon: 'none' });
+      return;
+    }
     this._modal({
       title: '确认提交改期',
       content: `新服务时间：${modifyDate} ${modifyTime}\n提交后需耍伴${CONFIG.MODIFY.confirmMinutes}分钟内确认`,
@@ -1114,7 +1153,8 @@ Page({
           action: 'modify',
           order_id: that.data.order._id,
           new_start_time: ts,
-          reason: (that.data.modifyReason || '').trim().slice(0, that.data.modifyReasonMax)
+          reason: reasonTxt.slice(0, that.data.modifyReasonMax),
+          reason_type: rt.k
         }).then((r) => {
           wx.hideLoading();
           if (!r.ok) {

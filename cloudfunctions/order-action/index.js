@@ -113,6 +113,37 @@ function reasonMaxLen(config) {
   return Number.isFinite(v) && v >= 1 ? v : 200;
 }
 
+// 原因最短字数(2026-11-10 评审: 原 S2 硬编码 10 收敛为单点常量; 配置化 order_reason_min_len 单独立项)
+function reasonMinLen() { return 10; }
+
+// 结构化原因类型白名单(2026-11-10 评审: 替代不可判定的"与字段无关"启发式)
+// 机器可读、可审计; 前端按通道过滤展示, 服务端只校验白名单
+const REASON_TYPES = Object.freeze({
+  time_conflict: '时间冲突',
+  location_change: '地点变动',
+  content_adjust: '内容调整',
+  other: '其他'
+});
+function normalizeReasonType(t) {
+  return Object.prototype.hasOwnProperty.call(REASON_TYPES, t) ? t : '';
+}
+
+// 原因质量校验(2026-11-10 评审):
+//   1) 归一化去空白/标点/符号/emoji 后计有效字符数, 拦截"10个空格/标点/emoji"绕过;
+//   2) 占位词只做整句全等(不做子串), 避免误伤"无法按时到达""时间略有变动";
+//   3) 纯数字视为敷衍.
+const REASON_PLACEHOLDER_EXACT = ['无', '略', '同上', '测试', '没有', '暂无', '不想说', '不方便说', '临时有事', '有事'];
+function reasonQuality(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return { ok: false, code: 'reason_empty', msg: '请填写变更原因' };
+  const norm = raw.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+  if (REASON_PLACEHOLDER_EXACT.indexOf(raw) >= 0 || REASON_PLACEHOLDER_EXACT.indexOf(norm) >= 0 || /^\d+$/.test(norm)) {
+    return { ok: false, code: 'reason_template', msg: '请勿使用模板化表述' };
+  }
+  if (norm.length < reasonMinLen()) return { ok: false, code: 'reason_short', msg: '原因不少于10字' };
+  return { ok: true, text: raw };
+}
+
 async function getOrder(orderId) {
   try {
     return (await col('order_main').doc(orderId).get()).data || null;
@@ -530,7 +561,7 @@ exports.main = async (event, context) => {
       col, db, _, log, cloud,
       getConfig, getOrder, writeNotice, getConfirmation, logStatus, casStatus,
       roleOf, isFrozen, allConfirmed, sendUrgeSub, sendCommSub, buildOrderSummary,
-      fmtDT, fmtDTShort, isValidDocId, maskContact, reasonMaxLen, estimateCommute, checkText,
+      fmtDT, fmtDTShort, isValidDocId, maskContact, reasonMaxLen, reasonMinLen, reasonQuality, normalizeReasonType, REASON_TYPES, estimateCommute, checkText,
       canManualUrge, casTransition, noShowCfg, canSubmitReport, defenseDeadlineOf, canWithdrawReport, REPORT_STATUS,
       haversineKm, splitOrderAmount, writeAudit,
       CONFIRM_FIELDS, FIELD_CN, SCENE_CN, BLOCK_WORDS_FALLBACK
