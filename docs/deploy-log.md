@@ -8,6 +8,7 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | order-action / order-timer | 829567d | （待 commit） | 未建（先部署后提交，工作区 2 文件） | 829567d | **BUG 扫描 B4（归档/冻结余项）**：`s2_change_respond` accept 补冻结拦截；order-timer S3.5 超时转 S4 跳过冻结/争议单；S8 归档条件 `dispute_state !== 'none'` → `=== 'open'`（修 resolved 永久不归档）。部署 success=true（order-action 89.8 KB / order-timer 51.8 KB），100s 后回读 **2/2 SHA256 MATCH**；`verify:offline` EXIT=0（A/B 455）。**纯云端，无前端变更，未上传体验版** |
 | 2026-11-10 | order-action / admin-action / payment-mock | ab59568 | （待 commit） | 未建（先部署后提交，工作区 9 文件） | ab59568 | **BUG 扫描 B1-B3 修复**：action_query `S2.5→S2_5`；action_modify_extend 加时冻结/过期校验 + partial 冻结；action_lifecycle resume 冻结；admin-action config_public 保险/极速提现改顶层键 + 增 `partial_judge_days`；payment-mock 退款按实付 `fund.paid_fen` + 冻结拦截。三函数串行 success=true（89.6 / 121.4 / 26.6 KB），100s 后回读 **5/5 SHA256 MATCH**；`verify:offline` EXIT=0（A/B 455） |
 | 2026-11-10 | 小程序（体验版上传） | ab59568 | （待 commit） | 未归档 | ab59568 | 体验版 **v1.6.108** 上传：CLI EXIT=0 / ✔ upload / TOTAL 804.5 KB（823,856 B，主包 560.1 KB）；描述「BUG扫描B1-B3修复: 订单列表S2_5筛选/收银台超时态/加时面板字段/配置映射/退款按实付+冻结拦截」。**注：回退 = mp 后台重传 v1.6.107** |
 | 2026-11-10 | 小程序（体验版上传） | 6f72592 | 6f72592 | 未归档 | 6f72592 | 体验版 **v1.6.107** 上传：CLI EXIT=0 / ✔ upload / TOTAL 804.5 KB（823,807 B，主包 560.1 KB）；描述「改期确认窗口分钟制(默认10分钟)+确认侧超时硬校验+分钟级倒计时」；含 bootstrap（刷新后重算 S2_5 文案）、order-view（过期显示「已超时」）、enums/config/index 文案、order-detail 文案。**注：回退 = mp 后台重传 v1.6.106；order-action 同日已按评审修复文案重部署（25 files 89.3 KB，回读 SHA256 MATCH `A54D2993…`）** |
