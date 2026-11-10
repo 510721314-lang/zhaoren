@@ -169,7 +169,7 @@
         <!-- 改期入口: 仅 S2 可发起(2026-10-07 口径; S3 履约中/S3.5 中断均不可改期) -->
         <button class="od__btn od__btn--ghost" bindtap="onModify" hover-class="btn-press">📅 申请改期</button>
         <!-- 2026-11-05: S2 地点/内容变更协商入口(实际编辑在聊天页; 费用与时间不在此通道) -->
-        <button class="od__btn od__btn--ghost" wx:if="{{!order.pending_change}}" bindtap="goChat" hover-class="btn-press">✏️ 申请变更（地点/内容）</button>
+        <button class="od__btn od__btn--ghost" wx:if="{{!order.pending_change}}" bindtap="onS2ChangeEntry" hover-class="btn-press">✏️ 申请变更（地点/内容）</button>
         <view class="od__after-sale-tip" wx:if="{{order.pending_change}}">变更「{{order.pending_change.field_cn}}」待反馈，请到聊天页处理</view>
         <!-- 报告爽约(第三批 3B): 约定开始时间已过且时限内可见; 服务端二次校验 S2/S3.5+时限+时间下界 -->
         <button class="od__btn od__btn--danger" wx:if="{{canNoShowReport}}" bindtap="onNoShowReport" hover-class="btn-press">⚠️ 报告爽约</button>
@@ -305,7 +305,7 @@
         <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user' && tipEnabled}}" bindtap="onTip" hover-class="btn-press">💝 打赏耍伴</button>
       </block>
 
-      <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方2小时内确认，超时自动拒绝） -->
+      <!-- S2.5 改期处理中（PRD 3.5.2/3.5.3：对方需在确认窗口内反馈，默认 10 分钟，超时确认失效并由巡检回收） -->
       <block wx:elif="{{order.status === 'S2_5'}}">
         <view class="od__terminated-tip">{{statusInfo.name}}</view>
         <view class="od__pending-banner {{order.pending_modify.can_respond ? 'od__pending-banner--mine' : 'od__pending-banner--wait'}}" wx:if="{{order.pending_modify}}">

@@ -310,6 +310,9 @@ Page({
       can_respond: !!pc.can_respond,
       token: pc.token || ''
     } : null;
+    // 2026-11-10(评审修复): 付费后改期/改地点前置校验数据 —— get_confirmation 新增下发; 不读则新校验恒为假
+    const s2c = d.s2_change_counts || {};
+    const s2Counts = { total: Number(s2c._total) || 0, location: Number(s2c.location) || 0, content: Number(s2c.content) || 0 };
     this.setData({
       items,
       progress,
@@ -321,6 +324,8 @@ Page({
       startTime: Number(d.start_time) || this.data.startTime || 0,
       pendingBanner,
       pendingChange,
+      frozen: !!d.frozen,
+      s2Counts,
       s1Left,
       s1Text: s1Left > 0 ? this.__s1Text(s1Left) : '',
       // 2026-11-09: 轮询发现终态时同步停会话标记(im-conv.open 仅进页快照, 轮询期订单取消不会重推)
@@ -889,6 +894,16 @@ Page({
     }
     // 2026-11-05: S2 距履约不足后台下限(bMinHours)时，点「修改」立即提示，避免选完/填完提交才报错
     if (st === 'S2') {
+      // 2026-11-10(评审修复+用户需求): 付费后改期/改地点前置判定 —— 不符合条件点按钮即给明确提示, 不进入编辑态
+      // 顺序与服务端同口径(开关→冻结→时间窗→次数), 文案对齐服务端 msg
+      if (!CONFIG.S2_CHANGE || CONFIG.S2_CHANGE.enabled === false) {
+        wx.showModal({ title: '暂不可变更', content: '该阶段变更功能未开启', showCancel: false, confirmText: '知道了' });
+        return;
+      }
+      if (this.data.frozen) {
+        wx.showModal({ title: '暂不可变更', content: '订单争议处理中，暂不可变更', showCancel: false, confirmText: '知道了' });
+        return;
+      }
       const bMinH = (CONFIG.S2_CHANGE && CONFIG.S2_CHANGE.bMinHours) || 1;
       const startTs = Number(this.data.startTime) || 0;
       // 2026-11-08 评审修复: 履约时间缺失时原实现直接放行(fail-open), 用户白走选点/提交才被后端拒
@@ -921,6 +936,18 @@ Page({
           showCancel: false,
           confirmText: '知道了'
         });
+        return;
+      }
+      // 次数上限(服务端同口径: 发起即计入, 被拒/超时同样消耗; 用量以云端下发为准, 禁止本地自增)
+      const s2cfg = CONFIG.S2_CHANGE || {};
+      const used = this.data.s2Counts || { total: 0, location: 0, content: 0 };
+      const fieldCn = field === 'location' ? '地点' : '内容';
+      if (used.total >= (s2cfg.totalMax || 2)) {
+        wx.showModal({ title: '暂不可变更', content: `本单变更次数已达上限（${s2cfg.totalMax || 2} 次）`, showCancel: false, confirmText: '知道了' });
+        return;
+      }
+      if (used[field] >= (s2cfg.perFieldMax || 1)) {
+        wx.showModal({ title: '暂不可变更', content: `「${fieldCn}」变更次数已达上限（${s2cfg.perFieldMax || 1} 次）`, showCancel: false, confirmText: '知道了' });
         return;
       }
     }

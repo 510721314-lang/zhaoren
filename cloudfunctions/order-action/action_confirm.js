@@ -2,7 +2,7 @@
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
 async function get_confirmation(ctx) {
-  const { order_id, openid, getOrder, roleOf, getConfirmation, CONFIRM_FIELDS, allConfirmed, getConfig } = ctx;
+  const { order_id, openid, getOrder, roleOf, getConfirmation, CONFIRM_FIELDS, allConfirmed, getConfig, isFrozen } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -48,6 +48,9 @@ async function get_confirmation(ctx) {
       total_count: 8,
       all_confirmed: allConfirmed(conf.items),
       batch_blocked: batchBlocked,
+      // 2026-11-10(评审修复): 付费后改期/改地点前置校验所需(纯新增字段) —— 前端点击前即可判断冻结与变更次数上限
+      frozen: isFrozen(order),
+      s2_change_counts: order.s2_change_counts || {},
       // 2026-11-09: S1 截止时间 + 服务端当前时间(前端用差值抵消双端时钟偏差)
       s1_expire_at: s1ExpireAt,
       server_now: Date.now(),
