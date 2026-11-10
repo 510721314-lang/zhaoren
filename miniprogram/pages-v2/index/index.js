@@ -328,7 +328,8 @@ Page({
         // 访客引导: 未登录先登录, 未实名先实名(2026-10-21 统一守卫)
         const bs = require('../../utils/bootstrap.js');
         if (!bs.gateOnboard('publish', '发布需求', { scene: p.scene || '' })) break;
-        const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
+        // 2026-11-10 修复: 发布页 onLoad 读取的是 sceneCode(原传 scene= 导致场景预选失效)
+        const url = '/pages-v2/publish/publish' + (p.scene ? '?sceneCode=' + p.scene : '');
         wx.navigateTo({ url, fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' }) });
         break;
       }
@@ -376,7 +377,11 @@ Page({
         gb: hardCoded ? hardCoded.gb : false,
         disclaimer_type: g.scene_disclaimer_type || 'general_disclaimer',
         disclaimer_text: g.scene_disclaimer_text || (hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.content : ''),
-        disclaimer_title: hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.title : '免责声明'
+        disclaimer_title: hardCoded && hardCoded.disclaimer ? hardCoded.disclaimer.title : '免责声明',
+        // 2026-11-10 修复: 保留云端服务项(原丢弃 scene_options → 云端数据到达后按子服务关键词搜索全部失效)
+        options: (Array.isArray(g.scene_options) && g.scene_options.length)
+          ? g.scene_options
+          : ((hardCoded && hardCoded.options) || [])
       };
     });
     this.applySceneList(scenes);

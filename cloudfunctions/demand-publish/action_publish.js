@@ -454,13 +454,19 @@ async function publish_action(ctx) {
         // ── 发布类型(需求②代他人发布): self=自己 / proxy=代他人 ──
         publish_type: publishType,
         service_target: proxySignature
-          ? {
-              name: String(service_target.name).slice(0, 20),
-              relation: String(service_target.relation || '').slice(0, 10),
-              relation_note: String(service_target.relation_note || '').slice(0, 20),
-              // 真号受限存储(仅服务端使用, 为二期虚拟号/验证预埋); 任何输出接口一律 maskContact 脱敏, 不回传真号
-              phone: String(service_target.phone || service_target.phone_mask || '').trim().slice(0, 20)
-            }
+          ? (() => {
+              // 2026-11-10 修复(安全): 代发人手机号改密文三字段落库(与 contact_phone 同口径), 消除明文静止存储;
+              // 编辑态回传的是掩码(含 *), 不再二次加密, 仅保留掩码
+              const stPhone = String(service_target.phone || service_target.phone_mask || '').trim().slice(0, 20);
+              const stFields = (stPhone && stPhone.indexOf('*') < 0 && isMobilePhone(stPhone))
+                ? phoneCrypt.phonePatch(stPhone, phoneKey)
+                : { phone_mask: phoneCrypt.displayPhone(stPhone) };
+              return Object.assign({
+                name: String(service_target.name).slice(0, 20),
+                relation: String(service_target.relation || '').slice(0, 10),
+                relation_note: String(service_target.relation_note || '').slice(0, 20)
+              }, stFields);
+            })()
           : null,
         proxy_auth_signed: !!proxySignature,
         proxy_auth_signed_at: proxySignature ? now : 0,

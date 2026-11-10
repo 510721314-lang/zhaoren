@@ -22,8 +22,9 @@ const SYNC_MAP = {
   'credit_rules.js': ['evaluation-submit', 'order-timer'],
   // 场景中文名兜底映射(批3.1 单一源): 此前 8 处手抄副本, 收敛为一份常量 + 各函数副本
   'scene_meta.js': ['payment-mock', 'im-send', 'im-conv', 'demand-publish', 'order-action', 'admin-action', 'home-action'],
-  // 手机号加密存储 + 确定性查询键(P0-3 整改): user-login 写入/查询, demand-publish/admin-action 读取真号
-  'phone_crypt.js': ['user-login', 'demand-publish', 'admin-action'],
+  // 手机号加密存储 + 确定性查询键(P0-3 整改): user-login 写入/查询, demand-publish/admin-action 读取真号,
+  // safety-report 2026-11-10 补登记(此前 sync 脚本已含该目标但门禁漏登记 → 副本漂移永不报警)
+  'phone_crypt.js': ['user-login', 'demand-publish', 'admin-action', 'safety-report'],
   // 日志/审计留痕(P1 整改): 此前为「各函数自包含副本」零漂移校验, 现纳入规范源统一守护
   'logger.js': [
     'admin-action', 'blog-action', 'demand-match', 'demand-publish', 'evaluation-submit', 'home-action',

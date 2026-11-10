@@ -51,7 +51,15 @@ async function export_collection(ctx) {
   const totalR = await col(collection).count().catch(() => ({ total: 0 }));
   const total = totalR.total || 0;
   const docs = await col(collection).skip(skip).limit(pageSize).get().catch(() => ({ data: [] }));
-  const list = (docs.data || []).map(maskDocDeep);
+  // 2026-11-10 修复(安全): admin_web_sessions 的 _id 即会话 token(12h 有效), maskDocDeep 只按字段名脱敏、不处理 _id 值;
+  // 导出时把 _id 替换为不可用占位, 防后台凭据随备份文件外泄(该集合不参与灾备恢复, 可安全脱敏)
+  const list = (docs.data || []).map((d) => {
+    const safe = maskDocDeep(d);
+    if (collection === 'admin_web_sessions' && safe && typeof safe._id === 'string') {
+      safe._id = String(safe._id).slice(0, 6) + '****(redacted)';
+    }
+    return safe;
+  });
   await logEvent('P2', 'export_collection', openid, { collection, page, pageSize, count: list.length });
   return ok({
     collection,

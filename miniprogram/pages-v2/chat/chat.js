@@ -171,7 +171,8 @@ Page({
     const parts = [];
     if (d.order_no) parts.push(`#${d.order_no}`);
     if (scene && scene.name) parts.push(scene.name);
-    if (d.total_fen) parts.push(`¥${(d.total_fen / 100).toFixed(0)}`);
+    // 2026-11-10 修复: 金额保留两位小数(原 toFixed(0) 把 19.90 元显示成 ¥20)
+    if (d.total_fen) parts.push(`¥${(d.total_fen / 100).toFixed(2)}`);
     if (d.start_time) parts.push(this.fmtDateTime(d.start_time));
     return parts.join(' · ');
   },
@@ -813,7 +814,9 @@ Page({
       return;
     }
     if (code === 'oa_change_limit') {
-      wx.showModal({ title: '变更次数已达上限', content: '每项最多变更2次、整单最多4次。如仍有分歧,可取消订单后重新发布需求。', showCancel: false, confirmText: '知道了' });
+      // 2026-11-10 修复: 次数文案改为跟随后台配置(原写死 2 次/4 次, 与默认 1 次/2 次冲突)
+      const sc = CONFIG.S2_CHANGE || {};
+      wx.showModal({ title: '变更次数已达上限', content: `每项最多变更${sc.perFieldMax || 1}次、整单最多${sc.totalMax || 2}次。如仍有分歧,可取消订单后重新发布需求。`, showCancel: false, confirmText: '知道了' });
       return;
     }
     // 状态类冲突先刷新本地状态再提示(文案来自服务端, 随状态更新)

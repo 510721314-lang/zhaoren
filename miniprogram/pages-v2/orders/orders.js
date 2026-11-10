@@ -135,7 +135,8 @@ Page({
       page_size: CONFIG.PAGING.orderPageSize
     }).then((r) => {
       const extra = (r.ok && r.data && r.data.list) || [];
-      this.__page = (this.__page || 1) + 1;
+      // 2026-11-10 修复: 请求失败不得前进页码(原无条件 +1 → 下次「加载更多」跳过一整页)
+      if (r.ok) this.__page = (this.__page || 1) + 1;
       const merged = [...this.data.orders, ...extra.map((o) => this.decorate(o))];
       this.setData({
         orders: merged,
