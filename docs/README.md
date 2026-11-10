@@ -9,7 +9,7 @@
 |---|---|
 | 新接手开发 | 本页 → [AGENTS.md](AGENTS.md) → `ARCHITECTURE.md` → `DATA_MODEL.md` → `PAGE_SPEC.md` / `COMPONENTS.md` → `RELEASE.md` |
 | 接手运营 / 发布 | 本页 → `RELEASE.md` → [runbooks/README.md](runbooks/README.md) → [release-zero-checklist.md](runbooks/release-zero-checklist.md) → [troubleshooting.md](runbooks/troubleshooting.md) |
-| AI 助手 | 本页 → [AGENTS.md](AGENTS.md)（含 `.trae/rules` 指针）→ [HANDOFF-20261108.md](HANDOFF-20261108.md) |
+| AI 助手 | 本页 → [AGENTS.md](AGENTS.md)（含 `.trae/rules` 指针）→ [HANDOFF-20261110.md](HANDOFF-20261110.md) |
 | 产品 / 需求评审 | [PRD.md](PRD.md)（指针页）→ [PRD/PRD.md](../PRD/PRD.md) → 附录 T / 附录 U |
 
 ## 二、文档地图
@@ -56,7 +56,7 @@
 | 文档 | 状态 |
 |---|---|
 | [dev-manual/00-index.md](dev-manual/00-index.md) | **已冻结**：13 文件技术开发手册（2026-10），现行内容迁入 2.2 各文档，仅作存档 |
-| [HANDOFF-2026xxxx.md](HANDOFF-20261108.md) | 过程快照，仅现行一份有效 |
+| [HANDOFF-2026xxxx.md](HANDOFF-20261110.md) | 过程快照，仅现行一份有效 |
 | `docs/session-log/`、`docs/onboarding-prompt-*.md` | 会话存档，不作真值 |
 
 ## 三、真值优先级

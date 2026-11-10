@@ -8,7 +8,7 @@
 1. [project-rules-core.md](../.trae/rules/project-rules-core.md) §0–§9（常驻规则）
 2. [FUNCTION-REGISTRY.md](FUNCTION-REGISTRY.md)（已验证功能与人工验收步骤）
 3. [CHANGELOG.md](CHANGELOG.md)（近期变更与回归结论）
-4. 现行交接稿 [HANDOFF-20261108.md](HANDOFF-20261108.md)（未闭合项与下一步）
+4. 现行交接稿 [HANDOFF-20261110.md](HANDOFF-20261110.md)（未闭合项与下一步）
 5. `npm run verify:offline` 取基线（失败即停，不得绕过）
 
 ## 2. 规则指针表（按场景查）
