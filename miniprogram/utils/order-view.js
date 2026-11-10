@@ -44,11 +44,19 @@ function computeNextStep(order, now = Date.now()) {
 
   // 改期在途: 优先级最高
   if (pm) {
+    // 2026-11-10(评审修复): 分钟制倒计时 —— 过期显示「已超时」(原 Math.max(1,…) 会误导为还来得及);
+    // 非数值按缺失处理; <60 分钟按分钟, 否则按小时(与加时分支同口径)
+    const pmMs = Number(pm.expire_at) - now;
+    const pmExpireText = (!pm.expire_at || !isFinite(pmMs)) ? '请确认'
+      : (pmMs <= 0 ? '已超时'
+        : (pmMs < 3600000
+          ? `${Math.max(1, Math.round(pmMs / 60000))}分钟内确认`
+          : `${Math.round(pmMs / 3600000)}小时内确认`));
     if (pm.can_respond) {
       return {
         icon: '📅',
         title: '对方发起改期',
-        subtitle: `新时间: ${pm.new_date} ${pm.new_time} · ${pm.expire_at ? `${Math.round((pm.expire_at - now) / 3600000)}小时内` : '请'}确认`,
+        subtitle: `新时间: ${pm.new_date} ${pm.new_time} · ${pmExpireText}`,
         tone: 'primary',
         action: { key: 'modify_respond', text: '去确认' }
       };

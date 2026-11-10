@@ -119,12 +119,12 @@ const TRANSITIONS = [
   // [2026-11-01 形态A 收口] no.5(event=start_service 直连 S2→S3)与 no.13(event=complete 直连 S3→S5)已删除:
   // 两条均为旧 B1/完毕链路, 现由 start_apply+start_confirm(no.23-24) 与 finish_apply+finish_confirm(no.27-28) 取代。
   // 编号保留空洞(no.5/no.13 不再复用), 避免与历史文档/日志交叉引用错位。
-  { no: 6, event: 'modify', role: 'both', from: ['S2', 'S2_5'], to: null, guard: '未冻结', money: '', timeout: 'confirmHours(后台可配)→自动拒绝' },
+  { no: 6, event: 'modify', role: 'both', from: ['S2', 'S2_5'], to: null, guard: '未冻结', money: '', timeout: 'confirmMinutes(后台可配, 默认 10 分钟)→超时确认失效并自动拒绝' },
   { no: 7, event: 'interrupt_report', role: 'both', from: ['S3'], to: 'S3.5', guard: '原因必填, 未冻结', money: '', timeout: '24h→S4' },
   { no: 8, event: 'resume', role: 'both', from: ['S3.5'], to: 'S3', guard: '', money: '', timeout: '' },
   { no: 9, event: 'partial_agree', role: 'both', from: ['S3.5'], to: 'S4', guard: '', money: '', timeout: '裁限期→按证据转裁决' },
   { no: 10, event: 'milestone', role: 'both', from: ['S3'], to: 'S3', guard: '', money: '', timeout: '确认窗(可配)自动确认' },
-  { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_min(后台可配, 分钟, 默认 20; 0=跟随 confirmHours) 未回应→自动拒绝' },
+  { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_min(后台可配, 分钟, 默认 20; 0=跟随改期确认窗口) 未回应→自动拒绝' },
   { no: 12, event: 'extend_paid', role: 'user', from: ['S3'], to: 'S3', guard: '加时补付流水成功', money: 'type=pay(sub=extend)', timeout: '未付不加结算基数' },
   { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '双方各确认一次', money: '按 PRD 分段结算', timeout: '裁限期→平台介入' },
   { no: 15, event: 'evaluate', role: 'user', from: ['S5'], to: 'S8', guard: '无已有评价', money: '信用分±; settle ready', timeout: '48h→auto_done' },

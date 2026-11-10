@@ -917,6 +917,26 @@ test('modify: 改期跨度超上限拒绝（oa_modify_span）', async () => {
   assert.strictEqual((sdk.writes.order_main || []).length, 0, '被拦截时不得写订单');
 });
 
+// 2026-11-10 评审补测(C1): modify_confirm 过期硬校验 —— 确认窗口到期后不得再同意成功
+test('modify_confirm: 申请已超时 → oa_modify_expired 且不写订单', async () => {
+  const now = Date.now();
+  const sdk = makeSdk({ openid: PARTNER, store: s2Store({
+    status: 'S2_5',
+    pending_modify: {
+      from_status: 'S2',
+      new_start_time: now + 5 * 3600 * 1000,
+      by_openid: USER,
+      created_at: now - 11 * 60 * 1000,
+      expire_at: now - 1000
+    }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_modify_expired');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '过期被拒时不得写订单');
+});
+
 test('s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）', async () => {
   const sdk = makeSdk({ openid: USER, store: s2Store() });
   const { main } = loadIndex(sdk);

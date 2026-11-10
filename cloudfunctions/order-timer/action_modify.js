@@ -1,15 +1,15 @@
 // action_modify.js — 从 index.js 物理抽出, 行为逐字不变; 共享符号经 ctx 注入, 禁 require('./index')
 
 async function processModifyTimeout(ctx) {
-  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, logStatus, casStatus, now, out, modifyConfirmH } = ctx;
-  // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, logStatus, casStatus, now, out, modifyConfirmMin } = ctx;
+  // ───────── 3.6 S2.5 改期确认超时(默认 10 分钟) → 自动拒绝, 回原状态, 不改服务时间 ─────────
   try {
     const m25s = await scanAll('order_main', () => ({ status: 'S2_5' }));
     trackBacklog('S2_5', m25s.length >= SCAN_MAX ? m25s : []);
     const mOK = [];
     await Promise.allSettled(m25s.map(async (o) => {
       const pm = o.pending_modify || {};
-      const deadline = pm.expire_at || ((o.modify_at || 0) + modifyConfirmH * 3600000);
+      const deadline = pm.expire_at || ((o.modify_at || 0) + modifyConfirmMin * 60000);
       if (!deadline || deadline >= now) return;
       // 存量兼容(2026-10-07 口径), 勿删此分支: 新发起的改期 from_status 只会是 'S2';
       // 原 S3 发起的在途申请(from_status='S3')保留回退 S3, 按原逻辑走完(不追溯, 避免卡死)

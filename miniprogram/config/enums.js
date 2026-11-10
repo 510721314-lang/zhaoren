@@ -92,7 +92,7 @@ const ORDER_STATUS = {
   S0:    { code: 'S0', name: '待支付', colorTag: 'var(--func-warning)', bgTag: 'var(--func-warning-light)', timeoutText: `${CONFIG.ORDER.payTimeoutMin}分钟内未支付自动取消`, nextActions: ['pay', 'cancel'] },
   S1:    { code: 'S1', name: '待确认', colorTag: 'var(--func-purple)', bgTag: 'var(--func-purple-light)', timeoutText: `${CONFIG.ORDER.confirmTimeoutMin}分钟内待双方确认`, nextActions: ['confirm', 'reject'] },
   S2:    { code: 'S2', name: '已支付待履约', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: '', nextActions: ['start', 'modify'] },
-  S2_5:  { code: 'S2.5', name: '改期处理中', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: `对方需${CONFIG.MODIFY.confirmHours}小时内确认，超时自动拒绝`, nextActions: [] },
+  S2_5:  { code: 'S2.5', name: '改期处理中', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: `对方需${CONFIG.MODIFY.confirmMinutes}分钟内确认，超时自动拒绝`, nextActions: [] },
   // 履约双确认(2026-10-14 阶段C/D, 规范 图1): 两中间态
   S2_6:  { code: 'S2.6', name: '开始履约申请中', colorTag: 'var(--func-info)', bgTag: 'var(--func-info-light)', timeoutText: `等待需求方确认, ${CONFIG.FULFILL.applyTimeoutMin}分钟内未响应转争议`, nextActions: [] },
   S3:    { code: 'S3', name: '履约中', colorTag: 'var(--func-warning)', bgTag: 'var(--func-warning-light)', timeoutText: '', nextActions: ['safety', 'overtime', 'finish'] },

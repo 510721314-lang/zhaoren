@@ -3,7 +3,7 @@
     "minLeadHours": 4,
     "maxTimes": 2,
     "maxSpanH": 72,
-    "confirmHours": 24
+    "confirmMinutes": 10
   },
   "S2_CHANGE_DEFAULTS": {
     "enabled": 1,

@@ -167,7 +167,7 @@ async function config_set(ctx) {
     }
     const mcRanges = [
       ['minLeadHours', 0, 72], ['maxTimes', 0, 10],
-      ['maxSpanH', 1, 720], ['confirmHours', 1, 168],
+      ['maxSpanH', 1, 720], ['confirmMinutes', 1, 1440],
       // 2026-11-05: S2 已支付待履约「地点/内容」变更规则(后台可调)
       ['s2ChangeEnabled', 0, 1], ['s2ChangeBMinHours', 1, 24], ['s2ChangeAMinHours', 1, 72],
       ['s2ChangeAConfirmMin', 1, 1440], ['s2ChangeBConfirmMin', 1, 1440],
@@ -175,7 +175,7 @@ async function config_set(ctx) {
     ];
     const nextMC = Object.assign(
       {
-        minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24,
+        minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmMinutes: 10,
         // 2026-11-05: S2 变更默认值(与 order-action/action_change_s2.js s2Cfg 兜底一致)
         s2ChangeEnabled: 1, s2ChangeBMinHours: 1, s2ChangeAMinHours: 2,
         s2ChangeAConfirmMin: 120, s2ChangeBConfirmMin: 15,

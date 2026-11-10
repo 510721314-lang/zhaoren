@@ -53,7 +53,7 @@ const CONFIG_SCHEMA = [
   { f: 'modifyMinLeadHours', t: 'int', g: '改期规则', label: '提前申请(小时)', unit: '小时', min: 0, max: 72, def: MODIFY_DEFAULTS.minLeadHours, d: '距新服务时间至少提前多少小时才可申请改期（0=不限制）' },
   { f: 'modifyMaxTimes', t: 'int', g: '改期规则', label: '最多改期次数', unit: '次', min: 0, max: 10, def: MODIFY_DEFAULTS.maxTimes, d: '同一订单最多改期次数（0=禁止改期）' },
   { f: 'modifyMaxSpanH', t: 'int', g: '改期规则', label: '改期幅度上限', unit: '小时', min: 1, max: 720, def: MODIFY_DEFAULTS.maxSpanH, d: '新时间与原服务时间的最大差值（超出拦截）' },
-  { f: 'modifyConfirmHours', t: 'int', g: '改期规则', label: '对方确认窗口', unit: '小时', min: 1, max: 168, def: MODIFY_DEFAULTS.confirmHours, d: '改期申请等待对方同意/拒绝的时限，超时自动拒绝' },
+  { f: 'modifyConfirmMinutes', t: 'int', g: '改期规则', label: '对方确认窗口', unit: '分钟', min: 1, max: 1440, def: MODIFY_DEFAULTS.confirmMinutes, d: '改期申请等待对方同意/拒绝的时限（分钟，默认 10）；超时后不可再确认，订单状态由巡检自动回收' },
   // ── 时间红线 ──
   { f: 'time_redline_close_min', t: 'int', g: '时间红线', label: '接单截止', unit: '分钟', min: 0, max: 1440, def: 1440, d: '每日接单截止时刻（自 0:00 起算的分钟数）；0=全天开放不受限', clock: true, clockZero: '全天开放' },
   { f: 'time_redline_open_min', t: 'int', g: '时间红线', label: '接单开放', unit: '分钟', min: 0, max: 1440, def: 360, d: '每日接单开放起始时刻（自 0:00 起算的分钟数）；可接单时段为「开放时刻 ~ 截止时刻」', clock: true },

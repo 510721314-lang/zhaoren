@@ -31,7 +31,7 @@ try { FE = require(path.join(root, 'miniprogram/config/index.js')); } catch (e) 
 if (FE) {
   const m = FE.MODIFY || {};
   const md = canon.MODIFY_DEFAULTS;
-  ['minLeadHours', 'maxTimes', 'maxSpanH', 'confirmHours'].forEach((k) => {
+  ['minLeadHours', 'maxTimes', 'maxSpanH', 'confirmMinutes'].forEach((k) => {
     if (m[k] !== md[k]) bad(`[前端] MODIFY.${k}=${m[k]} 规范=${md[k]}`);
   });
   const s = FE.S2_CHANGE || {};

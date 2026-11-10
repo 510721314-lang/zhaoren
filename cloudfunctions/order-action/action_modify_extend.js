@@ -35,6 +35,11 @@ async function modify(ctx) {
     return { ok: false, code: 'oa_modify_status', msg: `订单当前状态(${order.status})不可改期` };
   }
   if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可改期' };
+  // 2026-11-10(评审修复): 有在途地点/内容变更时禁止发起改期 —— 否则 S2 被推到 S2_5 后,
+  // 对方接受变更会因 status!=='S2' 直接失败(oa_s2c_status), 变更卡变死卡; 前端同口径前置提示
+  if (order.pending_change) {
+    return { ok: false, code: 'oa_modify_busy', msg: '有在途的地点/内容变更，请先处理变更' };
+  }
   // 2026-11-05: 选回原服务时间视为未变更，不生成无意义 S2_5 在途申请（前端同值预判 + 此处兜底）
   if (Number(order.start_time) === newTs) {
     return { ok: false, code: 'oa_modify_same', msg: '与当前服务时间相同，无需改期' };
@@ -73,7 +78,7 @@ async function modify(ctx) {
       by_openid: openid,
       by_role: role,
       created_at: now,
-      expire_at: now + modifyConfig.confirmHours * 3600000
+      expire_at: now + modifyConfig.confirmMinutes * 60000
     },
     modify_at: now,
     updated_at: now
@@ -87,12 +92,12 @@ async function modify(ctx) {
     return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
   }
   await logStatus(order_id, fromStatus, 'S2_5', role === 'user' ? 'user_modify' : 'partner_modify', openid);
-  log.d(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmHours}h`);
+  log.d(`order modify: ${order.order_no} ${fromStatus}→S2_5 newStart=${newTs} expire=${modifyConfig.confirmMinutes}min`);
   // await 保证云函数返回前站内信落库(原 fire-and-forget: 主流程 return 后运行时可能冻结未完成的异步写入, 致对方收不到改期申请)
   await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
     order_id, type: 'modify',
-    title: `${role === 'user' ? '发单人' : '耍伴'}发起改期`, body: `请在 ${modifyConfig.confirmHours} 小时内确认或拒绝`,
+    title: `${role === 'user' ? '发单人' : '耍伴'}发起改期`, body: `请在 ${modifyConfig.confirmMinutes} 分钟内确认或拒绝`,
     action_key: 'jump_accept_modify', action_payload: { order_id }
   });
   await writeAudit(db, log, { openid, role, category: 'business', action: 'order_modify_apply', target_type: 'order', target_id: order_id, detail: { status: 'S2_5', new_start_time: newTs }, result: 'ok', client_ip: clientIp, device });
@@ -147,6 +152,11 @@ async function modify_confirm_or_reject(ctx) {
 
   const config = await getConfig();
   const modifyConfig = resolveModify(config);
+  // 2026-11-10(评审修复): 确认侧硬校验过期 —— 原仅校验新时间是否未来, 超时后仍能同意成功;
+  // 分钟制短窗口下尤其重要, 与「超时自动拒绝」承诺对齐(状态回收仍由 order-timer 巡检执行)
+  if (Number(pending.expire_at) > 0 && now > Number(pending.expire_at)) {
+    return { ok: false, code: 'oa_modify_expired', msg: '改期申请已超时，等待系统回收后可重新发起' };
+  }
   if (!pending.new_start_time || pending.new_start_time <= now) {
     return { ok: false, code: 'oa_modify_expired', msg: '改期时间已过期,请重新发起' };
   }
@@ -218,7 +228,7 @@ async function extend(ctx) {
   const now = Date.now();
   // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制): 独立键 admin_config.extend_confirm_min(分钟, 默认 20);
   // 配置为 0 时回退「改期确认窗口」(小时→分钟换算), 保留旧版逃生口。expire_at 在申请时算死, 后续改配置不影响在途申请。
-  const modifyConfirmMin = resolveModify(config).confirmHours * 60;
+  const modifyConfirmMin = resolveModify(config).confirmMinutes;
   const confirmMin = Number(config.extend_confirm_min) > 0 ? Number(config.extend_confirm_min) : modifyConfirmMin;
   const confirmText = confirmMin % 60 === 0 && confirmMin >= 60 ? `${confirmMin / 60} 小时` : `${confirmMin} 分钟`;
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';

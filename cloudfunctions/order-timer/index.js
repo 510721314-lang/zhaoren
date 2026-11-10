@@ -547,10 +547,10 @@ exports.main = async (event, context) => {
   const disputeEscDays = num(cfg.dispute_escalate_d, 30);   // 争议单超期升级天数(留存负债闭环 2026-10-13)
   // 改期确认时限: 统一读 admin_config（2026-11-05 N-3: 默认值与解析统一由 _shared/config_defaults.js 副本提供）
   // 不再读独立键 modify_confirm_h(admin-action 白名单已移除, 存量历史无 expire_at 的订单仍走此兜底)
-  const modifyConfirmH = resolveModify(cfg).confirmHours;
-  // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制, 默认 20 分钟): 独立键 extend_confirm_min, 0 → 回退改期 confirmHours(换算分钟)
-  // (与申请时算 expire_at 同一口径)
-  const extendConfirmMin = num(cfg.extend_confirm_min, 20) > 0 ? num(cfg.extend_confirm_min, 20) : modifyConfirmH * 60;
+  // 2026-11-10: 改期对方确认窗口改「分钟制」（默认 10 分钟）；存量无 expire_at 的历史单仍走此兜底
+  const modifyConfirmMin = resolveModify(cfg).confirmMinutes;
+  // 加时确认窗口(2026-10-12 立键; 2026-10-13 改分钟制, 默认 20 分钟): 独立键 extend_confirm_min, 0 → 回退改期确认窗口(分钟, 同口径)
+  const extendConfirmMin = num(cfg.extend_confirm_min, 20) > 0 ? num(cfg.extend_confirm_min, 20) : modifyConfirmMin;
   // 履约双确认超时(阶段G, 2026-10-15): 规范《线下陪伴履约流程规范》§C8 —— S2.6 开始履约申请 15min 未响应 / S3.6 完毕确认 30min 未响应 → 转 S10.5 争议
   const startApplyMin = num(cfg.start_apply_timeout_min, 15);
   const finishConfirmMin = num(cfg.finish_confirm_timeout_min, 30);
@@ -566,7 +566,7 @@ exports.main = async (event, context) => {
   const sectionCtx = {
     event, now, cfg, out, _backlog, adminOpenids, isAdmin, isTimer,
     s1Min, interruptH, evalH, defaultStar, msConfirmMin, afterSaleDays, partialJudgeDays,
-    disputeEscDays, modifyConfirmH, extendConfirmMin, startApplyMin, finishConfirmMin, noShowGraceMin,
+    disputeEscDays, modifyConfirmMin, extendConfirmMin, startApplyMin, finishConfirmMin, noShowGraceMin,
     cloud, db, _, col, log, BATCH, SCAN_PAGE, SCAN_MAX, DEFAULT_SCAN_EXEMPT, SCAN_REPUSH_MS,
     PRUNE_DAYS, PRUNE_CAP,
     trackBacklog, scanAll, getConfig, num, logStatus, casStatus, scanExemptList, isScanExemptEvent,
@@ -663,7 +663,7 @@ exports.main = async (event, context) => {
       audit_prune: auditPruneResult,
       demand_notify: demandNotify,
       urge_remind: urgeRemind,
-      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_h: modifyConfirmH, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin, start_apply_remind1_min: remindMin.startApplyRemind1Min, start_apply_remind2_min: remindMin.startApplyRemind2Min, finish_confirm_remind1_min: remindMin.finishConfirmRemind1Min, finish_confirm_remind2_min: remindMin.finishConfirmRemind2Min, no_show_grace_min: noShowGraceMin },
+      thresholds: { s1_timeout_min: s1Min, interrupt_timeout_h: interruptH, eval_window_h: evalH, default_star: defaultStar, milestone_confirm_min: msConfirmMin, modify_confirm_min: modifyConfirmMin, extend_confirm_min: extendConfirmMin, after_sale_days: afterSaleDays, partial_judge_days: partialJudgeDays, dispute_escalate_d: disputeEscDays, start_apply_timeout_min: startApplyMin, finish_confirm_timeout_min: finishConfirmMin, start_apply_remind1_min: remindMin.startApplyRemind1Min, start_apply_remind2_min: remindMin.startApplyRemind2Min, finish_confirm_remind1_min: remindMin.finishConfirmRemind1Min, finish_confirm_remind2_min: remindMin.finishConfirmRemind2Min, no_show_grace_min: noShowGraceMin },
       s1_cancel: out.s1_cancel,
       change_auto_reject: out.change_auto_reject,
       s2_change_auto_reject: out.s2_change_auto_reject,

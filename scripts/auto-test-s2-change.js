@@ -88,16 +88,16 @@ async function t(name, fn) {
 
 (async () => {
   // ── 1. N-3/N-5 默认值单源与嵌套收口 ──────────────────────────────
-  await t('N-3 resolveModify 空配置=默认 4/2/72/24', async () => {
-    assert.deepStrictEqual(resolveModify({}), { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 });
+  await t('N-3 resolveModify 空配置=默认 4/2/72/10(分钟)', async () => {
+    assert.deepStrictEqual(resolveModify({}), { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmMinutes: 10 });
   });
   await t('N-3 resolveModify 顶层键覆盖生效', async () => {
-    const r = resolveModify({ modifyMinLeadHours: 6, modifyMaxTimes: 1, modifyMaxSpanH: 48, modifyConfirmHours: 12 });
-    assert.deepStrictEqual(r, { minLeadHours: 6, maxTimes: 1, maxSpanH: 48, confirmHours: 12 });
+    const r = resolveModify({ modifyMinLeadHours: 6, modifyMaxTimes: 1, modifyMaxSpanH: 48, modifyConfirmMinutes: 12 });
+    assert.deepStrictEqual(r, { minLeadHours: 6, maxTimes: 1, maxSpanH: 48, confirmMinutes: 12 });
   });
   await t('N-5 旧 modify_config 嵌套已不再兜底', async () => {
-    const r = resolveModify({ modify_config: { minLeadHours: 9, maxTimes: 5, maxSpanH: 96, confirmHours: 36 } });
-    assert.deepStrictEqual(r, { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmHours: 24 });
+    const r = resolveModify({ modify_config: { minLeadHours: 9, maxTimes: 5, maxSpanH: 96, confirmMinutes: 30 } });
+    assert.deepStrictEqual(r, { minLeadHours: 4, maxTimes: 2, maxSpanH: 72, confirmMinutes: 10 });
   });
   await t('N-3 resolveS2Change 空配置=默认', async () => {
     assert.deepStrictEqual(resolveS2Change({}), {
@@ -303,7 +303,7 @@ async function t(name, fn) {
     assert.strictEqual(r.data.status, 'S2_5');
     const wo = firstWrite(sdk, 'order_main', 'where');
     assert.strictEqual(wo.data.status, 'S2_5');
-    assert.ok(Math.abs(wo.data.pending_modify.expire_at - (Date.now() + 24 * H)) < 5000, '确认窗口应≈24 小时');
+    assert.ok(Math.abs(wo.data.pending_modify.expire_at - (Date.now() + 10 * 60 * 1000)) < 5000, '确认窗口应≈10 分钟');
   });
 
   // ── 5. 上线清零清单 §3「可服务端自证」四项（2026-11-05 追加）──────────

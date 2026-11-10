@@ -55,7 +55,7 @@ Page({
     redlineClose: redline.PICKER_CLOSE,
     modifyRuleText: `规则：提前${CONFIG.MODIFY.minLeadHours}小时以上/最多${CONFIG.MODIFY.maxTimes}次/${CONFIG.MODIFY.freeFirst ? '首次免费/' : ''}第二次收${CONFIG.MODIFY.secondFeeRate * 100}%手续费/幅度≤${CONFIG.MODIFY.maxSpanH}小时`,
     s35ResponseMin: CONFIG.SAFETY.s35ResponseMin,
-    modifyConfirmH: CONFIG.MODIFY.confirmHours,
+    modifyConfirmMin: CONFIG.MODIFY.confirmMinutes,
     orderSummary: null,  // 订单概要三行(沿用消息页 l1/l2/l3)
     tipNotices: [],      // 到账通知列表(多条依次展示, 每条含 text+time; 空列表不渲染)
     tipList: [],        // 打赏逐笔明细(时间+金额+备注, 双方可见)
@@ -91,7 +91,7 @@ Page({
     const m = CONFIG.MODIFY || {};
     this.setData({
       modifyRuleText: `规则：提前${m.minLeadHours}小时以上/最多${m.maxTimes}次/${m.freeFirst ? '首次免费/' : ''}第二次收${m.secondFeeRate * 100}%手续费/幅度≤${m.maxSpanH}小时`,
-      modifyConfirmH: m.confirmHours
+      modifyConfirmMin: m.confirmMinutes
     });
   },
 
@@ -1012,6 +1012,15 @@ Page({
       wx.showToast({ title: '修改次数已用完', icon: 'none' });
       return;
     }
+    // 2026-11-10(评审修复+用户需求): 冻结/在途变更时点按钮即给明确提示, 不打开改期面板
+    if (this.data.order.frozen) {
+      wx.showModal({ title: '暂不可改期', content: '订单争议/申诉处理中，暂不可改期', showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    if (this.data.order.pending_change) {
+      wx.showModal({ title: '暂不可改期', content: '有在途的地点/内容变更，请先处理变更', showCancel: false, confirmText: '知道了' });
+      return;
+    }
     // 默认带出订单原服务日期与时间
     this.setData({
       modifyPanelVisible: true,
@@ -1026,6 +1035,25 @@ Page({
   },
 
   closeModifyPanel() { this.setData({ modifyPanelVisible: false, modifyReason: '' }); },
+
+  // 2026-11-10(用户需求): 付费后「申请变更（地点/内容）」入口前置判定 —— 不满足直接给明确提示, 不跳聊天页。
+  // 次数上限在聊天页点「改地点/改内容」时判定(详情页不下发 s2_change_counts, 评审结论避免死字段)
+  onS2ChangeEntry() {
+    const o = this.data.order || {};
+    if (o.status !== 'S2') {
+      wx.showModal({ title: '暂不可变更', content: '订单当前状态不可发起变更', showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    if (o.frozen) {
+      wx.showModal({ title: '暂不可变更', content: '订单争议处理中，暂不可变更', showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    if (o.pending_change) {
+      wx.showModal({ title: '暂不可变更', content: '有变更待对方反馈，请先处理变更', showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    this.goChat();
+  },
 
   onModifyDateChange(e) {
     this.setData({ modifyDate: e.detail.value });
@@ -1074,7 +1102,7 @@ Page({
     }
     this._modal({
       title: '确认提交改期',
-      content: `新服务时间：${modifyDate} ${modifyTime}\n提交后需耍伴${CONFIG.MODIFY.confirmHours}小时内确认`,
+      content: `新服务时间：${modifyDate} ${modifyTime}\n提交后需耍伴${CONFIG.MODIFY.confirmMinutes}分钟内确认`,
       confirmText: '确认',
       fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
       success: (res) => {

@@ -53,7 +53,7 @@
             <el-form-item label="改期前最少 lead 小时"><el-input-number v-model="patch.modify_config.minLeadHours" :min="0" :max="72" /></el-form-item>
             <el-form-item label="最大改期次数"><el-input-number v-model="patch.modify_config.maxTimes" :min="0" :max="10" /></el-form-item>
             <el-form-item label="最大跨度(小时)"><el-input-number v-model="patch.modify_config.maxSpanH" :min="1" :max="720" /></el-form-item>
-            <el-form-item label="改期确认窗口(小时)"><el-input-number v-model="patch.modify_config.confirmHours" :min="1" :max="168" /></el-form-item>
+            <el-form-item label="改期确认窗口(分钟)"><el-input-number v-model="patch.modify_config.confirmMinutes" :min="1" :max="1440" /></el-form-item>
           </el-form>
         </el-collapse-item>
         <!-- S2 已支付待履约变更规则(2026-11-05 新增; 仅地点/内容, 费用与时间不在此通道) -->

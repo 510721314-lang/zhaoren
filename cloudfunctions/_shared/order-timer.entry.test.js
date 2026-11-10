@@ -84,6 +84,14 @@ test('S2_5 改期超时 → modify_auto_reject=1', async () => {
   assert.strictEqual(r.data.counts.modify_auto_reject, 1);
 });
 
+// 4b. 2026-11-10 评审补测: 存量无 expire_at 的 S2_5 → 按 modify_at + 确认窗口(默认 10 分钟)兜底回收
+test('S2_5 无 expire_at → 按 modify_at+10min 兜底回收', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ D2: ord('D2', 'S2_5', { modify_at: now - 11 * MIN, pending_modify: { from_status: 'S2', by_openid: PARTNER } }) }));
+  assert.strictEqual(r.data.counts.modify_auto_reject, 1);
+  assert.strictEqual(r.data.thresholds.modify_confirm_min, 10, 'thresholds 应下发分钟制窗口');
+});
+
 // 5. S3 里程碑提交超 15min 未确认 → 全部自动确认
 test('S3 里程碑超时 → milestone_auto_confirm=1', async () => {
   const now = Date.now();

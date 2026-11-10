@@ -39,7 +39,7 @@ function config_public(ctx) {
       interrupt_timeout_h: cfgRaw.interrupt_timeout_h,
       eval_window_h: cfgRaw.eval_window_h,
       default_star: cfgRaw.default_star,
-      // 加时确认窗口(批3.4 补齐; 2026-10-13 改分钟制默认 20): 0 = 跟随 modify_config.confirmHours(与 order-timer/order-action 同一口径)
+      // 加时确认窗口(批3.4 补齐; 2026-10-13 改分钟制默认 20): 0 = 跟随改期确认窗口(与 order-timer/order-action 同一口径)
       extend_confirm_min: cfgRaw.extend_confirm_min !== undefined ? cfgRaw.extend_confirm_min : 20
     },
     credits: { credit_freeze_line: cfgRaw.credit_freeze_line },

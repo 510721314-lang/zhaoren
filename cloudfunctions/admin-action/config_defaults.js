@@ -20,7 +20,8 @@ function resolveModify(cfg) {
     minLeadHours: num(pick('modifyMinLeadHours', MODIFY_DEFAULTS.minLeadHours), MODIFY_DEFAULTS.minLeadHours, 0, 72),
     maxTimes: num(pick('modifyMaxTimes', MODIFY_DEFAULTS.maxTimes), MODIFY_DEFAULTS.maxTimes, 0, 10),
     maxSpanH: num(pick('modifyMaxSpanH', MODIFY_DEFAULTS.maxSpanH), MODIFY_DEFAULTS.maxSpanH, 1, 720),
-    confirmHours: num(pick('modifyConfirmHours', MODIFY_DEFAULTS.confirmHours), MODIFY_DEFAULTS.confirmHours, 1, 168)
+    // 2026-11-10: 改期对方确认窗口改「分钟制」，默认 10 分钟（原小时制 confirmHours=24）
+    confirmMinutes: num(pick('modifyConfirmMinutes', MODIFY_DEFAULTS.confirmMinutes), MODIFY_DEFAULTS.confirmMinutes, 1, 1440)
   };
 }
 

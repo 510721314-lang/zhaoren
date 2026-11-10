@@ -46,7 +46,7 @@ const CLOUD_MAP = {
   'modify_config.minLeadHours': 'MODIFY.minLeadHours',
   'modify_config.maxTimes': 'MODIFY.maxTimes',
   'modify_config.maxSpanH': 'MODIFY.maxSpanH',
-  'modify_config.confirmHours': 'MODIFY.confirmHours',
+  'modify_config.confirmMinutes': 'MODIFY.confirmMinutes',
   // 2026-11-05: S2 地点/内容变更规则(文案与前端预判; 服务端仍以 admin_config 为准)
   's2_change.enabled': 'S2_CHANGE.enabled',
   's2_change.b_min_hours': 'S2_CHANGE.bMinHours',
@@ -125,10 +125,22 @@ function flatten(obj, prefix) {
   return out;
 }
 
+// 2026-11-10(评审修复): 配置刷新后重算 S2_5 改期确认文案 —— enums 的 timeoutText 是加载期静态串,
+// 不跟随云端 MODIFY.confirmMinutes(否则后台改窗口后横幅仍显示默认 10 分钟)
+function syncStatusText() {
+  try {
+    const { ORDER_STATUS } = require('../config/enums');
+    if (ORDER_STATUS && ORDER_STATUS.S2_5) {
+      ORDER_STATUS.S2_5.timeoutText = `对方需${CONFIG.MODIFY.confirmMinutes}分钟内确认，超时自动拒绝`;
+    }
+  } catch (e) {}
+}
+
 function bootstrap() {
   if (!wx.cloud) return Promise.resolve(false);
   // 2026-11-05 N-7: 冷启动先用上次成功的云端配置（7 天内），再异步刷新；断网/冷启动不再直接落到硬编码
   hydrateFromCache();
+  syncStatusText();
   // 审计留痕: 登录链路关键调用携带设备摘要
   let device = '';
   try { const s = wx.getDeviceInfo ? wx.getDeviceInfo() : wx.getSystemInfoSync(); device = `${s.brand || ''} ${s.model || ''}|${s.system || ''}|${s.platform || ''}`.trim().slice(0, 200); } catch (e) {}
@@ -142,6 +154,7 @@ function bootstrap() {
     deepAssign(CONFIG, flat, CLOUD_MAP);
     if (cloudConfig.version) CONFIG.VERSION = cloudConfig.version;
     saveCache(flat);
+    syncStatusText();
     return true;
   }).catch(() => {
     // 静默降级: 云函数冷启动/无网络/鉴权失败都不阻塞启动
