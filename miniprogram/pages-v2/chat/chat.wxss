@@ -310,6 +310,10 @@
 .chat__pay-banner { display: flex; align-items: center; justify-content: space-between; margin: 16rpx 24rpx 0; padding: 20rpx 24rpx; background: var(--brand-primary); color: var(--text-invert); border-radius: var(--r-md); font-size: var(--font-sm); box-shadow: 0 6rpx 20rpx rgba(7, 193, 96, 0.3); }
 .chat__pay-go { font-weight: 600; }
 
+/* 2026-11-10(用户反馈): S2 顶部「改地点/改内容」由纯文字改为可见按钮(原仅加粗, 与提示语同色难辨识) */
+.chat__limit-acts { margin-top: 8rpx; }
+.chat__limit-btn { display: inline-block; margin: 0 8rpx; padding: 8rpx 28rpx; border: 1rpx solid var(--func-warning); border-radius: 999rpx; color: var(--func-warning); background: var(--bg-card); font-weight: 600; }
+
 /* 调整确认项弹层 */
 .chat__edit-field { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 8rpx; border-bottom: 1rpx solid var(--bg-segment); font-size: var(--font-md); }
 .chat__edit-val { color: var(--text-2); }

@@ -1095,7 +1095,11 @@ Page({
       wx.showModal({ title: '暂不可变更', content: '有变更待对方反馈，请先处理变更', showCancel: false, confirmText: '知道了' });
       return;
     }
-    this.goChat();
+    // 2026-11-10(用户反馈): 带 s2 参数跳转, 落地聊天页后直达「改地点」, 避免用户进页找不到入口
+    wx.redirectTo({
+      url: `/pages-v2/chat/chat?orderId=${this.data.order._id}&s2=location`,
+      fail: () => wx.showToast({ title: '页面加载失败', icon: 'none' })
+    });
   },
 
   onModifyDateChange(e) {

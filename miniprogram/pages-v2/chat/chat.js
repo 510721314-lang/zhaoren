@@ -95,6 +95,8 @@ Page({
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
     } catch (e) {}
     this.__orderId = (options && options.orderId) || '';
+    // 2026-11-10(用户反馈): 详情页「申请变更(地点/内容)」带 s2 参数跳转, 数据就绪后直达改地点
+    this.__s2Auto = (options && options.s2) || '';
     this.__convId = '';
     this.__pollTimer = null;
     this.fetchData();
@@ -336,6 +338,12 @@ Page({
       orderSummary: this.__orderSummary(d)
     }, () => {
       this.updateMsgStatuses();
+      // 2026-11-10(用户反馈): 详情页带 s2 参数进入 → 状态/履约时间/变更次数已就绪, 直接进入改地点(只触发一次)
+      if (this.__s2Auto && nextStatus === 'S2') {
+        const autoField = this.__s2Auto;
+        this.__s2Auto = '';
+        this.startEdit(autoField);
+      }
       // ── 状态提示 catch-up 模式: 每状态只提示一次, 不依赖轮询跳变/瞬时窗口(根治"提示不跳出/丢失"类问题) ──
       // 2026-10-30(§34): 状态提示幂等键落 Storage(once:status:<order_id>:<阶段>), 重进聊天页不再重复弹
       const stOid = this.data.orderId || '';
