@@ -170,7 +170,7 @@
 | `block_words` | 本地兜底敏感词库 | `block_words_add`/`block_words_remove` 增量 |
 | `test_openids` | 测试白名单 | 增量 |
 | `error_scan_exempt_types` | 巡检豁免项 | 全量替换；`type` 或 `type:reason`；≤50 条、≤60 字 |
-| `modify_config` | 改期规则 | `{minLeadHours,maxTimes,maxSpanH,confirmHours}` 区间校验 |
+| `modify_config` | 改期规则 | `{minLeadHours,maxTimes,maxSpanH,confirmMinutes}` 区间校验 |
 | `sub_msg_templates` | 订阅模板 ID | 白名单键 `demand_grab`/`demand_urge`；ID 格式校验 |
 | `sub_msg_https` | 订阅 HTTPS 通道凭据（opt-in） | `{appid, secret}`；appid 须 `wx`+16hex |
 | `scene_list` | 场景白名单 | 增删场景/服务项/可见性；内置场景不可删（`builtin`）；名称 ≤12、服务项 ≤8 |

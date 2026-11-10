@@ -141,7 +141,7 @@
 | 分组 | 代表键 |
 |---|---|
 | 距离与下单限制 | `publish_distance_max_km`、`take_distance_max_km`、`youth_limit_fen`、`partner_daily_take_limit` |
-| 履约双确认/改期 | `s2ChangeEnabled`、`s2ChangeBMinHours`、`modifyConfirmHours`、`time_redline_close_min` |
+| 履约双确认/改期 | `s2ChangeEnabled`、`s2ChangeBMinHours`、`modifyConfirmMinutes`（分钟，默认 10）、`time_redline_close_min` |
 | 信用 | `min_credit_take_order`、`min_credit_place_order`、`credit_freeze_line` |
 | 金额与提现 | `fixed_price_min_fen`、`fast_withdraw_per_order_max_fen`、`aa_ledger_max_records` |
 | 分页与长度 | `msg_page_size`、`order_page_size`、`publish_title_max_len`、`p_bio_len` |

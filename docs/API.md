@@ -295,7 +295,7 @@
 | 2 | `pay` | user | S0 → S2 | 支付流水成功 | 30min→S6 |
 | 3 | `cancel` | both | S1/S0 → S6 | 已付则原路退 | — |
 | 4 | `cancel_request` | both | S2 → 原态 | 挂起不改主轴（`cancel_request` 字段） | 对方 2h 确认，超时转裁决 |
-| 6 | `modify` | both | S2/S2_5 → 原态 | 未冻结 | `confirmHours` 可配→自动拒绝 |
+| 6 | `modify` | both | S2/S2_5 → 原态 | 未冻结 | `confirmMinutes`（分钟，默认 10）可配→超时确认失效并自动拒绝 |
 | 7 | `interrupt_report` | both | S3 → S3.5 | 原因必填、未冻结 | 24h→S4 |
 | 8 | `resume` | both | S3.5 → S3 | — | — |
 | 9 | `partial_agree` | both | S3.5 → S4 | — | 裁限期→按证据转裁决 |
@@ -461,7 +461,7 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 | 8 | 与原时间跨度 ≤ `maxSpanH` | `oa_modify_span` |
 | 9 | 原因过内容安全 | `oa_text_unsafe` |
 
-- 落库：`status='S2_5'`、`pending_modify={from_status,new_start_time,reason,by_openid,by_role,created_at,expire_at=confirmHours}`、`modify_at`。
+- 落库：`status='S2_5'`、`pending_modify={from_status,new_start_time,reason,by_openid,by_role,created_at,expire_at=now+confirmMinutes*60000}`、`modify_at`。
 - 幂等：已是 `S2_5` 且 `pending_modify.by_openid` 为本人 → `ok:true` + `idempotent:true`。
 - 通知：对方 `type='modify'`，`action_key='jump_accept_modify'`（**await 落库**，防云函数冻结丢通知）。
 
@@ -482,7 +482,7 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 | 入参 | `add_hours` 必须 1–12 整数（`oa_extend_hours`）、`reason`（可选，`reasonMaxLen` 截断） |
 | 互斥 | 已有 `pending_extend` → `oa_extend_exist` |
 | 计价 | `pricing_type==='fixed'` → `add_amount_fen=0`；否则 `Math.round(total_fen / duration_h * add_hours)`，≤0 → `oa_extend_price` |
-| 确认窗口 | `extend_confirm_min`（分钟，默认 20）；配置为 0 时回退 `resolveModify().confirmHours*60`；`expire_at` 在申请时算死 |
+| 确认窗口 | `extend_confirm_min`（分钟，默认 20）；配置为 0 时回退 `resolveModify().confirmMinutes`；`expire_at` 在申请时算死 |
 | 落库 | `pending_extend={add_hours,add_amount_fen,reason,by_openid,by_role,created_at,expire_at}`、`extend_count+1`、`pending_extend_token=now` |
 | 幂等 | 同 `pending_extend.by_openid` → `ok:true` + `idempotent:true` |
 | 确认 | `duration_h+add_hours`、`total_fen+add_amount_fen`；非一口价按 `splitOrderAmount` 重算 `fee_fen`/`partner_income_fen`（一口价保持不变）；清 `pending_extend` 且 `pending_extend_token=0` |

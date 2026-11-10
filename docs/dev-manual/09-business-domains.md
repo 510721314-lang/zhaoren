@@ -51,7 +51,7 @@
 | 2 | pay | user | S0 | S2 | 30min→S6(释放 demand) |
 | 3 | cancel | both | S1,S0 | S6 | 已付原路退 |
 | 4 | cancel_request | both | S2 | null | 挂起；对方 2h 确认，超时转裁决 |
-| 6 | modify | both | S2,S2_5 | null | confirmHours→自动拒绝 |
+| 6 | modify | both | S2,S2_5 | null | confirmMinutes(分钟, 默认 10)→超时确认失效并自动拒绝 |
 | 7 | interrupt_report | both | S3 | S3.5 | 24h→S4 |
 | 8 | resume | both | S3.5 | S3 | — |
 | 9 | partial_agree | both | S3.5 | S4 | 裁限期→按证据转裁决 |
@@ -107,7 +107,7 @@
 
 ### 9.2.3 改期 / 加时 / 中断恢复
 
-- **改期** `modify`：S2/S2_5 发起，`modify_config{minLeadHours,maxTimes,maxSpanH,confirmHours}` 约束；对方确认 `modify_confirm` → 回 S2；驳回或超 `confirmHours` → 自动拒绝（`S2.5` 超时回原状态）。
+- **改期** `modify`：S2/S2_5 发起，`modify_config{minLeadHours,maxTimes,maxSpanH,confirmMinutes}` 约束；对方确认 `modify_confirm` → 回 S2；驳回、超 `confirmMinutes`（默认 10 分钟）后确认失败 → 由巡检自动拒绝（`S2.5` 超时回原状态）。
 - **加时** `extend`：S3 发起，对方 `extend_confirm`/`extend_reject`；超 `extend_confirm_min`（**分钟制，默认 20 分钟**；0=跟随改期窗口）→ 自动拒绝；用 `pending_extend_token` 乐观锁防竞态。加时补付（`extend_paid`）未付不加结算基数。
 - **中断恢复** `interrupt_report`（S3→S3.5，原因必填）→ `resume_service` 回 S3；24h 未恢复 → S4。
 

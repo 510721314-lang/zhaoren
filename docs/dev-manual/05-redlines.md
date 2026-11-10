@@ -40,7 +40,7 @@
   - 转裁决为**专用双出口**：同意取消按裁决时点梯度退款 → S7；驳回清挂起回 S2。
   - 同方被拒后不可重发，每单双方合计发起上限 2 次，满额仅剩裁决入口。
 - **履约催办三段式**：到点提醒耍伴 → 超时 1h 用户收通知 + 催办入口亮起 → 超时 4h 自动引导爽约申诉。每单限手动触发 **2 次**，满额置灰。
-- 加时申请超时自动拒绝：S3 且存在 `pending_extend` 时，以 `expire_at` 或 `created_at+modifyConfirmH` 判定超时，写 `timeout_extend_auto_reject` 时间线 + 发 `extend_reject` 通知，用 `pending_extend_token` 乐观锁防竞态。
+- 加时申请超时自动拒绝：S3 且存在 `pending_extend` 时，以 `expire_at` 或 `created_at+extend_confirm_min`（分钟，0 时回退改期 `confirmMinutes`）判定超时，写 `timeout_extend_auto_reject` 时间线 + 发 `extend_reject` 通知，用 `pending_extend_token` 乐观锁防竞态。
 - 订单相关事件（投诉/爽约/改期等）必须在订单详情页以**统一时间线**倒序展示，操作人角色可读化，**不暴露原始 openid**。
 - 纠纷/申诉历史汇总合并四类数据源：状态流水 + 投诉记录 + 爽约申诉 + 支付/退款流水。
 - `order-timer` 所有扫描统一使用**分页循环**，避免单页 `limit` 导致积压超 50 笔的部分单据永不被处理，单轮硬上限 500 笔。
