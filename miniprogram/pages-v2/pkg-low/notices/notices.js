@@ -50,7 +50,7 @@ Page({
   onReachBottom() { this.loadList(false); },
 
   // 2026-10-30(提示滞后批4): 通知页停留轮询 —— 每 15s 静默比对「首条 _id+created_at 与未读数」,
-  // 有变化才 setData; 不闪 loading、失败静默、已分页时只同步未读不重排列表(防分页重复/漏条)
+  // 有变化才 setData; 不闪 loading、失败静默; 已分页时若首条变化则重置回第一页(2026-11-10 修: 原逻辑新通知进不了列表)
   startNoticePoll() {
     this.stopNoticePoll();
     this._noticeTimer = setInterval(() => this.pollNoticeOnce(), 15000);
@@ -73,8 +73,8 @@ Page({
       ? this.data.unread : (r.data.unread || 0);
     const sig = (x) => ((x && x._id) ? `${x._id}|${x.created_at || 0}` : '');
     const changed = sig(page[0]) !== sig((this.data.list || [])[0]);
-    const paged = this.data.hasMore || (this.data.list || []).length > this.data.pageSize;
-    if (changed && !paged) {
+    if (changed) {
+      // 2026-11-10(提示滞后): 首条变化即重置回第一页 —— 原实现「已分页只同步未读」导致新通知永远进不了列表
       this.setData({ list: page, unread: unreadNext, empty: page.length === 0, hasMore });
     } else if (unreadNext !== this.data.unread) {
       this.setData({ unread: unreadNext });

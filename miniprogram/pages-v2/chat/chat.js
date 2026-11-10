@@ -106,6 +106,8 @@ Page({
     this.__refreshS2Text();
     this.setData({ isRedline: redline.isInRedline() });
     this.startPolling();
+    // 2026-11-10(提示滞后): 回前台立即补拉一次, 不再等首个 15s tick; 首次 onShow 由 onLoad.fetchData 覆盖, 跳过防双拉
+    if (this.__resumed) this.pollOrderChat(); else this.__resumed = true;
   },
   onHide() { this.stopPolling(); },
   onUnload() { this.stopPolling(); this.clearRateTimer(); },
@@ -624,16 +626,17 @@ Page({
   },
 
   // ───────── 订单动态通知展示: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
-  // 幂等去重: 已提示过的通知 id 不再重复(Storage once:chat_notice:<order_id> 持久化); 数据源为 chat_poll.notices(60s 一轮)
+  // 幂等去重: 已提示过的通知不再重复(Storage once:chat_notice:<order_id> 持久化); 数据源为 chat_poll.notices(60s 一轮)
+  // 2026-11-10(提示滞后): 去重键改为 id|created_at —— writeNotice 合并时复用同一 _id 并刷新 created_at, 仅按 id 会吞掉第二次同类事件
   applyNotices(d) {
     // 2026-10-30(§34): 通知/沟通提示幂等键落 Storage, 重进聊天页不再重复弹(§2 #88 已获放行: 文案与触发条件不变)
     const nOid = this.data.orderId || '';
     const shownIds = once.getMap('chat_notice:' + nOid);
     {
       if (!d || !d.list || !d.list.length) return;
-      const fresh = d.list.filter((n) => n && n.id && !shownIds[n.id]);
+      const fresh = d.list.filter((n) => n && n.id && !shownIds[n.id + '|' + (n.created_at || 0)]);
       if (!fresh.length) return;
-      fresh.forEach((n) => { shownIds[n.id] = 1; });
+      fresh.forEach((n) => { shownIds[n.id + '|' + (n.created_at || 0)] = 1; });
       once.putMap('chat_notice:' + nOid, shownIds);
       // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)
       const RESPOND_ALERT = {

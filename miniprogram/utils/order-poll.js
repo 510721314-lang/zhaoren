@@ -19,7 +19,8 @@ function clearTimers(page) {
 // 通知轮询: 停在订单详情页时每 8s 查本人该订单未读通知(多条递增展示)
 // - 全状态轮询: 耍伴停留等待对方确认时(改期/加时 S2_5), 需求方任何变动即时横幅+toast 提示
 // - 拉到新通知后静默刷新订单详情, 同步最新状态/新服务时间
-// 幂等去重: 已展示过的通知 id 不再重复展示(本地 Map 记忆)
+// 幂等去重: 键取 id|created_at —— writeNotice 对同(收件人,订单,type,未读)复用同一 _id 并刷新 created_at,
+//           仅按 id 去重会把"第二次改期/第二次变更/第二次催办"误判为已展示
 function startTipPoll(page) {
   stopTipPoll(page);
   page.__shownTipIds = page.__shownTipIds || {};
@@ -29,14 +30,14 @@ function startTipPoll(page) {
       const d = r && r.ok && r.data;
       if (!d || !d.list || !d.list.length) return;
       // 多次打赏/多通知: 依次追加到列表, 已展示过的不再重复
-      const fresh = d.list.filter((n) => n && n.id && !page.__shownTipIds[n.id]);
+      const fresh = d.list.filter((n) => n && n.id && !page.__shownTipIds[n.id + '|' + (n.created_at || 0)]);
       if (!fresh.length) return;
-      fresh.forEach((n) => { page.__shownTipIds[n.id] = 1; });
+      fresh.forEach((n) => { page.__shownTipIds[n.id + '|' + (n.created_at || 0)] = 1; });
       // 2026-10-30(§34): toast/弹窗类提示另用 Storage 去重(once:notice_tip:<order_id>) ——
       // 内存标记随页面销毁失效, 未点开的通知重进订单详情会重复弹窗; 横幅仍走页内去重
       const prompted = once.getMap('notice_tip:' + orderId);
-      const freshPrompt = fresh.filter((n) => !prompted[n.id]);
-      freshPrompt.forEach((n) => { prompted[n.id] = 1; });
+      const freshPrompt = fresh.filter((n) => !prompted[n.id + '|' + (n.created_at || 0)]);
+      freshPrompt.forEach((n) => { prompted[n.id + '|' + (n.created_at || 0)] = 1; });
       if (freshPrompt.length) once.putMap('notice_tip:' + orderId, prompted);
       const iconOf = (type) => (type === 'tip' ? '💝' : '🔔');
       const textOf = (n) => (n.type === 'tip' ? (n.body || '收到打赏') : (n.body || n.title || '新通知'));
