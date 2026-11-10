@@ -381,7 +381,8 @@ Page({
       // 1c) 2026-11-10(用户需求): 待我处理的变更 → 弹窗引导进入处理(once 按变更 token 幂等, 处理入口=本页变更卡片)
       const pcn = this.data.pendingChange;
       if (pcn && pcn.can_respond) {
-        const chKey = 'change_' + (pcn.token || `${pcn.field}:${((d.pending_change || {}).expire_at) || 0}`);
+        // 2026-11-10 评审 P0: 键去 token, 改 field:expire_at —— 与订单详情页共用同一 Storage 键, 避免跨页双弹
+        const chKey = `change_${pcn.field}:${((d.pending_change || {}).expire_at) || 0}`;
         if (!shown(chKey)) {
           mark(chKey);
           wx.showModal({
@@ -637,10 +638,9 @@ Page({
         change_reject: '❌ 对方已拒绝变更'
       };
       const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
-      // 2026-11-04: 收到「对方申请变更」→ 震动+弹窗, 引导回顶部变更卡处理
-      const applyHit = !respondHit ? fresh.find((n) => n && n.type === 'change_apply') : null;
+      // 2026-11-10 评审 P0: 变更提醒收敛为单一来源(上方 1c token 键弹窗), 通知弹窗降级为横幅, 避免同轮双弹
       // 2026-11-10(3B): 收到「对方发起改期」→ 震动+弹窗引导进入处理(原仅顶部横幅, 易错过确认窗口)
-      const modifyHit = (!respondHit && !applyHit)
+      const modifyHit = !respondHit
         ? fresh.find((n) => n && n.type === 'modify' && String(n.title || '').indexOf('发起改期') >= 0)
         : null;
       // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）
@@ -658,19 +658,6 @@ Page({
           content: respondHit.body || '',
           showCancel: false,
           confirmText: '知道了'
-        });
-      } else if (applyHit) {
-        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-        wx.showModal({
-          title: '对方申请变更',
-          content: `${applyHit.body || '对方申请变更订单内容'}\n请在上方变更卡查看并接受/拒绝`,
-          confirmText: '去处理',
-          cancelText: '稍后',
-          confirmColor: '#07C160',
-          fail: () => {},
-          success: (res) => {
-            if (res.confirm) wx.pageScrollTo({ scrollTop: 0, duration: 200 }); // 变更卡在页面顶部
-          }
         });
       } else if (modifyHit) {
         try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}

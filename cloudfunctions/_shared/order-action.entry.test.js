@@ -1017,7 +1017,10 @@ test('modify: 选回原服务时间拒绝（oa_modify_same）', async () => {
 // 2026-11-10 评审补测: 改期原因必填 + 类型必选
 test('modify: 原因不足 10 字拒绝（oa_modify_reason）', async () => {
   const ST = Date.now() + 5 * 3600 * 1000;
-  const newTs = ST + 24 * 3600 * 1000;
+  // 北京时间「2 天后 12:00」——落在运营时段内且跨度 ≤72h, 以触达原因校验分支
+  const CN = 8 * 3600 * 1000;
+  const cnDayStart = Math.floor((Date.now() + CN) / 86400000) * 86400000 - CN;
+  const newTs = cnDayStart + 2 * 86400000 + 12 * 3600 * 1000;
   const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: ST, modify_count: 0 }) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'modify', order_id: OID, new_start_time: newTs, reason: '太短', reason_type: 'time_conflict', mock_openid: USER }, {});
@@ -1026,7 +1029,10 @@ test('modify: 原因不足 10 字拒绝（oa_modify_reason）', async () => {
 
 test('modify: 原因类型缺失拒绝（oa_modify_reason_type）', async () => {
   const ST = Date.now() + 5 * 3600 * 1000;
-  const newTs = ST + 24 * 3600 * 1000;
+  // 北京时间「2 天后 12:00」——落在运营时段内且跨度 ≤72h, 以触达原因校验分支
+  const CN = 8 * 3600 * 1000;
+  const cnDayStart = Math.floor((Date.now() + CN) / 86400000) * 86400000 - CN;
+  const newTs = cnDayStart + 2 * 86400000 + 12 * 3600 * 1000;
   const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: ST, modify_count: 0 }) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'modify', order_id: OID, new_start_time: newTs, reason: '项目进度未完成需调整服务时间', mock_openid: USER }, {});

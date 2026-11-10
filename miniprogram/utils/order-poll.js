@@ -45,7 +45,8 @@ function startTipPoll(page) {
         text: `${iconOf(n.type)} ${textOf(n)}`,
         time: n.created_at ? fmtNoticeTime(n.created_at) : ''
       }));
-      page.setData({ tipNotices: [...items, ...page.data.tipNotices] });
+      // 2026-11-10 评审 P2: 横幅只留最近 3 条 —— 原实现每次进页把全部未读(limit 20)重挂, 旧通知堆积造成"滞后/刷屏"观感
+      page.setData({ tipNotices: [...items, ...page.data.tipNotices].slice(0, 3) });
       // 即时提示: 对方(需求方/耍伴)对该订单的变动, toast 醒目提示; 关键类型用明确文案
       // 四确认单步通知(title=订单沟通)只进横幅不弹 toast, 避免逐项刷屏
       // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)

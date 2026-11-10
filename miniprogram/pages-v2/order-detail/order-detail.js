@@ -7,6 +7,8 @@ const { getScene } = redline;
 const { ORDER_STATUS, normalizeStatus } = require('../../config/enums.js');
 
 const { callCloud } = require('../../utils/cloud.js');
+// 2026-11-10 评审 P0: 变更弹窗幂等键需与聊天页共用(Storage)，避免跨页双弹
+const once = require('../../utils/once-anchor.js');
 // 批 5.4: 纯映射函数(computeNextStep/pad)抽离到 utils/order-view.js, 可单测; 此处仅编排
 // 拆分阶段1 C1(2026-10-15): buildModifyTs/buildPrepCountdown 同外移, 页面留薄代理/编排调用
 // 拆分阶段1 C2(2026-10-15): buildOrderView(原 refreshOrder 映射主体)/fmtDate 外移; refreshOrder 仅留 setData+弹窗震动编排
@@ -394,6 +396,26 @@ Page({
               wx.pageScrollTo({ selector: '.od__pending-banner', duration: 300 });
             }
           }
+        });
+      }
+    } else if (d.pending_change && order.pending_change && order.my_role
+      && d.pending_change.by_role !== order.my_role) {
+      // 2026-11-10 评审 P0: 详情页缺 pending_change 状态弹窗(原只有静态横幅), 任意时间进页都引导去处理;
+      // 幂等键与聊天页 catch-up 共用 status:<oid>:change_<field>:<expire_at>, 避免"详情页→聊天页"重复弹
+      const _pcRaw = d.pending_change;
+      const _pc = order.pending_change;
+      const pcKey = `status:${order.order_id}:change_${_pcRaw.field}:${_pcRaw.expire_at || 0}`;
+      if (!once.has(pcKey)) {
+        once.mark(pcKey);
+        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        wx.showModal({
+          title: `对方申请变更「${_pc.field_cn}」`,
+          content: `${_pc.old_text} → ${_pc.new_text}\n${_pc.expire_text ? _pc.expire_text + '，' : ''}请进入聊天页处理`,
+          confirmText: '去处理',
+          cancelText: '稍后',
+          confirmColor: '#07C160',
+          fail: () => wx.showToast({ title: '有变更待处理', icon: 'none' }),
+          success: (res) => { if (res.confirm) this.goChat(); }
         });
       }
     }
