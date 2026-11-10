@@ -913,8 +913,9 @@ Page({
       return;
     }
     // 按原单价算参考价(仅展示, 以云端为准)
-    const durationH = Number(order.duration_h) || 1;
-    const totalFen = Number(order.total_fen) || 0;
+    // 2026-11-10 修复: order 视图键为 duration_hours/amount_fen(原误读 duration_h/total_fen 恒 0)
+    const durationH = Number(order.duration_hours) || 1;
+    const totalFen = Number(order.amount_fen) || 0;
     const hourRateFen = Math.round(totalFen / durationH);
     this.setData({
       extendPanelVisible: true,

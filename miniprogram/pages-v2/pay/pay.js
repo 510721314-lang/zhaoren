@@ -57,6 +57,9 @@ Page({
       const totalFen = d.total_fen || 0;
       this.setData({
         loading: false,
+        // 2026-11-10 修复: 本地 8s 超时可能先置 loadError=true, 而云调用上限 12s;
+        // 成功分支必须复位, 否则 8~12s 才返回时会话已拿到订单却仍显示「加载超时」
+        loadError: false,
         order: {
           order_no: d.order_no,
           status: d.status,

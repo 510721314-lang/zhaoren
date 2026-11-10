@@ -229,11 +229,11 @@ async function my_orders(ctx) {
   const { event, openid, col, _, log, buildOrderSummary, haversineKm, estimateCommute } = ctx;
   const role = event.role === 'user' ? 'user' : 'partner';
   const queryField = role === 'partner' ? 'partner_openid' : 'user_openid';
-  // tab 过滤(与前端 TAB 同口径; 云端字面量一律点号 S3.5/S10.5/S2.5)
+  // tab 过滤(与前端 TAB 同口径; 状态字面量用落库值: S2_5 / S3.5 / S10.5)
   // 2026-10-28: 承接视角细分 tab —— confirm(待确认 S1) / done(已完成 S5 + 终态 S8 已评价、S9 评价超时) / canceled(已取消 S6)
   const FILTER_STATUS = {
     pay: ['S0'],
-    doing: ['S1', 'S2', 'S2.5', 'S3', 'S3.5'],
+    doing: ['S1', 'S2', 'S2_5', 'S3', 'S3.5'],
     eval: ['S5'],
     after: ['S6', 'S7', 'S9', 'S10', 'S10.5'],
     confirm: ['S1'],
@@ -336,8 +336,8 @@ async function my_orders(ctx) {
       end_time: o.start_time + (o.duration_h || 1) * 3600 * 1000,
       total_fen: o.total_fen,
       status: o.status,
-      // 改期待确认红点: 订单处于 S2.5 且改期发起人不是当前查看者
-      need_confirm: o.status === 'S2.5' && !!(o.pending_modify && o.pending_modify.by_openid !== openid),
+      // 改期待确认红点: 订单处于 S2_5 且改期发起人不是当前查看者（2026-11-10: 原误写 S2.5 永不命中）
+      need_confirm: o.status === 'S2_5' && !!(o.pending_modify && o.pending_modify.by_openid !== openid),
       commute: null,
       order_summary: buildOrderSummary(o)
     };

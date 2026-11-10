@@ -185,6 +185,13 @@ async function mockRefundAction(ctx) {
       if (['S2', 'S3'].indexOf(order.status) < 0) {
         return { ok: false, code: 'refund_status', msg: `订单当前状态(${order.status})不可退款` };
       }
+      // 2026-11-10 修复(评审): 冻结/争议中禁止自助退款 —— 原仅校验状态, 爽约申诉冻结中可全额退款绕过裁定
+      if (order.frozen === true || order.dispute_state === 'open') {
+        return { ok: false, code: 'refund_frozen', msg: '订单争议/申诉处理中,暂不可退款' };
+      }
+      // 2026-11-10 修复(评审): 退款按实付金额(fund.paid_fen)计算, 原按 total_fen ——
+      // 加时后 total_fen 会抬高但无补付流水, 按 total_fen 全额退会多退未付金额(老订单无 fund 兜底 total_fen)
+      const paidFen = Number((order.fund && order.fund.paid_fen) || order.total_fen) || 0;
 
       // 幂等:已有退款流水直接返回(返回订单真实状态, 不硬编码)
       try {
@@ -194,7 +201,7 @@ async function mockRefundAction(ctx) {
         if (exist.data && exist.data.length > 0) {
           const latest = await getOrder(order_id);
           log.d(`mock_refund idempotent hit: ${order.order_no}`);
-          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, amount_fen: order.total_fen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
+          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, amount_fen: paidFen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
         }
       } catch (e) {}
@@ -210,7 +217,7 @@ async function mockRefundAction(ctx) {
           _id: order_id, status: _.in(['S2', 'S3'])
         }).update({ data: { status: 'S7', refunded_at: now, updated_at: now,
           // Wave1 正交位 dual-write(§3.2): 全额自助退 → paid/refunded 同步(幂等检查已保证无历史退款)
-          fund: { paid_fen: Number(order.total_fen) || 0, refunded_fen: Number(order.total_fen) || 0, settle_state: 'pending', settled_at: 0 } } });
+          fund: { paid_fen: paidFen, refunded_fen: paidFen, settle_state: 'pending', settled_at: 0 } } });
       } catch (e) {
         log.d(`mock_refund cas fail: ${e.message}`);
         return { ok: false, code: 'refund_db_fail', msg: '退款失败,请联系管理员' };
@@ -221,7 +228,7 @@ async function mockRefundAction(ctx) {
         }).limit(1).get().catch(() => ({ data: [] }));
         if (dup.data && dup.data[0]) {
           const latest = await getOrder(order_id);
-          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, amount_fen: order.total_fen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
+          await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, amount_fen: paidFen, idempotent: true }, result: 'ok', client_ip: clientIp, device });
           return { ok: true, data: { order_id, order_no: order.order_no, status: latest ? latest.status : 'S7', idempotent: true } };
         }
         return { ok: false, code: 'refund_status_conflict', msg: '订单状态已变化,请刷新后重试' };
@@ -235,7 +242,7 @@ async function mockRefundAction(ctx) {
             order_id,
             order_no: order.order_no,
             type: 'refund',
-            amount_fen: order.total_fen,
+            amount_fen: paidFen,
             channel: 'mock',
             is_mock: true,
             status: 'success',

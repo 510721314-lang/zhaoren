@@ -25,7 +25,9 @@ const CLOUD_MAP = {
   // ── 已覆盖(不动) ──
   'timeouts.s0_timeout_min': 'ORDER.payTimeoutMin',
   'timeouts.s1_timeout_min': 'ORDER.confirmTimeoutMin',
-  'timeouts.interrupt_timeout_h': 'ORDER.partialJudgeDays',
+  // 2026-11-10 修复: 原映射 timeouts.interrupt_timeout_h(小时) → partialJudgeDays(天), 导致 S4 文案「24天」;
+  // 改映射独立键 partial_judge_days(天, 默认 7)
+  'timeouts.partial_judge_days': 'ORDER.partialJudgeDays',
   'timeouts.eval_window_h': 'ORDER.evalWindowH',
   'credits.credit_freeze_line': 'CREDIT.freeze',
   'rate_range.rate_min_fen': 'PARTNER_ACCEPT.rateMinFen',

@@ -280,7 +280,7 @@ async function milestone_confirm(ctx) {
 }
 
 async function resume_service(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, isFrozen } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -289,6 +289,8 @@ async function resume_service(ctx) {
   if (order.status !== 'S3.5') {
     return { ok: false, code: 'oa_resume_status', msg: `订单当前状态(${order.status})不可恢复履约` };
   }
+  // 2026-11-10 修复(评审): 冻结期禁止推进(原缺校验, 申诉冻结中仍可 S3.5→S3 继续履约结算)
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可恢复履约' };
   const now = Date.now();
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);

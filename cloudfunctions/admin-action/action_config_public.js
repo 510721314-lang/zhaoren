@@ -37,6 +37,8 @@ function config_public(ctx) {
       s0_timeout_min: cfgRaw.s0_timeout_min,
       s1_timeout_min: cfgRaw.s1_timeout_min,
       interrupt_timeout_h: cfgRaw.interrupt_timeout_h,
+      // 2026-11-10 修复: S4 裁定期(天)单独下发; 前端原把 interrupt_timeout_h(小时) 当日渲染成「24天」
+      partial_judge_days: cfgRaw.partial_judge_days !== undefined ? cfgRaw.partial_judge_days : 7,
       eval_window_h: cfgRaw.eval_window_h,
       default_star: cfgRaw.default_star,
       // 加时确认窗口(批3.4 补齐; 2026-10-13 改分钟制默认 20): 0 = 跟随改期确认窗口(与 order-timer/order-action 同一口径)
@@ -55,12 +57,13 @@ function config_public(ctx) {
       youth_limit_fen: cfgRaw.youth_limit_fen
     },
     insurance: {
-      coverage_accident_fen: cfgRaw.insurance && cfgRaw.insurance.coverage_accident_fen,
-      coverage_property_fen: cfgRaw.insurance && cfgRaw.insurance.coverage_property_fen
+      // 2026-11-10 修复: 运营页落库为顶层键(schema f), 原读嵌套 insurance.* 恒 undefined
+      coverage_accident_fen: cfgRaw.insurance_coverage_accident_fen !== undefined ? cfgRaw.insurance_coverage_accident_fen : 50000000,
+      coverage_property_fen: cfgRaw.insurance_coverage_property_fen !== undefined ? cfgRaw.insurance_coverage_property_fen : 5000000
     },
     fast_withdraw: {
-      per_order_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_order_max_fen,
-      per_day_max_fen: cfgRaw.fast_withdraw && cfgRaw.fast_withdraw.per_day_max_fen
+      per_order_max_fen: cfgRaw.fast_withdraw_per_order_max_fen !== undefined ? cfgRaw.fast_withdraw_per_order_max_fen : 20000,
+      per_day_max_fen: cfgRaw.fast_withdraw_per_day_max_fen !== undefined ? cfgRaw.fast_withdraw_per_day_max_fen : 200000
     },
     modify_config: resolveModify(cfgRaw),
     s2_change: (() => {

@@ -378,6 +378,8 @@ function buildOrderView(d, now = Date.now()) {
     service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
     duration_hours: d.duration_h || 0,
     amount_fen: d.total_fen || 0,
+    // 2026-11-10 修复: detail 已下发 pricing_type, 但视图未映射 → 详情页加时面板一口价判定恒 false
+    pricing_type: d.pricing_type || '',
     tip_total_fen: d.tip_total_fen || 0,
     insurance: null, // detail 暂未返回保险, 先隐藏保险卡
     confirm: d.confirm,

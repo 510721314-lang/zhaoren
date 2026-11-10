@@ -197,7 +197,7 @@ async function modify_confirm_or_reject(ctx) {
 }
 
 async function extend(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, getConfig, checkText, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, reasonMaxLen } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, getConfig, checkText, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, reasonMaxLen, isFrozen } = ctx;
   const { add_hours, reason } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
@@ -215,6 +215,8 @@ async function extend(ctx) {
   if (order.pending_extend) {
     return { ok: false, code: 'oa_extend_exist', msg: '已有待确认的加时申请,请等待对方处理' };
   }
+  // 2026-11-10 修复(评审): 冻结期禁止发起加时(原缺校验, 争议/申诉期间仍可抬结算基数)
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可申请加时' };
 
   const isFixedExtend = order.pricing_type === 'fixed';
   const durationH = Number(order.duration_h) || 1;
@@ -277,7 +279,7 @@ async function extend(ctx) {
 }
 
 async function extend_confirm_or_reject(ctx) {
-  const { action, event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, _, splitOrderAmount, getConfig, logStatus, writeNotice, writeAudit } = ctx;
+  const { action, event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, _, splitOrderAmount, getConfig, logStatus, writeNotice, writeAudit, isFrozen } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -314,6 +316,12 @@ async function extend_confirm_or_reject(ctx) {
     return { ok: true, data: { order_id, extend_rejected: true } };
   }
 
+  // 2026-11-10 修复(评审): 同意加时前校验过期与冻结 —— 原仅状态校验, 过期申请/冻结期仍可同意并改结算基数
+  // (拒绝分支不受限: 拒绝是回退动作, 冻结期允许对方主动关闭在途申请)
+  if (Number(pending.expire_at) > 0 && Date.now() > Number(pending.expire_at)) {
+    return { ok: false, code: 'oa_extend_expired', msg: '加时申请已超时，请重新发起' };
+  }
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可确认加时' };
   const addFen = Number(pending.add_amount_fen) || 0;
   const addH = Number(pending.add_hours) || 0;
   const isFixedConfirm = order.pricing_type === 'fixed';
@@ -350,7 +358,7 @@ async function extend_confirm_or_reject(ctx) {
 }
 
 async function partial_confirm(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, isFrozen } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -359,6 +367,8 @@ async function partial_confirm(ctx) {
   if (order.status !== 'S3.5') {
     return { ok: false, code: 'oa_partial_status', msg: `订单当前状态(${order.status})不可转部分完成` };
   }
+  // 2026-11-10 修复(评审): 冻结期禁止推进到 S4(原缺校验, 申诉冻结中仍可推进并结算)
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可确认部分完成' };
   const now = Date.now();
   const clientIp = (wxCtx && wxCtx.CLIENTIP) || '';
   const device = String(event.device || '').slice(0, 200);
