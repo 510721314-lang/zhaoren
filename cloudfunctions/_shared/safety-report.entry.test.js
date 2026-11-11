@@ -1,5 +1,6 @@
-// safety-report 入口层契约测试（report_user / sos / resolve_sos）
+// safety-report 入口层契约测试（全部 11 个 action）
 // 覆盖点：身份 / 未知动作 / 举报对象校验 / 举报成功+幂等 / ID 格式 / 越权 / 状态门 / 管理员权限
+// 补充：silent_sos / cancel_silent_sos / resolve / checkin / status / free_sos_status
 const test = require('node:test');
 const assert = require('node:assert');
 const Module = require('module');
@@ -115,6 +116,135 @@ test('resolve_sos 非管理员 → sr_not_admin', async () => {
   assert.strictEqual(r.code, 'sr_not_admin');
 });
 
+// ───────── 订单内求助: 静默求助 / 撤销 / 解除 / 报备 / 状态 ─────────
+const SID = 'b'.repeat(32);
+
+test('silent_sos 成功 → 写 sub_type=silent 且置 help_flag', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2', scene: 'W2' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'silent_sos', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.help_flag, true);
+  const add = (sdk.writes.safety_report || []).find((w) => w.add);
+  assert.ok(add && add.data.sub_type === 'silent' && add.data.status === 'active', '应写 sub_type=silent 的进行中求助');
+  const upd = (sdk.writes.order_main || []).find((w) => w.doc === OID);
+  assert.ok(upd && upd.data.help_flag === true, '应置订单 help_flag');
+});
+
+test('cancel_silent_sos 发起人撤销 → cancelled + help_flag=false', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2' } },
+    safety_report: { [SID]: {
+      _id: SID, order_id: OID, reporter_openid: USER, reporter_role: 'user', type: 'sos', sub_type: 'silent',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'cancel_silent_sos', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.help_flag, false);
+  const upd = (sdk.writes.safety_report || []).find((w) => w.doc === SID);
+  assert.ok(upd && upd.data.status === 'cancelled', '静默求助应置 cancelled');
+});
+
+test('cancel_silent_sos 一键求助 → sr_not_silent', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2' } },
+    safety_report: { [SID]: {
+      _id: SID, order_id: OID, reporter_openid: USER, reporter_role: 'user', type: 'sos', sub_type: '',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'cancel_silent_sos', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_not_silent');
+});
+
+test('resolve 发起人解除 → resolved + help_flag=false', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2' } },
+    safety_report: { [SID]: {
+      _id: SID, order_id: OID, reporter_openid: USER, reporter_role: 'user', type: 'sos', sub_type: '',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'resolve', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.help_flag, false);
+  const upd = (sdk.writes.safety_report || []).find((w) => w.doc === SID);
+  assert.ok(upd && upd.data.status === 'resolved', '求助应置 resolved');
+});
+
+test('resolve 非求助发起人的参与方 → sr_resolve_not_reporter', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2' } },
+    safety_report: { [SID]: {
+      _id: SID, order_id: OID, reporter_openid: OTHER, reporter_role: 'partner', type: 'sos', sub_type: '',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'resolve', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_resolve_not_reporter');
+});
+
+test('checkin 成功(W1) → 写 checkin 记录并返回下次报备时间', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2', scene: 'W1' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'checkin', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.type, 'checkin');
+  assert.strictEqual(typeof r.data.next_checkin_at, 'number', 'W1 应返回下次报备时间');
+  const add = (sdk.writes.safety_report || []).find((w) => w.add);
+  assert.ok(add && add.data.type === 'checkin' && add.data.status === 'done', '应写 done 状态报备记录');
+});
+
+test('checkin 60s 内重复 → sr_checkin_too_frequent', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2' } },
+    safety_report: { [SID]: {
+      _id: SID, order_id: OID, reporter_openid: USER, reporter_role: 'user', type: 'checkin',
+      status: 'done', is_deleted: false, created_at: Date.now() - 10 * 1000
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'checkin', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_checkin_too_frequent');
+});
+
+test('status 参与方 → 返回 help_flag / 最近报备 / 联系人', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: USER, partner_openid: 'p', status: 'S2', help_flag: true } },
+    safety_report: { [SID]: {
+      _id: SID, order_id: OID, reporter_openid: USER, reporter_role: 'user', type: 'checkin',
+      status: 'done', is_deleted: false, created_at: Date.now(), location: { latitude: 39.9, longitude: 116.4 }, note: '平安'
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'status', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.order_id, OID);
+  assert.strictEqual(r.data.help_flag, true);
+  assert.strictEqual(r.data.active_sos, null, '无进行中求助时应为 null');
+  assert.strictEqual(r.data.checkins.length, 1);
+  assert.strictEqual(r.data.checkins[0].has_location, true);
+  assert.ok(Array.isArray(r.data.my_contacts));
+});
+
+test('status 非参与方 → sr_not_participant', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    order_main: { [OID]: { _id: OID, order_no: 'ORD1', user_openid: OTHER, partner_openid: 'p', status: 'S2' } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'status', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'sr_not_participant');
+});
+
 // ───────── P2-11 自由求助(无订单) ─────────
 const FREE_ID = 'f'.repeat(32);
 
@@ -185,6 +315,31 @@ test('free_sos_resolve 无进行中求助 → sr_no_active_sos', async () => {
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'free_sos_resolve', mock_openid: USER }, {});
   assert.strictEqual(r.code, 'sr_no_active_sos');
+});
+
+test('free_sos_status 无进行中 → active=false 且 report_id 为空', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos_status', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.active, false);
+  assert.strictEqual(r.data.report_id, '');
+  assert.ok(Array.isArray(r.data.my_contacts));
+});
+
+test('free_sos_status 有进行中 → active=true 且返回 report_id', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    safety_report: { [FREE_ID]: {
+      _id: FREE_ID, order_id: '', reporter_openid: USER, type: 'sos', sub_type: 'free',
+      status: 'active', is_deleted: false, created_at: Date.now()
+    } }
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'free_sos_status', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.active, true);
+  assert.strictEqual(r.data.report_id, FREE_ID);
+  assert.strictEqual(typeof r.data.created_at, 'number');
 });
 
 test.after(() => { Module._load = origLoad; });
