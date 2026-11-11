@@ -332,6 +332,9 @@ alwaysApply: true
   | **静态托管（SPA 入口，测试/使用走这个）** | `https://<env>-<appid>.tcloudbaseapp.com/` | `cloudbase hosting deploy ./dist` 的落点，实测立即生效 |
   | **HTTP 网关（云函数 /api）** | `https://<env>-<id>.ap-shanghai.app.tcloudbase.com/api` | SPA 里 `BASE_URL` 硬编码指向它；其**根路径 `/` 也会返回 SPA HTML，但走 CDN 缓存**，部署后仍可能是旧构建（实测：托管域 `index-CNRxHc88.js` vs 网关域 `index-DG37DiD9.js`） |
   → 「页面没更新」先按 **M3 判域名**，再谈缓存；验证部署用 `GET /?v=<random>` + `Cache-Control: no-cache` 取 `assets/index-*.js` 哈希比对。
+  - **2026-11-11 二次实证（理由文案页上线后「后台没看到新菜单」）**：`hosting deploy` 成功后，托管域 `index.html` 已指向新构建（`index-Cs_oqI-5.js`），网关域 `.../index.html` 仍是**旧构建**（`index-CrGTjSWf.js`）；且对网关域追加 `?_bypass=<random>` 会返回 **404 + `Tencent-SCF` 上游头**——说明该路径的 HTML 由 HTTP 访问服务的静态配置/CDN 提供，**不随 `hosting deploy` 更新**，穿透缓存也拿不到新版本。
+  - **判据固化**：核验前端发布只认「托管域 `https://<env>-<appid>.tcloudbaseapp.com/index.html` 的 `index-*.js` 哈希 == 本地 `dist/index.html` 的哈希」；网关域的 HTML 不参与部署核验（它只保证 `/api`）。用户报「后台没更新」时，先问**他收藏的是哪个域名**，而非先怀疑构建或缓存。
+  - 另：`hosting deploy` 后首次回读若仍是旧 hash，属 CDN 边缘缓存（CLI 会提示数分钟），**用托管域重读**确认；注意「dist 构建时间早于 deploy」也会造成同样表象——两次实证都需先比对 `dist/assets` 最新文件时间戳与 `dist/index.html` 引用的 hash 是否自洽。
 - **M4 鉴权拒绝有审计，排障先查库再猜**：`admin-web` 网关对密钥失败写 `platform_event`（`type=gateway_bad_key`, `payload.reason=bad_key|missing_key`, `path=/api`）。**判据**：出现该事件＝请求确实到达网关且密钥不符（不是网络/CORS）；账号登录端点免 key，因此**不会**产生该事件 → 有该事件即可排除「账号模式密码错」。取证方式：带有效 `X-Admin-Key` 调 `{"action":"event_list","limit":15}` 读最近事件。实证：7 条 `gateway_bad_key` 直接定位到「粘贴的是错值」而非「网关故障」。
 - **M5 托管发布必须避开 `--prune`**：`cloudbase hosting deploy ./dist --safe` 足够；加 `--prune` 会删除本次产物之外的远端文件（本项目托管内既有 `__auth/*`、`cloud-admin/index.html`），属自毁。回滚口径＝按指定 commit 重建 `dist` 再发布（dist 可由源码重建，无需备份静态产物）。
 - 与既有规则关系：M1/M2 承接 §14（前端输入边界）与 §12（上线核验）；M3 补充 §23-H2（调用通道矩阵）与 §28-L4（网关通道验证）；M4 承接 §7（一次只验证一个假设：先取证再改代码）；M5 承接 §3（先说后做：破坏性参数需显式确认）。

@@ -179,6 +179,62 @@ async function doSubmit() {
 
 ---
 
+## 模式 D：配置型选项列表（增 / 删 / 改，2026-11-11 双专家评审立项）
+
+**适用**：后台可配置的枚举列表（理由文案、场景清单、档位选项等），运营要能自助增删选项 + 改显示文案。
+
+### 铁律 1：行必须按「云端已存 ∪ 全集」生成，禁止只按默认常量生成
+
+**反例（踩过的真实缺陷）**：
+```javascript
+// ❌ 用 DEFAULTS 直接 map —— 云端已存但不在 DEFAULTS 里的 key 被静默丢弃，
+//    运营一点保存就把它从配置里删掉（用户端选项凭空消失，且无任何报错）
+g.rows = DEFAULTS[kind].map((d) => ({ k: d.k, t: savedMap[d.k] || d.t }));
+```
+**正例**：
+```javascript
+// ✅ 云端已存数组为准（保留顺序与子集）；未配置时才回落到默认列表
+function fillRows(kind, saved) {
+  const savedList = Array.isArray(saved) ? saved.filter((x) => x && x.k) : [];
+  const src = savedList.length ? savedList : DEFAULTS[kind];
+  const defIt = (k) => ALL[kind].find((d) => d.k === k) || {};
+  g.rows = src.map((it) => reactive({ k: it.k, def: defIt(it.k).t || it.t, t: it.t || defIt(it.k).t || '' }));
+}
+```
+> 判据：**保存 → 刷新页面 → 行仍在 → 再保存 → 仍不丢**。缺这一步验收就会漏。
+
+### 铁律 2：删除按钮与「服务端非空约束」对齐
+
+服务端一般拒收空数组（`config_bad_xxx`）。UI 必须同步硬拦截，否则运营拿到的是云函数原始错误码：
+```vue
+<el-button size="small" type="danger" plain
+  :disabled="g.rows.length <= 1" @click="g.rows.splice($index, 1)">删除</el-button>
+```
+
+### 铁律 3：key 只读、文案可改、新增只能从白名单里挑
+
+- key 列 `prop="k"` 只读展示，不给编辑控件（改 key 等于改数据口径，历史数据会对不上）；
+- 「＋添加」用 `el-select` 列出**全集减去已启用**的项，杜绝自造 key；
+- 文案为空时**回退默认值**再提交（服务端通常有 2-10 字下限）。
+
+### 铁律 4：提示「冷启动生效」
+
+配置经 `config_public` + 客户端本地缓存下发，缓存 TTL 常见 7 天。保存成功后必须提示「下次冷启动生效（缓存≤7 天）」，否则用户会反复报「后台改了手机没变」。
+
+### 铁律 5：默认列表不含新增项
+
+新增可选项默认**不**出现在默认兜底列表里（`DEFAULTS = ALL.filter(x => x.k !== 新增key)`），未做配置的存量环境行为完全不变，由运营显式添加才生效。
+
+### 铁律 6：白名单必须「下发侧 + 写入侧」双侧同步
+
+同一配置在云函数里通常有两份白名单：`action_config_public.js`（下发时过滤）与 `action_config_set.js`（写入时校验）。**只改一侧的后果**：
+- 只改写入侧 → 后台能存，但下发被过滤，用户端永远看不到（现象最像"没生效"，极易误判为缓存）；
+- 只改下发侧 → 下发放行，但保存被 `config_bad_*_key` 拒绝（运营报"选了保存不了"）。
+
+→ 落地要求：新增/收紧一个 key 时，`grep -n "<key>"` 确认两处都命中；部署后做**写入 → `config_get` 回读 → `config_public` 回读**三段实测（只看其中一段都会漏）。
+
+---
+
 ## 表格行按钮的状态显隐
 
 按 `row.status` 动态显示，不要全显示：

@@ -177,6 +177,28 @@ Get-Content "$env:USERPROFILE\.gitconfig"
 
 ---
 
+## 陷阱 9：向 `curl.exe` 传内联 JSON 会被剥掉双引号（2026-11-11 实证）
+
+**现象**：`curl.exe -d '{"action":"config_get"}'` 到服务端变成 `{action:config_get}`，返回 400 / 业务 `invalid_action`，且**不报 PowerShell 错误**，极像「接口挂了」。
+
+**根因**：PowerShell 5 调用 native 程序时按 `NativeArguments` 重新拼命令行，单引号字符串里的内嵌双引号**不经转义就被吞掉**（与 bash 单引号语义不同）。反斜杠转义 `\"` 同样不可靠。
+
+**对策（按优先级）**：
+1. **写 JSON 到文件，用 `--data-binary "@<path>"`**（最稳，中文也不乱码）：
+   ```powershell
+   curl.exe -s -X POST -H "Content-Type: application/json" -H "X-Admin-Key: $h" `
+     --data-binary "@C:\Users\DC\AppData\Local\Temp\body.json" "https://.../api"
+   ```
+2. **改用 Node + `fetch`**（脚本里 `JSON.stringify` 天然安全，适合需要断言/解析响应的核验）：
+   ```powershell
+   node -e "fetch(u,{method:'POST',headers:{...},body:JSON.stringify({action:'config_get'})})"
+   ```
+3. 临时文件用完即删，别留在仓库（`$env:TEMP` 下即可）。
+
+**连带教训**：PowerShell 里用 `-match` 正则从 JSON 里抠字段极不可靠（贪婪/嵌套不符预期）→ **解析一律交给 Node `JSON.parse`**，Shell 只负责取原文。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
