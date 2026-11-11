@@ -68,7 +68,7 @@ async function getAdminOpenids() {
     const r = await col('admin_config').doc('global').get();
     const list = r.data && r.data.admin_openids;   // doc().get() 返回单个对象(非数组)
     if (Array.isArray(list)) return list;
-  } catch (e) {}
+  } catch (e) { log.w('admin_openids 读取失败，改用空名单:', (e && e.message) || e); }
   return [];
 }
 

@@ -41,6 +41,7 @@ const VERIFY_ONLY = new Set([
     'check-test-globs.js',               // 测试 glob 覆盖（T-7.43）
     'check-sub-msg-consistency.js',      // 订阅发送唯一入口（2026-11-02 方案A）
     'check-no-desktop-injection.js',     // 桌面注入禁用（2026-11-02 §37）
+    'check-silent-catch.js',             // 空 catch 增量门（2026-11-11 代码卫生 A1）
 ]);
 const TOOL = new Set([
     'check-handoff-coverage.js',         // 需 2 个 HANDOFF 路径参数，一次性比对工具

@@ -45,7 +45,7 @@ function resolveTemplates(raw) {
 function healTemplates() {
   col('admin_config').where({ _id: 'global' }).update({
     data: { system_templates: CANONICAL_TEMPLATES, updated_at: Date.now() }
-  }).then(() => log.d('im templates self-healed to TM1-TM8')).catch(() => {});
+  }).then(() => log.d('im templates self-healed to TM1-TM8')).catch((e) => log.d('im templates heal fail:', (e && e.message) || e));
 }
 
 // W11 线上陪伴 R3 红线词库(6类:引流/虚拟币/赌博/色情/政治/暴力)
@@ -63,7 +63,7 @@ async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
     if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
-  } catch (e) {}
+  } catch (e) { log.w('admin_config 读取失败，降级默认配置:', (e && e.message) || e); }
   return { system_templates: [], block_words: BLOCK_WORDS_FALLBACK, security_only_template_before_confirm: true };
 }
 
