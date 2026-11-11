@@ -383,6 +383,19 @@ Invoke-RestMethod -Uri ".../api" -Method Post -Headers @{'X-Admin-Key'=$k;'Conte
 
 ---
 
+## 流程 8：CLI 直连库的流程测试纪律（规则 §38 细则下沉，2026-11-11）
+
+> 背景：REGISTRY #144 在无真机、无 invoke 通道下用 `cloudbase db nosql execute` 直连线上库跑通 16 项断言。细则原文见 `.trae/documents/project-rules-full-20261029.md` §38；常驻规则仅留指针。
+
+**R1 通道边界诚实声明**：CLI `db nosql execute` 只能 CRUD，**没有 invoke 云函数的能力**；`admin-web` 网关只转发 `admin-action`。CLI 只能自证「落库语义 + 前端视图映射」，**云函数内部分支与真机 UI 不可自证**——禁止以「CLI 测试通过」写「已验证」，台账状态仍为「待验证（真机）」。
+**R2 JSON 入参禁经 PowerShell 拼接**：与流程 3 同源——`.cjs` 内 `spawnSync(process.execPath, [CLI js 入口, 'db','nosql','execute','--env-id',ENV,'--command',JSON.stringify(cmd),'--json'], { shell:false })`（node 直启 js 入口可 shell:false；若 spawn 的是 `cloudbase.cmd` 则按流程 3 用 `shell:true`）。两种写法都禁止手拼 JSON 字符串。
+**R3 回读先解码 BSON**：`$numberLong/$numberInt/$numberDouble/$date` 必须先统一解码为 JS 值再断言；直接比对裸对象会把「字段存在」误判成「值正确」。
+**R4 断言用线上同源视图函数**：`require` 仓库内真实 `miniprogram/utils/order-view.js`，不自造预期；`buildOrderView` 返回 `{ order, scene, statusInfo, ... }`，视图字段在 `view.order.*`，WXML 绑定路径必须与之一致。断言路径写错会制造假缺陷——**禁止据假缺陷改生产代码**。
+**R5 写测试的隔离与清理**：只用 `is_test:true` 造单（克隆真实单改状态），禁止碰真实业务单；测后软删（`is_deleted:true`）并回读「剩余未软删测试单 = 0」；一次性脚本放 `.tmp-tcb/`（gitignore，不入库）。
+**R6 S1 造单有时效**：S1 单 15 分钟内被定时器自动转 S6（实测 `created_at→updated_at` 约 1933s）。测前必须重造、测中核对 `status/created_at/updated_at`，避免把「超时取消」误读为「新功能生效」。
+
+---
+
 ## 错误速查表
 
 | 现象 | 根因 | 正确姿势 |

@@ -79,7 +79,7 @@ alwaysApply: true
 - 连续两次尝试未解决，立即停下：说明现状 + 已排除的可能 + 需要我提供什么（报错原文、开发者工具 Console 日志、复现步骤、真机表现截图）。禁止继续盲改。
 - 治本不治标，禁止以下"假修复"：用 try/catch 吞掉异常；用 setTimeout / 加大延时掩盖时序问题；注释掉代码、加 return 跳过逻辑；把 wx:if 改成 hidden 绕过渲染报错；反复 setData 空对象"试试看"。
 - 需要报错信息或真机表现时先向我要，禁止凭想象编造。
-- **退出登录/注销类清理必须双通道**：`wx.removeStorageSync('userInfo')` 后必须补 `getApp().clearLoginUser()` 同步 globalData（profile.js 两处已示范，L469 + L504），否则 `bootstrap.isLoggedIn()` 短暂仍返回 true。不要只清 storage 忘了 globalData。
+- **退出登录/注销类清理必须双通道**：`wx.removeStorageSync('userInfo')` 后必须补 `getApp().clearLoginUser()` 同步 globalData，否则 `bootstrap.isLoggedIn()` 短暂仍返回 true。不要只清 storage 忘了 globalData。
 - **navigateTo/redirectTo 必须含 fail 兜底**：所有调用（含动态 url 指向运营位配置）必须补 `fail: () => wx.showToast({...})`，防止旧版遗留路径静默无反应。app.json 注册页几乎不会失败，但动态配置可能配已下线路由。
 - **唯一索引验证**：`init-db` 里声明的 `{unique:true}` 只是设计意图，不等于线上已建。必须用 tcb CLI `listIndexes` 引擎回执实证，不能靠代码扫描推断。
 - **停手上报（2026-11-04）**：无确定方案禁试错，三段请求专家：事实（`文件:行号`/回执）→阻塞（缺何证据）→请求（派几位·授权只读或落笔）。亦停：方案无真值可裁／合规无条文／§3高危无行号／无法自证（浏览器·后台·真机）／证据互斥／结论靠推断。判断类派2位、余1位；未命中禁滥用；上报期勿改代码；专家结论经我核验后再报。
@@ -101,8 +101,6 @@ alwaysApply: true
 
 ## 10–39. 实证型高危条款
 
-> 摘要全文见归档（§N 检索）；§0–§9 未动。
-
 - §10–§13 重构/上线：A/B 0差≠正确须补盲区；先commit再deploy；写操作防连点。
 - §14–§17 文案/迁移：toast≤14字；配置只认实测；部署逐个核验；迁移6项自证。
 - §18–§23 产物/门禁：禁AI水印；Edit防误删；禁跨目录require；校验双挂载+反探针。
@@ -111,8 +109,8 @@ alwaysApply: true
 - §32–§34 超时/兜底：读超时12s；默认值兜底链；被动提示幂等带阶段。
 - §35 通道/门禁：push 走代理7890+openssl+HTTP1.1；失败查 DNS fake-IP 段；判据防自指；失败即停。
 - §36 交付：提审无时限、完善度优先；禁赶工跳门禁/真机；P2 按收益。
-- §37 桌面控制：逐项书面授权；禁 Win32 注入/窗口/截屏；语义树不可用即停。
-- §38 CLI 库流程测：只读写不 invoke；spawnSync(shell:false)；BSON 解码；断言 order.*；is_test 单测后软删；S1 15 分钟失效重造。
+- §37 桌面控制→zhaoren-desktop-control。
+- §38 CLI 库流程测→zhaoren-frequent-flows。
 - §39 数据对账：脱敏字段读写双侧字段名须实测对账（双侧 grep），禁单侧推断；#147 实证。
 
 ## 附录A · 不可变红线（`.trae/rules.md` §三）
