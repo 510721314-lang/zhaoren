@@ -165,8 +165,36 @@ function config_public(ctx) {
       user_credit: nsInt(cfgRaw.eval_reward_user_credit, 0),
       partner_fen: nsInt(cfgRaw.eval_reward_partner_fen, 0),
       partner_credit: nsInt(cfgRaw.eval_reward_partner_credit, 0)
+    },
+    // 理由文案(2026-11-11): 加时/改期 picker 显示文案可后台配置; key 固定(服务端 REASON_TYPES 白名单), 仅覆盖 t 字段; 缺省回退内置默认
+    reason_labels: {
+      extend: normalizeReasonLabels(cfgRaw.reason_labels_extend, 'extend', [
+        { k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }
+      ]),
+      modify: normalizeReasonLabels(cfgRaw.reason_labels_modify, 'modify', [
+        { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }
+      ])
     }
   } };
+}
+
+// reason_labels_* 校验: 必须是 [{k,t}] 数组且 k 命中该通道内置白名单; 非法项剔除, 全非法回退默认(fail-closed)
+const REASON_LABEL_KEYS = {
+  extend: ['time_conflict', 'content_adjust', 'other'],
+  modify: ['time_conflict', 'other']
+};
+function normalizeReasonLabels(raw, kind, def) {
+  if (!Array.isArray(raw) || !raw.length) return def;
+  const allowed = REASON_LABEL_KEYS[kind] || [];
+  const out = [];
+  for (const it of raw) {
+    if (!it || typeof it !== 'object') continue;
+    const k = String(it.k || '');
+    const t = String(it.t || '').trim();
+    if (!k || !t || allowed.indexOf(k) < 0) continue;
+    out.push({ k, t: t.slice(0, 20) });
+  }
+  return out.length ? out : def;
 }
 
 module.exports = { config_public };

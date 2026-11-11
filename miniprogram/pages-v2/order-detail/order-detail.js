@@ -42,9 +42,10 @@ Page({
     extendReasonMax: Number(CONFIG.ORDER.reasonMaxLen) || 200,
     // 2026-11-10 评审: 原因结构化类型(必选)与最短字数, 与服务端 order-action 同口径
     reasonMinLen: Number(CONFIG.ORDER.reasonMinLen) || 10,
-    modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }],
+    // 2026-11-11: 理由文案后台可配(config_public.reason_labels 经 CONFIG 覆盖), 初值取 CONFIG 兜底, onLoad 在 __refreshModifyText 重算
+    modifyReasonTypes: (CONFIG.ORDER.modifyReasonTypes || [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }]).slice(),
     modifyReasonTypeIndex: -1,
-    extendReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }],
+    extendReasonTypes: (CONFIG.ORDER.extendReasonTypes || [{ k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }]).slice(),
     extendReasonTypeIndex: -1,
     cancelTiers: CONFIG.CANCEL_REFUND,
     currentCancelIdx: 0,
@@ -97,9 +98,18 @@ Page({
   // 改期规则文案与确认窗口: 每次进入按当前 CONFIG(启动时由 config_public 覆盖)重算
   __refreshModifyText() {
     const m = CONFIG.MODIFY || {};
+    // 2026-11-11: 理由文案同步重算(后台 reason_labels 改后冷启动生效); key 不变, 仅 t 覆盖; 异常兜底保持现值
+    let modifyReasonTypes = this.data.modifyReasonTypes;
+    let extendReasonTypes = this.data.extendReasonTypes;
+    try {
+      if (Array.isArray(CONFIG.ORDER.modifyReasonTypes) && CONFIG.ORDER.modifyReasonTypes.length) modifyReasonTypes = CONFIG.ORDER.modifyReasonTypes.slice();
+      if (Array.isArray(CONFIG.ORDER.extendReasonTypes) && CONFIG.ORDER.extendReasonTypes.length) extendReasonTypes = CONFIG.ORDER.extendReasonTypes.slice();
+    } catch (e) { console.warn('reason_labels 覆盖失败，沿用兜底文案:', (e && e.message) || e); }
     this.setData({
       modifyRuleText: `规则：提前${m.minLeadHours}小时以上/最多${m.maxTimes}次/${m.freeFirst ? '首次免费/' : ''}第二次收${m.secondFeeRate * 100}%手续费/幅度≤${m.maxSpanH}小时`,
-      modifyConfirmMin: m.confirmMinutes
+      modifyConfirmMin: m.confirmMinutes,
+      modifyReasonTypes,
+      extendReasonTypes
     });
   },
 

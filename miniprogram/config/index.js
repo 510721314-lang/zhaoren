@@ -49,7 +49,10 @@ module.exports = {
     evalRewardYuan: 1,         // 评价奖励优惠券面额（元）
     goodReviewMin: 4,          // 好评星级阈值(≥此星自动勾选口碑标签; 后台 order_good_review_min_stars 覆盖)
     reasonMaxLen: 200,         // 改期/加时原因字数上限(后台 order_reason_max_len 覆盖)
-    reasonMinLen: 10           // 改期/加时/变更原因最短字数(2026-11-10 评审: 与服务端单点常量同源)
+    reasonMinLen: 10,          // 改期/加时/变更原因最短字数(2026-11-10 评审: 与服务端单点常量同源)
+    // 加时/改期理由显示文案兜底(2026-11-11): key 与服务端 REASON_TYPES 白名单同源, 文案由 config_public.reason_labels 覆盖
+    extendReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }],
+    modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }]
   },
 
   // 改期规则（PRD 3.5.3；数值由启动时 config_public.modify_config 覆盖，此处与后台默认同源）
