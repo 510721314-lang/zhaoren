@@ -420,7 +420,9 @@ async function config_set(ctx) {
       if (!it || typeof it !== 'object') return fail('config_bad_' + f, `${f} 元素须为 {k,t} 对象`);
       const k = String(it.k || '');
       const t = String(it.t || '').trim();
-      if (_REASON_LABEL_KEYS[f].indexOf(k) < 0) return fail('config_bad_' + f + '_key', `${f} 不允许的 key: ${k || '(空)'}`);
+      // 2026-11-11 方案A: 白名单 key 或自由文案(k===t, 2-10 字)均放行, 支持管理者自主输入理由
+      const isFreeText = (k === t && t.length >= 2 && t.length <= 10);
+      if (_REASON_LABEL_KEYS[f].indexOf(k) < 0 && !isFreeText) return fail('config_bad_' + f + '_key', `${f} 不允许的 key: ${k || '(空)'}`);
       if (t.length < 2 || t.length > 10) return fail('config_bad_' + f + '_len', `${f} 的「${k}」文案长度须为 2-10 字`);
       if (seen.has(k)) return fail('config_bad_' + f + '_dup', `${f} 存在重复 key: ${k}`);
       seen.add(k);

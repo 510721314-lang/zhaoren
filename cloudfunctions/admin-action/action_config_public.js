@@ -182,7 +182,7 @@ function config_public(ctx) {
   } };
 }
 
-// reason_labels_* 校验: 必须是 [{k,t}] 数组且 k 命中该通道内置白名单; 非法项剔除, 全非法回退默认(fail-closed)
+// reason_labels_* 校验: 必须是 [{k,t}] 数组; 白名单 key 项或自由文案项(k===t, 2-10 字, 评审 B4-① 修订)放行, 其余剔除, 全非法回退默认
 // 2026-11-11 评审修订: 两通道放开 location_change(加时/改期服务端 normalizeReasonType 均只查全量 REASON_TYPES, 本就接受), 选项可后台增删
 const REASON_LABEL_KEYS = {
   extend: ['time_conflict', 'location_change', 'content_adjust', 'other'],
@@ -196,7 +196,10 @@ function normalizeReasonLabels(raw, kind, def) {
     if (!it || typeof it !== 'object') continue;
     const k = String(it.k || '');
     const t = String(it.t || '').trim();
-    if (!k || !t || allowed.indexOf(k) < 0) continue;
+    if (!k || !t) continue;
+    // 2026-11-11 方案A: 白名单 key 或自由文案(k===t, 2-10 字)均放行; 自由文案提交时 reason_type 即文案
+    const isFreeText = (k === t && t.length >= 2 && t.length <= 10);
+    if (allowed.indexOf(k) < 0 && !isFreeText) continue;
     out.push({ k, t: t.slice(0, 20) });
   }
   return out.length ? out : def;

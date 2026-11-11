@@ -125,7 +125,13 @@ const REASON_TYPES = Object.freeze({
   other: '其他'
 });
 function normalizeReasonType(t) {
-  return Object.prototype.hasOwnProperty.call(REASON_TYPES, t) ? t : '';
+  const s = String(t || '').trim();
+  if (!s) return '';
+  if (Object.prototype.hasOwnProperty.call(REASON_TYPES, s)) return s;
+  // 2026-11-11 方案A: 后台理由改自由输入, 存 {k:文案,t:文案}, 提交时 reason_type 即文案本身;
+  // 2-20 字放行(与爽约 reason_type 同口径), 历史白名单 key 数据天然兼容
+  if (s.length >= 2 && s.length <= 20) return s;
+  return '';
 }
 
 // 原因质量校验(2026-11-10 评审):

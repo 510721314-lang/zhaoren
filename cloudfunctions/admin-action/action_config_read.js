@@ -73,9 +73,11 @@ function config_get(ctx) {
       scene_disclaimers: config.legal_scene_disclaimers || {}
     },
     // 理由文案回读(2026-11-11): 空数组 = 未配置, 后台页以内置默认填充展示
+    // noshow(2026-11-11 补): 原漏回读导致保存后刷新看不到已存项(写库成功但 UI 回退默认)
     reason_labels: {
       extend: config.reason_labels_extend || [],
-      modify: config.reason_labels_modify || []
+      modify: config.reason_labels_modify || [],
+      noshow: config.reason_labels_noshow || []
     }
   });
 }

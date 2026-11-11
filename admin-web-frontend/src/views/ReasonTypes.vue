@@ -2,15 +2,16 @@
   <div class="page">
     <el-alert type="info" :closable="false" show-icon
       title="理由配置（加时 / 改期 / 爽约）"
-      description="加时/改期：可增加、删除选项（限平台白名单 key，不可自造），可修改显示文案（2-10 字，至少保留 1 项）。爽约：自由文案（2-20 字，提交时原文入库，至少保留 1 项）。保存后小程序端在用户下次冷启动生效（本地缓存最长 7 天；爽约需下一体验版起的客户端支持）。" />
+      description="加时/改期：自由输入新增理由（2-10 字，服务端提交时以文字原样归类）、行内改文案、删除（至少保留 1 项）。爽约：自由文案（2-20 字，提交时原文入库，至少保留 1 项）。保存后小程序端在用户下次冷启动生效（本地缓存最长 7 天；爽约需下一体验版起的客户端支持）。" />
 
     <el-card v-for="g in groups" :key="g.kind" class="box">
       <template #header>
         <div class="card-head">
           <span>{{ g.title }}</span>
-          <el-select v-model="g.pick" placeholder="＋ 添加理由" size="small" style="width: 180px" @change="(k) => addRow(g, k)">
-            <el-option v-for="o in available(g)" :key="o.k" :label="o.t + '（' + o.k + '）'" :value="o.k" />
-          </el-select>
+          <div style="display:flex;gap:8px">
+            <el-input v-model="g.input" placeholder="新理由（2-10 字）" size="small" style="width: 180px" maxlength="10" @keyup.enter="addRow(g)" />
+            <el-button size="small" @click="addRow(g)">添加</el-button>
+          </div>
         </div>
       </template>
       <el-table :data="g.rows" size="small" border>
@@ -61,9 +62,9 @@
 </template>
 
 <script setup>
-// ReasonTypes.vue · 理由配置页(2026-11-11, 评审修订: 文案可改 + 选项可增删; 同日增爽约通道: 自由文案字符串数组)
+// ReasonTypes.vue · 理由配置页(2026-11-11, 方案A 双专家评审通过: 加时/改期添加改自由输入 {k:文案,t:文案}; 同日增爽约通道)
 // 数据链: config_get.reason_labels 回读 → 行增删/文案编辑 → config_set(reason_labels_extend/modify/reason_labels_noshow) 复用既有留痕(config_history + platform_event)
-// 护栏(服务端同款): key 限内置白名单(不可自造); 文案 2-10 字; 至少 1 项(服务端拒空数组, UI 侧删除按钮同步禁用)
+// 护栏(服务端同款): 白名单 key 项仍可编辑文案; 自由项 k===t(2-10 字, 服务端 k!==t 且非白名单会拒); 至少 1 项(服务端拒空数组, UI 侧删除按钮同步禁用)
 // 评审整改(#1): fillRows 以「云端已存数组」为准生成行(保留顺序/支持子集), 不再按 DEFAULTS 硬编码 —— 否则云端已存的 location_change 会被静默丢弃
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -90,8 +91,8 @@ const DEFAULTS = {
 };
 
 const groups = reactive([
-  { kind: 'extend', title: '加时申请理由（S3 履约中）', rows: [], pick: '' },
-  { kind: 'modify', title: '改期申请理由（S2 已支付待履约）', rows: [], pick: '' }
+  { kind: 'extend', title: '加时申请理由（S3 履约中）', rows: [], input: '' },
+  { kind: 'modify', title: '改期申请理由（S2 已支付待履约）', rows: [], input: '' }
 ]);
 // 爽约通道(2026-11-11): 中文字符串数组(服务端 reason_type 原文入库, 无 {k,t}), 编辑器与 extend/modify 分离
 const NS_DEFAULT = ['未出现', '迟到超30分钟', '中途离开', '其他'];
@@ -111,15 +112,14 @@ function fillRows(kind, saved) {
   });
 }
 
-function available(g) {
-  return ALL[g.kind].filter((o) => !g.rows.some((r) => r.k === o.k));
-}
-
-function addRow(g, k) {
-  if (!k) return;
-  const defIt = ALL[g.kind].find((d) => d.k === k);
-  if (defIt && !g.rows.some((r) => r.k === k)) g.rows.push(reactive({ k, def: defIt.t, t: defIt.t }));
-  g.pick = '';
+// 自由输入添加(方案A): {k:文案, t:文案}, 服务端白名单 key 或 k===t 2-10 字均放行; 2-10 字 + 与现有行不重复
+function addRow(g) {
+  const t = String(g.input || '').trim();
+  if (!t) return;
+  if (t.length < 2 || t.length > 10) { ElMessage.warning('理由须为 2-10 字'); return; }
+  if (g.rows.some((r) => r.k === t || r.t === t)) { ElMessage.warning('理由已存在'); return; }
+  g.rows.push(reactive({ k: t, def: ALL[g.kind].find((d) => d.t === t)?.t || t, t }));
+  g.input = '';
 }
 
 // 爽约行来源: 云端已存数组优先, 未配置才用默认(模式 D 铁律 1: 防止云端已存项被静默丢弃)
@@ -150,10 +150,16 @@ async function load() {
 
 async function save() {
   // 组装: 文案为空 → 回退默认值下发(服务端要求非空且 2-10 字); 行列表即启用集合(增删结果)
+  // 方案A(评审 B2#3): 自由项(非白名单 k)的文案改动后 k 同步=t(服务端仅放行白名单 key 或 k===t), 并做重复校验
   const payload = {};
   for (const g of groups) {
-    payload[g.kind === 'extend' ? 'reason_labels_extend' : 'reason_labels_modify'] =
-      g.rows.map((r) => ({ k: r.k, t: String(r.t || '').trim() || r.def }));
+    const list = g.rows.map((r) => {
+      const t = String(r.t || '').trim() || r.def || r.k;
+      const isWhitelist = ALL[g.kind].some((d) => d.k === r.k);
+      return { k: isWhitelist ? r.k : t, t };
+    });
+    if (new Set(list.map((x) => x.k)).size !== list.length) { ElMessage.error('理由存在重复项'); return; }
+    payload[g.kind === 'extend' ? 'reason_labels_extend' : 'reason_labels_modify'] = list;
   }
   // 爽约: 自由文案 2-20 字(服务端同款校验), 至少 1 项、去重
   const nsList = nsRows.value.map((r) => String(r.s || '').trim()).filter(Boolean);
