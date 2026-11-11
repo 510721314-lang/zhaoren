@@ -8,6 +8,7 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-11 | admin-action | 4c6d5f2 | （待 commit） | 未建（先提交后部署，批A `4d445af` + 批B `4c6d5f2` 已入库） | 4bf0d55 | **理由文案可配置化（批A+批B 合并一次串行部署）**：`config_public` 下发 `reason_labels`（加时/改期，key 白名单 fail-closed）+ `config_get` 回读块 + `config_set` 特例块（key 锁死内置集合/文案 2-10 字/复用 config_history 留痕）；admin-web 新增 ReasonTypes.vue + 路由菜单。predeploy success=true（51 files 123.0 KB）；云端回读 `tcb fn code download` 标记串 10 处命中 + 改动 3 文件 **3/3 SHA256 MATCH**；`verify:offline` EXIT=0（tests 890 / A/B 455）。**注：爽约理由未纳入（无 key 结构，单独立项）；小程序端改文案后冷启动生效；前端改动（bootstrap/config/order-detail）需上传体验版生效** |
 | 2026-11-10 | demand（数据迁移，无部署） | c5a8438 | （待 commit） | — | c5a8438 | **存量代发手机号明文迁移**：`demand.service_target.phone` → `phone_enc/phone_hash/phone_mask`（AES-256-GCM + HMAC + 掩码），共 **5 条全部成功**、跳过 0；回读 `with_phone_enc=5 / 明文=0 / service_target.phone_mask=5`；脚本仅内存处理、日志脱敏不落真号。**注：无需重部署/上传，纯数据订正** |
 | 2026-11-10 | demand-publish / admin-action | 7ec4b7e | （待 commit） | 未建（先部署后提交，工作区 7 文件） | 7ec4b7e | **BUG 扫描 B6-B7**：demand-publish 代发人手机号密文三字段；admin-action 导出 `admin_web_sessions` 的 `_id` 脱敏；门禁 `phone_crypt.js` 补登记 safety-report（跑 sync 复检一致）。部署 success=true（demand-publish 15 files 45.9 KB / admin-action 51 files 121.9 KB），回读 **2/2 SHA256 MATCH**；`verify:offline` EXIT=0（A/B 455） |
 | 2026-11-10 | 小程序（体验版上传） | 7ec4b7e | （待 commit） | 未归档 | 7ec4b7e | 体验版 **v1.6.109** 上传：CLI EXIT=0 / ✔ upload / TOTAL 804.7 KB（824,037 B，主包 560.3 KB）；描述「BUG扫描B6-B7: 列表分页/金额格式/变更次数文案/首页场景预选/代发手机号加密/导出会话脱敏/门禁补登记」。**注：回退 = mp 后台重传 v1.6.108** |
