@@ -40,7 +40,8 @@ console.log(`- 常驻文件 ${buckets.inject.length}/${baseline.l0.maxFiles} · 
 console.log(`- 水位 ${baseline.injectBytes}B（更新于 ${baseline.updatedAt}）· 差额 ${inject - baseline.injectBytes}B`);
 console.log('');
 console.log('## 台账行（粘贴到 tech-debt / HANDOFF）');
-console.log(`| ${today} | inject ${inject}B（目标 12288B，${pct(inject, 12288)}%）/ conditional ${cond}B | 常驻 ${buckets.inject.length} 文件·${(core.match(/^## /gm) || []).length} 章节 | 注入但从不命中：待人工按会话日志填写 |`);
+// 2026-11-11 口径修正：目标位改读 baseline，禁止再硬编码 12288（旧值，与门禁判据 16384 冲突）
+console.log(`| ${today} | inject ${inject}B（目标 ${baseline.l0.targetBytes}B，${pct(inject, baseline.l0.targetBytes)}%）/ conditional ${cond}B | 常驻 ${buckets.inject.length} 文件·${(core.match(/^## /gm) || []).length} 章节 | 注入但从不命中：待人工按会话日志填写 |`);
 console.log('');
 console.log('## 文件明细');
 for (const f of buckets.inject) console.log(`- [inject] ${rel(f)} ${bytes(f)}B`);

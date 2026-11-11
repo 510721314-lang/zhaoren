@@ -131,14 +131,14 @@ for (let n = 10; n <= maxSection; n++) {
     }
 }
 
-// L0 常驻硬上限 + 水位门（T-7.34）：3 文件 / 22 条 / 12KB 目标位；超目标位后任何净新增一律拦（配额制）
+// L0 常驻硬上限 + 水位门（T-7.34）：3 文件 / 22 条 / 目标位（读 baseline.l0.targetBytes，现 16384B）；超目标位后任何净新增一律拦（配额制）
 if (baseline && baseline.l0) {
     const l0 = baseline.l0;
     if (inject.length > l0.maxFiles) fails.push(`[L0-FILES] 常驻注入文件 ${inject.length} 个 > 上限 ${l0.maxFiles}`);
     const coreSections = (core.match(/^## /gm) || []).length;
     if (coreSections > l0.maxItems) fails.push(`[L0-ITEMS] core 常驻章节 ${coreSections} 条 > 上限 ${l0.maxItems}`);
     if (injectTotal > l0.targetBytes) {
-        warns.push(`[L0-TARGET] inject ${injectTotal}B 已超 12KB 目标位 ${l0.targetBytes}B：后续新增须先淘汰/下沉旧条`);
+        warns.push(`[L0-TARGET] inject ${injectTotal}B 已超目标位 ${l0.targetBytes}B：后续新增须先淘汰/下沉旧条`);
     }
     const growth = injectTotal - (baseline.injectBytes || 0);
     if (growth > (baseline.rateLimitBytes || 0)) {
