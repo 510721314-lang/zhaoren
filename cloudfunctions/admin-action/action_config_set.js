@@ -405,10 +405,11 @@ async function config_set(ctx) {
     before.legal_scene_disclaimers = config.legal_scene_disclaimers || {};
     patch.legal_scene_disclaimers = next;
   }
-  // 理由文案特例(2026-11-11): reason_labels_extend/modify 为 [{k,t}] 数组; key 锁死内置白名单(防运营把改地点塞进加时), 文案 2-10 字; 复用 config_history 留痕
+  // 理由文案特例(2026-11-11): reason_labels_extend/modify 为 [{k,t}] 数组; key 限内置白名单, 文案 2-10 字; 复用 config_history 留痕
+  // 2026-11-11 评审修订: 选项可后台增删(数组按提交内容整体覆盖, 子集合法), 两通道放开 location_change(服务端加时/改期 normalizeReasonType 本就接受); 非空校验保留(至少 1 项, UI 侧同步禁用删光)
   const _REASON_LABEL_KEYS = {
-    reason_labels_extend: ['time_conflict', 'content_adjust', 'other'],
-    reason_labels_modify: ['time_conflict', 'other']
+    reason_labels_extend: ['time_conflict', 'location_change', 'content_adjust', 'other'],
+    reason_labels_modify: ['time_conflict', 'location_change', 'other']
   };
   for (const f of Object.keys(_REASON_LABEL_KEYS)) {
     if (event[f] === undefined) continue;

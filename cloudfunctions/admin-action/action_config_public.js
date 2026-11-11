@@ -166,7 +166,7 @@ function config_public(ctx) {
       partner_fen: nsInt(cfgRaw.eval_reward_partner_fen, 0),
       partner_credit: nsInt(cfgRaw.eval_reward_partner_credit, 0)
     },
-    // 理由文案(2026-11-11): 加时/改期 picker 显示文案可后台配置; key 固定(服务端 REASON_TYPES 白名单), 仅覆盖 t 字段; 缺省回退内置默认
+    // 理由文案(2026-11-11): 加时/改期 picker 选项可后台增删改(评审修订 2026-11-11); key 限服务端 REASON_TYPES 白名单(含 location_change「地点变动」, 服务端加时/改期通道本就接受), 按配置数组原样下发(支持子集); 缺省回退内置默认(不含地点)
     reason_labels: {
       extend: normalizeReasonLabels(cfgRaw.reason_labels_extend, 'extend', [
         { k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }
@@ -179,9 +179,10 @@ function config_public(ctx) {
 }
 
 // reason_labels_* 校验: 必须是 [{k,t}] 数组且 k 命中该通道内置白名单; 非法项剔除, 全非法回退默认(fail-closed)
+// 2026-11-11 评审修订: 两通道放开 location_change(加时/改期服务端 normalizeReasonType 均只查全量 REASON_TYPES, 本就接受), 选项可后台增删
 const REASON_LABEL_KEYS = {
-  extend: ['time_conflict', 'content_adjust', 'other'],
-  modify: ['time_conflict', 'other']
+  extend: ['time_conflict', 'location_change', 'content_adjust', 'other'],
+  modify: ['time_conflict', 'location_change', 'other']
 };
 function normalizeReasonLabels(raw, kind, def) {
   if (!Array.isArray(raw) || !raw.length) return def;
