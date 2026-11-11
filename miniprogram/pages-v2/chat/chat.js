@@ -620,6 +620,7 @@ Page({
       this.refreshMessages();
       // 四确认/通知降频(首轮即拉): 通知有本地去重与横幅兜底
       // 2026-11-11(配额治理 R1): S0/S1/S2/S2_5 保持 60s(四确认与改期窗口对延迟敏感), 其余状态放宽到 120s
+      // @VERIFIED 2026-11-11 已真机验证：S1 四确认 60s 内刷新、S3 加时全链路（S2.6 履约申请→加时申请→对方待确认弹窗）、消息 15s 不受影响
       const fastStatus = ['S0', 'S1', 'S2', 'S2_5'].indexOf(this.data.orderStatus) >= 0;
       if (this.__pollTick % (fastStatus ? 4 : 8) === 1) this.pollOrderChat();
     }, 15000);
