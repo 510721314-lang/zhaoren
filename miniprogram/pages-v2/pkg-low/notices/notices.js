@@ -49,11 +49,12 @@ Page({
   },
   onReachBottom() { this.loadList(false); },
 
-  // 2026-10-30(提示滞后批4): 通知页停留轮询 —— 每 15s 静默比对「首条 _id+created_at 与未读数」,
+  // 2026-10-30(提示滞后批4): 通知页停留轮询 —— 每 30s 静默比对「首条 _id+created_at 与未读数」,
   // 有变化才 setData; 不闪 loading、失败静默; 已分页时若首条变化则重置回第一页(2026-11-10 修: 原逻辑新通知进不了列表)
+  // 2026-11-11(配额治理 R2): 15s→30s, 调用量 240→120 次/时; 本页为低频停留页, 30s 内看到新通知可接受
   startNoticePoll() {
     this.stopNoticePoll();
-    this._noticeTimer = setInterval(() => this.pollNoticeOnce(), 15000);
+    this._noticeTimer = setInterval(() => this.pollNoticeOnce(), 30000);
   },
   stopNoticePoll() {
     if (this._noticeTimer) { clearInterval(this._noticeTimer); this._noticeTimer = null; }

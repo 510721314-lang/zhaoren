@@ -603,8 +603,8 @@ Page({
   },
 
   // ───────── 轮询(15s, 2026-10-26 用量治理第二轮) ─────────
-  // 用量账: 消息 1 次/15s(240/时) + 四确认&通知 1 次/60s(60/时) = 300 次/时
-  //   对比: 原 3 次/8s 平均(1,125/时) → 降约 73%; DB 读约 660/时(原约 2,025/时, 降 67%)
+  // 用量账: 消息 1 次/15s(240/时) + 四确认&通知(S0/S1/S2/S2_5 为 1 次/60s = 60/时, 其余 1 次/120s = 30/时)
+  //   即 300 次/时(敏感状态) 或 270 次/时(其余状态); 对比原 3 次/8s(1,125/时) 仍低约 73%~76%
   startPolling() {
     this.stopPolling();
     if (!this.__orderId) return;
@@ -618,8 +618,10 @@ Page({
         if (left !== this.data.s1Left) this.setData({ s1Left: left, s1Text: this.__s1Text(left) });
       }
       this.refreshMessages();
-      // 四确认/通知降频至 60s(首轮即拉): 通知有本地去重与横幅兜底, 确认状态 60s 内同步可接受
-      if (this.__pollTick % 4 === 1) this.pollOrderChat();
+      // 四确认/通知降频(首轮即拉): 通知有本地去重与横幅兜底
+      // 2026-11-11(配额治理 R1): S0/S1/S2/S2_5 保持 60s(四确认与改期窗口对延迟敏感), 其余状态放宽到 120s
+      const fastStatus = ['S0', 'S1', 'S2', 'S2_5'].indexOf(this.data.orderStatus) >= 0;
+      if (this.__pollTick % (fastStatus ? 4 : 8) === 1) this.pollOrderChat();
     }, 15000);
   },
   stopPolling() {
