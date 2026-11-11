@@ -71,6 +71,11 @@ function config_get(ctx) {
       aa_promise: config.legal_aa_promise || '',
       pet_authorization: config.legal_pet_authorization || '',
       scene_disclaimers: config.legal_scene_disclaimers || {}
+    },
+    // 理由文案回读(2026-11-11): 空数组 = 未配置, 后台页以内置默认填充展示
+    reason_labels: {
+      extend: config.reason_labels_extend || [],
+      modify: config.reason_labels_modify || []
     }
   });
 }

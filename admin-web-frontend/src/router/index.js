@@ -41,6 +41,7 @@ const routes = [
       // ── 7. 运营配置 ──
       { path: 'config', redirect: '/operations' },  // 旧入口跳转
       { path: 'operations', component: () => import('../views/Operations.vue'), meta: { title: '运营配置' } },
+      { path: 'reason-types', component: () => import('../views/ReasonTypes.vue'), meta: { title: '理由文案' } },
       { path: 'config-log', component: () => import('../views/ConfigLog.vue'), meta: { title: '参数变更日志' } },
       { path: 'legal', component: () => import('../views/Legal.vue'), meta: { title: '法律合规' } },
       { path: 'exam', component: () => import('../views/Exam.vue'), meta: { title: '认证考试管理' } },

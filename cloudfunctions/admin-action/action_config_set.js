@@ -405,6 +405,29 @@ async function config_set(ctx) {
     before.legal_scene_disclaimers = config.legal_scene_disclaimers || {};
     patch.legal_scene_disclaimers = next;
   }
+  // 理由文案特例(2026-11-11): reason_labels_extend/modify 为 [{k,t}] 数组; key 锁死内置白名单(防运营把改地点塞进加时), 文案 2-10 字; 复用 config_history 留痕
+  const _REASON_LABEL_KEYS = {
+    reason_labels_extend: ['time_conflict', 'content_adjust', 'other'],
+    reason_labels_modify: ['time_conflict', 'other']
+  };
+  for (const f of Object.keys(_REASON_LABEL_KEYS)) {
+    if (event[f] === undefined) continue;
+    if (!Array.isArray(event[f]) || !event[f].length) return fail('config_bad_' + f, `${f} 须为非空 [{k,t}] 数组`);
+    const seen = new Set();
+    const next = [];
+    for (const it of event[f]) {
+      if (!it || typeof it !== 'object') return fail('config_bad_' + f, `${f} 元素须为 {k,t} 对象`);
+      const k = String(it.k || '');
+      const t = String(it.t || '').trim();
+      if (_REASON_LABEL_KEYS[f].indexOf(k) < 0) return fail('config_bad_' + f + '_key', `${f} 不允许的 key: ${k || '(空)'}`);
+      if (t.length < 2 || t.length > 10) return fail('config_bad_' + f + '_len', `${f} 的「${k}」文案长度须为 2-10 字`);
+      if (seen.has(k)) return fail('config_bad_' + f + '_dup', `${f} 存在重复 key: ${k}`);
+      seen.add(k);
+      next.push({ k, t });
+    }
+    before[f] = config[f] || [];
+    patch[f] = next;
+  }
 
   const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
   if (!changed.length) return fail('config_no_change', '没有需要修改的字段');
