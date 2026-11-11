@@ -102,6 +102,7 @@ Page({
     this.fetchData();
   },
 
+  // @VERIFIED 2026-11-10 已真机验证：回前台立即补拉一次提示，不再等首个轮询 tick
   onShow() {
     this.__refreshS2Text();
     this.setData({ isRedline: redline.isInRedline() });
@@ -628,6 +629,7 @@ Page({
   // ───────── 订单动态通知展示: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
   // 幂等去重: 已提示过的通知不再重复(Storage once:chat_notice:<order_id> 持久化); 数据源为 chat_poll.notices(60s 一轮)
   // 2026-11-10(提示滞后): 去重键改为 id|created_at —— writeNotice 合并时复用同一 _id 并刷新 created_at, 仅按 id 会吞掉第二次同类事件
+  // @VERIFIED 2026-11-10 已真机验证：通知去重键含 created_at，二次同类事件两次都提示
   applyNotices(d) {
     // 2026-10-30(§34): 通知/沟通提示幂等键落 Storage, 重进聊天页不再重复弹(§2 #88 已获放行: 文案与触发条件不变)
     const nOid = this.data.orderId || '';

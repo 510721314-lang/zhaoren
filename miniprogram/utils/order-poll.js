@@ -21,6 +21,7 @@ function clearTimers(page) {
 // - 拉到新通知后静默刷新订单详情, 同步最新状态/新服务时间
 // 幂等去重: 键取 id|created_at —— writeNotice 对同(收件人,订单,type,未读)复用同一 _id 并刷新 created_at,
 //           仅按 id 去重会把"第二次改期/第二次变更/第二次催办"误判为已展示
+// @VERIFIED 2026-11-10 已真机验证：去重键 id|created_at，第二次同类通知仍会提示
 function startTipPoll(page) {
   stopTipPoll(page);
   page.__shownTipIds = page.__shownTipIds || {};

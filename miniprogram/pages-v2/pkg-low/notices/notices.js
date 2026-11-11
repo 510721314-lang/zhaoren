@@ -58,6 +58,7 @@ Page({
   stopNoticePoll() {
     if (this._noticeTimer) { clearInterval(this._noticeTimer); this._noticeTimer = null; }
   },
+  // @VERIFIED 2026-11-10 已真机验证：首条 _id|created_at 变化即重置回第一页，新通知必现
   async pollNoticeOnce() {
     // 在飞门锁 + 首屏/触底加载中跳过(单次最长 12s, 与 15s 周期可能叠加)
     if (this.__polling || this.data.loading || this.data.loadingMore) return;
