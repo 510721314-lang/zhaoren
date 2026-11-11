@@ -1,8 +1,8 @@
 <template>
   <div class="page">
     <el-alert type="info" :closable="false" show-icon
-      title="理由配置（加时 / 改期 / 爽约）"
-      description="加时/改期：自由输入新增理由（2-10 字，服务端提交时以文字原样归类）、行内改文案、删除（至少保留 1 项）。爽约：自由文案（2-20 字，提交时原文入库，至少保留 1 项）。保存后小程序端在用户下次冷启动生效（本地缓存最长 7 天；爽约需下一体验版起的客户端支持）。" />
+      title="理由配置（加时 / 改期 / 爽约 / 改地点 / 改内容）"
+      description="加时/改期/改地点/改内容：自由输入新增理由（2-10 字，服务端提交时以文字原样归类）、行内改文案、删除（至少保留 1 项）。爽约：自由文案（2-20 字，提交时原文入库，至少保留 1 项）。保存后小程序端在用户下次冷启动生效（本地缓存最长 7 天；小程序 picker/弹窗显示需下一体验版起的客户端支持）。" />
 
     <el-card v-for="g in groups" :key="g.kind" class="box">
       <template #header>
@@ -70,7 +70,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { call } from '../api/admin.js';
 
-// 全集白名单(与 admin-action REASON_LABEL_KEYS / order-action REASON_TYPES 同源): extend 4 项 / modify 3 项
+// 全集白名单(与 admin-action REASON_LABEL_KEYS / _REASON_LABEL_KEYS 同源): extend 4 项 / modify 3 项 / S2 变更两组各 3 项
 const ALL = {
   extend: [
     { k: 'time_conflict', t: '时间冲突' },
@@ -82,17 +82,31 @@ const ALL = {
     { k: 'time_conflict', t: '时间冲突' },
     { k: 'location_change', t: '地点变动' },
     { k: 'other', t: '其他' }
+  ],
+  changeLocation: [
+    { k: 'location_change', t: '地点变动' },
+    { k: 'time_conflict', t: '时间冲突' },
+    { k: 'other', t: '其他' }
+  ],
+  changeContent: [
+    { k: 'content_adjust', t: '内容调整' },
+    { k: 'time_conflict', t: '时间冲突' },
+    { k: 'other', t: '其他' }
   ]
 };
-// 未配置时的初始展示 = 默认下发列表(不含「地点变动」, 与 config_public 兜底一致)
+// 未配置时的初始展示 = 默认下发列表(不含「地点变动」的通道按 config_public 兜底一致)
 const DEFAULTS = {
   extend: ALL.extend.filter((x) => x.k !== 'location_change'),
-  modify: ALL.modify.filter((x) => x.k !== 'location_change')
+  modify: ALL.modify.filter((x) => x.k !== 'location_change'),
+  changeLocation: ALL.changeLocation,
+  changeContent: ALL.changeContent
 };
 
 const groups = reactive([
   { kind: 'extend', title: '加时申请理由（S3 履约中）', rows: [], input: '' },
-  { kind: 'modify', title: '改期申请理由（S2 已支付待履约）', rows: [], input: '' }
+  { kind: 'modify', title: '改期申请理由（S2 已支付待履约）', rows: [], input: '' },
+  { kind: 'changeLocation', title: '改地点理由（S2 聊天页「改地点」）', rows: [], input: '' },
+  { kind: 'changeContent', title: '改内容理由（S2 聊天页「改内容」）', rows: [], input: '' }
 ]);
 // 爽约通道(2026-11-11): 中文字符串数组(服务端 reason_type 原文入库, 无 {k,t}), 编辑器与 extend/modify 分离
 const NS_DEFAULT = ['未出现', '迟到超30分钟', '中途离开', '其他'];
@@ -144,6 +158,8 @@ async function load() {
   const rl = (r.data && r.data.reason_labels) || {};
   fillRows('extend', rl.extend);
   fillRows('modify', rl.modify);
+  fillRows('changeLocation', rl.changeLocation);
+  fillRows('changeContent', rl.changeContent);
   fillNsRows(rl.noshow);
   reason.value = '';
 }
@@ -151,6 +167,13 @@ async function load() {
 async function save() {
   // 组装: 文案为空 → 回退默认值下发(服务端要求非空且 2-10 字); 行列表即启用集合(增删结果)
   // 方案A(评审 B2#3): 自由项(非白名单 k)的文案改动后 k 同步=t(服务端仅放行白名单 key 或 k===t), 并做重复校验
+  // payload 键映射(2026-11-11 扩四组): kind → config_set 平铺键
+  const PAYLOAD_KEY = {
+    extend: 'reason_labels_extend',
+    modify: 'reason_labels_modify',
+    changeLocation: 'reason_labels_change_location',
+    changeContent: 'reason_labels_change_content'
+  };
   const payload = {};
   for (const g of groups) {
     const list = g.rows.map((r) => {
@@ -159,7 +182,7 @@ async function save() {
       return { k: isWhitelist ? r.k : t, t };
     });
     if (new Set(list.map((x) => x.k)).size !== list.length) { ElMessage.error('理由存在重复项'); return; }
-    payload[g.kind === 'extend' ? 'reason_labels_extend' : 'reason_labels_modify'] = list;
+    payload[PAYLOAD_KEY[g.kind]] = list;
   }
   // 爽约: 自由文案 2-20 字(服务端同款校验), 至少 1 项、去重
   const nsList = nsRows.value.map((r) => String(r.s || '').trim()).filter(Boolean);

@@ -77,7 +77,10 @@ function config_get(ctx) {
     reason_labels: {
       extend: config.reason_labels_extend || [],
       modify: config.reason_labels_modify || [],
-      noshow: config.reason_labels_noshow || []
+      noshow: config.reason_labels_noshow || [],
+      // S2 变更通道回读(2026-11-11 补): 改地点/改内容 —— 铁律 6 三端同批, 防止"保存成功但 UI 刷新看不到"
+      changeLocation: config.reason_labels_change_location || [],
+      changeContent: config.reason_labels_change_content || []
     }
   });
 }

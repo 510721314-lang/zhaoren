@@ -409,7 +409,10 @@ async function config_set(ctx) {
   // 2026-11-11 评审修订: 选项可后台增删(数组按提交内容整体覆盖, 子集合法), 两通道放开 location_change(服务端加时/改期 normalizeReasonType 本就接受); 非空校验保留(至少 1 项, UI 侧同步禁用删光)
   const _REASON_LABEL_KEYS = {
     reason_labels_extend: ['time_conflict', 'location_change', 'content_adjust', 'other'],
-    reason_labels_modify: ['time_conflict', 'location_change', 'other']
+    reason_labels_modify: ['time_conflict', 'location_change', 'other'],
+    // S2 变更通道(2026-11-11 补): 改地点/改内容理由, 服务端 action_change_s2.js:123 走同一 normalizeReasonType(方案A 已放行自由文案)
+    reason_labels_change_location: ['location_change', 'time_conflict', 'other'],
+    reason_labels_change_content: ['content_adjust', 'time_conflict', 'other']
   };
   for (const f of Object.keys(_REASON_LABEL_KEYS)) {
     if (event[f] === undefined) continue;

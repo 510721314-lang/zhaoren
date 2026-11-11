@@ -54,7 +54,10 @@ module.exports = {
     extendReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }],
     modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }],
     // 爽约理由兜底(2026-11-11): 中文字符串数组(reason_type 原文入库), 由 config_public.reason_labels.noshow 覆盖
-    noshowReasonTypes: ['未出现', '迟到超30分钟', '中途离开', '其他']
+    noshowReasonTypes: ['未出现', '迟到超30分钟', '中途离开', '其他'],
+    // S2 变更理由兜底(2026-11-11): 改地点/改内容(chat 页 ActionSheet), key 与 chat.js 原硬编码同序同文案
+    changeLocationReasonTypes: [{ k: 'location_change', t: '地点变动' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }],
+    changeContentReasonTypes: [{ k: 'content_adjust', t: '内容调整' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }]
   },
 
   // 改期规则（PRD 3.5.3；数值由启动时 config_public.modify_config 覆盖，此处与后台默认同源）

@@ -1137,9 +1137,11 @@ Page({
     };
     if (!isS2) { submit(''); return; }
     // S2 变更：先选结构化原因类型（便于审计），再填不少于 10 字的具体说明
-    const TYPE_OPTS = field === 'location'
+    // 2026-11-11 配置化: 后台 reason_labels.changeLocation/changeContent 下发(bootstrap→ORDER.change*ReasonTypes), 此处仅兜底默认(冷启动生效); ActionSheet 上限 6 项, slice 防呆
+    const cfgTypes = field === 'location' ? CONFIG.ORDER.changeLocationReasonTypes : CONFIG.ORDER.changeContentReasonTypes;
+    const TYPE_OPTS = ((Array.isArray(cfgTypes) && cfgTypes.length) ? cfgTypes : (field === 'location'
       ? [{ k: 'location_change', t: '地点变动' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }]
-      : [{ k: 'content_adjust', t: '内容调整' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }];
+      : [{ k: 'content_adjust', t: '内容调整' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }])).slice(0, 6);
     wx.showActionSheet({
       itemList: TYPE_OPTS.map((o) => o.t),
       success: (a) => {

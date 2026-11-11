@@ -177,6 +177,13 @@ function config_public(ctx) {
       // 爽约通道(2026-11-11): 中文字符串数组(服务端 reason_type 原文入库, 无 {k,t}), 每项 ≤20 字(对齐 action_dispute.js slice(0,20)); 缺省回退内置默认
       noshow: normalizeNoShowReasons(cfgRaw.reason_labels_noshow, [
         '未出现', '迟到超30分钟', '中途离开', '其他'
+      ]),
+      // S2 变更通道(2026-11-11 补): 改地点/改内容理由(chat 页 ActionSheet itemList, 上限 6 项由前端 slice 兜底)
+      changeLocation: normalizeReasonLabels(cfgRaw.reason_labels_change_location, 'changeLocation', [
+        { k: 'location_change', t: '地点变动' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }
+      ]),
+      changeContent: normalizeReasonLabels(cfgRaw.reason_labels_change_content, 'changeContent', [
+        { k: 'content_adjust', t: '内容调整' }, { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }
       ])
     }
   } };
@@ -186,7 +193,10 @@ function config_public(ctx) {
 // 2026-11-11 评审修订: 两通道放开 location_change(加时/改期服务端 normalizeReasonType 均只查全量 REASON_TYPES, 本就接受), 选项可后台增删
 const REASON_LABEL_KEYS = {
   extend: ['time_conflict', 'location_change', 'content_adjust', 'other'],
-  modify: ['time_conflict', 'location_change', 'other']
+  modify: ['time_conflict', 'location_change', 'other'],
+  // S2 变更通道(2026-11-11 补): 与 action_config_set.js _REASON_LABEL_KEYS 同源
+  changeLocation: ['location_change', 'time_conflict', 'other'],
+  changeContent: ['content_adjust', 'time_conflict', 'other']
 };
 function normalizeReasonLabels(raw, kind, def) {
   if (!Array.isArray(raw) || !raw.length) return def;

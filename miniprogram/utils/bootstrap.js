@@ -94,7 +94,10 @@ const CLOUD_MAP = {
   'reason_labels.extend': 'ORDER.extendReasonTypes',
   'reason_labels.modify': 'ORDER.modifyReasonTypes',
   // 爽约理由(2026-11-11): 中文字符串数组, no-show-report onLoad 读取
-  'reason_labels.noshow': 'ORDER.noshowReasonTypes'
+  'reason_labels.noshow': 'ORDER.noshowReasonTypes',
+  // S2 变更理由(2026-11-11): 改地点/改内容(chat 页 ActionSheet 读 ORDER.change*ReasonTypes)
+  'reason_labels.changeLocation': 'ORDER.changeLocationReasonTypes',
+  'reason_labels.changeContent': 'ORDER.changeContentReasonTypes'
 };
 
 // 深合并: 把 cloud 返回的嵌套结构展平后按映射表写入 CONFIG
