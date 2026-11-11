@@ -1,8 +1,8 @@
 <template>
   <div class="page">
     <el-alert type="info" :closable="false" show-icon
-      title="理由配置（加时 / 改期）"
-      description="可增加、删除选项（限平台白名单 key，不可自造），可修改显示文案（2-10 字，至少保留 1 项）。保存后小程序端在用户下次冷启动生效（v1.6.115+ 客户端可见，本地缓存最长 7 天）。" />
+      title="理由配置（加时 / 改期 / 爽约）"
+      description="加时/改期：可增加、删除选项（限平台白名单 key，不可自造），可修改显示文案（2-10 字，至少保留 1 项）。爽约：自由文案（2-20 字，提交时原文入库，至少保留 1 项）。保存后小程序端在用户下次冷启动生效（本地缓存最长 7 天；爽约需下一体验版起的客户端支持）。" />
 
     <el-card v-for="g in groups" :key="g.kind" class="box">
       <template #header>
@@ -28,6 +28,30 @@
       </el-table>
     </el-card>
 
+    <el-card class="box">
+      <template #header>
+        <div class="card-head">
+          <span>爽约申诉理由（S2/S3.5 报告爽约）</span>
+          <div style="display:flex;gap:8px">
+            <el-input v-model="nsPick" placeholder="新理由（2-20 字）" size="small" style="width: 180px" maxlength="20" @keyup.enter="addNsRow" />
+            <el-button size="small" @click="addNsRow">添加</el-button>
+          </div>
+        </div>
+      </template>
+      <el-table :data="nsRows" size="small" border>
+        <el-table-column label="显示文案（提交时原文入库）">
+          <template #default="{ row }">
+            <el-input v-model="row.s" maxlength="20" show-word-limit placeholder="2-20 字" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="90">
+          <template #default="{ $index }">
+            <el-button size="small" type="danger" plain :disabled="nsRows.length <= 1" @click="nsRows.splice($index, 1)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
     <div class="bar">
       <el-input v-model="reason" placeholder="变更原因（选填，≤100 字）" maxlength="100" style="width: 320px" />
       <el-button type="primary" :loading="saving" @click="save">保存</el-button>
@@ -37,8 +61,8 @@
 </template>
 
 <script setup>
-// ReasonTypes.vue · 理由配置页(2026-11-11, 评审修订: 文案可改 + 选项可增删)
-// 数据链: config_get.reason_labels 回读 → 行增删/文案编辑 → config_set(reason_labels_extend/modify) 复用既有留痕(config_history + platform_event)
+// ReasonTypes.vue · 理由配置页(2026-11-11, 评审修订: 文案可改 + 选项可增删; 同日增爽约通道: 自由文案字符串数组)
+// 数据链: config_get.reason_labels 回读 → 行增删/文案编辑 → config_set(reason_labels_extend/modify/reason_labels_noshow) 复用既有留痕(config_history + platform_event)
 // 护栏(服务端同款): key 限内置白名单(不可自造); 文案 2-10 字; 至少 1 项(服务端拒空数组, UI 侧删除按钮同步禁用)
 // 评审整改(#1): fillRows 以「云端已存数组」为准生成行(保留顺序/支持子集), 不再按 DEFAULTS 硬编码 —— 否则云端已存的 location_change 会被静默丢弃
 import { ref, reactive, onMounted } from 'vue';
@@ -69,6 +93,10 @@ const groups = reactive([
   { kind: 'extend', title: '加时申请理由（S3 履约中）', rows: [], pick: '' },
   { kind: 'modify', title: '改期申请理由（S2 已支付待履约）', rows: [], pick: '' }
 ]);
+// 爽约通道(2026-11-11): 中文字符串数组(服务端 reason_type 原文入库, 无 {k,t}), 编辑器与 extend/modify 分离
+const NS_DEFAULT = ['未出现', '迟到超30分钟', '中途离开', '其他'];
+const nsRows = ref([]);
+const nsPick = ref('');
 const saving = ref(false);
 const reason = ref('');
 
@@ -94,12 +122,29 @@ function addRow(g, k) {
   g.pick = '';
 }
 
+// 爽约行来源: 云端已存数组优先, 未配置才用默认(模式 D 铁律 1: 防止云端已存项被静默丢弃)
+function fillNsRows(saved) {
+  const savedList = Array.isArray(saved) ? saved.filter((x) => typeof x === 'string' && x) : [];
+  const src = savedList.length ? savedList : NS_DEFAULT;
+  nsRows.value = src.map((s) => ({ s: String(s) }));
+}
+
+function addNsRow() {
+  const s = String(nsPick.value || '').trim();
+  if (!s) return;
+  if (s.length < 2 || s.length > 20) { ElMessage.warning('爽约理由须为 2-20 字'); return; }
+  if (nsRows.value.some((r) => r.s === s)) { ElMessage.warning('爽约理由已存在'); return; }
+  nsRows.value.push({ s });
+  nsPick.value = '';
+}
+
 async function load() {
   const r = await call('config_get');
   if (!r.ok) { ElMessage.error(r.msg || r.code || '配置加载失败'); return; }
   const rl = (r.data && r.data.reason_labels) || {};
   fillRows('extend', rl.extend);
   fillRows('modify', rl.modify);
+  fillNsRows(rl.noshow);
   reason.value = '';
 }
 
@@ -110,6 +155,12 @@ async function save() {
     payload[g.kind === 'extend' ? 'reason_labels_extend' : 'reason_labels_modify'] =
       g.rows.map((r) => ({ k: r.k, t: String(r.t || '').trim() || r.def }));
   }
+  // 爽约: 自由文案 2-20 字(服务端同款校验), 至少 1 项、去重
+  const nsList = nsRows.value.map((r) => String(r.s || '').trim()).filter(Boolean);
+  if (!nsList.length) { ElMessage.error('爽约理由至少保留 1 项'); return; }
+  if (nsList.some((s) => s.length < 2 || s.length > 20)) { ElMessage.error('爽约理由须为 2-20 字'); return; }
+  if (new Set(nsList).size !== nsList.length) { ElMessage.error('爽约理由存在重复项'); return; }
+  payload.reason_labels_noshow = nsList;
   try {
     await ElMessageBox.confirm(
       '保存后小程序端将在用户下次冷启动生效（缓存最长 7 天）。确定保存？',

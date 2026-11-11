@@ -52,7 +52,9 @@ module.exports = {
     reasonMinLen: 10,          // 改期/加时/变更原因最短字数(2026-11-10 评审: 与服务端单点常量同源)
     // 加时/改期理由显示文案兜底(2026-11-11): key 与服务端 REASON_TYPES 白名单同源, 文案由 config_public.reason_labels 覆盖
     extendReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'content_adjust', t: '内容调整' }, { k: 'other', t: '其他' }],
-    modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }]
+    modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }],
+    // 爽约理由兜底(2026-11-11): 中文字符串数组(reason_type 原文入库), 由 config_public.reason_labels.noshow 覆盖
+    noshowReasonTypes: ['未出现', '迟到超30分钟', '中途离开', '其他']
   },
 
   // 改期规则（PRD 3.5.3；数值由启动时 config_public.modify_config 覆盖，此处与后台默认同源）

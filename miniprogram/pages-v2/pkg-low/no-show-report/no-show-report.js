@@ -7,7 +7,7 @@ const CONFIG = require('../../../config/index.js');
 
 const { callCloud } = require('../../../utils/cloud.js');
 
-// 申诉原因选项(设计稿 §2.6)
+// 申诉原因选项(设计稿 §2.6); 2026-11-11 配置化: 后台 reason_labels.noshow 下发(bootstrap→ORDER.noshowReasonTypes), 此处仅兜底默认(冷启动生效)
 const REASON_OPTIONS = ['未出现', '迟到超30分钟', '中途离开', '其他'];
 
 Page({
@@ -29,10 +29,13 @@ Page({
     const mode = options.mode === 'defense' ? 'defense' : 'submit';
     const ns = CONFIG.NO_SHOW || {};
     wx.setNavigationBarTitle({ title: mode === 'defense' ? '提交举证' : '报告爽约' });
+    // 爽约理由选项: 后台配置优先(2026-11-11), 非空数组才采用, 否则回退本地默认(向后兼容)
+    const cfgReasons = CONFIG.ORDER && CONFIG.ORDER.noshowReasonTypes;
     this.setData({
       mode,
       orderId: options.orderId || '',
       reportId: options.reportId || '',
+      reasonOptions: Array.isArray(cfgReasons) && cfgReasons.length ? cfgReasons : REASON_OPTIONS,
       maxFiles: Number(ns.evidenceMax) || 3,
       minLen: Number(ns.reasonMinLen) || 10
     });

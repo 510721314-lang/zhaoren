@@ -92,7 +92,9 @@ const CLOUD_MAP = {
   'no_show.max_per_order': 'NO_SHOW.maxPerOrder',
   // ── 理由文案(2026-11-11): 加时/改期 picker 显示文案后台可配; 数组整值下发(flatten 不拆数组), 页面 onLoad 按此覆盖 ──
   'reason_labels.extend': 'ORDER.extendReasonTypes',
-  'reason_labels.modify': 'ORDER.modifyReasonTypes'
+  'reason_labels.modify': 'ORDER.modifyReasonTypes',
+  // 爽约理由(2026-11-11): 中文字符串数组, no-show-report onLoad 读取
+  'reason_labels.noshow': 'ORDER.noshowReasonTypes'
 };
 
 // 深合并: 把 cloud 返回的嵌套结构展平后按映射表写入 CONFIG

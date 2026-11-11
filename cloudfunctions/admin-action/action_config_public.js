@@ -173,6 +173,10 @@ function config_public(ctx) {
       ]),
       modify: normalizeReasonLabels(cfgRaw.reason_labels_modify, 'modify', [
         { k: 'time_conflict', t: '时间冲突' }, { k: 'other', t: '其他' }
+      ]),
+      // 爽约通道(2026-11-11): 中文字符串数组(服务端 reason_type 原文入库, 无 {k,t}), 每项 ≤20 字(对齐 action_dispute.js slice(0,20)); 缺省回退内置默认
+      noshow: normalizeNoShowReasons(cfgRaw.reason_labels_noshow, [
+        '未出现', '迟到超30分钟', '中途离开', '其他'
       ])
     }
   } };
@@ -194,6 +198,18 @@ function normalizeReasonLabels(raw, kind, def) {
     const t = String(it.t || '').trim();
     if (!k || !t || allowed.indexOf(k) < 0) continue;
     out.push({ k, t: t.slice(0, 20) });
+  }
+  return out.length ? out : def;
+}
+
+// 爽约理由(2026-11-11): 中文字符串数组, 服务端 reason_type 原文入库(不校验白名单); 非空字符串≤20字保留(去重), 全非法回退默认(fail-closed)
+function normalizeNoShowReasons(raw, def) {
+  if (!Array.isArray(raw) || !raw.length) return def;
+  const out = [];
+  for (const it of raw) {
+    const s = String(it || '').trim();
+    if (!s || s.length > 20 || out.indexOf(s) >= 0) continue;
+    out.push(s);
   }
   return out.length ? out : def;
 }

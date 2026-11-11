@@ -429,6 +429,22 @@ async function config_set(ctx) {
     before[f] = config[f] || [];
     patch[f] = next;
   }
+  // 爽约理由特例(2026-11-11): reason_labels_noshow 为中文字符串数组(服务端 reason_type 原文入库, 不用 {k,t}); 每项 2-20 字(对齐 action_dispute.js slice(0,20)), 非空去重; 复用 config_history 留痕
+  if (event.reason_labels_noshow !== undefined) {
+    if (!Array.isArray(event.reason_labels_noshow) || !event.reason_labels_noshow.length) return fail('config_bad_reason_labels_noshow', 'reason_labels_noshow 须为非空字符串数组');
+    const seenNs = new Set();
+    const nextNs = [];
+    for (const it of event.reason_labels_noshow) {
+      const s = String(it || '').trim();
+      if (!s) return fail('config_bad_reason_labels_noshow', 'reason_labels_noshow 不允许空项');
+      if (s.length < 2 || s.length > 20) return fail('config_bad_reason_labels_noshow_len', 'reason_labels_noshow 文案长度须为 2-20 字');
+      if (seenNs.has(s)) return fail('config_bad_reason_labels_noshow_dup', `reason_labels_noshow 存在重复项: ${s}`);
+      seenNs.add(s);
+      nextNs.push(s);
+    }
+    before.reason_labels_noshow = config.reason_labels_noshow || [];
+    patch.reason_labels_noshow = nextNs;
+  }
 
   const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
   if (!changed.length) return fail('config_no_change', '没有需要修改的字段');
