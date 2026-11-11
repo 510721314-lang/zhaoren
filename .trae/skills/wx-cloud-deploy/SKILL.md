@@ -59,7 +59,7 @@ CLI `deploy` **只上传代码，不会应用函数目录下 config.json 里的 
 
 ## 部署后验证
 
-0. **`tcb fn code download` 的目标路径是位置参数**（2026-11-07 实测踩坑）：正确写法 `tcb fn code download <函数名> <目标目录> -e <环境ID>`；**不存在 `--dir` 选项**（`unknown option '--dir'` EXIT=1）。回读比对用逐文件 SHA256（`Get-FileHash -Algorithm SHA256`）对照本地 `cloudfunctions/<函数名>`（排除 node_modules）。
+0. **`tcb fn code download` 的目标路径是位置参数**（2026-11-07 实测踩坑）：正确写法 `tcb fn code download <函数名> <目标目录> -e <环境ID>`；**不存在 `--dir` 选项**（`unknown option '--dir'` EXIT=1）；**下载文件直接落在目标目录根下，无 `<函数名>` 子目录**（2026-11-11 实测：`tcb fn code download admin-action $dst` 后文件在 `$dst\action_config_public.js`，不是 `$dst\admin-action\...`）——SHA256 比对路径写 `$dst\<文件名>`。回读比对用逐文件 SHA256（`Get-FileHash -Algorithm SHA256`）对照本地 `cloudfunctions/<函数名>`（排除 node_modules）。
 
 1. **CLI 不能远程调用云函数**（只支持 deploy / functions list / logs 等管理操作）。业务验证只能：
    - 云开发控制台 → 云函数 → 云端测试面板（用户手动粘贴入参），或
