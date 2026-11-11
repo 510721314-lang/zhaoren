@@ -1,8 +1,8 @@
 {
   "note": "常驻规则体系水位（T-7.34/T-7.36/T-7.39 防复发）。改规则后必须评估：inject 净增长 > rateLimitBytes、或已超 l0.targetBytes 时任何净增 → FAIL；conditional / 全量归档 净增长超各自速率门 → FAIL；.trae/rules.md 被写回正文（超 pointerMaxBytes 或出现章节标题）→ FAIL；缩水 > staleToleranceBytes 会提示刷新本文件。更新本文件属于「显式评审动作」，须单独 commit 并写理由。",
   "updatedAt": "2026-11-11",
-  "updatedBy": "水位刷新（显式评审动作）2026-11-11：本轮沉淀只落技能与归档全文，未动 core/pointer（inject 维持 16676B，仍超 12KB 目标位 292B，后续新增仍须先淘汰旧条）。①.archiveFullBytes 122447→131676：其中 §29-M3 补「hosting 双域名二次实证」约 0.8KB（本轮），其余约 8.4KB 为 2026-11-04 之后 §30–§39 增补未刷水位的既存漂移，本次一并归位；②技能侧新增 3 处（不占注入桶）：admin-web-write-ui-pattern 模式 D 六条铁律、powershell-windows-traps 陷阱 9、zhaoren-tech-review §3.1 方案评审正向案例。",
-  "injectBytes": 16676,
+  "updatedBy": "水位刷新（显式评审动作）2026-11-11 ②：injectBytes 16676→16643，取脚本实测值，差额 −33B 系 2026-11-04 刷新后 core −27B / 索引 −6B 从未回写；仍超 l0.targetBytes=16384 共 259B，后续任何净增仍 [QUOTA] FAIL（T-10.6 已闭合；淘汰/下沉另立项）。此前 2026-11-11 ①：archiveFullBytes 122447→131676（§29-M3 补「hosting 双域名二次实证」约 0.8KB，其余约 8.4KB 为 2026-11-04 后 §30–§39 增补的既存漂移归位）；技能侧新增 3 处（不占注入桶）：admin-web-write-ui-pattern 模式 D 六条铁律、powershell-windows-traps 陷阱 9、zhaoren-tech-review §3.1 方案评审正向案例。同日口径修正：目标位一律读 l0.targetBytes，禁止再写死 12288/12KB。",
+  "injectBytes": 16643,
   "injectFiles": 3,
   "injectSections": 12,
   "rateLimitBytes": 1024,
