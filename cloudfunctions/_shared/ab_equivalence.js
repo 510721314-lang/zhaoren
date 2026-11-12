@@ -615,11 +615,13 @@ function loadWith(dir, file, sdk) {
 }
 // 2026-11-05 P2-3: 基线迁出部署目录 → cloudfunctions_baseline/<fn>.js（不再随云函数打包），内容冻结不变。
 // 基线内含运行时懒加载的相对依赖（./openid 等），必须在原函数目录内解析 →
-// 测试开始时每个函数临时落一份 __baseline_tmp.js（gitignore），A/B 结束即删，仓库与部署保持干净。
+// 测试开始时每个函数临时落一份 __baseline_tmp*.js（进程唯一名，gitignore），A/B 结束即删，仓库与部署保持干净。
 function baselinePath(dir) {
   return path.join(__dirname, '..', '..', 'cloudfunctions_baseline', dir + '.js');
 }
-const BASELINE_TMP = '__baseline_tmp.js';
+// P3-43(2026-11-13): 临时名改为「进程唯一」(pid+启动时间戳)，避免多次/并发运行共用固定名时
+//   一方退出删掉另一方正在加载的副本 → 首次偶发 ENOENT；.gitignore 已扩通配 __baseline_tmp*.js
+const BASELINE_TMP = `__baseline_tmp_${process.pid}_${Date.now()}.js`;
 function baselineTmpPath(dir) {
   return path.join(__dirname, '..', dir, BASELINE_TMP);
 }
@@ -646,9 +648,10 @@ function cleanupBaselineTmp(dirs) {
   }
   // 临时基副本：供基线内懒加载的 ./openid 等相对依赖在函数目录内解析
   const fs = require('fs');
-  cleanupBaselineTmp(dirs);
+  // P3-43: 不再预删固定名副本（唯一名互不干扰）；正常退出/中断都只清本进程的文件
   for (const d of dirs) fs.copyFileSync(baselinePath(d), baselineTmpPath(d));
   process.on('exit', () => cleanupBaselineTmp(dirs));
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { cleanupBaselineTmp(dirs); process.exit(1); });
   // 已知「有意行为演进」白名单: 拆分后各批次对这些路径做了有意改动,
   // 与拆分前基线的差异属预期, 不计为回归; 未登记的新差异一律 FAIL。
   // 来源: 3509ef1(投诉放开 S2 起 / 动态时间线 / detail 字段扩充) · 安全整改(错误消息脱敏去 openid) · 批3(config_schema 新增 extend_confirm_h/scene_option_display_max)。
@@ -720,31 +723,37 @@ function cleanupBaselineTmp(dirs) {
     'pm_cashier_ok', 'auto_pm_cashier_info',
   ]);
   let fails = 0, known = 0;
-  for (const c of ALL_CASES) {
-    const dir = c.fn || 'order-action';
-    const st = c.store || baseStore();
-    // 两个独立 sdk 实例，相同 store 快照
-    const a = loadWith(dir, BASELINE_TMP, makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
-    const b = loadWith(dir, 'index.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
-    // 捕获任一侧抛错：两边抛同类同因错误也算等价（mock 能力边界内的行为一致）
-    const run = async (m) => { try { return { ok: true, v: await m.main(JSON.parse(JSON.stringify(c.event)), {}) }; } catch (e) { return { ok: false, v: String(e && e.message || e) }; } };
-    const ra = await run(a);
-    const rb = await run(b);
-    try {
-      assert.deepStrictEqual(normalize(rb), normalize(ra));
-      console.log('OK  ', c.name);
-    } catch (e) {
-      if (KNOWN_EVOLUTION.has(c.name)) { known++; console.log('KNOWN', c.name, '(intentional evolution)'); continue; }
-      fails++;
-      console.log('FAIL', c.name);
-      console.log('  expected:', JSON.stringify(ra));
-      console.log('  actual  :', JSON.stringify(rb));
+  try {
+    for (const c of ALL_CASES) {
+      const dir = c.fn || 'order-action';
+      const st = c.store || baseStore();
+      // 两个独立 sdk 实例，相同 store 快照
+      const a = loadWith(dir, BASELINE_TMP, makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
+      const b = loadWith(dir, 'index.js', makeSdk({ openid: c.openid, store: JSON.parse(JSON.stringify(st)) }));
+      // 捕获任一侧抛错：两边抛同类同因错误也算等价（mock 能力边界内的行为一致）
+      const run = async (m) => { try { return { ok: true, v: await m.main(JSON.parse(JSON.stringify(c.event)), {}) }; } catch (e) { return { ok: false, v: String(e && e.message || e) }; } };
+      const ra = await run(a);
+      const rb = await run(b);
+      try {
+        assert.deepStrictEqual(normalize(rb), normalize(ra));
+        console.log('OK  ', c.name);
+      } catch (e) {
+        if (KNOWN_EVOLUTION.has(c.name)) { known++; console.log('KNOWN', c.name, '(intentional evolution)'); continue; }
+        fails++;
+        console.log('FAIL', c.name);
+        console.log('  expected:', JSON.stringify(ra));
+        console.log('  actual  :', JSON.stringify(rb));
+      }
     }
+  } finally {
+    // P3-43: 正常结束或断言崩溃都把本进程唯一临时副本清干净
+    cleanupBaselineTmp(dirs);
   }
   console.log(fails === 0
     ? `\nA/B EQUIVALENT: ${ALL_CASES.length} cases (${CASES.length} explicit + ${AUTO_SEEDS.length} auto; ${known} known-evolution)`
     : `\n${fails} unexpected diff(s)`);
-  process.exit(fails);
+  // P3-43: 用 exitCode 代替 process.exit()，不再截断 finally / exit 钩子的清理
+  process.exitCode = fails;
 })();
 
 function normalize(v) {
