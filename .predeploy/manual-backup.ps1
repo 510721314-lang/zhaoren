@@ -40,6 +40,16 @@ function Invoke-AdminApi($Action, $Params = @{}) {
     $resp = Invoke-RestMethod -Uri $GATEWAY_URL -Method Post `
       -Headers @{ 'X-Admin-Key' = $AdminKey; 'Content-Type' = 'application/json' } `
       -Body $body -TimeoutSec 60
+    # T-13.3-D(2026-11-12 实测): 大响应(~118KB)时 PS5.1 Invoke-RestMethod 返回 String 而非对象;
+    #   且 ConvertFrom-Json 遇空键名会报「参数 name 的值无效」, 故用 JavaScriptSerializer(支持空键名, 返回 Dictionary)
+    if ($resp -is [string] -and $resp.TrimStart().StartsWith('{')) {
+      try {
+        Add-Type -AssemblyName System.Web.Extensions -ErrorAction SilentlyContinue
+        $ser = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+        $ser.MaxJsonLength = 67108864
+        $resp = $ser.DeserializeObject($resp)
+      } catch { Write-Host "[WARN] 大响应解析失败: $($_.Exception.Message)" -ForegroundColor Magenta }
+    }
     return $resp
   } catch {
     Write-Host "[FAIL] $Action : $($_.Exception.Message)" -ForegroundColor Red
@@ -141,16 +151,17 @@ if ($cliBat) {
   foreach ($fn in $fnNames) {
     $target = Join-Path $fnRoot $fn
     $errFile = Join-Path $fnRoot "$fn.err.txt"
-    # B-1(2026-11-03): 单函数下载 90s 超时, 防 CLI 挂起拖死整条备份链; 每函数前后写心跳
+    # B-1(2026-11-03): 单函数下载超时, 防 CLI 挂起拖死整条备份链; 每函数前后写心跳
+    # T-13.3-B(2026-11-12 实测 admin-action/admin-web >90s 被杀): 90 → 300s, 需完整下载后才能剔除 node_modules
     Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_START $fn" -ErrorAction SilentlyContinue
     $p = Start-Process -FilePath $cliBat `
       -ArgumentList @('cloud','functions','download','--env',$CLOUD_ENV,'--name',$fn,'--path',$target,'--project',$PROJECT_DIR) `
       -RedirectStandardOutput (Join-Path $fnRoot "$fn.std.txt") -RedirectStandardError $errFile -NoNewWindow -PassThru
     $exited = $false
-    try { $p | Wait-Process -Timeout 90 -ErrorAction Stop; $exited = $true } catch { $exited = $false }
+    try { $p | Wait-Process -Timeout 300 -ErrorAction Stop; $exited = $true } catch { $exited = $false }
     if (-not $exited -or -not $p.HasExited) {
       try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
-      Write-Host "[TIMEOUT] L6 download $fn > 90s, killed" -ForegroundColor Red
+      Write-Host "[TIMEOUT] L6 download $fn > 300s, killed" -ForegroundColor Red
       Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_TIMEOUT $fn" -ErrorAction SilentlyContinue
       $failed += $fn
       continue
