@@ -12,6 +12,9 @@ const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
 
 const { callCloud } = require('../../utils/cloud.js');
 const once = require('../../utils/once-anchor.js');
+// 前端巨页分拆阶段A（归属表 v1.1）：四确认数据加工域 / 弹窗编排域外移（零行为变更，转发壳保持调用面不变）
+const confirmFlow = require('../../utils/confirm-flow.js');
+const chatNotice = require('../../utils/chat-notice.js');
 
 Page({
   data: {
@@ -243,236 +246,18 @@ Page({
 
   // ───────── 四确认状态 ─────────
   applyConfirmation(d) {
-    const items = d.items || {};
-    const both = (f) => !!(items[f] && items[f].user_ok && items[f].partner_ok);
-    const progress = {
-      time: both('time'), location: both('location'),
-      content: both('content'), fee: both('fee')
-    };
-    const count = [progress.time, progress.location, progress.content, progress.fee].filter(Boolean).length;
-    // 2026-11-08: 四项常驻清单 —— 双方均可见「时间/地点/内容/费用」当前值与各自确认状态
-    const CONF_META = [
-      { f: 'time', cn: '时间', icon: '🕐' },
-      { f: 'location', cn: '地点', icon: '📍' },
-      { f: 'content', cn: '内容', icon: '📋' },
-      { f: 'fee', cn: '费用', icon: '💰' }
-    ];
-    const isPartner = this.data.role === 'partner';
-    const confirmList = CONF_META.map((m) => {
-      const it = items[m.f] || {};
-      const myOk = isPartner ? !!it.partner_ok : !!it.user_ok;
-      const peerOk = isPartner ? !!it.user_ok : !!it.partner_ok;
-      return {
-        field: m.f, cn: m.cn, icon: m.icon,
-        value: this.__changeValueText(m.f, it.value),
-        myOk, peerOk, done: myOk && peerOk
-      };
-    });
-    const wasUnlocked = this.data.unlocked;
-    const unlocked = !!d.all_confirmed;
-    const firstLoad = !this.__confLoaded;
-    this.__confLoaded = true;
-    // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
-    const nextStatus = d.status && d.status !== this.data.orderStatus ? d.status : this.data.orderStatus;
-    // 2026-11-09: S1 剩余窗口 —— 用服务端 s1_expire_at-server_now 差值折算本地截止时间, 抵消双端时钟偏差;
-    // created_at 缺失(=0)不倒计时, 禁止 now 兜底
-    if (d.s1_expire_at > 0 && d.server_now > 0) {
-      this.__s1Deadline = Date.now() + (d.s1_expire_at - d.server_now);
-    } else if (nextStatus !== 'S1') {
-      this.__s1Deadline = 0;
-    }
-    const s1Left = (nextStatus === 'S1' && this.__s1Deadline) ? Math.max(0, Math.floor((this.__s1Deadline - Date.now()) / 1000)) : 0;
-    // 加时/改期在途请求 → 醒目横幅(对方发起且未处理; 常驻至确认/拒绝/超时; 先给订单概要)
-    const pm = d.pending_modify;
-    const pe = d.pending_extend;
-    let pendingBanner = null;
-    if (pe && pe.can_respond) {
-      pendingBanner = {
-        type: 'extend', summary: this.__orderSummary(d),
-        title: '⏰ 对方申请加时',
-        body: `加时 ${pe.add_hours} 小时 · ¥${(pe.add_amount_fen / 100).toFixed(2)} · 点击去处理 ›`,
-        canRespond: true
-      };
-    } else if (pm && pm.can_respond && nextStatus === 'S2_5') {
-      pendingBanner = {
-        type: 'modify', summary: this.__orderSummary(d),
-        title: '📅 对方申请改期',
-        body: `改至 ${this.fmtDateTime(pm.new_start_time)} · 点击去处理 ›`,
-        canRespond: true
-      };
-    }
-    // 2026-11-04: S1 变更协商在途态(对方接受才生效); 前端只展示必要字段
-    const CHANGE_CN = { time: '时间', location: '地点', content: '内容', fee: '费用', other: '其他' };
-    const pc = d.pending_change || null;
-    const pendingChange = pc ? {
-      field: pc.field,
-      field_cn: CHANGE_CN[pc.field] || pc.field,
-      old_text: this.__changeValueText(pc.field, pc.old_value),
-      new_text: this.__changeValueText(pc.field, pc.new_value),
-      by_role: pc.by_role || '',
-      by_text: pc.by_role === 'user' ? '发单人' : '耍伴',
-      reason: pc.reason || '',
-      expire_text: pc.expire_at ? `${this.fmtDateTime(pc.expire_at)} 前反馈` : '请在 15 分钟内反馈',
-      can_respond: !!pc.can_respond,
-      token: pc.token || ''
-    } : null;
-    // 2026-11-10(评审修复): 付费后改期/改地点前置校验数据 —— get_confirmation 新增下发; 不读则新校验恒为假
-    const s2c = d.s2_change_counts || {};
-    const s2Counts = { total: Number(s2c._total) || 0, location: Number(s2c.location) || 0, content: Number(s2c.content) || 0 };
-    this.setData({
-      items,
-      progress,
-      confirmedCount: count,
-      confirmList,
-      unlocked,
-      freeChat: unlocked || this.data.freeChat,
-      orderStatus: nextStatus,
-      startTime: Number(d.start_time) || this.data.startTime || 0,
-      pendingBanner,
-      pendingChange,
-      frozen: !!d.frozen,
-      s2Counts,
-      s1Left,
-      s1Text: s1Left > 0 ? this.__s1Text(s1Left) : '',
-      // 2026-11-09: 轮询发现终态时同步停会话标记(im-conv.open 仅进页快照, 轮询期订单取消不会重推)
-      chatBlocked: (nextStatus === 'S6' || nextStatus === 'S10') ? true : this.data.chatBlocked,
-      // 2026-11-09: 特别授权判定以服务端下发 batch_blocked 为单一真值(本地 scene 判定仅兜底)
-      batchBlocked: !!d.batch_blocked || this.data.batchBlocked,
-      orderSummary: this.__orderSummary(d)
-    }, () => {
+    // 前端巨页分拆阶段A（归属表 v1.1，零行为变更）：段1-6 数据加工域→utils/confirm-flow.js（返回 17 键 patch+实例态写回），
+    // 段9-15 弹窗编排域→utils/chat-notice.js（保持 setData 回调内时序，约束②）；本函数为编排壳，@VERIFIED 标记随迁 chat-notice.js
+    const view = confirmFlow.buildConfirmationView(this, d);
+    this.setData(view.patch, () => {
       this.updateMsgStatuses();
       // 2026-11-10(用户反馈): 详情页带 s2 参数进入 → 状态/履约时间/变更次数已就绪, 直接进入改地点(只触发一次)
-      if (this.__s2Auto && nextStatus === 'S2') {
+      if (this.__s2Auto && view.nextStatus === 'S2') {
         const autoField = this.__s2Auto;
         this.__s2Auto = '';
         this.startEdit(autoField);
       }
-      // ── 状态提示 catch-up 模式: 每状态只提示一次, 不依赖轮询跳变/瞬时窗口(根治"提示不跳出/丢失"类问题) ──
-      // 2026-10-30(§34): 状态提示幂等键落 Storage(once:status:<order_id>:<阶段>), 重进聊天页不再重复弹
-      const stOid = this.data.orderId || '';
-      const shown = (k) => once.has('status:' + stOid + ':' + k);
-      const mark = (k) => once.mark('status:' + stOid + ':' + k);
-
-      // 1) S0 耍伴端: 对方已确认, 待付款
-      if (this.data.role === 'partner' && nextStatus === 'S0' && !shown('partner_S0')) {
-        mark('partner_S0');
-        wx.showModal({
-          title: '📋 对方已确认',
-          content: `${this.__orderSummary(d)}\n需求方已完成四项确认,订单进入待支付,等待需求方付款`,
-          showCancel: false,
-          confirmText: '知道了',
-          confirmColor: '#07C160',
-          fail: () => wx.showToast({ title: '对方已确认,待付款', icon: 'none' })
-        });
-      }
-      // 1b) 2026-11-09 S0 需求方端: 四项已全部确认 → 弹窗引导完成支付(once 幂等, 点确定直达收银台)
-      if (this.data.role === 'user' && nextStatus === 'S0' && !shown('user_S0')) {
-        mark('user_S0');
-        wx.showModal({
-          title: '✅ 四项已全部确认',
-          content: `${this.__orderSummary(d)}\n双方确认完毕,请完成支付后耍伴即开始履约`,
-          showCancel: false,
-          confirmText: '去支付',
-          confirmColor: '#07C160',
-          fail: () => wx.showToast({ title: '四项已确认,待支付', icon: 'none' }),
-          success: (res) => {
-            if (res.confirm) {
-              // redirectTo: 全齐后聊天页使命已完成, 直达收银台(与"去履约"先例同模式)
-              wx.redirectTo({
-                url: `/pages-v2/pay/pay?orderId=${this.data.orderId}`,
-                fail: (err) => {
-                  console.error('[chat] redirectTo pay fail:', err && err.errMsg);
-                  wx.showToast({ title: '支付页打开失败', icon: 'none' });
-                }
-              });
-            }
-          }
-        });
-      }
-      // 1c) 2026-11-10(用户需求): 待我处理的变更 → 弹窗引导进入处理(once 按变更 token 幂等, 处理入口=本页变更卡片)
-      const pcn = this.data.pendingChange;
-      if (pcn && pcn.can_respond) {
-        // 2026-11-10 评审 P0: 键去 token, 改 field:expire_at —— 与订单详情页共用同一 Storage 键, 避免跨页双弹
-        const chKey = `change_${pcn.field}:${((d.pending_change || {}).expire_at) || 0}`;
-        if (!shown(chKey)) {
-          mark(chKey);
-          wx.showModal({
-            title: `对方申请变更「${pcn.field_cn}」`,
-            content: `${pcn.old_text} → ${pcn.new_text}\n${pcn.expire_text}，请及时处理`,
-            confirmText: '去处理',
-            cancelText: '稍后',
-            confirmColor: '#07C160',
-            fail: () => wx.showToast({ title: '有变更待你处理', icon: 'none' })
-          });
-        }
-      }
-      // 2) S2 耍伴端: 对方已支付, 去履约
-      if (this.data.role === 'partner' && nextStatus === 'S2' && !shown('partner_S2')) {
-        mark('partner_S2');
-        wx.showModal({
-          title: '💰 对方已支付',
-          content: `${this.__orderSummary(d)}\n对方已完成支付，请依约履约`,
-          showCancel: true,
-          confirmText: '去履约',
-          cancelText: '知道了',
-          confirmColor: '#07C160',
-          fail: () => wx.showToast({ title: '对方已支付', icon: 'none' }),
-          success: (res) => {
-            if (res.confirm) {
-              // 引导进入履约界面(订单详情页, S2 时可点"开始履约")
-              wx.redirectTo({
-                url: `/pages-v2/order-detail/order-detail?orderId=${this.data.orderId}`,
-                fail: (err) => {
-                  console.error('[chat] redirectTo order-detail fail:', err && err.errMsg);
-                  wx.navigateBack({ fail: () => {} });
-                }
-              });
-            }
-          }
-        });
-      }
-      // 3) S5 发布者端: 履约完成, 去评价
-      if (this.data.role === 'user' && nextStatus === 'S5' && !shown('user_S5')) {
-        mark('user_S5');
-        wx.showModal({
-          title: '🎉 履约完成',
-          content: `${this.__orderSummary(d)}\n耍伴已完成履约，请对本次服务进行评价`,
-          showCancel: true,
-          confirmText: '去评价',
-          cancelText: '稍后',
-          confirmColor: '#07C160',
-          fail: () => wx.showToast({ title: '履约完成，请评价', icon: 'none' }),
-          success: (res) => {
-            if (res.confirm) {
-              wx.redirectTo({
-                url: `/pages-v2/pkg-low/evaluate/evaluate?orderId=${this.data.orderId}`,
-                fail: (err) => {
-                  console.error('[chat] redirectTo evaluate fail:', err && err.errMsg);
-                  wx.showToast({ title: '评价页打开失败,请从订单详情进入', icon: 'none', duration: 2500 });
-                }
-              });
-            }
-          }
-        });
-      }
-      // 4) S0 发布者端: 订单支付(catch-up: 进入/轮询即弹, 不再限定"确认完成瞬间"或"非首次加载")
-      if (this.data.role === 'user' && nextStatus === 'S0' && !shown('user_S0')) {
-        mark('user_S0');
-        wx.showModal({
-          title: '💳 订单支付',
-          content: `${this.__orderSummary(d)}\n四项确认已全部完成,订单进入待支付\n请在 30 分钟内完成支付,超时订单将自动取消`,
-          confirmText: '支付',
-          cancelText: '放弃支付',
-          confirmColor: '#07C160',
-          fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-          success: (res) => {
-            if (res.confirm) this.goPay(); // 放弃支付 → 留在四确认完成窗口(顶部横幅可再次进入支付)
-          }
-        });
-      }
-      if (unlocked && !wasUnlocked) {
-        wx.showToast({ title: '已解锁自由沟通,请遵守平台规则', icon: 'none', duration: 2000 });
-      }
+      chatNotice.runConfirmationPopups(this, d, view.nextStatus, view);
     });
   },
 
@@ -629,92 +414,10 @@ Page({
     if (this.__pollTimer) { clearInterval(this.__pollTimer); this.__pollTimer = null; }
   },
 
-  // ───────── 订单动态通知展示: 对方对订单的任何变动(接单/支付/改期/履约等)即时 toast 提示 ─────────
-  // 幂等去重: 已提示过的通知不再重复(Storage once:chat_notice:<order_id> 持久化); 数据源为 chat_poll.notices(60s 一轮)
-  // 2026-11-10(提示滞后): 去重键改为 id|created_at —— writeNotice 合并时复用同一 _id 并刷新 created_at, 仅按 id 会吞掉第二次同类事件
-  // @VERIFIED 2026-11-10 已真机验证：通知去重键含 created_at，二次同类事件两次都提示
+  // ───────── 订单动态通知展示（实现外移 utils/chat-notice.js 分区二；@VERIFIED 2026-11-10/2026-10-18 两枚标记同迁；
+  //    本函数为调用面不变的转发壳，wxml/轮询链调用点零改） ─────────
   applyNotices(d) {
-    // 2026-10-30(§34): 通知/沟通提示幂等键落 Storage, 重进聊天页不再重复弹(§2 #88 已获放行: 文案与触发条件不变)
-    const nOid = this.data.orderId || '';
-    const shownIds = once.getMap('chat_notice:' + nOid);
-    {
-      if (!d || !d.list || !d.list.length) return;
-      const fresh = d.list.filter((n) => n && n.id && !shownIds[n.id + '|' + (n.created_at || 0)]);
-      if (!fresh.length) return;
-      fresh.forEach((n) => { shownIds[n.id + '|' + (n.created_at || 0)] = 1; });
-      once.putMap('chat_notice:' + nOid, shownIds);
-      // 加时/改期被对方响应(同意/拒绝, 含超时自动拒绝): 震动 + 弹窗醒目提醒(该通知仅发起方会收到)
-      const RESPOND_ALERT = {
-        extend_confirm: '✅ 对方已同意加时',
-        extend_reject: '❌ 对方已拒绝加时',
-        modify_confirm: '✅ 对方已同意改期',
-        modify_reject: '❌ 对方已拒绝改期',
-        // 2026-11-04: 四确认变更协商的生效/拒绝结果(仅发起方收到)
-        change_accept: '✅ 对方已接受变更',
-        change_reject: '❌ 对方已拒绝变更'
-      };
-      const respondHit = fresh.find((n) => RESPOND_ALERT[n.type]);
-      // 2026-11-10 评审 P0: 变更提醒收敛为单一来源(上方 1c token 键弹窗), 通知弹窗降级为横幅, 避免同轮双弹
-      // 2026-11-10(3B): 收到「对方发起改期」→ 震动+弹窗引导进入处理(原仅顶部横幅, 易错过确认窗口)
-      const modifyHit = !respondHit
-        ? fresh.find((n) => n && n.type === 'modify' && String(n.title || '').indexOf('发起改期') >= 0)
-        : null;
-      // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）
-      // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
-      // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
-      const commShown = once.getMap('chat_comm:' + nOid);
-      const commHit = (this.data.role === 'partner' && !respondHit)
-        ? (d.list || []).find((n) => n && n.type === 'modify' && n.title === '订单沟通'
-            && !commShown[n.id + '|' + (n.body || '')])
-        : null;
-      if (respondHit) {
-        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-        wx.showModal({
-          title: RESPOND_ALERT[respondHit.type],
-          content: respondHit.body || '',
-          showCancel: false,
-          confirmText: '知道了'
-        });
-      } else if (modifyHit) {
-        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-        wx.showModal({
-          title: '对方发起改期',
-          content: `${modifyHit.body || '对方申请变更服务时间'}\n请在倒计时内处理`,
-          confirmText: '去处理',
-          cancelText: '稍后',
-          confirmColor: '#07C160',
-          fail: () => {},
-          success: (res) => { if (res.confirm) this.goOrderDetail(); }
-        });
-      } else if (commHit) {
-        // 先记账再弹窗: 弹窗未关时下一轮轮询(5s)不会重复弹出
-        commShown[commHit.id + '|' + (commHit.body || '')] = 1;
-        once.putMap('chat_comm:' + nOid, commShown);
-        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-        wx.showModal({
-          title: '对方发起沟通',
-          content: `${commHit.body || '对方修改了确认项'}\n请回到上方四确认面板查看并重新确认`,
-          confirmText: '去确认',
-          cancelText: '稍后',
-          confirmColor: '#07C160',
-          fail: () => {},
-          success: (res) => {
-            if (res.confirm) wx.pageScrollTo({ scrollTop: 0, duration: 200 }); // 四确认面板在页面顶部
-          }
-        });
-      } else {
-        const key = fresh[0];
-        const TITLE_OF = {
-          accept: '有人接单了', paid: '对方已支付',
-          confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',
-          finish: '履约已完成', milestone: '履约进度更新',
-          cancel: '订单已取消', tip: '收到打赏'
-        };
-        const t = TITLE_OF[key.type] || key.title || '订单有新动态';
-        if (t && t !== '订单沟通') wx.showToast({ title: String(t).slice(0, 12), icon: 'none', duration: 2500 });
-      }
-      // 同一轮 chat_poll 已带回最新四确认数据, 不再额外调用
-    }
+    chatNotice.applyNotices(this, d);
   },
 
   // ───────── C4 模板卡选项点击 ─────────

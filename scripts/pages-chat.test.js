@@ -142,11 +142,13 @@ test('C6 S0 双端弹窗分流与去支付直达', async () => {
     'order-action:get_confirmation': conf({ status: 'S0', all_confirmed: true })
   });
   try {
-    const pay = b.calls.modal.find((m) => String(m.title || '').indexOf('四项已全部确认') >= 0);
-    assert.ok(pay, 'user 端应弹四项已全部确认');
-    pay.__confirm();
+    const pay = b.calls.modal.filter((m) => String(m.title || '').indexOf('四项已全部确认') >= 0);
+    assert.strictEqual(pay.length, 1, 'user 端应弹四项已全部确认（唯一性）');
+    pay[0].__confirm();
     await sleep(20);
     assert.ok(b.calls.nav.some((n) => /pay\/pay\?orderId=/.test(n.url)), '确认后直达收银台');
+    // 死代码复活哨兵：1b 先 mark(user_S0)，同条件「💳 订单支付」分支(L459-472)必须保持不可达
+    assert.strictEqual(b.calls.modal.filter((m) => m.title === '💳 订单支付').length, 0, '不可达分支不得复活');
   } finally { b.restore(); }
 });
 
@@ -342,4 +344,42 @@ test('C16 幂等键名级断言', async () => {
     const keys2 = p.calls.storage.filter((s) => s.op === 'set').map((s) => s.key);
     assert.ok(keys2.some((k) => String(k).indexOf('chat_notice:' + ORD) >= 0), '通知去重表键含 orderId');
   } finally { p.restore(); }
+});
+
+// C17（可直接驱动·实施第0步）：applyConfirmation setData 键集合快照 —— confirm-flow 外移后 17 键不得多/少/改路径
+test('C17 patch 键集合 17 键快照', async () => {
+  const p = await load({
+    'order-action:get_confirmation': conf({ pending_extend: { can_respond: true, add_hours: 1, add_amount_fen: 3000 } })
+  });
+  try {
+    const patch = p.calls.setData.find((s) => s && 'confirmList' in s);
+    assert.ok(patch, '应存在 applyConfirmation 的 setData patch');
+    const EXPECT = ['items', 'progress', 'confirmedCount', 'confirmList', 'unlocked', 'freeChat', 'orderStatus',
+      'startTime', 'pendingBanner', 'pendingChange', 'frozen', 's2Counts', 's1Left', 's1Text', 'chatBlocked', 'batchBlocked', 'orderSummary'];
+    assert.deepStrictEqual(Object.keys(patch).sort(), EXPECT.slice().sort(), 'setData 键集合必须与快照逐键一致');
+  } finally { p.restore(); }
+});
+
+// C18（可直接驱动·实施第0步）：弹窗调用点时序 —— 状态 catch-up 弹窗必须发生在 setData 回调内部（pcn 依赖 patch 已落 data）
+test('C18 弹窗时序在 setData 回调内', async () => {
+  const order2 = [];
+  const q = await load({
+    'order-action:get_confirmation': conf({ pending_change: { field: 'fee', old_value: '30', new_value: '50',
+      by_role: 'partner', reason: '费用调整', expire_at: Date.now() + 600000, can_respond: true, token: 'tk9' } })
+  }, {
+    wx: { showModal(arg) { order2.push('modal:' + ((arg && arg.title) || '')); } }
+  });
+  try {
+    order2.length = 0; // 载入期已有弹窗记录，清空后仅观察本次 applyConfirmation 的时序
+    const orig = q.inst.setData.bind(q.inst);
+    q.inst.setData = (patch, cb) => { order2.push('setData'); orig(patch, cb); };
+    const c = conf({ pending_change: { field: 'fee', old_value: '30', new_value: '50',
+      by_role: 'partner', reason: '费用调整', expire_at: Date.now() + 600000, can_respond: true, token: 'tk9' } });
+    q.inst.applyConfirmation(c.data);
+    const iSet = order2.indexOf('setData');
+    const iModal = order2.findIndex((x) => x.startsWith('modal:对方申请变更'));
+    assert.ok(iSet >= 0 && iModal > iSet, '变更弹窗必须晚于 setData 入栈（回调内时序）order=' + JSON.stringify(order2));
+    const between = order2.slice(iSet + 1, iModal);
+    assert.ok(between.every((x) => !x.startsWith('modal:')), 'setData 与弹窗之间无其他弹窗（单次 setData 单回调）');
+  } finally { q.restore(); }
 });
