@@ -23,6 +23,8 @@ const { getLocationSafe } = require('../../utils/location.js');
 const { collectStartEvidence, uploadStartPhotos, uploadEvidenceOne } = require('../../utils/order-evidence.js');
 // 拆分阶段2c(2026-10-16): 定时器/通知轮询(6 法)外移 utils/order-poll.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { clearTimers, startTipPoll, stopTipPoll, onTipNoticeTap, startCountdown, fetchTipList } = require('../../utils/order-poll.js');
+// 阶段B B1(2026-11-12): 操作互斥弹窗外移 utils/order-modal.js（零行为变更，调用点与互斥语义不变）
+const orderModal = require('../../utils/order-modal.js');
 
 Page({
   // ── §0 生命周期 & 启动加载 (onLoad / fetchData / refreshOrder / reload / onShow / onHide / onUnload) ──
@@ -157,17 +159,9 @@ Page({
   // 首请求改状态+刷新换按钮后, 第二个 modal 的确认对新状态二次请求(被服务端 oa_*_status 拒绝)。
   // 入口(弹窗前)即拦; 取消/弹窗失败/业务 Promise 链结算后自动放锁。success 回调必须 return 其 Promise 链。
   // cancelIsAction: 取消键本身也是业务动作(如加时弹窗的「拒绝」)时置 true, 回调照常执行
+  // 阶段B B1(2026-11-12): 实现在 utils/order-modal.js，本方法为调用面不变的薄代理
   _modal(opts) {
-    if (this._acting) return;
-    this._acting = true;
-    const release = () => { this._acting = false; };
-    wx.showModal(Object.assign({}, opts, {
-      success: (res) => {
-        if (!res.confirm && !opts.cancelIsAction) { release(); return; }
-        Promise.resolve().then(() => opts.success(res)).then(release, release);
-      },
-      fail: () => { release(); if (opts.fail) opts.fail(); }
-    }));
+    orderModal.showModal(this, opts);
   },
 
   // 2026-10-15 F2 状态冲突收敛: oa_*_status/oa_status_conflict 不直出含裸状态码的服务端文案,
