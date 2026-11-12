@@ -12,11 +12,14 @@
 //
 // 与真机的已知差异：
 //   ① 只实现被测页面用到的 wx API，未实现的返回空函数（不抛错）；
-//   ② setInterval 被替换为假定时器（只记录不触发），避免轮询把测试挂住；
+//   ② setInterval / setTimeout 被替换为假定时器（只记录不触发），避免轮询把测试挂住；
+//      需要触发延迟回调时用 p.__flushTimers() / p.__pendingTimers()（2026-11-13 起接管 setTimeout）
 //   ③ setData 支持浅合并与 a.b.c 路径键，不触发重渲染。
 const path = require('path');
 
 const MP_ROOT = path.resolve(__dirname, '..', 'miniprogram');
+// 2026-11-13: 页面 setTimeout 被沙箱接管后，sleep 必须用真实定时器，否则测试自身会被挂住
+const realSetTimeout = global.setTimeout;
 
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 
@@ -55,6 +58,8 @@ function createPage(opts) {
   const calls = { cloud: [], nav: [], toast: [], modal: [], wx: {}, storage: [], setData: [] };
   const storage = Object.assign({}, clone(o.storage) || {});
   const timers = [];
+  // 页面 setTimeout 句柄队列：假定时器不自动触发，由 __flushTimers 显式排空
+  const pending = [];
 
   const record = (bucket) => (arg) => { bucket.push(clone(arg)); };
 
@@ -132,7 +137,9 @@ function createPage(opts) {
     getApp: global.getApp,
     wx: global.wx,
     setInterval: global.setInterval,
-    clearInterval: global.clearInterval
+    clearInterval: global.clearInterval,
+    setTimeout: global.setTimeout,
+    clearTimeout: global.clearTimeout
   };
 
   let captured = null;
@@ -148,6 +155,17 @@ function createPage(opts) {
     if (handle) handle.cleared = true;
     const i = timers.indexOf(handle);
     if (i >= 0) timers.splice(i, 1);
+  };
+  global.setTimeout = (fn, ms) => {
+    const handle = { fn, ms: Number(ms) || 0, cleared: false };
+    pending.push(handle);
+    return handle;
+  };
+  global.clearTimeout = (handle) => {
+    if (!handle) return;
+    handle.cleared = true;
+    const i = pending.indexOf(handle);
+    if (i >= 0) pending.splice(i, 1);
   };
 
   delete require.cache[require.resolve(abs)];
@@ -173,6 +191,21 @@ function createPage(opts) {
     app,
     calls,
     timers,
+    // 假 setTimeout 排空：不传 maxMs = 全部触发；传则只触发 ms <= maxMs 的（重复调度由 guard 兜底）
+    __pendingTimers() { return pending.length; },
+    async __flushTimers(maxMs) {
+      const limit = typeof maxMs === 'number' ? maxMs : Infinity;
+      const drain = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+      await drain(); // 先让业务 Promise 结算（定时器通常在 .then 里注册）
+      let guard = 0;
+      while (guard++ < 1000) {
+        const i = pending.findIndex((t) => t.ms <= limit);
+        if (i < 0) break;
+        const t = pending.splice(i, 1)[0];
+        if (!t.cleared && typeof t.fn === 'function') t.fn();
+        await drain(); // 回调里可能再发请求/再落定时器
+      }
+    },
     // 还原沙箱全局并清掉页面模块缓存（仅当自己仍是当前生效的沙箱，避免串扰上层）
     restore() {
       if (global.wx === wx) {
@@ -181,12 +214,15 @@ function createPage(opts) {
         global.wx = saved.wx;
         global.setInterval = saved.setInterval;
         global.clearInterval = saved.clearInterval;
+        global.setTimeout = saved.setTimeout;
+        global.clearTimeout = saved.clearTimeout;
       }
+      pending.length = 0;
       delete require.cache[require.resolve(abs)];
     }
   };
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => realSetTimeout(r, ms));
 
 module.exports = { createPage, sleep, MP_ROOT };

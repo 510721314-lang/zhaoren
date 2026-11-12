@@ -183,26 +183,22 @@ test('O8 改期提交链', async () => {
 // O9：取消提交链 —— 梯度退款文案 + cancel 载荷（reason 取当前档位）
 test('O9 取消提交链', async () => {
   const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
-  const origSetTimeout = global.setTimeout;
   try {
     p.inst.setData({ currentCancelIdx: 0 });
     p.inst.onCancel();
     const ev = p.calls.modal.filter((m) => m.title === '取消订单').pop();
     assert.ok(ev, '应弹取消确认');
     assert.ok(/退款规则/.test(ev.content), '弹窗含梯度规则');
-    // 取消成功后页面有 1.5s 延迟 navigateBack；测试期用同步桩替代并靠微任务排空，避免测试结束后定时器触碰已还原的 wx
-    global.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
+    // 取消成功后页面有 1.5s 延迟 navigateBack；harness 已接管 setTimeout，排空定时器即触发
     ev.__confirm();
-    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await p.__flushTimers();
     const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'cancel').pop();
     assert.ok(call, '应提交 cancel');
     const tier = p.inst.data.cancelTiers[0];
     assert.strictEqual(call.data.reason, `按${tier.label}梯度退款`);
     assert.ok(p.calls.toast.some((t) => /已取消/.test(t.title)), '成功 toast');
-  } finally {
-    global.setTimeout = origSetTimeout;
-    p.restore();
-  }
+    assert.ok('navigateBack' in p.calls.wx, '延迟后返回上一页');
+  } finally { p.restore(); }
 });
 
 // O11：加时响应双出口 —— 同意/拒绝（取消键=业务动作）+ 无在途 toast
@@ -268,22 +264,17 @@ test('O12 改期同意/拒绝双出口', async () => {
 // O13：取消档位切换 —— reason 随 currentCancelIdx 变化
 test('O13 取消档位切换', async () => {
   const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
-  const origSetTimeout = global.setTimeout;
   try {
     const idx = p.inst.data.cancelTiers.length > 1 ? 1 : 0;
     p.inst.setData({ currentCancelIdx: idx });
     p.inst.onCancel();
     const ev = p.calls.modal.filter((m) => m.title === '取消订单').pop();
     assert.ok(new RegExp(`当前适用：${p.inst.data.cancelTiers[idx].label}`).test(ev.content), '弹窗展示当前档位');
-    global.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
     ev.__confirm();
-    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await p.__flushTimers();
     const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'cancel').pop();
     assert.strictEqual(call.data.reason, `按${p.inst.data.cancelTiers[idx].label}梯度退款`);
-  } finally {
-    global.setTimeout = origSetTimeout;
-    p.restore();
-  }
+  } finally { p.restore(); }
 });
 
 // O14：冲突收敛 —— _handleConflict 命中时不弹 r.msg，静默刷新 + 固定 toast
