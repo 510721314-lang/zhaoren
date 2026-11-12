@@ -1,5 +1,5 @@
 'use strict';
-// utils/confirm-flow.js —— chat 页四确认「数据加工域」（前端巨页分拆阶段A，归属表 v1.1 段1-6）
+// utils/confirm-flow.js —— chat 页四确认域（前端巨页分拆阶段A，归属表 v1.1 段1-6 + v2.0 分区二动作链）
 // 逐字搬迁自 pages-v2/chat/chat.js applyConfirmation L246-321（零行为变更）；
 // 依赖经 page 首参 ctx 注入（先例 utils/order-poll.js）；禁止 require 页面（循环引用）
 // 契约：buildConfirmationView(page, d) → { patch, nextStatus, wasUnlocked, unlocked }
@@ -7,6 +7,9 @@
 //   - 实例态同步写回：page.__confLoaded / page.__s1Deadline（轮询 tick 与 confirmItem 窗口校验直读 page 实例，约束/代理A#1）
 //   - 死代码随迁口径（阶段A 双代理审核收口 2026-11-12）：firstLoad 死变量经审核确认全文件零读取点，
 //     按「登记弃置」处理不再随迁（补回徒增死代码）；「💳 订单支付」不可达分支随 chat-notice.js 原样随迁（方案 §三-阶段A⑤）
+
+const { callCloud } = require('./cloud.js');
+const { TM_TEMPLATES } = require('../config/enums.js');
 
 // 段1(原 L246-252) 进度位与计数 —— 真纯计算
 function buildConfirmationView(page, d) {
@@ -111,4 +114,126 @@ function buildConfirmationView(page, d) {
   return { patch, nextStatus, wasUnlocked, unlocked };
 }
 
-module.exports = { buildConfirmationView };
+// ── 分区二：四确认动作链（批次2a：B1-B3 + B5，逐字搬迁自 chat.js 424-491 / 550-595）──
+// 零行为变更：方法内 this 引用已全部改为 page（含嵌套箭头回调，'use strict' 下裸 this 为 undefined）；
+// 2a 期 startEdit 仍在页面，经 page.startEdit 调用（2b 外移后改模块内自调）；
+// TM_FIELD 局部复制，与 chat.js:11 同源（D-1 裁定 2026-11-12）；本区不触碰 @VERIFIED onShow/startPolling。
+const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
+
+function onTmOption(page, e) {
+  const { tm_id, option } = e.detail;
+  const field = TM_FIELD[tm_id];
+  if (!field) {
+    // TM5 等无确认字段的模板
+    wx.showToast({ title: '该模板无需确认', icon: 'none' });
+    return;
+  }
+  if (page.data.chatBlocked) {
+    wx.showToast({ title: '订单已取消/关闭,无法操作', icon: 'none' });
+    return;
+  }
+  const positive = TM_TEMPLATES[tm_id] && TM_TEMPLATES[tm_id].options && TM_TEMPLATES[tm_id].options[0] === option;
+  if (positive) confirmItem(page, field);
+  else page.startEdit(field);
+}
+
+function confirmItem(page, field) {
+  // 2026-11-05: S2 已支付后确认位不再可改(异常数据兜底), 提前拦截避免"确认失败"弹窗
+  if (page.data.orderStatus === 'S2') {
+    wx.showToast({ title: '已支付,无需再确认', icon: 'none' });
+    return;
+  }
+  // 2026-11-09: S1 窗口已尽前置拦截, 避免白提交后才收到冲突错误
+  if (page.data.orderStatus === 'S1' && page.__s1Deadline && Date.now() >= page.__s1Deadline) {
+    page._handleOaConflict({ code: 'oa_not_confirmable', msg: '确认窗口已结束' });
+    return;
+  }
+  page.__requestCommSub();   // 2026-10-17: 点按手势内请求「对方发起沟通」订阅授权(耍伴端, 未配模板/已请求过则跳过)
+  wx.showLoading({ title: '提交中', mask: true });
+  callCloud('order-action', {
+    action: 'confirm_item', order_id: page.data.orderId, item: field
+  }).then((r) => {
+    wx.hideLoading();
+    if (!r.ok) {
+      page._handleOaConflict(r);   // 2026-11-09: 状态冲突给出路, 不再死路弹窗
+      return;
+    }
+    return page.refreshConfirmation();
+  }).catch(() => {
+    wx.hideLoading();
+    wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+  });
+}
+
+// 2026-11-09: 四项常驻清单行内确认(不依赖模板卡); 四栅: S1/未确认/无变更在途/会话未停
+function onConfirmRow(page, e) {
+  const field = (e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.field) || '';
+  const it = (page.data.confirmList || []).find((x) => x.field === field);
+  if (!field || !it) return;
+  if (page.data.orderStatus !== 'S1') {
+    wx.showToast({ title: '当前状态不可确认', icon: 'none' });
+    return;
+  }
+  if (page.data.chatBlocked) {
+    wx.showToast({ title: '订单已取消/关闭', icon: 'none' });
+    return;
+  }
+  if (page.data.pendingChange) {
+    wx.showToast({ title: '有变更待对方反馈', icon: 'none' });
+    return;
+  }
+  if (it.myOk) {
+    wx.showToast({ title: '该项已确认', icon: 'none' });
+    return;
+  }
+  confirmItem(page, field);
+}
+
+// ───────── ⑥ 一键全部确认(需求发布者; 批量置本方四项确认位) ─────────
+// 后端 confirm_all 原子置本方 4 位 + version+1; 不定向消息, 不破坏"完成前仅模板消息"红线
+function onConfirmAll(page) {
+  if (page.data.chatBlocked) {
+    wx.showToast({ title: '订单已取消/关闭,无法确认', icon: 'none' });
+    return;
+  }
+  // 2026-11-09: 特别授权场景必须逐项确认, 不允许一键全部确认
+  if (page.data.batchBlocked) {
+    wx.showToast({ title: '该订单需逐项确认', icon: 'none' });
+    return;
+  }
+  // 2026-11-05: S2 已支付后不再允许四确认操作（正常数据不会出现, 异常数据兜底）
+  if (page.data.orderStatus === 'S2') {
+    wx.showToast({ title: '已支付,无需再确认', icon: 'none' });
+    return;
+  }
+  wx.showModal({
+    title: '全部确认',
+    content: '将一次性确认 时间/地点/内容/费用 四项。对方已确认的项将即时完成,全部完成即进入待支付。确认后如需修改将全部重置。',
+    confirmText: '全部确认', // 上限 4 字符
+    cancelText: '再想想',
+    confirmColor: '#07C160',
+    fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+    success: (res) => {
+      if (!res.confirm) return;
+      page.__requestCommSub();   // 2026-10-17: 同上(点按手势内请求订阅授权)
+      wx.showLoading({ title: '提交中', mask: true });
+      callCloud('order-action', {
+        action: 'confirm_all', order_id: page.data.orderId
+      }).then((r) => {
+        wx.hideLoading();
+        if (!r.ok) {
+          page._handleOaConflict(r);   // 2026-11-09: 状态冲突给出路, 不再死路弹窗
+          return;
+        }
+        wx.showToast({ title: '已全部确认', icon: 'success' });
+        // 一键确认只置数据层确认位, 不生成消息卡 → 补齐消息流缺失的确认卡, 让双方都看到全部4项
+        page.__sendMissingConfirmCards().then(() => page.refreshConfirmation());
+      }).catch(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常,请重试', icon: 'none' });
+      });
+    }
+  });
+}
+
+module.exports = { buildConfirmationView, onTmOption, confirmItem, onConfirmRow, onConfirmAll };
