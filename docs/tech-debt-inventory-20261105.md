@@ -29,7 +29,7 @@
 | N-1 | REGISTRY **#144 / #145 / #146** 待真机 | ✅ **已结案（2026-11-06，自动化）** | `auto-test-s2-change.js` **44/44 PASS**（S1 8 位重置 / A-B 窗 / 接受只改该字段 / 拒绝超时）；`auto-ui-pages.js` **pass=9 fail=0 need_human=0**（含 3.12-runtime S1 页实测：`nextStep="四确认未完成"` 且无「申请变更」按钮；3.11 端到端「云端 4/2/72 ↔ 页面文案」；S2 正对照） | 已在 [runbook §3.10–3.12](runbooks/release-zero-checklist.md) 转 ✅；如后续改动该页面须重跑 `node scripts/auto-ui-pages.js` |
 | N-2 | `is_test` 测试单残留 | ✅ 已清零（2026-11-05，2026-11-06 复跑） | `node scripts/test-order-tool.js cleanup` → 2026-11-05 `cleaned=6 remaining=0`；2026-11-06 `cleaned=31 remaining=0` | 全部软删（可回滚）并连软删 `order_confirmations`；真机前用 `create --status S1/S2` 重建 |
 | 发布同轮 | 三订阅模板 `miniprogram_state` `trial → formal` | ✅ **已提前执行（2026-11-07）** | 云端回读 `sub_msg_templates` 三值均 **`formal`**，`tmpl_id`/`fields`/`page` 逐字未变（`nModified=1`） | 你裁定「系统完善不受体验版约束，必要时可重传体验版」；回滚 = 同命令改回 `trial`（1 分钟） |
-| 发布同轮 | 补 2 条「自定义」隐私声明（手填手机号、设备信息） | ⬜ | [release-zero-checklist §4.2](runbooks/release-zero-checklist.md) | 后台指引补充，与端内 `privacy.wxml` 2.2/2.8 对齐 |
+| 发布同轮 | 隐私指引按 **11 项标准/自定义声明** 重新填报 | ⏸ 待后台填报（你） | [release-zero-checklist §4.2](runbooks/release-zero-checklist.md) | **2026-11-08 口径订正**：手机号/设备信息走**标准项**，非自定义（原「补 2 条自定义」文案作废）；判据 = 11 项勾选 + 每条用途描述齐全 + 状态「已通过」；**B-1 ✅ ≠ 本条清零**（本条 = HANDOFF T-7.3，当前唯一提审阻塞项） |
 | 发布同轮 | `mock_payment_enabled` 口径拍板 | ✅ 已拍板保持开启（2026-11-05） | 云端回读 `true` | MVP 模拟支付；2026-11-05 你拍板**保持开启**，提审说明写明「不产生真实扣款」；接真实支付另立评估 |
 
 ---
@@ -62,7 +62,7 @@
 | P2-10 | B11 八步入驻链（3a/3b/3c 已实施） | ✅ 自动化通过（P2-10：8 步、路由全注册） | 2026-11-06 |
 | P2-12 | 工作台「今日待履约」口径（已改 `today_pending`） | ✅ 自动化通过（P2-12 静态 + 12b 渲染） | 2026-11-06 |
 | P2-13 | 工作台「本周收入」口径（已改 `week_income_fen`） | ✅ 自动化通过（P2-13 静态 + 13b 渲染 `0.00`） | 2026-11-06 |
-| P2-11 | 工作台 SOS 上报（已偿还）；残留「无进行中订单时无法关联 order_id」 | 产品边界 | **2026-11-07 用户裁定：立项做「自由求助」（非订单关联求助）**——下一步＝先出 PRD/方案（涉附录A 第 9 条紧急能力链路：P0 事件 + 一键拨号 + 无订单上下文的归属口径，先说后做，方案未经批准不动笔）；**提审口径维持「仅订单内 SOS」不变**，本立项不阻塞提审 |
+| P2-11 | 工作台 SOS 上报（已偿还）；残留「无进行中订单时无法关联 order_id」 | 产品边界 | **✅ 已偿还（2026-11-12 回填）**：2026-11-07 用户裁定立项「自由求助」→ 当日已实施上线（P2-11 feat：`free_sos`/`free_sos_status`/`free_sos_resolve` 三 action + workbench 无单入口，见 CHANGELOG 2026-11-07）；REGISTRY **#148 已转「已验证」**（自动化口径，2026-11-12；T-9.1 D 组自动化收口 + 真机抽验随 T-9.1 全案闭环，X-7 禁重开）。提审口径维持「订单内 SOS + 自由求助」双通道，不阻塞提审 |
 | P2-14 | 前端三个巨型页面：`order-detail.js` **1386 行**、`chat.js` **1081 行**、`publish.js` **1078 行**（2026-11-08 实测，不含 node_modules） | 可读性/维护成本 | **2026-11-08 用户裁定：明确关闭，不拆**。不拆理由：① 三者均为 `Page({})` 单对象承载生命周期 + 事件 + setData，抽到 `utils` 要改 `this` 绑定与渲染路径，属 §5 高危（UI/交互/键盘/安全区），改完必须 iOS+Android 真机各验；② `chat.js` 属 IM 前置限制（附录A 第 5 条）能力链路、`publish.js` 属发单主链路、`order-detail.js` 属订单 13 态展示，回归成本远高于收益；③ 行数大但**无 action 分发复杂度**（与 T-7.26 拆分的「线性 `action ===` 链」不同型），拆分不减认知负担。**重开条件**：若后续要做，须先用 [mp-page-harness.js](file:///c:/zhaoren/scripts/mp-page-harness.js)（P2-2 已建）补齐该页断言再动，禁止裸拆 |
 
 > 已偿还：P2-1（前端巨页拆分）、P2-5（题库 SSOT）、P2-6（门禁覆盖面 F3/F4/F5/F6/F7+⑥，2026-11-02 收尾）。
