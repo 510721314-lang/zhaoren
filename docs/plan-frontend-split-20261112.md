@@ -233,9 +233,23 @@
 6. 真机走查挂 v1.6.118（T-13.5）：加时提交/同意/拒绝、改期提交/同意/拒绝、取消（各档位文案）、连点防重。
 7. 双代理执行审核 0 缺陷后 → 阶段C 评估。
 
-### 阶段C · publish.js（1078 非空）· 允许结论=不拆
+### 阶段C · publish.js（1078 非空）· **结论：不拆（2026-11-12 量化评估）**
 - 量化判据：候选外移纯函数行数 / wxml 绑定密度 / @VERIFIED 触碰数 / 耦合成员数（含 `getApp().globalData.availableScenes` R9 依赖——不可外移）
 - publish.js L1-2 文件级 @VERIFIED 覆盖发布+代发校验主链，触碰即须书面批准
+
+**评估实测（2026-11-12，HEAD=`5333fc9`）**
+
+| 判据 | 实测 | 判读 |
+|---|---|---|
+| 非空行 | **1078**（总 1126） | 与台账一致 |
+| 顶层方法 | **73 个**，其中 wxml 绑定 handler **46 个**（63%） | 绝大多数为绑定入口，搬走只增壳 |
+| wxml 绑定密度 | 46 处 / 1078 行 ≈ **4.3%** | 高密度（每 23 行一处绑定） |
+| 候选外移纯函数 | 仅 `fmtDate` 6 行（2 处内部调用、无 wxml 绑定）≈ **0.56%** | 收益低于评审/回滚成本 |
+| 已外移域 | `publish-validate` 139 / `publish-locate` 144 / `draft-store` 114 / `geo-wx` reverseGeocode | 校验/定位/草稿/逆地理已全部迁出，余量为编排 |
+| @VERIFIED 触碰 | **2 处文件级**（L1-2），发布主链 `onPublish`/`_continuePublish`/`validatePublish`/`confirmPublish`/`_doPublish`（847-1112，约 266 行）全在覆盖区 | 触碰即需 §2 书面批准，风险/收益倒挂 |
+| 耦合成员 | `getApp().globalData.availableScenes`（R9）+ `callCloud` + `uploadFile`/定位 + `redline` + 导航 | 提交链深度耦合，非纯函数 |
+
+**结论：不拆**。理由：①纯函数余量仅 6 行（0.56%），拆分不减认知负担；②46/73 方法为 wxml 绑定入口，只能壳化；③提交主链 266 行全在文件级 @VERIFIED 覆盖区，拆分需逐项批准且回归成本高；④校验/定位/草稿等真正可测域已于阶段1/2 外移完毕。**本结论即方案允许的「不拆」出口，不产生代码改动**。
 
 ### 通用纪律（每阶段）
 - 单阶段单 commit，断言+门禁全绿才进下阶段，失败 revert 本阶段
@@ -258,5 +272,5 @@
 | A chat.js | **批次1 已完成（2026-11-12）**：实施第 0 步守护补强（C6 唯一性+C17 17键快照+C18 弹窗时序）→ applyConfirmation 拆分（confirm-flow 段1-6 / chat-notice 段9-15）→ applyNotices 域外移（@VERIFIED 两枚随迁，用户书面批准）。chat.js 非空 1369→**1073**（-296）；门禁 verify:offline EXIT=0 / npm test 911/911 / A/B 455；bindtap 14/14、跨页键双侧 grep 复核通过；silent-catch 基线订正（chat.js 10→7，chat-notice=3，机械随迁） | 待汇报 | 待双代理审核 | — | 见 git log |
 | A-批次2a 确认链 | **已完成（2026-11-12）**：B1-B3 + B5（onTmOption/confirmItem/onConfirmRow/onConfirmAll，114 行）外移 `confirm-flow.js` 分区二，页面保留 4 个转发壳（wxml 绑定与调用面零改）；chat.js 非空 1073→**967**（-106，含注释收口）、confirm-flow 非空 112→231；门禁 911/911、A/B 455、verify:offline EXIT=0、silent-catch 254 不变、模块内裸 `this` 0 处 | 2a 已汇报 | **双代理 0 缺陷**（A 8/8 属实：114 行归一化比对 0 差异；B 8 项通过，登记 P3-37） | 注释叠层/双空行/头注已订正；回填 tech-debt P3-37 | `cfc77ce`（代码）+ `bf4259c`（docs） |
 | A-批次2b 编辑/提交链 | **已完成（2026-11-12）**：B7-B17（startEdit/onS2ChangeTap/closeEditSheet/onEdit*/confirmEdit*/onOtherInput/applyChange/onRespondChange，14 方法 322 行）外移 `confirm-flow.js` 分区二（续），页面留 13 壳（applyChange 模块内自调不设壳）；先补 C19-C25 断言（onTmOption 四支路/confirm_all 成功/重取两分支+复位/S2 原因链/响应链/同值拦截/S1 change_apply）；chat.js 非空 967→**670**（-297）、confirm-flow 231→**547**；门禁 **918/918**、A/B 455、verify EXIT=0、silent-catch 254 不变、模块裸 `this` 0 处 | 2b 已汇报 | **双代理 0 缺陷**（A 16 项：322 行归一化 312/312、0 差异；B 10 项通过，登记模块体积 P3-38） | 已补 C24/C25 + C21 复位断言 | 待授权 |
-| B order-detail.js | **B1 已完成（2026-11-12）**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；双代理 B 审核 0 功能缺陷（已补 `__fail` + O17/O18、订正 11 处）。**B2 已实施（待提交）**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**、A/B 455、verify EXIT=0、裸 `this` 0 | B2 已实施 | B1：B 代理完成 / A 代理复核中；B2：表级 A/B 已收口，执行级待审 | 已补 O14-O18 + harness `__fail` | 待授权 |
-| C publish.js | 未开工 | — | — | — | — |
+| B order-detail.js | **B1 已完成**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；B 代理 0 功能缺陷（已补 `__fail` + O17/O18、订正 11 处；A 代理复核被停止，未出结论）。**B2 已完成并提交**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**、A/B 455、verify EXIT=0、裸 `this` 0；提交 `2597c21`（测试）/ `732f368`（代码）/ `5333fc9`（docs），已 push | B2 已汇报 | 表级 A/B 已收口；执行级 A 代理被停止 | 已补 O11-O18 + harness `__fail` | `2597c21`+`732f368`+`5333fc9` |
+| C publish.js | **已评估（2026-11-12）：结论=不拆**。实测 1078 非空 / 73 方法（46 为 wxml 绑定，密度 4.3%）/ 候选纯函数仅 `fmtDate` 6 行（0.56%）/ 提交主链 266 行全在 2 处文件级 @VERIFIED 覆盖区 / R9 `availableScenes` 耦合；校验·定位·草稿域已外移（139/144/114） | 已汇报 | 量化评估即结论（方案允许出口） | 零代码 | — |
