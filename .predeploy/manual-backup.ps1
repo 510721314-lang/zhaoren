@@ -90,6 +90,7 @@ if ($cfgResp -and $cfgResp.ok) {
 # L3: DB 全量导出
 Write-Host "`n===== L3 DB Export =====" -ForegroundColor Yellow
 $exportedTables = @()
+$failedTables = 0   # T-13.3-E(2026-11-13 双代理 B#1): 失败表计数, 末尾据此退非零, 禁止"缺表还报 DONE"
 foreach ($col in $COLLECTIONS) {
   $page = 1; $allDocs = @(); $total = 0; $truncated = $false; $exported = $false
   while ($true) {
@@ -103,6 +104,7 @@ foreach ($col in $COLLECTIONS) {
       # 重试仍失败: 已导出的部分不得伪报完整, 置 truncated 让 manifest/日志显式告警
       Write-Host "  [FAIL] $col page=$page 导出失败, 停止翻页并标记 truncated" -ForegroundColor Red
       $truncated = $true
+      $failedTables++
       break
     }
     $total = $resp.data.total
@@ -223,6 +225,15 @@ $manifest = @{
 }
 [System.IO.File]::WriteAllText("$BackupDir\manifest.json", ($manifest | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding($true)))  # A3: 带 BOM(同 CHECKSUMS.txt 口径), 否则 PS5.1 按 GB2312 读乱码/吞引号
 
+# T-13.3-E(2026-11-13 双代理 B#1): 任一表硬失败或任一函数下载失败 → 不得以成功收尾, 退 1 供调用方/人工判定
+$fnFailedCount = @($failed).Count
+if ($failedTables -gt 0 -or $fnFailedCount -gt 0) {
+  Write-Host "`n===== BACKUP INCOMPLETE =====" -ForegroundColor Red
+  Write-Host "  失败表: $failedTables | 失败函数: $fnFailedCount" -ForegroundColor Red
+  Write-Host "  Dir : $BackupDir" -ForegroundColor Red
+  Write-Host "  该目录不得作为完整灾备使用, 请按 heartbeat.txt 定位失败项后重跑" -ForegroundColor Red
+  exit 1
+}
 Write-Host "`n===== DONE =====" -ForegroundColor Green
 Write-Host "  Dir : $BackupDir"
 Write-Host "  Tbls: $($exportedTables.Count)"
