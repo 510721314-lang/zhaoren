@@ -1,0 +1,78 @@
+# 前端巨型页面分拆方案（双代理评审修订版 v1.0）
+
+> 日期：2026-11-12　状态：已批准（用户裁定：落盘后分阶段执行）
+> 评审来源：`zhaoren-tech-review` 双代理（A 事实核验 10 项：9 属实 1 不符；B 完整性 15 项：2 矛盾/7 遗漏/2 误导/4 自含性，全部采纳修正）
+> 执行纪律：**每阶段完成后汇报 → 同步专家审核执行结果 → 按审核意见完善 → 方可进入下阶段**（用户 2026-11-12 指定）
+> 关联裁定：P2-14（2026-11-08「不拆」，本方案为其**有条件重开**）；重开条件原文「须先用 mp-page-harness.js 补齐该页断言再动，禁止裸拆」
+
+## 一、重开动因（回应 P2-14 不拆理由）
+
+| 裁定理由（2026-11-08） | 现状回应 |
+|---|---|
+| ①能力链路回归成本高 | harness 基建已就绪（4 页 28 断言）；断言先行可把回归成本从真机降为脚本 |
+| ②无 action 分发复杂度，拆分不减认知负担 | 属实，故只拆「编排/提交域」不拆渲染；阶段C 设量化判据，允许结论=不拆 |
+| ③规模尚可控 | 债务仍在累积：order-detail 1386→非空 1489、chat 1081→非空 1369（关闭后 +103/+288） |
+
+## 二、实测基线（2026-11-12，双口径，代理A核验）
+
+| 页面 | 非空行 | 总行 | @VERIFIED 分布（实证） |
+|---|---|---|---|
+| order-detail.js | 1489 | 1566 | 3 处：L1 文件级、L605 onStartService、L966 onAddTime |
+| chat.js | 1369 | 1422 | 4 处：L105 onShow、L623 startPolling、L635/662 applyNotices 系 |
+| publish.js | 1078 | 1126 | 2 处：L1-2 文件级 |
+
+云函数侧不在本方案范围（order-timer/index.js 709 行、注册名 SECTIONS，模式同型但口径健康）。
+
+## 三、分阶段执行
+
+### 阶段0 · 断言先行（重开条件兑现）【已完成 2026-11-12】
+- chat 页 harness 用例 `scripts/pages-chat.test.js`：最终 **C1-C16 全部「可直接驱动」**（C1 载入契约/C2 角色镜像/C3 batch_blocked/C4 s1Left/C5 变更弹窗幂等/C6 S0 双端/C7 once 锚/C8 通知域/C9 commHit/C10 同 id 异 created_at/C11 applyFail 三分流/C12 动作链栅门/C13 一键三闸/C14 横幅构建/C15 S2·S5 catch-up/C16 幂等键名级断言）
+- **桩驱动项取舍（审核回写）**：轮询 tick / showActionSheet / chooseLocation 需扩展 harness 或 wx 桩，**不列入阶段0，登记为阶段A 前置项**（触及对应链路时随用例补桩）
+- order-detail/publish 触碰区断言：清单见下，于阶段B/C 开工前兑现
+  - order-detail 触碰区断言清单：加时提交链、改期提交链、取消提交链、_modal 互斥
+  - publish 触碰区断言清单：发布提交链（缺口待阶段C 评估时补）
+
+**阶段0 专家审核与完善记录（2026-11-12，双代理 2/2）**
+- 代理A（守护力）：初版 C1-C8 判定——confirmList/S0 双端/once 锚/通知去重有基本守护；**缺口**：四确认动作链无用例（最重）、commHit/横幅/S2/S5 分支零覆盖、幂等键无键名级断言、3 个反向假设中 2 个不红（键退化盲区）。→ 已补 C9-C16 + harness `calls.storage` 写留痕（`mp-page-harness.js:55,106-108`），键名级断言闭环
+- 代理B（合规）：零行为变更/门禁口径/自动纳入全部通过；**建议**：桩驱动取舍回写方案（本节已回写）、归属表验收人写明（见下）、@VERIFIED L105/L623 处置口径（见下）——均已采纳
+- **归属表验收口径**：阶段A 第 1 步产出的 applyConfirmation 逐段归属表，须经双代理审核通过 + 用户确认后，方可动 chat.js
+- **@VERIFIED L105/L623 处置口径**：onShow/startPolling 两枚标记位于 applyNotices 调用链上；阶段A 采用「转发壳保持调用点不变」模式（先例=order-poll.js），**不改动两处标记函数体**；若实施中发现必须触碰，按 core §2 单独书面批准
+- **死代码登记（只登记不修）**：chat.js:459-472「💳 订单支付」分支不可达——L369-370 同条件先 `mark('user_S0')`（1b 先于分支 4 判定），分支 4 永假；阶段A 外移弹窗群时按原样搬迁（保留不可达性，零行为变更），不清理
+
+### 阶段A · chat.js（1369 非空）
+1. 前置产出 **applyConfirmation 逐段归属表**（L245-477：confirmList 纯计算→confirm-flow；L357-475 回调内弹窗群→chat-notice；切面成立才实施）
+2. `utils/chat-notice.js`：applyNotices 弹窗/横幅域外移（**含 @VERIFIED L635/L662 两枚，需用户书面批准随迁**，标记同迁语义不变）
+3. `utils/confirm-flow.js`：四确认动作链外移（依赖清单：data 的 chatBlocked/batchBlocked/orderStatus/pendingChange/s2Counts/startTime/frozen + 实例态 __s1Deadline/__s2Auto/__s2RefreshTried/__commTmplId/__subReqDone + 方法 refreshConfirmation/sendTemplate/__sendMissingConfirmCards/__requestCommSub/_handleOaConflict/_handleApplyFail/__s2SameValue，全部经 page 首参 ctx 注入，先例=`utils/order-poll.js`）
+4. 附 wxml bindtap 14 方法对照表（goBack/goOrderDetail/goPay/onS2ChangeTap/onConfirmRow/onRespondChange/onConfirmAll/onQuickKey/sendText/closeEditSheet/confirmEditTime/confirmEditContent/confirmEditFee/confirmEditOther），漏一个=点击静默，实施后 grep 复核
+5. 附跨页 Storage 键表：`status:<oid>:change_<field>:<expire>` 由 chat.js:353-354/395-398 与 order-detail.js:415-419 双侧拼接，**逐字一致**，实施后双侧 grep 复核（§39 同款纪律）
+
+### 阶段B · order-detail.js（1489 非空）
+1. 「操作互斥锁外移」：_modal/_acting ~30 行壳（预期减行量级小，收益=解耦非减行，如实表述）
+2. action 提交器：onModify/onExtend 等提交链外移——**触碰文件级 @VERIFIED 覆盖区（加时超时拒绝/S2 协商取消），逐项书面批准**
+3. 开工前补触碰区断言（见阶段0 清单）
+
+### 阶段C · publish.js（1078 非空）· 允许结论=不拆
+- 量化判据：候选外移纯函数行数 / wxml 绑定密度 / @VERIFIED 触碰数 / 耦合成员数（含 `getApp().globalData.availableScenes` R9 依赖——不可外移）
+- publish.js L1-2 文件级 @VERIFIED 覆盖发布+代发校验主链，触碰即须书面批准
+
+### 通用纪律（每阶段）
+- 单阶段单 commit，断言+门禁全绿才进下阶段，失败 revert 本阶段
+- `npm test` + `verify:offline` 全绿；A/B 等价不回归
+- §6 回归清单表：区分开发者工具自证 / 真机 iOS+Android（能力链路列第 1 条）；收尾按 §9 落 REGISTRY/CHANGELOG
+- 每阶段收口：汇报 → 双代理审核执行结果 → 完善 → 进下阶段
+
+## 四、验证者修正记录（防复发）
+
+1. 代理A证伪「云函数全部 ≤700 行」：order-timer=709、注册名 SECTIONS——云函数侧移出范围
+2. 代理B证伪草案函数名 `applyHit`：实际为 applyNotices 内局部变量 respondHit/modifyHit/commHit
+3. 行数口径统一：非空行（1489/1369/1078）与总行（1566/1422/1126）双口径并列；台账 P2-14 旧值（1386/1081/1078）为 2026-11-08 口径
+4. @VERIFIED 重叠面为原草案盲区：三页共 9 处标记，涉及区全部前置书面批准（最大风险项）
+
+## 五、执行进度
+
+| 阶段 | 状态 | 汇报 | 专家审核 | 完善 | commit |
+|---|---|---|---|---|---|
+| 0 断言先行 | **已完成（2026-11-12）** | C1-C8 交付 | A：3 盲区+动作链裸奔；B：合规 3 通过+2 建议 | C9-C16+storage 留痕，意见全采纳 | 见 git log（测试基建/方案文档各 1） |
+| A chat.js | 未开工 | — | — | — | — |
+| B order-detail.js | 未开工 | — | — | — | — |
+| C publish.js | 未开工 | — | — | — | — |
