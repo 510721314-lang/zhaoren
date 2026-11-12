@@ -200,17 +200,44 @@ Command: JSON.stringify({ listIndexes: 'order_main' })
 
 ---
 
-## 流程 4：Git push 绕代理（每次 commit 后）
+## 流程 4：Git push 双通道判读与推送（每次 commit 后）
 
 ### 触发时机
 
 - commit 完成需要推送
 - HANDOFF 或 deploy-log 更新后推送
 
-### 命令（必加 `-c http.proxy= -c https.proxy=`）
+### 通道资产（2026-11-02 §35 R1 固化，global + repo 两级 git config 生效）
+
+```
+http.sslbackend=openssl      ← 根治 schannel TLS 握手失败（协议层，代理/直连都受益）
+http.version=HTTP/1.1        ← 规避中间设备 h2 缺陷
+http.proxy=127.0.0.1:7890    ← 默认走代理
+```
+
+### 双通道四象限判读（push 前一次取证，选通道不盲试）
 
 ```powershell
+$proxyAlive = Test-NetConnection 127.0.0.1 -Port 7890 -InformationLevel Quiet
+try { $direct = (Invoke-WebRequest -Uri https://github.com -UseBasicParsing -TimeoutSec 10 -Proxy $null).StatusCode } catch { $direct = "DIRECT_FAIL" }
+"proxy7890=$proxyAlive direct=$direct"
+Resolve-DnsName github.com -Type A   # 解析到 198.18.x.x = fake-IP 被 TUN 接管 → 换节点/关 TUN，禁试错
+```
+
+| 7890 在听 | 直连 443 | 用法 |
+|---|---|---|
+| ✓ | ✓ | 双通道可用，默认 push 或绕代理均可 |
+| ✓ | ✗ | 走默认（代理） |
+| ✗ | ✓ | 绕代理（下方模板的适用场景） |
+| ✗ | ✗ | 双断：查 DNS 是否 198.18.x.x（§35 R2）→ 是则 TUN 接管须换节点；否则等窗口，禁反复重试 |
+
+### 命令
+
+```powershell
+# 直连通道（四象限第 3 行时用）
 git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master
+# 代理通道（第 2 行时用）
+git -C C:\zhaoren push origin master
 ```
 
 ### 验证（推送前后都要跑）
@@ -226,14 +253,14 @@ git -C C:\zhaoren rev-list --count origin/master..HEAD   # 应 = 0
 ```powershell
 # 测连通性
 try { (Invoke-WebRequest -Uri https://github.com -UseBasicParsing -TimeoutSec 10).StatusCode } catch { "NET_FAIL" }
-# → 失败 = 网络问题，不是代理/凭据；等几秒再试
+# → 失败 = 网络问题，不是代理/凭据；按四象限判读换通道，等几秒再试 1 次
 ```
 
 ### 踩过的坑
 
-- **本机默认代理死在 7890 端口**——每次 push 必须绕开，漏一次就卡 21 秒超时
-- push 是 `[git.exe]` 子进程，不继承 PowerShell 会话里的代理变量，必须 `-c` 参数显式传
-- **先探端口再决定，别盲试**（2026-11-08 实证）：`foreach ($p in 7890,7897,1080) { Test-NetConnection 127.0.0.1 -Port $p -InformationLevel Quiet }` 全 False ⇒ 代理客户端未启动，带代理必然 `ECONNREFUSED`，直接走直连；直连是否可达**随时间波动**（同日早间 `Recv failure: Connection was reset`，晚间一次成功推送 6 个提交 `8996f00..e2f58a5`）。纪律：每轮只试 1 次，失败即停，不反复重试
+- ~~「本机默认代理死在 7890，每次必须绕开」~~（**11-08 记载已过时，2026-11-12 订正**）：7890 是否在听随代理客户端启停波动——11-12 实测在听且代理通道 ls-remote exit=0 可用。**绕代理模板不是万能**：11-03 直连被 TUN fake-IP 接管时绕代理反而全断，走代理换节点才一次成功。按四象限选通道，不死守单一模板
+- push 是 `[git.exe]` 子进程，不继承 PowerShell 会话里的代理变量，显式切换须 `-c` 参数传
+- **「连续几天稳定」是协议层固化资产 + 环境可达窗口的叠加，不代表永久稳定**（2026-11-12 分析实证）：openssl+HTTP/1.1 两级固化是持久层；DNS 无接管 / 7890 在听 / 直连不重置是波动层。每次 push 前判读不省略；每轮只试 1 次，失败即停，不反复重试
 
 ### 流程 4.1：IDE 云开发面板代理报错（qbase/GetQbaseInfo｜GetCurrentUserInfo）
 
