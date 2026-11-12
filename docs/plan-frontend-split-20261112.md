@@ -168,7 +168,7 @@
 **⑧ 实施第 0 步与收口（B#9/B#11 补充）**
 1. **补桩用例 3 条（先于外移动笔）**：B7 重取一次（成功/仍失败两分支）、B16 原因类型→原因文案→提交载荷、B17 accept/reject 文案与 `change_respond`/`s2_change_respond` 载荷；用 harness 的 `wx.showActionSheet`/`chooseLocation` 桩。既有断言不动。
 2. **提交拆分**：按 core §9 三类隔离——业务代码（chat.js + confirm-flow.js）单 commit；测试基建（pages-chat.test.js 补桩）单独 commit；docs（本表 + REGISTRY/CHANGELOG）单独 commit。D-2 若拆两批则每批仍按此三分。
-3. **回滚点**：批次2 开工前 HEAD=`95262ff`（工作区先提交本表）；回滚=`git revert <批次commit>`，不 `reset --hard`。
+3. **回滚点**：归属表 docs commit `b598de7` 为批次2 基点（再往前 `95262ff`）；2a 代码 commit 与 2b 代码 commit 各自独立，回滚=`git revert <批次commit>`，不 `reset --hard`。
 4. 收口：`docs/FUNCTION-REGISTRY.md` + `docs/CHANGELOG.md` 追加行；HANDOFF T-13.1/T-13.5 状态回填。
 
 ### 阶段B · order-detail.js（1489 非空）
@@ -199,6 +199,7 @@
 |---|---|---|---|---|---|
 | 0 断言先行 | **已完成（2026-11-12）** | C1-C8 交付 | A：3 盲区+动作链裸奔；B：合规 3 通过+2 建议 | C9-C16+storage 留痕，意见全采纳 | `f3b8049` |
 | A chat.js | **批次1 已完成（2026-11-12）**：实施第 0 步守护补强（C6 唯一性+C17 17键快照+C18 弹窗时序）→ applyConfirmation 拆分（confirm-flow 段1-6 / chat-notice 段9-15）→ applyNotices 域外移（@VERIFIED 两枚随迁，用户书面批准）。chat.js 非空 1369→**1073**（-296）；门禁 verify:offline EXIT=0 / npm test 911/911 / A/B 455；bindtap 14/14、跨页键双侧 grep 复核通过；silent-catch 基线订正（chat.js 10→7，chat-notice=3，机械随迁） | 待汇报 | 待双代理审核 | — | 见 git log |
-| A-批次2 动作链外移 | **归属表 v2.0 已立 + 双代理审核收口 + 用户裁定 D-1/D-2/D-4（2026-11-12）；按 D-2 拆 2a/2b，2a 开工** | A 事实核验 12 项（9 属实/3 表述级不符）；B 完整性 12 项（3 放行阻断/3 必修/4 建议/2 通过） | 双代理 2/2 已回写（绑定 35/23、嵌套 this 15 处、__s2SameValue 裁定留页、补桩 3 条） | 用户裁定：局部复制 TM_FIELD / 两小批 / __s2SameValue 留页 | — |
+| A-批次2a 确认链 | **已完成（2026-11-12）**：B1-B3 + B5（onTmOption/confirmItem/onConfirmRow/onConfirmAll，114 行）外移 `confirm-flow.js` 分区二，页面保留 4 个转发壳（wxml 绑定与调用面零改）；chat.js 非空 1073→**968**（-105）、confirm-flow 非空 112→231；门禁 911/911、A/B 455、verify:offline EXIT=0、silent-catch 254 不变、模块内裸 `this` 0 处 | 2a 已汇报 | **双代理 0 缺陷**（A 8/8 属实：114 行归一化比对 0 差异；B 8 项通过，登记 P3-37） | 注释叠层/双空行/头注已订正；回填 tech-debt P3-37 | 待授权 |
+| A-批次2b 编辑/提交链 | 未开工（B7-B17 14 方法 311 行；前置补桩 3 条：B7 重取/ B16 原因链 / B17 响应链） | — | — | — | — |
 | B order-detail.js | 未开工 | — | — | — | — |
 | C publish.js | 未开工 | — | — | — | — |

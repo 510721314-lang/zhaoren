@@ -121,6 +121,12 @@
 
 > 立项依据：[FUNCTION-REGISTRY #169](FUNCTION-REGISTRY.md) + [CHANGELOG 2026-11-12](CHANGELOG.md)（改期规则 2/1/2 全案：写入者=用户本人 11-08 22:38 后台「改期设置」，留痕链完好；三次验证者修正见 CHANGELOG）。**当前（2026-11-12）：三项均开放。**
 
+### §3.4 2026-11-12 前端巨页分拆批次2a 登记（P3-37，开放）
+
+| # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
+|---|---|---|---|---|
+| P3-37 | `TM_FIELD` 双源常量 | `miniprogram/pages-v2/chat/chat.js:11` 与 `miniprogram/utils/confirm-flow.js:122` 各定义一份 `{TM1:time,TM2:location,TM3:content,TM4:fee}`（归属表 v2.0 决策 D-1 裁定局部复制） | 后续增删模板/确认字段需两处同步，漂移会导致模板卡选项映射错位（静默，无报错） | 批次2b 动笔前补 C19 断言（onTmOption 四支路）间接钉住四键；若后续再拆，统一迁 `config/enums.js`（与 `TM_TEMPLATES` 同域） |
+
 ---
 
 ## §4 备份体系（B-1~B-6）
