@@ -266,13 +266,13 @@
 | 特殊需求 | C25 `change_apply`（other，不带 S2 原因字段） | 通过 |
 | 接受/拒绝变更 | C23 accept 载荷 + C24 同值拦截 | 通过 |
 | 窗口已尽/次数上限 | C12 窗口已尽前置拦截 + C11 次数上限分流 | 通过 |
-| order-detail 加时全链 | O7 提交 + O11 同意/拒绝 + O14 冲突收敛 + O15 网络兜底 | 通过 |
-| 改期全链 | O8 提交 + O12 同意/拒绝 + O16 无在途兜底 | 通过 |
+| order-detail 加时主链 | O7 提交 + O11 同意/拒绝 + O14 冲突收敛 + O15 网络兜底 | 通过 |
+| 改期主链 | O8 提交 + O12 同意/拒绝 + O16 无在途兜底 | 通过 |
 | 取消（各档位） | O9 载荷 + O13 档位切换 | 通过 |
 | 连点防重 | O10 互斥 + O17 fail 放锁 + O18 业务 reject 放锁 | 通过 |
 | 拆分零行为变更 | 模块内裸 `this`=0、wxml 绑定零改、`npm test` 全绿、A/B 455 | 通过 |
 
-**结论**：T-13.5 的交互/载荷类清单已全部自动化（`scripts/pages-chat.test.js` C1-C27、`scripts/pages-order-detail.test.js` O1-O18，全量 **932/932**）；仅「视觉/触感/机型适配」不可自动化，随 v1.6.118 由用户抽验（iOS+Android），**不再作为拆分放行阻塞**。
+**结论**：T-13.5 的交互/载荷**主链**已自动化（`scripts/pages-chat.test.js` C1-C27、`scripts/pages-order-detail.test.js` O1-O18，全量 **932/932**、A/B 455）。**未覆盖分支（2026-11-13 双代理 B#3 实测，禁止宣称「仅视觉不可自动化」）**：①`chooseLocation` 取消/定位被拒（`confirm-flow.js:337-343`）；②`change_respond` 拒绝支路；③加时原因类型闸（`order-submit.js:21`）；④改期提前量闸（`order-submit.js:98-99`）；⑤ActionSheet 取消/截断。上述 5 类 + 视觉/触感/机型适配，随 v1.6.118 由用户真机抽验（iOS+Android）；不阻塞拆分放行，但不得计入「已自动化」。
 
 ### 通用纪律（每阶段）
 - 单阶段单 commit，断言+门禁全绿才进下阶段，失败 revert 本阶段

@@ -126,9 +126,9 @@
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
 | P3-37 | `TM_FIELD` 双源常量 | `miniprogram/pages-v2/chat/chat.js:11` 与 `miniprogram/utils/confirm-flow.js:122` 各定义一份 `{TM1:time,TM2:location,TM3:content,TM4:fee}`（归属表 v2.0 决策 D-1 裁定局部复制） | 后续增删模板/确认字段需两处同步，漂移会导致模板卡选项映射错位（静默，无报错） | **仍开放（2026-11-12）**：C19 只钉住 TM1，TM2-TM4 未断言；若后续再拆，统一迁 `config/enums.js`（与 `TM_TEMPLATES` 同域） |
-| P3-38 | 分拆后模块体积逼近页面 | `miniprogram/utils/confirm-flow.js` 547 非空行（= chat.js 670 的 81.6%，其中批次2b 占 332 行） | 模块已承担「数据加工 + 确认链 + 编辑/提交/响应链」三域，继续堆叠会重现巨页问题（只是换了文件） | **登记不动作（2026-11-12 双代理 B#4）**：阶段B 前评估按域再分区（confirm-view / confirm-action / change-submit）；不设硬阈值，避免为拆而拆 |
+| P3-38 | 分拆后模块体积逼近页面 | `miniprogram/utils/confirm-flow.js` 547 非空行（= chat.js 670 的 81.6%，其中批次2b 占 322 行） | 模块已承担「数据加工 + 确认链 + 编辑/提交/响应链」三域，继续堆叠会重现巨页问题（只是换了文件） | **登记不动作（2026-11-12 双代理 B#4）**：阶段B 前评估按域再分区（confirm-view / confirm-action / change-submit）；不设硬阈值，避免为拆而拆 |
 
-### §3.5 2026-11-12 T-13.5 收口双代理检核登记（P3-39~P3-41，开放）
+### §3.5 2026-11-12/13 双代理检核登记（P3-39~P3-43，开放）
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
@@ -136,6 +136,7 @@
 | P3-40 | `__confLoaded` 纯死写 | `miniprogram/utils/confirm-flow.js:45` 写入；全仓 0 处读取 | 误导后续读者以为存在「已加载」分支判断 | 下一轮清理时删除该写（与 `firstLoad` 弃置同口径，当前不影响行为） |
 | P3-41 | harness modal 记录 JSON clone 丢回调 | `scripts/mp-page-harness.js:89` `clone(src)` 后 `success/fail` 不可见 | 后续用例若断言 `m.success(...)` 会得 `undefined` 而假通过 | harness 头注标注「modal 记录只能断言数据字段；回调请用 `__confirm`/`__cancel`/`__fail`」 |
 | P3-42 | 备份分页失败曾静默产出不完整数据 | `.predeploy/manual-backup.ps1:86-97`（旧实现 `[SKIP]` 直接 break，`truncated` 仍为 false）；实例：`zhaoren_backup_20261112-1434\db\order_main.json` total=406 / list=100 / truncated=false | 灾备文件缺行且无任何告警，恢复时按「完整备份」使用会丢数据 | **已修（2026-11-12 T-13.3）**：失败重试 1 次 + 仍失败置 `truncated=true` 并打 `[FAIL]`；**根因已定位（2026-11-13）**：PS5.1 `Invoke-RestMethod` 对 ~118KB 大响应返回 **String**（page2 起），`$resp.ok` 为 $null 被误判失败；且 `ConvertFrom-Json` 遇空键名报「参数 name 的值无效」。已改 `JavaScriptSerializer`（MaxJsonLength=64MB）解析 + L6 下载超时 90→300s；order_main 分页 406/406 已实证 |
+| P3-43 | A/B 门禁偶发假红（临时基线文件跨进程竞态） | `scripts/ab_equivalence.js:608-609` 读 `cloudfunctions/admin-action/__baseline_tmp.js`；首次 `npm test` 报 ENOENT，重跑通过（2026-11-13 双代理 B#5 实测）；副本在 `:618-651` 退出即删 | 并发/清理竞态时门禁假红，误阻塞放行或诱发重跑掩盖真问题 | 建议改为独立临时目录 + 进程内唯一文件名（`__baseline_tmp_<pid>_<ts>.js`），并在 finally 清理；改动属门禁脚本，单独立项 |
 
 ---
 
