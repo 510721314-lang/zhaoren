@@ -5,7 +5,8 @@
 // 契约：buildConfirmationView(page, d) → { patch, nextStatus, wasUnlocked, unlocked }
 //   - patch：17 键集合（快照守护见 scripts/pages-chat.test.js C17），fallback 合并在此侧完成（约束①）
 //   - 实例态同步写回：page.__confLoaded / page.__s1Deadline（轮询 tick 与 confirmItem 窗口校验直读 page 实例，约束/代理A#1）
-//   - 死代码随迁口径见方案：firstLoad 死变量原样保留（方案 §三-阶段A⑤）
+//   - 死代码随迁口径（阶段A 双代理审核收口 2026-11-12）：firstLoad 死变量经审核确认全文件零读取点，
+//     按「登记弃置」处理不再随迁（补回徒增死代码）；「💳 订单支付」不可达分支随 chat-notice.js 原样随迁（方案 §三-阶段A⑤）
 
 // 段1(原 L246-252) 进度位与计数 —— 真纯计算
 function buildConfirmationView(page, d) {

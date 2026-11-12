@@ -6,7 +6,7 @@
 //
 // ── @VERIFIED 随迁（用户 2026-11-12 书面批准，标记同迁语义不变）──
 // @VERIFIED 2026-11-10 已真机验证：通知去重键含 created_at，二次同类事件两次都提示（applyNotices）
-// @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（applyNotices 内 commHit 分支）
+// @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示——聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验（applyNotices commHit 分支，内联锚点见下方分区二）
 // @VERIFIED 2026-11-10 已真机验证：回前台立即补拉一次提示，不再等首个轮询 tick（onShow，留页面未动）
 
 const once = require('./once-anchor.js');
@@ -175,6 +175,7 @@ function applyNotices(page, d) {
     const modifyHit = !respondHit
       ? fresh.find((n) => n && n.type === 'modify' && String(n.title || '').indexOf('发起改期') >= 0)
       : null;
+    // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）——随迁自 chat.js（内联锚点回归本分支）
     // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)
     // 去重键取 id+body: 该通知被后续修改去重合并(同一 _id), 仅按 id 去重会漏掉"第二次改动"; 仅耍伴端提示(默认不做对称)
     const commShown = once.getMap('chat_comm:' + nOid);
