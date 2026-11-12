@@ -426,3 +426,41 @@ test('O20 弹窗期不计时', async () => {
     assert.strictEqual(p.inst._acting, false, '取消后放锁');
   } finally { p.restore(); }
 });
+
+// O21：替代真机项「弹窗停留 30s 不自动关闭 / 确认后 1.5s 返回」—— 停留超过 20s 租约仍持锁，返回严格晚于 1.5s
+test('O21 弹窗停留与返回时序', async () => {
+  const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
+  try {
+    p.inst.onCancel();
+    await p.__flushTimers(60000); // 虚拟停留 60s（远超 20s 租约）
+    assert.strictEqual(p.inst._acting, true, '停留期间仍持锁');
+    assert.ok(!('navigateBack' in p.calls.wx), '未确认不返回');
+    p.calls.modal.filter((m) => m.title === '取消订单').pop().__confirm();
+    await p.__flushTimers(1499);
+    assert.ok(!('navigateBack' in p.calls.wx), '1.5s 前不返回');
+    await p.__flushTimers();
+    assert.ok('navigateBack' in p.calls.wx, '1.5s 后返回');
+  } finally { p.restore(); }
+});
+
+// O22：替代真机项「弱网挂起后 20s 内可重试」—— 租约内重复点击被拦截，到期后可再次发起
+test('O22 挂起重试窗口', async () => {
+  const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
+  const origCall = p.app.cloudCall;
+  const cancelModals = () => p.calls.modal.filter((m) => m.title === '取消订单').length;
+  try {
+    p.app.cloudCall = () => new Promise(() => {}); // 请求挂起
+    p.inst.onCancel();
+    p.calls.modal.filter((m) => m.title === '取消订单').pop().__confirm();
+    await Promise.resolve();
+    p.inst.onCancel();
+    assert.strictEqual(cancelModals(), 1, '租约内重复点击不弹窗');
+    await p.__flushTimers(); // 租约到期放锁
+    p.app.cloudCall = origCall;
+    p.inst.onCancel();
+    assert.strictEqual(cancelModals(), 2, '到期后可重试');
+  } finally {
+    p.app.cloudCall = origCall;
+    p.restore();
+  }
+});
