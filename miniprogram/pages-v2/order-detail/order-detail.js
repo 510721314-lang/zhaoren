@@ -24,6 +24,7 @@ const { collectStartEvidence, uploadStartPhotos, uploadEvidenceOne } = require('
 // 拆分阶段2c(2026-10-16): 定时器/通知轮询(6 法)外移 utils/order-poll.js(经用户书面批准逐字搬迁); 页面留同名薄代理
 const { clearTimers, startTipPoll, stopTipPoll, onTipNoticeTap, startCountdown, fetchTipList } = require('../../utils/order-poll.js');
 // 阶段B B1(2026-11-12): 操作互斥弹窗外移 utils/order-modal.js（零行为变更，调用点与互斥语义不变）
+const orderSubmit = require('../../utils/order-submit.js');
 const orderModal = require('../../utils/order-modal.js');
 
 Page({
@@ -975,76 +976,10 @@ Page({
     this.setData({ extendReason: v });
   },
 
-  submitExtend() {
-    const that = this;
-    const hours = Number(this.data.extendHours);
-    if (!hours || hours < 1 || hours > 12) {
-      wx.showToast({ title: '加时时长须为1-12小时', icon: 'none' });
-      return;
-    }
-    // 2026-11-10 评审: 加时原因改为必填 + 类型必选(与服务端 oa_extend_reason/oa_extend_reason_type 同口径)
-    const rt = this.data.extendReasonTypes[this.data.extendReasonTypeIndex];
-    if (!rt) {
-      wx.showToast({ title: '请选择加时原因', icon: 'none' });
-      return;
-    }
-    const reasonTxt = String(this.data.extendReason || '').trim();
-    if (reasonTxt.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').length < this.data.reasonMinLen) {
-      wx.showToast({ title: '原因不少于10字', icon: 'none' });
-      return;
-    }
-    wx.showLoading({ title: '提交加时', mask: true });
-    callCloud('order-action', {
-      action: 'extend',
-      order_id: this.data.order._id,
-      add_hours: hours,
-      reason: reasonTxt.slice(0, this.data.extendReasonMax),
-      reason_type: rt.k
-    }).then((r) => {
-      wx.hideLoading();
-      if (!r.ok) {
-        wx.showToast({ title: r.msg || '加时申请失败', icon: 'none' });
-        return;
-      }
-      that.setData({ extendPanelVisible: false });
-      wx.showModal({
-        title: '加时申请已提交',
-        content: `+${hours}小时 · 加时金额 ¥${(r.data.add_amount_fen / 100).toFixed(2)}\n等待对方确认`,
-        showCancel: false, confirmText: '知道了',
-        fail: () => {},
-        success: () => that.fetchData({ orderId: that.data.order._id })
-      });
-    }).catch(() => {
-      wx.hideLoading();
-      wx.showToast({ title: '网络异常', icon: 'none' });
-    });
-  },
+  submitExtend() { orderSubmit.submitExtend(this); },
 
   // 对方发起的加时申请: 确认/拒绝
-  onExtendConfirm() {
-    const that = this;
-    const pe = this.data.order && this.data.order.pending_extend;
-    if (!pe) { wx.showToast({ title: '无待处理的加时申请', icon: 'none' }); return; }
-    this._modal({
-      title: '确认同意加时',
-      content: `+${pe.add_hours}小时 · 加时金额 ¥${(pe.add_amount_fen / 100).toFixed(2)}\n确认后金额合并进结算`,
-      confirmText: '同意',
-      cancelText: '拒绝',
-      // F1: 本弹窗取消键=「拒绝加时」业务动作而非放弃, 回调须照常执行
-      cancelIsAction: true,
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-      success: (res) => {
-        const act = res.confirm ? 'extend_confirm' : 'extend_reject';
-        wx.showLoading({ title: res.confirm ? '确认加时' : '拒绝加时', mask: true });
-        return callCloud('order-action', { action: act, order_id: that.data.order._id }).then((r) => {
-          wx.hideLoading();
-          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
-          wx.showToast({ title: res.confirm ? '加时已确认' : '已拒绝加时', icon: 'success' });
-          return that.fetchData({ orderId: that.data.order._id });
-        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
-      }
-    });
-  },
+  onExtendConfirm() { orderSubmit.onExtendConfirm(this); },
 
   // ── §10 改期 (onModify / submitModify / onModifyConfirm / onModifyReject + 面板辅助) ──
   // O4 改期: 内联卡(原生 date/time picker) + showModal 二次确认, 替代 bottom-sheet
@@ -1138,112 +1073,13 @@ Page({
     return buildModifyTs(this.data.modifyDate, this.data.modifyTime);
   },
 
-  submitModify() {
-    const that = this;
-    const { modifyDate, modifyTime } = this.data;
-    if (!modifyDate || !modifyTime) {
-      wx.showToast({ title: '请选择新的日期和时间', icon: 'none' });
-      return;
-    }
-    const ts = this.buildModifyTs();
-    if (!ts || isNaN(ts) || ts <= Date.now()) {
-      wx.showToast({ title: '新时间无效', icon: 'none' });
-      return;
-    }
-    // 2026-11-05: 选回原时间视为未变更，不生成无意义的 S2_5 在途申请（服务端 oa_modify_same 兜底）
-    if (ts === Number(this.data.order && this.data.order.start_time)) {
-      wx.showToast({ title: '与当前服务时间相同', icon: 'none' });
-      return;
-    }
-    if (ts - Date.now() < CONFIG.MODIFY.minLeadHours * 3600000) {
-      wx.showToast({ title: `须提前${CONFIG.MODIFY.minLeadHours}小时申请改期`, icon: 'none' });
-      return;
-    }
-    // 2026-11-10 评审: 改期原因改为必填 + 类型必选(与服务端 oa_modify_reason/oa_modify_reason_type 同口径)
-    const rt = this.data.modifyReasonTypes[this.data.modifyReasonTypeIndex];
-    if (!rt) {
-      wx.showToast({ title: '请选择改期原因', icon: 'none' });
-      return;
-    }
-    const reasonTxt = String(this.data.modifyReason || '').trim();
-    if (reasonTxt.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').length < this.data.reasonMinLen) {
-      wx.showToast({ title: '原因不少于10字', icon: 'none' });
-      return;
-    }
-    this._modal({
-      title: '确认提交改期',
-      content: `新服务时间：${modifyDate} ${modifyTime}\n提交后需耍伴${CONFIG.MODIFY.confirmMinutes}分钟内确认`,
-      confirmText: '确认',
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-      success: (res) => {
-        if (!res.confirm) return;
-        that.setData({ modifyPanelVisible: false });
-        wx.showLoading({ title: '提交改期', mask: true });
-        return callCloud('order-action', {
-          action: 'modify',
-          order_id: that.data.order._id,
-          new_start_time: ts,
-          reason: reasonTxt.slice(0, that.data.modifyReasonMax),
-          reason_type: rt.k
-        }).then((r) => {
-          wx.hideLoading();
-          if (!r.ok) {
-            if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '改期失败', icon: 'none' });
-            return;
-          }
-          wx.showToast({ title: '改期申请已提交', icon: 'success' });
-          return that.fetchData({ orderId: that.data.order._id });
-        }).catch(() => {
-          wx.hideLoading();
-          wx.showToast({ title: '网络异常', icon: 'none' });
-        });
-      }
-    });
-  },
+  submitModify() { orderSubmit.submitModify(this); },
 
   // S2_5 对方同意改期(云端校验仅非发起人可调)
-  onModifyConfirm() {
-    const that = this;
-    const pm = this.data.order && this.data.order.pending_modify;
-    this._modal({
-      title: '同意改期',
-      content: pm ? `确认将服务时间改为 ${pm.new_date} ${pm.new_time}？` : '确认同意本次改期？',
-      confirmText: '同意',
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-      success(res) {
-        if (!res.confirm) return;
-        wx.showLoading({ title: '处理中', mask: true });
-        return callCloud('order-action', { action: 'modify_confirm', order_id: that.data.order._id }).then((r) => {
-          wx.hideLoading();
-          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
-          wx.showToast({ title: '已同意改期', icon: 'success' });
-          return that.fetchData({ orderId: that.data.order._id });
-        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
-      }
-    });
-  },
+  onModifyConfirm() { orderSubmit.onModifyConfirm(this); },
 
   // S2_5 对方拒绝改期 → 回原状态, 服务时间不变
-  onModifyReject() {
-    const that = this;
-    this._modal({
-      title: '拒绝改期',
-      content: '拒绝后服务时间保持不变',
-      confirmText: '拒绝',
-      confirmColor: '#fa5151',
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-      success(res) {
-        if (!res.confirm) return;
-        wx.showLoading({ title: '处理中', mask: true });
-        return callCloud('order-action', { action: 'modify_reject', order_id: that.data.order._id }).then((r) => {
-          wx.hideLoading();
-          if (!r.ok) { if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' }); return; }
-          wx.showToast({ title: '已拒绝改期', icon: 'none' });
-          return that.fetchData({ orderId: that.data.order._id });
-        }).catch(() => { wx.hideLoading(); wx.showToast({ title: '网络异常', icon: 'none' }); });
-      }
-    });
-  },
+  onModifyReject() { orderSubmit.onModifyReject(this); },
 
   // ── §11 完成 / 部分履约 / 恢复 (onFinishService / onToPartial / onResumeService / onRatioConfirm) ──
   // 阶段F(2026-10-15, 规范 §2.3): 耍伴「发起履约完毕确认」→ 先采集完成照片+定位(凭证前置), 再 S3→S3_6
@@ -1465,38 +1301,7 @@ Page({
 
   // ── §14 取消订单 & 梯度退款 (onCancel) ──
   // O5 取消(wx.showModal 展示梯度退款规则, 替代 bottom-sheet)
-  onCancel() {
-    const that = this;
-    const tier = this.data.cancelTiers[this.data.currentCancelIdx];
-    const ruleLines = this.data.cancelTiers.map((t) => `· ${t.label}：退款${t.rate * 100}%`).join('\n');
-    this._modal({
-      title: '取消订单',
-      content: `退款规则：\n${ruleLines}\n\n当前适用：${tier.label}，退款${tier.rate * 100}%`,
-      confirmText: '确认取消',
-      confirmColor: '#fa5151',
-      fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
-      success: (res) => {
-        if (!res.confirm) return;
-        wx.showLoading({ title: '取消中', mask: true });
-        return callCloud('order-action', {
-          action: 'cancel',
-          order_id: that.data.order._id,
-          reason: tier ? `按${tier.label}梯度退款` : ''
-        }).then((r) => {
-          wx.hideLoading();
-          if (!r.ok) {
-            if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '取消失败', icon: 'none' });
-            return;
-          }
-          wx.showToast({ title: tier ? `已取消·退款${tier.label}` : '已取消', icon: 'none', duration: 2000 });
-          setTimeout(() => wx.navigateBack({ fail: () => {} }), 1500);
-        }).catch(() => {
-          wx.hideLoading();
-          wx.showToast({ title: '网络异常', icon: 'none' });
-        });
-      }
-    });
-  },
+  onCancel() { orderSubmit.onCancel(this); },
 
   // ── §15 快捷跳转 (支付/聊天/电话/预约/下一步操作) ──
   // 跳支付
