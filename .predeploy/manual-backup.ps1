@@ -84,7 +84,17 @@ foreach ($col in $COLLECTIONS) {
   $page = 1; $allDocs = @(); $total = 0; $truncated = $false; $exported = $false
   while ($true) {
     $resp = Invoke-AdminApi 'export_collection' @{ collection = $col; page = $page; page_size = 100; confirm = $true }
-    if (-not $resp -or -not $resp.ok) { Write-Host "  [SKIP] $col" -ForegroundColor Magenta; break }
+    if (-not $resp -or -not $resp.ok) {
+      # T-13.3-C(2026-11-12): 分页失败曾静默写出部分数据(实测 order_main total=406 仅 100 条且 truncated=false)
+      Start-Sleep -Milliseconds 800
+      $resp = Invoke-AdminApi 'export_collection' @{ collection = $col; page = $page; page_size = 100; confirm = $true }
+    }
+    if (-not $resp -or -not $resp.ok) {
+      # 重试仍失败: 已导出的部分不得伪报完整, 置 truncated 让 manifest/日志显式告警
+      Write-Host "  [FAIL] $col page=$page 导出失败, 停止翻页并标记 truncated" -ForegroundColor Red
+      $truncated = $true
+      break
+    }
     $total = $resp.data.total
     $truncated = $resp.data.truncated
     $allDocs += $resp.data.list
@@ -149,6 +159,17 @@ if ($cliBat) {
     if ($p.ExitCode -eq 0 -and $size -gt 0) {
       $downloaded++
       Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_OK $fn" -ErrorAction SilentlyContinue
+      # T-13.3-A(2026-11-12 用户批准): 云端下载的 node_modules 占备份体积约 99%(实测 29 目录/374MB),
+      #   备份只保留源码; 恢复时必须走 --remote-npm-install(runbook backup-restore.md 已补注)
+      $nmDir = Join-Path $target 'node_modules'
+      if (Test-Path $nmDir) {
+        try {
+          Remove-Item $nmDir -Recurse -Force -ErrorAction Stop
+          Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_PRUNE_NM $fn" -ErrorAction SilentlyContinue
+        } catch {
+          Write-Host "[WARN] L6 剔除 node_modules 失败(不影响该函数源码备份): $fn" -ForegroundColor Magenta
+        }
+      }
     }
     else { $failed += $fn; Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_FAIL $fn exit=$($p.ExitCode)" -ErrorAction SilentlyContinue }
   }
