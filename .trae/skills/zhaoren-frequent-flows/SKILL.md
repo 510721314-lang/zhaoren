@@ -188,13 +188,15 @@ Command: JSON.stringify({ listIndexes: 'order_main' })
 # 下载 NDJSON，按 \n split 逐行 parse
 ```
 
-### 踩过的坑（P6/P7/P18）
+### 踩过的坑（P6/P7/P18 + 2026-11-12 补 2 条）
 
 - `cloudbase.cmd` + PowerShell 引号 → **必炸**（嵌套 JSON 引号被 PowerShell 吃掉）
 - `shell:false` → cloudbase.cmd 报 `EINVAL`；**必须 `shell:true`**
 - nosql execute 报错 `INVALID_PARAM ... Expected property name or '}'` → 99% 是引号被 PowerShell 破坏了，改用 .cjs
 - dump 返回 **NDJSON**（每行一个 JSON），不能 `JSON.parse(content)`，必须按 `\n` split 逐行 parse
 - wx-server-sdk 本地无凭据，不能直接在 js 里 require；**必须用 CLI**
+- **查「最新记录」必须 `sort created_at:-1`，禁止 `sort _id:-1`**：本项目 `_id` 是自定义 32-hex（如 `e5db50eb…`/`fbcb42f5…`），**不按时间序**——`sort _id:-1` 曾致「audit 留痕断 4 天」重大误判（2026-11-12 实证，实际留痕完好，差点误导处置方向）
+- **时间戳换算禁口算**：一律 `[DateTimeOffset]::FromUnixTimeMilliseconds($ms).ToLocalTime()`；epoch 基准口算错误曾把 16:38 写成 22:38 入台账（同日实证）。epoch 基准：2026-11-12 00:00 UTC = 1794441600
 
 ---
 
