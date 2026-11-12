@@ -13,6 +13,9 @@
   - `c:\zhaoren\.predeploy\restore.ps1`（先 dry-run 校验 SHA256，仅恢复 admin_config）
 
 > **备份范围（2026-10-09 加入 L6/L7）**：`manual-backup.ps1` 现产出 L2 admin_config 快照 + L3 **37 集合全量**（2026-10-13 补 `complaint`）+ [L6] 云端下载 20 个已部署云函数代码到 `meta\functions_code\<fn>\` + [L7] 索引设计台账到 `meta\index_ledger.json`。
+>
+> **L6 口径变更（2026-11-12 T-13.3-A，用户批准）**：下载成功后**剔除 `node_modules`**（实测 29 目录 / 374MB，占备份体积约 99%），仅备份源码（约 296 文件 / 3.2MB），心跳写 `L6_PRUNE_NM`。**恢复云端函数必须走 `--remote-npm-install`**（或 IDE「云端安装依赖」），不得直接上传备份目录，否则报 `Cannot find module wx-server-sdk`。校验和门禁已豁免 `meta\functions_code\` 逐文件哈希，不受影响。
+> 另：`manual-backup.ps1` **独立手动运行无外层看门狗**（仅 `scripts/auto-backup.ps1:256` 有 1800s `Wait-Process`），挂起时需手动终止进程。
 > **索引核对与创建（已闭环，2026-10-13 更新）**：wx-server-sdk 无 listIndexes/createIndex，但 **tcb 直连通道可用**——`node scripts/tcb-scan-indexes.js` 读云端实际索引（落盘 `.tmp-tcb/indexes-actual.json`）、`node scripts/tcb-diff-indexes.js` 对比设计台账（`meta/index_ledger.json`，由 [`scripts/dump-index-ledger.js`](file:///c:/zhaoren/scripts/dump-index-ledger.js) 提取 init-db 的 `INDEXES` 生成）、`node scripts/tcb-exec.js <cmd.json>` 建缺失索引（`createIndexes` 须 `background:true`）。**不再需要控制台手工核对/重建**。2026-10-13 实测：设计 33 条 / 已建 33 条 / 缺失 0。`demand` 的历史手工增量索引同样被扫描纳入。
 > ⚠️ 坑（2026-10-09 实测）：跑数据库备份请用 `manual-backup.ps1`（带 `-AdminKey` 或设 `AWK_KEY`/`ADMIN_WEB_KEY` 环境变量）。若脚本默认报 `New-Item Path 为空`，是 `-BackupDir` 解析视为空，显式传 `-BackupDir "C:\zhaoren-bak\zhaoren_backup_yyyyMMdd-HHmm"` 即可。L7 的 node 调用需临时把 `$ErrorActionPreference` 置 Continue（Stop 模式下 node 的 stderr 会被转成终止错误），且 dump 脚本成功时只写 stdout 不写 stderr。
 

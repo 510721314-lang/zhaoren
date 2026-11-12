@@ -135,6 +135,7 @@
 | P3-39 | `_acting` 页级互斥锁可能永久占用（继承缺陷，非分拆引入） | `miniprogram/utils/order-modal.js:8-14`：先置锁后调 `wx.showModal`，仅 `fail` / Promise reject 释放 | 若 `wx.showModal` 同步抛错，或 `opts.success` 返回永不 settle 的 Promise（云调用挂起），整页二次确认永久锁死 | **登记不修（2026-11-12 双代理 B#17）**：与拆分前 `c97a379^` 逐字一致，改动即触碰已放行行为；后续若治理「超时自动放锁」须单独立项评审 |
 | P3-40 | `__confLoaded` 纯死写 | `miniprogram/utils/confirm-flow.js:45` 写入；全仓 0 处读取 | 误导后续读者以为存在「已加载」分支判断 | 下一轮清理时删除该写（与 `firstLoad` 弃置同口径，当前不影响行为） |
 | P3-41 | harness modal 记录 JSON clone 丢回调 | `scripts/mp-page-harness.js:89` `clone(src)` 后 `success/fail` 不可见 | 后续用例若断言 `m.success(...)` 会得 `undefined` 而假通过 | harness 头注标注「modal 记录只能断言数据字段；回调请用 `__confirm`/`__cancel`/`__fail`」 |
+| P3-42 | 备份分页失败曾静默产出不完整数据 | `.predeploy/manual-backup.ps1:86-97`（旧实现 `[SKIP]` 直接 break，`truncated` 仍为 false）；实例：`zhaoren_backup_20261112-1434\db\order_main.json` total=406 / list=100 / truncated=false | 灾备文件缺行且无任何告警，恢复时按「完整备份」使用会丢数据 | **已修（2026-11-12 T-13.3）**：失败重试 1 次 + 仍失败置 `truncated=true` 并打 `[FAIL]`；**根因未定位**（疑网关 2.5s 硬限 / admin-action 冷启动），下次真实跑备份需复验 order_main 是否 406/406 |
 
 ---
 
