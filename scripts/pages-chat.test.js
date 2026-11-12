@@ -590,10 +590,19 @@ test('C26 改时间提交载荷', async () => {
     assert.ok(call, '应提交 change_apply');
     assert.strictEqual(call.data.field, 'time');
     assert.strictEqual(call.data.value, ts);
-    // 过去时间 / 缺字段闸
+    // 缺字段闸
     p.inst.setData({ editDate: '', editTimeHm: '' });
     p.inst.confirmEditTime();
     assert.ok(p.calls.toast.some((t) => /请选择日期和时间/.test(t.title)), '缺字段闸');
+    // 过去时间闸（2026-11-12 评审补强：原注释声称覆盖但无断言）
+    const before = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').length;
+    p.inst.setData({ editDate: '2020-01-01', editTimeHm: '10:30' });
+    p.inst.confirmEditTime();
+    assert.ok(p.calls.toast.some((t) => /必须是未来时间/.test(t.title)), '过去时间闸');
+    assert.strictEqual(
+      p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').length, before,
+      '闸门命中不得发请求'
+    );
   } finally { p.restore(); }
 });
 
@@ -608,8 +617,13 @@ test('C27 改费用提交载荷', async () => {
     assert.ok(call, '应提交 change_apply');
     assert.strictEqual(call.data.field, 'fee');
     assert.strictEqual(call.data.value, 2550, '元→分整数');
+    const beforeZero = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').length;
     p.inst.setData({ editFeeYuan: '0' });
     p.inst.confirmEditFee();
     assert.ok(p.calls.toast.some((t) => /请输入有效金额/.test(t.title)), '非法金额闸');
+    assert.strictEqual(
+      p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').length, beforeZero,
+      '非法金额不得发请求'
+    );
   } finally { p.restore(); }
 });
