@@ -6,6 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { createPage, sleep } = require('./mp-page-harness.js');
+const { TM_TEMPLATES } = require('../miniprogram/config/enums.js');
 
 const PAGE = 'pages-v2/chat/chat.js';
 const ORD = 'c'.repeat(32);
@@ -382,4 +383,194 @@ test('C18 弹窗时序在 setData 回调内', async () => {
     const between = order2.slice(iSet + 1, iModal);
     assert.ok(between.every((x) => !x.startsWith('modal:')), 'setData 与弹窗之间无其他弹窗（单次 setData 单回调）');
   } finally { q.restore(); }
+});
+
+// ── 批次2b 前置补桩（归属表 v2.0 ⑧-1）：动作链外移前先钉住 onTmOption / confirm_all 成功支路 / 编辑提交链 / 响应链 ──
+// C19：onTmOption 四支路 + TM_FIELD 双源哨兵（TM5 无字段 / chatBlocked / 正向→confirm_item / 负向→startEdit）
+test('C19 onTmOption 四支路', async () => {
+  const p = await load();
+  try {
+    p.inst.onTmOption({ detail: { tm_id: 'TM5', option: '其他' } });
+    assert.ok(p.calls.toast.some((t) => /该模板无需确认/.test(t.title)), 'TM5 无确认字段');
+    p.inst.setData({ chatBlocked: true });
+    p.inst.onTmOption({ detail: { tm_id: 'TM1', option: TM_TEMPLATES.TM1.options[0] } });
+    assert.ok(p.calls.toast.some((t) => /无法操作/.test(t.title)), '终态闸');
+    p.inst.setData({ chatBlocked: false, orderStatus: 'S1' });
+    p.inst.onTmOption({ detail: { tm_id: 'TM1', option: TM_TEMPLATES.TM1.options[0] } });
+    await sleep(20);
+    assert.ok(p.calls.cloud.some((c) => c.data && c.data.action === 'confirm_item' && c.data.item === 'time'), '正向→confirm_item');
+    p.inst.onTmOption({ detail: { tm_id: 'TM1', option: '__非正向__' } });
+    assert.strictEqual(p.inst.data.editSheet, 'time', '负向→进入编辑态（time 弹层）');
+  } finally { p.restore(); }
+});
+
+// C20：confirm_all 成功支路 —— 补卡（已有模板卡时不重发）→ 刷新确认态
+test('C20 confirm_all 成功支路', async () => {
+  const p = await load();
+  try {
+    p.inst.setData({
+      orderStatus: 'S1', chatBlocked: false, batchBlocked: false,
+      messages: ['TM1', 'TM2', 'TM3', 'TM4'].map((id) => ({ _id: 'm_' + id, msg_type: 'template', tm_id: id }))
+    });
+    const before = p.calls.cloud.filter((c) => c.data && c.data.action === 'get_confirmation').length;
+    p.inst.onConfirmAll();
+    const ev = p.calls.modal.filter((m) => m.title === '全部确认').pop();
+    assert.ok(ev, '应弹二次确认');
+    ev.__confirm();
+    await sleep(50);
+    assert.ok(p.calls.cloud.some((c) => c.data && c.data.action === 'confirm_all'), '应提交 confirm_all');
+    assert.ok(p.calls.cloud.filter((c) => c.data && c.data.action === 'get_confirmation').length > before, '成功后刷新确认态');
+    assert.ok(p.calls.toast.some((t) => /已全部确认/.test(t.title)), '成功 toast');
+  } finally { p.restore(); }
+});
+
+// C21：B7 startEdit 履约时间缺失 → 只重取一次；仍为 0 弹「订单信息未加载」，取到则继续原流程
+test('C21 startEdit 时间缺失 fail-safe 重取', async () => {
+  const wxStub = { getWindowInfo: () => ({ statusBarHeight: 20 }), chooseLocation: () => {} };
+  let n = 0;
+  const mk = () => createPage({
+    page: PAGE,
+    fixtures: (name, data) => {
+      if (name === 'im-conv' && data.action === 'open') return convOpen({ status: 'S2' });
+      if (name === 'im-conv' && data.action === 'messages') return msgFx();
+      if (name === 'order-action' && data.action === 'get_confirmation') {
+        n += 1;
+        return conf({ status: 'S2', start_time: 0, s2_change_counts: { _total: 0, location: 0, content: 0 } });
+      }
+      return { ok: true, data: {} };
+    },
+    wx: wxStub
+  });
+  const a = mk();
+  try {
+    a.inst.onLoad({ orderId: ORD });
+    await sleep(60);
+    a.inst.startEdit('location');
+    await sleep(60);
+    assert.strictEqual(n, 2, '只重取一次（首次载入 + 重取一次）');
+    assert.ok(a.calls.modal.some((m) => m.title === '订单信息未加载'), '仍取不到时提示刷新');
+  } finally { a.restore(); }
+
+  // 取到时间 → 继续原流程（chooseLocation 桩被调用）
+  let hit = 0;
+  let m = 0;
+  const b = createPage({
+    page: PAGE,
+    fixtures: (name, data) => {
+      if (name === 'im-conv' && data.action === 'open') return convOpen({ status: 'S2' });
+      if (name === 'im-conv' && data.action === 'messages') return msgFx();
+      if (name === 'order-action' && data.action === 'get_confirmation') {
+        m += 1;
+        return conf({ status: 'S2', start_time: m >= 2 ? Date.now() + 86400000 : 0 });
+      }
+      return { ok: true, data: {} };
+    },
+    wx: { getWindowInfo: () => ({ statusBarHeight: 20 }), chooseLocation: () => { hit += 1; } }
+  });
+  try {
+    b.inst.onLoad({ orderId: ORD });
+    await sleep(60);
+    b.inst.startEdit('location');
+    await sleep(60);
+    assert.strictEqual(hit, 1, '重取到履约时间后继续选点');
+    assert.strictEqual(b.inst.__s2RefreshTried, false, '重取流程结束后复位（防无界递归）');
+  } finally { b.restore(); }
+});
+
+// C22：B16 变更提交链 —— 原因类型 ActionSheet → 原因 ≥10 字 → s2_change_apply 载荷
+test('C22 S2 变更原因链提交载荷', async () => {
+  const modals = [];
+  const p = createPage({
+    page: PAGE,
+    fixtures: {
+      'im-conv:open': convOpen({ status: 'S2' }),
+      'im-conv:messages': msgFx(),
+      'order-action:get_confirmation': conf({ status: 'S2', start_time: Date.now() + 86400000 })
+    },
+    wx: {
+      getWindowInfo: () => ({ statusBarHeight: 20 }),
+      showActionSheet: (arg) => { if (arg && arg.success) arg.success({ tapIndex: 0 }); },
+      showModal(arg) {
+        const rec = Object.assign({}, arg, {
+          __confirm: () => { if (arg && arg.success) arg.success({ confirm: true, content: '服务内容需要调整为两项,请确认' }); }
+        });
+        modals.push(rec);
+        return rec;
+      }
+    }
+  });
+  try {
+    p.inst.onLoad({ orderId: ORD });
+    await sleep(60);
+    p.inst.setData({ editContentOpts: [{ name: '代买', checked: true }, { name: '排队', checked: true }] });
+    p.inst.confirmEditContent();
+    const ev = modals.filter((m) => m.title === '变更原因').pop();
+    assert.ok(ev, '应弹原因说明');
+    ev.__confirm();
+    await sleep(30);
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 's2_change_apply').pop();
+    assert.ok(call, '应提交 s2_change_apply');
+    assert.deepStrictEqual(call.data.value, ['代买', '排队'], '内容载荷为选中项数组');
+    assert.strictEqual(call.data.reason, '服务内容需要调整为两项,请确认');
+    assert.ok(call.data.reason_type, '应带原因类型 key');
+  } finally { p.restore(); }
+});
+
+// C23：B17 变更响应链 —— accept → change_respond 载荷 + 成功后刷新
+test('C23 变更响应 accept 载荷', async () => {
+  const p = await load();
+  try {
+    p.inst.setData({
+      orderStatus: 'S1',
+      pendingChange: { field: 'content', field_cn: '内容', old_text: '甲', new_text: '乙', token: 'tk7', can_respond: true }
+    });
+    const before = p.calls.cloud.filter((c) => c.data && c.data.action === 'get_confirmation').length;
+    p.inst.onRespondChange({ currentTarget: { dataset: { decision: 'accept' } } });
+    const ev = p.calls.modal.filter((m) => m.title === '接受变更').pop();
+    assert.ok(ev, '应弹接受确认');
+    ev.__confirm();
+    await sleep(30);
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_respond').pop();
+    assert.ok(call, '应提交 change_respond');
+    assert.strictEqual(call.data.decision, 'accept');
+    assert.strictEqual(call.data.token, 'tk7');
+    assert.ok(p.calls.cloud.filter((c) => c.data && c.data.action === 'get_confirmation').length > before, '成功后刷新');
+  } finally { p.restore(); }
+});
+
+// C24：S2 同值前置拦截（D-4 留页依赖 __s2SameValue）—— 未变更不发请求、不弹原因
+test('C24 S2 同值拦截', async () => {
+  const p = await load({
+    'im-conv:open': convOpen({ status: 'S2' }),
+    'order-action:get_confirmation': conf({ status: 'S2', start_time: Date.now() + 86400000, items: {
+      time: { value: '2026-11-20 14:00', user_ok: true, partner_ok: true },
+      location: { value: '市中心', user_ok: true, partner_ok: true },
+      content: { value: ['代买'], user_ok: true, partner_ok: true },
+      fee: { value: '30', user_ok: true, partner_ok: true }
+    } })
+  });
+  try {
+    p.inst.setData({ editContentOpts: [{ name: '代买', checked: true }] });
+    p.inst.confirmEditContent();
+    await sleep(20);
+    assert.ok(p.calls.toast.some((t) => /内容未变更/.test(t.title)), '同值应前置拦截');
+    assert.strictEqual(p.calls.cloud.filter((c) => c.data && c.data.action === 's2_change_apply').length, 0, '不发请求');
+    assert.strictEqual(p.calls.modal.filter((m) => m.title === '变更原因').length, 0, '不弹原因说明');
+  } finally { p.restore(); }
+});
+
+// C25：非 S2 变更（S1 change_apply）—— 直接提交、不带 S2 原因字段
+test('C25 S1 change_apply 载荷', async () => {
+  const p = await load();
+  try {
+    p.inst.setData({ orderStatus: 'S1', pendingChange: null, otherText: '需要一把折叠椅' });
+    p.inst.confirmEditOther();
+    await sleep(30);
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').pop();
+    assert.ok(call, '应提交 change_apply');
+    assert.strictEqual(call.data.field, 'other');
+    assert.strictEqual(call.data.value, '需要一把折叠椅');
+    assert.strictEqual(call.data.reason, undefined, '非 S2 不带原因字段');
+    assert.strictEqual(call.data.reason_type, undefined);
+  } finally { p.restore(); }
 });
