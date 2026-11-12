@@ -157,7 +157,7 @@
 3. **递归时序契约（B#3）**：B7 必须保持 `__s2RefreshTried=true`（L645）→ `refreshConfirmation`（L647）→ 递归自调（L649）→ 复位 `false`（L650）顺序，复位不得提前；模块内自调，禁止「模块→page 壳→模块」二次转发。
 4. 机械比对 `git show`：逐行核对仅允许白名单——`this.`→`page.`/模块自调、新增 `require` 行与函数签名、`module.exports` 追加、分区头注；**禁止重排语句**（loading→cloud→hideLoading 成对顺序即为契约）。
 5. `verify:offline` EXIT=0 + `SHARED SYNC ALL OK`；空 catch 门禁：chat.js 基线 7 不变、confirm-flow 维持 0（随迁段零空 catch，**不刷新基线**）。
-6. 真机走查挂 v1.6.118（T-13.5，iOS+Android 各一遍）：逐项确认 / 一键确认（含补卡）/ 改地点（选点取消与定位被拒）/ 改内容 / 改时间 / 改费用 / 特殊需求 / 接受·拒绝变更 / 窗口已尽与次数上限拦截 / 原因类型 ActionSheet 截断与取消。
+6. ~~真机走查挂 v1.6.118（T-13.5，iOS+Android 各一遍）~~ **2026-11-12 已由 §T-13.5 自动化口径取代（仅遗留视觉/触感/机型抽验）**：逐项确认 / 一键确认（含补卡）/ 改地点（选点取消与定位被拒）/ 改内容 / 改时间 / 改费用 / 特殊需求 / 接受·拒绝变更 / 窗口已尽与次数上限拦截 / 原因类型 ActionSheet 截断与取消。
 
 **⑦ 待裁定项（请审核与用户确认）**
 - **D-1 `TM_FIELD` 归宿**：**已裁定（用户 2026-11-12）= confirm-flow 局部复制 1 行 + 头注声明与 `chat.js:11` 同源**（零 import 变更、回滚最轻，登记双源负债）；不迁至 confirm-flow 再 export（渲染域反向依赖动作模块，层次倒挂，B#5）。
@@ -228,9 +228,9 @@
 1. 断言：**O11-O13 已写入**（加时同意/拒绝双出口、改期同意/拒绝双出口、取消档位切换，工作区待提交）；**再补 O14-O16**：O14 `_handleConflict` 命中（不弹 `r.msg`、触发刷新）、O15 网络 catch（`hideLoading` + 「网络异常」）、O16 `onModifyConfirm` 的 `pm` 为空兜底文案。
 2. 机械等价：`git show` 归一化比对 0 差异（白名单：签名/`that = page`/`this`→`page`/尾逗号/壳/`require`）；**行号以本表 v1.1 为准**（S3=1141-1202、`onModify`=1051-1082）。
 3. **裸 `this` 门禁**：`grep -n "this\." miniprogram/utils/order-submit.js` 命中必须为 **0**（`success(res)` 简写内亦然）。
-4. 门禁：`npm test`（HEAD 922 + O11-O13 3 条 + O14-O16 3 条 = **928**）、`verify:offline` EXIT=0、A/B 455、silent-catch 不增。
+4. 门禁：`npm test`（HEAD 922 + O11-O13 3 条 + O14-O16 3 条 = **928**；历史快照，最终以 T-13.5 全量 **932** 为准）、`verify:offline` EXIT=0、A/B 455、silent-catch 不增。
 5. 提交拆分：测试基建（O11-O16）单独 commit → 业务代码（order-detail.js + utils/order-submit.js）单独 commit → docs 台账单独 commit。
-6. 真机走查挂 v1.6.118（T-13.5）：加时提交/同意/拒绝、改期提交/同意/拒绝、取消（各档位文案）、连点防重。
+6. 真机走查挂 v1.6.118（T-13.5；**2026-11-12 已由 §T-13.5 自动化口径替代**）：加时提交/同意/拒绝、改期提交/同意/拒绝、取消（各档位文案）、连点防重。
 7. 双代理执行审核 0 缺陷后 → 阶段C 评估。
 
 ### 阶段C · publish.js（1078 非空）· **结论：不拆（2026-11-12 量化评估）**
@@ -295,6 +295,6 @@
 | A chat.js | **批次1 已完成（2026-11-12）**：实施第 0 步守护补强（C6 唯一性+C17 17键快照+C18 弹窗时序）→ applyConfirmation 拆分（confirm-flow 段1-6 / chat-notice 段9-15）→ applyNotices 域外移（@VERIFIED 两枚随迁，用户书面批准）。chat.js 非空 1369→**1073**（-296）；门禁 verify:offline EXIT=0 / npm test 911/911 / A/B 455；bindtap 14/14、跨页键双侧 grep 复核通过；silent-catch 基线订正（chat.js 10→7，chat-notice=3，机械随迁） | 待汇报 | 待双代理审核 | — | 见 git log |
 | A-批次2a 确认链 | **已完成（2026-11-12）**：B1-B3 + B5（onTmOption/confirmItem/onConfirmRow/onConfirmAll，114 行）外移 `confirm-flow.js` 分区二，页面保留 4 个转发壳（wxml 绑定与调用面零改）；chat.js 非空 1073→**967**（-106，含注释收口）、confirm-flow 非空 112→231；门禁 911/911、A/B 455、verify:offline EXIT=0、silent-catch 254 不变、模块内裸 `this` 0 处 | 2a 已汇报 | **双代理 0 缺陷**（A 8/8 属实：114 行归一化比对 0 差异；B 8 项通过，登记 P3-37） | 注释叠层/双空行/头注已订正；回填 tech-debt P3-37 | `cfc77ce`（代码）+ `bf4259c`（docs） |
 | A-批次2b 编辑/提交链 | **已完成（2026-11-12）**：B7-B17（startEdit/onS2ChangeTap/closeEditSheet/onEdit*/confirmEdit*/onOtherInput/applyChange/onRespondChange，14 方法 322 行）外移 `confirm-flow.js` 分区二（续），页面留 13 壳（applyChange 模块内自调不设壳）；先补 C19-C25 断言（onTmOption 四支路/confirm_all 成功/重取两分支+复位/S2 原因链/响应链/同值拦截/S1 change_apply）；chat.js 非空 967→**670**（-297）、confirm-flow 231→**547**；门禁 **918/918**、A/B 455、verify EXIT=0、silent-catch 254 不变、模块裸 `this` 0 处 | 2b 已汇报 | **双代理 0 缺陷**（A 16 项：322 行归一化 312/312、0 差异；B 10 项通过，登记模块体积 P3-38） | 已补 C24/C25 + C21 复位断言 | 待授权 |
-| B order-detail.js | **B1 已完成**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；**双代理均完成**（B 0 功能缺陷 + `__fail`/O17/O18；A 5/5 属实：10 行逐行等价、`_acting` 仍页实例态、11 调用点/23 处直连 `wx.showModal` 边界干净）。**B2 已完成并提交**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**、A/B 455、verify EXIT=0、裸 `this` 0；提交 `2597c21`（测试）/ `732f368`（代码）/ `5333fc9`（docs），已 push | B2 已汇报 | **双代理 0 缺陷**（A 5/5 + B 0 功能缺陷） | 已补 O11-O18 + harness `__fail` | `2597c21`+`732f368`+`5333fc9` |
+| B order-detail.js | **B1 已完成**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；**双代理均完成**（B 0 功能缺陷 + `__fail`/O17/O18；A 5/5 属实：10 行逐行等价、`_acting` 仍页实例态、11 调用点/23 处直连 `wx.showModal` 边界干净）。**B2 已完成并提交**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**（历史快照，T-13.5 后全量 932）、A/B 455、verify EXIT=0、裸 `this` 0；提交 `2597c21`（测试）/ `732f368`（代码）/ `5333fc9`（docs），已 push | B2 已汇报 | **双代理 0 缺陷**（A 5/5 + B 0 功能缺陷） | 已补 O11-O18 + harness `__fail` | `2597c21`+`732f368`+`5333fc9` |
 | C publish.js | **已评估（2026-11-12）：结论=不拆**。实测 1078 非空 / 73 方法（46 为 wxml 绑定，密度 4.3%）/ 候选纯函数仅 `fmtDate` 6 行（0.56%）/ 提交主链 266 行全在 2 处文件级 @VERIFIED 覆盖区 / R9 `availableScenes` 耦合；校验·定位·草稿域已外移（139/144/114） | 已汇报 | 量化评估即结论（方案允许出口） | 零代码 | — |
-| T-13.5 自动化口径 | **已完成（2026-11-12）**：chat C1-C27 + order-detail O1-O18 覆盖真机清单全部交互/载荷项（含新增 C26 改时间 / C27 改费用）；全量 **932/932**、A/B 455；映射表见本文件 §T-13.5 | 已汇报 | — | 不可自动化项（视觉/触感/机型）随 v1.6.118 抽验 | 待授权 |
+| T-13.5 自动化口径 | **已完成（2026-11-12）**：chat C1-C27 + order-detail O1-O18 覆盖真机清单全部交互/载荷项（含新增 C26 改时间 / C27 改费用）；双代理检核后补强「过去时间闸 / 闸门命中零请求」(C26) 与「非法金额零请求」(C27)；全量 **932/932**、A/B 455；映射表见本文件 §T-13.5 | 已汇报 | A 7/7 属实、B 20 项属实+3 处口径夸大已补 | 已补断言 + 订正 order-modal 19/历史快照标注 + 登记 P3-39~P3-41 | 待授权 |
