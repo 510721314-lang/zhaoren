@@ -176,6 +176,63 @@
 2. action 提交器：onModify/onExtend 等提交链外移——**触碰文件级 @VERIFIED 覆盖区（加时超时拒绝/S2 协商取消），逐项书面批准**
 3. 开工前补触碰区断言（见阶段0 清单）
 
+#### 阶段B · B2 提交器归属表 v1.1（2026-11-12 草修订；**状态：双代理审核已收口（A：5 属实 / 2 行号订正 / 1 语义订正；B：6 项契约已回写）→ 可进入实施**）
+
+> 前置：用户 2026-11-12 逐项书面批准 B2 范围＝`submitExtend` / `submitModify` / `onCancel` / `onExtendConfirm` / `onModifyConfirm` / `onModifyReject`（触碰第 1 行文件级 @VERIFIED 点名的「加时超时拒绝 / S2 协商取消链双出口」，批准后仍须归属表 + 双代理审核才动代码）。
+> 现场基线：`order-detail.js` 总 1560 / 非空 **1483**（B1 后实测）；目标文件新增 `utils/order-submit.js`（仅提交/响应链，不混入渲染）。
+> 行为等价口径：逐字搬迁 + `this.`→`page.`（含 `const that = this` → `const that = page`）+ 页面留同名转发壳；wxml 绑定名零改。
+
+**① 逐段归属**
+
+| 段 | 行号 | 内容 | 归属 | 契约/约束 |
+|---|---|---|---|---|
+| S1 | 978-1021 | `submitExtend`（时长 1-12 闸 / 原因类型必选 / 原因 ≥`reasonMinLen` / `extend` 载荷 `reason.slice(0,extendReasonMax)` / 成功关面板+弹窗+`fetchData`） | order-submit | `const that = page`；成功**后**关 `extendPanelVisible`（1009）→ 弹窗 → `return page.fetchData`；依赖 page：`data.extend*`、`fetchData` |
+| S2 | 1023-1047 | `onExtendConfirm`（无在途 toast / `cancelIsAction:true`（取消键=拒绝业务动作）/ `extend_confirm`·`extend_reject` / `_handleConflict` / 刷新） | order-submit | `const that = page`（含 `success` 箭头内联）；`this._modal`→`page._modal`、`that._handleConflict`→`page._handleConflict`；依赖 page：`_modal`、`_handleConflict`、`fetchData` |
+| S3 | 1141-1202 | `submitModify`（日期时间必填 / `buildModifyTs` 未来值 / 选回原时间拦截 / `minLeadHours` / 原因类型必选 / 原因 ≥`reasonMinLen` / `_modal` 二次确认 / `modify` 载荷 / 成功 toast+刷新） | order-submit | `const that = page`；`this.buildModifyTs`→`page.buildModifyTs`；**请求前**关 `modifyPanelVisible`（1180，与 S1 时机不同，禁拉平）；`Date.now()` 为全局；依赖 page：`buildModifyTs`、`_modal`、`_handleConflict`、`fetchData`、`CONFIG.MODIFY.*` |
+| S4 | 1204-1224 | `onModifyConfirm`（`modify_confirm` / 冲突收敛 / 刷新） | order-submit | `const that = page`；`success(res) {` **方法简写原样保留**（`_modal` 以 `opts.success(res)` 调用，简写内 `this`=opts，正文只许用 `that`/`page`，禁止改写成依赖 `this`）；`pm` 为空兜底文案「确认同意本次改期？」 |
+| S5 | 1226-1246 | `onModifyReject`（`modify_reject` / 冲突收敛 / 刷新） | order-submit | 同 S4（`success(res)` 简写保留，禁用 `this`） |
+| S6 | 1466-1499 | `onCancel`（梯度退款规则文案 / 当前档位 `cancelTiers[currentCancelIdx]` / `cancel` 载荷 `reason: 按<label>梯度退款` / 成功 toast + 1.5s `navigateBack`） | order-submit | `const that = page`；`setTimeout` 必须用全局（禁顶部缓存引用，否则测试桩失效）；依赖 page：`_modal`、`_handleConflict` |
+
+**② 留页面（不随迁）**
+- `onModify`（1051-1082，入口状态闸 + 打开面板）、面板输入 helpers（`closeExtendPanel` 967 / `onExtendHoursTap` 969 / `onExtendReasonInput` 973 / `onExtendReasonTypeChange` 1132 / `closeModifyPanel` 1084 / `onModifyDateChange` 1109 / `onModifyTimeChange` 1113 / `onModifyReasonInput` 1123 / `onModifyReasonTypeChange` 1129）、`buildModifyTs` 1137-1139 薄代理、`_modal` 163-165 薄代理、`_handleConflict` 169。
+- 理由：这些是渲染态与入口域，搬走只增跨文件耦合、不减认知负担（方案 §一②「只拆编排/提交域不拆渲染」）。
+
+**②b 跨文件契约（双代理 B 审核产出，违反即行为变更）**
+1. 成员调用一律 `page.xxx()` 实时调用，**禁止解构/别名缓存**（如 `const { fetchData } = page`）；`page.data.*` 逐处实时读，禁止跨 `await` 快照。
+2. 成功路径的 `return page.fetchData(...)` **return 不得丢**（丢则 `_modal` 的 `_acting` 在刷新前释放 → 连点重复提交）。
+3. 面板可见性归页面：模块仅在成功路径按原时机 `setData`（S1 成功后关 / S3 请求前关），**写入键** `extendPanelVisible`/`modifyPanelVisible` 经 `page.setData` 回写，不在 15 个读键清单内。
+4. 提交器**不得增删状态闸**（状态/冻结/在途/次数判定仍由页面 `onModify` 入口负责，与原一致）。
+5. 提交流程为「提交器 → `page._modal` 壳 → `utils/order-modal`」单向两层转发，**不是**递归自调，不属「禁二次转发」条款；禁止优化为直接 `orderModal.showModal(...)` 或解构 `_modal`。
+6. `success(res) { ... }` 方法简写原样保留；其内 `this` 指向 `opts`（`order-modal.js` 以 `opts.success(res)` 调用），禁改箭头或依赖 `this`。
+
+**③ ctx 注入清单**
+| 类别 | 明细 |
+|---|---|
+| page 方法（4） | `_modal` / `_handleConflict` / `buildModifyTs` / `fetchData` |
+| data 读取键（15） | `order` / `extendHours` / `extendReasonTypes` / `extendReasonTypeIndex` / `extendReason` / `reasonMinLen` / `extendReasonMax` / `modifyDate` / `modifyTime` / `modifyReasonTypes` / `modifyReasonTypeIndex` / `modifyReason` / `modifyReasonMax` / `cancelTiers` / `currentCancelIdx` |
+| data 写入键（2） | `extendPanelVisible`（S1 成功后）/ `modifyPanelVisible`（S3 请求前）——经 `page.setData` 回写，不在读键清单内 |
+| 模块自持 | `callCloud`、`CONFIG`、`wx`、`setTimeout`（全局）、`Date.now()`（全局） |
+
+**④ 页面壳（6 个，wxml 7 处绑定）**
+`submitExtend`(wxml:410) · `submitModify`(376) · `onCancel`(127) · `onExtendConfirm`(243/244) · `onModifyConfirm`(323) · `onModifyReject`(322) —— 全部对象方法简写、首参透传 `this`、尾逗号。
+
+**⑤ @VERIFIED 处置（core §2）**
+- **为什么必须改**：阶段B 的目标是把「提交/响应编排域」从 1483 非空行的页面解耦（只拆提交域、不拆渲染）；6 方法为该域的最小闭包，外移范围已由用户逐项书面批准（2026-11-12）。
+- **书面批准范围**：`submitExtend` / `submitModify` / `onCancel` / `onExtendConfirm` / `onModifyConfirm` / `onModifyReject`（文件级 @VERIFIED 覆盖整个 `order-detail.js`，6 方法均落在覆盖内，故 §2 批准必要）。
+- **语义订正（双代理 A 核验）**：第 1 行「S2 协商取消链双出口」指**取消转裁决**（服务端 S7/S2 两出口，`FUNCTION-REGISTRY.md:53`）；页面侧取消链=`onCancel`。`onModifyConfirm`/`onModifyReject` 是**改期**双出口（`modify_confirm`/`modify_reject`）。三项分别锁定，不混为一谈。
+- **向后兼容**：页面保留 6 个同名对象方法壳（首参 `this` 透传），wxml 7 处绑定（`order-detail.wxml:127/243/244/322/323/376/410`）与测试 6 处调用点零改。
+- **不变量（搬迁后逐字保持）**：加时确认链 `extend_confirm`/`extend_reject` 与无在途 toast「无待处理的加时申请」；`onCancel` 梯度档位计算与「按<label>梯度退款」；改期双出口载荷/文案/toast；`confirmColor`/`duration` 等易漂移值；第 1 行标记原文与 `:369-378` 超时拒绝渲染文案**留页未触碰**。
+- `order-submit.js` 头注声明「搬迁自 @VERIFIED 文件第 1 行覆盖区，行为等价，用户 2026-11-12 书面批准」。
+
+**⑥ 实施第 0 步（先于外移）与验收**
+1. 断言：**O11-O13 已写入**（加时同意/拒绝双出口、改期同意/拒绝双出口、取消档位切换，工作区待提交）；**再补 O14-O16**：O14 `_handleConflict` 命中（不弹 `r.msg`、触发刷新）、O15 网络 catch（`hideLoading` + 「网络异常」）、O16 `onModifyConfirm` 的 `pm` 为空兜底文案。
+2. 机械等价：`git show` 归一化比对 0 差异（白名单：签名/`that = page`/`this`→`page`/尾逗号/壳/`require`）；**行号以本表 v1.1 为准**（S3=1141-1202、`onModify`=1051-1082）。
+3. **裸 `this` 门禁**：`grep -n "this\." miniprogram/utils/order-submit.js` 命中必须为 **0**（`success(res)` 简写内亦然）。
+4. 门禁：`npm test`（HEAD 922 + O11-O13 3 条 + O14-O16 3 条 = **928**）、`verify:offline` EXIT=0、A/B 455、silent-catch 不增。
+5. 提交拆分：测试基建（O11-O16）单独 commit → 业务代码（order-detail.js + utils/order-submit.js）单独 commit → docs 台账单独 commit。
+6. 真机走查挂 v1.6.118（T-13.5）：加时提交/同意/拒绝、改期提交/同意/拒绝、取消（各档位文案）、连点防重。
+7. 双代理执行审核 0 缺陷后 → 阶段C 评估。
+
 ### 阶段C · publish.js（1078 非空）· 允许结论=不拆
 - 量化判据：候选外移纯函数行数 / wxml 绑定密度 / @VERIFIED 触碰数 / 耦合成员数（含 `getApp().globalData.availableScenes` R9 依赖——不可外移）
 - publish.js L1-2 文件级 @VERIFIED 覆盖发布+代发校验主链，触碰即须书面批准
@@ -201,5 +258,5 @@
 | A chat.js | **批次1 已完成（2026-11-12）**：实施第 0 步守护补强（C6 唯一性+C17 17键快照+C18 弹窗时序）→ applyConfirmation 拆分（confirm-flow 段1-6 / chat-notice 段9-15）→ applyNotices 域外移（@VERIFIED 两枚随迁，用户书面批准）。chat.js 非空 1369→**1073**（-296）；门禁 verify:offline EXIT=0 / npm test 911/911 / A/B 455；bindtap 14/14、跨页键双侧 grep 复核通过；silent-catch 基线订正（chat.js 10→7，chat-notice=3，机械随迁） | 待汇报 | 待双代理审核 | — | 见 git log |
 | A-批次2a 确认链 | **已完成（2026-11-12）**：B1-B3 + B5（onTmOption/confirmItem/onConfirmRow/onConfirmAll，114 行）外移 `confirm-flow.js` 分区二，页面保留 4 个转发壳（wxml 绑定与调用面零改）；chat.js 非空 1073→**967**（-106，含注释收口）、confirm-flow 非空 112→231；门禁 911/911、A/B 455、verify:offline EXIT=0、silent-catch 254 不变、模块内裸 `this` 0 处 | 2a 已汇报 | **双代理 0 缺陷**（A 8/8 属实：114 行归一化比对 0 差异；B 8 项通过，登记 P3-37） | 注释叠层/双空行/头注已订正；回填 tech-debt P3-37 | `cfc77ce`（代码）+ `bf4259c`（docs） |
 | A-批次2b 编辑/提交链 | **已完成（2026-11-12）**：B7-B17（startEdit/onS2ChangeTap/closeEditSheet/onEdit*/confirmEdit*/onOtherInput/applyChange/onRespondChange，14 方法 322 行）外移 `confirm-flow.js` 分区二（续），页面留 13 壳（applyChange 模块内自调不设壳）；先补 C19-C25 断言（onTmOption 四支路/confirm_all 成功/重取两分支+复位/S2 原因链/响应链/同值拦截/S1 change_apply）；chat.js 非空 967→**670**（-297）、confirm-flow 231→**547**；门禁 **918/918**、A/B 455、verify EXIT=0、silent-catch 254 不变、模块裸 `this` 0 处 | 2b 已汇报 | **双代理 0 缺陷**（A 16 项：322 行归一化 312/312、0 差异；B 10 项通过，登记模块体积 P3-38） | 已补 C24/C25 + C21 复位断言 | 待授权 |
-| B order-detail.js | **B1 已完成（2026-11-12）**：触碰区断言 O7-O10 先立（`c3669a0`）→ `_modal`（12 行，`_acting` 页实例态经 ctx）外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)，页面留薄代理；门禁 922/922、A/B 455、verify:offline EXIT=0。**B2 提交器外移未开工**：`submitExtend`/`submitModify`/`onCancel`/`onExtendConfirm`/`onModifyConfirm`/`onModifyReject` 触碰第 1 行文件级 @VERIFIED（加时超时拒绝 / S2 协商取消链双出口），须逐项书面批准 | B1 已汇报 | 待双代理审核 B1 | — | 待授权 |
+| B order-detail.js | **B1 已完成（2026-11-12）**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；双代理 B 审核 0 功能缺陷（已补 `__fail` + O17/O18、订正 11 处）。**B2 已实施（待提交）**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**、A/B 455、verify EXIT=0、裸 `this` 0 | B2 已实施 | B1：B 代理完成 / A 代理复核中；B2：表级 A/B 已收口，执行级待审 | 已补 O14-O18 + harness `__fail` | 待授权 |
 | C publish.js | 未开工 | — | — | — | — |
