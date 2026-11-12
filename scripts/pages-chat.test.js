@@ -574,3 +574,42 @@ test('C25 S1 change_apply 载荷', async () => {
     assert.strictEqual(call.data.reason_type, undefined);
   } finally { p.restore(); }
 });
+
+// C26：改时间提交（S1）—— 日期时间解析为时间戳 + change_apply 载荷
+test('C26 改时间提交载荷', async () => {
+  const p = await load();
+  try {
+    const d = new Date(Date.now() + 5 * 86400000);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const dateStr = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 30, 0).getTime();
+    p.inst.setData({ orderStatus: 'S1', editDate: dateStr, editTimeHm: '10:30' });
+    p.inst.confirmEditTime();
+    await sleep(30);
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').pop();
+    assert.ok(call, '应提交 change_apply');
+    assert.strictEqual(call.data.field, 'time');
+    assert.strictEqual(call.data.value, ts);
+    // 过去时间 / 缺字段闸
+    p.inst.setData({ editDate: '', editTimeHm: '' });
+    p.inst.confirmEditTime();
+    assert.ok(p.calls.toast.some((t) => /请选择日期和时间/.test(t.title)), '缺字段闸');
+  } finally { p.restore(); }
+});
+
+// C27：改费用提交（S1）—— 元→分取整 + 非法金额闸
+test('C27 改费用提交载荷', async () => {
+  const p = await load();
+  try {
+    p.inst.setData({ orderStatus: 'S1', editFeeYuan: '25.5' });
+    p.inst.confirmEditFee();
+    await sleep(30);
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_apply').pop();
+    assert.ok(call, '应提交 change_apply');
+    assert.strictEqual(call.data.field, 'fee');
+    assert.strictEqual(call.data.value, 2550, '元→分整数');
+    p.inst.setData({ editFeeYuan: '0' });
+    p.inst.confirmEditFee();
+    assert.ok(p.calls.toast.some((t) => /请输入有效金额/.test(t.title)), '非法金额闸');
+  } finally { p.restore(); }
+});
