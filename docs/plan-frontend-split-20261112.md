@@ -40,7 +40,35 @@
 - **死代码登记（只登记不修）**：chat.js:459-472「💳 订单支付」分支不可达——L369-370 同条件先 `mark('user_S0')`（1b 先于分支 4 判定），分支 4 永假；阶段A 外移弹窗群时按原样搬迁（保留不可达性，零行为变更），不清理
 
 ### 阶段A · chat.js（1369 非空）
-1. 前置产出 **applyConfirmation 逐段归属表**（L245-477：confirmList 纯计算→confirm-flow；L357-475 回调内弹窗群→chat-notice；切面成立才实施）
+1. 前置产出 **applyConfirmation 逐段归属表**（须经双代理审核通过 + 用户确认后，方可动 chat.js）——**v1.1 已双代理审核修订（2026-11-12）**：
+
+**归属表 v1.1**（段号连续覆盖 L245-477，逐行可机械核对）
+
+| 段 | 行号 | 内容 | 归属 | 契约/约束 |
+|---|---|---|---|---|
+| 1 | 246-252 | progress+count | confirm-flow | 真纯计算，无依赖 |
+| 2 | 254-270 | confirmList 构建 | confirm-flow | ctx 注入：data.role、__changeValueText（内部链 fmtDateTime） |
+| 3 | 271-284 | unlocked/s1Deadline/s1Left | confirm-flow | **实例态回写**：__confLoaded 写入、__s1Deadline 落 page 实例（轮询 tick L616-617/confirmItem L745 直读，不得改模块内部变量）；firstLoad 死变量原样随迁 |
+| 4 | 286-303 | pendingBanner | confirm-flow | ctx 注入：__orderSummary（链 getScene+fmtDateTime） |
+| 5 | 305-318 | pendingChange | confirm-flow | ctx 注入：__changeValueText/fmtDateTime |
+| 6 | 319-321 | s2Counts | confirm-flow | 归 patch |
+| 7 | 322-341 | setData 主体（17 键） | **留页面** | confirm-flow 返回 patch→页面单次 setData(patch,单回调)；**17 键集合快照守护**（items/progress/confirmedCount/confirmList/unlocked/freeChat/orderStatus/startTime/pendingBanner/pendingChange/frozen/s2Counts/s1Left/s1Text/chatBlocked/batchBlocked/orderSummary）；4 个「读旧值条件保留」键（freeChat/startTime/chatBlocked/batchBlocked）必须以 this.data 求值（W9 兜底 C3-b 依赖） |
+| 8 | 342-350 | 回调编排 | **留页面** | updateMsgStatuses/__s2Auto 编排不动 |
+| 9 | 350-354 | shown/mark 闭包 | chat-notice | stOid 来源 this.data.orderId |
+| 10-14 | 357-472 | 五弹窗分支（含 L459-472 死代码💳原样随迁） | chat-notice | 入参 (page, d, nextStatus)；expire_at 取 **d.pending_change 原始值**（禁从 pcn 取）；页面方法仅 __orderSummary（5 处同步）+goPay（死代码内）；三分支跳转为内联 redirectTo |
+| 15 | 473-475 | unlocked toast | **chat-notice（随弹窗群，与方案 L357-475 边界一致）** | confirm-flow 需返回非 patch 字段 wasUnlocked/unlocked（setData 后 data.unlocked 已翻转，页面无法事后还原） |
+| 16 | 476-477 | 闭合 | — | — |
+
+**实施约束（双代理审核产出，违反即行为变更）**
+- ① 「纯计算」定性修正为「**无 UI 副作用计算**」：段 2-6 含实例态读写与 Date.now()，依赖经 ctx 注入；ctx 注入清单=4 方法（__orderSummary/fmtDateTime/__changeValueText/__s1Text）+ data 7 键（role/unlocked/orderStatus/freeChat/startTime/chatBlocked/batchBlocked）；**fallback 合并位置定死在 confirm-flow 侧**（ctx 读当前 data → 出完整 patch）
+- ② 弹窗群调用点必须保持 **setData 回调内部、L343-348 编排之后**（pcn 读 this.data.pendingChange 依赖 patch 已落 data）；禁止拆多次 setData
+- ③ applyConfirmation 调用点 3 处钉死：fetchData L157 / refreshConfirmation L482 / pollOrderChat L600——方法留页作壳，调用面零变化
+- ④ confirm-flow.js 最终内容=本表段 1-6 **另含**动作链方法（onConfirmRow/confirmEdit*/__s2SameValue 等，方案第 3 步另立清单）；chat-notice.js 同载 applyNotices 域（@VERIFIED L635/L662 书面批准随迁）+ 本表段 9-15，模块内分区注释、once 键前缀（status: vs chat_notice:/chat_comm:）互不串
+- ⑤ 死代码清单（原样随迁禁清理）：L459-472 💳 分支（不可达成因=同键先 mark，外移不复活——三前提：同一 once-anchor 单例/键串原样/1b 先于段 14）+ L273 firstLoad 死变量
+- ⑥ 跨页键 `status:<oid>:change_<field>:<expire>` 双侧 grep 逐字复核（§39 纪律）纳入验收
+
+**实施第 0 步（守护补强，先于外移动笔）**：a) C6 断言改**唯一性**（user_S0 弹窗恰 1 条——封死「死代码复活双弹」盲区，代理A#4）；b) 新增「applyConfirmation patch 键集合==17 键快照」断言（复用 calls.setData 留痕）；c) 弹窗调用点在 setData 回调内的时序断言（代理B#12）
+
 2. `utils/chat-notice.js`：applyNotices 弹窗/横幅域外移（**含 @VERIFIED L635/L662 两枚，需用户书面批准随迁**，标记同迁语义不变）
 3. `utils/confirm-flow.js`：四确认动作链外移（依赖清单：data 的 chatBlocked/batchBlocked/orderStatus/pendingChange/s2Counts/startTime/frozen + 实例态 __s1Deadline/__s2Auto/__s2RefreshTried/__commTmplId/__subReqDone + 方法 refreshConfirmation/sendTemplate/__sendMissingConfirmCards/__requestCommSub/_handleOaConflict/_handleApplyFail/__s2SameValue，全部经 page 首参 ctx 注入，先例=`utils/order-poll.js`）
 4. 附 wxml bindtap 14 方法对照表（goBack/goOrderDetail/goPay/onS2ChangeTap/onConfirmRow/onRespondChange/onConfirmAll/onQuickKey/sendText/closeEditSheet/confirmEditTime/confirmEditContent/confirmEditFee/confirmEditOther），漏一个=点击静默，实施后 grep 复核
@@ -72,7 +100,8 @@
 
 | 阶段 | 状态 | 汇报 | 专家审核 | 完善 | commit |
 |---|---|---|---|---|---|
-| 0 断言先行 | **已完成（2026-11-12）** | C1-C8 交付 | A：3 盲区+动作链裸奔；B：合规 3 通过+2 建议 | C9-C16+storage 留痕，意见全采纳 | 见 git log（测试基建/方案文档各 1） |
-| A chat.js | 未开工 | — | — | — | — |
+| 0 断言先行 | **已完成（2026-11-12）** | C1-C8 交付 | A：3 盲区+动作链裸奔；B：合规 3 通过+2 建议 | C9-C16+storage 留痕，意见全采纳 | `f3b8049` |
+| A chat.js | **批次1 已完成（2026-11-12）**：实施第 0 步守护补强（C6 唯一性+C17 17键快照+C18 弹窗时序）→ applyConfirmation 拆分（confirm-flow 段1-6 / chat-notice 段9-15）→ applyNotices 域外移（@VERIFIED 两枚随迁，用户书面批准）。chat.js 非空 1369→**1073**（-296）；门禁 verify:offline EXIT=0 / npm test 911/911 / A/B 455；bindtap 14/14、跨页键双侧 grep 复核通过；silent-catch 基线订正（chat.js 10→7，chat-notice=3，机械随迁） | 待汇报 | 待双代理审核 | — | 见 git log |
+| A-批次2 动作链外移 | 未开工（onConfirmRow/confirmEdit*/__s2SameValue 等入 confirm-flow；wxml 14 方法对照表落地） | — | — | — | — |
 | B order-detail.js | 未开工 | — | — | — | — |
 | C publish.js | 未开工 | — | — | — | — |
