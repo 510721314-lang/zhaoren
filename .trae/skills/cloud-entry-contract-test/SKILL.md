@@ -71,6 +71,8 @@ assert.strictEqual(r.code, 'oa_not_owner');
 **优先选在鉴权门就 return 的分支测**（零后续依赖），避免为通过路径扩一堆 mock。
 确需扩时，按现有模式在 `_mock_sdk.js` 加最小桩，保持「返回可断言的标记/数据」而非真实行为。
 
+**doc.update 默认不回写 store**：实现若走「先 update 再重读 fresh 判定」链路（如 `confirm_item` 补第 8 位后重读判定 8 位全齐转 S0），mock 重读会拿旧值导致成功路径测不出。`_mock_sdk.js` 已有 opt-in `docUpdateWritesBack: true`（2026-11-12 实证：t91-bcd-gaps C4 主链用例，支持点路径 key `items.fee.user_ok` 与 `_.inc` sentinel 回写；默认关闭零行为变化，仅在需要的用例传参开启）。
+
 ### 4. 选测试目标的优先级
 
 先覆盖**安全/越权门**（在入口早期 return，依赖少、价值高）：
