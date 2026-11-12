@@ -45,6 +45,26 @@ const commandProxy = new Proxy({}, {
   const writes = {};
   const calls = [];
 
+  // doc.update 回写 store: 支持点路径 key('a.b.c') 与 _.inc sentinel —— 供「先 update 再重读」链路(如 confirm_item 全齐转 S0)构造真值
+  function applyUpdateData(target, data) {
+    if (!data || typeof data !== 'object') return;
+    for (const k of Object.keys(data)) {
+      const v = data[k];
+      const segs = k.split('.');
+      let cur = target;
+      for (let i = 0; i < segs.length - 1; i++) {
+        if (cur[segs[i]] == null || typeof cur[segs[i]] !== 'object') cur[segs[i]] = {};
+        cur = cur[segs[i]];
+      }
+      const last = segs[segs.length - 1];
+      if (v && typeof v === 'object' && v.__sentinel === 'inc') {
+        cur[last] = (typeof cur[last] === 'number' ? cur[last] : 0) + (v.args[0] || 0);
+      } else {
+        cur[last] = v;
+      }
+    }
+  }
+
   function collection(name) {
     calls.push({ method: 'collection', name });
     return {
@@ -88,6 +108,10 @@ const commandProxy = new Proxy({}, {
           async update(payload) {
             calls.push({ method: 'doc.update', name, id, payload });
             (writes[name] = writes[name] || []).push({ doc: id, data: payload && payload.data });
+            // opt-in(默认关闭, 既有用例零影响): doc.update 回写 store
+            if (opts.docUpdateWritesBack && store[name] && store[name][id]) {
+              applyUpdateData(store[name][id], payload && payload.data);
+            }
             return { stats: { updated: 1 } };
           },
           async set(payload) {
