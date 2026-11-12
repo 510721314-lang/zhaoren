@@ -52,7 +52,7 @@ function createPage(opts) {
   if (!o.page) throw new Error('createPage 需要 page 参数（相对 miniprogram/ 的路径）');
   const abs = path.resolve(MP_ROOT, o.page);
 
-  const calls = { cloud: [], nav: [], toast: [], modal: [], wx: {}, setData: [] };
+  const calls = { cloud: [], nav: [], toast: [], modal: [], wx: {}, storage: [], setData: [] };
   const storage = Object.assign({}, clone(o.storage) || {});
   const timers = [];
 
@@ -104,8 +104,8 @@ function createPage(opts) {
     stopPullDownRefresh() {},
     nextTick(fn) { if (typeof fn === 'function') fn(); },
     getStorageSync(k) { return typeof storage[k] === 'undefined' ? '' : storage[k]; },
-    setStorageSync(k, v) { storage[k] = v; },
-    removeStorageSync(k) { delete storage[k]; },
+    setStorageSync(k, v) { storage[k] = clone(v); calls.storage.push({ op: 'set', key: k }); },
+    removeStorageSync(k) { delete storage[k]; calls.storage.push({ op: 'remove', key: k }); },
     getSystemInfoSync() {
       return {
         platform: 'devtools', SDKVersion: '3.0.0', statusBarHeight: 20,
