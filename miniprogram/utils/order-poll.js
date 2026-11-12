@@ -13,6 +13,10 @@ const once = require('./once-anchor.js');
 function clearTimers(page) {
   if (page._timer) { clearInterval(page._timer); page._timer = null; }
   if (page._tipTimer) { clearInterval(page._tipTimer); page._tipTimer = null; }
+  // P3-39(2026-11-13 用户 §2 书面批准): 操作互斥租约(utils/order-modal.js 写入)。
+  //   离页/隐藏必须连锁一起放: 只清定时器会让 _acting 永久为 true, 返回页面后所有操作按钮静默失效。
+  if (page.__actingTimer) { clearTimeout(page.__actingTimer); page.__actingTimer = null; }
+  page._acting = false;
 }
 
 // 迁自 order-detail.js startTipPoll

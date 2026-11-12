@@ -390,3 +390,39 @@ test('O6 定位失败仍提交 SOS', async () => {
     p.restore();
   }
 });
+
+// O19：操作互斥租约（P3-39）—— 请求挂起（无 fail 无结算）时 20s 到点自动放锁；离页 clearTimers 连锁放锁
+test('O19 挂起请求租约到期放锁', async () => {
+  const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
+  const origCall = p.app.cloudCall;
+  try {
+    p.app.cloudCall = () => new Promise(() => {}); // 模拟请求挂起：既不 reject 也不 resolve
+    p.inst.onCancel();
+    p.calls.modal.filter((m) => m.title === '取消订单').pop().__confirm();
+    await Promise.resolve();
+    assert.strictEqual(p.inst._acting, true, '业务期持锁');
+    await p.__flushTimers(); // 触发 20s 租约定时器
+    assert.strictEqual(p.inst._acting, false, '租约到期自动放锁');
+    // 离页/隐藏链路：只清定时器不放锁会让 _acting 永久为 true，返回页面后操作按钮静默失效
+    p.inst.onCancel();
+    assert.strictEqual(p.inst._acting, true, '再次入弹窗持锁');
+    p.inst.clearTimers();
+    assert.strictEqual(p.inst._acting, false, 'clearTimers 连锁放锁');
+  } finally {
+    p.app.cloudCall = origCall;
+    p.restore();
+  }
+});
+
+// O20：弹窗期不计时（P3-39）—— 用户未确认前不启动租约，取消键非业务动作时正常放锁
+test('O20 弹窗期不计时', async () => {
+  const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
+  try {
+    p.inst.onCancel();
+    assert.strictEqual(p.inst._acting, true, '弹窗期持锁');
+    assert.strictEqual(p.__pendingTimers(), 0, '弹窗期无租约定时器');
+    p.calls.modal.filter((m) => m.title === '取消订单').pop().__cancel();
+    await sleep(10);
+    assert.strictEqual(p.inst._acting, false, '取消后放锁');
+  } finally { p.restore(); }
+});
