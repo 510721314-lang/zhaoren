@@ -251,6 +251,29 @@
 
 **结论：不拆**。理由：①纯函数余量仅 6 行（0.56%），拆分不减认知负担；②46/73 方法为 wxml 绑定入口，只能壳化；③提交主链 266 行全在文件级 @VERIFIED 覆盖区，拆分需逐项批准且回归成本高；④校验/定位/草稿等真正可测域已于阶段1/2 外移完毕。**本结论即方案允许的「不拆」出口，不产生代码改动**。
 
+### T-13.5 真机走查 → 自动化口径（2026-11-12）
+
+> 用户指定「自动化测试完成」：把 T-13.5 真机清单逐项映射到页面级 harness 断言（不替代视觉/触感抽验，但拆分放行不再依赖真机）。
+
+| 真机项 | 自动化断言 | 状态 |
+|---|---|---|
+| chat 逐项确认 | C12 四栅 + C19 正向 `confirm_item` | 通过 |
+| 一键确认（含补卡） | C13 三闸 + C20 成功支路（补卡不重发 + 刷新） | 通过 |
+| 改地点 | C19 负向进编辑态 + C21 选点重取/fail-safe | 通过 |
+| 改内容 | C22 原因类型→原因→`s2_change_apply` 载荷 | 通过 |
+| 改时间 | C26 `change_apply`（time=时间戳）+ 缺字段闸 | 通过 |
+| 改费用 | C27 元→分取整 + 非法金额闸 | 通过 |
+| 特殊需求 | C25 `change_apply`（other，不带 S2 原因字段） | 通过 |
+| 接受/拒绝变更 | C23 accept 载荷 + C24 同值拦截 | 通过 |
+| 窗口已尽/次数上限 | C12 窗口已尽前置拦截 + C11 次数上限分流 | 通过 |
+| order-detail 加时全链 | O7 提交 + O11 同意/拒绝 + O14 冲突收敛 + O15 网络兜底 | 通过 |
+| 改期全链 | O8 提交 + O12 同意/拒绝 + O16 无在途兜底 | 通过 |
+| 取消（各档位） | O9 载荷 + O13 档位切换 | 通过 |
+| 连点防重 | O10 互斥 + O17 fail 放锁 + O18 业务 reject 放锁 | 通过 |
+| 拆分零行为变更 | 模块内裸 `this`=0、wxml 绑定零改、`npm test` 全绿、A/B 455 | 通过 |
+
+**结论**：T-13.5 的交互/载荷类清单已全部自动化（`scripts/pages-chat.test.js` C1-C27、`scripts/pages-order-detail.test.js` O1-O18，全量 **932/932**）；仅「视觉/触感/机型适配」不可自动化，随 v1.6.118 由用户抽验（iOS+Android），**不再作为拆分放行阻塞**。
+
 ### 通用纪律（每阶段）
 - 单阶段单 commit，断言+门禁全绿才进下阶段，失败 revert 本阶段
 - `npm test` + `verify:offline` 全绿；A/B 等价不回归
@@ -272,5 +295,6 @@
 | A chat.js | **批次1 已完成（2026-11-12）**：实施第 0 步守护补强（C6 唯一性+C17 17键快照+C18 弹窗时序）→ applyConfirmation 拆分（confirm-flow 段1-6 / chat-notice 段9-15）→ applyNotices 域外移（@VERIFIED 两枚随迁，用户书面批准）。chat.js 非空 1369→**1073**（-296）；门禁 verify:offline EXIT=0 / npm test 911/911 / A/B 455；bindtap 14/14、跨页键双侧 grep 复核通过；silent-catch 基线订正（chat.js 10→7，chat-notice=3，机械随迁） | 待汇报 | 待双代理审核 | — | 见 git log |
 | A-批次2a 确认链 | **已完成（2026-11-12）**：B1-B3 + B5（onTmOption/confirmItem/onConfirmRow/onConfirmAll，114 行）外移 `confirm-flow.js` 分区二，页面保留 4 个转发壳（wxml 绑定与调用面零改）；chat.js 非空 1073→**967**（-106，含注释收口）、confirm-flow 非空 112→231；门禁 911/911、A/B 455、verify:offline EXIT=0、silent-catch 254 不变、模块内裸 `this` 0 处 | 2a 已汇报 | **双代理 0 缺陷**（A 8/8 属实：114 行归一化比对 0 差异；B 8 项通过，登记 P3-37） | 注释叠层/双空行/头注已订正；回填 tech-debt P3-37 | `cfc77ce`（代码）+ `bf4259c`（docs） |
 | A-批次2b 编辑/提交链 | **已完成（2026-11-12）**：B7-B17（startEdit/onS2ChangeTap/closeEditSheet/onEdit*/confirmEdit*/onOtherInput/applyChange/onRespondChange，14 方法 322 行）外移 `confirm-flow.js` 分区二（续），页面留 13 壳（applyChange 模块内自调不设壳）；先补 C19-C25 断言（onTmOption 四支路/confirm_all 成功/重取两分支+复位/S2 原因链/响应链/同值拦截/S1 change_apply）；chat.js 非空 967→**670**（-297）、confirm-flow 231→**547**；门禁 **918/918**、A/B 455、verify EXIT=0、silent-catch 254 不变、模块裸 `this` 0 处 | 2b 已汇报 | **双代理 0 缺陷**（A 16 项：322 行归一化 312/312、0 差异；B 10 项通过，登记模块体积 P3-38） | 已补 C24/C25 + C21 复位断言 | 待授权 |
-| B order-detail.js | **B1 已完成**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；B 代理 0 功能缺陷（已补 `__fail` + O17/O18、订正 11 处；A 代理复核被停止，未出结论）。**B2 已完成并提交**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**、A/B 455、verify EXIT=0、裸 `this` 0；提交 `2597c21`（测试）/ `732f368`（代码）/ `5333fc9`（docs），已 push | B2 已汇报 | 表级 A/B 已收口；执行级 A 代理被停止 | 已补 O11-O18 + harness `__fail` | `2597c21`+`732f368`+`5333fc9` |
+| B order-detail.js | **B1 已完成**：O7-O10（`c3669a0`）→ `_modal` 外移 [utils/order-modal.js](file:///c:/zhaoren/miniprogram/utils/order-modal.js)（`c97a379`），11 处调用点经薄代理零改；**双代理均完成**（B 0 功能缺陷 + `__fail`/O17/O18；A 5/5 属实：10 行逐行等价、`_acting` 仍页实例态、11 调用点/23 处直连 `wx.showModal` 边界干净）。**B2 已完成并提交**：归属表 v1.1（A/B 收口）→ 6 提交器外移 [utils/order-submit.js](file:///c:/zhaoren/miniprogram/utils/order-submit.js)，6 壳；order-detail 非空 **1483→1288**、order-submit 211；断言 O1-O18、**930/930**、A/B 455、verify EXIT=0、裸 `this` 0；提交 `2597c21`（测试）/ `732f368`（代码）/ `5333fc9`（docs），已 push | B2 已汇报 | **双代理 0 缺陷**（A 5/5 + B 0 功能缺陷） | 已补 O11-O18 + harness `__fail` | `2597c21`+`732f368`+`5333fc9` |
 | C publish.js | **已评估（2026-11-12）：结论=不拆**。实测 1078 非空 / 73 方法（46 为 wxml 绑定，密度 4.3%）/ 候选纯函数仅 `fmtDate` 6 行（0.56%）/ 提交主链 266 行全在 2 处文件级 @VERIFIED 覆盖区 / R9 `availableScenes` 耦合；校验·定位·草稿域已外移（139/144/114） | 已汇报 | 量化评估即结论（方案允许出口） | 零代码 | — |
+| T-13.5 自动化口径 | **已完成（2026-11-12）**：chat C1-C27 + order-detail O1-O18 覆盖真机清单全部交互/载荷项（含新增 C26 改时间 / C27 改费用）；全量 **932/932**、A/B 455；映射表见本文件 §T-13.5 | 已汇报 | — | 不可自动化项（视觉/触感/机型）随 v1.6.118 抽验 | 待授权 |
