@@ -50,6 +50,9 @@ function runDriftAudit() {
   const schema = require('../cloudfunctions/admin-action/config_schema.js').CONFIG_SCHEMA;
   const fields = schema.map((s) => s.f);
   const proj = {}; fields.forEach((f) => { proj[f] = 1; }); proj.updated_at = 1;
+  // 2026-11-12 修复：心跳字段不在 CONFIG_SCHEMA 内，必须显式投影；否则 full.error_scan_last_at 恒为 undefined，
+  //   心跳写入被误判为「配置变更」，探针每小时假 FAIL（实测 updated_at==error_scan_last_at==1794479421784）
+  proj.error_scan_last_at = 1; proj.error_scan_heartbeat_at = 1;
   const full = runOne(q('admin_config', { _id: 'global' }, proj))[0] || {};
   const updatedAt = num(full.updated_at);
 
@@ -74,7 +77,10 @@ function runDriftAudit() {
   const H24 = 24 * 3600 * 1000;
   let probeFail = false, probeDetail = [];
   const heartbeat = num(full.error_scan_last_at);
-  const isHeartbeatWrite = heartbeat != null && heartbeat === updatedAt;
+  const heartbeatAt = num(full.error_scan_heartbeat_at);
+  // 双字段判定：任一与 updated_at 相等即视为心跳写入（防未来只写其中一个字段导致误报）
+  const isHeartbeatWrite = (heartbeat != null && heartbeat === updatedAt) || (heartbeatAt != null && heartbeatAt === updatedAt);
+  if (isHeartbeatWrite) info.push('最近写入=error_scan 心跳（已排除，不触发留痕探针）');
   if (!isHeartbeatWrite && updatedAt && now - updatedAt < H24) {
     const chk = [
       ['audit_log(admin_config_change)', 'audit_log', { action: 'admin_config_change' }],
@@ -92,7 +98,7 @@ function runDriftAudit() {
       probeFail = true;
       errors.push(`留痕探针 FAIL: 配置 ${new Date(updatedAt).toISOString()} 有写入, 三通道最新均早于其 10 分钟以上——后台写入零留痕(T-9.14 实证)\n    ${probeDetail.join('\n    ')}`);
     }
-  } else {
+  } else if (!isHeartbeatWrite) {
     info.push('近 24h 无配置写入, 留痕探针不触发');
   }
 
