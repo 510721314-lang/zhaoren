@@ -205,6 +205,160 @@ test('O9 取消提交链', async () => {
   }
 });
 
+// O11：加时响应双出口 —— 同意/拒绝（取消键=业务动作）+ 无在途 toast
+test('O11 加时同意/拒绝双出口', async () => {
+  const p = await load({
+    'order-action:detail': detail({ pending_extend: { add_hours: 1, add_amount_fen: 3000 } }),
+    'order-action:extend_confirm': { ok: true, data: {} },
+    'order-action:extend_reject': { ok: true, data: {} }
+  });
+  try {
+    // 无在途
+    p.inst.setData({ order: Object.assign({}, p.inst.data.order, { pending_extend: null }) });
+    p.inst.onExtendConfirm();
+    assert.ok(p.calls.toast.some((t) => /无待处理的加时申请/.test(t.title)), '无在途闸');
+    // 同意
+    p.inst.setData({ order: Object.assign({}, p.inst.data.order, { pending_extend: { add_hours: 1, add_amount_fen: 3000 } }) });
+    p.inst.onExtendConfirm();
+    const ev = p.calls.modal.filter((m) => m.title === '确认同意加时').pop();
+    assert.ok(ev, '应弹加时确认');
+    assert.strictEqual(ev.cancelIsAction, true, '取消键=拒绝业务动作');
+    ev.__confirm();
+    await sleep(30);
+    assert.ok(p.calls.cloud.some((c) => c.data && c.data.action === 'extend_confirm'), '同意→extend_confirm');
+    // 拒绝（第二次弹窗，取消键触发业务回调）
+    p.inst.onExtendConfirm();
+    const ev2 = p.calls.modal.filter((m) => m.title === '确认同意加时').pop();
+    ev2.__cancel();
+    await sleep(30);
+    assert.ok(p.calls.cloud.some((c) => c.data && c.data.action === 'extend_reject'), '拒绝→extend_reject');
+  } finally { p.restore(); }
+});
+
+// O12：改期同意/拒绝双出口（S2 协商取消链）
+test('O12 改期同意/拒绝双出口', async () => {
+  const pdt = new Date(Date.now() + 5 * 86400000);
+  pdt.setHours(10, 5, 0, 0);
+  const ts = pdt.getTime();
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const expectTime = `${pdt.getFullYear()}-${pad2(pdt.getMonth() + 1)}-${pad2(pdt.getDate())} 10:05`;
+  const p = await load({
+    'order-action:detail': detail({ status: 'S2_5', pending_modify: { new_start_time: ts, by_role: 'user' }, role: 'partner', my_role: 'partner' }),
+    'order-action:modify_confirm': { ok: true, data: {} },
+    'order-action:modify_reject': { ok: true, data: {} }
+  });
+  try {
+    p.inst.onModifyConfirm();
+    const ev = p.calls.modal.filter((m) => m.title === '同意改期').pop();
+    assert.ok(ev, '应弹同意改期');
+    assert.ok(ev.content.indexOf(expectTime) >= 0, '文案带入新时间（buildOrderView 映射）');
+    assert.strictEqual(ev.confirmText, '同意', '确认键文案');
+    ev.__confirm();
+    await sleep(30);
+    assert.ok(p.calls.cloud.some((c) => c.data && c.data.action === 'modify_confirm'), '同意→modify_confirm');
+    p.inst.onModifyReject();
+    const ev2 = p.calls.modal.filter((m) => m.title === '拒绝改期').pop();
+    assert.ok(ev2, '应弹拒绝改期');
+    ev2.__confirm();
+    await sleep(30);
+    assert.ok(p.calls.cloud.some((c) => c.data && c.data.action === 'modify_reject'), '拒绝→modify_reject');
+  } finally { p.restore(); }
+});
+
+// O13：取消档位切换 —— reason 随 currentCancelIdx 变化
+test('O13 取消档位切换', async () => {
+  const p = await load({ 'order-action:detail': detail(), 'order-action:cancel': { ok: true, data: {} } });
+  const origSetTimeout = global.setTimeout;
+  try {
+    const idx = p.inst.data.cancelTiers.length > 1 ? 1 : 0;
+    p.inst.setData({ currentCancelIdx: idx });
+    p.inst.onCancel();
+    const ev = p.calls.modal.filter((m) => m.title === '取消订单').pop();
+    assert.ok(new RegExp(`当前适用：${p.inst.data.cancelTiers[idx].label}`).test(ev.content), '弹窗展示当前档位');
+    global.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
+    ev.__confirm();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'cancel').pop();
+    assert.strictEqual(call.data.reason, `按${p.inst.data.cancelTiers[idx].label}梯度退款`);
+  } finally {
+    global.setTimeout = origSetTimeout;
+    p.restore();
+  }
+});
+
+// O14：冲突收敛 —— _handleConflict 命中时不弹 r.msg，静默刷新 + 固定 toast
+test('O14 冲突收敛不直出服务端文案', async () => {
+  const p = await load({
+    'order-action:detail': detail({ pending_extend: { add_hours: 1, add_amount_fen: 3000 } }),
+    'order-action:extend_confirm': { ok: false, code: 'oa_order_status', msg: 'oa_order_status' }
+  });
+  try {
+    const before = p.calls.cloud.filter((c) => c.data && c.data.action === 'detail').length;
+    p.inst.onExtendConfirm();
+    p.calls.modal.filter((m) => m.title === '确认同意加时').pop().__confirm();
+    await sleep(30);
+    assert.ok(p.calls.toast.some((t) => /订单状态已更新, 请刷新后重试/.test(t.title)), '固定提示');
+    assert.ok(!p.calls.toast.some((t) => /oa_order_status/.test(t.title)), '不直出裸状态码');
+    assert.ok(p.calls.cloud.filter((c) => c.data && c.data.action === 'detail').length > before, '静默刷新');
+  } finally { p.restore(); }
+});
+
+// O15：网络异常分支 —— hideLoading + 统一文案（不伪造成功）
+test('O15 提交网络异常兜底', async () => {
+  const p = await load({
+    'order-action:detail': detail(),
+    'order-action:extend': new Error('network down')
+  });
+  try {
+    p.inst.setData({ extendHours: 2, extendReasonTypeIndex: 0, extendReason: '临时有事情需要延长两小时处理' });
+    p.inst.submitExtend();
+    await sleep(30);
+    assert.ok(p.calls.toast.some((t) => /网络异常/.test(t.title)), '统一网络文案');
+    assert.strictEqual(p.calls.modal.filter((m) => m.title === '加时申请已提交').length, 0, '失败不弹成功框');
+  } finally { p.restore(); }
+});
+
+// O16：改期同意兜底 —— pending_modify 缺失时文案回落，不抛错
+test('O16 改期同意无在途兜底', async () => {
+  const p = await load({ 'order-action:detail': detail(), 'order-action:modify_confirm': { ok: true, data: {} } });
+  try {
+    p.inst.setData({ order: Object.assign({}, p.inst.data.order, { pending_modify: null }) });
+    p.inst.onModifyConfirm();
+    const ev = p.calls.modal.filter((m) => m.title === '同意改期').pop();
+    assert.ok(ev, '应弹窗');
+    assert.strictEqual(ev.content, '确认同意本次改期？', '无在途兜底文案');
+  } finally { p.restore(); }
+});
+
+// O17：_modal 弹窗 fail 分支 —— 释放锁并执行 opts.fail（异常时不得永久锁死页面）
+test('O17 _modal fail 释放与回调', async () => {
+  const p = await load({ 'order-action:detail': detail() });
+  try {
+    let failHit = 0;
+    p.inst._modal({ title: 'F', fail: () => { failHit += 1; } });
+    assert.strictEqual(p.inst._acting, true, '入口置锁');
+    p.calls.modal.filter((m) => m.title === 'F').pop().__fail();
+    await sleep(10);
+    assert.strictEqual(failHit, 1, 'opts.fail 被调用');
+    assert.ok(!p.inst._acting, 'fail 后释放锁');
+    p.inst._modal({ title: 'G', success: () => {} });
+    assert.strictEqual(p.calls.modal.filter((m) => m.title === 'G').length, 1, '释放后可再次弹出');
+  } finally { p.restore(); }
+});
+
+// O18：_modal 业务回调 reject —— then(release, release) 必须放锁
+test('O18 业务 reject 放锁', async () => {
+  const p = await load({ 'order-action:detail': detail() });
+  try {
+    p.inst._modal({ title: 'H', success: () => Promise.reject(new Error('biz fail')) });
+    p.calls.modal.filter((m) => m.title === 'H').pop().__confirm();
+    await sleep(20);
+    assert.ok(!p.inst._acting, '业务失败后释放锁');
+    p.inst._modal({ title: 'I', success: () => {} });
+    assert.strictEqual(p.calls.modal.filter((m) => m.title === 'I').length, 1, '释放后可再次弹出');
+  } finally { p.restore(); }
+});
+
 // O10：_modal 互斥 —— 弹窗未闭合前二次调用被丢弃；release 后可再次弹出；取消键非业务动作时不执行 success
 test('O10 _modal 互斥与释放', async () => {
   const p = await load({ 'order-action:detail': detail() });

@@ -89,6 +89,7 @@ function createPage(opts) {
       const rec = clone(src);
       rec.__confirm = () => { if (typeof src.success === 'function') src.success({ confirm: true, cancel: false }); };
       rec.__cancel = () => { if (typeof src.success === 'function') src.success({ confirm: false, cancel: true }); };
+      rec.__fail = () => { if (typeof src.fail === 'function') src.fail({ errMsg: 'showModal:fail' }); };
       calls.modal.push(rec);
       return rec;
     },
