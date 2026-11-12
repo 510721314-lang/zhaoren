@@ -48,7 +48,7 @@
 |---|---|---|---|---|
 | 1 | 246-252 | progress+count | confirm-flow | 真纯计算，无依赖 |
 | 2 | 254-270 | confirmList 构建 | confirm-flow | ctx 注入：data.role、__changeValueText（内部链 fmtDateTime） |
-| 3 | 271-284 | unlocked/s1Deadline/s1Left | confirm-flow | **实例态回写**：__confLoaded 写入、__s1Deadline 落 page 实例（轮询 tick L616-617/confirmItem L745 直读，不得改模块内部变量）；firstLoad 死变量原样随迁 |
+| 3 | 271-284 | unlocked/s1Deadline/s1Left | confirm-flow | **实例态回写**：__confLoaded 写入、__s1Deadline 落 page 实例（轮询 tick L616-617/confirmItem L745 直读，不得改模块内部变量）；~~firstLoad 死变量原样随迁~~ → **批次1 审核收口（2026-11-12）：firstLoad 经双代理确认全文件零读取点，按「登记弃置」处理不再随迁**（confirm-flow.js 头注留痕） |
 | 4 | 286-303 | pendingBanner | confirm-flow | ctx 注入：__orderSummary（链 getScene+fmtDateTime） |
 | 5 | 305-318 | pendingChange | confirm-flow | ctx 注入：__changeValueText/fmtDateTime |
 | 6 | 319-321 | s2Counts | confirm-flow | 归 patch |
@@ -64,7 +64,7 @@
 - ② 弹窗群调用点必须保持 **setData 回调内部、L343-348 编排之后**（pcn 读 this.data.pendingChange 依赖 patch 已落 data）；禁止拆多次 setData
 - ③ applyConfirmation 调用点 3 处钉死：fetchData L157 / refreshConfirmation L482 / pollOrderChat L600——方法留页作壳，调用面零变化
 - ④ confirm-flow.js 最终内容=本表段 1-6 **另含**动作链方法（onConfirmRow/confirmEdit*/__s2SameValue 等，方案第 3 步另立清单）；chat-notice.js 同载 applyNotices 域（@VERIFIED L635/L662 书面批准随迁）+ 本表段 9-15，模块内分区注释、once 键前缀（status: vs chat_notice:/chat_comm:）互不串
-- ⑤ 死代码清单（原样随迁禁清理）：L459-472 💳 分支（不可达成因=同键先 mark，外移不复活——三前提：同一 once-anchor 单例/键串原样/1b 先于段 14）+ L273 firstLoad 死变量
+- ⑤ 死代码清单：L459-472 💳 分支（不可达成因=同键先 mark，外移不复活——三前提：同一 once-anchor 单例/键串原样/1b 先于段 14）**原样随迁**；L273 firstLoad 死变量经批次1 双代理审核确认零读取点，**登记弃置不随迁**（2026-11-12 收口，confirm-flow.js 头注留痕）
 - ⑥ 跨页键 `status:<oid>:change_<field>:<expire>` 双侧 grep 逐字复核（§39 纪律）纳入验收
 
 **实施第 0 步（守护补强，先于外移动笔）**：a) C6 断言改**唯一性**（user_S0 弹窗恰 1 条——封死「死代码复活双弹」盲区，代理A#4）；b) 新增「applyConfirmation patch 键集合==17 键快照」断言（复用 calls.setData 留痕）；c) 弹窗调用点在 setData 回调内的时序断言（代理B#12）
