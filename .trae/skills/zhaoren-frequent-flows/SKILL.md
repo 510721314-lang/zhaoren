@@ -440,3 +440,28 @@ Invoke-RestMethod -Uri ".../api" -Method Post -Headers @{'X-Admin-Key'=$k;'Conte
 | 直连 / HTTP1.1 / 代理三种方式都 `Connection was reset` | **443 被中间网络重置**，并非全断网（2026-11-08 实测：`ssh -T git@github.com` 返回 `Permission denied (publickey)` ⇒ 22 端口可达） | 先 `Test-Path ~/.ssh/id_*`：本机无密钥时 SSH 通道不可用，只能 a) 起 7890 代理 b) 新建密钥并在 GitHub 添加 c) 换网；**禁止继续盲试同一通道**（§35「失败即停」） |
 | 后台登录 `401 Request failed with status code 401` | **整行粘贴带 `AWK_KEY=` 前缀**（实测必 401；半角首尾空白会被 HTTP 剥离、不是真凶；全角空格会在浏览器抛非法头异常） | 已实现 `normalizeKey` 自动剥前缀+trim；仍失败则查 `gateway_bad_key` 事件 |
 | 后台页面看不到新改动 | 开的是网关域（CDN 旧构建） | 换托管域 `tcloudbaseapp.com` + Ctrl+F5 |
+
+## 流程 9：测试用例增删与用例清单门（2026-11-13 误删实证）
+
+### 触发时机
+- 新增 / 删除 / 改名任何 `*.test.js` 用例（补分支断言、重构测试、退役旧用例）
+- 门禁报 `[TEST-LOST]` / `[TEST-FILE-LOST]` / `[TEST-UNREGISTERED]`
+
+### 命令
+```powershell
+node scripts/check-test-manifest.js            # 核对清单 vs 现有用例
+node scripts/check-test-manifest.js --update   # 合法增删后刷新基线（必须紧接着 review diff）
+npm test                                       # 只证明「跑到的用例都过」，不证明「用例没少」
+```
+
+### 验证口径
+- 清单 `scripts/test-manifest.json` 按「文件::标题」锁定全量用例。
+- `--update` 后 `git diff scripts/test-manifest.json`：只允许出现「本次新增标题」与「本次有意删改标题」；出现非意图删除行 → 立即停止并恢复被删用例（规则 §20-M8）。
+- 门禁属 VERIFY_ONLY：已同批挂 `verify` + `verify:offline`，并在 `check-gate-mounts.js` 登记（当前 28 门）。
+
+### 踩过的坑
+| 现象 | 根因 | 对策 |
+|---|---|---|
+| 补新用例后全量仍绿，但总数比预期少 1 | Edit 整块替换把相邻旧用例一起替换掉 | 改后跑清单门；`--update` 前先数 `test(` 增删 |
+| `--update` 一次性接受大段删除 | 未 review manifest diff | 基线 diff 只允许本次意图内增删 |
+| `RULES_ROOT` 与真实仓库混用导致误报 | 自测夹具环境变量泄漏 | 自测只在 `scripts/check-test-manifest.test.js` 内设置，不导出手工命令 |
