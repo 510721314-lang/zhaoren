@@ -1,0 +1,28 @@
+{
+  "_comment": "P3-36 已确认偏离 baseline（2026-11-13）：收编 audit-config-drift.js「偏离默认」型 WARN。字段=后台运营有意配置，与 schema 默认值不同但经确认为现状口径。reason 一律填登记来源指针；标「来源待查」的条目值来自 2026-11-13 audit 实测回执、docs 无专项登记，待人工确认后补指针。特殊运营态 WARN（auto_approve_partner=true / mock_payment_enabled=false / realname_face_mode≠mock / 遗留 modify_config）不走本 baseline，保持裸奔。",
+  "generated_at": "2026-11-13",
+  "fields": {
+    "publish_distance_max_km": { "value": 100, "reason": "来源待查·待人工确认（云端实测=2026-11-13 audit 回执；后台 config_history 有字段级留痕）" },
+    "take_distance_max_km": { "value": 80, "reason": "来源待查·待人工确认（同上）" },
+    "partner_daily_take_limit": { "value": 40, "reason": "docs/business-plan-20261006.md:695（耍伴日接单上限 40，商业计划口径）" },
+    "remind_after_h": { "value": 2, "reason": "来源待查·待人工确认（同上）" },
+    "escalate_after_h": { "value": 2, "reason": "来源待查·待人工确认（同上）" },
+    "extend_confirm_min": { "value": 5, "reason": "来源待查·待人工确认（docs/API.md:487 默认 20 为代码默认；当前 5 为运营调整，config_history 可查）" },
+    "time_redline_open_min": { "value": 300, "reason": "来源待查·待人工确认（同上）" },
+    "rate_min_fen": { "value": 1000, "reason": "来源待查·待人工确认（同上）" },
+    "rate_max_fen": { "value": 50000, "reason": "来源待查·待人工确认（同上）" },
+    "scene_default_rate_fen": { "value": 10000, "reason": "docs/business-plan-20261006.md:691（场景默认时薪 100 元/时）" },
+    "payment_visible": { "value": false, "reason": "来源待查·待人工确认（同上；MVP 模拟支付期隐藏真实支付入口）" },
+    "mock_payment_enabled": { "value": true, "reason": "docs/tech-debt-inventory-20261105.md §0（2026-11-05 用户拍板：MVP 模拟支付保持开启，提审说明写明不产生真实扣款）" },
+    "audit_prune_dry_run": { "value": false, "reason": "docs/CHANGELOG.md:168（2026-11-04 batch3 收尾①：config_set 翻 false 启用审计清理）" },
+    "im_rate_window_min": { "value": 3, "reason": "来源待查·待人工确认（同上）" },
+    "p_highlights_max": { "value": 5, "reason": "来源待查·待人工确认（同上）" },
+    "p_highlight_len": { "value": 12, "reason": "来源待查·待人工确认（同上）" },
+    "p_media_photo_max": { "value": 3, "reason": "来源待查·待人工确认（同上）" },
+    "msg_page_size": { "value": 10, "reason": "来源待查·待人工确认（同上）" },
+    "no_show_suspend_threshold": { "value": 5, "reason": "来源待查·待人工确认（docs/API.md:546 默认 3 为代码默认；当前 5 为运营调整，config_history 可查）" },
+    "no_show_suspend_days": { "value": 3, "reason": "来源待查·待人工确认（同上）" },
+    "no_show_evidence_max": { "value": 5, "reason": "来源待查·待人工确认（同上）" },
+    "no_show_reason_min_len": { "value": 12, "reason": "来源待查·待人工确认（同上）" }
+  }
+}

@@ -9,6 +9,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execTcbCommands } = require('./tcb-exec');
+// P3-36(2026-11-13): 已确认偏离 baseline(每条带 reason 来源指针/日期留痕); 只收编「偏离默认」型 WARN
+const BASELINE = require('./audit-config-drift-baseline.json');
 
 // 附录A 不可变红线(数值以 rules 附录A 为准; schema def 与其一致, 双保险)
 const REDLINE = {
@@ -62,7 +64,14 @@ function runDriftAudit() {
     if (v == null) continue; // 未配置 = 走代码兜底, 不告警
     if (s.min != null && (v < s.min || v > s.max)) errors.push(`越界: ${s.f}=${v} 允许[${s.min}-${s.max}] (${s.g}/${s.label})`);
     else if (REDLINE[s.f] != null && v !== REDLINE[s.f]) errors.push(`红线: ${s.f}=${v} 须=${REDLINE[s.f]} (附录A)`);
-    else if (s.def != null && v !== s.def) warns.push(`偏离默认: ${s.f}=${v} (def=${s.def}, ${s.g}/${s.label})——有意配置请忽略`);
+    else if (s.def != null && v !== s.def) {
+      // P3-36(2026-11-13): baseline 收编已确认偏离——命中且值一致降级 INFO; 值漂移仍 WARN 并注明 baseline 记录;
+      // 未登记照常 WARN。特殊运营态 WARN(L68-71)与 ERROR/红线判据不读 baseline, 保持裸奔(评审 B10)。
+      const bl = BASELINE.fields[s.f];
+      if (bl && num(bl.value) === v) info.push(`已确认偏离: ${s.f}=${v} (def=${s.def}, baseline@${bl.date || BASELINE.generated_at}: ${bl.reason})`);
+      else if (bl) warns.push(`偏离默认且偏离 baseline 记录: ${s.f}=${v} (baseline=${bl.value}@${bl.date}, def=${s.def})——若为新有意配置请更新 baseline 后复检`);
+      else warns.push(`偏离默认: ${s.f}=${v} (def=${s.def}, ${s.g}/${s.label})——有意配置请登记 baseline`);
+    }
   }
   if (docRow.env && docRow.env !== 'prod') errors.push(`环境: env=${docRow.env} 须 prod`);
   if (docRow.auto_approve_partner === true) warns.push('auto_approve_partner=true (耍伴自动接单已开)');
