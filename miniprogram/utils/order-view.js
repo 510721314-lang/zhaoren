@@ -29,7 +29,7 @@ function computeNextStep(order, now = Date.now()) {
       return {
         icon: '⏰',
         title: '对方申请加时',
-        subtitle: `+${pe.add_hours}小时 · ¥${(pe.add_amount_fen / 100).toFixed(2)} · ${pe.expire_text}`,
+        subtitle: `+${pe.add_hours}小时 · ${pe.expire_text}`,
         tone: 'primary',
         action: { key: 'extend_respond', text: '去确认' }
       };
@@ -37,7 +37,7 @@ function computeNextStep(order, now = Date.now()) {
     return {
       icon: '⏳',
       title: '你发起了加时',
-      subtitle: `等待${role === 'user' ? '耍伴' : '发单人'}确认 · +${pe.add_hours}小时 ¥${(pe.add_amount_fen / 100).toFixed(2)}`,
+      subtitle: `等待${role === 'user' ? '耍伴' : '发单人'}确认 · +${pe.add_hours}小时`,
       tone: 'info'
     };
   }

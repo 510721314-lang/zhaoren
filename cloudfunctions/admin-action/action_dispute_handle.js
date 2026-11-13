@@ -29,19 +29,21 @@ async function dispute_handle(ctx) {
   const noteText = String(note).trim();
   let refFen = 0;
   let refNo = '';
-  let totalFen = 0;
+  let paidFen = 0;
   let alreadyRefunded = 0;
   if (decision === 'refund') {
-    totalFen = Number(order.total_fen) || 0;
+    // 评审修复(2026-11-14): 退款基准改实付(fund.paid_fen, 缺失回退 total_fen), 原按 total_fen ——
+    // 加时曾抬 total_fen 未入账, 按总额可退超实付; 与 payment-mock mock_refund 口径一致(action_pay.js:194)
+    paidFen = Number((order.fund && order.fund.paid_fen) || order.total_fen) || 0;
     try {
       const paid = await col('pay_transaction').where({
         order_id, type: 'refund', status: 'success', is_deleted: _.neq(true)
       }).limit(50).get();
       alreadyRefunded = (paid.data || []).reduce((s, t) => s + (Number(t.amount_fen) || 0), 0);
     } catch (e) {}
-    const refFenMax = Math.max(0, totalFen - alreadyRefunded);
+    const refFenMax = Math.max(0, paidFen - alreadyRefunded);
     const raw = event.refund_fen;
-    refFen = (raw === undefined || raw === null || raw === '') ? totalFen : Number(raw);
+    refFen = (raw === undefined || raw === null || raw === '') ? paidFen : Number(raw);
     if (!Number.isInteger(refFen) || refFen <= 0) {
       return fail('dispute_bad_amount', '退款金额须为正整数(单位:分)');
     }
@@ -62,7 +64,7 @@ async function dispute_handle(ctx) {
     patch.refund_source = 'dispute';
     patch.refund_by = openid;
     patch.refunded_at = now;
-    patch.fund = { paid_fen: totalFen, refunded_fen: alreadyRefunded + refFen, settle_state: 'pending', settled_at: 0 };
+    patch.fund = { paid_fen: paidFen, refunded_fen: alreadyRefunded + refFen, settle_state: 'pending', settled_at: 0 };
   }
   const dcr = await col('order_main').where({ _id: order_id, status: before }).update({ data: patch });
   if (!dcr.stats || dcr.stats.updated !== 1) {

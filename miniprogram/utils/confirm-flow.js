@@ -61,7 +61,7 @@ function buildConfirmationView(page, d) {
     pendingBanner = {
       type: 'extend', summary: page.__orderSummary(d),
       title: '⏰ 对方申请加时',
-      body: `加时 ${pe.add_hours} 小时 · ¥${(pe.add_amount_fen / 100).toFixed(2)} · 点击去处理 ›`,
+      body: `加时 ${pe.add_hours} 小时 · 点击去处理 ›`,
       canRespond: true
     };
   } else if (pm && pm.can_respond && nextStatus === 'S2_5') {

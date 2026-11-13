@@ -463,6 +463,12 @@
     "定位精度缺失(手选点) → order_location_untrusted",
     "定位精度超 50m → order_location_untrusted"
   ],
+  "cloudfunctions/_shared/order_extend_confirm.test.js": [
+    "hourly 加时确认 → 时长+2h 而金额三字段冻结(不进入结算基数)",
+    "确认通知不再宣称「金额合并进结算」(改述加时暂不计费)",
+    "fixed 加时确认 → 金额不变(回归锚)",
+    "发起者本人确认 → oa_extend_self(只能由对方确认)"
+  ],
   "cloudfunctions/_shared/order_finish.test.js": [
     "finish_apply 非耍伴 → oa_finish_apply_perm(不落库)",
     "finish_apply 缺照片 → oa_finish_apply_photo_required 且不落库",

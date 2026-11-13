@@ -42,7 +42,7 @@ function submitExtend(page) {
     that.setData({ extendPanelVisible: false });
     wx.showModal({
       title: '加时申请已提交',
-      content: `+${hours}小时 · 加时金额 ¥${(r.data.add_amount_fen / 100).toFixed(2)}\n等待对方确认`,
+      content: `+${hours}小时\n等待对方确认`,
       showCancel: false, confirmText: '知道了',
       fail: () => {},
       success: () => that.fetchData({ orderId: that.data.order._id })
@@ -59,7 +59,7 @@ function onExtendConfirm(page) {
   if (!pe) { wx.showToast({ title: '无待处理的加时申请', icon: 'none' }); return; }
   page._modal({
     title: '确认同意加时',
-    content: `+${pe.add_hours}小时 · 加时金额 ¥${(pe.add_amount_fen / 100).toFixed(2)}\n确认后金额合并进结算`,
+    content: `+${pe.add_hours}小时\n确认后时长延长(加时暂不计费)`,
     confirmText: '同意',
     cancelText: '拒绝',
     // F1: 本弹窗取消键=「拒绝加时」业务动作而非放弃, 回调须照常执行

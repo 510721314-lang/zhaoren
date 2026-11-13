@@ -376,7 +376,7 @@ Page({
         try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
         wx.showModal({
           title: '⏰ 有待确认的加时申请',
-          content: `对方申请加时 ${_pe.add_hours} 小时 · ¥${(_pe.add_amount_fen / 100).toFixed(2)}\n${_pe.expire_text}，超时自动拒绝`,
+          content: `对方申请加时 ${_pe.add_hours} 小时\n${_pe.expire_text}，超时自动拒绝`,
           confirmText: '去处理',
           cancelText: '稍后',
           success: (res) => {

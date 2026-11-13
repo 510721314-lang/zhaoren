@@ -232,7 +232,7 @@
         <view class="od__pending-banner {{order.pending_extend.can_respond ? 'od__pending-banner--mine' : 'od__pending-banner--wait'}}" wx:if="{{order.pending_extend}}">
           <view class="od__pending-banner-title">
             <text wx:if="{{order.pending_extend.can_respond}}" class="od__pending-banner-tag">待你确认</text>
-            ⏰ 加时申请 +{{order.pending_extend.add_hours}}小时 · ¥{{order.pending_extend.add_amount_fen / 100}}
+            ⏰ 加时申请 +{{order.pending_extend.add_hours}}小时
           </view>
           <view class="od__pending-banner-sub">{{order.pending_extend.expire_text}}，超时自动拒绝</view>
           <view class="od__pending-banner-sub" wx:if="{{order.pending_extend.by_role === 'user'}}">发单人发起的加时</view>
