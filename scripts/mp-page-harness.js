@@ -15,6 +15,8 @@
 //   ② setInterval / setTimeout 被替换为假定时器（只记录不触发），避免轮询把测试挂住；
 //      需要触发延迟回调时用 p.__flushTimers() / p.__pendingTimers()（2026-11-13 起接管 setTimeout）
 //   ③ setData 支持浅合并与 a.b.c 路径键，不触发重渲染。
+//   ④ showModal 记录（calls.modal 元素）经 JSON clone，只能断言数据字段；
+//      success/fail 回调不可见（P3-41），回调驱动请用记录上的 __confirm/__cancel/__fail。
 const path = require('path');
 
 const MP_ROOT = path.resolve(__dirname, '..', 'miniprogram');
