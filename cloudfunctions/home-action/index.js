@@ -274,7 +274,10 @@ async function fillPublisherSurname(list) {
       d.publisher.surname = name ? String(name).charAt(0) : '匿';
       delete d._pub_openid;
     });
-  } catch (e) {}
+  } catch (e) {
+    // 评审F9: 查询异常时兜底清除内部 _pub_openid, 防止 creator_openid 随响应外泄(least-privilege)
+    list.forEach((d) => delete d._pub_openid);
+  }
 }
 
 // 公共大厅可接单需求过滤条件
