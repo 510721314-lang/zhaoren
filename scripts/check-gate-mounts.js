@@ -39,6 +39,7 @@ const VERIFY_ONLY = new Set([
     'check-doc-links.js',                // live docs 链接可达（T-7.40）
     'check-ledger-placeholders.js',      // 台账占位/冲突标记（T-7.42）
     'check-test-globs.js',               // 测试 glob 覆盖（T-7.43）
+    'check-test-manifest.js',            // 用例清单：静默删/改用例即 FAIL（2026-11-13 C27 误删实证）
     'check-sub-msg-consistency.js',      // 订阅发送唯一入口（2026-11-02 方案A）
     'check-no-desktop-injection.js',     // 桌面注入禁用（2026-11-02 §37）
     'check-silent-catch.js',             // 空 catch 增量门（2026-11-11 代码卫生 A1）

@@ -1,8 +1,8 @@
 // scripts/pages-chat.test.js —— 聊天页页面级单测（前端巨页分拆方案 阶段0 · chat 断言先行）
 // 目标：为阶段A 拟外移域（confirmList 构建 / batch_blocked 单一真值 / s1Left 折算 / 状态 catch-up 弹窗 /
 //       _handleOaConflict once 锚 / _handleApplyFail / applyNotices 域）建立守护断言
-// 驱动方式标注：本文件全部用例为「可直接驱动」（onLoad→fetchData 云调用链 + 直调内部方法）；
-//   需扩展 harness/桩驱动的项（轮询 tick、showActionSheet、chooseLocation）不列入，见方案 §三-阶段0
+// 驱动方式标注：本文件用例为「可直接驱动」（onLoad→fetchData 云调用链 + 直调内部方法）；
+//   showActionSheet / chooseLocation 分支由 C28/C30 通过 wx 桩注入覆盖（2026-11-13 补齐）。
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { createPage, sleep } = require('./mp-page-harness.js');
@@ -626,4 +626,92 @@ test('C27 改费用提交载荷', async () => {
       '非法金额不得发请求'
     );
   } finally { p.restore(); }
+});
+
+// C28：改地点 chooseLocation —— 取消保持静默；定位被拒/地图失败给明确提示（2026-11-08 评审修复分支）
+test('C28 改地点：取消静默 / 定位被拒提示', async () => {
+  const reps = [];
+  const p = createPage({
+    page: PAGE,
+    fixtures: {
+      'im-conv:open': convOpen(),
+      'im-conv:messages': msgFx(),
+      'order-action:get_confirmation': conf(),
+      'admin-action:config_public': { ok: true, data: {} }
+    },
+    wx: { getWindowInfo: () => ({ statusBarHeight: 20 }), chooseLocation: (o) => reps.push(o) }
+  });
+  try {
+    p.inst.onLoad({ orderId: ORD });
+    await sleep(60);
+    const toastBefore = p.calls.toast.length;
+    const modalBefore = p.calls.modal.length;
+    p.inst.startEdit('location');
+    assert.strictEqual(reps.length, 1, '应调用 chooseLocation');
+    reps[0].fail({ errMsg: 'chooseLocation:fail cancel' });
+    await sleep(10);
+    assert.strictEqual(p.calls.toast.length, toastBefore, '取消保持静默');
+    assert.strictEqual(p.calls.modal.length, modalBefore, '取消不弹窗');
+    p.inst.startEdit('location');
+    reps[1].fail({ errMsg: 'chooseLocation:fail auth deny' });
+    await sleep(10);
+    assert.ok(p.calls.modal.some((m) => m.title === '无法选择地点'), '定位被拒应明确提示');
+  } finally { p.restore(); }
+});
+
+// C29：变更响应 reject 支路 —— change_respond decision=reject 载荷 + 「已拒绝,原值不变」文案
+test('C29 变更响应 reject 载荷', async () => {
+  const p = await load({ 'order-action:change_respond': { ok: true, data: { bits_reset: false } } });
+  try {
+    p.inst.setData({
+      orderStatus: 'S1',
+      pendingChange: { field: 'content', field_cn: '内容', old_text: '甲', new_text: '乙', token: 'tk9', can_respond: true }
+    });
+    p.inst.onRespondChange({ currentTarget: { dataset: { decision: 'reject' } } });
+    const ev = p.calls.modal.filter((m) => m.title === '拒绝变更').pop();
+    assert.ok(ev, '应弹拒绝确认');
+    ev.__confirm();
+    await sleep(30);
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'change_respond').pop();
+    assert.ok(call, '应提交 change_respond');
+    assert.strictEqual(call.data.decision, 'reject');
+    assert.strictEqual(call.data.token, 'tk9');
+    assert.ok(p.calls.toast.some((t) => /已拒绝,原值不变/.test(t.title)), '拒绝成功文案');
+  } finally { p.restore(); }
+});
+
+// C30：变更原因 ActionSheet —— 上限 6 项截断；取消静默；非取消失败提示（2026-11-11 配置化+slice 防呆）
+test('C30 变更原因 ActionSheet 取消与截断', async () => {
+  const CONFIG = require('../miniprogram/config/index.js');
+  const sheets = [];
+  const p = createPage({
+    page: PAGE,
+    fixtures: {
+      'im-conv:open': convOpen({ status: 'S2' }),
+      'im-conv:messages': msgFx(),
+      'order-action:get_confirmation': conf({ status: 'S2', start_time: Date.now() + 86400000 })
+    },
+    wx: { getWindowInfo: () => ({ statusBarHeight: 20 }), showActionSheet: (arg) => sheets.push(arg) }
+  });
+  const oldTypes = CONFIG.ORDER.changeContentReasonTypes;
+  try {
+    CONFIG.ORDER.changeContentReasonTypes = [1, 2, 3, 4, 5, 6, 7].map((i) => ({ k: 'k' + i, t: '类型' + i }));
+    p.inst.onLoad({ orderId: ORD });
+    await sleep(60);
+    p.inst.setData({ orderStatus: 'S2', editContentOpts: [{ name: '代买', checked: true }] });
+    p.inst.confirmEditContent();
+    assert.strictEqual(sheets.length, 1, '应弹原因类型选择');
+    assert.strictEqual(sheets[0].itemList.length, 6, 'ActionSheet 上限 6 项');
+    const toastBefore = p.calls.toast.length;
+    sheets[0].fail({ errMsg: 'showActionSheet:fail cancel' });
+    await sleep(10);
+    assert.strictEqual(p.calls.toast.length, toastBefore, '取消保持静默');
+    p.inst.confirmEditContent();
+    sheets[1].fail({ errMsg: 'showActionSheet:fail other' });
+    await sleep(10);
+    assert.ok(p.calls.toast.some((t) => /请选择原因类型/.test(t.title)), '非取消失败应提示');
+  } finally {
+    CONFIG.ORDER.changeContentReasonTypes = oldTypes;
+    p.restore();
+  }
 });

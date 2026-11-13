@@ -464,3 +464,40 @@ test('O22 挂起重试窗口', async () => {
     p.restore();
   }
 });
+
+// O23：加时原因类型闸（2026-11-10 评审必填）—— 未选类型不发请求
+test('O23 加时原因类型闸', async () => {
+  const p = await load({ 'order-action:detail': detail({ status: 'S3' }) });
+  try {
+    p.inst.setData({
+      extendHours: 2,
+      extendReason: '对方临时加急,需要延长两小时服务',
+      extendReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }],
+      extendReasonTypeIndex: -1,
+      reasonMinLen: 10
+    });
+    p.inst.submitExtend();
+    assert.ok(p.calls.toast.some((t) => t.title === '请选择加时原因'), '应提示选择类型');
+    assert.strictEqual(p.calls.cloud.filter((c) => c.data && c.data.action === 'extend').length, 0, '不发请求');
+  } finally { p.restore(); }
+});
+
+// O24：改期提前量闸 —— 目标时间不足 minLeadHours(4h) 直接拦截
+test('O24 改期提前量闸', async () => {
+  const p = await load({ 'order-action:detail': detail({ start_time: Date.now() + 5 * 3600 * 1000 }) });
+  try {
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const d = new Date(Date.now() + 3600 * 1000); // 目标 = 1 小时后（< 4h 下限）
+    p.inst.setData({
+      modifyDate: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+      modifyTime: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`,
+      modifyReasonTypes: [{ k: 'time_conflict', t: '时间冲突' }],
+      modifyReasonTypeIndex: 0,
+      modifyReason: '临时调整服务时间安排请见谅',
+      reasonMinLen: 10
+    });
+    p.inst.submitModify();
+    assert.ok(p.calls.toast.some((t) => /须提前4小时申请改期/.test(t.title)), '应提示提前量');
+    assert.strictEqual(p.calls.cloud.filter((c) => c.data && c.data.action === 'modify').length, 0, '不发请求');
+  } finally { p.restore(); }
+});
