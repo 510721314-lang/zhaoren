@@ -226,3 +226,17 @@ test('N18 [SUMMARY-GAP] §10+ 有归档正文但 core 摘要未覆盖', () => {
         assert.match(out, /FAIL \[SUMMARY-GAP\] §34/);
     });
 });
+
+test('N19 [L0-HEADROOM] 余量 <512B 出近限告警（EXIT 仍 0）', () => {
+    withFixture({}, ({ inject, cond, archive }) => ({ injectBytes: inject, rateLimitBytes: 1024, staleToleranceBytes: 512, conditionalBytes: cond, conditionalRateLimitBytes: 256, archiveFullBytes: archive, archiveRateLimitBytes: 8192, pointerMaxBytes: 1200, l0: { maxFiles: 3, maxItems: 22, targetBytes: inject + 100 } }), ({ code, out }) => {
+        assert.strictEqual(code, 0, out);
+        assert.match(out, /L0-HEADROOM.*100B/);
+    });
+});
+
+test('N20 [TARGET-CAP] targetBytes 超 20KB 上界即 FAIL', () => {
+    withFixture({}, ({ inject, cond, archive }) => ({ injectBytes: inject, rateLimitBytes: 1024, staleToleranceBytes: 512, conditionalBytes: cond, conditionalRateLimitBytes: 256, archiveFullBytes: archive, archiveRateLimitBytes: 8192, pointerMaxBytes: 1200, l0: { maxFiles: 3, maxItems: 22, targetBytes: 21000 } }), ({ code, out }) => {
+        assert.strictEqual(code, 1);
+        assert.match(out, /FAIL \[TARGET-CAP\]/);
+    });
+});

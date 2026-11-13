@@ -20,6 +20,7 @@ const archivePath = path.join(root, '.trae', 'documents', 'project-rules-full-20
 
 const INJECT_LIMIT = 30 * 1024;      // 常驻注入预算（数值沿用原 30720B，只是不再把不注入的文件算进来）
 const CONDITIONAL_LIMIT = 2 * 1024;  // globs 定向规则上限
+const TARGET_UPPER_LIMIT = 20 * 1024; // l0.targetBytes 上界（2026-11-13：防把目标位静默抬到 30KB 硬顶）
 // 已知「不注入且无引用」待清项（2026-11-02 S3 已清零：.trae/rules.md 已指针化并被索引引用）
 const KNOWN_ORPHANS = {};
 
@@ -134,11 +135,16 @@ for (let n = 10; n <= maxSection; n++) {
 // L0 常驻硬上限 + 水位门（T-7.34）：3 文件 / 22 条 / 目标位（读 baseline.l0.targetBytes，现 16384B）；超目标位后任何净新增一律拦（配额制）
 if (baseline && baseline.l0) {
     const l0 = baseline.l0;
+    if (l0.targetBytes > TARGET_UPPER_LIMIT) fails.push(`[TARGET-CAP] l0.targetBytes ${l0.targetBytes}B > 上界 ${TARGET_UPPER_LIMIT}B（禁止把目标位静默抬到 30KB 硬顶）`);
     if (inject.length > l0.maxFiles) fails.push(`[L0-FILES] 常驻注入文件 ${inject.length} 个 > 上限 ${l0.maxFiles}`);
     const coreSections = (core.match(/^## /gm) || []).length;
     if (coreSections > l0.maxItems) fails.push(`[L0-ITEMS] core 常驻章节 ${coreSections} 条 > 上限 ${l0.maxItems}`);
     if (injectTotal > l0.targetBytes) {
         warns.push(`[L0-TARGET] inject ${injectTotal}B 已超目标位 ${l0.targetBytes}B：后续新增须先淘汰/下沉旧条`);
+    }
+    const headroom = l0.targetBytes - injectTotal;
+    if (headroom >= 0 && headroom < (baseline.staleToleranceBytes || 0)) {
+        warns.push(`[L0-HEADROOM] inject 距目标位仅 ${headroom}B（<${baseline.staleToleranceBytes || 0}B），新增前须先淘汰/下沉旧条`);
     }
     const growth = injectTotal - (baseline.injectBytes || 0);
     if (growth > (baseline.rateLimitBytes || 0)) {
@@ -192,5 +198,6 @@ if (fails.length) {
     for (const f of fails) console.error('FAIL ' + f);
     process.exit(1);
 }
-console.log(`RULES-SIZE OK inject ${injectTotal}B/${INJECT_LIMIT}B (${inject.map(f => path.basename(f)).join('+')}) | conditional ${condTotal}B/${CONDITIONAL_LIMIT}B | archive ${sum(archive)}B(不计) | max§ ${maxSection}`);
+const l0Target = baseline && baseline.l0 && baseline.l0.targetBytes ? baseline.l0.targetBytes : INJECT_LIMIT;
+console.log(`RULES-SIZE OK inject ${injectTotal}B/${l0Target}B (硬顶 ${INJECT_LIMIT}B) (${inject.map(f => path.basename(f)).join('+')}) | conditional ${condTotal}B/${CONDITIONAL_LIMIT}B | archive ${sum(archive)}B(不计) | max§ ${maxSection}`);
 process.exit(0);

@@ -43,7 +43,7 @@ description: 把一次排查/修复/机制设计得来的可复用结论固化�
 
 - **一次发现通常落 2~3 处**（如 规则 §N + CHANGELOG + 记忆），但**同一事实只描述一次**，其余用引用。
 - 新校验脚本 / 门禁必须**按 `check-gate-mounts.js` 分类挂载**：VERIFY_ONLY 类 → `verify` + `verify:offline`（双挂载）；部署相关门才追加 `predeploy`。仅挂 `npm test` 一处视为无效（不起门禁作用）。
-- **常驻规则写入受配额制约束**：落位到 `alwaysApply:true` 文件前先读 `scripts/rules-size-baseline.json`——若 `injectBytes` 已超 `l0.targetBytes`（2026-11-07 实测 16,676B > 16,384B），**任何净增都触发 `[QUOTA]` FAIL**；须先淘汰等量旧条，或改落技能/项目记忆/台账（不占注入桶）。
+- **常驻规则写入受配额制约束**：落位到 `alwaysApply:true` 文件前先实跑 `node scripts/check-rules-size.js` 看**实测 inject 水位**（不是基线 `injectBytes`）——实测 > `l0.targetBytes` 时任何净增触发 `[QUOTA]` FAIL；余量 <512B 时出 `[L0-HEADROOM]` 告警（提前预警，不是 FAIL）。腾挪 SOP：①先精简/下沉等量旧条（落技能/项目记忆/归档 §N，不占注入桶）→ ②复跑门禁确认净增 ≤0 → ③再新增。`l0.targetBytes` 有上界 20480B（超则 `[TARGET-CAP]` FAIL，禁止静默抬顶）。**更新 `rules-size-baseline.json` 属显式评审动作**：须单独 commit 并写理由（改了什么、为何必须、谁批）。
 
 ### 第四步 登记与提交
 

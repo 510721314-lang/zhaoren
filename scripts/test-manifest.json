@@ -955,7 +955,9 @@
     "N15 [POINTER-SIZE] rules.md 超指针上限",
     "N16 [RATE-COND] conditional 净增超速率门",
     "N17 [RATE-ARCHIVE] 全量归档净增超速率门",
-    "N18 [SUMMARY-GAP] §10+ 有归档正文但 core 摘要未覆盖"
+    "N18 [SUMMARY-GAP] §10+ 有归档正文但 core 摘要未覆盖",
+    "N19 [L0-HEADROOM] 余量 <512B 出近限告警（EXIT 仍 0）",
+    "N20 [TARGET-CAP] targetBytes 超 20KB 上界即 FAIL"
   ],
   "scripts/check-secrets.test.js": [
     "干净夹具应 PASS",
