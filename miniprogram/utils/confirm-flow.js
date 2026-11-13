@@ -4,12 +4,13 @@
 // 依赖经 page 首参 ctx 注入（先例 utils/order-poll.js）；禁止 require 页面（循环引用）
 // 契约：buildConfirmationView(page, d) → { patch, nextStatus, wasUnlocked, unlocked }
 //   - patch：17 键集合（快照守护见 scripts/pages-chat.test.js C17），fallback 合并在此侧完成（约束①）
-//   - 实例态同步写回：page.__confLoaded / page.__s1Deadline（轮询 tick 与 confirmItem 窗口校验直读 page 实例，约束/代理A#1）
+//   - 实例态同步写回：page.__s1Deadline（轮询 tick 与 confirmItem 窗口校验直读 page 实例，约束/代理A#1）；
+//     __confLoaded 纯死写已于 P3-40 偿还删除（2026-11-13，全仓零读取，与 firstLoad 弃置同口径）
 //   - 死代码随迁口径（阶段A 双代理审核收口 2026-11-12）：firstLoad 死变量经审核确认全文件零读取点，
 //     按「登记弃置」处理不再随迁（补回徒增死代码）；「💳 订单支付」不可达分支随 chat-notice.js 原样随迁（方案 §三-阶段A⑤）
 
 const { callCloud } = require('./cloud.js');
-const { TM_TEMPLATES } = require('../config/enums.js');
+const { TM_TEMPLATES, TM_FIELD } = require('../config/enums.js');
 const CONFIG = require('../config/index.js');
 
 // 段1(原 L246-252) 进度位与计数 —— 真纯计算
@@ -42,7 +43,6 @@ function buildConfirmationView(page, d) {
   // 段3(原 L271-284) 解锁位与 S1 剩余窗口
   const wasUnlocked = page.data.unlocked;
   const unlocked = !!d.all_confirmed;
-  page.__confLoaded = true;
   // status 强制用后端返回值, 不做 || 兜底(后端不会返回空 status)
   const nextStatus = d.status && d.status !== page.data.orderStatus ? d.status : page.data.orderStatus;
   // 2026-11-09: S1 剩余窗口 —— 用服务端 s1_expire_at-server_now 差值折算本地截止时间, 抵消双端时钟偏差;
@@ -117,9 +117,8 @@ function buildConfirmationView(page, d) {
 
 // ── 分区二：四确认动作链（批次2a：B1-B3 + B5，逐字搬迁自 chat.js 424-491 / 550-595）──
 // 零行为变更：方法内 this 引用已全部改为 page（含嵌套箭头回调，'use strict' 下裸 this 为 undefined）；
-// 2a 期经 page.startEdit 调用；2b 起 startEdit 已外移，改模块内自调（禁止二次转发）
-// TM_FIELD 局部复制，与 chat.js:11 同源（D-1 裁定 2026-11-12）；本区不触碰 @VERIFIED onShow/startPolling。
-const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
+// 2a 期经 page.startEdit 调用；2b 起 startEdit 已外移，改模块内自调（禁止二次转发）；本区不触碰 @VERIFIED onShow/startPolling。
+// TM_FIELD 已于 P3-37（2026-11-13）收敛为 config/enums.js 单源，本文件随顶部 require 解构引用（原 D-1 局部复制负债已偿还）。
 
 function onTmOption(page, e) {
   const { tm_id, option } = e.detail;

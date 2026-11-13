@@ -169,6 +169,8 @@ const CONFIRM_ITEMS = [
 ];
 
 // IM模板消息（PRD 16.5）
+// 模板 id → 四确认字段映射(P3-37 于 2026-11-13 收敛为单源; 与后端 CONFIRM_FIELDS 一致)
+const TM_FIELD = Object.freeze({ TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' });
 const TM_TEMPLATES = {
   TM1: { id: 'TM1', name: '时间确认', icon: '🕐', headColor: 'var(--brand-primary)', question: '以下服务时间是否方便？', options: ['方便', '需调整'], hasOther: true },
   TM2: { id: 'TM2', name: '地点确认', icon: '📍', headColor: 'var(--brand-primary)', question: '请确认集合地点', options: ['地点正确', '需修改'], hasOther: true },
@@ -199,5 +201,6 @@ module.exports = {
   FUND_STATUS,
   CONFIRM_ITEMS,
   TM_TEMPLATES,
+  TM_FIELD,
   normalizeStatus
 };

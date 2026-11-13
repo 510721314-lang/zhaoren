@@ -4,11 +4,8 @@
 // 红线: 四确认完成前仅可发送系统模板消息(后端强制); 确认状态为双方8位模型, 双侧确认才算该项完成
 const redline = require('../../utils/redline.js');
 const CONFIG = require('../../config/index.js');
-const { TM_TEMPLATES } = require('../../config/enums.js');
+const { TM_TEMPLATES, TM_FIELD } = require('../../config/enums.js');
 const { getScene } = redline;
-
-// 模板 id → 四确认字段(与后端 CONFIRM_FIELDS 一致)
-const TM_FIELD = { TM1: 'time', TM2: 'location', TM3: 'content', TM4: 'fee' };
 
 const { callCloud } = require('../../utils/cloud.js');
 const once = require('../../utils/once-anchor.js');
