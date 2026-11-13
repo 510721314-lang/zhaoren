@@ -715,3 +715,39 @@ test('C30 变更原因 ActionSheet 取消与截断', async () => {
     p.restore();
   }
 });
+
+// C31：TM_FIELD 全量映射（TM2-TM4 正/负向）—— P3-37 单源收敛补钉（评审指出 C19 仅钉 TM1→time）
+// 口径：location 负向=startEdit 直调 wx.chooseLocation 地图选点（confirm-flow.js:320，无弹层）；
+//       content/fee 负向=editSheet 弹层（confirm-flow.js:355-365）
+test('C31 TM2-TM4 映射全量钉住', async () => {
+  const locs = [];
+  const p = await load({}, {
+    wx: { getWindowInfo: () => ({ statusBarHeight: 20 }), chooseLocation: (arg) => locs.push(arg) }
+  });
+  try {
+    p.inst.setData({ chatBlocked: false, orderStatus: 'S1' });
+    // TM2 → location：正向确认 + 负向直调地图选点
+    const before = p.calls.cloud.filter((c) => c.data && c.data.action === 'confirm_item').length;
+    p.inst.onTmOption({ detail: { tm_id: 'TM2', option: TM_TEMPLATES.TM2.options[0] } });
+    await sleep(20);
+    const after = p.calls.cloud.filter((c) => c.data && c.data.action === 'confirm_item').length;
+    assert.strictEqual(after, before + 1, 'TM2 正向 → confirm_item');
+    const call = p.calls.cloud.filter((c) => c.data && c.data.action === 'confirm_item').pop();
+    assert.strictEqual(call.data.item, 'location', 'TM2 正向字段应为 location');
+    p.inst.onTmOption({ detail: { tm_id: 'TM2', option: '__非正向__' } });
+    assert.strictEqual(locs.length, 1, 'TM2 负向 → 直调 chooseLocation（地图选点）');
+    assert.strictEqual(p.inst.data.editSheet, '', 'TM2 负向不进弹层');
+    // TM3/TM4 → content/fee：正向确认 + 负向弹层
+    for (const [tid, field] of [['TM3', 'content'], ['TM4', 'fee']]) {
+      const b2 = p.calls.cloud.filter((c) => c.data && c.data.action === 'confirm_item').length;
+      p.inst.onTmOption({ detail: { tm_id: tid, option: TM_TEMPLATES[tid].options[0] } });
+      await sleep(20);
+      const a2 = p.calls.cloud.filter((c) => c.data && c.data.action === 'confirm_item').length;
+      assert.strictEqual(a2, b2 + 1, `${tid} 正向 → confirm_item`);
+      const c2 = p.calls.cloud.filter((c) => c.data && c.data.action === 'confirm_item').pop();
+      assert.strictEqual(c2.data.item, field, `${tid} 正向字段应为 ${field}`);
+      p.inst.onTmOption({ detail: { tm_id: tid, option: '__非正向__' } });
+      assert.strictEqual(p.inst.data.editSheet, field, `${tid} 负向 → 进入 ${field} 编辑弹层`);
+    }
+  } finally { p.restore(); }
+});

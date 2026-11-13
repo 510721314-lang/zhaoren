@@ -125,7 +125,7 @@
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
-| P3-37 | `TM_FIELD` 双源常量 | `miniprogram/pages-v2/chat/chat.js:11` 与 `miniprogram/utils/confirm-flow.js:122` 各定义一份 `{TM1:time,TM2:location,TM3:content,TM4:fee}`（归属表 v2.0 决策 D-1 裁定局部复制） | 后续增删模板/确认字段需两处同步，漂移会导致模板卡选项映射错位（静默，无报错） | **✅ 已偿还（2026-11-13，双专家评审修正版）**：统一迁 `config/enums.js:173`（`Object.freeze`，与 `TM_TEMPLATES` 同域）；chat.js:7 / confirm-flow.js:13 改解构引用，两处局部定义删除并留痕；引用面 6 点全量 grep 实测无遗漏；C19 断言为行为四支路不受影响，947/947 通过。**需真机回归：chat 页四确认模板卡选项映射（iOS+Android）** |
+| P3-37 | `TM_FIELD` 双源常量 | `miniprogram/pages-v2/chat/chat.js:11` 与 `miniprogram/utils/confirm-flow.js:122` 各定义一份 `{TM1:time,TM2:location,TM3:content,TM4:fee}`（归属表 v2.0 决策 D-1 裁定局部复制） | 后续增删模板/确认字段需两处同步，漂移会导致模板卡选项映射错位（静默，无报错） | **✅ 已偿还（2026-11-13，双专家评审修正版）**：统一迁 `config/enums.js:173`（`Object.freeze`，与 `TM_TEMPLATES` 同域）；chat.js:7 / confirm-flow.js:13 改解构引用，两处局部定义删除并留痕；引用面 6 点全量 grep 实测无遗漏；C19 断言为行为四支路不受影响，947/947 通过。**真机回归项已转自动化覆盖（2026-11-13 追加 C31）**：`pages-chat.test.js` 新增 C31 钉住 TM2-TM4 正/负向映射（location 负向=直调 wx.chooseLocation 地图选点、content/fee=editSheet 弹层），与 C19+C12+C13+C20 合计六链自动化覆盖，manifest 949→950；真机抽验转为**可选** |
 | P3-38 | 分拆后模块体积逼近页面 | `miniprogram/utils/confirm-flow.js` 547 非空行（= chat.js 670 的 81.6%，其中批次2b 占 322 行） | 模块已承担「数据加工 + 确认链 + 编辑/提交/响应链」三域，继续堆叠会重现巨页问题（只是换了文件） | **登记不动作（2026-11-12 双代理 B#4）**：阶段B 前评估按域再分区（confirm-view / confirm-action / change-submit）；不设硬阈值，避免为拆而拆 |
 
 ### §3.5 2026-11-12/13 双代理检核登记（P3-39~P3-43；P3-39/P3-42/P3-43 已偿还，P3-40/P3-41 开放）

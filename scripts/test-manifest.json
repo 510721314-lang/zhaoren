@@ -1029,7 +1029,8 @@
     "C27 改费用提交载荷",
     "C28 改地点：取消静默 / 定位被拒提示",
     "C29 变更响应 reject 载荷",
-    "C30 变更原因 ActionSheet 取消与截断"
+    "C30 变更原因 ActionSheet 取消与截断",
+    "C31 TM2-TM4 映射全量钉住"
   ],
   "scripts/pages-order-detail.test.js": [
     "O1 详情云调用契约",
