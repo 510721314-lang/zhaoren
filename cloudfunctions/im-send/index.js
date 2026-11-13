@@ -263,9 +263,6 @@ exports.main = async (event, context) => {
         last_msg_text: text, last_msg_at: now, last_msg_from: openid,
         kefu_status: 'unhandled', updated_at: now
       } });
-      if (chk.degraded) {
-        try { await col('im_message').doc(r._id).update({ data: { sec_degraded: true, sec_degraded_at: now } }); } catch (e) { log.d(`kefu sec_degraded mark fail: msg=${r._id} ${(e && e.message) || e}`); }
-      }
       const msg = { msg_id: r._id, conv_id: convId, from_openid: openid, from_role: 'user_kefu', text, created_at: now };
       log.d(`kefu msg sent: conv=${convId} len=${text.length} degraded=${!!chk.degraded}`);
       await writeAudit(db, log, {
@@ -402,10 +399,7 @@ exports.main = async (event, context) => {
 
     try {
       const msg = await appendMessage(conv, order, role, openid, 'text', text, '');
-      // 内容安全降级留痕: msgSecCheck 异常时放行但标记 sec_degraded, 供后台补审(IM 强交互链路不 fail-closed)
-      if (chk.degraded) {
-        try { await col('im_message').doc(msg.msg_id).update({ data: { sec_degraded: true, sec_degraded_at: Date.now() } }); } catch (e) { log.d(`sec_degraded mark fail: msg=${msg.msg_id} ${(e && e.message) || e}`); }
-      }
+      // 内容安全为 fail-closed: 降级时 checkText 直接拒绝(pass:false), 不会走到这里; 原 sec_degraded 留痕分支为死代码已删(2026-11-13 双评审F1)
       log.d(`im text sent: order=${order.order_no} by=${role} len=${text.length} degraded=${!!chk.degraded}`);
       await writeAudit(db, log, {
         openid, role, category: 'business', action: 'im_send_text',

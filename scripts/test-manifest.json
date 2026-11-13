@@ -179,7 +179,8 @@
     "非死锁: approved 状态 → 不治愈"
   ],
   "cloudfunctions/_shared/home_action_cache.test.js": [
-    "scene_groups 同一暖实例第二次调用命中 60s 缓存, 不再重查 demand"
+    "scene_groups 同一暖实例第二次调用命中 60s 缓存, 不再重查 demand",
+    "scene_list 端到端: 响应剔除发布者 openid, 姓氏仍正确填充且 _pub_openid 不外泄"
   ],
   "cloudfunctions/_shared/im-conv.entry.test.js": [
     "无 OPENID → im_no_openid",

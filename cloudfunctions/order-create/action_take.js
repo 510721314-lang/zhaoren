@@ -545,7 +545,7 @@ async function createFromTakeAction(ctx) {
     log.d(`order txn fail: ${(txnErr && txnErr.message) || ''}; compensating demand ${demand_id} → matching`);
     await col('demand').where({ _id: demand_id, status: 'matched' }).update({
       data: { status: 'matching', matched_openid: null, matched_at: null, updated_at: Date.now() }
-    }).catch((ce) => log.d(`demand compensate fail: ${ce.message}`));
+    }).catch((ce) => log.w(`demand compensate fail: ${ce.message}`));
     return { ok: false, code: 'order_db_fail', msg: '订单创建失败' };
   }
   } finally {

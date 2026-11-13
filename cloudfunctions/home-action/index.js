@@ -249,11 +249,12 @@ function mapDemand(d, now, pad) {
     status: d.status,
     match_mode: d.match_mode || 'broadcast',
     view_count: typeof d.view_count === 'number' ? d.view_count : 0,
+    // 评审F2: 不向客户端回传发布者 openid(小程序端零消费, 与 demand-publish 详情侧口径对齐); _pub_openid 仅 fillPublisherSurname 内部用, 填完即删
+    _pub_openid: d.creator_openid,
     publisher: {
       surname: '匿',
       real_name_verified: true,
-      minutes_ago,
-      openid: d.creator_openid
+      minutes_ago
     },
     created_at: d.created_at
   };
@@ -261,16 +262,17 @@ function mapDemand(d, now, pad) {
 
 // 批量补发布者姓氏(就地修改)
 async function fillPublisherSurname(list) {
-  const openids = list.map((d) => d.publisher.openid).filter(Boolean);
+  const openids = list.map((d) => d._pub_openid).filter(Boolean);
   if (!openids.length) return;
   try {
     const uR = await col('user_account').where({ openid: _.in(openids) }).limit(openids.length).get();
     const map = {};
     (uR.data || []).forEach((u) => { map[u.openid] = u; });
     list.forEach((d) => {
-      const u = map[d.publisher.openid] || {};
+      const u = map[d._pub_openid] || {};
       const name = u.surname || u.real_name || u.nickname || '';
       d.publisher.surname = name ? String(name).charAt(0) : '匿';
+      delete d._pub_openid;
     });
   } catch (e) {}
 }

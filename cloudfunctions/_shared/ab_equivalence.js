@@ -656,6 +656,8 @@ function cleanupBaselineTmp(dirs) {
   // 与拆分前基线的差异属预期, 不计为回归; 未登记的新差异一律 FAIL。
   // 来源: 3509ef1(投诉放开 S2 起 / 动态时间线 / detail 字段扩充) · 安全整改(错误消息脱敏去 openid) · 批3(config_schema 新增 extend_confirm_h/scene_option_display_max)。
   const KNOWN_EVOLUTION = new Set([
+    'ha_square_guest', 'ha_square_partner', 'ha_scene_groups_hide', 'ha_scene_list_ok', 'ha_nearby_ok', // 2026-11-13 评审F2: home-action 首页响应剔除 publisher.openid(小程序端零消费, 与 demand-publish 详情侧口径对齐); 新行为由 home_action_cache.test.js F2 断言独立守护
+    'auto_ha_square', 'auto_ha_nearby', 'auto_ha_scene_groups', 'auto_ha_scene_list', // 同上(auto 变体)
     'dp_detail_ok',                             // 2026-11-05 新增 taken_by_me/taken 字段(已接单需求按钮三态), 与拆分前基线差异属预期
     'auto_order_s2_change_apply',               // 2026-11-05 新增 S2 地点/内容变更发起 action(基线无此 action → oa_unknown_action), 预期演进
     'auto_order_s2_change_respond',             // 2026-11-05 新增 S2 变更反馈 action(基线无此 action), 预期演进

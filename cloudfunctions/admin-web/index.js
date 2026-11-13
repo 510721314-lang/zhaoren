@@ -217,9 +217,8 @@ exports.main = async (event, context) => {
   // 令牌有效 → 账号密码登录链路放行(无需每次携带长期 key); admin_login 本身免 key(由 admin_action 校验账号密码);
   // 其余回退静态 key(密钥模式 + 首次建钥 bootstrap)。三者皆不满足 → 401。
   {
-    const qs = req.queryStringParameters || req.query || {};
     const token = (req.headers['x-admin-token'] || '').trim();
-    const key = (req.headers['x-admin-key'] || qs.key || '').trim();
+    const key = (req.headers['x-admin-key'] || '').trim(); // 评审F5: 移除 qs.key 回退(密钥禁走 URL, 防落网关日志/浏览器历史); 前端已确认仅用 header
     let authOk = false;
     if (token) { const sess = await loadSession(token); authOk = sessionValid(sess); }
     if (!authOk && action === 'admin_login') authOk = true; // 登录端点: admin_action 校验账号密码
