@@ -194,9 +194,10 @@
 
 ---
 
-## §3.7 双代理全仓技术评审登记（2026-11-13）
+## §3.7 双代理全仓技术评审登记（2026-11-13；2026-11-14 综合评审续登 F10-F12）
 
 > 评审方式：general-purpose 双代理（A 结构猎手 10 项 / B 五文件逐行抽查 12 项），F1-F5 已修复（commit `13903862` + 五函数部署，见 deploy-log）；F1 为 2/2 双确认，F2-F5 经主对话读码裁决属实。正面结论：网关鉴权无绕过、定时器并发安全、接单/支付无双花窗口、配置 SSOT 健全。
+> 2026-11-14 综合评审（双代理 A 云端/B 前端+治理，主对话复核降级 1 项、合并重复 1 项）：总体「可交付 MVP+」，无 P2 可利用漏洞；发现 F10/F11（资金口径，第一档）+ F12（登记项），正面结论：资金 CAS+事务+补偿、提现串行锁、隐私掩码全量、门禁可实跑。
 
 | # | 事项 | 状态 | 处置 |
 |---|---|---|---|
@@ -205,6 +206,9 @@
 | F7 | `payment-mock` mock_refund 允许 **S3→S7** 自助全额退款（action_pay.js:185-191），与附录A MVP 合法流转「S3 仅→S3.5/S5」字面冲突；冻结/争议拦截已补（:189-191） | **✅ 已修（2026-11-13，commit `d553e513` + payment-mock 部署）** | 用户拍板「以附录A为准」→ 状态校验（:185）与 CAS 抢占（:217）均收紧为仅 S2；单函数 deploy success（12 files / 26.6 KB）+ SHA MATCH（`A0765906…`）；门禁 951/951 / A/B 455 / verify EXIT=0；前端无 mock_refund 入口，纯服务端收口 |
 | F8 | admin-web 网关内探活串行 for 循环逐单查流水（index.js:359-411），受 2.5s 网关限约束，数据量增大必超时降级 502 | **登记不动作**（P4，低频运维路径） | 大数据量时改 Promise.all 并行或移出网关 |
 | F1-附 | im-send sec_degraded 写侧已删（fail-closed 行为保留）；admin-action/action_im_kefu 补审名单**读侧恒空**（原写侧死代码致永不生效） | **无害残留** | 名单页永远为空属预期；若日后启用降级放行需重写双端契约 |
+| F10 | hourly 加时确认把 `add_amount_fen` 并入 total_fen/fee_fen/partner_income_fen（order-action/action_modify_extend.js:338-348），而 pay_transaction **无任何 extend 支付流水** → 未付金额进入结算基数（`partner_income_fen` 聚合可提现余额）与退款上限（2026-11-14 综合评审 A 代理发现，用户立项第一档 (a)） | **✅ 已修（2026-11-14，commit `d32561ba` + order-action 部署，SHA 25 文件 MATCH）** | 加时只加时长不加金额（与 fixed 口径统一为「加时暂不计费」）；fee/income 沿用订单现值（顺带消除 hourly 按 config 费率重算的 fee 漂移）；两处通知文案改「加时暂不计费」；前端 6 处「加时金额 ¥X」展示同步去金额（confirm-flow/order-submit×2/order-view×2/order-detail.wxml+js）；新增 [order_extend_confirm.test.js](../cloudfunctions/_shared/order_extend_confirm.test.js) 4 断言守护 |
+| F11 | admin-action 争议退款上限按 `total_fen` 且回写 `fund.paid_fen=total_fen`（action_dispute_handle.js:35,65），与 payment-mock 已修实付口径不一致 → 加时单可退超实付（同上评审 A 代理发现，第一档 (b)） | **✅ 已修（同上 commit + admin-action 部署，SHA 51 文件 MATCH）** | 退款基准改 `fund.paid_fen`（缺失回退 total_fen，与 payment-mock action_pay.js:194 同款）；上限/默认退额/fund 回写三处自动跟随 |
+| F12 | 2026-11-14 综合评审其余发现：前端 order-poll 1Hz 静态文案 setData（order-poll.js:105-113）/chat 每次轮询两次全量 setData（chat.js:284,352）/rules-size-baseline 水位漂移 10B（scripts/rules-size-baseline.json:10）/`miniprogram/mock/*` 22.9KB 零引用驻主包/order-timer 20+ 段无全局 deadline（index.js:579-653）/home-action 冷启动 3 次 createCollection（index.js:34-44）/后台 e.message 透传（与 F6 重复合并）/清单门只认行首单引号（P4）/S10.5→S8 流转越界（P4 待拍板）/青少年限额 age 缺失放行（P4）/`!event` 迁移守卫旁路（P4，主对话复核降级：51 处调用全为内部代码无外部路径） | **登记待立项（第二/三档）** | 第二档低风险即修候选：①1Hz setData ②水位基线刷新 ③mock 目录移出（需用户批准，§1 禁擅删）；其余维持登记不动作；S10.5→S8 口径与 F7 同类待拍板 |
 
 ---
 
