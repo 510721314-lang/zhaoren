@@ -98,7 +98,7 @@ async function dispute_handle(ctx) {
       // 补偿须同时把 CAS 已写的已退金额回退到本次退款前(仅保留历史成功退款合计), 否则台账虚高
       await col('order_main').where({ _id: order_id, status: 'S7' }).update({
         data: { status: before, refunded_at: 0, refund_fen: 0, refund_no: '', 'fund.refunded_fen': alreadyRefunded, updated_at: Date.now() }
-      }).catch(() => {});
+      }).catch(e2 => log.e(`dispute_refund_compensate_fail order=${order_id}: ${e2.message}`));
       return fail('refund_db_fail', '退款流水写入失败,请重试');
     }
   }

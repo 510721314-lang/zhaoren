@@ -473,7 +473,7 @@ async function createFromTakeAction(ctx) {
         // 卡死半成品(事务被杀且补偿未执行): 自愈释放回 matching
         await col('demand').where({ _id: demand_id, status: 'matched' }).update({
           data: { status: 'matching', matched_openid: null, matched_at: null, updated_at: Date.now() }
-        }).catch(() => {});
+        }).catch(e2 => log.w(`take_heal_release_fail demand=${demand_id}: ${e2.message}`));
         return { ok: false, code: 'order_demand_closed', msg: '接单中断,该需求已释放,请重试' };
       }
     } catch (e) {

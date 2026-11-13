@@ -285,7 +285,7 @@ async function s2_change_respond(ctx) {
     // 订单未落库 → 回滚确认单（避免「确认单已是新值、订单仍旧值」）
     await col('order_confirmations').where({ _id: confPrev.id, version: confPrev.version })
       .update({ data: { items: confPrev.items, version: confPrev.version + 1, updated_at: now } })
-      .catch(() => {});
+      .catch(e2 => log.w(`s2_conf_rollback_fail order=${order_id}: ${e2.message}`));
     return { ok: false, code: 'oa_conflict', msg: '该变更已被处理,请刷新' };
   }
 
