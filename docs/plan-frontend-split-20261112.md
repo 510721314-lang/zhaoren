@@ -274,6 +274,8 @@
 
 **结论**：T-13.5 的交互/载荷**主链**已自动化（`scripts/pages-chat.test.js` C1-C27、`scripts/pages-order-detail.test.js` O1-O18，全量 **932/932**、A/B 455）。**未覆盖分支（2026-11-13 双代理 B#3 实测，禁止宣称「仅视觉不可自动化」）**：①`chooseLocation` 取消/定位被拒（`confirm-flow.js:337-343`）；②`change_respond` 拒绝支路；③加时原因类型闸（`order-submit.js:21`）；④改期提前量闸（`order-submit.js:98-99`）；⑤ActionSheet 取消/截断。上述 5 类 + 视觉/触感/机型适配，随 v1.6.118 由用户真机抽验（iOS+Android）；不阻塞拆分放行，但不得计入「已自动化」。
 
+**2026-11-13 补自动化（用户批准）**：上述 5 类已全部转为 harness 断言——C28（`chooseLocation` 取消静默 + 定位被拒提示）、C29（`change_respond` reject 载荷 + 文案）、C30（ActionSheet 上限 6 项截断 / 取消静默 / 非取消失败提示）、O23（加时原因类型闸）、O24（改期提前量闸），全量 **941/941**、A/B 455。T-13.5 交互/载荷分支至此**全部自动化**；仅剩视觉/触感/机型适配需真机。
+
 ### 通用纪律（每阶段）
 - 单阶段单 commit，断言+门禁全绿才进下阶段，失败 revert 本阶段
 - `npm test` + `verify:offline` 全绿；A/B 等价不回归
