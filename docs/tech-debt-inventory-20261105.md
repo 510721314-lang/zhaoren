@@ -200,6 +200,7 @@
 
 | # | 事项 | 状态 | 处置 |
 |---|---|---|---|
+| F9 | home-action `fillPublisherSurname` 外层 `catch (e) {}` 为空（index.js:277），`user_account` 查询异常时 `_pub_openid`（=creator_openid）随首页响应外泄（F2 least-privilege 的异常路径盲区，同步审核代理 A 发现） | **✅ 已修（2026-11-13，commit `92d63f08` + home-action 部署）** | catch 改 `list.forEach(delete _pub_openid)`；单函数 deploy success + SHA MATCH；门禁 verify EXIT=0 / 951 用例 / A/B 455 |
 | F6 | admin-web 错误卫生三件：12 处 502/504 分支直接回 `e.message`（index.js:254 等）；`/api` 请求体无大小上限即 JSON.parse（:209-211）；CORS 全局 `*`（:18-22，鉴权靠 header key 风险有限） | **登记不动作**（影响=错误信息卫生，非可利用漏洞） | 择机收口：错误响应改通用文案 + body 上限（如 256KB） |
 | F7 | `payment-mock` mock_refund 允许 **S3→S7** 自助全额退款（action_pay.js:185-191），与附录A MVP 合法流转「S3 仅→S3.5/S5」字面冲突；冻结/争议拦截已补（:189-191） | **待用户拍板口径** | 若有「履约中可退」补充口径→记已拍板豁免；若无→属超范围流转应修（删 S3 分支或限定 S2） |
 | F8 | admin-web 网关内探活串行 for 循环逐单查流水（index.js:359-411），受 2.5s 网关限约束，数据量增大必超时降级 502 | **登记不动作**（P4，低频运维路径） | 大数据量时改 Promise.all 并行或移出网关 |
