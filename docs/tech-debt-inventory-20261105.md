@@ -12,7 +12,7 @@
 | P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合） |
 | P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 14 | 5 已偿还；**P2-2 已偿还（4 页 28 条，2026-11-07）/ P2-3 已偿还 / P2-4 接受**；**P2-7~10、12/13 已转自动化通过（2026-11-06）**；**P2-14 已决策关闭不拆（2026-11-08）** |
-| P3 卫生/已接受 | 36 | **21 已结案/已偿还（2026-11-12 新增 P3-35 清理；2026-11-06 新增 P3-10 / P3-15⑤⑥⑦⑧ / P3-20④ / P3-25 / P3-3）**；**2026-11-09 新增 5 项开放（P3-26~P3-30，见 §3.1）**；**2026-11-11 评审新增 3 项开放（P3-31~P3-33，见 §3.2）**；**2026-11-12 漂移事故处置新增 3 项开放（P3-34~P3-36，见 §3.3；P3-35 当日已结案）**；**2026-11-12 分拆登记 P3-37~P3-41（见 §3.4/§3.5）**；**2026-11-13 P3-39/P3-42/P3-43 已偿还、P3-40/P3-41 开放**；**2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）**；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免 |
+| P3 卫生/已接受 | 36 | **25 已结案/已偿还（2026-11-13 新增 P3-31/P3-36/P3-37/P3-40 四项偿还，双专家评审修正版落地）**；2026-11-09 新增 5 项开放（P3-26~P3-30，见 §3.1）；2026-11-11 评审新增 3 项（P3-31 已偿还，P3-32/P3-33 登记不修，见 §3.2）；2026-11-12 漂移事故处置 3 项（P3-34 登记暂缓、P3-35/P3-36 已结案，见 §3.3）；2026-11-12 分拆登记 P3-37~P3-41（P3-37/P3-40 已偿还，见 §3.4/§3.5）；**2026-11-13 P3-39/P3-42/P3-43 已偿还**；2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免 |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
@@ -105,7 +105,7 @@
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
-| P3-31 | extend 通道 reason_type 校验零测试覆盖 | `oa_extend_reason_type` 全仓仅命中实现（`action_modify_extend.js:248`）与 docs/API.md，`order-action.entry.test.js` 与 `auto-test-s2-change.js` 均无 extend 类型用例（后者 grep `action: 'extend'` 零命中） | extend 类型校验回归无断言守护（s2_change/modify 均有「字段缺失」型用例，独 extend 缺） | 触碰 `action_modify_extend.js` 时补「缺失型拒绝 + 2-20 字文案放行」两条入口用例 |
+| P3-31 | extend 通道 reason_type 校验零测试覆盖 | `oa_extend_reason_type` 全仓仅命中实现（`action_modify_extend.js:248`）与 docs/API.md，`order-action.entry.test.js` 与 `auto-test-s2-change.js` 均无 extend 类型用例（后者 grep `action: 'extend'` 零命中） | extend 类型校验回归无断言守护（s2_change/modify 均有「字段缺失」型用例，独 extend 缺） | **✅ 已偿还（2026-11-13，提前偿还——登记触发条件为「触碰 action_modify_extend.js」，本次经用户批准不触碰运行时文件）**：`order-action.entry.test.js` 补 2 条入口用例（缺失型拒绝 `oa_extend_reason_type` / 2-20 字文案放行 + CAS 写 `pending_extend.reason_type`）；store 构造 `S3+pricing_type:'fixed'`（双专家评审 B6 修正，避开 `oa_extend_price`/`oa_extend_reason` 前置拦截）；清单门 --update 72 文件/**949 用例**（+2），npm test 949/949 |
 | P3-32 | 同类校验字数上限口径差 | 后台自由文案写入限 2-10 字（`action_config_set.js:424-426`）vs 客户端提交放行 2-20 字（`order-action/index.js:133`） | 管理者配不出 11-20 字选项；11-20 字仅旧版硬编码/直调云函数可达，展示端原样拼接无截断风险 | **登记不修（2026-11-11）**；若统一到 2-20 需同步改 config_set + config_public 两处与 UI maxlength |
 | P3-33 | reason_type 绕过占位词/内容安全（与 reason 双标） | `REASON_PLACEHOLDER_EXACT`（`order-action/index.js:135`）仅拦 reason；reason_type 只过 `normalizeReasonType`（`action_modify_extend.js:72-74`/`:247-249`） | 管理者配置「临时有事」为选项后，用户选中提交直接入库；同文案作 reason 会被拒 | **已决策登记口径（2026-11-11）**：type 是分类非自述，值源自管理者配置且 config_history 留痕——「管理者配置即信」，不加重试黑名单 |
 
@@ -117,7 +117,7 @@
 |---|---|---|---|---|
 | P3-34 | 改期/加时发起时前端无提前量预检 | `order-detail.js:1057-1088` onModify 仅查 S2/次数/冻结/在途，提前量在提交时才拦（`:1164-1167`）；服务端 `action_modify_extend.js:47-56` 校验完好无资损 | 用户体验：填完表单才被拦；前端预检若用缓存值（bootstrap ≤7 天）有误拦风险 | **登记暂缓（2026-11-12 双专家 2/2）**：提审后做；预检阈值须标注「缓存可能滞后，以服务端拒绝为最终裁决」 |
 | P3-35 | admin_config 遗留嵌套 `modify_config` 死数据 | 实测 `admin_config(_id:"global").modify_config={confirmHours:24,maxSpanH:72,maxTimes:2,minLeadHours:4}`（11-10 分钟制迁移漏清旧结构）；`resolveModify` 只读顶层键（`order-action/config_defaults.js:16-26`），规则页保存只写顶层 | 当前零行为影响；但任何人恢复嵌套读取或重跑迁移会出诡异问题；巡检脚本已 WARN | **✅ 已清理（2026-11-12，用户授权）**：tcb nosql `$unset`（q 锁 `_id:"global"`+is_deleted 守卫）`nModified=1`，回读 `modify_config` 已消失、顶层键全完好（4/2/72/10）；复跑 `npm run audit:config` 嵌套 WARN 消失；探针 FAIL 属直写无留痕预期现象（人工确认） |
-| P3-36 | 巡检脚本 WARN 噪音未收敛 | `scripts/audit-config-drift.js` 首跑 23 条「偏离默认」WARN，多为有意运营配置（接单上限 40/费率区间/提醒分层等） | 噪音稀释信号，长期会掩盖真漂移 | 加 baseline 文件（每条偏离带 reason/日期留痕），脚本读 baseline 抑制已确认偏离；与 P3-35 一并做 |
+| P3-36 | 巡检脚本 WARN 噪音未收敛 | `scripts/audit-config-drift.js` 首跑 23 条「偏离默认」WARN，多为有意运营配置（接单上限 40/费率区间/提醒分层等） | 噪音稀释信号，长期会掩盖真漂移 | **✅ 已偿还（2026-11-13，双专家评审修正版）**：新增 `scripts/audit-config-drift-baseline.json`（22 条按当日实测回执登记，reason 填来源指针——4 条有 docs 指针、18 条标「来源待查·待人工确认」，评审 B5 纪律）；脚本「偏离默认」分支（:65）读 baseline：命中一致→INFO / 值漂移→WARN 注明 baseline 记录 / 未登记→照常 WARN；**特殊运营态 WARN（:69-73）与 ERROR/红线/探针判据不读 baseline 保持裸奔**（评审 B10）。复跑实证 ERROR=0 **WARN 22→0** exit 0。23→22 对账：modify_config 遗留 WARN 已随 P3-35 清理消失 |
 
 > 立项依据：[FUNCTION-REGISTRY #169](FUNCTION-REGISTRY.md) + [CHANGELOG 2026-11-12](CHANGELOG.md)（改期规则 2/1/2 全案：写入者=用户本人 11-08 22:38 后台「改期设置」，留痕链完好；三次验证者修正见 CHANGELOG）。**当前（2026-11-12）：三项均开放。**
 
@@ -125,7 +125,7 @@
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
-| P3-37 | `TM_FIELD` 双源常量 | `miniprogram/pages-v2/chat/chat.js:11` 与 `miniprogram/utils/confirm-flow.js:122` 各定义一份 `{TM1:time,TM2:location,TM3:content,TM4:fee}`（归属表 v2.0 决策 D-1 裁定局部复制） | 后续增删模板/确认字段需两处同步，漂移会导致模板卡选项映射错位（静默，无报错） | **仍开放（2026-11-12）**：C19 只钉住 TM1，TM2-TM4 未断言；若后续再拆，统一迁 `config/enums.js`（与 `TM_TEMPLATES` 同域） |
+| P3-37 | `TM_FIELD` 双源常量 | `miniprogram/pages-v2/chat/chat.js:11` 与 `miniprogram/utils/confirm-flow.js:122` 各定义一份 `{TM1:time,TM2:location,TM3:content,TM4:fee}`（归属表 v2.0 决策 D-1 裁定局部复制） | 后续增删模板/确认字段需两处同步，漂移会导致模板卡选项映射错位（静默，无报错） | **✅ 已偿还（2026-11-13，双专家评审修正版）**：统一迁 `config/enums.js:173`（`Object.freeze`，与 `TM_TEMPLATES` 同域）；chat.js:7 / confirm-flow.js:13 改解构引用，两处局部定义删除并留痕；引用面 6 点全量 grep 实测无遗漏；C19 断言为行为四支路不受影响，947/947 通过。**需真机回归：chat 页四确认模板卡选项映射（iOS+Android）** |
 | P3-38 | 分拆后模块体积逼近页面 | `miniprogram/utils/confirm-flow.js` 547 非空行（= chat.js 670 的 81.6%，其中批次2b 占 322 行） | 模块已承担「数据加工 + 确认链 + 编辑/提交/响应链」三域，继续堆叠会重现巨页问题（只是换了文件） | **登记不动作（2026-11-12 双代理 B#4）**：阶段B 前评估按域再分区（confirm-view / confirm-action / change-submit）；不设硬阈值，避免为拆而拆 |
 
 ### §3.5 2026-11-12/13 双代理检核登记（P3-39~P3-43；P3-39/P3-42/P3-43 已偿还，P3-40/P3-41 开放）
@@ -133,7 +133,7 @@
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
 | P3-39 | `_acting` 页级互斥锁可能永久占用（继承缺陷，非分拆引入） | `miniprogram/utils/order-modal.js:8-14`（旧实现）：先置锁后调 `wx.showModal`，仅 `fail` / Promise reject 释放 | 若 `wx.showModal` 同步抛错，或 `opts.success` 返回永不 settle 的 Promise（云调用挂起），整页二次确认永久锁死 | **已偿还（2026-11-13，用户 §2 书面批准，`5cbfa2e`）**：`order-modal.js` 改「弹窗期不计时 + 业务期 20s 租约」（句柄 `page.__actingTimer`，正常结算/失败仍提前 release）；`order-poll.js:13-20` `clearTimers` 连锁清句柄并置 `_acting=false`（onHide/onUnload 已调，`order-detail.js` 零 diff）；新增 O19（租约到期 + clearTimers 放锁）/O20（弹窗期不计时）守护。`wx.showModal` 同步抛错分支仍不吞异常（§7），维持 fail 回调处置 |
-| P3-40 | `__confLoaded` 纯死写 | `miniprogram/utils/confirm-flow.js:45` 写入；全仓 0 处读取 | 误导后续读者以为存在「已加载」分支判断 | 下一轮清理时删除该写（与 `firstLoad` 弃置同口径，当前不影响行为） |
+| P3-40 | `__confLoaded` 纯死写 | `miniprogram/utils/confirm-flow.js:45` 写入；全仓 0 处读取 | 误导后续读者以为存在「已加载」分支判断 | **✅ 已偿还（2026-11-13，双专家评审修正版）**：删除 :45 写入（1 行）+ :7 契约注释删 `__confLoaded` 字样并留痕；`__s1Deadline`（活代码，chat.js 轮询直读）未触碰；npm test 947/947 通过 |
 | P3-41 | harness modal 记录 JSON clone 丢回调 | `scripts/mp-page-harness.js:89` `clone(src)` 后 `success/fail` 不可见 | 后续用例若断言 `m.success(...)` 会得 `undefined` 而假通过 | harness 头注标注「modal 记录只能断言数据字段；回调请用 `__confirm`/`__cancel`/`__fail`」 |
 | P3-42 | 备份分页失败曾静默产出不完整数据 | `.predeploy/manual-backup.ps1:86-97`（旧实现 `[SKIP]` 直接 break，`truncated` 仍为 false）；实例：`zhaoren_backup_20261112-1434\db\order_main.json` total=406 / list=100 / truncated=false | 灾备文件缺行且无任何告警，恢复时按「完整备份」使用会丢数据 | **已修（2026-11-12 T-13.3）**：失败重试 1 次 + 仍失败置 `truncated=true` 并打 `[FAIL]`；**根因已定位（2026-11-13）**：PS5.1 `Invoke-RestMethod` 对 ~118KB 大响应返回 **String**（page2 起），`$resp.ok` 为 $null 被误判失败；且 `ConvertFrom-Json` 遇空键名报「参数 name 的值无效」。已改 `JavaScriptSerializer`（MaxJsonLength=64MB）解析 + L6 下载超时 90→300s；order_main 分页 406/406 已实证 |
 | P3-43 | A/B 门禁偶发假红（临时基线文件跨进程竞态） | `cloudfunctions/_shared/ab_equivalence.js`（旧固定名实现 `:622` 定义 `__baseline_tmp.js`、`:649` 启动预删；读副本在 `:727`）；首次 `npm test` 报 ENOENT，重跑通过（2026-11-13 双代理 B#5 实测） | 并发/清理竞态时门禁假红，误阻塞放行或诱发重跑掩盖真问题 | **已偿还（2026-11-13，`2653ef4`）**：临时名改 `__baseline_tmp_<pid>_<ts>.js`（进程唯一）+ 去掉启动预删 + SIGINT/SIGTERM 清理 + 主循环 try/finally 且以 `process.exitCode` 退出；`.gitignore` 扩 `__baseline_tmp*.js`。实证：并发双进程 A/B 均 **455 EQUIVALENT**、stderr 空、残留 **0** |
