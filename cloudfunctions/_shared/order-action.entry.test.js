@@ -1039,5 +1039,29 @@ test('modify: 原因类型缺失拒绝（oa_modify_reason_type）', async () => 
   assert.strictEqual(r.code, 'oa_modify_reason_type');
 });
 
+// P3-31(2026-11-13 双专家评审修正版): extend 通道 reason_type 校验补入口用例（登记 §3.2，提前偿还）
+// store: S3 + pricing_type='fixed'(加时金额恒 0 合法, 避开 oa_extend_price) + 合法 reason(≥10 有效字, 避开 oa_extend_reason)
+// 校验链: reasonQuality(:244) → normalizeReasonType(:247) → checkText(:249, mock msgSecCheck 放行) → CAS(无 status 字段不触发白名单)
+test('extend: 原因类型缺失拒绝（oa_extend_reason_type）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ status: 'S3', pricing_type: 'fixed', duration_h: 2 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'extend', order_id: OID, add_hours: 2, reason: '活动延长需要加时两小时', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_extend_reason_type');
+});
+
+test('extend: 2-20 字文案类型放行 → ok + CAS 写 pending_extend', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ status: 'S3', pricing_type: 'fixed', duration_h: 2 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'extend', order_id: OID, add_hours: 2, reason: '活动延长需要加时两小时', reason_type: '临时加时安排', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true, `2-20 字文案应放行: ${JSON.stringify(r)}`);
+  assert.strictEqual(r.data.add_hours, 2);
+  const w = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.ok(w, '应 CAS 回写 order_main');
+  assert.strictEqual(w.data.pending_extend.reason_type, '临时加时安排', '文案型 reason_type 应原样入库');
+  assert.strictEqual(w.data.pending_extend.add_hours, 2);
+  assert.ok((sdk.writes.system_notice || []).some((n) => n.add), '应写对方站内通知');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });
