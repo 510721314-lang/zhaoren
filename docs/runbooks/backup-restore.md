@@ -96,3 +96,9 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 - DB **恢复未实现**：`restore.ps1` 当前仅恢复 admin_config，DB 数据恢复需 admin-action 新增 `import_collection` action
 - `export_collection` 单表硬限 10000 条（超限 `truncated=true`）；敏感字段脱敏是展示级，真恢复用未脱敏 admin_config
 - PS5 下 `& $cli 2>&1` 会把 cli.bat 的 stderr 包成 NativeCommandError 中断脚本 → L5 用 `Start-Process` 重定向 stdout/stderr（backup.ps1 已如此处理）
+
+### 5. 飞书远端历史包月度清理（B-4，人工月度，2026-11-13 裁定接受现状不自动化）
+
+- 策略：远端文件夹（folder_token=RCsff3kGUlKhpud1KVFckJOhnGc）只保留**最近 5 个备份节点**，更早的手动删除。
+- 步骤：①`lark-cli drive +status --as user --local-dir ".backup-lark" --folder-token RCsff3kGUlKhpud1KVFckJOhnGc --format pretty` 列远端现有文件；②按文件名时间戳排序，识别第 6 个以前的旧节点（bundle/zip/CHECKSUMS 同批同删）；③到飞书云空间网页端手动删除（CLI 删除动作不进脚本，避免误删）；④删除后在 `docs/deploy-log.md` 或会话记录留一行「远端清理 n 个节点」。
+- 口径：每次全量备份推送产生一组新文件（bundle + zip + CHECKSUMS），5 节点 ≈ 15 个文件为正常水位。

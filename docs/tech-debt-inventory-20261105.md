@@ -13,7 +13,7 @@
 | P1 有意保留/临时放宽 | 8 | 6 已偿还/已核实；**P1-6 已决策保持 mock（2026-11-05）**；P1-3/4/5 有意保留 |
 | P2 结构性债 | 14 | 5 已偿还；**P2-2 已偿还（4 页 28 条，2026-11-07）/ P2-3 已偿还 / P2-4 接受**；**P2-7~10、12/13 已转自动化通过（2026-11-06）**；**P2-14 已决策关闭不拆（2026-11-08）** |
 | P3 卫生/已接受 | 36 | **25 已结案/已偿还（2026-11-13 新增 P3-31/P3-36/P3-37/P3-40 四项偿还，双专家评审修正版落地）**；2026-11-09 新增 5 项开放（P3-26~P3-30，见 §3.1）；2026-11-11 评审新增 3 项（P3-31 已偿还，P3-32/P3-33 登记不修，见 §3.2）；2026-11-12 漂移事故处置 3 项（P3-34 登记暂缓、P3-35/P3-36 已结案，见 §3.3）；2026-11-12 分拆登记 P3-37~P3-41（P3-37/P3-40 已偿还，见 §3.4/§3.5）；**2026-11-13 P3-39/P3-42/P3-43 已偿还**；2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免 |
-| 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3/B-4 开放**；B-5/B-6 已接受/已处理 |
+| 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3 已偿还；B-4 已决策接受（2026-11-13，SOP 入 runbook）**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
 关键计数（2026-11-05 实测）：`npm test` A/B **456 EQUIVALENT / 79 known-evolution**；入口测试 `order-action.entry.test.js` **67/67**；索引台账 **49 条**；`_shared` 同步门禁 **ALL OK**；空 catch 净口径约 **155 处**（窄类 25/25 已收口）。
@@ -82,7 +82,7 @@
 | P3-20④ | 首页冷启动 `fetchUser` 与 `refreshNoticeBadge` 各调一次 `peek_login` | 配额微浪费 | ✅ **已偿还（复核于 2026-11-06）**：`pages-v2/index/index.js` L135 新增 `__badgeAt` 标记——fetchUser 的 `peek_login` 已含未读数，首次 `onShow` 的 `refreshNoticeBadge` 命中标记即跳过；L142-144 另有 30s 节流 |
 | P3-23 | `S2_6` 预告片文案缺「待」字 | 真实态与预告态易混 | **✅ 已偿还（2026-11-05 复核）**：`order-progress/index.js` 已有 `PREVIEW_NAME = { S2_6: '待发起开始履约' }` 并在非当前态分支套用 |
 | P3-25 | `admin-action/index.js` 682 行仍含 `ROLE_GRANTS`+鉴权+schema | 维护成本 | **✅ 已偿还（2026-11-06）**：新增 `authz.js`（`ADMIN_ROLE_LABEL` / `ADMIN_ROLES` / `ROLE_GRANTS` 68 条 + `canAccess` / `forbiddenMsg`）；`index.js` 只保留「取角色 → 判定 → 拒绝留痕」编排。等价性证明 **AUTHZ-EQUIV 4/4**：action 集合一致（68）、每条放行角色一致、`canAccess` 与旧表达式 **276 组全同值**、`forbiddenMsg` 逐字一致；已部署并 `code download` 回读 `index.js` / `authz.js` **SHA256 均 MATCH** |
-| P3-1 | 空 catch 净约 155 处（窄类 25/25 已收口） | 多数有意设计 | **资金/一致性主路径 ✅ 已收口（2026-11-06 复判）**：`payment-mock/action_pay.js` 两处补偿回写（支付失败回滚 `paid_fen`、退款失败回滚 `refunded_fen`）原为 `.catch(()=>{})` 完全无痕，改为 `reportCompensateFail()` → `log.e` + `platform_event(P0, pay_compensate_fail)`；`order-action/action_change.js` L330 确认位回滚补 `log.w`。其余空 catch 维持「有意设计」口径，解冻后复判 |
+| P3-1 | 空 catch 净约 155 处（窄类 25/25 已收口） | 多数有意设计 | **资金/一致性主路径 ✅ 已收口（2026-11-06 复判）**：`payment-mock/action_pay.js` 两处补偿回写（支付失败回滚 `paid_fen`、退款失败回滚 `refunded_fen`）原为 `.catch(()=>{})` 完全无痕，改为 `reportCompensateFail()` → `log.e` + `platform_event(P0, pay_compensate_fail)`；`order-action/action_change.js` L330 确认位回滚补 `log.w`。其余空 catch 维持「有意设计」口径，解冻后复判。**✅ 尾巴复判完成（2026-11-13，只读审计）**：按 `silent-catch-baseline.json` 口径全量 254 处四分桶——**A 高危 4**（补偿/自愈回写失败无痕，与已收口模式同类，只登记不修，修复需另立项走批准）：`order-action/action_change_s2.js:286-288`（S2 变更订单 CAS 失败→确认单回滚）、`admin-action/action_dispute_handle.js:99-101`（退款流水写失败→order_main 回滚补偿，前置已有 log.w）、`order-create/action_take.js:476` 与 `action_aux.js:101-103`（接单卡死自愈释放 matched→matching）；**B 中危约 60**（次级写失败静默，主链不受影响：订阅消息发送留痕 patch〔order-action/index.js 11 + order-timer 3〕、订单超时通知写 2、admin-login P1 事件 12〔3 份 sync 副本实为 4 处逻辑〕、user-login 锁定写 2、admin-action 运营伴随写约 15、blog 计数回写 4、需求过期流转 2、writeAudit 容错 2、exam 2、前端登录态/订阅授权类 5 等）；**C 有意设计约 190**（audit.js 自容错 13、heal.js 自愈 8、zz-seed 测试种子 15、配置/资料读兜底约 30、createCollection 幂等建表 3、前端 Storage/UI/震动/清理/轮询容错余量）；**D 0**。基线增量门（check-silent-catch）继续守「只增不追溯」 |
 | P3-8 | 系统超时转争议不写 `complaint` 集合 | 自动转争议单时间线少 1 条卡片 | 已裁定不修（低危、读方有兜底） |
 
 > 已结案/已偿还：P3-2（testmode 死开关保留）、P3-4（G3 提醒）、P3-5（S2_5 存量兼容）、P3-6（版本号区间补登）、P3-7（时段敏感测试）、P3-9（smoke 编码）、P3-11（CI 噪音）、P3-12（索引/审计清理，49 条台账）、P3-13（路由异常 5 项，A3/A4 决策保留）、P3-18（昵称/头像编辑）、P3-19（前端语法门禁）、P3-21（注释失真）、P3-22（`splitting_fen` 口径）、P3-24（空 catch 抽样结案）。
@@ -140,7 +140,7 @@
 
 ### §3.6 2026-11-13 配额门禁 B+C1 评审登记（P3-44~P3-45，P4 级，登记不动作）
 
-> 来源：`zhaoren-tech-review` 双代理（事实核验 A + 必要性 B）对「常驻规则配额制」机制评估；C 方案（结构性升级）判定「当前不必要」，拆为 C1（并入 B 已实现 `1f5220b`）+ C2（本节登记不实现）。
+> 来源：`zhaoren-tech-review` 双代理（事实核验 A + 必要性 B）对「常驻规则配额制」机制评估；C 方案（结构性升级）判定「当前不必要」，拆为 C1（并入 B 已实现 `1f5220b`）+ C2（本节登记不实现）。**2026-11-13 尾巴核对：C 方案仅 C1/C2 两个子项，不存在 C3，尾巴清零（用户确认）**。
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
@@ -156,7 +156,7 @@
 | B-1 | 自动备份路径（incr/full/verify） | ✅ incr/full/verify 自动路径已于 2026-10-22 实证；2026-11-03 加固（单函数超时/心跳/锁接管）后**未实跑**，下次自动窗口观察 |
 | B-2 | lark 异地推送（PATH/token） | 已修（WorkingDirectory + 路径自解析）；**待自动窗口复核 `lark=OK`** |
 | B-3 | 集合名单多处硬编码 | ✅ **已偿还（2026-11-05）**：新增 `scripts/collections-canonical.json` 规范源 + `scripts/check-collections-consistency.js` 门禁，校验 **5 处**（`raw-export.js` / `manual-backup.ps1` / `backup.ps1` / `action_export.js` / `action_import.js`）；已挂载 `verify` + `verify:offline`（VERIFY_ONLY），实测 38 集合 × 5 处一致 |
-| B-4 | 飞书远端历史包清理 | 策略已定「保留最近 5 节点」；自动清理未实现，暂人工月度执行 |
+| B-4 | 飞书远端历史包清理 | ✅ **已决策接受（2026-11-13 路线 B）**：不自动化，人工月度执行「保留最近 5 节点」，SOP 已入 [runbooks/backup-restore.md §5](runbooks/backup-restore.md)（列表→排序→网页端手动删→留痕） |
 | B-5 | CHECKSUMS 豁免 `functions_code\` | 已接受（完整性由云端实时下载机制保证） |
 | B-6 | 加密备份密钥单点 | ✅ 已处理（用户已抄存异地副本） |
 
