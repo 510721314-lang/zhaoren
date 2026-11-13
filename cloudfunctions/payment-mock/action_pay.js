@@ -182,7 +182,7 @@ async function mockRefundAction(ctx) {
       if (order.user_openid !== openid) {
         return { ok: false, code: 'refund_not_owner', msg: '只能对自己的订单申请退款' };
       }
-      if (['S2', 'S3'].indexOf(order.status) < 0) {
+      if (order.status !== 'S2') {
         return { ok: false, code: 'refund_status', msg: `订单当前状态(${order.status})不可退款` };
       }
       // 2026-11-10 修复(评审): 冻结/争议中禁止自助退款 —— 原仅校验状态, 爽约申诉冻结中可全额退款绕过裁定
@@ -208,13 +208,13 @@ async function mockRefundAction(ctx) {
 
       const now = Date.now();
       const refundNo = genPayNo('REF');
-      const fromStatus = order.status;   // S2 或 S3(已通过上面的状态校验)
+      const fromStatus = order.status;   // 仅 S2(附录A: S3 仅→S3.5/S5, 履约中不可自助退款, 需走争议通道)
 
-      // ① CAS 抢占: S2/S3→S7, 并发双退只有一方成功
+      // ① CAS 抢占: S2→S7, 并发双退只有一方成功
       let casRes;
       try {
         casRes = await col('order_main').where({
-          _id: order_id, status: _.in(['S2', 'S3'])
+          _id: order_id, status: 'S2'
         }).update({ data: { status: 'S7', refunded_at: now, updated_at: now,
           // Wave1 正交位 dual-write(§3.2): 全额自助退 → paid/refunded 同步(幂等检查已保证无历史退款)
           fund: { paid_fen: paidFen, refunded_fen: paidFen, settle_state: 'pending', settled_at: 0 } } });
