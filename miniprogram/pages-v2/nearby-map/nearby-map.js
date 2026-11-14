@@ -65,8 +65,8 @@ Page({
       openid: p.openid, nickname: p.nickname || 'TA', avatar: p.avatar || '',
       is_partner: p.is_partner, distanceText: fmtDist(p.distance_m)
     }));
-    const markers = (list || []).filter((p) => p.lat && p.lng).map((p) => ({
-      id: Number(p.openid.replace(/\D/g, '').slice(-8)) || Math.floor(Math.random() * 1e8),
+    const markers = (list || []).filter((p) => p.lat && p.lng).map((p, idx) => ({
+      id: idx + 1,
       latitude: p.lat, longitude: p.lng,
       // 角色区分: 耍伴绿色针 / 需求发布者蓝色针
       iconPath: p.is_partner ? ICON_MARKER_PARTNER : ICON_MARKER_USER, width: 36, height: 36,

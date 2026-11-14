@@ -26,7 +26,7 @@ async function getConfig() {
   try {
     const r = await col('admin_config').doc('global').get();
     if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
-  } catch (e) {}
+  } catch (e) { log.d('demand-match getConfig fail: ' + (e && e.message || e)); }
   return { min_credit_take_order: 600 };
 }
 

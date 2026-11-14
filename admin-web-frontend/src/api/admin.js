@@ -121,7 +121,7 @@ http.interceptors.response.use(
       localStorage.removeItem('admin_web_key');
       window.location.hash = '#/login';
     }
-    return { ok: false, code: 'http_' + status, msg: e.message };
+    return { ok: false, code: 'http_' + (status || 'ERR'), msg: e.message };
   }
 );
 

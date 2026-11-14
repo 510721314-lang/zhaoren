@@ -409,14 +409,17 @@ function confirmEditContent(page) {
 }
 
 function confirmEditFee(page) {
-  const yuan = Number(page.data.editFeeYuan);
-  if (!yuan || yuan <= 0) {
-    wx.showToast({ title: '请输入有效金额', icon: 'none' });
+  // 字符串解析转分，避开浮点运算金额（红线）；限制最多两位小数
+  const s = String(page.data.editFeeYuan || '').trim();
+  const m = s.match(/^(\d{1,7})(?:\.(\d{1,2}))?$/);
+  if (!m) {
+    wx.showToast({ title: '金额最多两位小数', icon: 'none' });
     return;
   }
-  const fen = Math.round(yuan * 100);
+  const cents = m[2] ? (m[2].length === 1 ? m[2] + '0' : m[2]) : '0';
+  const fen = Number(m[1]) * 100 + Number(cents);
   if (!Number.isInteger(fen) || fen <= 0) {
-    wx.showToast({ title: '金额格式有误', icon: 'none' });
+    wx.showToast({ title: '请输入有效金额', icon: 'none' });
     return;
   }
   applyChange(page, 'fee', fen);

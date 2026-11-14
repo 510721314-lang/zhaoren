@@ -44,7 +44,9 @@ async function cancel(ctx) {
       });
       demandReleased = !!(dr.stats && dr.stats.updated === 1);
       log.d(`demand released: ${order.demand_id} → matching (released=${demandReleased})`);
-    } catch (e) {}
+    } catch (e) {
+      log.d('demand release fail: order=' + order_id + ' demand=' + order.demand_id + ' err=' + (e && e.message || e));
+    }
   }
 
   log.d(`order cancelled: ${order.order_no} ${fromStatus}→S6 by=${role}`);

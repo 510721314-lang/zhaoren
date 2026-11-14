@@ -338,7 +338,7 @@ Page({
         return `${tm.question}:${v.join('、')}`;
       }
       if (field === 'fee' && v) {
-        return `${tm.question}:合计 ${(Number(v) / 100).toFixed(0)} 元`;
+        return `${tm.question}:合计 ${(Number(v) / 100).toFixed(2)} 元`;
       }
     } catch (e) {}
     return tm.question;
