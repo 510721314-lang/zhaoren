@@ -80,7 +80,7 @@
 | scene_meta.js | payment-mock, im-send, im-conv, demand-publish, order-action, admin-action, home-action |
 | phone_crypt.js | user-login, demand-publish, admin-action |
 | logger.js | admin-action, blog-action, demand-match, demand-publish, evaluation-submit, home-action, im-conv, im-send, order-action, order-create, order-timer, partner-action, partner-apply, payment-mock, safety-report, user-login（16） |
-| audit.js | admin-action, blog-action, demand-publish, evaluation-submit, im-send, order-action, order-create, partner-action, payment-mock, safety-report, user-login（11） |
+| audit.js | admin-action, blog-action, demand-publish, evaluation-submit, im-send, order-action, order-create, partner-action, payment-mock, safety-report, user-login, admin-web, init-db（13；2026-11-14 #4 全修补 init-db，并补登此前漏记的 admin-web） |
 | openid.js | blog-action, demand-match, demand-publish, evaluation-submit, home-action, im-conv, im-send, order-action, order-create, order-timer, partner-action, partner-apply, payment-mock, safety-report, user-login, admin-action, init-db（**17**）|
 | security_policy.js | user-login, init-db, admin-action（3）|
 

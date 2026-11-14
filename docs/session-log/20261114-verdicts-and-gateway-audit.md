@@ -8,6 +8,7 @@
 2. **openid.js「17 业务函数」勿误伤**：该计数是 openid.js 载体清单（17 正式函数），与预热 TARGETS=2 无关，口径对齐时禁把它当作漂移项订正。
 3. **历史档不改**：HANDOFF-20261013/14、deploy-log 历史行、app.js L66 演变注记等均为带日期上下文的历史记录，按惯例不回改，仅订正「现行口径」载体（REGISTRY 现行行 / dev-manual / skills）。
 3a. **「下线 fn_migrate」未采纳理由（B③c 防复发）**：原修复建议④首选直接下线 fn_migrate_tip_partner，未获采纳——`_shared/ab_equivalence.js:720` 注释仍指 fn_migrate 为运维回填现行路径（pay_transaction 历史打赏流水补 partner_openid/scene 的唯一幂等回填入口），下线前须先落替代回填方案；本轮选择「补审计留痕」而非下线，即保留该运维能力并补齐其审计缺口。
+3b. **问题清单 #4 裁定（2026-11-14 用户拍板「#4-#7 全修」）**：generate_admin_web_key 不认可「reason 落 admin_config 字段=等效留痕」，选择补 audit_log——init-db 引入 audit.js 规范源副本（SYNC_MAP/$dirs 双登记，13 副本），成功+非 forbidden 异常双路径 writeAudit；#5 两处注释订正；#6/#7 先行闭合（da35ac48）。全修方案 v2 双专家修正要点：writeAudit 必须事务回调外、log 传空 shim、category='business'（admin-action 惯例）、reason 截断 200、正路径禁调（真调=轮换真实 key 断网关鉴权）、验证=负路径+SHA 回读。
 4. **甲方案（T-9.14 网关审计）双专家 2/2 立项**：缺陷①空 key 放行＝代码真修已闭合（2026-11-10 bootstrap 收紧）；缺陷③写操作零审计＝A2 补 fn_migrate_tip_partner 成功/失败双路径 writeAudit（专家 A 证伪草案 v1「仅剩 fn_migrate 一处」——seed_* 系列与 admin_logout 亦零留痕，登记不修）；缺陷②canAccess 白名单缺口登记遗留（持钥者即管理员，实际越权增量有限）。哈希链并发分叉被 audit_verify 裁为 `fork_noise` 非篡改（双写入方既存噪声，非本次新增）。
 
 ## 证据（命令与实测值）

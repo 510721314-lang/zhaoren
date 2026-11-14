@@ -79,7 +79,7 @@
 | scene_meta.js | payment-mock, im-send, im-conv, demand-publish, order-action, admin-action, home-action |
 | phone_crypt.js | user-login, demand-publish, admin-action |
 | logger.js | 16 个（含 order-action / order-timer / admin-action …） |
-| audit.js | 11 个 |
+| audit.js | 13 个（2026-11-14 #4 全修补 init-db，并补登此前漏记的 admin-web） |
 | openid.js | 17 个（全量业务函数） |
 | security_policy.js | user-login, init-db, admin-action |
 
