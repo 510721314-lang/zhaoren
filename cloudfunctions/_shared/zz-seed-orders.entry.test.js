@@ -80,4 +80,60 @@ test('zz-seed-orders: admin_openids 为空 → seed_forbidden', async () => {
   assert.strictEqual(r.code, 'seed_forbidden');
 });
 
+// ── C1 回归(2026-11-14): service_orders 真造数路径——genNo 格式守护 + created 实数统计 ──
+// scene_list 须含 CONTENT 库已有子场景; partner_profile 须有 approved 且 exam_scores.base>=100 的耍伴
+function serviceStore(extraCfg) {
+  return {
+    admin_config: { global: Object.assign({
+      env: 'dev', admin_openids: [ADMIN], admin_web_key: 'AWK-test-key',
+      scene_list: [{ code: 'W8', options: ['排队代办'] }]
+    }, extraCfg || {}) },
+    partner_profile: { pp1: { openid: 'o_partner_a', status: 'approved', is_deleted: false, exam_scores: { base: 100 } } },
+    order_main: {},
+    demand: {}
+  };
+}
+
+// 7. 全成功路径: created == demand 写入数; 单号格式守护(demandNo 14 位时间戳+6 位随机, orderNo 20 位纯数字)
+test('zz-seed-orders: service_orders 全成功 → created 如实 + 单号格式', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: serviceStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'service_orders', count: 3 }, {});
+  assert.strictEqual(r.ok, true, '应成功: ' + JSON.stringify(r));
+  assert.strictEqual(r.data.created, 3);
+  assert.strictEqual(r.data.skipped, 0);
+  assert.strictEqual(sdk.writes.demand.length, 3);
+  const dump = JSON.stringify(sdk.writes);
+  // C1 随机位 3→6 字符: yyyymmddhhmmss + 6 位 [A-Z0-9]
+  assert.ok(/\d{14}[A-Z0-9]{6}/.test(dump), 'demandNo 应含 6 位随机位: ' + dump.slice(0, 400));
+  assert.ok(/\d{20}/.test(dump), 'orderNo 应为 20 位纯数字');
+});
+
+// 8. demand 写入失败仍如实计数: patch database().collection('demand').add 第 2 次抛错 → created 少计且失败 demand 不建单
+test('zz-seed-orders: service_orders demand 第2条失败 → created=2 如实', async () => {
+  const sdk = makeSdk({ openid: ADMIN, store: serviceStore() });
+  // makeSdk 的 database() 每次返回新字面量 → 固定为同一 db 对象再 patch collection
+  const realDb = sdk.database();
+  const origCollection = realDb.collection.bind(realDb);
+  let demandCalls = 0;
+  realDb.collection = (name) => {
+    const c = origCollection(name);
+    if (name === 'demand') {
+      const origAdd = c.add.bind(c);
+      c.add = async (payload) => {
+        demandCalls++;
+        if (demandCalls === 2) throw new Error('mock E11000 duplicate key');
+        return origAdd(payload);
+      };
+    }
+    return c;
+  };
+  sdk.database = () => realDb;
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'service_orders', count: 3 }, {});
+  assert.strictEqual(r.ok, true, '应成功: ' + JSON.stringify(r));
+  assert.strictEqual(r.data.created, 2, '失败 demand 应从 created 剔除');
+  assert.strictEqual(sdk.writes.order_main.length, 2, '失败 demand 不应建订单');
+});
+
 test.after(() => { Module._load = origLoad; });

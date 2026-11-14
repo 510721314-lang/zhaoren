@@ -1,4 +1,9 @@
 {
+  "cloudfunctions/_shared/action_import.test.js": [
+    "action_import: append 全新 → inserted=3, skipped_conflict=0",
+    "action_import: append 撞库 → inserted=2, skipped_conflict=1",
+    "action_import: 缺 confirm → restore_need_confirm"
+  ],
   "cloudfunctions/_shared/admin-action.entry.test.js": [
     "admin: 非白名单 openid → admin_forbidden",
     "admin: 白名单为空 → admin_empty",
@@ -918,7 +923,9 @@
     "zz-seed-orders: 管理员直调 → 通过鉴权(no_scenes)",
     "zz-seed-orders: 代理携合法 _admin_web_proxy_key → 通过鉴权(no_scenes)",
     "zz-seed-orders: 代理密钥错误 → seed_forbidden",
-    "zz-seed-orders: admin_openids 为空 → seed_forbidden"
+    "zz-seed-orders: admin_openids 为空 → seed_forbidden",
+    "zz-seed-orders: service_orders 全成功 → created 如实 + 单号格式",
+    "zz-seed-orders: service_orders demand 第2条失败 → created=2 如实"
   ],
   "scripts/check-doc-links.test.js": [
     "基线夹具应 PASS",
