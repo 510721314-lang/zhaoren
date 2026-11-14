@@ -14,7 +14,8 @@ const BRANCH_RULE = {
   S3_6:  { anchor: 'S3', terminal: false, preview: true },
   S3_5:  { anchor: 'S3', terminal: false, preview: true },
   S4:    { anchor: 'S5', terminal: false, preview: true },
-  S6:    { anchor: 'S0', terminal: true,  preview: false },
+  // 2026-11-15: S6 取消单不点亮任何轴节点(取消单从未支付,「待支付」不应显示 ✓); doneUntil:-1 用于覆盖锚点语义
+  S6:    { anchor: 'S0', terminal: true,  preview: false, doneUntil: -1 },
   S7:    { anchor: 'S2', terminal: true,  preview: false },
   S9:    { anchor: 'S5', terminal: true,  preview: false },
   S10_5: { anchor: 'S8', terminal: false, preview: true }
@@ -54,8 +55,9 @@ Component({
           state = i < axisIdx ? 'done' : (i === axisIdx ? 'current' : 'todo');
           isCurrent = i === axisIdx;
         } else if (rule.terminal) {
-          // 终止分支：锚点及之前 done，无 current
-          state = i <= anchorIdx ? 'done' : 'todo';
+          // 终止分支：锚点及之前 done，无 current；doneUntil 可覆盖锚点(S6 取消单不点亮任何节点)
+          const limit = rule.doneUntil != null ? rule.doneUntil : anchorIdx;
+          state = i <= limit ? 'done' : 'todo';
         } else {
           // 进行中分支：锚点 current
           state = i < anchorIdx ? 'done' : (i === anchorIdx ? 'current' : 'todo');
