@@ -256,4 +256,24 @@ test('mock_pay: 43101 → 关授权 + 站内 sub_quota 补偿', async () => {
   assert.ok(quota, '应写站内 sub_quota 引导重新授权');
 });
 
+// 16. fields 覆盖映射(2026-11-14 MP 后台实际键位): phrase4 字面量 / character_string1 裸单号 / time5 时间
+test('mock_pay: paid fields 覆盖映射 → 发送 data 按实际键位', async () => {
+  const sent = [];
+  const s = payStore({ paid: {
+    tmpl_id: 'TID_PAID', page: 'pages-v2/order-detail/order-detail',
+    fields: { phrase4: '支付成功', character_string1: 'paid_order_no', time5: 'paid_time' }
+  } });
+  const sdk = makeSdk({ openid: 'o_user_1', store: s,
+    subMsgSend: async (args) => { sent.push(args); return { errMsg: 'send:ok' }; } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'mock_pay', order_id: PAY_OID, mock_openid: 'o_user_1' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(sent.length, 1);
+  const d = sent[0].data;
+  assert.strictEqual(d.phrase4.value, '支付成功', 'phrase 类型应发 ≤5 字纯汉字字面量');
+  assert.strictEqual(d.character_string1.value, 'ORD1', 'character_string 应发裸单号(无汉字/空格)');
+  assert.ok(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(d.time5.value), 'time 应为 YYYY-MM-DD HH:mm 格式');
+  assert.ok(!d.thing1 && !d.time2 && !d.thing3, '默认键位不应再出现');
+});
+
 test.after(() => { Module._load = origLoad; });

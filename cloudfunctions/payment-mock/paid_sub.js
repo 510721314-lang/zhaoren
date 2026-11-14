@@ -43,9 +43,11 @@ async function sendPaidSub(ctx, order) {
     await logLocal(st.granted > 0 ? 'NO_QUOTA' : 'NO_AUTH');
     return;
   }
-  // 模板字段: 默认 thing1/time2/thing3, 可经 admin_config.sub_msg_templates.paid.fields 按实际模板键位覆盖
-  const fields = Object.assign({ thing1: 'paid_item', time2: 'paid_time', thing3: 'paid_order' },
-    (tmpl.fields && typeof tmpl.fields === 'object') ? tmpl.fields : {});
+  // 模板字段: 默认 thing1/time2/thing3; 配置 admin_config.sub_msg_templates.paid.fields 时完全替换默认映射
+  // (覆盖=替换而非合并: 微信校验 data 键位须与模板关键词一一对应, 多余键位 47003)
+  const fields = (tmpl.fields && typeof tmpl.fields === 'object' && Object.keys(tmpl.fields).length)
+    ? Object.assign({}, tmpl.fields)
+    : { thing1: 'paid_item', time2: 'paid_time', thing3: 'paid_order' };
   const tstr = bjTimeStr(Date.now());
   const data = {};
   for (const kw of Object.keys(fields)) {
@@ -54,6 +56,7 @@ async function sendPaidSub(ctx, order) {
     if (s === 'paid_item') v = '您的服务订单已付款';
     else if (s === 'paid_time') v = tstr;
     else if (s === 'paid_order') v = `订单 ${order.order_no || ''}`;
+    else if (s === 'paid_order_no') v = String(order.order_no || '');   // 裸单号: character_string 类型限数字/字母/符号, 不可含汉字与空格
     else if (typeof s === 'string') v = String(s);
     if (v) data[kw] = { value: String(v).slice(0, 20) };
   }

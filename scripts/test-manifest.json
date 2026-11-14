@@ -655,7 +655,8 @@
     "balance_info: 今日待履约按北京日界(固定 +8), 不受运行时 TZ 影响",
     "mock_pay: 支付成功 → paid 订阅消息发送 + sent_count 消费",
     "mock_pay: 未配 paid 模板 → 静默降级(NO_TMPL), 支付仍 ok",
-    "mock_pay: 43101 → 关授权 + 站内 sub_quota 补偿"
+    "mock_pay: 43101 → 关授权 + 站内 sub_quota 补偿",
+    "mock_pay: paid fields 覆盖映射 → 发送 data 按实际键位"
   ],
   "cloudfunctions/_shared/phone_crypt.test.js": [
     "isHexKey: 仅接受 64 位 hex",
