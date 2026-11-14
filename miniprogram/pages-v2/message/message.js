@@ -44,7 +44,7 @@ Page({
       this.setData({ loadingMore: true });
     }
     const skip = reset ? 0 : this.data.orderList.length;
-    // my_convs 含多段联表(会话/用户/订单/需求), 冷启动易超默认 6s; 放宽到 12s
+    // my_convs 含多段联表(会话/用户/订单/需求); 显式 timeout 12s 与全局默认一致(2026-10-27 默认 6s→12s, 冗余但无害, 保留作自文档并防将来默认回退)
     callCloud('im-conv', { action: 'my_convs', limit: this.data.pageSize, skip }, { timeout: 12000 }).then((r) => {
       if (!r.ok) {
         this.setData({ loading: false, loadingMore: false, loadError: true, loadErrorMsg: r.msg || '加载失败' });

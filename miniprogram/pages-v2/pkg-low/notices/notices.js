@@ -95,7 +95,7 @@ Page({
       this.setData({ loadingMore: true });
     }
     const skip = reset ? 0 : this.data.list.length;
-    // 通知列表含联表装饰, 冷启动可能 >6s; 单独放宽到 12s, 避免默认 6s 超时误判失败
+    // 通知列表含联表装饰; 显式 timeout 12s 与全局默认一致(2026-10-27 默认 6s→12s, 冗余但无害, 保留作自文档并防将来默认回退)
     const r = await callCloud('order-action', { action: 'notice_list', limit: this.data.pageSize + 1, skip }, { timeout: 12000 });
     if (r && r.ok && r.data) {
       const fetched = (r.data.list || []).map((n) => ({ ...n, time_ago: fmtAgo(n.created_at) }));
