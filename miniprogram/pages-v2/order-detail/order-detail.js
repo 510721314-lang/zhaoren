@@ -1002,6 +1002,12 @@ Page({
       wx.showModal({ title: '暂不可改期', content: '有在途的地点/内容变更，请先处理变更', showCancel: false, confirmText: '知道了' });
       return;
     }
+    // P3-34 软预检(2026-11-14): 距开始不足提前量仅提示不拦截——CONFIG 为启动时缓存可能滞后, 以服务端提交裁决为准
+    const mCfg = CONFIG.MODIFY || {};
+    const startTs = this.data.order.start_time || 0;
+    if (startTs && Date.now() < startTs && startTs - Date.now() < (mCfg.minLeadHours || 0) * 3600000) {
+      wx.showToast({ title: `不足${mCfg.minLeadHours}小时,可能被拒`, icon: 'none' });
+    }
     // 默认带出订单原服务日期与时间
     this.setData({
       modifyPanelVisible: true,

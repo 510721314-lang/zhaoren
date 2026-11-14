@@ -293,9 +293,11 @@ Page({
     const merged = sys.concat(this.data.messages.filter((m) => m._id !== 'sys_order_created'), incoming.filter((m) => !existingIds.has(m._id)));
     // 只在有新消息时滚底(用户上翻历史不被拉回)
     const shouldScroll = incoming.some((m) => !existingIds.has(m._id));
+    // F12(2026-11-14): 无新消息时跳过全量 messages setData——15s 轮询空转不再重复写; 模板卡状态由 applyConfirmation 链的 updateMsgStatuses 刷新
+    if (!shouldScroll) return;
     this.setData({ messages: merged }, () => {
       this.updateMsgStatuses();
-      if (shouldScroll) this.scrollBottom();
+      this.scrollBottom();
     });
   },
 
@@ -348,6 +350,7 @@ Page({
     const role = this.data.role;
     if (!items || !role) return;
     const peerRole = role === 'user' ? 'partner' : 'user';
+    let changed = false;
     const messages = this.data.messages.map((m) => {
       if (m.msg_type !== 'template') return m;
       const field = TM_FIELD[m.tm_id];
@@ -356,12 +359,13 @@ Page({
       const myOk = !!it[role + '_ok'];
       const peerOk = !!it[peerRole + '_ok'];
       const positive = (TM_TEMPLATES[m.tm_id] && TM_TEMPLATES[m.tm_id].options && TM_TEMPLATES[m.tm_id].options[0]) || '';
-      return Object.assign({}, m, {
-        status: (myOk && peerOk) ? 'confirmed' : (myOk ? 'replied' : 'pending'),
-        picked: myOk ? positive : ''
-      });
+      const status = (myOk && peerOk) ? 'confirmed' : (myOk ? 'replied' : 'pending');
+      const picked = myOk ? positive : '';
+      // F12(2026-11-14): 状态/已选无变化则不触发全量 setData(确认后回写/轮询重入不再重复写)
+      if (m.status !== status || m.picked !== picked) changed = true;
+      return Object.assign({}, m, { status, picked });
     });
-    this.setData({ messages });
+    if (changed) this.setData({ messages });
   },
 
   refreshMessages() {
