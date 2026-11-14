@@ -173,7 +173,8 @@ function applyNotices(page, d) {
     // 2026-11-10 评审 P0: 变更提醒收敛为单一来源(上方 1c token 键弹窗), 通知弹窗降级为横幅, 避免同轮双弹
     // 2026-11-10(3B): 收到「对方发起改期」→ 震动+弹窗引导进入处理(原仅顶部横幅, 易错过确认窗口)
     const modifyHit = !respondHit
-      ? fresh.find((n) => n && n.type === 'modify' && String(n.title || '').indexOf('发起改期') >= 0)
+      // 2026-11-14 通知时效评审修复: 服务端改期申请 type 独立化为 modify_apply; modify 保留兼容存量在途旧通知(部署窗口 10min 内), 触发条件与文案不变
+      ? fresh.find((n) => n && (n.type === 'modify_apply' || n.type === 'modify') && String(n.title || '').indexOf('发起改期') >= 0)
       : null;
     // @VERIFIED 2026-10-18 已真机验证：#88 耍伴端四确认沟通即时提示（聊天页弹窗 + 微信订阅消息 confirm_comm 全链 ①-⑦ + 催办订阅复验）——随迁自 chat.js（内联锚点回归本分支）
     // 2026-10-17: 对方(发单人)在四确认面板提交修改/沟通 → 耍伴端醒目弹窗引导回到四确认(通知标题「订单沟通」)

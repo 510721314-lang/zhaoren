@@ -1039,6 +1039,22 @@ test('modify: 原因类型缺失拒绝（oa_modify_reason_type）', async () => 
   assert.strictEqual(r.code, 'oa_modify_reason_type');
 });
 
+// 2026-11-14 通知时效评审修复: 改期申请通知 type 独立化 modify→modify_apply —— 成功路径必须落库独立 type, 不再与四确认修改(action_confirm type='modify')撞车互吞
+test('modify: 申请成功 → 落库通知 type=modify_apply（与四确认修改不再同 type）', async () => {
+  const ST = Date.now() + 5 * 3600 * 1000;
+  const CN = 8 * 3600 * 1000;
+  const cnDayStart = Math.floor((Date.now() + CN) / 86400000) * 86400000 - CN;
+  const newTs = cnDayStart + 2 * 86400000 + 12 * 3600 * 1000;
+  const sdk = makeSdk({ openid: USER, store: s2Store({ start_time: ST, modify_count: 0 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify', order_id: OID, new_start_time: newTs, reason: '临时有事需要推迟服务时间', reason_type: 'time_conflict', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true, `改期申请应成功: ${JSON.stringify(r)}`);
+  const notice = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'modify_apply');
+  assert.ok(notice, '应落库 type=modify_apply 的改期申请通知');
+  assert.strictEqual(notice.data.action_key, 'jump_accept_modify');
+  assert.ok((sdk.writes.system_notice || []).every((w) => !w.add || w.data.type !== 'modify'), '不得再以旧 type=modify 落库改期申请');
+});
+
 // P3-31(2026-11-13 双专家评审修正版): extend 通道 reason_type 校验补入口用例（登记 §3.2，提前偿还）
 // store: S3 + pricing_type='fixed'(加时金额恒 0 合法, 避开 oa_extend_price) + 合法 reason(≥10 有效字, 避开 oa_extend_reason)
 // 校验链: reasonQuality(:244) → normalizeReasonType(:247) → checkText(:249, mock msgSecCheck 放行) → CAS(无 status 字段不触发白名单)

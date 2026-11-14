@@ -367,6 +367,7 @@
     "modify: 选回原服务时间拒绝（oa_modify_same）",
     "modify: 原因不足 10 字拒绝（oa_modify_reason）",
     "modify: 原因类型缺失拒绝（oa_modify_reason_type）",
+    "modify: 申请成功 → 落库通知 type=modify_apply（与四确认修改不再同 type）",
     "extend: 原因类型缺失拒绝（oa_extend_reason_type）",
     "extend: 2-20 字文案类型放行 → ok + CAS 写 pending_extend"
   ],

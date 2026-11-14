@@ -101,7 +101,8 @@ async function modify(ctx) {
   // await 保证云函数返回前站内信落库(原 fire-and-forget: 主流程 return 后运行时可能冻结未完成的异步写入, 致对方收不到改期申请)
   await writeNotice({
     to_openid: role === 'user' ? order.partner_openid : order.user_openid,
-    order_id, type: 'modify',
+    // 2026-11-14 通知时效评审修复: 改期申请 type 独立化 modify→modify_apply, 不再与四确认修改(action_confirm.js 同 type='modify')未读互吞
+    order_id, type: 'modify_apply',
     title: `${role === 'user' ? '发单人' : '耍伴'}发起改期`, body: `请在 ${modifyConfig.confirmMinutes} 分钟内确认或拒绝`,
     action_key: 'jump_accept_modify', action_payload: { order_id }
   });
