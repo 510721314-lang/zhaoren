@@ -102,15 +102,16 @@ function onTipNoticeTap(page, e) {
 }
 
 // 迁自 order-detail.js startCountdown
+// 2026-11-14 评审第二档①: 文案只随订单状态变化(timeoutText SSOT), 状态仅在 fetchData→refreshOrder 时更新,
+// 原 1Hz 定时器每秒重写同值属无效 setData(60 次/分) → 改为调用时一次性写入; 状态刷新链路(轮询/onShow/写操作后)均会重调本函数, 覆盖所有文案切换时点。
+// clearTimers 保留: 清 _tipTimer 行为不变, _timer 恒为 null 的清理无害。
 function startCountdown(page) {
   clearTimers(page);
-  page._timer = setInterval(() => {
-    const o = page.data.order;
-    if (!o) return;
-    // PRD 3.5.2：倒计时文案以 ORDER_STATUS.timeoutText 为唯一 SSOT
-    const st = ORDER_STATUS[o.status];
-    page.setData({ countdownText: st ? st.timeoutText : '' });
-  }, 1000);
+  const o = page.data.order;
+  if (!o) return;
+  // PRD 3.5.2：倒计时文案以 ORDER_STATUS.timeoutText 为唯一 SSOT
+  const st = ORDER_STATUS[o.status];
+  page.setData({ countdownText: st ? st.timeoutText : '' });
 }
 
 // 迁自 order-detail.js fetchTipList; 💝 打赏逐笔明细(订单双方可见, 时间升序; 打赏成功后由 onTip 刷新触发重拉)
