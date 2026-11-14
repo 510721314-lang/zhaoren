@@ -67,7 +67,8 @@ async function run_night_orders(ctx) {
   const p2 = (n) => String(n).padStart(2, '0');
   const genNo = (prefix) => {
     const d = new Date();
-    return `${prefix}${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+    // C1 修复(2026-11-14): 随机位 3→6 字符(36^3≈4.7万→36^6≈21亿), 消除同秒批量撞 uk_order_no/uk_demand_no 唯一索引
+    return `${prefix}${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   };
   const genStart = () => {
     const hour = NIGHT_HOURS[Math.floor(Math.random() * NIGHT_HOURS.length)];

@@ -67,7 +67,7 @@ async function run_service_orders(ctx) {
     const createdAt = now - 3 * 3600000;
     const d = new Date();
     const p2 = (n) => String(n).padStart(2, '0');
-    const demandNo = `DR${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+    const demandNo = `DR${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}${Math.random().toString(36).slice(2, 8).toUpperCase()}`; // C1: 随机位 3→6 字符防同秒撞唯一索引(2026-11-14)
     // 订单号与线上一致: 纯数字 yyyymmdd + 12 位随机数字 = 20 位(2026-10-21 起)
     const orderNo = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}${String(Math.floor(Math.random() * 1e12)).padStart(12, '0')}`;
     tasks.push({ crid, partner, i, scene, sub, tpl, duration_h, user, place, lat, lng, rate_fen, total_fen, fee_fen, partner_income_fen, svcStart, createdAt, demandNo, orderNo });
@@ -76,6 +76,7 @@ async function run_service_orders(ctx) {
 
   // 阶段A: 并发写需求(已匹配), 拿 demandId
   const BATCH = 10;
+  let created = 0;   // C1 修复(2026-11-14): 按实际写入成功数统计, 不再按 tasks.length 假报全成功
   for (let b = 0; b < tasks.length; b += BATCH) {
     const chunk = tasks.slice(b, b + BATCH);
     const rs = await Promise.all(chunk.map((t) => db.collection('demand').add({
@@ -150,9 +151,9 @@ async function run_service_orders(ctx) {
         return Promise.all(writes).then(() => 1);
       })).then(() => rs)
     );
+    created += rs.filter((x) => x.demandId).length;   // C1: 只计 demand 写入成功数(失败已在 console.error 留痕)
   }
 
-  const created = tasks.length;   // 批次内全部写入(阶段A追加成功)
   return { ok: true, data: { created, skipped, partners, count, hint: 'S3 履约中订单已生成, 耍伴工作台/订单列表「进行中」刷新可见' } };
 }
 

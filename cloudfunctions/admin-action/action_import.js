@@ -67,14 +67,29 @@ async function import_collection(ctx) {
   }
 
   let inserted = 0;
+  let skipped_conflict = 0;   // C2 修复(2026-11-14): append 模式冲突单不再整块丢失
   for (let i = 0; i < docs.length; i += INSERT_CHUNK) {
     const chunk = docs.slice(i, i + INSERT_CHUNK).map((d) => Object.assign({}, d));
-    await col(collection).add({ data: chunk });
-    inserted += chunk.length;
+    try {
+      await col(collection).add({ data: chunk });
+      inserted += chunk.length;
+    } catch (e) {
+      // append 允许与库内已有 _id 并存: 整块 add 撞唯一键(E11000)时降级逐条, 冲突单跳过并如实计数;
+      // replace 模式已先清空, 冲突属异常, 保持整块抛错原语义
+      if (mode !== 'append') throw e;
+      for (const d of chunk) {
+        try {
+          await col(collection).add({ data: Object.assign({}, d) });
+          inserted += 1;
+        } catch (e2) {
+          skipped_conflict += 1;
+        }
+      }
+    }
   }
 
-  await logEvent('P1', 'import_collection', openid, { collection, mode, removed, inserted });
-  return ok({ collection, mode, removed, inserted });
+  await logEvent('P1', 'import_collection', openid, { collection, mode, removed, inserted, skipped_conflict });
+  return ok({ collection, mode, removed, inserted, skipped_conflict });
 }
 
 module.exports = { config_restore, import_collection };
