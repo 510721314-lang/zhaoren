@@ -42,7 +42,7 @@ foreach ($f in @("函数名1","函数名2")) {
 ## 云函数清单（名字必须精确）
 
 正式 17 个（openid.js 载体；2026-10-13 全量收敛后逐字节同源）：user-login、demand-publish、demand-match、partner-apply、partner-action、order-create、order-action、order-timer、payment-mock、safety-report、im-conv、im-send、evaluation-submit、admin-action、init-db、home-action、blog-action
-辅助 3 个：admin-web（HTTP 网关）、zz-warmup（保温探针，全天候触发器）、zz-seed-orders（自测造数，勿随意部署）
+辅助 3 个：admin-web（HTTP 网关）、zz-warmup（保温探针，7-22 点每 15 分钟触发器）、zz-seed-orders（自测造数，勿随意部署）
 
 ### config.json 不生效（重要，已实测确认）
 

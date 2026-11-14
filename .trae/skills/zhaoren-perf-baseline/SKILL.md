@@ -19,7 +19,7 @@ description: 找人帮忙小程序性能基线实测——测量包体成分、�
 | 骨架屏 | `miniprogram/components/ui-skeleton` |
 | 首屏并发 | 首页 `fetchUser()` + `fetchSquare()` 不 await（各自 .then） |
 | SWR 缓存 | square 10 分钟 / scene_groups 独立缓存，冷启先渲染旧数据 |
-| 云函数保温 | `zz-warmup` 函数 + 定时触发器（每 5 分钟唤醒 home-action / user-login） |
+| 云函数保温 | `zz-warmup` 函数 + 定时触发器（7-22 点每 15 分钟唤醒 home-action / user-login） |
 | 启动让路 | `utils/bootstrap.js` 拉运营配置已延后 3s |
 
 ## 第 1 步：实测包体成分

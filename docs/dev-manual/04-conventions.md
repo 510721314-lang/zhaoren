@@ -35,7 +35,7 @@
 
 ## 4.5 小程序端约定
 
-- **统一云调用入口**：所有页面/组件的云调用必须走 [utils/cloud.js](file:///c:/zhaoren/miniprogram/utils/cloud.js) 的 `callCloud`（等 `cloudReady`、读重试 2 次/写不重试、单次超时 6s、注入 device）。仅初始化链路保留直调以避免循环依赖。
+- **统一云调用入口**：所有页面/组件的云调用必须走 [utils/cloud.js](file:///c:/zhaoren/miniprogram/utils/cloud.js) 的 `callCloud`（等 `cloudReady`、读重试 2 次/写不重试、单次超时 12s（2026-10-27 由 6s 上调）、注入 device）。仅初始化链路保留直调以避免循环依赖。
 - **设计 token**：[miniprogram/styles/tokens.wxss](file:///c:/zhaoren/miniprogram/styles/tokens.wxss) 统一色彩/间距；深色模式下**必须用主题变量**（如 `var(--text-1)`）替代硬编码色值，否则深底深字隐形。
 - **组件配置完整性**：修改页面 `.json` 后检查组件声明与配置项完整，避免组件找不到。
 - **样式修改一次性覆盖同类控件**，避免逐点补丁（历史上深色模式文字隐形曾分三轮才修完）。

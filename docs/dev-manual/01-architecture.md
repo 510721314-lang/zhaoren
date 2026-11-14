@@ -58,7 +58,7 @@
 ## 1.3 小程序端请求链路
 
 1. 页面调用统一封装 `callCloud(name, data)`（[utils/cloud.js](file:///c:/zhaoren/miniprogram/utils/cloud.js)）。
-2. `callCloud` 委托 `app.cloudCall`，统一实现：等待云初始化就绪（`cloudReady`）→ 读操作重试 2 次 / 写操作不重试 → 单次超时 6s → 注入 `device` 摘要。
+2. `callCloud` 委托 `app.cloudCall`，统一实现：等待云初始化就绪（`cloudReady`）→ 读操作重试 2 次 / 写操作不重试 → 单次超时 12s（2026-10-27 由 6s 上调） → 注入 `device` 摘要。
 3. `app.cloudCall` 最终执行 `wx.cloud.callFunction({ name, data })`；各云函数 `index.js` 的 `exports.main` 按 `event.action` 分发到具体 handler。
 
 > 统一入口是**硬约束**（见 [Ch5](file:///c:/zhaoren/docs/dev-manual/05-redlines.md)）：除初始化链路（避免循环依赖）外，任何页面不得直接调 `wx.cloud.callFunction`。
@@ -74,7 +74,7 @@
 | 触发器 | 云函数 | 频率 | 职责 |
 |---|---|---|---|
 | 定时触发器 | `order-timer` | `0 */5 * * * * *` | 订单状态推进、9 段分页扫描、错误巡检（errorScan）、订阅消息批量推送兜底 |
-| 定时触发器 | `zz-warmup` | `0 */5 * * * * *` | 首屏云函数保温探针（唤醒 `home-action`/`user-login`），缓解冷启动 |
+| 定时触发器 | `zz-warmup` | `0 */15 7-22 * * * *` | 首屏云函数保温探针（唤醒 `home-action`/`user-login`），缓解冷启动（2026-11-04 起 7-22 点每 15 分钟单触发器） |
 
 > **注意**：云函数 `deploy` 只上传代码，**不应用** `config.json` 的 `timeout`/`triggers`。触发器须另经 miniprogram-ci 或云开发控制台更新（详见 [Ch7](file:///c:/zhaoren/docs/dev-manual/07-deploy-release.md)）。
 

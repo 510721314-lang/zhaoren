@@ -31,7 +31,7 @@ C:\Users\DC\Desktop\微信WEB开发者工具\cli.bat cloud functions deploy ^
 2. **miniprogram-ci 程序化更新**（如 [scripts/create-warmup-trigger.js](file:///c:/zhaoren/scripts/create-warmup-trigger.js)）——受微信公众平台 **「小程序代码上传」IP 白名单**限制，未加白名单会报 `-10008 invalid ip`。
 3. **云开发控制台手动修改**触发器配置。
 
-> 当前 `order-timer` / `zz-warmup` 均为 `0 */5 * * * * *`。改触发器须**四处同步**：`cloudfunctions/<fn>/config.json`、[cloudbaserc.json](file:///c:/zhaoren/cloudbaserc.json)（`tcb fn deploy` 读取）、创建脚本的 CRON 常量、云端实际触发器。核对：`tcb fn detail <fn> --env-id <envId>`。
+> 当前 `order-timer` = `0 */5 * * * * *`（2026-11-14 起 5min，REGISTRY #170）、`zz-warmup` = `0 */15 7-22 * * * *`（2026-11-04 起，7-22 点每 15 分钟单触发器）。改触发器须**四处同步**：`cloudfunctions/<fn>/config.json`、[cloudbaserc.json](file:///c:/zhaoren/cloudbaserc.json)（`tcb fn deploy` 读取）、创建脚本的 CRON 常量、云端实际触发器。核对：`tcb fn detail <fn> --env-id <envId>`。
 
 ## 7.4 后台管理端（admin-web）发布流程
 
