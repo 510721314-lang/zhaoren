@@ -162,6 +162,6 @@ powershell -ExecutionPolicy Bypass -File c:\zhaoren\.predeploy\restore.ps1 -Back
 
 - **巡检 `error_scan`**（order-timer 每轮）：聚合窗口内 P0/P1 事件 + `audit_log` fail + 卡死提现(>48h) + 网关鉴权失败突增（窗口 ≥3 次）→ 推管理员 `system_notice`。
 - **注错演练**：管理员 `order-timer {action:'run', drill:true}` 写一条 P1 演练事件，验证巡检链路（prod 下需临时切 dev，因 `mock_openid` 被忽略返回 `ot_forbidden`）。
-- **审计留存**：每日 UTC 19 点删 90 天前 `audit_log`，默认 dry-run（`audit_prune_dry_run`）；结果落 `admin_config.audit_prune_last`（`{at,dry_run,matched,pruned,cutoff,days}`）；哈希链删除最早连续段不产生断链告警。
+- **审计留存**：每日 UTC 19 点删 90 天前 `audit_log`，默认 dry-run（`audit_prune_dry_run`）；结果落 `admin_config.audit_prune_last`（`{at,dry_run,matched,pruned,cutoff,days}`）；哈希链删除最早连续段不产生断链告警。**追加侧并发**：admin-action（主体）与 admin-web（镜像，如 fn_migrate_tip_partner）双写入方按 openid 同链非原子追加，理论可同 prev 分叉——`audit_verify` 报断链时先按双写入方归因（分叉裁 `fork_noise` 非篡改），低频运维路径可接受（2026-11-14 甲方案 B②c 声明）。
 
 > 相关：部署流程见 [07-deploy-release.md](file:///c:/zhaoren/docs/dev-manual/07-deploy-release.md)；硬约束见 [05-redlines.md](file:///c:/zhaoren/docs/dev-manual/05-redlines.md)；既有 SOP 汇编见 [docs/runbooks/](file:///c:/zhaoren/docs/runbooks)。
