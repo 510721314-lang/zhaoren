@@ -111,15 +111,15 @@
 
 > 立项依据：[FUNCTION-REGISTRY #167](FUNCTION-REGISTRY.md)（方案A 双专家评审 B 侧产出）。**当前（2026-11-11）：三项均开放，随对应文件触碰时逐项走「先说后做」。**
 
-### §3.3 2026-11-12 改期规则配置漂移事故处置登记（P3-34~P3-36，开放）
+### §3.3 2026-11-12 改期规则配置漂移事故处置登记（P3-34~P3-36，2026-11-14 全部闭合）
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
-| P3-34 | 改期/加时发起时前端无提前量预检 | `order-detail.js:1057-1088` onModify 仅查 S2/次数/冻结/在途，提前量在提交时才拦（`:1164-1167`）；服务端 `action_modify_extend.js:47-56` 校验完好无资损 | 用户体验：填完表单才被拦；前端预检若用缓存值（bootstrap ≤7 天）有误拦风险 | **登记暂缓（2026-11-12 双专家 2/2）**：提审后做；预检阈值须标注「缓存可能滞后，以服务端拒绝为最终裁决」 |
+| P3-34 | 改期/加时发起时前端无提前量预检 | `order-detail.js:1057-1088` onModify 仅查 S2/次数/冻结/在途，提前量在提交时才拦（`:1164-1167`）；服务端 `action_modify_extend.js:47-56` 校验完好无资损 | 用户体验：填完表单才被拦；前端预检若用缓存值（bootstrap ≤7 天）有误拦风险 | **✅ 已修（2026-11-14 批 2，commit `7c85b183`）**：onModify 打开面板前软预检 toast「不足X小时,可能被拒」**不拦截**（缓存可能滞后，以服务端提交裁决为最终裁决——本列既定口径）；加时入口不加（S3 履约中进行中无提前量概念）；随下次体验版生效，待真机 iOS+Android |
 | P3-35 | admin_config 遗留嵌套 `modify_config` 死数据 | 实测 `admin_config(_id:"global").modify_config={confirmHours:24,maxSpanH:72,maxTimes:2,minLeadHours:4}`（11-10 分钟制迁移漏清旧结构）；`resolveModify` 只读顶层键（`order-action/config_defaults.js:16-26`），规则页保存只写顶层 | 当前零行为影响；但任何人恢复嵌套读取或重跑迁移会出诡异问题；巡检脚本已 WARN | **✅ 已清理（2026-11-12，用户授权）**：tcb nosql `$unset`（q 锁 `_id:"global"`+is_deleted 守卫）`nModified=1`，回读 `modify_config` 已消失、顶层键全完好（4/2/72/10）；复跑 `npm run audit:config` 嵌套 WARN 消失；探针 FAIL 属直写无留痕预期现象（人工确认） |
 | P3-36 | 巡检脚本 WARN 噪音未收敛 | `scripts/audit-config-drift.js` 首跑 23 条「偏离默认」WARN，多为有意运营配置（接单上限 40/费率区间/提醒分层等） | 噪音稀释信号，长期会掩盖真漂移 | **✅ 已偿还（2026-11-13，双专家评审修正版）**：新增 `scripts/audit-config-drift-baseline.json`（22 条按当日实测回执登记，reason 填来源指针——4 条有 docs 指针、18 条标「来源待查·待人工确认」，评审 B5 纪律）；脚本「偏离默认」分支（:65）读 baseline：命中一致→INFO / 值漂移→WARN 注明 baseline 记录 / 未登记→照常 WARN；**特殊运营态 WARN（:69-73）与 ERROR/红线/探针判据不读 baseline 保持裸奔**（评审 B10）。复跑实证 ERROR=0 **WARN 22→0** exit 0。23→22 对账：modify_config 遗留 WARN 已随 P3-35 清理消失 |
 
-> 立项依据：[FUNCTION-REGISTRY #169](FUNCTION-REGISTRY.md) + [CHANGELOG 2026-11-12](CHANGELOG.md)（改期规则 2/1/2 全案：写入者=用户本人 11-08 22:38 后台「改期设置」，留痕链完好；三次验证者修正见 CHANGELOG）。**当前（2026-11-12）：三项均开放。**
+> 立项依据：[FUNCTION-REGISTRY #169](FUNCTION-REGISTRY.md) + [CHANGELOG 2026-11-12](CHANGELOG.md)（改期规则 2/1/2 全案：写入者=用户本人 11-08 22:38 后台「改期设置」，留痕链完好；三次验证者修正见 CHANGELOG）。**当前（2026-11-14）：三项全部闭合。**
 
 ### §3.4 2026-11-12 前端巨页分拆批次2a/2b 登记（P3-37~P3-38，开放）
 
@@ -180,12 +180,12 @@
 
 ---
 
-### §5.1 专家核验新发现（2026-11-06；C1/C2 登记不处理，C3 已修待部署验证）
+### §5.1 专家核验新发现（2026-11-06；C1/C2 已修 2026-11-14，C3 已修待运行时实跑）
 
 | # | 负债 | 证据 | 影响 | 处置 |
 |---|---|---|---|---|
-| C1 | `zz-seed-orders` 的 `genNo`（秒级时间戳 + 3 位 base36，约 9.7 万空间）同秒批量造单可能撞 `uk_order_no`；`index.js` L561/L756 直接 `add` 无重试且 `.catch(()=>{})` 吞错，仍按 `tasks.length` 报「全建成」 | `cloudfunctions/zz-seed-orders/index.js:661-664`、`L561`、`L596`、`L756` | 演示/种子数据**假成功**（少建却显示完成） | 提审后处理：`genNo` 加随机位 + 失败计数如实返回；当前不影响真实下单 |
-| C2 | `admin-action` 的 `order_main` 导入 `mode='append'` 无冲突兜底：任一已存单号（含软删占位）会让整块 500 条 add 抛 `E11000`，灾备恢复中断 | `cloudfunctions/admin-action/action_import.js:70-74`（`replace` 因先硬删才安全，见 `:59-66`） | 灾备恢复流程风险 | 提审后处理；文档已约束 `order_main` 只用 `mode='replace'`（见 [03-data-model](dev-manual/03-data-model.md) L87） |
+| C1 | ~~`zz-seed-orders` 的 `genNo`（秒级时间戳 + 3 位 base36，约 9.7 万空间）同秒批量造单可能撞 `uk_order_no`；`index.js` L561/L756 直接 `add` 无重试且 `.catch(()=>{})` 吞错，仍按 `tasks.length` 报「全建成」~~（T-7.26 拆分后指控点收窄：night_orders 计数链本身如实——失败 continue 不计数，仅 genNo 空间与 service_orders `created=tasks.length` 假报成立） | ~~`cloudfunctions/zz-seed-orders/index.js:661-664`、`L561`、`L596`、`L756`~~ → `action_night_orders.js:70`、`action_service_orders.js:70`、`action_service_orders.js` created 统计 | 演示/种子数据**假成功**（少建却显示完成） | **✅ 已修（2026-11-14 批 1，commit `9b695ed0` + zz-seed-orders 部署，SHA 2 文件 MATCH）**：genNo 随机位 3→6 字符（36³≈4.7万→36⁶≈21亿）×2 处；service_orders created 改按 `rs.filter(demandId)` 实际成功数统计；不影响真实下单 |
+| C2 | ~~`admin-action` 的 `order_main` 导入 `mode='append'` 无冲突兜底：任一已存单号（含软删占位）会让整块 500 条 add 抛 `E11000`，灾备恢复中断~~ | ~~`cloudfunctions/admin-action/action_import.js:70-74`~~ | 灾备恢复流程风险 | **✅ 已修（2026-11-14 批 1，同 commit `9b695ed0` + admin-action 部署，SHA 1 文件 MATCH）**：append 模式整块 add 撞唯一键降级逐条 add，冲突单跳过并如实返回 `skipped_conflict` 计数（logEvent 同步记录）；**replace 模式语义不变**（先清空，冲突属异常仍整块抛错）；文档约束 order_main 只用 replace 维持 |
 | C3 | `init-db` 的 `purge_test_data` 删除范围过宽：筛选只做 `where({is_test:true})` 后 `remove()`，而 `is_test` 只是「参与方命中 `admin_config.test_openids`」的打标，**真实单号（`ORD…`）的历史单也会被打标**；云端实测 `is_test:true` 未删单 **91 条中 86 条非 `TEST840710820` 前缀**，且参与方去重后**有 1 个不在现白名单** → 一次 `confirm:'PURGE'` 会硬删真实用户历史单且不可恢复，与本模块「绝不误删真实用户数据」直接冲突 | 原 `cloudfunctions/init-db/index.js:312-390`（`demand`/`order_main` 两处 `where({is_test:true}).remove()`） | 误删真实历史单（硬删，无软删兜底）；取证脚本 `probe-purge-scope-20261106.js` 回执已留档于 CHANGELOG 2026-11-06 行 | ✅ **已修（2026-11-06，代码层）**：默认范围收紧为夹具前缀 `TEST840710820` + 关联 demand 精确匹配；`scope:'all_istest'` 须**同时**传 `expect_orders=<实测数>`（不符返回 `idb_purge_expect_mismatch`）；删除语句由 `where({is_test:true})` 改为 `where({_id:_.in(ids)})`；dry-run 新增 `preview{scope,out_of_scope_orders,sample_orders}`；审计 payload 带 `scope`。**待办：运行时 dry-run 未实跑（`admin_config.env=prod` + `admin_openids` 非空，控制台测试面板无真实 OPENID 会被 `idb_forbidden` 拦下；CLI 不能 invoke，§38）→ 改用两层替代验证：①「SHA256 字节一致 + 只读复算（夹具 5 单 / 越界 86 单）」；②2026-11-06 进程内 mock SDK 契约测试 **21/21 PASS**（默认 dry-run 只统计、默认真删只删夹具前缀且被打标真实单与未关联 is_test demand 均存活、all_istest 缺 expect_orders 返回 `idb_purge_expect_mismatch`、全量 dry-run/真删数量一致、审计 scope 正确）** |
 
 ### D4 组 · 2026-11-08 双专家核验结论（原「后端同源缺陷」4 条 + 1 条新疑点）
@@ -214,7 +214,7 @@
 | F1-附 | im-send sec_degraded 写侧已删（fail-closed 行为保留）；admin-action/action_im_kefu 补审名单**读侧恒空**（原写侧死代码致永不生效） | **无害残留** | 名单页永远为空属预期；若日后启用降级放行需重写双端契约 |
 | F10 | hourly 加时确认把 `add_amount_fen` 并入 total_fen/fee_fen/partner_income_fen（order-action/action_modify_extend.js:338-348），而 pay_transaction **无任何 extend 支付流水** → 未付金额进入结算基数（`partner_income_fen` 聚合可提现余额）与退款上限（2026-11-14 综合评审 A 代理发现，用户立项第一档 (a)） | **✅ 已修（2026-11-14，commit `d32561ba` + order-action 部署，SHA 25 文件 MATCH）** | 加时只加时长不加金额（与 fixed 口径统一为「加时暂不计费」）；fee/income 沿用订单现值（顺带消除 hourly 按 config 费率重算的 fee 漂移）；两处通知文案改「加时暂不计费」；前端 6 处「加时金额 ¥X」展示同步去金额（confirm-flow/order-submit×2/order-view×2/order-detail.wxml+js）；新增 [order_extend_confirm.test.js](../cloudfunctions/_shared/order_extend_confirm.test.js) 4 断言守护 |
 | F11 | admin-action 争议退款上限按 `total_fen` 且回写 `fund.paid_fen=total_fen`（action_dispute_handle.js:35,65），与 payment-mock 已修实付口径不一致 → 加时单可退超实付（同上评审 A 代理发现，第一档 (b)） | **✅ 已修（同上 commit + admin-action 部署，SHA 51 文件 MATCH）** | 退款基准改 `fund.paid_fen`（缺失回退 total_fen，与 payment-mock action_pay.js:194 同款）；上限/默认退额/fund 回写三处自动跟随 |
-| F12 | 2026-11-14 综合评审其余发现：~~前端 order-poll 1Hz 静态文案 setData（order-poll.js:105-113）~~ / chat 每次轮询两次全量 setData（chat.js:284,352）/ ~~rules-size-baseline 水位漂移 10B（scripts/rules-size-baseline.json:10）~~ / ~~`miniprogram/mock/*` 22.9KB 零引用驻主包~~ / order-timer 20+ 段无全局 deadline（index.js:579-653）/ home-action 冷启动 3 次 createCollection（index.js:34-44）/ 后台 e.message 透传（与 F6 重复合并）/ 清单门只认行首单引号（P4）/ S10.5→S8 流转越界（P4 待拍板）/ 青少年限额 age 缺失放行（P4）/ `!event` 迁移守卫旁路（P4，主对话复核降级：51 处调用全为内部代码无外部路径） | **第二档 3 项已修（2026-11-14，commit `2de25183`）：①startCountdown 去 1Hz 定时器改为状态刷新时一次性写入（order-poll.js，setData 60次/分→0，零断言受影响）；②水位基线 --write 刷新至实测 16383B/16384B；③mock 目录 6 文件 22.9KB git rm（V15.1 陈年 mock 脚手架，全仓零 require，git 历史可回滚）**。剩余维持登记不动作；chat 双写 setData 为下一批候选；S10.5→S8 口径**已裁决（2026-11-14 乙案）**：系撤回投诉存量兼容路径（`COMPLAINT_RESTORE_STATUS` 含 S8/S9，D1 2026-10-12 拍板背书；投诉发起侧 2026-10-15 已收窄至 S2-S4，新单不可达），非附录A「S10.5→S5/S7」所指裁决出口，维持现状不收紧（action_dispute.js:5 悬置注释已闭合）；兜底触发条件=存量 S8/S9 起源争议单清零后从恢复白名单移除 S8/S9（届时字面合规，1 行改动） |
+| F12 | 2026-11-14 综合评审其余发现：~~前端 order-poll 1Hz 静态文案 setData（order-poll.js:105-113）~~ / chat 每次轮询两次全量 setData（chat.js:284,352）/ ~~rules-size-baseline 水位漂移 10B（scripts/rules-size-baseline.json:10）~~ / ~~`miniprogram/mock/*` 22.9KB 零引用驻主包~~ / order-timer 20+ 段无全局 deadline（index.js:579-653）/ home-action 冷启动 3 次 createCollection（index.js:34-44）/ 后台 e.message 透传（与 F6 重复合并）/ 清单门只认行首单引号（P4）/ S10.5→S8 流转越界（P4 待拍板）/ 青少年限额 age 缺失放行（P4）/ `!event` 迁移守卫旁路（P4，主对话复核降级：51 处调用全为内部代码无外部路径） | **第二档 3 项已修（2026-11-14，commit `2de25183`）：①startCountdown 去 1Hz 定时器改为状态刷新时一次性写入（order-poll.js，setData 60次/分→0，零断言受影响）；②水位基线 --write 刷新至实测 16383B/16384B；③mock 目录 6 文件 22.9KB git rm（V15.1 陈年 mock 脚手架，全仓零 require，git 历史可回滚）**。剩余维持登记不动作；~~chat 双写 setData 为下一批候选~~**chat 双写已修（2026-11-14 批 2，commit `7c85b183`）：①renderMessages 无新消息（shouldScroll=false）直接 return 跳过全量 messages setData；②updateMsgStatuses 加 changed 判定，模板卡状态/已选无变化不 setData（均不在 @VERIFIED 体内，随下次体验版生效待真机）**；S10.5→S8 口径**已裁决（2026-11-14 乙案）**：系撤回投诉存量兼容路径（`COMPLAINT_RESTORE_STATUS` 含 S8/S9，D1 2026-10-12 拍板背书；投诉发起侧 2026-10-15 已收窄至 S2-S4，新单不可达），非附录A「S10.5→S5/S7」所指裁决出口，维持现状不收紧（action_dispute.js:5 悬置注释已闭合）；兜底触发条件=存量 S8/S9 起源争议单清零后从恢复白名单移除 S8/S9（届时字面合规，1 行改动） |
 
 ---
 
