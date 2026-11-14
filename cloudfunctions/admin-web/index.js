@@ -404,8 +404,23 @@ exports.main = async (event, context) => {
         }).catch(() => {});
         fixed++;
       }
+      // 甲方案A2(2026-11-14 双专家2/2立项): fn_migrate 写操作补审计留痕(T-9.14 缺陷③唯一剩余面)
+      // —— writeAudit 内部自吞异常不阻断主流程; 返回体结构不变, 向后兼容
+      await writeAudit(db, { d: function () {} }, {
+        openid: adminOpenid || '', role: 'admin', category: 'business',
+        action: 'fn_migrate_tip_partner', target_type: 'pay_transaction', target_id: '',
+        detail: { fixed: fixed, scanned: (cursor.data || []).length },
+        result: 'ok', client_ip: '', device: 'admin-web', at: Date.now()
+      });
       return makeJson({ ok: true, data: { fixed } });
     } catch (e) {
+      // 甲方案A2(2026-11-14): 失败路径同样留痕(result:'fail'), 与成功路径同链归因
+      await writeAudit(db, { d: function () {} }, {
+        openid: adminOpenid || '', role: 'admin', category: 'business',
+        action: 'fn_migrate_tip_partner', target_type: 'pay_transaction', target_id: '',
+        detail: { err: String((e && e.message) || e) },
+        result: 'fail', client_ip: '', device: 'admin-web', at: Date.now()
+      });
       return makeJson({ ok: false, code: 'fn_migrate_error', msg: e && e.message }, 502);
     }
   }
