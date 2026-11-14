@@ -5,7 +5,7 @@
     "catch (e) {}",
     ".catch(() => {})"
   ],
-  "total": 254,
+  "total": 255,
   "files": {
     "cloudfunctions/_shared/ab_equivalence.js": 1,
     "cloudfunctions/_shared/admin-login.js": 4,
@@ -45,6 +45,7 @@
     "cloudfunctions/im-send/audit.js": 1,
     "cloudfunctions/im-send/index.js": 1,
     "cloudfunctions/init-db/action_seed.js": 1,
+    "cloudfunctions/init-db/audit.js": 1,
     "cloudfunctions/init-db/index.js": 3,
     "cloudfunctions/order-action/action_lifecycle.js": 1,
     "cloudfunctions/order-action/audit.js": 1,

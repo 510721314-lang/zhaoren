@@ -7,7 +7,7 @@ $src  = Join-Path $root '_shared\audit.js'
 $dirs = @(
   'admin-action','blog-action','demand-publish','evaluation-submit','im-send',
   'order-action','order-create','partner-action','payment-mock','safety-report','user-login',
-  'admin-web'
+  'admin-web','init-db'   # 2026-11-14 #4 全修: generate_admin_web_key 补审计(与 check-shared-sync.js SYNC_MAP 同步登记)
 )
 if (-not (Test-Path $src)) { throw "canonical source missing: $src" }
 foreach ($d in $dirs) {

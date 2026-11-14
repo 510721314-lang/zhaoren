@@ -34,7 +34,9 @@ const SYNC_MAP = {
   'audit.js': [
     'admin-action', 'blog-action', 'demand-publish', 'evaluation-submit', 'im-send',
     'order-action', 'order-create', 'partner-action', 'payment-mock', 'safety-report', 'user-login',
-    'admin-web'
+    'admin-web',
+    // #4 全修(2026-11-14): generate_admin_web_key 补审计留痕, init-db 引入规范源副本(与 sync-audit.ps1 $dirs 同步登记)
+    'init-db'
   ],
   // 密码/身份安全策略纯函数(2026-10-13 纳入): 密码登录防爆破锁定 + 紧急联系人冷却 + bootstrap CAS
   'security_policy.js': ['user-login', 'init-db', 'admin-action', 'admin-web'],
