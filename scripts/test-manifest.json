@@ -54,6 +54,20 @@
     "content_list: 按科目/状态/关键词过滤",
     "content_detail: 返回正文 md；缺参/不存在 → 明确失败码"
   ],
+  "cloudfunctions/_shared/admin-web.entry.test.js": [
+    "web: OPTIONS preflight → 204 + CORS 头",
+    "web: GET /health → 200 ok(免鉴权)",
+    "web: GET /api → 404 not_found",
+    "web: POST /api 缺 action → 400 no_action",
+    "web: 缺 key → 401 missing_key + gateway_bad_key 留痕",
+    "web: bad key → 401 bad_key + 事件不含 key 本体",
+    "web: bootstrap 时非建钥动作 → 401 key_not_initialized",
+    "web: bootstrap 建钥动作 → 放行转发 init-db",
+    "web: admin_login 免 key → 非 401",
+    "web: 有效 X-Admin-Token → 放行转发 admin-action",
+    "web: 无效 token + 有效 key → 回退放行",
+    "web: 已鉴权未知 action → 转发 admin-action"
+  ],
   "cloudfunctions/_shared/cert_state.test.js": [
     "配置: 缺省 → 门禁关 / W1 365 天 / base 永久",
     "配置: cert_gate_enabled 仅严格 true 才开闸",
