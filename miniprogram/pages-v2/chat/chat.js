@@ -218,6 +218,7 @@ Page({
 
   // 2026-10-17: 耍伴端「对方发起沟通」订阅消息(一次性订阅, 离端即时提醒): 进页静默拉模板 ID, 用户点按确认动作时再请求授权并落库
   // 未配模板/未授权一律静默降级 —— 端内弹窗(见 applyNotices)始终生效, 订阅消息仅作离端补充通道
+  // @VERIFIED 2026-11-14 已真机验证：Android 真机送达实证 __paidTmplId 与 admin_config 一致（REGISTRY #171）
   __loadCommTmpl() {
     if (this.data.role !== 'partner' || this.data.orderStatus !== 'S1') return;
     callCloud('admin-action', { action: 'config_public' }).then((r) => {
@@ -229,6 +230,7 @@ Page({
     }).catch(() => {});
   },
   // 请求订阅授权(须在用户点按手势内调用, 否则微信拒绝); 授权结果落库 partner_profile.sub_msgs.confirm_comm(与接单设置页同口径)
+  // @VERIFIED 2026-11-14 已真机验证：单手势 2 模板授权→支付送达服务通知+点卡片跳详情（REGISTRY #171）
   __requestCommSub() {
     if (this.__subReqDone || this.data.role !== 'partner' || this.data.orderStatus !== 'S1') return;
     // 方案E(2026-11-14): 单次手势同时请求「沟通/支付」两个模板(微信单次上限 3 个), 未配的项自动剔除
