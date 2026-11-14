@@ -31,6 +31,15 @@ function config_public(ctx) {
     miniprogram_state: subComm.miniprogram_state || 'formal',
     fields: subComm.fields || null
   } : { enabled: false };
+  // 方案E(2026-11-14): 支付提醒模板下发, 耍伴端 chat 页同批拉取并请求授权
+  const subPaid = (cfgRaw.sub_msg_templates && cfgRaw.sub_msg_templates.paid) || {};
+  const paidTmpl = subPaid.tmpl_id ? {
+    enabled: true,
+    tmpl_id: subPaid.tmpl_id,
+    page: subPaid.page || 'pages-v2/order-detail/order-detail',
+    miniprogram_state: subPaid.miniprogram_state || 'formal',
+    fields: subPaid.fields || null
+  } : { enabled: false };
   return { ok: true, data: {
     version: cfgRaw.version,
     timeouts: {
@@ -152,7 +161,8 @@ function config_public(ctx) {
     sub_msg: {
       demand_grab: demandGrab,
       demand_urge: demandUrge,
-      confirm_comm: confirmComm
+      confirm_comm: confirmComm,
+      paid: paidTmpl
     },
     urge: {
       remind_after_h: nsInt(cfgRaw.remind_after_h, 1),

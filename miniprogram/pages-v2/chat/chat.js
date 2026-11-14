@@ -223,19 +223,29 @@ Page({
     callCloud('admin-action', { action: 'config_public' }).then((r) => {
       const t = (r && r.ok && r.data && r.data.sub_msg && r.data.sub_msg.confirm_comm) || null;
       this.__commTmplId = (t && t.tmpl_id) || '';
+      // 方案E(2026-11-14): 同批拉「支付提醒」模板 id, 与沟通授权共用同一手势
+      const tp = (r && r.ok && r.data && r.data.sub_msg && r.data.sub_msg.paid) || null;
+      this.__paidTmplId = (tp && tp.tmpl_id) || '';
     }).catch(() => {});
   },
   // 请求订阅授权(须在用户点按手势内调用, 否则微信拒绝); 授权结果落库 partner_profile.sub_msgs.confirm_comm(与接单设置页同口径)
   __requestCommSub() {
     if (this.__subReqDone || this.data.role !== 'partner' || this.data.orderStatus !== 'S1') return;
-    const tmplId = this.__commTmplId || '';
-    if (!tmplId) return;                                     // 未配模板 → 仅端内弹窗
+    // 方案E(2026-11-14): 单次手势同时请求「沟通/支付」两个模板(微信单次上限 3 个), 未配的项自动剔除
+    const ids = [this.__commTmplId || '', this.__paidTmplId || ''].filter(Boolean);
+    if (!ids.length) return;                                 // 未配任何模板 → 仅端内弹窗
     this.__subReqDone = true;
     wx.requestSubscribeMessage({
-      tmplIds: [tmplId],
+      tmplIds: ids,
       success: (res) => {
-        const accept = !!(res && res[tmplId] === 'accept');
-        callCloud('partner-action', { action: 'sub_authorize', tmpl: 'confirm_comm', authorized: accept, count: accept ? 1 : 0 }).catch(() => {});
+        // 方案E: 按 id 分别落库授权结果(id 与模板 key 的对应关系见 __commTmplId/__paidTmplId)
+        const pairs = [[this.__commTmplId || '', 'confirm_comm'], [this.__paidTmplId || '', 'paid']];
+        pairs.forEach((pair) => {
+          const id = pair[0], key = pair[1];
+          if (!id || !res || res[id] === undefined) return;
+          const accept = res[id] === 'accept';
+          callCloud('partner-action', { action: 'sub_authorize', tmpl: key, authorized: accept, count: accept ? 1 : 0 }).catch(() => {});
+        });
       },
       fail: () => {}
     });

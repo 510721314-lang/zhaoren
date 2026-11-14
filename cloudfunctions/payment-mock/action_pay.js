@@ -1,4 +1,6 @@
 // action_pay.js — 从 index.js 物理抽出, 行为逐字不变; 共享符号经 ctx 注入, 禁 require('./index')
+// 方案E(2026-11-14): 支付提醒订阅发送。向后兼容说明: 纯追加触达通道, 资金 CAS/事务/写库逻辑零改动; 新通道任何失败静默降级
+const { sendPaidSub } = require('./paid_sub');
 
 // P3-1(2026-11-06 复判): 事务失败后的补偿回写若再失败, 会留下「支付/退款失败但订单状态与资金位已变」的账实不符,
 // 且原实现 .catch(()=>{}) 完全无痕 → 线上无法发现。统一改为 log.e + platform_event(P0) 留痕(内部再 try 包裹防二次失败)。
@@ -162,7 +164,8 @@ async function mockPayAction(ctx) {
           title: '订单已支付', body: '请按时履约',
           action_key: 'jump_order', action_payload: { order_id },
           created_at: now, read: false
-        }})
+        }}),
+        sendPaidSub(ctx, order)   // 方案E: 耍伴「支付提醒」订阅消息(离端即时触达); 失败静默, 与站内信同批 allSettled 不阻断资金链路
       ]);
       await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_pay', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, pay_no: payNo, total_fen: order.total_fen }, result: 'ok', client_ip: clientIp, device });
       return {

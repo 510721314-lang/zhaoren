@@ -1,11 +1,11 @@
 {
   "note": "空 catch 增量门基线（只增不追溯）。刷新：node scripts/check-silent-catch.js --write",
-  "generated_at": "2026-11-13",
+  "generated_at": "2026-11-14",
   "patterns": [
     "catch (e) {}",
     ".catch(() => {})"
   ],
-  "total": 250,
+  "total": 254,
   "files": {
     "cloudfunctions/_shared/ab_equivalence.js": 1,
     "cloudfunctions/_shared/admin-login.js": 4,
@@ -40,7 +40,7 @@
     "cloudfunctions/evaluation-submit/audit.js": 1,
     "cloudfunctions/evaluation-submit/index.js": 2,
     "cloudfunctions/home-action/action_feed.js": 2,
-    "cloudfunctions/home-action/index.js": 3,
+    "cloudfunctions/home-action/index.js": 2,
     "cloudfunctions/im-conv/index.js": 5,
     "cloudfunctions/im-send/audit.js": 1,
     "cloudfunctions/im-send/index.js": 1,
@@ -64,6 +64,7 @@
     "cloudfunctions/payment-mock/action_pay.js": 4,
     "cloudfunctions/payment-mock/audit.js": 1,
     "cloudfunctions/payment-mock/index.js": 4,
+    "cloudfunctions/payment-mock/paid_sub.js": 5,
     "cloudfunctions/safety-report/audit.js": 1,
     "cloudfunctions/user-login/action_account.js": 2,
     "cloudfunctions/user-login/action_auth.js": 1,

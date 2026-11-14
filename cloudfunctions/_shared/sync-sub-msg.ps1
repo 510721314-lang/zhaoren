@@ -8,6 +8,7 @@ $dsts = @(
   (Join-Path $root 'order-action\sub_msg.js'),
   (Join-Path $root 'order-timer\sub_msg.js'),
   (Join-Path $root 'partner-action\sub_msg.js')
+  (Join-Path $root 'payment-mock\sub_msg.js')
 )
 if (-not (Test-Path $src)) { throw "canonical source missing: $src" }
 foreach ($d in $dsts) {

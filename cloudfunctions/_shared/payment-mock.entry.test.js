@@ -190,4 +190,70 @@ test('balance_info: 今日待履约按北京日界(固定 +8), 不受运行时 T
   assert.strictEqual(lt.args[0], bjDayStart + DAY, '今日上界 = 北京次日 00:00');
 });
 
+// ── 方案E(2026-11-14): mock_pay 成功 → 耍伴「支付提醒」订阅消息(paid_sub) ──
+// 订单 _id 须为 32 位十六进制(payment-mock index.js 入口预检 isValidDocId, 非 hex32 直接 pay_bad_order_id)
+const PAY_OID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+function payStore(extra = {}) {
+  const s = baseStore();
+  s.admin_config.global.sub_msg_templates = Object.assign(
+    { paid: { tmpl_id: 'TID_PAID', page: 'pages-v2/order-detail/order-detail' } }, extra);
+  s.order_main = {
+    [PAY_OID]: { _id: PAY_OID, order_no: 'ORD1', user_openid: 'o_user_1', partner_openid: 'o_partner_1',
+      status: 'S0', total_fen: 5000, fee_fen: 0, scene: 'W1', pay_expire_at: Date.now() + 86400000 }
+  };
+  s.partner_profile = {
+    p1: { _id: 'p1', openid: 'o_partner_1', sub_msgs: { paid: { authorized: true, granted_count: 1, sent_count: 0 } } }
+  };
+  return s;
+}
+
+// 13. 已授权有额度 → send 被调(模板/收件人/跳转页正确) + sentPatch 落库
+test('mock_pay: 支付成功 → paid 订阅消息发送 + sent_count 消费', async () => {
+  const sent = [];
+  const sdk = makeSdk({
+    openid: 'o_user_1', store: payStore(),
+    subMsgSend: async (args) => { sent.push(args); return { errMsg: 'send:ok' }; }
+  });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'mock_pay', order_id: PAY_OID, mock_openid: 'o_user_1' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(sent.length, 1, '应发送 1 条支付提醒');
+  assert.strictEqual(sent[0].touser, 'o_partner_1');
+  assert.strictEqual(sent[0].templateId, 'TID_PAID');
+  assert.ok(sent[0].page.indexOf('orderId=' + PAY_OID) >= 0, '跳转页应携带 orderId');
+  const upd = (sdk.writes.partner_profile || []).find((w) => w.doc === 'p1' && w.data['sub_msgs.paid']);
+  assert.ok(upd, '应回写 partner_profile.sub_msgs.paid');
+  assert.strictEqual(upd.data['sub_msgs.paid'].sent_count, 1, '发送成功应消费 1 条额度');
+  // 站内信照旧(向后兼容)
+  const notice = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'paid');
+  assert.ok(notice, '原站内 paid 通知应保留');
+});
+
+// 14. 未配置 paid 模板 → 静默降级, 支付 ok 不受影响
+test('mock_pay: 未配 paid 模板 → 静默降级(NO_TMPL), 支付仍 ok', async () => {
+  const sent = [];
+  const s = payStore(); delete s.admin_config.global.sub_msg_templates;
+  const sdk = makeSdk({ openid: 'o_user_1', store: s,
+    subMsgSend: async (args) => { sent.push(args); return { errMsg: 'send:ok' }; } });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'mock_pay', order_id: PAY_OID, mock_openid: 'o_user_1' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(sent.length, 0, '未配模板不得调用 send');
+});
+
+// 15. 43101 额度用尽 → exhaustedPatch 关授权 + 站内 sub_quota 引导重新授权
+test('mock_pay: 43101 → 关授权 + 站内 sub_quota 补偿', async () => {
+  const sdk = makeSdk({
+    openid: 'o_user_1', store: payStore(),
+    subMsgSend: async () => { const e = new Error('user refused'); e.errCode = 43101; throw e; }
+  });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'mock_pay', order_id: PAY_OID, mock_openid: 'o_user_1' }, {});
+  assert.strictEqual(r.ok, true, '订阅失败不得影响支付返回');
+  const upd = (sdk.writes.partner_profile || []).find((w) => w.doc === 'p1' && w.data['sub_msgs.paid']);
+  assert.strictEqual(upd.data['sub_msgs.paid'].authorized, false);
+  const quota = (sdk.writes.system_notice || []).find((w) => w.add && w.data.type === 'sub_quota');
+  assert.ok(quota, '应写站内 sub_quota 引导重新授权');
+});
+
 test.after(() => { Module._load = origLoad; });

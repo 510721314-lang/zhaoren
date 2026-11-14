@@ -64,7 +64,8 @@ const SYNC_MAP = {
   'config_defaults.json': ['order-action', 'admin-action', 'order-timer'],
   // 订阅消息统一封装(2026-11-02 方案A): 授权/发送计数状态 + 唯一 send 入口;
   //   消费方 order-action(催办/沟通) / order-timer(抢单) / partner-action(授权计数)
-  'sub_msg.js': ['order-action', 'order-timer', 'partner-action']
+  // 方案E(2026-11-14): payment-mock 支付成功发送「支付提醒」, 副本纳入同源守护
+  'sub_msg.js': ['order-action', 'order-timer', 'partner-action', 'payment-mock']
 };
 
 // KNOWN_DRIFT(2026-10-19): 已登记的「既有漂移」, 依 §10「只登记不手修」处理——
