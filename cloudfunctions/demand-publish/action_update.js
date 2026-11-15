@@ -248,7 +248,8 @@ async function update_action(ctx) {
         updated_at: now
       };
       // match_mode 改了 → 同步更新 broadcast/invited(不改 publish_location!)
-      patch.broadcast = mode === 'broadcast';
+      // 2026-11-15 T-15.6 口径: 与发布同口径, 抢单与选单均入公共池
+      patch.broadcast = mode === 'broadcast' || mode === 'select';
       patch.invited = mode === 'direct' ? [target_openid] : [];
       // 场景变更时同步刷新免责声明类型(SSOT: admin_config.scene_list; 此前 update 漏刷新, 场景与类型可能不一致)
       patch.disclaimer_type = (sceneCfg && sceneCfg.disclaimer_type) || DISCLAIMER_TYPE_MAP[scene] || 'general_disclaimer';

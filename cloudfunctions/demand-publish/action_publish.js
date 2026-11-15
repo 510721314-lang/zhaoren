@@ -477,7 +477,8 @@ async function publish_action(ctx) {
         status: 'matching',
         match_candidates: [],
         invited: mode === 'direct' ? [target_openid] : [],  // 定向: 仅受邀耍伴可接
-        broadcast: mode === 'broadcast',  // 仅抢单模式入厅; 定向/选单不入公共大厅
+        // 2026-11-15 T-15.6 裁定: broadcast 语义＝「是否进公共池(广场/大厅)」, 抢单与选单均入池; 定向不入
+        broadcast: mode === 'broadcast' || mode === 'select',
         // 抢单通知(需求①站内闭环): 待推送标记, 由 order-timer 定时分批向「范围内可接耍伴」推 system_notice 引导抢单
         // direct 定向模式已单发邀请(L816), 不再群发; broadcast/select 需覆盖更多耍伴故置待推送
         grab_notify_pending: mode === 'direct' ? false : true,
