@@ -22,7 +22,8 @@ function valueText(field, v) {
     if (!isNaN(d.getTime())) return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     return '';
   }
-  if (field === 'fee') return '¥' + Math.round(Number(v) / 100);
+  // 2026-11-15 评审修复: 费用变更文案保留两位小数(原 Math.round 把 19.90 抬成 20)
+  if (field === 'fee') return '¥' + (Number(v) / 100).toFixed(2);
   if (field === 'location') return String((v && v.name) || '').slice(0, 20);
   if (field === 'content') return (Array.isArray(v) ? v.join('/') : String(v || '')).slice(0, 20);
   return String(v || '').slice(0, 20);

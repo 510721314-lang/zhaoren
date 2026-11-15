@@ -285,7 +285,7 @@ Page({
               status: o.status,
               status_name: st ? st.name : o.status,
               total_fen: o.total_fen || 0,
-              price_str: Math.round((o.total_fen || 0) / 100)
+              price_str: ((o.total_fen || 0) / 100).toFixed(2)
             };
           });
         this.setData({ partnerRecentOrders: list });
@@ -305,7 +305,8 @@ Page({
             location_name: (d.location && d.location.name) || '地点待确认',
             status: d.status,
             status_name: DEMAND_STATUS_NAME[d.status] || d.status,
-            price_str: d.duration_h ? Math.round(((d.total_fen || 0) / 100) / d.duration_h) : Math.round((d.total_fen || 0) / 100)
+            // 2026-11-15 评审修复: 先折算时薪再除 100 补两位小数, 禁止 Math.round 二次取整把 19.90 抬成 20
+            price_str: d.duration_h ? (((d.total_fen || 0) / d.duration_h) / 100).toFixed(2) : ((d.total_fen || 0) / 100).toFixed(2)
           }));
         this.setData({ userRecentDemands: list });
       }).catch(() => {});

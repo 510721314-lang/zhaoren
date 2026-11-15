@@ -242,9 +242,14 @@ function mapDemand(d, now, pad) {
     distance_km: null,
     headcount: 1,
     pricing_type: d.pricing_type || 'hourly',
+    // 2026-11-15: 原 Math.round 把 19.90 四舍五入成 20(首页/广场显示错误);
+    // budget 保留数值精度(供排序/编辑回填), budget_text 为两位小数字符串(供展示补零)
     budget: (d.pricing_type === 'fixed')
-      ? Math.round((d.total_fen || 0) / 100)
-      : Math.round((d.rate_fen || 0) / 100),
+      ? Number(((d.total_fen || 0) / 100).toFixed(2))
+      : Number(((d.rate_fen || 0) / 100).toFixed(2)),
+    budget_text: (d.pricing_type === 'fixed')
+      ? ((d.total_fen || 0) / 100).toFixed(2)
+      : ((d.rate_fen || 0) / 100).toFixed(2),
     aa_estimate: d.aa_tier || '0-50',
     status: d.status,
     match_mode: d.match_mode || 'broadcast',

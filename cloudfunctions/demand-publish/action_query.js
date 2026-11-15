@@ -127,9 +127,14 @@ async function detail_action(ctx) {
           // 计价分支: hourly=时薪(元); fixed=一口价(元, 取 total_fen); 存量无 pricing_type 按 hourly
           pricing_type: d.pricing_type || 'hourly',
           fixed_price_fen: d.fixed_price_fen || null,
+          // 2026-11-15: 原 Math.round 把 19.90 四舍五入成 20(详情显示/编辑回填错误);
+          // budget 保留数值精度(供编辑回填), budget_text 为两位小数字符串(供展示补零)
           budget: (d.pricing_type === 'fixed')
-            ? Math.round((d.total_fen || 0) / 100)
-            : Math.round((d.rate_fen || 0) / 100),
+            ? Number(((d.total_fen || 0) / 100).toFixed(2))
+            : Number(((d.rate_fen || 0) / 100).toFixed(2)),
+          budget_text: (d.pricing_type === 'fixed')
+            ? ((d.total_fen || 0) / 100).toFixed(2)
+            : ((d.rate_fen || 0) / 100).toFixed(2),
           aa_estimate: d.aa_tier || '0-50',
           match_mode: d.match_mode || 'broadcast',
           gender_pref: d.gender_pref || '不限',

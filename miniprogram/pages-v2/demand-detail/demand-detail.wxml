@@ -29,7 +29,7 @@
         <view class="dd__info-item"><text class="dd__info-label">时长</text><text class="dd__info-val">{{demand.duration_hours}}小时</text></view>
         <view class="dd__info-item"><text class="dd__info-label">地点</text><text class="dd__info-val">{{demand.location.name}}</text></view>
         <view class="dd__info-item"><text class="dd__info-label">人数</text><text class="dd__info-val">{{demand.headcount}}人</text></view>
-        <view class="dd__info-item" wx:if="{{demand.project_attr === 'commercial'}}"><text class="dd__info-label">{{demand.pricing_type === 'fixed' ? '一口价' : '预算'}}</text><text class="dd__info-val">¥{{demand.budget}}{{demand.pricing_type === 'fixed' ? '' : '/小时'}}</text></view>
+        <view class="dd__info-item" wx:if="{{demand.project_attr === 'commercial'}}"><text class="dd__info-label">{{demand.pricing_type === 'fixed' ? '一口价' : '预算'}}</text><text class="dd__info-val">¥{{demand.budget_text || demand.budget}}{{demand.pricing_type === 'fixed' ? '' : '/小时'}}</text></view>
         <view class="dd__info-item"><text class="dd__info-label">AA区间</text><text class="dd__info-val">{{demand.aa_estimate}}</text></view>
         <!-- 发布者联系手机号(脱敏): 云端仅对发布者本人回传 contact_phone_masked, 他人为空则整行不渲染 -->
         <view class="dd__info-item" wx:if="{{demand.contact_phone_masked}}"><text class="dd__info-label">联系电话</text><text class="dd__info-val">{{demand.contact_phone_masked}}</text></view>
@@ -67,7 +67,7 @@
     </block>
     <block wx:else>
       <view class="dd__grab-info">
-        <view class="dd__grab-price" wx:if="{{demand.project_attr === 'commercial'}}">¥{{demand.budget}}<text class="dd__grab-unit" wx:if="{{demand.pricing_type !== 'fixed'}}">/小时</text><text class="dd__grab-unit" wx:else> · 一口价</text></view>
+        <view class="dd__grab-price" wx:if="{{demand.project_attr === 'commercial'}}">¥{{demand.budget_text || demand.budget}}<text class="dd__grab-unit" wx:if="{{demand.pricing_type !== 'fixed'}}">/小时</text><text class="dd__grab-unit" wx:else> · 一口价</text></view>
         <view class="dd__grab-price" wx:else>公益免费</view>
       </view>
       <!-- 2026-11-05: 四态——本人已接单 / 已被接单 / 可接单 / 定向不可接(can_take 由服务端按 status+invited+broadcast 计算) -->
