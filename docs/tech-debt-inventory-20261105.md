@@ -218,6 +218,23 @@
 
 ---
 
+## §3.8 金额展示取整同类缺陷·双代理评审登记（2026-11-15）
+
+> 触发：用户真机发现「订单 19.90 元但首页显示 20 元」。根因：多处「分→元」用 `Math.round(fen/100)`，1990 分被抬成 20（DB 实证 `rate_fen=1990`）。真缺陷 5 处已修（commit `e036c0e6`，4 云函数部署，见 CHANGELOG）；测试盲区已封（[_shared/money-format.test.js](../cloudfunctions/_shared/money-format.test.js) 1990 分夹具 3 断言，原夹具全为整百、`ha_square_*`/`dp_detail_ok` 在 KNOWN_EVOLUTION 白名单 → 回退成 Math.round 仍全绿的盲区已消除）。
+
+| # | 事项 | 状态 | 处置 |
+|---|---|---|---|
+| M1 | admin 三处 WXML 直接 `{{item.total_fen / 100}}` 输出 ¥19.9 不补零（[admin/demands.wxml:9](../miniprogram/pages-v2/admin/demands.wxml)、[admin/orders.wxml:8](../miniprogram/pages-v2/admin/orders.wxml)、[admin/config.wxml:44](../miniprogram/pages-v2/admin/config.wxml)）——值正确仅缺补零；WXML 不支持函数调用，修复须先在页 JS 预计算 `*_text` 字段（3 文件） | **登记不修**（观感，值无错） | 择机改：admin 页 JS 加 `total_yuan`/`rate_yuan` 预计算 + wxml 引用 |
+| M2 | order-create 接单价格区间拦截 toast 4 处未补两位小数（[action_take.js:297/301/308/312](../cloudfunctions/order-create/action_take.js)），显示 "¥19.9"——值正确 | **登记不修**（观感，值无错） | 择机改 4 处 `toFixed(2)`，需部署 order-create |
+| M3 | partner-detail `getRateYuan`（[partner-detail.js:265](../miniprogram/pages-v2/partner-detail/partner-detail.js)）**全仓零调用为死代码**（双代理 A 证伪主对话原判「详情页时薪展示」） | **登记不修**（死代码，无用户可见影响） | 择机删除（§1 最小改动原则不顺手删） |
+| M4 | bootstrap `fenToYuan` 用 Math.round（[bootstrap.js:11](../miniprogram/utils/bootstrap.js)），仅喂整元配置限额（redline/wallet 数值比较），语义正确但易被误复用到金额展示 | **登记不修**（语义正确） | 择机补注释「仅限整元配置，金额展示禁用」 |
+| M5 | 编辑回填显示 19.9 不补零：[publish.js:245/253/415](../miniprogram/pages-v2/publish/publish.js) `String(d.budget)`、[confirm-flow.js:364](../miniprogram/utils/confirm-flow.js) `String(cur/100)`——数值正确（回写不失真），仅输入框观感 | **登记不修**（用户已确认可接受；**禁止改用 budget_text 回填**） | 若要补零改 `(fen/100).toFixed(2)`，勿用字符串契约字段 |
+| M6 | demand-publish `buildRecommendPartners` 推荐价区间 `Math.round(scoped/100)`（[index.js:324/327](../cloudfunctions/demand-publish/index.js)）——双代理 A 证伪主对话原判「筛选阈值」：实为 partner-card 展示（[partner-card/index.wxml:40](../miniprogram/components/partner-card/index.wxml)），数据源 `scene_rates` 被 accept-config.js:543 强制整元 → 取整无差异 | **登记不修**（值域恒整数） | 若日后放开非整元 scene_rates，须同步改 toFixed(2) |
+| M7 | admin-action `action_demand_order_views.js:68` 输出裸浮点 `total_yuan`（值对不补零）；admin-web 前端 `fenToYuan`（format.js:3）已 toFixed(2)，暂无直接渲染裸值方 | **登记不修**（无实害） | 若后续有人直接渲染 total_yuan，须统一为 toFixed(2) 口径 |
+| M8 | `cloudfunctions_baseline/` 冻结基线仍含旧 Math.round 实现（order-action.js:56、demand-publish.js:312）——不部署不生效，但作 A/B 对照与回滚源头 | **登记不修**（基线为冻结快照） | **禁止据 baseline 回滚金额相关文件**；如需回滚须手工带出 toFixed(2) 修复 |
+
+---
+
 ## §6 维护与体检
 
 - 规则体系季度体检：见[原清单 §规则体检台账](tech-debt-inventory-20261015.md)（下次到期 2027-01-05，`npm run rules:report`）。

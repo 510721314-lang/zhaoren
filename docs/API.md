@@ -196,6 +196,7 @@
 - **鉴权**：允许游客（无 openid 走游客视角，不做耍伴级过滤）；【待后端确认】游客可见字段边界。
 - **错误码**：`home_*`、`act_*`。
 - **集合**：`demand`、`order_main`（只读聚合）。
+- **需求价格字段契约（2026-11-15）**：`budget`（Number，元，保留精度如 `19.9`，供排序/数值比较/编辑回填 `String(d.budget)`）；`budget_text`（String，两位小数如 `"19.90"`，供直接展示补零）。`pricing_type==='fixed'` 取 `total_fen`，否则取 `rate_fen`。**禁止**把 `budget_text` 用于数值运算，也**禁止**回填展示改用 `budget_text`（会回写失真）。demand-publish 的 `detail`/`detail_light` 同契约（[action_query.js](../cloudfunctions/demand-publish/action_query.js)）。
 
 ### 3.14 `blog-action`
 
