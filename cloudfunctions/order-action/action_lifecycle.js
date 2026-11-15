@@ -467,6 +467,13 @@ async function start_reject(ctx) {
       body: '需求方连续 2 次未确认开始履约, 订单已转争议, 平台将介入核实',
       action_key: 'jump_order', action_payload: { order_id }
     });
+    // 2026-11-15 P3-8: 争议卡片双方可见 —— 需求方(发起拒绝一方)此前漏发, 补齐
+    writeNotice({
+      to_openid: order.user_openid, order_id, type: 'dispute_open',
+      title: '订单已转平台处理',
+      body: '开始履约连续 2 次未获确认, 订单已转争议, 平台将介入核实',
+      action_key: 'jump_order', action_payload: { order_id }
+    });
     await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_start_reject', target_type: 'order', target_id: order_id, detail: { status: 'S10.5', reject_count: rejectCount, escalated: true }, result: 'ok', client_ip: clientIp, device });
     return { ok: true, data: { order_id, status: 'S10.5', start_reject_count: rejectCount, escalated: true } };
   }
@@ -748,6 +755,13 @@ async function finish_reject(ctx) {
       to_openid: order.partner_openid, order_id, type: 'dispute_open',
       title: '连续未获确认,已转平台处理',
       body: '需求方连续 2 次未确认履约完毕, 订单已转争议, 平台将介入核实',
+      action_key: 'jump_order', action_payload: { order_id }
+    });
+    // 2026-11-15 P3-8: 争议卡片双方可见 —— 需求方(发起拒绝一方)此前漏发, 补齐
+    writeNotice({
+      to_openid: order.user_openid, order_id, type: 'dispute_open',
+      title: '订单已转平台处理',
+      body: '履约完毕连续 2 次未获确认, 订单已转争议, 平台将介入核实',
       action_key: 'jump_order', action_payload: { order_id }
     });
     await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_finish_reject', target_type: 'order', target_id: order_id, detail: { status: 'S10.5', reject_count: rejectCount, escalated: true }, result: 'ok', client_ip: clientIp, device });

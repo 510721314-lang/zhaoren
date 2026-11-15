@@ -73,7 +73,7 @@ async function getConfig() {
   try {
     const c = await getGlobalConfig(db);   // 30s 进程内缓存(2026-10-28 用量治理)
     if (c) return c;
-  } catch (e) {}
+  } catch (e) { log.w('order-timer config read fail, fallback defaults', e && e.message); }  // 2026-11-15 D批: 空 catch 补留痕(兜底默认值不变)
   return { s1_timeout_min: 15, s0_timeout_min: 30, interrupt_timeout_h: 24, eval_window_h: 48, default_star: 4, after_sale_days: 15, partial_judge_days: 7, start_apply_timeout_min: 15, finish_confirm_timeout_min: 30 };
 }
 
@@ -526,6 +526,13 @@ exports.main = async (event, context) => {
   const now = Date.now();
   _backlog.length = 0; // 每次运行重置积压记录(模块级变量, 防热实例跨次累积)
 
+  // 2026-11-15 D批: deadline 安全退出 —— 剩余时间 <5s 跳过后续扫描段, 防函数超时被杀截断写操作;
+  // 心跳(error_scan)与游标(P3-28)不设闸, 每轮必跑(观测链不中断)
+  const t0 = now;
+  const hasTime = () => (context && typeof context.getRemainingTimeInMillis === 'function')
+    ? context.getRemainingTimeInMillis() >= 5000
+    : (Date.now() - t0) < 55000;
+
   // ── 注错演练(D7, 仅管理员): 写入一条 P1 演练事件 → 本次巡检立即捕获并推送, 验证巡检链路 ──
   if (event.drill && isAdmin) {
     try {
@@ -576,66 +583,68 @@ exports.main = async (event, context) => {
   };
 
   // ───────── 1. S1 待确认超时(created_at 起 15 分钟未完成四确认) → S6 + 释放需求 ─────────
-  await SECTIONS.processS1Timeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processS1Timeout(sectionCtx);
 
   // ───────── 1.5 S1 四确认变更协商超时(2026-11-04): 对方逾时未反馈 → 自动拒绝(值不变/8位保留) ─────────
-  await SECTIONS.processChangeTimeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processChangeTimeout(sectionCtx);
 
   // ───────── 1.6 S2 已支付待履约「地点/内容」变更超时(2026-11-05) → 自动拒绝(值不变/状态保持 S2) ─────────
-  await SECTIONS.processS2ChangeTimeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processS2ChangeTimeout(sectionCtx);
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 + 释放需求(与 S1 对称, 修 D12) ─────────
-  await SECTIONS.processS0Timeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processS0Timeout(sectionCtx);
 
   // ───────── 3. S3.5 中断超 24 小时 → S4(部分完成) ─────────
-  await SECTIONS.processInterruptPartial(sectionCtx);
+  if (hasTime()) await SECTIONS.processInterruptPartial(sectionCtx);
 
   // ───────── 3.6 S2.5 改期确认超时(默认2小时) → 自动拒绝, 回原状态, 不改服务时间 ─────────
-  await SECTIONS.processModifyTimeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processModifyTimeout(sectionCtx);
 
   // ───────── 3.7 S3 加时申请 expire_at 到期 → 自动拒绝(不加时, 服务时长不变) ─────────
-  await SECTIONS.processExtendTimeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processExtendTimeout(sectionCtx);
 
   // ───────── 3.9a S2.6 超时前提醒(G3, 2026-10-20): 须排在超时段之前(同轮内先提醒后超时) ─────────
-  await SECTIONS.processStartApplyRemind(sectionCtx);
+  if (hasTime()) await SECTIONS.processStartApplyRemind(sectionCtx);
 
   // ───────── 3.9 S2.6 开始履约申请超时(15min) → S10.5 争议(阶段G, no.26) ─────────
-  await SECTIONS.processStartApplyTimeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processStartApplyTimeout(sectionCtx);
 
   // ───────── 3.10a S3.6 超时前提醒(G3, 2026-10-20): 须排在超时段之前 ─────────
-  await SECTIONS.processFinishConfirmRemind(sectionCtx);
+  if (hasTime()) await SECTIONS.processFinishConfirmRemind(sectionCtx);
 
   // ───────── 3.10 S3.6 履约完毕确认超时(30min) → S10.5 争议(阶段G, no.30) ─────────
-  await SECTIONS.processFinishConfirmTimeout(sectionCtx);
+  if (hasTime()) await SECTIONS.processFinishConfirmTimeout(sectionCtx);
 
   // ───────── 3.8 账号停用到期恢复(2026-10-12 批1.2) ─────────
-  await SECTIONS.processSuspendRestore(sectionCtx);
+  if (hasTime()) await SECTIONS.processSuspendRestore(sectionCtx);
 
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
-  await SECTIONS.processMilestoneConfirm(sectionCtx);
+  if (hasTime()) await SECTIONS.processMilestoneConfirm(sectionCtx);
 
   // ───────── 4. S5 完成超 48 小时未评价 → 系统默认 4 星 → S9 ─────────
-  await SECTIONS.processAutoEval(sectionCtx);
+  if (hasTime()) await SECTIONS.processAutoEval(sectionCtx);
 
   // ───────── 4.5 S8 售后窗口届满 → S10 归档(Wave2 止血④): 给 S10 唯一合法生产方 ─────────
-  await SECTIONS.processS8Archive(sectionCtx);
+  if (hasTime()) await SECTIONS.processS8Archive(sectionCtx);
 
   // ───────── 4.6 S4 部分完成裁定期届满 → 平台介入工单(Wave2 止血③): 防双方僵持永久滞留 ─────────
-  await SECTIONS.processS4Escalate(sectionCtx);
+  if (hasTime()) await SECTIONS.processS4Escalate(sectionCtx);
 
   // ───────── 4.7 S2 履约催办三段式(Wave2 止血⑥) ─────────
   let urgeRemind = null;
-  try { urgeRemind = await processUrgeReminder(now, cfg); }
-  catch (e) { log.d(`urge remind fail: ${e.message}`); }
+  if (hasTime()) {
+    try { urgeRemind = await processUrgeReminder(now, cfg); }
+    catch (e) { log.d(`urge remind fail: ${e.message}`); }
+  }
 
   // ───────── 4.8 争议单超期升级(2026-10-13 留存负债闭环): 争议发起超 dispute_escalate_d 天未裁决 → P1 平台事件 ─────────
-  await SECTIONS.processDisputeEscalate(sectionCtx);
+  if (hasTime()) await SECTIONS.processDisputeEscalate(sectionCtx);
 
   // ───────── 4.9 爽约申诉举证逾期(ISS-011, 2026-10-31): 标记逾期 + 升级管理员(不自动裁定) ─────────
-  await SECTIONS.processNoShowDefenseOverdue(sectionCtx);
+  if (hasTime()) await SECTIONS.processNoShowDefenseOverdue(sectionCtx);
 
   // ───────── 4.10 到点未履约提醒(批2, 2026-11-01): S2 过约定开始 grace 分钟 → 双方各 1 条"可提交爽约申诉"(不判定) ─────────
-  await SECTIONS.processNoShowGuide(sectionCtx);
+  if (hasTime()) await SECTIONS.processNoShowGuide(sectionCtx);
 
   // ───────── 5. error_scan 巡检(D7) ─────────
   let errorScanResult = null;

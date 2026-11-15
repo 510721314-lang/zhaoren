@@ -171,7 +171,7 @@ async function processStartApplyRemind(ctx) {
             title: s.title, body: s.body,
             action_key: 'jump_order', action_payload: { order_id: o._id },
             created_at: now, read: false
-          }}).catch(() => {});
+          }}).catch((e) => log.w('s2_6 remind notice add fail', e && e.message));  // 2026-11-15 D批: 空兜底补留痕
         }
         sent.push(o.order_no + ':' + s.stage);
         log.d(`remind ${s.stage} -> user: ${o.order_no}`);
@@ -202,7 +202,7 @@ async function processFinishConfirmRemind(ctx) {
             title: s.title, body: s.body,
             action_key: 'jump_order', action_payload: { order_id: o._id },
             created_at: now, read: false
-          }}).catch(() => {});
+          }}).catch((e) => log.w('s3_6 remind notice add fail', e && e.message));  // 2026-11-15 D批: 空兜底补留痕
         }
         sent.push(o.order_no + ':' + s.stage);
         log.d(`remind ${s.stage} -> user: ${o.order_no}`);

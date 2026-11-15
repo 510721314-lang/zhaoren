@@ -1,11 +1,11 @@
 {
   "note": "空 catch 增量门基线（只增不追溯）。刷新：node scripts/check-silent-catch.js --write",
-  "generated_at": "2026-11-14",
+  "generated_at": "2026-11-15",
   "patterns": [
     "catch (e) {}",
     ".catch(() => {})"
   ],
-  "total": 255,
+  "total": 250,
   "files": {
     "cloudfunctions/_shared/ab_equivalence.js": 1,
     "cloudfunctions/_shared/admin-login.js": 4,
@@ -32,7 +32,7 @@
     "cloudfunctions/blog-action/audit.js": 1,
     "cloudfunctions/blog-action/index.js": 5,
     "cloudfunctions/demand-match/heal.js": 1,
-    "cloudfunctions/demand-match/index.js": 2,
+    "cloudfunctions/demand-match/index.js": 1,
     "cloudfunctions/demand-publish/action_query.js": 1,
     "cloudfunctions/demand-publish/action_update.js": 1,
     "cloudfunctions/demand-publish/audit.js": 1,
@@ -47,14 +47,12 @@
     "cloudfunctions/init-db/action_seed.js": 1,
     "cloudfunctions/init-db/audit.js": 1,
     "cloudfunctions/init-db/index.js": 3,
-    "cloudfunctions/order-action/action_lifecycle.js": 1,
     "cloudfunctions/order-action/audit.js": 1,
     "cloudfunctions/order-action/index.js": 12,
     "cloudfunctions/order-create/action_take.js": 2,
     "cloudfunctions/order-create/audit.js": 1,
     "cloudfunctions/order-create/heal.js": 1,
-    "cloudfunctions/order-timer/action_timeout.js": 2,
-    "cloudfunctions/order-timer/index.js": 4,
+    "cloudfunctions/order-timer/index.js": 3,
     "cloudfunctions/partner-action/action_config.js": 1,
     "cloudfunctions/partner-action/action_exam.js": 2,
     "cloudfunctions/partner-action/action_public.js": 3,
