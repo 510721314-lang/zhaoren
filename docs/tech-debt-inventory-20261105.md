@@ -241,3 +241,14 @@
 - 规则体系季度体检：见[原清单 §规则体检台账](tech-debt-inventory-20261015.md)（下次到期 2027-01-05，`npm run rules:report`）。
 - 每次处置负债：更新本表状态 + 日期 + 证据（命令回执/后台字段/真机谁验），并同步 [CHANGELOG](CHANGELOG.md) 与 [FUNCTION-REGISTRY](FUNCTION-REGISTRY.md)。
 - 真值优先级：云端回读 > 本清单 > [HANDOFF-20261103](HANDOFF-20261103.md) > CHANGELOG > 助手记忆。
+
+---
+
+## §7 2026-11-15 立项登记 · 选单模式与接单开关（开放）
+
+> 来源：选单模式真机回归期间双代理评审（A 事实核验 / B 方案设计）2/2 确认。用户已批准「另案」处置，本轮不实施。
+
+| # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
+|---|---|---|---|---|
+| P3-37 | 「报名」侧不校验 `accept_switch`，与「接单」侧行为不一致 | 接单侧硬门禁 [action_take.js:69-72](../cloudfunctions/order-create/action_take.js) 返 `order_switch_off`；报名侧 [demand-match/index.js:341-342](../cloudfunctions/demand-match/index.js) 仅校验信用分与实名，**无 accept_switch 判断** | 已暂停接单的耍伴若能拿到需求详情（站内推送按 `accept_switch` 已排除，见 demand-publish/index.js:267 / order-timer/index.js:365），前端 `take-order` 探针会拦（`switch_off`），但**绕过前端直调云函数可报名成功**；发布者候选名单会出现「已暂停接单」的耍伴 | 在 `demand-match` apply 分支补 `accept_switch === false → apply_switch_off`（需改云函数并部署）；同步补入口契约断言。**实施前须走「先说后做」**，属 §3 高危（云函数 + 门禁语义） |
+| P3-38 | `workbench` 页属孤儿页（全仓零用户入口） | 唯一跳转曾为 [take-order.js:109](../miniprogram/utils/take-order.js)（2026-11-15 随方案 A 已回滚为 accept-config）；`app.json:17` 注册但 tabBar 仅 4 项（[:104-109](../miniprogram/app.json)）；`scripts/auto-ui-pages.js:419` 为自动化脚本调用，非用户入口 | 该页承载的接单开关、周日历、待办、SOS 等功能用户不可达（接单开关已随方案 A 下沉到 accept-config，其余仍未暴露） | 三选一待用户裁定：①补 1 行入口挂到「我的 → 我是耍伴」快捷入口；②冻结为孤儿页并登记（现状）；③下线（须改 `app.json`，另案）。**本轮不动** |
