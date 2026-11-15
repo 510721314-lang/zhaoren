@@ -284,11 +284,12 @@ Page({
       slots = pickSlots(p.weekly_slots) || pickSlots(local.weeklySlots) || this.data.form.weeklySlots;
 
       // 接单价格区间(元/小时): 云端存分; 未设置 → 本地 → 默认
+      // 2026-11-15: 支持小数(如 50.5 元/时), 回填不再 Math.round 取整(原写法 5050 分回显成 51)
       const minYuan = (p.accept_rate_min_fen !== null && p.accept_rate_min_fen !== undefined)
-        ? Math.round(p.accept_rate_min_fen / 100)
+        ? String(p.accept_rate_min_fen / 100)
         : (local.minPrice || PA.defaultMinPrice);
       const maxYuan = (p.accept_rate_max_fen !== null && p.accept_rate_max_fen !== undefined)
-        ? Math.round(p.accept_rate_max_fen / 100)
+        ? String(p.accept_rate_max_fen / 100)
         : (local.maxPrice || PA.defaultMaxPrice);
 
       // 一口价客单价区间(元; null/空=不限)
@@ -437,12 +438,13 @@ Page({
     this._syncSlots();
   },
 
+  // 2026-11-15: 价格区间支持小数, 保留原始输入字符串(原 Number() 化回绑会吞掉小数点, 50. 输不进去)
   onMinPriceInput(e) {
-    this.setData({ 'form.minPrice': Number(e.detail.value) || 0 });
+    this.setData({ 'form.minPrice': String(e.detail.value || '').trim() });
   },
 
   onMaxPriceInput(e) {
-    this.setData({ 'form.maxPrice': Number(e.detail.value) || 0 });
+    this.setData({ 'form.maxPrice': String(e.detail.value || '').trim() });
   },
 
   // 一口价客单价区间(元; 空字符串=不限)
