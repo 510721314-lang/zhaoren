@@ -1,0 +1,28 @@
+window.langCdns = {
+  "fileNames": {
+    "ar-AR": "ar-AR.22fd4f4fe1d57a51.js",
+    "de-DE": "de-DE.f7633cfe5c74cbac.js",
+    "en-GB": "en-GB.68152bf3b75acf64.js",
+    "en-US": "en-US.0987de3ac8f2b9cc.js",
+    "es-419": "es-419.534b2fd5b3d125cd.js",
+    "es-ES": "es-ES.eca199c30513c0b7.js",
+    "fil-PH": "fil-PH.46b9aa7c1901c092.js",
+    "fr-FR": "fr-FR.f3ae2d4479ab0ace.js",
+    "hi-IN": "hi-IN.541e7e76e5da87e0.js",
+    "id-ID": "id-ID.e21751f1e26de408.js",
+    "it-IT": "it-IT.c75d84225ebd2457.js",
+    "ja-JP": "ja-JP.e9a9d59caaad3500.js",
+    "ko-KR": "ko-KR.d8620522c542660a.js",
+    "ms-MY": "ms-MY.53c65d4424678a54.js",
+    "pt-BR": "pt-BR.43860590a22b7ebd.js",
+    "ru-RU": "ru-RU.27c32ffdb9b7153a.js",
+    "th-TH": "th-TH.3005c358607da12a.js",
+    "tr-TR": "tr-TR.085e1c65c559e5f5.js",
+    "uz-UZ": "uz-UZ.462f99468a54c08d.js",
+    "vi-VN": "vi-VN.76c318762f27ecaf.js",
+    "zh-CN": "zh-CN.6e9890cf9356ae1b.js",
+    "zh-HK": "zh-HK.7fbfc93555ae01de.js",
+    "zh-TW": "zh-TW.ab8a33c6a65a67c4.js"
+  },
+  "pathPrefix": "/ccm-vmok/web/office/lang/"
+}

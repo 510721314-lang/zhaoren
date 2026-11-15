@@ -1,0 +1,26 @@
+.permission-copy-fail-toast.ud__notice--outlined{font-weight:500!important}.permission-copy-fail-toast .ud__notice__description{flex-wrap:wrap!important}.permission-copy-fail-toast .ud__notice__statusIcon{margin-top:3px!important}.ccm-scope .benefit-expired-dialog .ud__modal__header{padding-bottom:8px!important}.ccm-scope .benefit-expired-dialog .benefit-title{display:flex}.ccm-scope .benefit-expired-dialog .benefit-title .universe-icon{font-size:24px;height:24px;margin-right:16px;width:24px}
+/*! *****************************************************************************
+                              这里是与设计对其的标准色盘
+注意：所有的颜色须从色盘中提取，不得擅自添加颜色。若设计师给出的UI稿中带有色盘中不存在的颜色，
+请与王坤联系并确认。
+***************************************************************************** */
+/*! **************************************
+        Naming Rule:
+          modules(BEM) + rule name
+
+        Example:
+          @main-container-bg
+*****************************************/.modal-wrap .ud__modal__content{backface-visibility:hidden;position:relative;z-index:1200}.modal-wrap .ud__modal__content a.local-url{color:var(--colorful-blue);word-break:break-all}.modal-wrap .ud__modal__content .modal__action{border-radius:6px;font-size:14px;height:32px;line-height:14px;margin-left:8px;padding:0 20px}.modal-wrap .ud__modal__content .modal__extra{background-color:var(--N00);border:1px solid var(--colorful-blue);color:var(--colorful-blue);transition:all .2s}.modal-wrap .ud__modal__content .modal__extra:hover{background-color:var(--B100);border-color:var(--colorful-blue);color:var(--colorful-blue)}.modal-delete-source-slide .modal__cancel{background-color:var(--bg-body);border:1px solid var(--line-border-card);color:var(--text-title)}.modal-delete-source-slide .modal__cancel:hover{background-color:var(--bg-filler);border-color:var(--N200-BD)}.modal-delete-source-slide .modal__confirm{background:var(--R500-BG);border-color:var(--R500-BD)}.modal-delete-source-slide .modal__confirm:hover{background:var(--ccmtoken-doc-highlightcolor-red-solid);border-color:var(--ccmtoken-doc-highlightcolor-red-solid)}
+
+/*! *****************************************************************************
+                              这里是与设计对其的标准色盘
+注意：所有的颜色须从色盘中提取，不得擅自添加颜色。若设计师给出的UI稿中带有色盘中不存在的颜色，
+请与王坤联系并确认。
+***************************************************************************** */
+/*! **************************************
+        Naming Rule:
+          modules(BEM) + rule name
+
+        Example:
+          @main-container-bg
+*****************************************/.innerdocbody.adit-container ul.r-list-done li{color:var(--text-caption)}.crash-dialog__footer__btn.ud__button{margin-left:8px}
