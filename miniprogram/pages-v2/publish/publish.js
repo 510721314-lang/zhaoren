@@ -416,7 +416,8 @@ Page({
         'form.aa_estimate': d.aa_estimate || '',
         'form.aa_custom': '',
         'form.gender_pref': d.gender_pref || '不限',
-        'form.match_mode': d.match_mode || 'broadcast',
+        // 2026-11-15 修复: 快照不保存邀请对象, 定向模式回填后必然发不出去 → 降级广场广播
+        'form.match_mode': (d.match_mode === 'direct' && !this.invitePartnerOpenid) ? 'broadcast' : (d.match_mode || 'broadcast'),
         titleCount: (d.title || '').length,
         descCount: (d.description || '').length
       });
@@ -440,7 +441,12 @@ Page({
   },
   restoreDraft(e) {
     // 拆分阶段3 B(2026-10-16): 外移 utils/draft-store.js(经用户书面批准逐字搬迁); 20 条叶子路径在模块内逐字保留
+    const boxWasOpen = this.data.draftBoxVisible;   // 恢复成功会关弹层, 据此判定是否真的回填了
     const r = restoreDraft(this, e);
+    // 2026-11-15 修复: 草稿不保存邀请对象, 存的是定向模式则回退广场广播, 否则恢复后发不出去
+    if (boxWasOpen && !this.data.draftBoxVisible && !this.invitePartnerOpenid && this.data.form.match_mode === 'direct') {
+      this.setData({ 'form.match_mode': 'broadcast' });
+    }
     // 2026-10-18: 草稿不经服务端字数校验(save_draft 不查长度), 旧草稿可能存于历史上限(500)下
     // → 恢复后按当前标题/描述各自上限夹紧, 否则用户恢复草稿提交仍会被服务端拒
     this._clampText();
@@ -796,14 +802,16 @@ Page({
       wx.showToast({ title: '智能派单为高信用耍伴专属', icon: 'none' });
       return;
     }
-    // 手动选定向邀约: 弹确认明确告知不入公共大厅
-    if (code === 'direct' && this.data.form.match_mode !== 'direct') {
+    // 2026-11-15 修复: 本页无选人控件, 手动选「定向邀约」会拿不到邀请对象,
+    // 提交时必被「定向邀约缺少指定耍伴」拦下且只能切广播 → 此处只提示正确入口, 不切换模式
+    if (code === 'direct' && !this.invitePartnerOpenid) {
       wx.showModal({
         title: '定向邀约说明',
-        content: '定向邀约需求不会出现在公共大厅，只有指定的耍伴能看到并接单。请确保你已经在耍伴主页点击了「邀TA帮忙」。',
+        content: '定向邀约需先到耍伴主页点「邀TA帮忙」进入发布页，本页无法指定耍伴。',
         confirmText: '知道了',
         showCancel: false
       });
+      return;
     }
     this.setData({ 'form.match_mode': code });
   },
