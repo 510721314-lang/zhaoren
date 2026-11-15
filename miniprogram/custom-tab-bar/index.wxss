@@ -5,8 +5,10 @@
   bottom: 0;
   height: calc(100rpx + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  background: var(--bg-card);
-  border-top: 1rpx solid var(--border-2);
+  /* 2026-11-15 修复: 自定义 tabBar 不在 page 节点内, tokens.wxss 的 page 级 CSS 变量取不到,
+     原 var(--bg-card) 解析失败导致背景透明、列表内容透出与图标叠字; 用 var fallback 兜底 */
+  background: var(--bg-card, #FFFFFF);
+  border-top: 1rpx solid var(--border-2, #EEEEEE);
   z-index: 200;
 }
 .tabbar__tabs {
