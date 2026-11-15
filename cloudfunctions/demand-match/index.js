@@ -338,8 +338,10 @@ exports.main = async (event, context) => {
       }
       // 2026-11-15 选单模式立项: 报名资格轻量预检(实名+信用分)
       // 权威门禁(紧急联系人/考试证书/场景/时段/价格/每日上限)仍在 order-create.action_take 复核
-      const puRes = await col('partner_user').doc(openid).get().catch(() => ({ data: null }));
-      const partnerUser = (puRes && puRes.data) || {};
+      // 2026-11-15 修复: 实名/信用分改读 user_account(与 order-create.getUser 同口径);
+      // 此前误读不存在的 partner_user 集合, 致 partnerUser 恒为空、所有报名被 apply_realname_required 拦下
+      const puRes = await col('user_account').where({ openid }).limit(1).get().catch(() => ({ data: [] }));
+      const partnerUser = (puRes.data && puRes.data[0]) || {};
       if (!partnerUser.is_realname_done) {
         return { ok: false, code: 'apply_realname_required', msg: '请先完成实名认证后再报名' };
       }

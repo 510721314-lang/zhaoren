@@ -16,7 +16,8 @@ Component({
     certName: '',
     distanceText: '',
     publisherText: '',
-    closed: false
+    closed: false,
+    actionLabel: '⚡ 抢单'
   },
   observers: {
     'demand,grabbed': function () { this.compute(); }
@@ -39,7 +40,9 @@ Component({
         certName: scene ? scene.cert : '',
         distanceText,
         publisherText,
-        closed: this.properties.grabbed || d.status !== 'matching'
+        closed: this.properties.grabbed || d.status !== 'matching',
+        // 选单模式按钮文案改为「报名」, 避免与抢单混淆(点击后仍走 take-order 的报名分支)
+        actionLabel: d.match_mode === 'select' ? '📝 报名' : this.properties.actionText
       });
     },
     // 发布时间: ISO 8601 本地时区格式 YYYY-MM-DDTHH:MM:SS±HH:MM
