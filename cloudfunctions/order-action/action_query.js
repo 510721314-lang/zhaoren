@@ -453,6 +453,7 @@ async function notice_list(ctx) {
   return { ok: true, data: { list: decorated, unread: unread.total } };
 }
 
+// @VERIFIED 2026-11-15 已真机验证：since_ts 增量 + server_now（T-10.4，用户「测试通过」）
 async function notice_poll(ctx) {
   const { event, openid, col, _ } = ctx;
   if (!/^[a-f0-9]{32}$/i.test(String(event.order_id || ''))) {
