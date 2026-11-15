@@ -99,7 +99,7 @@ alwaysApply: true
 - **平台记忆只作旁证不作凭据**：`C:\Users\DC\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\YYYYMMDD\session_memory_*.jsonl` 当日存在，仅证明平台侧已写；缺失或内容被压缩时**以 docs + git 为准**，禁止向用户声称"已保存"而无 docs 凭据。
 - 存档提交沿用 §3/§9 纪律：单独 docs commit、不与代码混合、commit 与 push 分两步；一般会话不强制每次 push，收工日按备份六通道核对时一并 push。
 
-## 10–40. 实证型高危条款
+## 10–41. 实证型高危条款
 
 - §10–§13 重构/上线：A/B0差≠正确须补盲区；先commit再deploy；写操作防连点。
 - §14–§17 文案/迁移：toast≤14字；配置只认实测；部署逐个核验；迁移6项自证。
@@ -113,6 +113,7 @@ alwaysApply: true
 - §38 CLI 库流程测→zhaoren-frequent-flows。
 - §39 数据对账：脱敏字段读写双侧须实测对账（双侧grep），禁单侧推断；#147。
 - §40 入口可达性：写入口禁落孤儿页；「去XX」落点须真解该码；安全入口禁限单身份→miniprogram-entry-reachability。
+- §41 验证前置与时点：外部通道先探针（未通禁验·只登记待恢复）；后台任务以进程枚举为准；台账门禁分「落笔前基线/落笔后复跑」；待办改判与落点表同批。
 
 ## 附录A · 不可变红线（`.trae/rules.md` §三）
 

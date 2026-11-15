@@ -199,6 +199,20 @@ Get-Content "$env:USERPROFILE\.gitconfig"
 
 ---
 
+## 陷阱 10：提示「后台命令仍在跑」≠ 命令真的在跑（2026-11-15 实证）
+
+**现象**：会话提示 `timed_out_moved_to_background` / `Background command is still running`，据此一直等待，或不敢重跑。
+
+**取证（只读）**：
+```powershell
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' } |
+  Select-Object ProcessId, Name, CreationDate, CommandLine | Format-List
+```
+
+**判读**：只剩 MCP 常驻 `node`（`miniapp-mcp … cli.js`）、`wxfilewatcher_x64`、本命令自身 `powershell` → 原命令已结束；无 npm/node 的 `verify` / `test` 进程即无残留，可安全重跑。禁凭提示等待，禁不改参数重复同一命令。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -209,6 +223,7 @@ Get-Content "$env:USERPROFILE\.gitconfig"
 6. ✅ `Get-ChildItem -Recurse` 限定路径
 7. ✅ 没有三元运算符
 8. ✅ 路径用 `$env:USERPROFILE` 不用 `~`
+9. ✅ 提示「后台命令仍在跑」时先用 `Get-CimInstance Win32_Process` 枚举命令行核对
 
 ## 实测踩坑记录（2026-09-21）
 
