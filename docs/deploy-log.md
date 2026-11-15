@@ -8,6 +8,7 @@
 
 | 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |
 |---|---|---|---|---|---|---|
+| 2026-11-15 | 小程序（体验版上传） | `ad20d3f9` | `ad20d3f9` | 未归档 | `ad20d3f9`（回退 = mp 后台重传上一版 v1.6.125） | 体验版 **v1.6.126** 上传：CLI EXIT=0 / ✔ upload / TOTAL **812.1 KB**（main 567.3 KB）；描述「接单价格区间支持小数（回填不取整+输入保留小数点）」；代码基线含 fa210312 价格小数修复；门禁全绿当轮实跑（npm test exit 0 / A/B EQUIVALENT 455 / SYNTAX 291 OK / SSOT 0 / SHARED SYNC OK） |
 | 2026-11-15 | 小程序（体验版上传） | `21343db8` | `21343db8` | 未归档 | `21343db8`（回退 = mp 后台重传上一版 v1.6.124） | 体验版 **v1.6.125** 上传：CLI EXIT=0 / ✔ upload / TOTAL **812.1 KB**；描述「金额展示修复: 接单价格区间toast/编辑回填/admin三页金额补零两位小数(toFixed(2))」；代码基线 = M5 回填（`7373e4a3`）+ M1 三小轮（`fac60654`/`8df80b53`/`21343db8`）；门禁 verify EXIT=0 / 49/49 PASS / fail 0 |
 | 2026-11-15 | order-create | `5cff4d69` | `5cff4d69` | 未建（先提交后部署） | `5cff4d69^`（回滚 = `git checkout 5cff4d69^ -- cloudfunctions/order-create` 后重部署） | **A1/M2 接单价格区间 toast 两位小数**：action_take.js L297/301/308/312 四处 ¥\${x/100} 整数渲染改 toFixed(2)；补 2 条守护断言（19901/4999 非整百夹具锁 ¥199.01/¥49.99）；单函数 deploy **success=true**（11 files/33.4 KB）；SHA 回读 **11/11 MATCH**；门禁 49/49 PASS / 982/982 / A/B 455 |
 | 2026-11-15 | admin-web | `17ff9a7c` | `17ff9a7c` | 未建（先提交后部署） | `17ff9a7c^`（回滚 = `git checkout 17ff9a7c^ -- cloudfunctions/admin-web` 后重部署） | **F6+C 批：502 兜底统一**——新增 failJson 502 兜底 helper 1 + 调用点 12（2026-11-15 评审复核口径，原记 13 含函数定义；错误细节 console.error 进云函数日志，响应只回通用文案不泄内部实现）+ F8 tip 探活逐单串行查流水改 Promise.all；单函数 deploy **success=true**（4 files）；SHA 回读 **4/4 MATCH**；门禁 49/49 PASS |
