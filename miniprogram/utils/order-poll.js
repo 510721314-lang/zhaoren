@@ -31,9 +31,18 @@ function startTipPoll(page) {
   page.__shownTipIds = page.__shownTipIds || {};
   page._tipTimer = setInterval(() => {
     const orderId = page.data.order.order_id;
-    callCloud('order-action', { action: 'notice_poll', order_id: orderId }).then((r) => {
+    // 2026-11-15 T-10.4: 增量拉取——since_ts 取上次见过的最大 created_at（服务端时间域，天然规避本地时钟漂移）；
+    // 回退 1ms 防「同毫秒新通知」被 gt 漏掉，重复项由 __shownTipIds / once 去重兜底
+    const sinceTs = page.__lastNoticeTs ? Math.max(0, page.__lastNoticeTs - 1) : 0;
+    const req = { action: 'notice_poll', order_id: orderId };
+    if (sinceTs > 0) req.since_ts = sinceTs;
+    callCloud('order-action', req).then((r) => {
       const d = r && r.ok && r.data;
       if (!d || !d.list || !d.list.length) return;
+      d.list.forEach((n) => {
+        const ts = Number(n && n.created_at) || 0;
+        if (ts > (page.__lastNoticeTs || 0)) page.__lastNoticeTs = ts;
+      });
       // 多次打赏/多通知: 依次追加到列表, 已展示过的不再重复
       const fresh = d.list.filter((n) => n && n.id && !page.__shownTipIds[n.id + '|' + (n.created_at || 0)]);
       if (!fresh.length) return;
