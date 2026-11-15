@@ -434,6 +434,28 @@ Page({
     wx.navigateTo({ url: '/pages-v2/nearby-map/nearby-map', fail: () => wx.showToast({ title: '地图页暂不可用', icon: 'none' }) });
   },
 
+  // 2026-11-15 P3-39: 无单紧急求助(红线附录A 第9条) —— 纯需求方可直接用, 云端 free_sos 不校验角色
+  // 三态流程统一走 utils/free-sos.js; 本层只负责「拨号/仅上报」的二次确认
+  onFreeSos() {
+    wx.showModal({
+      title: '紧急求助',
+      content: '将向平台安全中心上报求助，并可拨打110报警',
+      confirmText: '拨号上报',   // wx.showModal confirmText 限 ≤4 字符
+      cancelText: '仅上报',
+      confirmColor: '#fa5151',
+      fail: () => wx.showToast({ title: '弹窗加载失败', icon: 'none' }),
+      success: (res) => {
+        if (!res.confirm && !res.cancel) return;
+        require('../../utils/free-sos.js').startFreeSos('profile');
+        if (res.confirm) {
+          wx.makePhoneCall({ phoneNumber: '110', fail: () => wx.showToast({ title: '请手动拨打110', icon: 'none' }) });
+        } else {
+          wx.showToast({ title: '已通知客服', icon: 'success' });
+        }
+      }
+    });
+  },
+
   // 用户工作台 → 需求/订单详情(按 item_type 区分跳转)
   goDemandDetail(e) {
     const it = e.currentTarget.dataset.item;

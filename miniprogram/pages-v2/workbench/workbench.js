@@ -300,38 +300,8 @@ Page({
     });
   },
 
-  // P2-11 自由求助: 无订单报警 —— 已有进行中的求助则询问解除, 否则上报 P0 事件
-  freeSosFlow() {
-    callCloud('safety-report', { action: 'free_sos_status' }).then((r) => {
-      if (!r.ok) {
-        wx.showToast({ title: '状态查询失败,请直接拨打110', icon: 'none' });
-        return;
-      }
-      if (r.data && r.data.active) {
-        wx.showModal({
-          title: '已有进行中的求助',
-          content: '你已上报过自由求助,是否解除？',
-          confirmText: '解除求助',
-          confirmColor: '#fa5151',
-          fail: () => wx.showToast({ title: '弹窗加载失败', icon: 'none' }),
-          success: (m) => {
-            if (!m.confirm) return;
-            callCloud('safety-report', { action: 'free_sos_resolve', report_id: r.data.report_id }).then((x) => {
-              wx.showToast({ title: x.ok ? '已解除求助' : (x.msg || '解除失败'), icon: 'none' });
-            }).catch(() => wx.showToast({ title: '网络异常,解除失败', icon: 'none' }));
-          }
-        });
-        return;
-      }
-      callCloud('safety-report', { action: 'free_sos', source: 'workbench' }).then((x) => {
-        if (!x.ok) {
-          wx.showToast({ title: '上报失败, 请直接拨打110', icon: 'none' });
-          return;
-        }
-        wx.showToast({ title: '已上报平台安全中心', icon: 'none', duration: 2500 });
-      }).catch(() => wx.showToast({ title: '网络异常, 请直接拨打110', icon: 'none' }));
-    }).catch(() => wx.showToast({ title: '网络异常, 请直接拨打110', icon: 'none' }));
-  },
+  // P2-11 自由求助: 无订单报警 —— 三态逻辑已统一到 utils/free-sos.js(2026-11-15 P3-39 去重, 行为逐字不变)
+  freeSosFlow() { return require('../../utils/free-sos.js').startFreeSos('workbench'); },
   onReserve() { require('../../utils/redline.js').reserveNotice(); },
 
   // ─── T-7.3 附近新单轮询(与首页逐字同构, 仅 workbench tab 可见期间轮询) ───
