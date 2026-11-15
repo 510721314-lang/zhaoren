@@ -403,7 +403,8 @@
     "extend: 原因类型缺失拒绝（oa_extend_reason_type）",
     "extend: 2-20 字文案类型放行 → ok + CAS 写 pending_extend",
     "notice_poll: 非法 order_id → oa_bad_order",
-    "notice_poll: 有未读站内信 → has_new=true 且 list 字段形状固定"
+    "notice_poll: 有未读站内信 → has_new=true 且 list 字段形状固定",
+    "notice_poll: since_ts 只返回增量且 server_now 存在（缺省向后兼容）"
   ],
   "cloudfunctions/_shared/order-create.entry.test.js": [
     "无 OPENID 且无 mock_openid → order_no_openid",

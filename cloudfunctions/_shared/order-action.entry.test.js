@@ -1102,5 +1102,21 @@ test('notice_poll: 有未读站内信 → has_new=true 且 list 字段形状固�
   assert.deepStrictEqual(Object.keys(r.data.list[0]).sort(), ['body', 'created_at', 'id', 'title', 'type']);
 });
 
+test('notice_poll: since_ts 只返回增量且 server_now 存在（缺省向后兼容）', async () => {
+  const store = baseStore();
+  store.system_notice = {
+    a: { _id: 'a', to_openid: USER, order_id: OID, read: false, type: 't', title: 't', body: 'b', created_at: 1000 },
+    b: { _id: 'b', to_openid: USER, order_id: OID, read: false, type: 't', title: 't', body: 'b', created_at: 2000 }
+  };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r1 = await main({ action: 'notice_poll', order_id: OID }, {});
+  assert.strictEqual(r1.data.list.length, 2, '缺省 since_ts 应返回全部未读（旧前端行为不变）');
+  assert.strictEqual(typeof r1.data.server_now, 'number');
+  const r2 = await main({ action: 'notice_poll', order_id: OID, since_ts: 1500 }, {});
+  assert.strictEqual(r2.data.list.length, 1, 'since_ts 应过滤掉更早的通知');
+  assert.strictEqual(r2.data.list[0].id, 'b');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

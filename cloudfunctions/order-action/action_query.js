@@ -454,14 +454,19 @@ async function notice_list(ctx) {
 }
 
 async function notice_poll(ctx) {
-  const { event, openid, col } = ctx;
+  const { event, openid, col, _ } = ctx;
   if (!/^[a-f0-9]{32}$/i.test(String(event.order_id || ''))) {
     return { ok: false, code: 'oa_bad_order', msg: '缺少有效订单 ID' };
   }
-  const r = await col('system_notice').where({ to_openid: openid, order_id: event.order_id, read: false })
+  // 2026-11-15 T-10.4: 增量拉取——since_ts 存在时只取其后新通知；缺省时不加时间条件，行为与旧版完全一致（向后兼容）
+  const sinceTs = Number(event.since_ts) || 0;
+  const q = { to_openid: openid, order_id: event.order_id, read: false };
+  if (sinceTs > 0) q.created_at = _.gt(sinceTs);
+  const r = await col('system_notice').where(q)
     .orderBy('created_at', 'desc').limit(20).get().catch(() => ({ data: [] }));
   const list = (r.data || []).map((n) => ({ id: n._id, type: n.type || '', title: n.title || '', body: n.body || '', created_at: n.created_at || 0 }));
-  return { ok: true, data: { has_new: list.length > 0, list } };
+  // server_now 供前端校正本地时钟漂移（旧版前端忽略该字段）
+  return { ok: true, data: { has_new: list.length > 0, list, server_now: Date.now() } };
 }
 
 async function notice_read(ctx) {
