@@ -20,6 +20,8 @@ function config_get(ctx) {
     timeouts: {
       s0_timeout_min: config.s0_timeout_min !== undefined ? config.s0_timeout_min : 30,
       s1_timeout_min: config.s1_timeout_min !== undefined ? config.s1_timeout_min : 15,
+      // 2026-11-15 选单立项: 选单模式确认后未接单的释放阈值
+      select_confirm_timeout_min: config.select_confirm_timeout_min !== undefined ? config.select_confirm_timeout_min : 15,
       interrupt_timeout_h: config.interrupt_timeout_h !== undefined ? config.interrupt_timeout_h : 24,
       eval_window_h: config.eval_window_h !== undefined ? config.eval_window_h : 48,
       default_star: config.default_star !== undefined ? config.default_star : 4,

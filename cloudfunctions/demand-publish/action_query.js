@@ -172,6 +172,14 @@ async function detail_action(ctx) {
           // 2026-11-05: 本人已接单 / 已被接单标记, 供详情页按钮三态渲染
           taken_by_me: d.status === 'matched' && d.matched_openid === openid,
           taken: d.status !== 'matching',
+          // 2026-11-15 选单模式立项: 我的报名态 / 被选中态 / 发布者视角报名人数(均不下发原始 openid)
+          applied_by_me: (d.applicants || []).some(a => a.openid === openid),
+          select_confirmed_me: (d.match_mode || 'broadcast') === 'select'
+            && d.status === 'matching' && d.matched_openid === openid,
+          // 发布者视角: 是否已确认某位耍伴(锁定后其余候选不可再选)
+          select_locked: (d.match_mode || 'broadcast') === 'select'
+            && d.status === 'matching' && !!d.matched_openid,
+          applicant_count: (d.creator_openid === openid) ? (d.applicants || []).length : undefined,
           publisher: {
             surname,
             real_name_verified: true,

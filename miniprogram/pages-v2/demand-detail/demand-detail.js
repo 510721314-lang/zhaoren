@@ -20,7 +20,10 @@ Page({
     isRedline: false,
     // C 可运营参数（供 WXML 绑定）
     confirmTimeoutMin: CONFIG.ORDER.confirmTimeoutMin,
-    loadErrMsg: ''
+    loadErrMsg: '',
+    // 2026-11-15 选单立项: 发布者视角的报名名单
+    applicants: [],
+    applicantCount: 0
   },
 
   onLoad(options) {
@@ -71,7 +74,59 @@ Page({
     if (!demand.is_owner && !this.__viewerCoords) {
       this.__collectViewerLoc(demand._id);
     }
+    // 2026-11-15 选单立项: 发布者拉取报名名单
+    this.__loadApplicants(demand);
     this.__scheduleOwnerWatch(demand);
+  },
+
+  // 2026-11-15 选单立项: 发布者查看报名名单(仅 select 模式且本人发布)
+  __loadApplicants(demand) {
+    if (!demand || !demand.is_owner || demand.match_mode !== 'select') return;
+    callCloud('demand-match', { action: 'applicant_list', demand_id: demand._id }).then((r) => {
+      if (r && r.ok && r.data) {
+        this.setData({
+          applicants: Array.isArray(r.data.list) ? r.data.list : [],
+          applicantCount: r.data.applicant_count || 0
+        });
+      }
+    }).catch(() => { /* 名单加载失败不阻断详情展示 */ });
+  },
+
+  // 2026-11-15 选单立项: 发布者确认选择某位报名耍伴(二次确认 + 防连点)
+  onSelectApplicant(e) {
+    const token = e.currentTarget.dataset.token;
+    const name = e.currentTarget.dataset.name || '该耍伴';
+    if (!token || this.__confirming) return;
+    this.__confirming = true;
+    wx.showModal({
+      title: '确认选择',
+      content: `确认选择「${name}」承接该需求？对方收到通知后需尽快接单。`,
+      confirmText: '确认', // 上限 4 字符
+      cancelText: '取消',
+      success: (mr) => {
+        if (!mr.confirm) { this.__confirming = false; return; }
+        callCloud('demand-match', {
+          action: 'confirm_apply', demand_id: this.data.demand._id, partner_token: token
+        }).then((r) => {
+          this.__confirming = false;
+          if (r && r.ok) {
+            wx.showToast({ title: '已确认,等待对方接单', icon: 'none', duration: 2000 });
+          } else {
+            const tip = {
+              confirm_conflict: '该需求已确认其他耍伴',
+              confirm_not_applicant: '该耍伴未报名',
+              confirm_closed: '该需求已不可确认'
+            }[(r && r.code) || ''];
+            wx.showToast({ title: tip || '确认失败', icon: 'none' });
+          }
+          this.reload();
+        }).catch(() => {
+          this.__confirming = false;
+          wx.showToast({ title: '确认失败,请稍后重试', icon: 'none' });
+        });
+      },
+      fail: () => { this.__confirming = false; }
+    });
   },
 
   // 耍伴实时定位(仅非发布者触发; 授权失败/拒绝/超时 → 兜底仅显示地址, 不阻断页面)
@@ -191,6 +246,8 @@ Page({
     // 直接进接单链路: 免责声明 modal(同意并接单) → 定位 → 建单
     // 不用 bottom-sheet 二次确认(真机渲染不可靠, 与免责声明根治同一方案)
     takeOrder(demand, {
+      // 2026-11-15 选单立项: 报名成功后刷新详情(按钮切到「已报名」态)
+      onApplied: () => this.reload(),
       onSuccess: (data) => {
         // 2026-11-05: 接单成功即失效首页/广场 SWR 列表缓存(否则 10 分钟内仍把已接单需求显示为可接单)
         try {

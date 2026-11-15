@@ -57,6 +57,21 @@
         <partner-card partner="{{item}}" bind:cardtap="onPartnerTap" bind:invite="onPartnerTap" bind:more="onBlogMore"></partner-card>
       </view>
     </scroll-view>
+
+    <!-- 2026-11-15 选单立项: 发布者视角报名名单(仅选单模式, 名单由 demand-match.applicant_list 下发, 不含 openid) -->
+    <block wx:if="{{isOwner && demand.match_mode === 'select'}}">
+      <view class="dd__section-title">报名耍伴（{{applicantCount}}）</view>
+      <view class="dd__applicant" wx:for="{{applicants}}" wx:key="partner_token">
+        <view class="dd__applicant-main">
+          <view class="dd__applicant-name">{{item.nickname}}<text class="dd__applicant-lv">{{item.level}}</text></view>
+          <view class="dd__applicant-meta">信用分 {{item.credit}} · 已履约 {{item.completed_orders}} 单</view>
+        </view>
+        <view class="dd__applicant-state" wx:if="{{item.is_confirmed}}">已选中</view>
+        <view class="dd__applicant-state" wx:elif="{{demand.select_locked}}">未选中</view>
+        <button class="dd__applicant-btn" wx:else data-token="{{item.partner_token}}" data-name="{{item.nickname}}" bindtap="onSelectApplicant" hover-class="btn-press">选择TA</button>
+      </view>
+      <view class="dd__applicant-empty" wx:if="{{applicantCount === 0}}">暂无耍伴报名，可稍后再来查看</view>
+    </block>
   </view>
 
   <!-- D4 底部操作栏 -->
@@ -73,6 +88,12 @@
       <!-- 2026-11-05: 四态——本人已接单 / 已被接单 / 可接单 / 定向不可接(can_take 由服务端按 status+invited+broadcast 计算) -->
       <button class="dd__btn dd__btn--primary" wx:if="{{demand.taken_by_me}}" bindtap="onTakenHint" hover-class="btn-press">✅ 已接单</button>
       <button class="dd__btn dd__btn--disabled" wx:elif="{{demand.taken}}" disabled>🔒 已被接单</button>
+      <!-- 2026-11-15 选单立项: 选单模式独立三态(已被选中可接单 / 已报名等选 / 可报名) -->
+      <block wx:elif="{{demand.match_mode === 'select'}}">
+        <button class="dd__btn dd__btn--primary" wx:if="{{demand.select_confirmed_me}}" bindtap="onGrab" hover-class="btn-press">⚡ 去接单</button>
+        <button class="dd__btn dd__btn--disabled" wx:elif="{{demand.applied_by_me}}" disabled>⏳ 已报名,等待选择</button>
+        <button class="dd__btn dd__btn--primary" wx:else bindtap="onGrab" hover-class="btn-press">📝 报名接单</button>
+      </block>
       <button class="dd__btn dd__btn--primary" wx:elif="{{demand.can_take}}" bindtap="onGrab" hover-class="btn-press">{{certified ? '⚡ 接单' : '需' + scene.cert}}</button>
       <button class="dd__btn dd__btn--disabled" wx:else disabled>🔒 仅指定耍伴可接</button>
     </block>

@@ -235,3 +235,53 @@
 .dd__loading { padding: 16rpx; }
 .dd__skeleton { height: 120rpx; background: var(--bg-segment); border-radius: var(--r-md); margin-bottom: 16rpx; animation: dd-skeleton-pulse 1.2s ease-in-out infinite; }
 @keyframes dd-skeleton-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* 2026-11-15 选单立项: 发布者报名名单 */
+.dd__applicant {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid var(--border-2);
+}
+.dd__applicant:last-child { border-bottom: none; }
+.dd__applicant-main { flex: 1; min-width: 0; }
+.dd__applicant-name {
+  font-size: var(--font-md);
+  color: var(--text-1);
+  font-weight: 600;
+}
+.dd__applicant-lv {
+  margin-left: 8rpx;
+  font-size: var(--font-xs);
+  color: var(--brand-primary);
+}
+.dd__applicant-meta {
+  margin-top: 6rpx;
+  font-size: var(--font-xs);
+  color: var(--text-5);
+}
+.dd__applicant-btn {
+  flex-shrink: 0;
+  height: 60rpx;
+  line-height: 60rpx;
+  padding: 0 28rpx;
+  margin: 0 0 0 16rpx;
+  border-radius: 30rpx;
+  font-size: var(--font-sm);
+  color: var(--text-invert);
+  background: var(--brand-primary);
+}
+.dd__applicant-btn::after { border: none; }
+.dd__applicant-state {
+  flex-shrink: 0;
+  margin-left: 16rpx;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+}
+.dd__applicant-empty {
+  padding: 24rpx 0;
+  font-size: var(--font-sm);
+  color: var(--text-4);
+  text-align: center;
+}

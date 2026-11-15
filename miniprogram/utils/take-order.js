@@ -193,12 +193,49 @@ function takeOrder(demand, opts) {
   }).catch(() => { _afterGate(demand, opts); });
 }
 
+// 选单模式报名(2026-11-15 选单立项): 报名 → 发布者选择 → 被选中后再走原建单链路
+// 报名资格(实名/信用分/免责/人数上限)以后端 demand-match.apply 为准, 前端只做结果引导
+function _applySelect(demand, opts) {
+  wx.showModal({
+    title: '报名接单',
+    content: '报名后由发布者选择，被选中后再确认接单创建订单。是否报名？',
+    confirmText: '确认报名', // 上限 4 字符
+    cancelText: '再想想',
+    success: (mr) => {
+      if (!mr.confirm) { _release(); return; }
+      callCloud('demand-match', { action: 'apply', demand_id: demand._id }).then((r) => {
+        _release();
+        if (r && r.ok) {
+          wx.showToast({ title: '报名成功,等待发布者选择', icon: 'none', duration: 2500 });
+          if (opts && typeof opts.onApplied === 'function') opts.onApplied(r.data);
+          return;
+        }
+        const code = (r && r.code) || '';
+        const tip = {
+          apply_duplicate: '你已报名该需求',
+          apply_full: '报名人数已满',
+          apply_closed: '该需求已不可报名',
+          apply_mode_invalid: '该需求为抢单模式',
+          apply_not_partner: '耍伴资料未审核通过',
+          apply_realname_required: '请先完成实名认证',
+          apply_credit_low: '信用分不足,暂不可报名',
+          apply_disclaimer_required: '请先签署场景免责声明'
+        }[code];
+        wx.showToast({ title: tip || (r && r.msg) || '报名失败', icon: 'none', duration: 2500 });
+      }).catch(() => {
+        _release();
+        wx.showToast({ title: '报名失败,请稍后重试', icon: 'none' });
+      });
+    },
+    fail: () => _release()
+  });
+}
+
 // 通过资格探针后的原接单链路(选单模式 → 免责 → 定位 → 建单)
 function _afterGate(demand, opts) {
-  // 选单模式接单走报名→确认流程(P1-12), P0 仅支持抢单 broadcast
-  if (demand.match_mode === 'select') {
-    _release();
-    wx.showToast({ title: '选单需求暂不可用', icon: 'none' });
+  // 选单模式(P1-12 激活, 2026-11-15 选单立项): 未被发布者选中 → 走报名; 已被选中 → 继续原建单链路
+  if (demand.match_mode === 'select' && !demand.select_confirmed_me) {
+    _applySelect(demand, opts);
     return;
   }
   const scene = getScene(demand.scene_code);

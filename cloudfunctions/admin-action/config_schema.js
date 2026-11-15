@@ -18,6 +18,8 @@ const CONFIG_SCHEMA = [
   // ── 订单超时 ──
   { f: 's0_timeout_min', t: 'int', g: '订单超时', label: 'S0 待支付', unit: '分钟', min: 1, max: 1440, def: 30, d: 'S0 待支付超时：下单后未支付超过该时长自动关单' },
   { f: 's1_timeout_min', t: 'int', g: '订单超时', label: 'S1 待确认', unit: '分钟', min: 1, max: 1440, def: 15, d: 'S1 待确认超时：接单后超过该时长未完成四确认自动关单（S6）' },
+  // 2026-11-15 选单立项: 发布者确认耍伴后, 对方超时未接单则释放需求重新开放选择
+  { f: 'select_confirm_timeout_min', t: 'int', g: '订单超时', label: '选单待接单', unit: '分钟', min: 1, max: 1440, def: 15, d: '选单模式：发布者确认耍伴后, 对方超过该时长未接单自动释放, 重新开放选择' },
   { f: 'interrupt_timeout_h', t: 'int', g: '订单超时', label: '中断超时', unit: '小时', min: 1, max: 168, def: 24, d: 'S3.5 履约中断超时：中断超过该时长自动转 S4 裁定' },
   // Wave2 止血: S8 售后窗口届满归档 / S4 裁定期兜底（此前仅前端 CONFIG 有值，服务端无对应键）
   { f: 'after_sale_days', t: 'int', g: '订单超时', label: '售后窗口', unit: '天', min: 1, max: 365, def: 15, d: 'S8 售后窗口：订单完成后超过该天数未发起售后自动归档' },

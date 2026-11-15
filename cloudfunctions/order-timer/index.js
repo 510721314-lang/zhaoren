@@ -32,6 +32,7 @@ const SECTIONS = Object.assign({},
   require('./action_modify'),
   require('./action_lifecycle'),
   require('./action_account'),
+  require('./action_select_stale'),
 );
 
 const BATCH = 50; // 单次每类状态最多处理笔数, 防止超时
@@ -577,7 +578,7 @@ exports.main = async (event, context) => {
   // G3(2026-10-20) 超时前提醒: S2_6/S3_6 窗口内各 2 档(缺省 5/10 与 10/20, 后台可配)
   const remindMin = remindCfg(cfg);
 
-  const out = { s1_cancel: [], change_auto_reject: [], s2_change_auto_reject: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], skipped: [] };
+  const out = { s1_cancel: [], change_auto_reject: [], s2_change_auto_reject: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], select_stale: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
@@ -604,6 +605,9 @@ exports.main = async (event, context) => {
 
   // ───────── 2. S0 待支付超时(pay_expire_at 已过) → S6 + 释放需求(与 S1 对称, 修 D12) ─────────
   if (hasTime()) await SECTIONS.processS0Timeout(sectionCtx);
+
+  // ───────── 2.5 选单模式确认后超时未建单(2026-11-15 选单立项) → 释放回可重新选择 + 通知双方 ─────────
+  if (hasTime()) await SECTIONS.processSelectStale(sectionCtx);
 
   // ───────── 3. S3.5 中断超 24 小时 → S4(部分完成) ─────────
   if (hasTime()) await SECTIONS.processInterruptPartial(sectionCtx);

@@ -120,6 +120,8 @@ const DEMAND_STATUS = {
 const MATCH_MODE = [
   { code: 'direct', name: '定向邀约', desc: '指定喜欢的耍伴', needVip: false },
   { code: 'broadcast', name: '广场广播', desc: '先到先得，匹配更快', needVip: false },
+  // 2026-11-15 选单立项: 多人报名, 由发布者从候选中选择一位成交
+  { code: 'select', name: '报名选单', desc: '多人报名，你择优选择', needVip: false },
   { code: 'smart', name: '智能派单', desc: '系统优先匹配高信用耍伴', needVip: true }
 ];
 

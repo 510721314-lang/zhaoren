@@ -1,7 +1,8 @@
 // 对应 PRD 章节：3.2 匹配机制 / 3.2.2 智能匹配算法(MVP简化版:信用分降序) / 3.2.3 定向邀约 / 3.2.4 广场广播
 // demand-match 需求匹配 · 身份取自 getWXContext().OPENID
-// 6 个 action: top5 / invite / broadcast / hall_list / apply / confirm_apply
+// 6 个 action: top5 / invite / broadcast / hall_list / apply / confirm_apply / applicant_list
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
@@ -28,6 +29,14 @@ async function getConfig() {
     if (r.data) return r.data;   // doc().get() 返回单个对象(非数组)
   } catch (e) { log.d('demand-match getConfig fail: ' + (e && e.message || e)); }
   return { min_credit_take_order: 600 };
+}
+
+// 2026-11-15 选单模式立项: 单个需求报名人数上限(与即时推送阈值 20 对齐, 防 applicants 数组膨胀)
+const APPLICANT_CAP = 20;
+
+// 2026-11-15 选单模式立项: 报名者令牌(不向发布者回传原始 openid, 确认时用令牌反解)
+function partnerToken(demandId, openid) {
+  return crypto.createHash('sha256').update(String(demandId) + ':' + openid).digest('hex').slice(0, 24);
 }
 
 // ─────────────── 主入口 ───────────────
@@ -321,8 +330,22 @@ exports.main = async (event, context) => {
       if (!signed.data || !signed.data[0]) {
         return { ok: false, code: 'apply_disclaimer_required', msg: '请先签署该场景免责声明后再报名' };
       }
+      // 2026-11-15 选单模式立项: 报名资格轻量预检(实名+信用分)
+      // 权威门禁(紧急联系人/考试证书/场景/时段/价格/每日上限)仍在 order-create.action_take 复核
+      const puRes = await col('partner_user').doc(openid).get().catch(() => ({ data: null }));
+      const partnerUser = (puRes && puRes.data) || {};
+      if (!partnerUser.is_realname_done) {
+        return { ok: false, code: 'apply_realname_required', msg: '请先完成实名认证后再报名' };
+      }
+      const applyCfg = await getConfig();
+      if ((partnerUser.partner_credit_score || 800) < (applyCfg.min_credit_take_order || 600)) {
+        return { ok: false, code: 'apply_credit_low', msg: '信用分不足,暂不可报名' };
+      }
       // 防重复报名(友好前置校验; 并发兜底由下面的 CAS 完成)
       const applicants = Array.isArray(demand.applicants) ? demand.applicants : [];
+      if (applicants.length >= APPLICANT_CAP) {
+        return { ok: false, code: 'apply_full', msg: '报名人数已满' };
+      }
       if (applicants.some(a => a.openid === openid)) {
         return { ok: false, code: 'apply_duplicate', msg: '你已报名该需求' };
       }
@@ -340,6 +363,20 @@ exports.main = async (event, context) => {
       if (!addRes.stats || addRes.stats.updated !== 1) {
         return { ok: false, code: 'apply_conflict', msg: '报名失败,该需求可能已关闭或你已报名' };
       }
+      // 2026-11-15 选单模式立项: 报名成功通知发布者(此前报名全程无通知, 发布者无感知)
+      try {
+        await col('system_notice').add({ data: {
+          to_openid: demand.creator_openid,
+          order_id: '',
+          type: 'select_apply',
+          title: '有耍伴报名',
+          body: `有人报名「${String(demand.remark || '你的需求').split('｜')[0]}」, 请进入需求详情选择`,
+          action_key: 'jump_demand',
+          action_payload: { demand_id },
+          created_at: Date.now(),
+          read: false
+        }});
+      } catch (e) { log.d('[notice] select_apply fail: ' + (e && e.message || e)); }
       log.d(`apply success: demand=${demand_id} partner=${openid}`);
       return { ok: true, data: { demand_id, applied: true, applicant_count: applicants.length + 1 } };
     }
@@ -348,7 +385,7 @@ exports.main = async (event, context) => {
     case 'confirm_apply': {
       const { demand_id, partner_openid } = event;
       if (!demand_id) return { ok: false, code: 'confirm_no_id', msg: '缺少需求 ID' };
-      if (!partner_openid) return { ok: false, code: 'confirm_no_partner', msg: '缺少耍伴 ID' };
+      if (!partner_openid && !event.partner_token) return { ok: false, code: 'confirm_no_partner', msg: '缺少耍伴 ID' };
 
       let demand;
       try {
@@ -368,21 +405,96 @@ exports.main = async (event, context) => {
         return { ok: false, code: 'confirm_closed', msg: '该需求已不可确认' };
       }
       const applicants = Array.isArray(demand.applicants) ? demand.applicants : [];
-      const target = applicants.find(a => a.openid === partner_openid);
+      // 2026-11-15 选单模式立项: 前端只持有 partner_token, 在此反解为 openid(兼容旧的直传 partner_openid)
+      let targetOpenid = partner_openid || '';
+      if (!targetOpenid && event.partner_token) {
+        const hit = applicants.find(a => partnerToken(demand_id, a.openid) === event.partner_token);
+        if (hit) targetOpenid = hit.openid;
+      }
+      const target = applicants.find(a => a.openid === targetOpenid);
       if (!target) {
         return { ok: false, code: 'confirm_not_applicant', msg: '该耍伴未报名' };
       }
       // 设置已确认耍伴(CAS 防止重复确认)
+      // 2026-11-15 选单模式立项: 落 matched_confirm_at 供 order-timer 超时释放扫描
+      const confirmedAt = Date.now();
       const cr = await col('demand').where({
         _id: demand_id, status: 'matching', matched_openid: null
       }).update({ data: {
-        matched_openid: partner_openid, updated_at: Date.now()
+        matched_openid: targetOpenid, matched_confirm_at: confirmedAt, updated_at: confirmedAt
       }});
       if (!cr.stats || cr.stats.updated !== 1) {
         return { ok: false, code: 'confirm_conflict', msg: '该需求已确认其他耍伴' };
       }
-      log.d(`confirm_apply: demand=${demand_id} partner=${partner_openid}`);
-      return { ok: true, data: { demand_id, confirmed_partner: partner_openid } };
+      // 2026-11-15: 通知被选中的耍伴尽快接单(此前确认后对方无感知, 需求会卡住)
+      try {
+        await col('system_notice').add({ data: {
+          to_openid: targetOpenid,
+          order_id: '',
+          type: 'select_confirmed',
+          title: '你被选中了',
+          body: `发布者已选择你承接「${String(demand.remark || '该需求').split('｜')[0]}」, 请尽快确认接单`,
+          action_key: 'jump_demand',
+          action_payload: { demand_id },
+          created_at: Date.now(),
+          read: false
+        }});
+      } catch (e) { log.d('[notice] select_confirmed fail: ' + (e && e.message || e)); }
+      log.d(`confirm_apply: demand=${demand_id} partner=${targetOpenid}`);
+      return { ok: true, data: { demand_id, confirmed: true } };
+    }
+
+    // 7. 发布者查看报名名单(选单模式; 仅需求创建者, 不下发原始 openid)
+    case 'applicant_list': {
+      const { demand_id } = event;
+      if (!demand_id) return { ok: false, code: 'applicant_no_id', msg: '缺少需求 ID' };
+      let demand;
+      try {
+        const dr = await col('demand').doc(demand_id).get();
+        demand = dr.data;
+      } catch (e) {
+        return { ok: false, code: 'applicant_not_found', msg: '需求不存在' };
+      }
+      if (!demand) return { ok: false, code: 'applicant_not_found', msg: '需求不存在' };
+      if (demand.creator_openid !== openid) {
+        return { ok: false, code: 'applicant_not_owner', msg: '只有需求创建者可查看报名' };
+      }
+      const list = Array.isArray(demand.applicants) ? demand.applicants.slice(0, APPLICANT_CAP) : [];
+      const openids = list.map(a => a.openid);
+      let profiles = [];
+      if (openids.length) {
+        const pr = await col('partner_profile').where({ openid: _.in(openids) }).limit(APPLICANT_CAP).get().catch(() => ({ data: [] }));
+        profiles = pr.data || [];
+      }
+      const byOpenid = {};
+      profiles.forEach(p => { byOpenid[p.openid] = p; });
+      // 履约单数为派生值(partner_profile 不落库), 与 top5 同口径按 S5/S8/S9/S10 统计
+      const data = await Promise.all(list.map(async (a) => {
+        const p = byOpenid[a.openid] || {};
+        let completed = 0;
+        try {
+          const cr = await col('order_main').where({
+            partner_openid: a.openid, status: _.in(DONE_STATUS), is_deleted: false
+          }).count();
+          completed = (cr && cr.total) || 0;
+        } catch (e) { /* 统计失败按 0 处理 */ }
+        return {
+          partner_token: partnerToken(demand_id, a.openid),
+          nickname: p.nickname || '耍伴',
+          avatar: p.avatar || '',
+          credit: p.partner_credit_score || 800,
+          level: partnerLevel(completed).name,
+          completed_orders: completed,
+          applied_at: a.applied_at || 0,
+          is_confirmed: demand.matched_openid === a.openid
+        };
+      }));
+      return { ok: true, data: {
+        demand_id,
+        applicant_count: data.length,
+        matched_confirm_at: demand.matched_confirm_at || 0,
+        list: data
+      }};
     }
 
     // 4. 接单大厅列表(广场可接单需求)
