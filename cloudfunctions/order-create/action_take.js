@@ -294,22 +294,22 @@ async function createFromTakeAction(ctx) {
       const demandTotal = Number(demand.total_fen) || 0;
       if (totalLo !== null && demandTotal < totalLo) {
         await logReject(openid, demand_id, 'total_below_min');
-        return { ok: false, code: 'order_total_out_of_range', msg: `该需求一口价 ¥${demandTotal / 100}，低于你的最低客单价 ¥${totalLo / 100}，可在接单配置调整` };
+        return { ok: false, code: 'order_total_out_of_range', msg: `该需求一口价 ¥${(demandTotal / 100).toFixed(2)}，低于你的最低客单价 ¥${(totalLo / 100).toFixed(2)}，可在接单配置调整` };
       }
       if (totalHi !== null && demandTotal > totalHi) {
         await logReject(openid, demand_id, 'total_above_max');
-        return { ok: false, code: 'order_total_out_of_range', msg: `该需求一口价 ¥${demandTotal / 100}，高于你的最高客单价 ¥${totalHi / 100}，可在接单配置调整` };
+        return { ok: false, code: 'order_total_out_of_range', msg: `该需求一口价 ¥${(demandTotal / 100).toFixed(2)}，高于你的最高客单价 ¥${(totalHi / 100).toFixed(2)}，可在接单配置调整` };
       }
     } else {
       const [rateLo, rateHi] = readRateRange(profile, config);
       const demandRate = Number(demand.rate_fen) || 0;
       if (rateLo !== null && demandRate < rateLo) {
         await logReject(openid, demand_id, 'rate_below_min');
-        return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，低于你的最低单价 ¥${rateLo / 100}/小时，可在接单配置调整` };
+        return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${(demandRate / 100).toFixed(2)}/小时，低于你的最低单价 ¥${(rateLo / 100).toFixed(2)}/小时，可在接单配置调整` };
       }
       if (rateHi !== null && demandRate > rateHi) {
         await logReject(openid, demand_id, 'rate_above_max');
-        return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${demandRate / 100}/小时，高于你的最高单价 ¥${rateHi / 100}/小时，可在接单配置调整` };
+        return { ok: false, code: 'order_rate_out_of_range', msg: `该需求单价 ¥${(demandRate / 100).toFixed(2)}/小时，高于你的最高单价 ¥${(rateHi / 100).toFixed(2)}/小时，可在接单配置调整` };
       }
     }
   }

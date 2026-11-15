@@ -201,3 +201,26 @@ test('定位精度超 50m → order_location_untrusted', async () => {
   assert.strictEqual(r.code, 'order_location_untrusted');
 });
 
+// ── 2026-11-15 评审修复(M2): 接单价格区间 toast 金额两位小数(.toFixed(2)) ──
+// 夹具用非整百分值(19901/4999): 旧 Math.round 写法会渲染成 ¥199/¥50 丢失小数位 → 锁定两位小数
+test('fixed 超客单价上限 → order_total_out_of_range, toast 含两位小数金额', async () => {
+  const s = store();
+  s.partner_profile['p'.repeat(32)].accept_total_max_fen = 19900;
+  s.demand[DEM].pricing_type = 'fixed';
+  s.demand[DEM].total_fen = 19901; // ¥199.01 > 上限 ¥199.00
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_total_out_of_range');
+  assert.ok(r.msg.includes('¥199.01'), `应含 ¥199.01: ${r.msg}`);
+  assert.ok(r.msg.includes('¥199.00'), `应含 ¥199.00: ${r.msg}`);
+});
+
+test('hourly 超单价上限 → order_rate_out_of_range, toast 含两位小数金额', async () => {
+  const s = store();
+  s.partner_profile['p'.repeat(32)].accept_rate_max_fen = 4999; // ¥49.99(平台钳制 3000-10000 内生效)
+  s.demand[DEM].rate_fen = 5000; // ¥50.00 > 上限
+  const r = await take(makeSdk({ openid: USER, store: s }));
+  assert.strictEqual(r.code, 'order_rate_out_of_range');
+  assert.ok(r.msg.includes('¥50.00'), `应含 ¥50.00: ${r.msg}`);
+  assert.ok(r.msg.includes('¥49.99'), `应含 ¥49.99: ${r.msg}`);
+});
+
