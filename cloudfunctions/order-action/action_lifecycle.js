@@ -2,13 +2,19 @@
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
 async function cancel(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, getOrder: _g, logStatus, col, writeNotice, writeAudit } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, getOrder: _g, logStatus, col, writeNotice, writeAudit, checkText } = ctx;
   const { reason } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+
+  // 2026-11-15 E批(P3-33): 取消理由自由文本过安全检测(与 milestone note 同口径), 不安全即拒且不执行取消
+  if (reason) {
+    const chk = await checkText(openid, String(reason));
+    if (!chk.pass) return { ok: false, code: 'oa_text_unsafe', msg: chk.reason };
+  }
 
   if (order.status !== 'S1' && order.status !== 'S0') {
     return { ok: false, code: 'oa_cancel_status', msg: `订单当前状态(${order.status})不可取消` };

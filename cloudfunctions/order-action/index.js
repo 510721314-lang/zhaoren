@@ -129,9 +129,9 @@ function normalizeReasonType(t) {
   const s = String(t || '').trim();
   if (!s) return '';
   if (Object.prototype.hasOwnProperty.call(REASON_TYPES, s)) return s;
-  // 2026-11-11 方案A: 后台理由改自由输入, 存 {k:文案,t:文案}, 提交时 reason_type 即文案本身;
-  // 2-20 字放行(与爽约 reason_type 同口径), 历史白名单 key 数据天然兼容
-  if (s.length >= 2 && s.length <= 20) return s;
+  // 2026-11-15 E批(P3-32): 自由文案收口 2-10 字(与 action_config_set.js:427-429 三端同口径, 原 2-20 不一致);
+  // 占位词/纯数字/全同字符拦截复用 REASON_PLACEHOLDER_EXACT + 简单启发式
+  if (s.length >= 2 && s.length <= 10 && REASON_PLACEHOLDER_EXACT.indexOf(s) < 0 && !/^\d+$/.test(s) && !/^(\S)\1+$/.test(s)) return s;
   return '';
 }
 
