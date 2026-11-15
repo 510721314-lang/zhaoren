@@ -219,7 +219,8 @@ function _applySelect(demand, opts) {
           apply_not_partner: '耍伴资料未审核通过',
           apply_realname_required: '请先完成实名认证',
           apply_credit_low: '信用分不足,暂不可报名',
-          apply_disclaimer_required: '请先签署场景免责声明'
+          apply_disclaimer_required: '请先签署场景免责声明',
+          apply_switch_off: '接单开关已关闭,请开启后再报名'
         }[code];
         wx.showToast({ title: tip || (r && r.msg) || '报名失败', icon: 'none', duration: 2500 });
       }).catch(() => {

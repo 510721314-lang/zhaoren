@@ -322,6 +322,12 @@ exports.main = async (event, context) => {
       if (!profile || profile.status !== 'approved') {
         return { ok: false, code: 'apply_not_partner', msg: '耍伴资料未审核通过' };
       }
+      // 2026-11-15 P3-37: 接单开关关闭者不可报名(与 order-create.action_take 的 order_switch_off 同口径;
+      // 字段缺省视为开, 与 partner-action action_config.js 的 switchOn 判断一致)。
+      // 此前仅前端 take-order 探针拦截, 绕过前端直调云函数可报名成功, 致发布者候选名单混入已暂停接单者。
+      if (profile.accept_switch === false) {
+        return { ok: false, code: 'apply_switch_off', msg: '接单开关已关闭,请开启后再报名' };
+      }
       // 免责声明校验
       const scene = String(demand.scene || '');
       const signed = await col('disclaimer_signature').where({
