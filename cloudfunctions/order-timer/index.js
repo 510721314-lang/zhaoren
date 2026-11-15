@@ -529,9 +529,20 @@ exports.main = async (event, context) => {
   // 2026-11-15 D批: deadline 安全退出 —— 剩余时间 <5s 跳过后续扫描段, 防函数超时被杀截断写操作;
   // 心跳(error_scan)与游标(P3-28)不设闸, 每轮必跑(观测链不中断)
   const t0 = now;
-  const hasTime = () => (context && typeof context.getRemainingTimeInMillis === 'function')
-    ? context.getRemainingTimeInMillis() >= 5000
-    : (Date.now() - t0) < 55000;
+  // 2026-11-15 评审修复(F-1): deadline 闸住时留痕——每轮首次跳段 log.w + out.skipped 记标记,
+  // 防「哪轮哪些扫描段被闸掉」对调用方与排障不可见(评审代理A高置信, 2/2 确认; 原两分支表达式逐字未动)
+  let deadlineLogged = false;
+  const hasTime = () => {
+    const ok = (context && typeof context.getRemainingTimeInMillis === 'function')
+      ? context.getRemainingTimeInMillis() >= 5000
+      : (Date.now() - t0) < 55000;
+    if (!ok && !deadlineLogged) {
+      deadlineLogged = true;
+      log.w('deadline: time budget exhausted, skip remaining scan sections');
+      out.skipped.push('deadline');
+    }
+    return ok;
+  };
 
   // ── 注错演练(D7, 仅管理员): 写入一条 P1 演练事件 → 本次巡检立即捕获并推送, 验证巡检链路 ──
   if (event.drill && isAdmin) {

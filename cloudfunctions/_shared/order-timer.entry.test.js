@@ -244,4 +244,17 @@ test('S2 过约定开始 30 分钟 → no_show_guide=1 且双方各 1 条站内�
   assert.strictEqual(notices[0].data.action_key, 'jump_order');
 });
 
+// 2026-11-15 评审修复(F-1) 断言: deadline 耗尽(剩时<5s) → 扫描段全跳过, out.skipped 留 'deadline' 标记,
+// 超时单零写库(闸门生效可见); 心跳/游标段不设闸不受影响
+test('deadline 耗尽 → skipped=[deadline] 且扫描段零执行', async () => {
+  const now = Date.now();
+  const store = baseStore({ A1: ord('A1', 'S1', { created_at: now - 20 * MIN, demand_id: 'd'.repeat(32) }) });
+  const sdk = makeSdk({ openid: ADMIN, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({}, { getRemainingTimeInMillis: () => 0 });
+  assert.strictEqual(r.ok, true, '心跳段不设闸, main 应正常返回');
+  assert.deepStrictEqual(r.data.skipped, ['deadline'], '留痕标记必须透传给调用方');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, '20 分钟超时的 S1 单不应被处理(全段闸住)');
+});
+
 test.after(() => { Module._load = origLoad; });

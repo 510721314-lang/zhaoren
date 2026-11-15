@@ -467,14 +467,15 @@ async function start_reject(ctx) {
   if (escalated) {
     await logStatus(order_id, 'S2_6', 'S10.5', 'start_apply_timeout', openid);
     log.d(`start reject escalated: ${order.order_no} S2_6→S10.5 (count=${rejectCount})`);
-    writeNotice({
+    // 2026-11-15 评审修复(F-2): 补 await —— 主流程 return 后运行时可能冻结未完成的异步写入(先例 action_modify_extend.js:102)
+    await writeNotice({
       to_openid: order.partner_openid, order_id, type: 'dispute_open',
       title: '连续未获确认,已转平台处理',
       body: '需求方连续 2 次未确认开始履约, 订单已转争议, 平台将介入核实',
       action_key: 'jump_order', action_payload: { order_id }
     });
     // 2026-11-15 P3-8: 争议卡片双方可见 —— 需求方(发起拒绝一方)此前漏发, 补齐
-    writeNotice({
+    await writeNotice({ // 2026-11-15 评审修复(F-2): 补 await 防异步写入被冻结
       to_openid: order.user_openid, order_id, type: 'dispute_open',
       title: '订单已转平台处理',
       body: '开始履约连续 2 次未获确认, 订单已转争议, 平台将介入核实',
@@ -757,14 +758,15 @@ async function finish_reject(ctx) {
   if (escalated) {
     await logStatus(order_id, 'S3_6', 'S10.5', 'finish_confirm_timeout', openid);
     log.d(`finish reject escalated: ${order.order_no} S3_6→S10.5 (count=${rejectCount})`);
-    writeNotice({
+    // 2026-11-15 评审修复(F-2): 补 await —— 主流程 return 后运行时可能冻结未完成的异步写入(先例 action_modify_extend.js:102)
+    await writeNotice({
       to_openid: order.partner_openid, order_id, type: 'dispute_open',
       title: '连续未获确认,已转平台处理',
       body: '需求方连续 2 次未确认履约完毕, 订单已转争议, 平台将介入核实',
       action_key: 'jump_order', action_payload: { order_id }
     });
     // 2026-11-15 P3-8: 争议卡片双方可见 —— 需求方(发起拒绝一方)此前漏发, 补齐
-    writeNotice({
+    await writeNotice({ // 2026-11-15 评审修复(F-2): 补 await 防异步写入被冻结
       to_openid: order.user_openid, order_id, type: 'dispute_open',
       title: '订单已转平台处理',
       body: '履约完毕连续 2 次未获确认, 订单已转争议, 平台将介入核实',
