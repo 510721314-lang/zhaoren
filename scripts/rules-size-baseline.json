@@ -1,8 +1,8 @@
 {
   "note": "常驻规则体系水位（T-7.34/T-7.36/T-7.39 防复发）。改规则后必须评估：inject 净增长 > rateLimitBytes、或已超 l0.targetBytes 时任何净增 → FAIL；conditional / 全量归档 净增长超各自速率门 → FAIL；.trae/rules.md 被写回正文（超 pointerMaxBytes 或出现章节标题）→ FAIL；缩水 > staleToleranceBytes 会提示刷新本文件。更新本文件属于「显式评审动作」，须单独 commit 并写理由。",
-  "updatedAt": "2026-11-11",
-  "updatedBy": "水位刷新（显式评审动作）2026-11-11 ③：§37/§38 细则下沉技能（zhaoren-desktop-control 新建 + zhaoren-frequent-flows 流程 8）、§7 失效行号纠错（profile.js 双通道真实位置 L566/571·L601/606）、删 §10–39 区重复归档指针——inject 16643→16373B，回到 l0.targetBytes=16384 内（余量 11B）。方案经双专家评审 2/2 确认；摘要 11 行全保留（§37/§38 两行指针化、token 不断链）。注：§38 R2 原文 spawnSync(shell:false) 指 node 直启 js 入口；cloudbase.cmd 包装场景仍按流程 3 用 shell:true。此前 ②：16676→16643 取实测（T-10.6）；①：archiveFullBytes 122447→131676 归位 + 技能侧新增 3 处 + 口径修正（目标位一律读 l0.targetBytes，禁写死 12288/12KB）。",
-  "injectBytes": 16373,
+  "updatedAt": "2026-11-15",
+  "updatedBy": "水位刷新（显式评审动作）2026-11-15：选单模式立项入规则——附录A 第 2 条「超时规则」增「选单模式发布者确认耍伴后 15 分钟对方未接单→释放需求重新开放选择（键 select_confirm_timeout_min）」，inject 16373→16518B（+145B）。因原余量仅 1B，按门禁提示走「显式更新 baseline」路径而非删旧条；代价：inject 现超 l0.targetBytes=16384 共 134B，[L0-TARGET] 告警常亮，**下一轮新增规则前须先淘汰/下沉旧条**（不得再刷新水位）。业务依据：允许多人抢单→发布者择优模式上线（REGISTRY #173 / order-timer action_select_stale）。",
+  "injectBytes": 16518,
   "injectFiles": 3,
   "injectSections": 12,
   "rateLimitBytes": 1024,
