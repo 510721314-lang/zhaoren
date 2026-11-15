@@ -6,7 +6,7 @@
         <text class="item-status {{item.status}}">{{item.status}}</text>
       </view>
       <view class="item-main">{{item.remark || (item.content_options && item.content_options[0]) || '无备注'}}</view>
-      <view class="item-sub">发布人: {{item.creator_name}} · 场景: {{item.scene}} · ¥{{item.total_fen / 100}}</view>
+      <view class="item-sub">发布人: {{item.creator_name}} · 场景: {{item.scene}} · ¥{{item.total_yuan_text}}</view>
       <view class="actions" wx:if="{{item.status === 'matching'}}">
         <button class="btn-offline" size="mini" hover-class="btn-hover" bindtap="offline" data-id="{{item.demand_id}}">下架</button>
       </view>

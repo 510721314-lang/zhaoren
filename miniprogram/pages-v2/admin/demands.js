@@ -17,7 +17,9 @@ Page({
     callCloud('admin-action', { action: 'demand_list', page: this.data.page, scene: this.data.sceneFilter }).then((r) => {
       if (r.ok) {
         const list = this.data.page === 1 ? r.data.list : this.data.list.concat(r.data.list);
-        this.setData({ list, hasMore: r.data.has_more, loading: false });
+        // 2026-11-15 M1: 页 JS 预计算金额文本(WXML 不支持函数调用), 分转元补零两位小数
+        const listText = list.map((it) => Object.assign({}, it, { total_yuan_text: ((Number(it.total_fen) || 0) / 100).toFixed(2) }));
+        this.setData({ list: listText, hasMore: r.data.has_more, loading: false });
       } else this.setData({ loading: false });
     });
   },
