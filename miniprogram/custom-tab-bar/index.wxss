@@ -1,3 +1,6 @@
+/* 2026-11-15: 自定义 tabBar 为独立渲染层, 取不到 tokens.wxss 里 page{} 作用域的 CSS 变量,
+   var(--x) 全部解析失败(背景透明/发布钮无绿底/字色字号失效)。本文件改为字面值 + 暗色媒体查询,
+   色值须与 styles/tokens.wxss 手工同步。 */
 .tabbar {
   position: fixed;
   left: 0;
@@ -5,10 +8,8 @@
   bottom: 0;
   height: calc(100rpx + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  /* 2026-11-15 修复: 自定义 tabBar 不在 page 节点内, tokens.wxss 的 page 级 CSS 变量取不到,
-     原 var(--bg-card) 解析失败导致背景透明、列表内容透出与图标叠字; 用 var fallback 兜底 */
-  background: var(--bg-card, #FFFFFF);
-  border-top: 1rpx solid var(--border-2, #EEEEEE);
+  background: #FFFFFF;
+  border-top: 1rpx solid #F0F0F0;
   z-index: 200;
 }
 .tabbar__tabs {
@@ -20,18 +21,18 @@
   flex: 1;
   text-align: center;
   padding-top: 12rpx;
-  color: var(--text-5);
+  color: #9AA0A6;
 }
 .tabbar__item.is-on {
-  color: var(--brand-primary);
+  color: #07C160;
 }
 .tabbar__icon {
-  font-size: var(--font-display-lg);
+  font-size: 44rpx;
   line-height: 44rpx;
 }
 .tabbar__text {
   margin-top: 2rpx;
-  font-size: var(--font-xs);
+  font-size: 20rpx;
   line-height: 28rpx;
 }
 .tabbar__pub {
@@ -47,16 +48,32 @@
   height: 104rpx;
   margin: 0 auto;
   border-radius: 50%;
-  background: var(--brand-primary);
-  color: var(--text-invert);
-  font-size: var(--font-2xl);
+  background: #07C160;
+  color: #FFFFFF;
+  font-size: 56rpx;
   line-height: 96rpx;
-  border: 4rpx solid var(--bg-card);
-  box-shadow: var(--shadow-pub);
+  border: 4rpx solid #FFFFFF;
+  box-shadow: 0 12rpx 28rpx rgba(7,193,96,0.4);
 }
 .tabbar__pub-text {
   margin-top: 2rpx;
-  font-size: var(--font-xs);
-  color: var(--brand-primary);
+  font-size: 20rpx;
+  color: #07C160;
   font-weight: 600;
+}
+
+/* 暗色模式: 与 tokens.wxss 暗色变量手工同步 */
+@media (prefers-color-scheme: dark) {
+  .tabbar {
+    background: #1E2126;
+    border-top-color: #2A2E36;
+  }
+  .tabbar__item { color: #5A616A; }
+  .tabbar__item.is-on { color: #07C160; }
+  .tabbar__pub-circle {
+    color: #1A1D21;
+    border-color: #1E2126;
+    box-shadow: 0 12rpx 28rpx rgba(7,193,96,0.3);
+  }
+  .tabbar__pub-text { color: #07C160; }
 }
