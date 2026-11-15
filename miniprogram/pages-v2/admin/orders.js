@@ -25,7 +25,8 @@ Page({
         const list = (this.data.page === 1 ? r.data.list : this.data.list.concat(r.data.list)).map((o) =>
           Object.assign({}, o, {
             statusText: STATUS_MAP[o.status] || o.status,
-            scene_full: (o.scene_name || o.scene) + ((o.content_options && o.content_options.length) ? ' · ' + o.content_options.join('/') : '')
+            scene_full: (o.scene_name || o.scene) + ((o.content_options && o.content_options.length) ? ' · ' + o.content_options.join('/') : ''),
+            total_yuan_text: ((Number(o.total_fen) || 0) / 100).toFixed(2)  // 2026-11-15 M1: 分转元补零两位小数(WXML 不支持函数调用)
           }));
         this.setData({ list, hasMore: r.data.has_more, loading: false });
       } else this.setData({ loading: false });
