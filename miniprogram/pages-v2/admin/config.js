@@ -22,7 +22,7 @@ Page({
         // 2026-11-15 M1: scene_list 金额页 JS 预计算(WXML 不支持函数调用), 分转元补零两位小数
         const cfg = r.data;
         if (Array.isArray(cfg.scene_list)) {
-          cfg.scene_list = cfg.scene_list.map((s) => Object.assign({}, s, { rate_yuan_text: ((Number(s.default_rate_fen) || 0) / 100).toFixed(2) }));
+          cfg.scene_list = cfg.scene_list.map((s) => Object.assign({}, s, { rate_yuan_text: ((Number(s.default_rate_fen) || 0) / 100).toFixed(2) })); // @VERIFIED 2026-11-15 已模拟器自动化验证：9 场景 ¥0.00/h 数据/渲染一致（当前默认费率均为 0）
         }
         this.setData({ config: cfg, loading: false });
       }

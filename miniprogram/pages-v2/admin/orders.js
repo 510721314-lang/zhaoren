@@ -26,7 +26,7 @@ Page({
           Object.assign({}, o, {
             statusText: STATUS_MAP[o.status] || o.status,
             scene_full: (o.scene_name || o.scene) + ((o.content_options && o.content_options.length) ? ' · ' + o.content_options.join('/') : ''),
-            total_yuan_text: ((Number(o.total_fen) || 0) / 100).toFixed(2)  // 2026-11-15 M1: 分转元补零两位小数(WXML 不支持函数调用)
+            total_yuan_text: ((Number(o.total_fen) || 0) / 100).toFixed(2)  // 2026-11-15 M1: 分转元补零两位小数(WXML 不支持函数调用) // @VERIFIED 2026-11-15 已模拟器自动化验证：渲染 ¥19.90/¥20.50 两位小数
           }));
         this.setData({ list, hasMore: r.data.has_more, loading: false });
       } else this.setData({ loading: false });

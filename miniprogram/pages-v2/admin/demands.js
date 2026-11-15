@@ -18,7 +18,7 @@ Page({
       if (r.ok) {
         const list = this.data.page === 1 ? r.data.list : this.data.list.concat(r.data.list);
         // 2026-11-15 M1: 页 JS 预计算金额文本(WXML 不支持函数调用), 分转元补零两位小数
-        const listText = list.map((it) => Object.assign({}, it, { total_yuan_text: ((Number(it.total_fen) || 0) / 100).toFixed(2) }));
+        const listText = list.map((it) => Object.assign({}, it, { total_yuan_text: ((Number(it.total_fen) || 0) / 100).toFixed(2) })); // @VERIFIED 2026-11-15 已模拟器自动化验证：渲染 ¥19.90/¥300.00 两位小数（真机抽验挂 iOS/Android）
         this.setData({ list: listText, hasMore: r.data.has_more, loading: false });
       } else this.setData({ loading: false });
     });

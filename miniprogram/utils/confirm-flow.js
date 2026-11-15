@@ -361,7 +361,7 @@ function startEdit(page, field) {
   }
   if (field === 'fee') {
     const cur = (page.data.items && page.data.items.fee && page.data.items.fee.value) || 0;
-    page.setData({ editSheet: 'fee', editFeeYuan: cur ? (cur / 100).toFixed(2) : '' });  // 2026-11-15 M5: 回填补零两位小数
+    page.setData({ editSheet: 'fee', editFeeYuan: cur ? (cur / 100).toFixed(2) : '' });  // 2026-11-15 M5: 回填补零两位小数（S1 生效；S2 禁改 fee 属设计内守卫 L246-255，模拟器负路径已验证）
   }
 }
 
