@@ -13,6 +13,17 @@
   <!-- 正常态 -->
   <block wx:else>
   <view class="ac__body">
+    <!-- 接单开关(2026-11-15 下沉): 原仅工作台页有开关, 但该页无任何入口; 入驻链第 5/8 步与本页语义归位 -->
+    <view class="ac__card">
+      <view class="ac__row-between">
+        <view>
+          <view class="ac__card-title">接单开关</view>
+          <view class="ac__tip">{{acceptSwitch ? '接单中，可正常接收新需求' : '已暂停接单，不会收到新需求推送'}}</view>
+        </view>
+        <switch checked="{{acceptSwitch}}" color="var(--func-success)" bindchange="onAcceptSwitch" />
+      </view>
+    </view>
+
     <!-- 0. 日常位置 -->
     <view class="ac__card">
       <view class="ac__card-title">日常位置</view>

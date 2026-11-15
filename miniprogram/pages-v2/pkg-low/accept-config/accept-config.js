@@ -13,6 +13,7 @@ const STORAGE_KEY = 'partner_local_cfg';
 Page({
   data: {
     chainBar: null,           // 批3c: 入驻链条(第 x/8 步); 非链内进入为 null
+    acceptSwitch: true,       // 2026-11-15 接单开关下沉: 原仅工作台页有此开关, 该页无任何入口属体验断层
     certifiedScenes: [],
     baseExam: { score: 0, passed: false, passLine: 60 },  // 基础科目(耍伴考试)状态
     w1Exam: { score: 0, passed: false, passLine: 80 },   // 提升科目(陪诊考试)状态, 仅就医陪诊场景需要
@@ -318,6 +319,8 @@ Page({
         // 每日上限: 平台统一设定(启动时 config_public 覆盖 PARTNER_ACCEPT.dailyLimit), 耍伴端只读
         'form.dailyLimit': PA.dailyLimit || PA.defaultDailyLimit,
         'form.acceptWelfare': local.acceptWelfare !== false,
+        // 2026-11-15 接单开关下沉: 云端为唯一真值(缺字段视为开, 与 partner-action s426 口径一致)
+        acceptSwitch: p.accept_switch !== false,
         'form.bufferMin': local.bufferMin || PA.defaultBufferMin,
         bufferIndex: PA.bufferOptions.indexOf(local.bufferMin || PA.defaultBufferMin),
         // 抢单提醒(订阅消息): 授权回显 + 模板配置态
@@ -465,6 +468,28 @@ Page({
 
   onWelfareToggle(e) {
     this.setData({ 'form.acceptWelfare': e.detail.value });
+  },
+
+  // 2026-11-15 接单开关下沉: 复用云端 set_switch(唯一写入口), 乐观更新 + 失败回滚
+  // 关闭时云端会拦「有进行中订单」(pa_busy_order), 此处据 msg 回弹
+  onAcceptSwitch(e) {
+    const on = !!e.detail.value;
+    const prev = this.data.acceptSwitch;
+    this.setData({ acceptSwitch: on });
+    callCloud('partner-action', { action: 'set_switch', accept_switch: on }).then((r) => {
+      if (!r.ok) {
+        this.setData({ acceptSwitch: prev });
+        wx.showToast({ title: r.msg || '设置失败', icon: 'none' });
+        return;
+      }
+      // 接单态变化会影响 take-order 门禁缓存, 清掉防 60s 内仍按旧态拦截
+      try { require('../../../utils/take-order.js').invalidateTakeReadiness(); } catch (err) { console.warn('invalidateTakeReadiness failed', err); }
+      wx.showToast({ title: on ? '已开启接单' : '已暂停接单', icon: 'success' });
+    }).catch((err) => {
+      this.setData({ acceptSwitch: prev });
+      wx.showToast({ title: '网络异常', icon: 'none' });
+      console.warn('set_switch failed', err);
+    });
   },
 
   // 订阅消息开关(抢单提醒 demand_grab / 催办提醒 demand_urge): 勾选时先请求模板订阅授权, 再落库 partner_profile.sub_msgs
