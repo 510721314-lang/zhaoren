@@ -1,4 +1,4 @@
-# AGENTS.md · 接手者须知（纯指针页）
+﻿# AGENTS.md · 接手者须知（纯指针页）
 
 > 本文件**只放指针，不复制规则正文**。规则唯一源是 [.trae/rules/](../.trae/rules/)，本页与规则冲突时以规则为准。
 > 适用对象：AI 助手、新接手工程师。业务与需求请读 [PRD/PRD.md](../PRD/PRD.md)。
@@ -8,7 +8,7 @@
 1. [project-rules-core.md](../.trae/rules/project-rules-core.md) §0–§9（常驻规则）
 2. [FUNCTION-REGISTRY.md](FUNCTION-REGISTRY.md)（已验证功能与人工验收步骤）
 3. [CHANGELOG.md](CHANGELOG.md)（近期变更与回归结论）
-4. 现行交接稿 [HANDOFF-20261114.md](HANDOFF-20261114.md)（未闭合项与下一步）
+4. 现行交接稿 [HANDOFF-20261115.md](HANDOFF-20261115.md)（未闭合项与下一步）
 5. `npm run verify:offline` 取基线（失败即停，不得绕过）
 
 ## 2. 规则指针表（按场景查）
