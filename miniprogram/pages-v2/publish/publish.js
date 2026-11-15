@@ -242,7 +242,7 @@ Page({
             'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
             'form.project_attr': d.project_attr || 'commercial',
             'form.pricing_type': d.pricing_type === 'fixed' ? 'fixed' : 'hourly',  // 一口价需求编辑回填(否则价格行整块错位)
-            'form.fixed_price': d.fixed_price_fen ? String(Number(d.fixed_price_fen) / 100) : '',
+            'form.fixed_price': d.fixed_price_fen ? (Number(d.fixed_price_fen) / 100).toFixed(2) : '',  // 2026-11-15 M5: 回填补零两位小数
             'form.title': d.title || '',
             'form.description': d.description || '',
             'form.service_date': d.service_date,
@@ -250,7 +250,7 @@ Page({
             'form.duration_hours': dur,
             'form.duration_custom': d.duration_hours,
             'form.headcount': d.headcount || 1,
-            'form.budget': d.budget ? String(d.budget) : '',
+            'form.budget': d.budget ? Number(d.budget).toFixed(2) : '',
             'form.aa_estimate': d.aa_estimate || '0-50',
             'form.match_mode': d.match_mode || 'broadcast',
             'form.gender_pref': d.gender_pref || '不限',
@@ -412,7 +412,7 @@ Page({
         'form.latitude': (d.location && d.location.latitude) || 0,
         'form.longitude': (d.location && d.location.longitude) || 0,
         'form.headcount': d.headcount || 1,
-        'form.budget': d.budget ? String(d.budget) : '',
+        'form.budget': d.budget ? Number(d.budget).toFixed(2) : '',
         'form.aa_estimate': d.aa_estimate || '',
         'form.aa_custom': '',
         'form.gender_pref': d.gender_pref || '不限',
