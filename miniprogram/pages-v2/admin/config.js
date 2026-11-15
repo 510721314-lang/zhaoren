@@ -18,7 +18,14 @@ Page({
 
   loadConfig() {
     callCloud('admin-action', { action: 'config_get' }).then((r) => {
-      if (r.ok) this.setData({ config: r.data, loading: false });
+      if (r.ok) {
+        // 2026-11-15 M1: scene_list 金额页 JS 预计算(WXML 不支持函数调用), 分转元补零两位小数
+        const cfg = r.data;
+        if (Array.isArray(cfg.scene_list)) {
+          cfg.scene_list = cfg.scene_list.map((s) => Object.assign({}, s, { rate_yuan_text: ((Number(s.default_rate_fen) || 0) / 100).toFixed(2) }));
+        }
+        this.setData({ config: cfg, loading: false });
+      }
       else this.setData({ loading: false });
     });
   },

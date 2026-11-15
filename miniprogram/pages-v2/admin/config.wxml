@@ -41,7 +41,7 @@
     <view class="section-title">场景列表 ({{config.scene_list.length}})</view>
     <view class="scene-item" wx:for="{{config.scene_list}}" wx:key="code">
       <text class="scene-name">{{item.name}} ({{item.code}})</text>
-      <text class="scene-rate">¥{{item.default_rate_fen / 100}}/h</text>
+      <text class="scene-rate">¥{{item.rate_yuan_text}}/h</text>
     </view>
   </view>
 
