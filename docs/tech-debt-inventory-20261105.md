@@ -3,6 +3,7 @@
 > 盘点日期：2026-11-05（2026-11-06 增量刷新）　基线：体验版 **v1.6.95**（TOTAL 790.1 KB / 809,040 B，main 548.0 KB；与 v1.6.94 字节一致）；HEAD `8b0c92d`（工作区干净、已推送）
 > 数据来源：云端回读（`config_get` / `config_public` / `nosql`）、[deploy-log](deploy-log.md)、[CHANGELOG](CHANGELOG.md)、[FUNCTION-REGISTRY](FUNCTION-REGISTRY.md)、本会话实测（`npm test` / 入口测试 / SHA 核验）
 > 替代关系：本文件为**现行唯一**技术负债清单；[tech-debt-inventory-20261015.md](tech-debt-inventory-20261015.md) 转为**历史归档**（其日期口径、KNOWN 计数、REGISTRY 待验证数已过时）。
+> 后期路线图：[ROADMAP-post-review.md](ROADMAP-post-review.md)（2026-11-15 企业主体/保险/核身/税务规划与当前债映射；F12⑤/P1-5/P1-6 已移入后期）
 > 维护约定：每条处置后在本文标注「已偿还(日期/commit)」或「已决策不处理(原因)」，并同步 CHANGELOG / REGISTRY / deploy-log。
 
 ## 总览
@@ -42,8 +43,8 @@
 | P1-2 | 旧 `complete_service`（S3→S5 直连） | ✅ 已偿还（同上，由 `finish_apply`+`finish_confirm` 取代） |
 | P1-3 | `start_photo` 服务端保留、S3 前端入口已移除 | 有意保留（全量 grep 0 命中，不回开） |
 | P1-4 | `demand-match.hall_list` 标 deprecated 仍在线 | 有意保留；**下线动作留提审后**（静态零调用已证） |
-| P1-5 | MVP 禁做项占位：短信发送、人脸三分支、mock 现金 `is_mock=true` | 有意保留；禁止接真实打款 |
-| P1-6 | `realname_face_mode=mock` 临时放宽 | ✅ 已决策保持 mock（2026-11-05 你拍板：发布不关回 `wx`、不清打标；真实核身接线提审后立项） |
+| P1-5 | MVP 禁做项占位：短信发送、人脸三分支、mock 现金 `is_mock=true` | 有意保留；禁止接真实打款；**2026-11-15 移入后期**：与 T-9.12 真实支付、代扣税、税务票据合并为「企业结算体系」，见 [ROADMAP-post-review.md](ROADMAP-post-review.md) |
+| P1-6 | `realname_face_mode=mock` 临时放宽 | ✅ 已决策保持 mock（2026-11-05 你拍板：发布不关回 `wx`、不清打标；真实核身接线提审后立项）；**2026-11-15 移入后期路线图**：随企业主体规划的真实核身一并立项 |
 | P1-7 | `auto_approve_partner` 曾被临时置 true 且无审计 | ✅ 已偿还（2026-11-01 回 false；2026-11-05 回读仍 false） |
 | P1-8 | `order_main.uk_order_no` 等 5 条唯一索引存在性 | ✅ 已核实（2026-10-22 引擎取证 5/5 `unique=true`） |
 
@@ -214,7 +215,7 @@
 | F1-附 | im-send sec_degraded 写侧已删（fail-closed 行为保留）；admin-action/action_im_kefu 补审名单**读侧恒空**（原写侧死代码致永不生效） | **无害残留** | 名单页永远为空属预期；若日后启用降级放行需重写双端契约 |
 | F10 | hourly 加时确认把 `add_amount_fen` 并入 total_fen/fee_fen/partner_income_fen（order-action/action_modify_extend.js:338-348），而 pay_transaction **无任何 extend 支付流水** → 未付金额进入结算基数（`partner_income_fen` 聚合可提现余额）与退款上限（2026-11-14 综合评审 A 代理发现，用户立项第一档 (a)） | **✅ 已修（2026-11-14，commit `d32561ba` + order-action 部署，SHA 25 文件 MATCH）** | 加时只加时长不加金额（与 fixed 口径统一为「加时暂不计费」）；fee/income 沿用订单现值（顺带消除 hourly 按 config 费率重算的 fee 漂移）；两处通知文案改「加时暂不计费」；前端 6 处「加时金额 ¥X」展示同步去金额（confirm-flow/order-submit×2/order-view×2/order-detail.wxml+js）；新增 [order_extend_confirm.test.js](../cloudfunctions/_shared/order_extend_confirm.test.js) 4 断言守护 |
 | F11 | admin-action 争议退款上限按 `total_fen` 且回写 `fund.paid_fen=total_fen`（action_dispute_handle.js:35,65），与 payment-mock 已修实付口径不一致 → 加时单可退超实付（同上评审 A 代理发现，第一档 (b)） | **✅ 已修（同上 commit + admin-action 部署，SHA 51 文件 MATCH）** | 退款基准改 `fund.paid_fen`（缺失回退 total_fen，与 payment-mock action_pay.js:194 同款）；上限/默认退额/fund 回写三处自动跟随 |
-| F12 | 2026-11-14 综合评审其余发现：~~前端 order-poll 1Hz 静态文案 setData（order-poll.js:105-113）~~ / chat 每次轮询两次全量 setData（chat.js:284,352）/ ~~rules-size-baseline 水位漂移 10B（scripts/rules-size-baseline.json:10）~~ / ~~`miniprogram/mock/*` 22.9KB 零引用驻主包~~ / order-timer 20+ 段无全局 deadline（index.js:579-653）/ home-action 冷启动 3 次 createCollection（index.js:34-44）/ 后台 e.message 透传（与 F6 重复合并）/ 清单门只认行首单引号（P4）/ S10.5→S8 流转越界（P4 待拍板）/ 青少年限额 age 缺失放行（P4）/ `!event` 迁移守卫旁路（P4，主对话复核降级：51 处调用全为内部代码无外部路径） | **第二档 3 项已修（2026-11-14，commit `2de25183`）：①startCountdown 去 1Hz 定时器改为状态刷新时一次性写入（order-poll.js，setData 60次/分→0，零断言受影响）；②水位基线 --write 刷新至实测 16383B/16384B；③mock 目录 6 文件 22.9KB git rm（V15.1 陈年 mock 脚手架，全仓零 require，git 历史可回滚）**。剩余维持登记不动作；~~chat 双写 setData 为下一批候选~~**chat 双写已修（2026-11-14 批 2，commit `7c85b183`）：①renderMessages 无新消息（shouldScroll=false）直接 return 跳过全量 messages setData；②updateMsgStatuses 加 changed 判定，模板卡状态/已选无变化不 setData（均不在 @VERIFIED 体内，随下次体验版生效待真机）**；S10.5→S8 口径**已裁决（2026-11-14 乙案）**：系撤回投诉存量兼容路径（`COMPLAINT_RESTORE_STATUS` 含 S8/S9，D1 2026-10-12 拍板背书；投诉发起侧 2026-10-15 已收窄至 S2-S4，新单不可达），非附录A「S10.5→S5/S7」所指裁决出口，维持现状不收紧（action_dispute.js:5 悬置注释已闭合）；兜底触发条件=存量 S8/S9 起源争议单清零后从恢复白名单移除 S8/S9（届时字面合规，1 行改动） |
+| F12 | 2026-11-14 综合评审其余发现：~~前端 order-poll 1Hz 静态文案 setData（order-poll.js:105-113）~~ / chat 每次轮询两次全量 setData（chat.js:284,352）/ ~~rules-size-baseline 水位漂移 10B（scripts/rules-size-baseline.json:10）~~ / ~~`miniprogram/mock/*` 22.9KB 零引用驻主包~~ / order-timer 20+ 段无全局 deadline（index.js:579-653）/ home-action 冷启动 3 次 createCollection（index.js:34-44）/ 后台 e.message 透传（与 F6 重复合并）/ 清单门只认行首单引号（P4）/ S10.5→S8 流转越界（P4 待拍板）/ 青少年限额 age 缺失放行（P4，**2026-11-15 移入后期**：随真实核身回填 age 一并处理，过渡期风险已接受——发单侧未实名用户不受 200 元上限约束，见 [ROADMAP-post-review.md](ROADMAP-post-review.md) §三）/ `!event` 迁移守卫旁路（P4，主对话复核降级：51 处调用全为内部代码无外部路径） | **第二档 3 项已修（2026-11-14，commit `2de25183`）：①startCountdown 去 1Hz 定时器改为状态刷新时一次性写入（order-poll.js，setData 60次/分→0，零断言受影响）；②水位基线 --write 刷新至实测 16383B/16384B；③mock 目录 6 文件 22.9KB git rm（V15.1 陈年 mock 脚手架，全仓零 require，git 历史可回滚）**。剩余维持登记不动作；~~chat 双写 setData 为下一批候选~~**chat 双写已修（2026-11-14 批 2，commit `7c85b183`）：①renderMessages 无新消息（shouldScroll=false）直接 return 跳过全量 messages setData；②updateMsgStatuses 加 changed 判定，模板卡状态/已选无变化不 setData（均不在 @VERIFIED 体内，随下次体验版生效待真机）**；S10.5→S8 口径**已裁决（2026-11-14 乙案）**：系撤回投诉存量兼容路径（`COMPLAINT_RESTORE_STATUS` 含 S8/S9，D1 2026-10-12 拍板背书；投诉发起侧 2026-10-15 已收窄至 S2-S4，新单不可达），非附录A「S10.5→S5/S7」所指裁决出口，维持现状不收紧（action_dispute.js:5 悬置注释已闭合）；兜底触发条件=存量 S8/S9 起源争议单清零后从恢复白名单移除 S8/S9（届时字面合规，1 行改动） |
 
 ---
 
