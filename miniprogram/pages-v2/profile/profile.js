@@ -63,6 +63,9 @@ Page({
     ],
     menuGroups: [],          // 分组菜单: [{ key, title, items[] }], 由 buildMenu(identity) 生成
     partnerEntries: [
+      // 2026-11-15 P3-38 裁定 A: workbench 原为孤儿页, 其「无单紧急求助(free_sos)」全仓唯一入口不可达;
+      // 补此 1 行后经 onPartnerEntry 通用路由自动拼 /pages-v2/workbench/workbench
+      { key: 'workbench', icon: '🧭', name: '接单工作台' },
       { key: 'accept-config', icon: '⚙️', name: '接单配置' },
       { key: 'partner-profile-edit', icon: '📝', name: '资料维护' },
       { key: 'wallet', icon: '💰', name: '收入钱包' }
