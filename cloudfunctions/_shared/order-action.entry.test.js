@@ -1079,5 +1079,28 @@ test('extend: 2-20 字文案类型放行 → ok + CAS 写 pending_extend', async
   assert.ok((sdk.writes.system_notice || []).some((n) => n.add), '应写对方站内通知');
 });
 
+// 2026-11-15 T-10.4 前置：notice_poll 契约锁现状（无 server_now/since_ts，本轮仅固化形状）
+test('notice_poll: 非法 order_id → oa_bad_order', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'notice_poll', order_id: 'not-a-32-hex' }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_bad_order');
+});
+
+test('notice_poll: 有未读站内信 → has_new=true 且 list 字段形状固定', async () => {
+  const store = baseStore();
+  store.system_notice = {
+    n1: { _id: 'n1', to_openid: USER, order_id: OID, read: false, type: 'modify_apply', title: 't', body: 'b', created_at: 1794700000000 }
+  };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'notice_poll', order_id: OID }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.has_new, true);
+  assert.ok(Array.isArray(r.data.list) && r.data.list.length === 1);
+  assert.deepStrictEqual(Object.keys(r.data.list[0]).sort(), ['body', 'created_at', 'id', 'title', 'type']);
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

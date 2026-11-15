@@ -401,7 +401,9 @@
     "modify: 原因类型缺失拒绝（oa_modify_reason_type）",
     "modify: 申请成功 → 落库通知 type=modify_apply（与四确认修改不再同 type）",
     "extend: 原因类型缺失拒绝（oa_extend_reason_type）",
-    "extend: 2-20 字文案类型放行 → ok + CAS 写 pending_extend"
+    "extend: 2-20 字文案类型放行 → ok + CAS 写 pending_extend",
+    "notice_poll: 非法 order_id → oa_bad_order",
+    "notice_poll: 有未读站内信 → has_new=true 且 list 字段形状固定"
   ],
   "cloudfunctions/_shared/order-create.entry.test.js": [
     "无 OPENID 且无 mock_openid → order_no_openid",
