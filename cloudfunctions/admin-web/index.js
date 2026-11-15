@@ -94,6 +94,12 @@ function makeJson(data, statusCode = 200) {
   return { statusCode, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(data) };
 }
 
+// 2026-11-15 F6(评审修复): 502 兜底统一 —— 错误细节进云函数日志(console.error), 响应只回通用文案不泄内部实现
+function failJson(code, e) {
+  console.error(`[admin-web] ${code}`, (e && (e.stack || e.message)) || e);
+  return makeJson({ ok: false, code, msg: '服务暂不可用，请稍后重试' }, 502);
+}
+
 // ── proxy 工具 ──
 function withTimeout(promise, ms) {
   return Promise.race([
@@ -250,14 +256,14 @@ exports.main = async (event, context) => {
         log: { w: function () {} }
       });
       return makeJson(r);
-    } catch (e) { return makeJson({ ok: false, code: 'login_error', msg: e.message }, 502); }
+    } catch (e) { return failJson('login_error', e); }
   }
   if (action === 'admin_logout') {
     try {
       // P3-1(2026-11-03): 传入最小日志口, 使 admin_logout 会话置删失败可留痕(原实现无 log)
       const r = await adminLogoutShared({ event: body, col, log: { d: function (m) { console.log(m); } } });
       return makeJson(r);
-    } catch (e) { return makeJson({ ok: false, code: 'logout_error', msg: e.message }, 502); }
+    } catch (e) { return failJson('logout_error', e); }
   }
 
   // Bootstrap generate_admin_web_key → init-db 直调 (无鉴权)
@@ -269,7 +275,7 @@ exports.main = async (event, context) => {
     try {
       const r = await cloud.callFunction({ name: 'init-db', data: proxyData });
       return makeJson(r.result || { ok: false, code: 'no_result' });
-    } catch (e) { return makeJson({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
+    } catch (e) { return failJson('init_db_error', e); }
   }
 
   // init_db → init-db 通用代理 (鉴权通过, init-db 内部有 admin_openids 门控)
@@ -282,7 +288,7 @@ exports.main = async (event, context) => {
     try {
       const r = await withTimeout(cloud.callFunction({ name: 'init-db', data: proxyData }), PROXY_TIMEOUT_MS);
       return makeJson(r.result || { ok: false, code: 'no_result' });
-    } catch (e) { return makeJson({ ok: false, code: 'init_db_error', msg: e.message }, 502); }
+    } catch (e) { return failJson('init_db_error', e); }
   }
 
   // 种子数据代理: 调用 zz-seed-orders (run / cleanup / count / simulate / cleanup_sim / count_sim / service_orders / night_orders)
@@ -332,7 +338,7 @@ exports.main = async (event, context) => {
       if (e && e.message && e.message.startsWith('proxy_timeout_')) {
         return makeJson({ ok: false, code: 'gateway_timeout', action, hint: '网关响应慢, 请稍后重试', timeout_ms: PROXY_TIMEOUT_MS }, 504);
       }
-      return makeJson({ ok: false, code: 'proxy_error', msg: e.message }, 502);
+      return failJson('proxy_error', e);
     }
   }
 
@@ -354,20 +360,20 @@ exports.main = async (event, context) => {
         ]).and({ tip_total_fen: _.gt(0), is_deleted: _.neq(true) })).orderBy('updated_at', 'desc').limit(10).get().catch(() => ({ data: [] }));
         rows = r.data || [];
       }
-      const out = [];
-      for (const o of rows) {
+      // 2026-11-15 F8(评审修复): 逐单串行查流水(N+1)改并行, 缩短 3s 超时窗口内耗时
+      const out = await Promise.all(rows.map(async (o) => {
         const txs = await db.collection('pay_transaction').where({ order_id: o._id, type: 'tip', is_deleted: _.neq(true) }).orderBy('created_at', 'asc').limit(100).get().catch(() => ({ data: [] }));
-        out.push({
+        return {
           _id: o._id, order_no: o.order_no || '', status: o.status || '',
           user_openid: o.user_openid || '', partner_openid: o.partner_openid || '',
           tip_total_fen: o.tip_total_fen || 0, updated_at: o.updated_at || null,
           tip_count: (txs.data || []).length,
           tips: (txs.data || []).map((t) => ({ pay_no: t.pay_no, amount_fen: t.amount_fen, note: t.note || '', created_at: t.created_at }))
-        });
-      }
+        };
+      }));
       return makeJson({ ok: true, data: { orders: out } });
     } catch (e) {
-      return makeJson({ ok: false, code: 'probe_error', msg: e && e.message }, 502);
+      return failJson('probe_error', e);
     }
   }
 
@@ -384,7 +390,7 @@ exports.main = async (event, context) => {
       }), PROXY_TIMEOUT_MS);
       return makeJson(r.result || { ok: false, code: 'no_result' });
     } catch (e) {
-      return makeJson({ ok: false, code: 'fn_probe_error', msg: e && e.message }, 502);
+      return failJson('fn_probe_error', e);
     }
   }
 
@@ -421,7 +427,7 @@ exports.main = async (event, context) => {
         detail: { err: String((e && e.message) || e) },
         result: 'fail', client_ip: '', device: 'admin-web', at: Date.now()
       });
-      return makeJson({ ok: false, code: 'fn_migrate_error', msg: e && e.message }, 502);
+      return failJson('fn_migrate_error', e);
     }
   }
 
@@ -432,7 +438,7 @@ exports.main = async (event, context) => {
       const r = await withTimeout(cloud.callFunction({ name: 'home-action', data: { action: 'square', limit: Math.min(Number(body.limit) || 20, 50) } }), PROXY_TIMEOUT_MS);
       return makeJson(r.result || { ok: false, code: 'no_result' });
     } catch (e) {
-      return makeJson({ ok: false, code: 'home_probe_error', msg: e && e.message }, 502);
+      return failJson('home_probe_error', e);
     }
   }
   // 排查探活: 直查 system_notice / audit_log 集合(改期通知回归排查)
@@ -446,7 +452,7 @@ exports.main = async (event, context) => {
       }).orderBy('created_at', 'desc').limit(10).get();
       return makeJson({ ok: true, data: { type: t, hours, count: r.data.length, list: r.data.map((n) => ({ order_id: n.order_id, to_openid: n.to_openid, read: !!n.read, created_at: n.created_at, title: n.title })) } });
     } catch (e) {
-      return makeJson({ ok: false, code: 'probe_notice_error', msg: e && e.message }, 502);
+      return failJson('probe_notice_error', e);
     }
   }
   if (action === 'home_probe_modify_audit') {
@@ -459,7 +465,7 @@ exports.main = async (event, context) => {
       }).orderBy('created_at', 'desc').limit(10).get();
       return makeJson({ ok: true, data: { hours, count: r.data.length, list: r.data.map((a) => ({ action: a.action, openid: a.openid, role: a.role, target_id: a.target_id, result: a.result, created_at: a.created_at })) } });
     } catch (e) {
-      return makeJson({ ok: false, code: 'probe_audit_error', msg: e && e.message }, 502);
+      return failJson('probe_audit_error', e);
     }
   }
 
@@ -476,6 +482,6 @@ exports.main = async (event, context) => {
         timeout_ms: PROXY_TIMEOUT_MS
       }, 504);
     }
-    return makeJson({ ok: false, code: 'proxy_error', msg: e.message }, 502);
+    return failJson('proxy_error', e);
   }
 };
