@@ -10,7 +10,7 @@ function runScript(scriptPath, label) {
   const result = spawnSync('node', [scriptPath], {
     cwd: path.join(__dirname, '..', '..'),
     encoding: 'utf8',
-    timeout: 300000,
+    timeout: 480000, // 8 分钟：覆盖 DevTools 冷启动首次编译（约 22s）余量
   });
   const output = (result.stdout || '') + (result.stderr || '');
   console.log(output);
@@ -30,7 +30,10 @@ function runScript(scriptPath, label) {
       failures.push(line.trim());
     }
   }
-  return { label, pass, total, fail, failures, exitCode: result.status };
+  // spawnSync 超时被杀时 result.status === null，stdout 无 SUMMARY 行会假通过（pass/fail 全 0 → exit 0），必须显式判败
+  const timedOut = result.status === null;
+  if (timedOut) fail += 1;
+  return { label, pass, total, fail, failures, exitCode: result.status, timedOut };
 }
 
 function classifyFailure(line) {
