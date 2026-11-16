@@ -36,12 +36,14 @@ npm run check:devtools
 ### 步骤 2：拉起自动化端口
 
 ```powershell
-& "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" auto --project "C:\zhaoren" --auto-port 9420
+Start-Process -FilePath "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" `
+  -ArgumentList "auto","--project","C:\zhaoren","--auto-port","9420" `
+  -WindowStyle Minimized
 ```
 
+- **必须用 `Start-Process` 分离启动**：直接 `& cli.bat auto` 会在命令退出后关掉自动化端口（实测：端口 LISTENING 但 WebSocket 连不上）。`Start-Process` 让 DevTools 窗口独立存活。
 - `--auto-port` 是 miniprogram-automator 的 WebSocket 端口，默认 9420。
-- 此命令会打开开发者工具并监听自动化端口，**保持前台运行**（不要关）。
-- 验证端口：`netstat -ano | findstr 9420` 应看到 LISTENING。
+- 等待端口：`Test-NetConnection 127.0.0.1 -Port 9420` 返回 True 后再连接（冷启动约 5-15s）。
 
 ### 步骤 3：用 automator.connect 连接
 
@@ -55,8 +57,10 @@ const miniProgram = await automator.connect({
 ### 步骤 4：跑测试 + 收尾
 
 ```js
-const page = await miniProgram.reLaunch('/pages/index/index');
-// ... 断言 ...
+const page = await miniProgram.reLaunch('/pages-v2/index/index');
+if (!page) throw new Error('reLaunch returned undefined');
+console.log(page.path);  // path 是属性(string)，不是方法
+const data = await page.data();  // data() 是异步方法
 await miniProgram.disconnect();
 ```
 
@@ -67,13 +71,17 @@ await miniProgram.disconnect();
 | API | 正确用法 | 易错点 |
 |---|---|---|
 | `page.data()` | `const data = await page.data()` | **异步方法**，不是属性。写成 `page.data` 拿到函数对象，断言全错 |
-| `page.$(selector)` | `const el = await page.$('.btn')` | 返回元素句柄，需 `.then()` 或 await |
+| `page.path` | `console.log(page.path)` | **属性**(string)，不是方法。写 `page.path()` 报 "is not a function" |
+| `pageStack()` | `const pages = await miniProgram.pageStack()` | 获取页面栈。**没有** `currentPages` 方法 |
+| `currentPage()` | `const p = await miniProgram.currentPage()` | 获取当前页，返回 `Page \| undefined` |
+| `reLaunch(url)` | `const page = await miniProgram.reLaunch(url)` | 返回 `Page \| undefined`，需判空 |
+| `page.$(selector)` | `const el = await page.$('.btn')` | 返回元素句柄，需 await |
 | `element.text()` | `const t = await el.text()` | 异步 |
 | `page.setData({k:v})` | `await page.setData({k:v})` | 异步 |
 | `page.waitFor(selector)` | `await page.waitFor('.toast', 5000)` | 第二个参数是超时 ms |
 | 导航 | `miniProgram.reLaunch('/pages/x/x')` | 不要用 `navigateTo` 测 tabBar 页 |
 
-完整 API 见 `node_modules/miniprogram-automator/types/automator.d.ts`。
+完整 API 见 `node_modules/miniprogram-automator/out/MiniProgram.d.ts` 和 `Page.d.ts`。
 
 ## 失败归因（核心纪律）
 
