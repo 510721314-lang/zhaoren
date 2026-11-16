@@ -4,6 +4,28 @@
     "action_import: append 撞库 → inserted=2, skipped_conflict=1",
     "action_import: 缺 confirm → restore_need_confirm"
   ],
+  "cloudfunctions/_shared/admin-action-content.entry.test.js": [
+    "blog_offline: post_id 非法 → blog_bad_id",
+    "blog_offline: 无 note → blog_note_required",
+    "blog_offline: 动态不存在 → blog_gone",
+    "blog_offline: 已下架 → blog_already_offline",
+    "blog_restore: 非下架状态 → blog_not_offline",
+    "blog_delete: 无 note → blog_note_required",
+    "blog_comment_list: post_id 非法 → blog_bad_id",
+    "blog_comment_delete: comment_id 非法 → blog_bad_comment_id",
+    "question_detail: 缺 subject/qid → question_bad_key",
+    "question_detail: 题目不存在 → question_not_found",
+    "question_upsert: subject 非法 → question_bad_subject",
+    "question_upsert: 选项少于2 → question_bad_options",
+    "question_upsert: 答案越界 → question_bad_answer",
+    "question_delete: 缺 qid → question_bad_key",
+    "question_bulk_status: 缺 subject → question_bad_subject",
+    "question_bulk_status: status 非法 → question_bad_status",
+    "question_bulk_status: qids 为空 → question_bad_qids",
+    "question_import_markdown: 内容为空 → question_import_empty",
+    "legal_doc_list: doc_type 非法 → legal_bad_type",
+    "legal_doc_list: scope 格式非法 → legal_bad_scope"
+  ],
   "cloudfunctions/_shared/admin-action-user-mgmt.entry.test.js": [
     "user_freeze: 无 target_openid → freeze_bad_openid",
     "user_unfreeze: 无 target_openid → freeze_bad_openid",
