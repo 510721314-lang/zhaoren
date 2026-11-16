@@ -104,6 +104,22 @@ await mp.disconnect();
 4. **环境问题**：开发者工具未登录、项目未编译、网络不通。看开发者工具 Console 报错。
 5. **产品缺陷**：以上都排除后，断言仍失败 → 记录为 BUG，附：页面路径、复现步骤、期望/实际、截图。
 
+## 超时陷阱与假通过防护（2026-11-16 实证）
+
+### spawnSync 超时假通过
+
+- **现象**：`spawnSync` 子进程被 `timeout` 杀掉时 `result.status === null`，stdout 可能不完整
+- **陷阱**：编排器靠解析 stdout 的 `SUMMARY` 行统计 pass/fail；超时后无 SUMMARY → pass/fail 全 0 → 汇总 `exit 0` **假通过**（51 用例静默缩水成 6 用例，门禁绿灯）
+- **修复**：
+  1. `timeout` 留足余量（覆盖 DevTools 冷启动 ~22s 编译），不要贴着实测耗时
+  2. `result.status === null` 时显式 `fail += 1`，禁止按"解析不到=通过"处理
+- **实证**：`run-all.js` P0 偶发超时（云函数冷启动波动），旧代码假通过 exit 0；修复后正确判败 exit 1
+
+### 单页无超时保护
+
+- `smoke-pages.js` 每页 `reLaunch`/`data()` 无单页超时，某页卡住会拖死全进程直到 spawnSync `timeout`
+- 偶发超时多为**云函数冷启动波动**，非代码缺陷；频繁出现再立项加单页超时保护
+
 ## 报告模板
 
 测试完成后输出 Markdown 报告，**必须区分产品缺陷与脚本缺陷**：
