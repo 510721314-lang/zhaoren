@@ -64,3 +64,12 @@ test('注释中的 subscribeMessage.send 不误报', () => {
   const r = run(root);
   assert.strictEqual(r.code, 0, r.out);
 });
+
+test('zz-* 探针/种子目录裸调豁免（探针须采集原始 errCode，无副作用契约）', () => {
+  const root = fixture('zzprobe');
+  fs.mkdirSync(path.join(root, 'cloudfunctions', 'zz-openapi-probe'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'cloudfunctions', 'zz-openapi-probe', 'index.js'), "await cloud.openapi.subscribeMessage.send({});\n");
+  const r = run(root);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.ok(r.out.includes('SUB-MSG OK'), r.out);
+});

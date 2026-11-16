@@ -1210,7 +1210,8 @@
     "业务文件裸调 → FAIL[SUBMSG-DIRECT]",
     "_orig_baseline.js 冻结基线豁免",
     "测试文件 mock 豁免",
-    "注释中的 subscribeMessage.send 不误报"
+    "注释中的 subscribeMessage.send 不误报",
+    "zz-* 探针/种子目录裸调豁免（探针须采集原始 errCode，无副作用契约）"
   ],
   "scripts/check-test-globs.test.js": [
     "基线夹具应 PASS",

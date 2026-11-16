@@ -1,7 +1,9 @@
 // scripts/check-sub-msg-consistency.js — 订阅消息发送入口一致性门禁（2026-11-02 方案A）
 // 规则：`subscribeMessage.send` 只允许出现在 sub_msg.js（规范源与各函数副本）；
 //       其他业务文件裸调即 FAIL，必须改走 _shared/sub_msg.js 的 sendOnce。
-// 豁免：_orig_baseline.js（冻结基线，禁改）、*.test.js（测试注入 mock 不属于生产调用）。
+// 豁免：_orig_baseline.js（冻结基线，禁改）、*.test.js（测试注入 mock 不属于生产调用）、
+//       zz-* 函数目录（探针/种子等非业务函数，项目命名约定；探针须裸调采集原始 errCode，
+//       走 sendOnce 会引入配额补偿/留痕副作用，破坏「探针无副作用」契约）。
 const fs = require('fs');
 const path = require('path');
 
@@ -16,7 +18,10 @@ function walk(dir) {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
         if (SKIP_DIR.has(ent.name)) continue;
         const abs = path.join(dir, ent.name);
-        if (ent.isDirectory()) { walk(abs); continue; }
+        if (ent.isDirectory()) {
+            if (ent.name.startsWith('zz-')) continue;   // zz-* 探针/种子目录豁免（非业务函数）
+            walk(abs); continue;
+        }
         if (!ent.name.endsWith('.js')) continue;
         const rel = path.relative(root, abs).replace(/\\/g, '/');
         if (ent.name === '_orig_baseline.js' || ent.name.endsWith('.test.js')) continue;
