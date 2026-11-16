@@ -84,6 +84,28 @@
     "home_activity_delete: id 不存在 → act_not_found",
     "dashboard: 成功路径返回 ok:true"
   ],
+  "cloudfunctions/_shared/admin-action-misc-export.entry.test.js": [
+    "upload_image: 图片数据为空 → up_bad_data",
+    "upload_image: 超过 2MB → up_too_big",
+    "upload_image: 不支持的格式 → up_bad_ext",
+    "evidence_query: evidence_id 非法 → eq_bad_id",
+    "evidence_query: 留证记录不存在 → eq_not_found",
+    "evidence_query: openid 非法 → eq_bad_openid",
+    "demand_offline: demand_id 非法 → demand_bad_id",
+    "demand_offline: 缺下架原因 → demand_no_note",
+    "demand_offline: 需求不存在 → demand_not_found",
+    "demand_offline: 状态非 matching → demand_bad_status",
+    "order_force_cancel: order_id 非法 → order_bad_id",
+    "order_force_cancel: 缺取消原因 → cancel_no_note",
+    "order_force_cancel: 订单不存在 → order_not_found",
+    "order_detail: order_id 非法 → order_bad_id",
+    "order_detail: 订单不存在 → order_not_found",
+    "export_collection: 缺 confirm → export_need_confirm",
+    "export_collection: 集合不在白名单 → export_bad_collection",
+    "config_set: 无修改字段 → config_no_change",
+    "config_set: env 非法 → config_bad_env",
+    "config_set: admin_web_key 格式非法 → config_bad_key"
+  ],
   "cloudfunctions/_shared/admin-action-ops.entry.test.js": [
     "notice_send: 空标题 → notice_bad_title",
     "notice_send: 空正文 → notice_bad_body",
