@@ -4,6 +4,20 @@
     "action_import: append 撞库 → inserted=2, skipped_conflict=1",
     "action_import: 缺 confirm → restore_need_confirm"
   ],
+  "cloudfunctions/_shared/admin-action-admin.entry.test.js": [
+    "admin_account_create: 登录名格式非法 → acc_bad_account",
+    "admin_account_create: 密码过短 → acc_bad_pwd",
+    "admin_account_create: 角色非法 → acc_bad_role",
+    "admin_account_set_status: 状态非法 → acc_bad_status",
+    "admin_account_set_status: 账号不存在 → acc_not_found",
+    "admin_add: openid 非法 → admin_bad_openid",
+    "admin_add: 已是管理员 → admin_exists",
+    "admin_remove: openid 非法 → admin_bad_openid",
+    "admin_remove: 不能移除自己 → admin_cannot_remove_self",
+    "admin_remove: 至少保留 1 名 → admin_last_one",
+    "admin_remove: 不在管理员名单 → admin_not_found",
+    "claim_admin: 无 openid → admin_no_openid"
+  ],
   "cloudfunctions/_shared/admin-action-content.entry.test.js": [
     "blog_offline: post_id 非法 → blog_bad_id",
     "blog_offline: 无 note → blog_note_required",
