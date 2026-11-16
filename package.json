@@ -10,6 +10,7 @@
     "test:jest": "jest",
     "test:e2e": "node tests/e2e/smoke-pages.js",
     "test:e2e:flows": "node tests/e2e/smoke-flows.js",
+    "test:e2e:all": "node tests/e2e/run-all.js",
     "test:e2e:single": "node tests/e2e/smoke.js",
     "test:s2-change": "node scripts/auto-test-s2-change.js",
     "audit:config": "node scripts/audit-config-drift.js",
