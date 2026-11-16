@@ -26,6 +26,27 @@
     "legal_doc_list: doc_type 非法 → legal_bad_type",
     "legal_doc_list: scope 格式非法 → legal_bad_scope"
   ],
+  "cloudfunctions/_shared/admin-action-exam-legal.entry.test.js": [
+    "exam_subject_detail: code 为空 → exam_bad_code",
+    "exam_subject_detail: 科目不存在 → exam_not_found",
+    "exam_subject_create: 写入口退役 → exam_write_retired",
+    "content_detail: 缺 key → content_bad_key",
+    "content_detail: 章节不存在 → content_not_found",
+    "legal_doc_list: doc_type 非法 → legal_bad_type",
+    "legal_doc_list: scope 格式非法 → legal_bad_scope",
+    "legal_doc_get: version 非法 → legal_bad_version",
+    "legal_doc_get: 版本不存在 → legal_version_not_found",
+    "legal_doc_publish: 内容为空 → legal_empty_content",
+    "legal_doc_publish: 内容超长 → legal_too_long",
+    "legal_doc_rollback: version 非法 → legal_bad_version",
+    "legal_doc_rollback: 版本不存在 → legal_version_not_found",
+    "legal_doc_rollback: 版本已停用(空内容) → legal_version_retired",
+    "legal_doc_retire: 非 scoped 类型不支持停用 → legal_retire_unsupported",
+    "config_restore: 缺 confirm → restore_need_confirm",
+    "config_restore: config 非对象 → restore_bad_config",
+    "import_collection: 集合不在白名单 → restore_bad_collection",
+    "import_collection: docs 非数组 → restore_bad_docs"
+  ],
   "cloudfunctions/_shared/admin-action-finance.entry.test.js": [
     "finance_stats: start>=end → fs_bad_range",
     "finance_stats: 区间超 90 天 → fs_range_too_long",
