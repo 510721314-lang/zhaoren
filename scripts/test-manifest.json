@@ -103,6 +103,26 @@
     "report_handle: 无处理说明 → report_no_note",
     "report_handle: 举报不存在 → report_not_found"
   ],
+  "cloudfunctions/_shared/admin-action-partner.entry.test.js": [
+    "partner_detail: openid 非法 → detail_bad_openid",
+    "partner_detail: 耍伴不存在 → partner_not_found",
+    "user_detail: openid 非法 → detail_bad_openid",
+    "user_detail: 用户不存在 → user_not_found",
+    "partner_online: openid 非法 → partner_bad_openid",
+    "partner_online: 耍伴不存在 → partner_not_found",
+    "partner_online: 状态非 approved → partner_not_approved",
+    "partner_profile_review: openid 非法 → pp_bad_openid",
+    "partner_profile_review: 耍伴不存在 → pp_not_found",
+    "partner_profile_review: 不在审核队列 → pp_no_pending",
+    "partner_profile_review: 缺审核项 → pp_no_items",
+    "review: 缺 openid → review_no_openid",
+    "review: decision 非法 → review_bad_decision",
+    "review: 耍伴申请不存在 → review_not_found",
+    "user_ec_update: openid 非法 → ec_bad_openid",
+    "user_ec_update: 联系人数非法 → ec_count",
+    "user_ec_update: 姓名/手机号格式有误 → ec_field",
+    "user_ec_update: 手机号加密密钥未配置 → ec_no_key"
+  ],
   "cloudfunctions/_shared/admin-action-user-mgmt.entry.test.js": [
     "user_freeze: 无 target_openid → freeze_bad_openid",
     "user_unfreeze: 无 target_openid → freeze_bad_openid",
