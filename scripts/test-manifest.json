@@ -26,6 +26,17 @@
     "legal_doc_list: doc_type 非法 → legal_bad_type",
     "legal_doc_list: scope 格式非法 → legal_bad_scope"
   ],
+  "cloudfunctions/_shared/admin-action-finance.entry.test.js": [
+    "finance_stats: start>=end → fs_bad_range",
+    "finance_stats: 区间超 90 天 → fs_range_too_long",
+    "finance_stats: 开始时间过早 → fs_bad_start",
+    "finance_stats: 结束时间晚于明天 → fs_bad_end",
+    "withdraw_review: decision 非法 → wr_bad_decision",
+    "withdraw_review: reject 无原因 → wr_need_reason",
+    "withdraw_review: withdraw_id 非法 → wr_bad_id",
+    "withdraw_review: 提现记录不存在 → wr_not_found",
+    "withdraw_review: 状态非 processing → wr_status"
+  ],
   "cloudfunctions/_shared/admin-action-ops.entry.test.js": [
     "notice_send: 空标题 → notice_bad_title",
     "notice_send: 空正文 → notice_bad_body",
