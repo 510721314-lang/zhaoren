@@ -166,6 +166,7 @@ const commandProxy = new Proxy({}, {
           limit() { return this; },
           orderBy() { return this; },
           skip() { return this; },
+          field() { return this; }, // 字段投影桩：不影响 fail-code 契约断言
           async get() {
             calls.push({ method: 'where.get', name, query: q });
             const all = store[name] ? Object.values(store[name]) : [];
