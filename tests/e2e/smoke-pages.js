@@ -57,6 +57,17 @@ const PAGES = [
   'pages-v2/pkg-low/no-show-report/no-show-report?id=test',
 ];
 
+// 单页超时保护：某页依赖的云函数冷启动慢或渲染挂起时，记 FAIL 并跳到下一页，
+// 而非拖死整轮至 spawnSync 480s（G3）。
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout ${ms}ms: ${label}`)), ms)
+    ),
+  ]);
+}
+
 (async () => {
   let miniProgram;
   const results = [];
@@ -81,14 +92,16 @@ const PAGES = [
       const basePath = url.split('?')[0];
       const label = `[${i + 1}/${PAGES.length}] ${basePath}`;
       try {
-        const page = await miniProgram.reLaunch('/' + url);
+        const page = await withTimeout(
+          miniProgram.reLaunch('/' + url), 15000, `reLaunch:${basePath}`
+        );
         if (!page) {
           results.push({ url: basePath, ok: false, reason: 'reLaunch returned undefined' });
           console.log(`${label} FAIL: undefined`);
           continue;
         }
         const path = page.path;
-        const data = await page.data();
+        const data = await withTimeout(page.data(), 10000, `data:${basePath}`);
         const dataKeys = Object.keys(data || {}).length;
         const ok = typeof path === 'string' && path.length > 0;
         results.push({ url: basePath, ok, path, dataKeys });
