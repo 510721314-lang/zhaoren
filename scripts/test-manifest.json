@@ -58,6 +58,18 @@
     "withdraw_review: 提现记录不存在 → wr_not_found",
     "withdraw_review: 状态非 processing → wr_status"
   ],
+  "cloudfunctions/_shared/admin-action-home-dash.entry.test.js": [
+    "home_activity_create: 标题为空/超长 → act_bad_title",
+    "home_activity_create: type 非法 → act_bad_type",
+    "home_activity_create: jump_to 非法 → act_bad_jump",
+    "home_activity_create: 开始>=结束 → act_bad_time",
+    "home_activity_create: content.rules 非字符串数组 → act_bad_content",
+    "home_activity_update: 缺 id → act_bad_id",
+    "home_activity_update: id 不存在 → act_not_found",
+    "home_activity_delete: 缺 id → act_bad_id",
+    "home_activity_delete: id 不存在 → act_not_found",
+    "dashboard: 成功路径返回 ok:true"
+  ],
   "cloudfunctions/_shared/admin-action-ops.entry.test.js": [
     "notice_send: 空标题 → notice_bad_title",
     "notice_send: 空正文 → notice_bad_body",
