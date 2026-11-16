@@ -35,7 +35,10 @@ async function startDevTools() {
     throw new Error('DevTools IDE server 未在 30s 内启动');
   }
   console.log('开启自动化端口 ...');
-  await new Promise((resolve, reject) => {
+  // cli auto 在「IDE 已在运行」或「已处于自动化模式」时常返回非 0，不代表失败。
+  // 策略：成功即返回；失败重试 1 次；仍失败则降级为「以 auto 端口是否监听为准」，
+  // 由后续 connect 结果裁决（与 scripts/auto-ui-pages.js:75-81 语义对齐，G4）。
+  const runCliAuto = () => new Promise((resolve, reject) => {
     const cli = `"${devtools.cliPath}"`;
     const p = spawn(cli, ['auto', '--project', devtools.projectPath, '--auto-port', String(PORT)],
       { shell: true, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -48,6 +51,17 @@ async function startDevTools() {
       else resolve();
     });
   });
+  try {
+    await runCliAuto();
+  } catch (firstErr) {
+    console.log(`  cli auto 首次失败（${firstErr.message.slice(0, 80)}），2s 后重试 ...`);
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      await runCliAuto();
+    } catch (_secondErr) {
+      console.log('  cli auto 重试仍失败，降级：以 auto 端口是否监听为准');
+    }
+  }
   if (!await waitForPort(PORT, 'auto port', 40)) {
     throw new Error(`自动化端口 ${PORT} 未在 40s 内开启`);
   }
