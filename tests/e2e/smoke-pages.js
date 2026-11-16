@@ -1,6 +1,8 @@
 // 批量冒烟：遍历 app.json 所有页面，验证可打开 + page.data() 可获取
 // 用法：node tests/e2e/smoke-pages.js
+// 自动启动 DevTools + 开启自动化端口，无需手动前置
 const automator = require('miniprogram-automator');
+const { PORT, startDevTools, waitForReady } = require('./devtools-launcher');
 
 // 主包 + 分包页面（需参数的页面加假参数，仅验证可打开）
 const PAGES = [
@@ -59,8 +61,20 @@ const PAGES = [
   let miniProgram;
   const results = [];
   try {
-    miniProgram = await automator.connect({ wsEndpoint: 'ws://127.0.0.1:9420' });
-    console.log(`connected, testing ${PAGES.length} pages...\n`);
+    // 自动启动 DevTools + 开自动化端口
+    await startDevTools();
+    try {
+      miniProgram = await automator.connect({ wsEndpoint: `ws://127.0.0.1:${PORT}` });
+    } catch (e) {
+      console.error(`FAIL: 无法连接自动化端口 ${PORT}: ${e.message}`);
+      process.exit(1);
+    }
+    console.log('已连接，等待项目编译 ...');
+    if (!await waitForReady(miniProgram, 30)) {
+      console.error('FAIL: 30s 内项目未编译完成');
+      process.exit(1);
+    }
+    console.log(`开始测试 ${PAGES.length} 个页面...\n`);
 
     for (let i = 0; i < PAGES.length; i++) {
       const url = PAGES[i];
