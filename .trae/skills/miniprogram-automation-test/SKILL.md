@@ -21,47 +21,58 @@ description: 用 miniprogram-automator 在微信开发者工具模拟器里跑�
 - **失败二分法**：用例失败时先区分「产品缺陷」还是「脚本缺陷」（见下文「失败归因」），禁止直接把失败用例等同于 BUG。
 - **PowerShell 语法**：Windows 环境禁止用 `&&` 链式命令，用 `;` 或分多行。
 
-## 标准启动序列（Windows，已实证）
+## 标准启动序列（Windows，已实证 2026-11-16）
 
-经验教训：`automator.launch()` 在 Windows 上直接 spawn `.bat` 经常失败。**必须先用 CLI 拉起自动化端口，再 connect**。
+经验教训：
+1. `automator.launch()` 在 Windows+Node24 下 `spawn EINVAL` 失效（`.bat` + `stdio:['ignore']`）。
+2. `cli.bat auto` 退出时会杀掉 DevTools 子进程，导致自动化端口 9420 释放。
+3. 正确做法：**独立启动 DevTools GUI（detached）→ 等 IDE server 33306 → spawn `cli.bat auto`（shell:true）→ 等端口 9420 → connect → 轮询 currentPage 等编译**。
 
-### 步骤 1：环境自检
+### 推荐：直接用共享启动模块
 
-```powershell
-npm run check:devtools
-```
-
-期望输出 `CLI OK: <cliPath>`。若 FAIL，根据 problems 修环境（cliPath 不存在 → 重装开发者工具或改 `.mcp.json`）。
-
-### 步骤 2：拉起自动化端口
-
-```powershell
-Start-Process -FilePath "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" `
-  -ArgumentList "auto","--project","C:\zhaoren","--auto-port","9420" `
-  -WindowStyle Minimized
-```
-
-- **必须用 `Start-Process` 分离启动**：直接 `& cli.bat auto` 会在命令退出后关掉自动化端口（实测：端口 LISTENING 但 WebSocket 连不上）。`Start-Process` 让 DevTools 窗口独立存活。
-- `--auto-port` 是 miniprogram-automator 的 WebSocket 端口，默认 9420。
-- 等待端口：`Test-NetConnection 127.0.0.1 -Port 9420` 返回 True 后再连接（冷启动约 5-15s）。
-
-### 步骤 3：用 automator.connect 连接
+项目已封装 `tests/e2e/devtools-launcher.js`，导出 `startDevTools()` 和 `waitForReady(mp, maxSec)`：
 
 ```js
 const automator = require('miniprogram-automator');
-const miniProgram = await automator.connect({
-  wsEndpoint: 'ws://127.0.0.1:9420'
-});
+const { PORT, startDevTools, waitForReady } = require('./devtools-launcher');
+
+await startDevTools();                              // 启动 DevTools + 开端口
+const mp = await automator.connect({ wsEndpoint: `ws://127.0.0.1:${PORT}` });
+await waitForReady(mp, 30);                          // 轮询 currentPage 等编译
+// 跑测试...
+await mp.disconnect();
 ```
 
-### 步骤 4：跑测试 + 收尾
+### 手动启动（不用模块时）
+
+```powershell
+# 1. 独立启动 DevTools GUI（detached，不随命令退出）
+Start-Process "C:\Program Files (x86)\Tencent\微信web开发者工具\微信开发者工具.exe"
+# 等 33306 监听（约 3-10s）
+while (-not (Test-NetConnection 127.0.0.1 -Port 33306).TcpTestSucceeded) { Start-Sleep 1 }
+
+# 2. cli.bat auto 开自动化端口（shell:true，等退出）
+& "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" auto --project C:\zhaoren --auto-port 9420
+# 等 9420 监听
+while (-not (Test-NetConnection 127.0.0.1 -Port 9420).TcpTestSucceeded) { Start-Sleep 1 }
+```
+
+### 一键跑全部测试
+
+```powershell
+npm run test:e2e:all    # P0(45页) + P1(6链路)，产出 Markdown 报告
+npm run test:e2e        # 仅 P0 页面冒烟
+npm run test:e2e:flows  # 仅 P1 链路冒烟
+```
+
+### 跑最简测试 + 收尾
 
 ```js
-const page = await miniProgram.reLaunch('/pages-v2/index/index');
+const page = await mp.reLaunch('/pages-v2/index/index');
 if (!page) throw new Error('reLaunch returned undefined');
 console.log(page.path);  // path 是属性(string)，不是方法
 const data = await page.data();  // data() 是异步方法
-await miniProgram.disconnect();
+await mp.disconnect();
 ```
 
 > **不要**用 `automator.launch({ cliPath, projectPath })`——Windows 上 spawn `.bat` 的兼容性问题会导致无法启动或连接超时。
