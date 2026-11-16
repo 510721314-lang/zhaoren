@@ -35,6 +35,27 @@ for ($i=0; $i -lt 5; $i++) {
 }
 ```
 
+### tcb CLI 速查（2026-11-16 实证）
+```powershell
+$tcb = "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb"
+$env = "cloud1-d9gkefwcp5c777088"
+
+# 登录（推荐 API 密钥，device/web 流程轮询 tcb_refresh 会超时）
+node $tcb login --apiKeyId <SecretId> --apiKey <SecretKey>
+
+# 部署云函数（必须有 package.json 声明依赖；--install-dependency true 云端装依赖）
+"y" | node $tcb fn deploy <fn> --env-id $env --force --install-dependency true --runtime Nodejs16.13
+
+# 调用云函数
+node $tcb fn invoke <fn> --env-id $env
+
+# 查看函数详情/日志
+node $tcb fn detail <fn> --env-id $env
+node $tcb fn log <fn> --env-id $env
+```
+> 注意：`tcb fn deploy` 交互确认用 `"y" |` 管道自动应答；`cloud.openapi.*` 类函数 CLI 调用必返 -501001（无小程序上下文），需小程序端触发才能验通道。
+> 环境参数各子命令**不统一**：`fn deploy/invoke/detail/log` 用 `--env-id`，`fn list` 仅认 `-e`（`--env` 报 `unknown option`，2026-11-16 实证）——报 unknown option 时先 `tcb <子命令> -h` 核对参数名。
+
 ## 后端坑位（必记）
 
 | # | 坑 | 根因 | 修 |
@@ -49,6 +70,9 @@ for ($i=0; $i -lt 5; $i++) {
 | 8 | config_set 扩展事件键无 A/B 风险 | 自动种子按 action 粒度生成 | 新增事件键（如 scene_reorder/scene_option_reorder）不产生新 diff，可放心扩展（2026-10-13 实证） |
 | 9 | 一次性云端数据操作无 CLI 通道 | CLI 不能远程调云函数 | 经 admin-web 网关（X-Admin-Key，check-heartbeat 同款）逐次调用管理动作；脚本每步后重读实际状态重算（自愈），兼容 gateway_timeout（写可能已生效）；示例 `.tmp-tcb/scene-order-migrate.ps1`（2026-10-13 场景顺序迁移 15 次实证） |
 | 10 | 云函数超时改不动 / 网关先超时（2026-11-07 实证） | ① CLI `cloud functions deploy` **不应用** `config.json` 的 `timeout`（部署后 `tcb fn detail` 仍显示平台默认 3s）；② admin-web 网关 `GATEWAY_HARD_TIMEOUT_MS=3000 / PROXY_TIMEOUT_MS=2500`，经网关调用 >2.5s 必回 504（写可能已完成，前端只见超时） | ①改超时：`config.json` 加 `"timeout"` **且** 在 `cloudbaserc.json` 登记同名条目（`timeout/runtime/handler`），再 `tcb config update fn <name> -e <env>` 推送，最后 `tcb fn detail` 回读「超时时间(S)」实证；②大批量造数（如 `zz-seed-orders` `per=100` 满批）**走微信开发者工具「云端测试」面板**，不经网关 |
+| 11 | tcb CLI device/web 登录轮询 `tcb_refresh` 超时（2026-11-16 实证） | device 流程能生成授权链接+用户码，但后续轮询 `https://iaas.cloud.tencent.com/tcb_refresh` 超时（即使 Node.js fetch/Invoke-WebRequest 直连该端点返回 200，tcb CLI 内部 HTTP 客户端仍超时）；web 流程同理无输出 | **直接用 API 密钥登录**：`tcb login --apiKeyId <SecretId> --apiKey <SecretKey>`（密钥从 console.cloud.tencent.com/cam/capi 获取），一步到位不依赖浏览器授权和轮询 |
+| 12 | `cloud.openapi.*` 通道诊断必须小程序端触发（2026-11-16 实证） | CLI/控制台调用含 `cloud.openapi` 的云函数返回 `-501001 invalid wx openapi access_token`，**不是通道问题**——`cloud.openapi.*` 仅在小程序端 `wx.cloud.callFunction` 触发的云函数中鉴权成功，CLI/控制台/定时器触发无小程序用户上下文必报 -501001 | 诊断通道状态必须**从小程序端触发**（模拟器 Console 执行 `wx.cloud.callFunction({name:'探针'})` 或 miniprogram-automator）；`-501001`（鉴权层）≠ `-604101`（通道层），请求到达 access_token 校验环节说明通道已通 |
+| 13 | 新云函数部署缺 `package.json` 致 `Cannot find module 'wx-server-sdk'`（2026-11-16 实证） | 云函数目录无 `package.json` 时，`--install-dependency true` 不知装什么依赖，云端无 `wx-server-sdk` | 每个云函数目录必须有 `package.json` 声明 `"dependencies": {"wx-server-sdk": "latest"}`；部署参数是 `--install-dependency true`（**不是** `--remote-npm-install`）；Node22+ 不支持云端安装需本地装好随包上传 |
 
 ## 前端坑位（必记）
 

@@ -213,6 +213,28 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 
 ---
 
+## 陷阱 11：Node.js `spawn` + `shell:true` + 含空格/括号路径被 PowerShell 误解析（2026-11-16 实证）
+
+**现象**：`node -e "spawn('C:\\Program Files (x86)\\Tencent\\微信web开发者工具\\cli.bat', [...], {shell:true})"` 报 `'C:\Program' is not recognized` 或 `x86 : 无法将"x86"项识别为 cmdlet`。
+
+**根因**：① `shell:true` 时 spawn 把 cmd+args 拼成命令行字符串交给 cmd.exe，路径含空格必须加引号；② 在 PowerShell 命令行内联 `node -e "..."` 时，PowerShell 先解析脚本字符串，把 `(x86)` 当表达式求值、把 `\\` 转义吃掉，最终传给 Node 的字符串已损坏。
+
+**修**：
+1. **路径用引号包裹**：`const cli = '"C:\\Program Files (x86)\\...\\cli.bat"'`（spawn 的 cmd 参数本身带引号）
+2. **内联 `node -e` 不可靠时，写独立 `.js` 文件再 `node xxx.js`**——避免 PowerShell 对字符串的二次解析（本次 `start-auto.js` 方案验证可行）
+
+---
+
+## 陷阱 12：PowerShell 管道中调用「文档」类脚本（无扩展名 node 脚本）报「无法在管道中间运行文档」（2026-11-16 实证）
+
+**现象**：`& "C:\Users\DC\AppData\Roaming\npm\node_modules\@cloudbase\cli\bin\tcb" fn list | Select-String ...` 报 `无法在管道中间运行文档: ...\bin\tcb`（CantActivateDocumentInPipeline）。
+
+**根因**：npm 全局包的 `bin/tcb` 是**无扩展名 node 脚本**，PowerShell 将其识别为「文档」而非可执行程序；「文档」不能在管道中激活（既不能 `&` 调用后再接管道）。
+
+**修**：改用同名 `.cmd` 包装器——npm 全局 bin 目录同时提供 `tcb` / `tcb.cmd` / `tcb.ps1`，管道场景用 `tcb.cmd fn list ... | Select-String ...` 即可。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -224,6 +246,8 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 7. ✅ 没有三元运算符
 8. ✅ 路径用 `$env:USERPROFILE` 不用 `~`
 9. ✅ 提示「后台命令仍在跑」时先用 `Get-CimInstance Win32_Process` 枚举命令行核对
+10. ✅ `node -e` 内联含空格/括号路径时，改用独立 `.js` 文件（避免 PowerShell 二次解析）
+11. ✅ 管道中调用 npm 全局 CLI 用 `.cmd` 包装器（`tcb.cmd`），不用无扩展名 `bin/tcb`（「文档」不能在管道中激活）
 
 ## 实测踩坑记录（2026-09-21）
 

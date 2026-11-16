@@ -1,0 +1,9 @@
+{
+  "name": "zz-openapi-probe",
+  "version": "1.0.0",
+  "description": "cloud.openapi 通道探针（msgSecCheck）",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}
