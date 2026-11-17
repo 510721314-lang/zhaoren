@@ -134,6 +134,7 @@ async function update_item(ctx) {
       const fLo = Number(config.fixed_price_min_fen), fHi = Number(config.fixed_price_max_fen);
       if (Number.isFinite(fLo) && fLo > 0) { lo = fLo; hasRange = true; }
       if (Number.isFinite(fHi) && fHi > 0) { hi = fHi; hasRange = true; }
+      if (hi <= 0) hi = Infinity;   // 审核修正: 只配 min 不配 max 时 hi=0 会使 fee>hi 恒真全拒(2026-11-17)
     }
     if (hasRange && (fee < lo || fee > hi)) {
       return { ok: false, code: 'oa_fee_out_of_range',
