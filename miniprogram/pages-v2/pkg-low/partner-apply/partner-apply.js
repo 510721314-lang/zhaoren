@@ -30,7 +30,7 @@ Page({
     const chain = require('../../../utils/onboard-chain.js');
     this.setData({ chainBar: chain.barOf('apply', (query && query.from) || '') });
     if ((query && query.from) === 'chain') chain.ensureDraft();
-    const user = wx.getStorageSync('user_info') || {};
+    const user = wx.getStorageSync('userInfo') || {};   // P3-57(2026-11-17): 全仓仅 app.js 写 'userInfo', 原 'user_info' 恒取空
     const roles = user.roles || [];
     const isPartner = roles.includes('partner');
 

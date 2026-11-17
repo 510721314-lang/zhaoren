@@ -400,6 +400,10 @@ Page({
         return false;
       }
       const d = snap.data;
+      // P3-61(2026-11-17): 快照 duration_hours 存合并值, 回填须还原预设/自定义两态(对齐编辑回填口径)
+      const _dp = [1, 2, 3, 4, 6, 8];
+      const _dur = _dp.includes(d.duration_hours) ? d.duration_hours : (d.duration_hours ? 0 : 3);
+      const _durC = _dp.includes(d.duration_hours) ? '' : (d.duration_hours ? String(d.duration_hours) : '');
       // 与 restoreDraft 同一套 20 条叶子路径(草稿/快照结构同源, 保证回填一致)
       // 同源维护: 字段与 utils/draft-store.js#restoreDraft 的 20 条路径保持一致——改一处必须改两处
       this.setData({
@@ -412,8 +416,8 @@ Page({
         'form.description': d.description || '',
         'form.service_date': d.service_date || '',
         'form.service_time': d.service_time || '',
-        'form.duration_hours': d.duration_hours || 3,
-        'form.duration_custom': '',
+        'form.duration_hours': _dur,
+        'form.duration_custom': _durC,
         'form.location_name': d.location ? (d.location.name || '') : '',
         'form.latitude': (d.location && d.location.latitude) || 0,
         'form.longitude': (d.location && d.location.longitude) || 0,

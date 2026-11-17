@@ -100,6 +100,7 @@ Page({
   // 每页 20(服务端上限 50); 直接传 filter 让服务端过滤, 本地不再二次过滤
   loadOrders(done) {
     this.__page = 1;
+    this.__loadSeq = (this.__loadSeq || 0) + 1;   // P3-58(2026-11-17): 代次标记, 使在途 loadMore 回调失效
     this.setData({ loading: true, hasMore: false, loadingMore: false });
     callCloud('order-action', {
       action: 'my_orders',
@@ -126,6 +127,7 @@ Page({
   // 「加载更多」/ 触底: 下一页追加
   loadMore() {
     if (this.data.loadingMore || !this.data.hasMore) return;
+    const seq = this.__loadSeq || 0;   // P3-58(2026-11-17): 捕获当前代次, 回调不匹配即丢弃
     this.setData({ loadingMore: true });
     callCloud('order-action', {
       action: 'my_orders',
@@ -134,6 +136,7 @@ Page({
       page: (this.__page || 1) + 1,
       page_size: CONFIG.PAGING.orderPageSize
     }).then((r) => {
+      if (seq !== this.__loadSeq) return;   // P3-58: 期间 loadOrders 已重置(切 tab/onShow), 丢弃旧响应
       const extra = (r.ok && r.data && r.data.list) || [];
       // 2026-11-10 修复: 请求失败不得前进页码(原无条件 +1 → 下次「加载更多」跳过一整页)
       if (r.ok) this.__page = (this.__page || 1) + 1;

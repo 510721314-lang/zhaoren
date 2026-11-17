@@ -907,7 +907,7 @@ Page({
     }
     const that = this;
     wx.showModal({
-      title: `提交履约进度 ${next * 30}%`,
+      title: `提交履约进度 ${[30, 60, 100][next - 1]}%`,   // P3-56(2026-11-17): 第三次(100%节点)原显示90%
       content: '提交后用户会收到通知，双方可继续履约',
       confirmText: '提交',
       success(res) {
