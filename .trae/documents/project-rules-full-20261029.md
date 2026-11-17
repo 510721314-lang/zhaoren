@@ -726,3 +726,15 @@ alwaysApply: true
 **R2 后台任务状态以进程枚举为准**：会话/系统提示「后台命令仍在运行」不构成事实；用 `Get-CimInstance Win32_Process` 过滤命令行（`-like '*zhaoren*'`）核对，只剩 MCP 常驻 `node` / `wxfilewatcher` / 本命令自身即视为已结束；确认后再重跑，禁凭提示等待、禁不改参数重复同一命令。
 **R3 台账门禁须标时点**：落笔前基线（`verify:offline`）与落笔后复跑分开写；落笔后仅补跑受影响静态检查（`check-doc-links` / `check-rule-refs`）时须写明「落笔前基线 + 落笔后复跑 X」，禁把旧基线写成新改动后结果（对应 §9 禁过度声称）。
 **R4 待办改判两端同批**：编号从「待决策」改为「已关闭 / 待设备」时，正文行与落点表 / 汇总行必须同批改；只改正文＝台账自相矛盾（与 `check-handoff-coverage` 门禁同向），本轮 §7 落点表两行即因此补改。
+
+## 42. e2e 测试字段路径与残留清理（2026-11-17 全链路脚本双代理评审实证新增）
+
+> 背景：`tests/e2e/flow-full-chain.js` 首轮连败三次——①`finish_apply` 传顶层 `finish_location`，服务端实际读 `finish_evidence.partner_location`，字段被静默丢弃（与 `start_apply` 读顶层 `start_location` 口径不一致）；②上次失败残留 demand 致 `publish_time_conflict`；③`purge_test_data` dry-run 取 `raw.actual_orders` 得 0，实际结构是 `raw.stats.order_main`。
+
+**R1 字段路径逐 action 核对**：e2e/测试脚本每个云函数调用的参数字段名，必须读服务端对应 action 的解构行确认实际读取位置（`event.xxx` 还是 `event.xxx.yyy`），禁止假设「相似 action 字段一致」。实证：`start_apply`（action_lifecycle.js:103）读 `event.start_location`，而 `finish_apply`（:621）读 `event.finish_evidence.partner_location`。
+
+**R2 全链路前置 purge**：脚本开头 `force_set_env(dev)` 后必须先 `purge_test_data(scope:'all_istest', confirm:'PURGE', expect_orders:N)` 清理上次残留的 is_test 数据，再发布需求；否则同场景同时段发布返 `publish_time_conflict`。
+
+**R3 purge dry-run 返回结构**：`purge_test_data` 不传 confirm 时返回 `{ok:true, stats:{order_main:N, demand:N, ...}, dry_run:true}`，取 `raw.stats.order_main`；`actual_orders` 字段仅出现在 `expect_orders` 不匹配的错误返回里，不可用于 dry-run 取值。
+
+**R4 DevTools 环境 isMockCall=false**：`isMockCall = (wxCtx && !wxCtx.OPENID) && mock_openid`。DevTools 注入真实 OPENID，故 `!wxCtx.OPENID` 为 false，isMockCall=false——定位/照片校验全部生效，脚本必须传真实格式的 `start_location`/`finish_evidence.partner_location`/`start_evidence.photos`，不能依赖 mock 旁路。
