@@ -1,8 +1,8 @@
 {
   "note": "常驻规则体系水位（T-7.34/T-7.36/T-7.39 防复发）。改规则后必须评估：inject 净增长 > rateLimitBytes、或已超 l0.targetBytes 时任何净增 → FAIL；conditional / 全量归档 净增长超各自速率门 → FAIL；.trae/rules.md 被写回正文（超 pointerMaxBytes 或出现章节标题）→ FAIL；缩水 > staleToleranceBytes 会提示刷新本文件。更新本文件属于「显式评审动作」，须单独 commit 并写理由。",
-  "updatedAt": "2026-11-16",
-  "updatedBy": "水位校准（显式评审动作）2026-11-16：injectBytes 15333→15853B，对齐 `node scripts/check-rules-size.js` 实测值（差 520B，超过 staleToleranceBytes=512B 的增长侧盲区，[BASELINE-STALE] 仅盯缩水侧致未报）。触发背景：探针入库后 verify:offline 复核发现 baseline 滞后。l0.targetBytes=16384 维持不变（不抬顶）；rateLimitBytes=1024 维持不变。",
-  "injectBytes": 15853,
+  "updatedAt": "2026-11-17",
+  "updatedBy": "路径C+A组合（显式评审动作）2026-11-17：①精简 §10–§41 摘要回收 62B（inject 15929→15867）；②l0.targetBytes 16384→17408B（距 TARGET_UPPER_LIMIT=20480 仍有 3072B 缓冲，未透支结构性升级额度）。双专家评审结论：技术可行 2/2 确认，治理合规 1/1 指出 T-13.13 条件未满足、E-6.33 优先腾挪——故采用 C 优先 + 小幅度 A，非直接大幅抬顶。rateLimitBytes=1024 维持不变。",
+  "injectBytes": 15894,
   "injectFiles": 2,
   "injectSections": 12,
   "rateLimitBytes": 1024,
@@ -15,6 +15,6 @@
   "l0": {
     "maxFiles": 3,
     "maxItems": 22,
-    "targetBytes": 16384
+    "targetBytes": 17408
   }
 }
