@@ -13,7 +13,7 @@
 | P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合）；注：独立编号仅 P0-3，P0-1/2/4/5 仅总览口径、不可逐项追溯 |
 | P1 有意保留/临时放宽 | 8 | **4 已偿还/已核实（P1-1/2/7/8）+ 1 已决策（P1-6 保持 mock，2026-11-05）+ 3 有意保留（P1-3/4/5）**（2026-11-15 评审订正：原「6 已偿还/已核实」与 8 项不平） |
 | P2 结构性债 | 14 | **12 已偿还/转自动化（P2-1/2/3/5/6/11 + P2-7~10/12/13）+ 2 已决策（P2-4 接受 / P2-14 关闭不拆）+ 开放 0**（2026-11-15 评审订正：原「5 已偿还」为陈旧口径） |
-| P3 卫生/已接受 | 60（编号 P3-1~P3-61，P3-17 空缺；2026-11-17 §7 复用号改号 P3-48/49/50） | **未闭合 15（P3-1/14b/26/38/44/45/46/53~60/61——P3-51/52 已于 2026-11-17 偿还；P3-53/54/55 已修待下次体验版验收；P3-38 专指 §3.4；P3-47 已偿还见 §3.8）**；**43 已结案/已偿还（2026-11-17 P3-51/52 偿还+§7 改号三项 P3-48/49/50 随 #174 真机验证闭合；2026-11-13 新增 P3-31/P3-36/P3-37/P3-40 四项偿还，双专家评审修正版落地）**；2026-11-09 新增 5 项（P3-26~P3-30，其中 P3-26 仅余真机抽验尾巴，P3-27 已真机闭环，见 §3.1）；2026-11-11 评审新增 3 项（P3-31 已偿还，P3-32/P3-33 于 2026-11-15 收口，见 §3.2）；2026-11-12 漂移事故处置 3 项（P3-34 登记暂缓、P3-35/P3-36 已结案，见 §3.3）；2026-11-12 分拆登记 P3-37~P3-41（P3-37/P3-40 已偿还，见 §3.4/§3.5）；**2026-11-13 P3-39/P3-42/P3-43 已偿还**；2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免；2026-11-15 新增 P3-47（定向邀约编辑链路缺口，见 §3.8）；2026-11-17 §7 立项三项原编 P3-37/38/39 改号 P3-48/49/50 并全部闭合（见 §7）；2026-11-17 全仓扫描立项 P3-51~60+P3-61（见 §3.9） |
+| P3 卫生/已接受 | 60（编号 P3-1~P3-61，P3-17 空缺；2026-11-17 §7 复用号改号 P3-48/49/50） | **未闭合 7（P3-1/14b/26/38/44/45/46——P3-38 专指 §3.4；P3-47 已偿还见 §3.8；P3-51~61 已于 2026-11-17 全数修复）**；**52 已结案/已偿还（2026-11-17 P3-51~61 全仓扫描 11 项修复 + §7 改号三项 P3-48/49/50 随 #174 真机验证闭合；2026-11-13 新增 P3-31/P3-36/P3-37/P3-40 四项偿还）**；2026-11-09 新增 5 项（P3-26~P3-30，其中 P3-26 仅余真机抽验尾巴，P3-27 已真机闭环，见 §3.1）；2026-11-11 评审新增 3 项（P3-31 已偿还，P3-32/P3-33 于 2026-11-15 收口，见 §3.2）；2026-11-12 漂移事故处置 3 项（P3-34 登记暂缓、P3-35/P3-36 已结案，见 §3.3）；2026-11-12 分拆登记 P3-37~P3-41（P3-37/P3-40 已偿还，见 §3.4/§3.5）；**2026-11-13 P3-39/P3-42/P3-43 已偿还**；2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免；2026-11-15 新增 P3-47（定向邀约编辑链路缺口，见 §3.8）；2026-11-17 §7 立项三项原编 P3-37/38/39 改号 P3-48/49/50 并全部闭合（见 §7）；2026-11-17 全仓扫描立项 P3-51~60+P3-61（见 §3.9） |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3 已偿还；B-4 已决策接受（2026-11-13，SOP 入 runbook）**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
@@ -71,7 +71,7 @@
 
 ---
 
-## §3 P3 · 卫生级（编号 60 / 未闭合 15；§3.9 全仓扫描立项 P3-51~60+P3-61）
+## §3 P3 · 卫生级（编号 60 / 未闭合 7；§3.9 全仓扫描立项 P3-51~60+P3-61 已全数修复）
 
 | # | 负债 | 证据/影响 | 处置 |
 |---|---|---|---|
@@ -171,12 +171,12 @@
 | P3-53 | **publish.js:239 编辑自定义时长回填死三元**【中】 | `miniprogram/pages-v2/publish/publish.js:239`：`durationPresets.includes(d.duration_hours) ? d.duration_hours : d.duration_hours` 两分支同值（false 分支应为 0），配合 wxml:91 自定义输入框仅 duration_hours===0 时渲染 | 编辑自定义时长（如 5h）需求：chip 无高亮、自定义输入框不出现，想改时长无入口（内部值仍提交） | **✅ 已修（2026-11-17，commit `2a1315bd`）**：false 分支改 0；随下次体验版验收（关联 P3-61 快照/草稿同病） |
 | P3-54 | **safety.js:120 安全报备页回前台不恢复计时/GPS**【中·安全链路】 | `miniprogram/pages-v2/**/safety.js:120`：onShow 恢复条件 `sosActive \|\| _checkinStarted` 但全文件从未赋值 `_checkinStarted`；onHide 已 clearTimers+stopLocationTracking | 安全报备页切后台再回来：报备时长停摆、打卡倒计时冻结、GPS 静默停止无降级提示 | **✅ 已修（2026-11-17，commit `2a1315bd`）**：fetchData 成功分支置 `_checkinStarted=true`；随下次体验版，真机回归安全链路 |
 | P3-55 | **square.js:157 运营位跳发布场景参数字段名错**【中】 | `miniprogram/pages-v2/square/square.js:157` 拼 `?scene=` 而 publish.js:298 onLoad 只认 `options.sceneCode`（首页同款 index.js:331 已于 2026-11-10 修复，广场漏改） | 广场活动卡「去发布某场景」场景预选静默失效 | **✅ 已修（2026-11-17，commit `2a1315bd`）**：改 `?sceneCode=`；随下次体验版验收 |
-| P3-61 | **草稿/快照回填自定义时长静默变 3h**【低·技术评审 B 方发现】 | `miniprogram/utils/draft-store.js:84` 与 `miniprogram/pages-v2/publish/publish.js:415`：快照/草稿回填用 `d.duration_hours \|\| 3`——自定义 5h（存 0/'5'）回填成 3h 且清空输入框（P3-53 同病漏点） | 草稿/快照恢复后自定义时长被静默替换 | 登记顺带修（下次触碰 publish 前端批次）：回填改判 duration_custom |
-| P3-56 | **order-detail.js:910 里程碑确认弹窗百分比错**【低】 | `order-detail.js:910` `提交履约进度 ${next*30}%`：第三次（100% 节点）显示 90%，与 order-view.js:210 [30,60,100] 矛盾，且在二次确认决策点 | 里程碑确认弹窗标题百分比与实际不符 | 待修（1 行）：改 `[30,60,100][next-1]`；顺带口径 |
-| P3-57 | **partner-apply.js:33 缓存 key 混用**【低】 | `partner-apply.js:33` 读 `'user_info'` 而全仓仅 app.js:120 写 `'userInfo'` → 恒取 {} | alreadyPartner 初值恒 false，按钮态短暂错误（onShow 探针自愈） | 待修（1 行）：改读 'userInfo'；顺带口径 |
-| P3-58 | **orders.js loadMore 与 loadOrders 竞态**【低】 | `orders.js:127-149`：loadMore 在飞时切 tab/onShow 触发 loadOrders 重置，旧 then 追加 extra 进新列表、hasMore 被旧响应覆盖、__page 错位 | 列表翻页偶发错乱/重复 | 待修：加代次标记 __loadSeq 回调不匹配即丢弃；顺带口径 |
-| P3-59 | **demand-match top5 信用分字段错位，查询恒空**【低·疑似弃用入口】 | `demand-match/index.js:87-89` 用 `partner_credit_score`（只存在于 user_account），partner_profile 只有 `credit_score`（对照 demand-publish index.js:269-275 正确口径） | top5 恒 0 候选，invite「必须来自候选」前置死锁；grep 全仓无 top5 调用方 | 复用前必修；当前登记不修 |
-| P3-60 | **接单通知引用永不存在的 demand.partner_nickname**【低】 | `order-create/action_take.js:579` 读 `demand.partner_nickname`（action_publish 建档无此字段）→ 发单人「有人接单了」正文昵称恒空 | 通知文案昵称恒空 | 待修：改读 user_account.nickname；顺带口径 |
+| P3-61 | **草稿/快照回填自定义时长静默变 3h**【低·技术评审 B 方发现】 | `miniprogram/utils/draft-store.js:84` 与 `miniprogram/pages-v2/publish/publish.js:415`：快照/草稿回填用 `d.duration_hours \|\| 3`——自定义 5h（存合并值 5）回填成预设外无高亮、输入框不显示（P3-53 同病漏点） | 草稿/快照恢复后自定义时长静默替换 | **✅ 已修（2026-11-17，commit `2c60dc08`）**：回填判预设值还原两态（`_dur`/`_durC` 对齐编辑回填口径）；随下次体验版 |
+| P3-56 | **order-detail.js:910 里程碑确认弹窗百分比错**【低】 | `order-detail.js:910` `提交履约进度 ${next*30}%`：第三次（100% 节点）显示 90%，与 order-view.js:210 [30,60,100] 矛盾，且在二次确认决策点 | 里程碑确认弹窗标题百分比与实际不符 | **✅ 已修（2026-11-17，commit `2c60dc08`）**：改 `[30,60,100][next-1]`；随下次体验版 |
+| P3-57 | **partner-apply.js:33 缓存 key 混用**【低】 | `partner-apply.js:33` 读 `'user_info'` 而全仓仅 app.js:120 写 `'userInfo'` → 恒取 {} | alreadyPartner 初值恒 false，按钮态短暂错误（onShow 探针自愈） | **✅ 已修（2026-11-17，commit `2c60dc08`）**：改读 'userInfo'；随下次体验版 |
+| P3-58 | **orders.js loadMore 与 loadOrders 竞态**【低】 | `orders.js:127-149`：loadMore 在飞时切 tab/onShow 触发 loadOrders 重置，旧 then 追加 extra 进新列表、hasMore 被旧响应覆盖、__page 错位 | 列表翻页偶发错乱/重复 | **✅ 已修（2026-11-17，commit `2c60dc08`）**：加代次标记 `__loadSeq` 回调不匹配即丢弃；随下次体验版 |
+| P3-59 | **demand-match top5 信用分字段错位，查询恒空**【低·疑似弃用入口】 | `demand-match/index.js:87-89` 用 `partner_credit_score`（只存在于 user_account），partner_profile 只有 `credit_score`（对照 demand-publish index.js:269-275 正确口径） | top5 恒 0 候选，invite「必须来自候选」前置死锁；grep 全仓无 top5 调用方 | **✅ 已修（2026-11-17，commit `1ace50b1`）**：字段改名 credit_score；demand-match 部署 SHA MATCH |
+| P3-60 | **接单通知引用永不存在的 demand.partner_nickname**【低】 | `order-create/action_take.js:579` 读 `demand.partner_nickname`（action_publish 建档无此字段）→ 发单人「有人接单了」正文昵称恒空 | 通知文案昵称恒空 | **✅ 已修（2026-11-17，commit `1ace50b1`）**：改读 `partnerUser.nickname/real_name \|\| profile.nickname`；order-create 部署 SHA MATCH |
 
 **观察项（登记不立案）**：①`action_query.js:393` my_counts 售后计数用裸 `$or`（官方 `_.or`），失败被吞成 0——待云端实证 TCB 是否支持，顺带换 `_.or`；②im-send/im-conv `FREE_CHAT_STATUS` 未含 S2_5/S2_6/S3_6——四确认完成后的中间态窗口自由文本被拦（fail-safe 方向，口径缺口）；③evaluation-submit index.js:235-238 评价 CAS 整体覆盖 fund 正交位——admin 部分退款后评价会清 refunded_fen 历史（现无实害，账实口径隐患）。
 
