@@ -303,7 +303,7 @@
 | 10 | `milestone` | both | S3 → S3 | 里程碑进度 | 确认窗可配自动确认 |
 | 11 | `extend_req` | both | S3 → S3 | 未冻结 | `extend_confirm_min` 未回应→自动拒绝 |
 | 12 | `extend_paid` | user | S3 → S3 | 加时补付流水成功 | 未付不加结算基数 |
-| 14 | `ratio_agree` | both | S4 → S5 | 双方各确认一次 | 裁限期→平台介入 |
+| 14 | `ratio_agree` | both | S4 → S5 | 任一方确认（PRD 附录G「确认完成」；2026-11-17 P3-52 订正） | 裁限期→平台介入 |
 | 15 | `evaluate` | user | S5 → S8 | 无已有评价 | 48h→`auto_done` |
 | 16 | `complaint_open` | both | S2/S3/S3.5/S4 → 原态 | 目标态=原态+`frozen`；S5 起关闭投诉入口 | 一审时限→升级 |
 | 17 | `complaint_withdraw` | both | * → 原态 | 未受理 | — |

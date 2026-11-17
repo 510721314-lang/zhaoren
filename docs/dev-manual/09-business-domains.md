@@ -58,7 +58,7 @@
 | 10 | milestone | both | S3 | S3 | 确认窗自动确认 |
 | 11 | extend_req | both | S3 | S3 | extend_confirm_min→自动拒绝 |
 | 12 | extend_paid | user | S3 | S3 | 未付不加结算基数 |
-| 14 | ratio_agree | both | S4 | S5 | 双方各确认一次；裁限期→平台介入 |
+| 14 | ratio_agree | both | S4 | S5 | 任一方确认（PRD 附录G「确认完成」，2026-11-17 P3-52 订正）；裁限期→平台介入 |
 | 15 | evaluate | user | S5 | S8 | 48h→auto_done；信用分± |
 | 16 | complaint_open | both | S2,S3,S3.5,S4,S5,S8 | null | 目标态=原状态+frozen（不改主轴） |
 | 17 | complaint_withdraw | both | `*` | null | 未受理回 `from_status` |
@@ -103,7 +103,7 @@
 
 - `milestone_submit` / `milestone_confirm`：服务中（S3）按里程碑推进；提交超 `milestone_confirm_min`（默认 15min）未确认 → 自动全部确认。
 - 完成需里程碑 100% 或双方豁免 → S5。
-- 部分完成（S4）：双方各确认一次（`partial_confirm` / `ratio_confirm`）→ S5，按 PRD 口径分段结算；`partial_judge_days` 届满 → 平台介入工单（`s4_stale_escalate`）。
+- 部分完成（S4）：任一方确认（`partial_confirm` / `ratio_confirm`）→ S5（PRD 附录G「确认完成」，2026-11-17 P3-52 订正原文「双方各确认一次」）；结算按订单全额（`ratio_fen` 暂无消费方）；`partial_judge_days` 届满 → 平台介入工单（`s4_stale_escalate`）。
 
 ### 9.2.3 改期 / 加时 / 中断恢复
 
@@ -137,7 +137,7 @@
 
 ### 9.3.3 结算与余额
 
-- 结算基数支持双方各确认一次；部分完成确认后自动生成剩余金额退款工单。
+- 部分完成（S4）：任一方确认 → S5（PRD 附录G「确认完成」，2026-11-17 P3-52 订正）；结算按订单全额（ratio_fen 暂无消费方，原「分段结算+剩余金额退款工单」为 V15 PRD 设计、未实现）。
 - 分段结算口径：完成比例 ≥50% 按比例；<50% 按 10-20% 到场补偿（可配置）。
 - **可提现余额** `computeBalance({settledAgg, withdrawGroups})`（[L135-L149](file:///c:/zhaoren/cloudfunctions/_shared/money_rules.js#L135-L149)）：
   - `settledFen` = 服务收入 + 打赏；`usedFen` = 处理中(`processing`) + 已成功(`success`)；`availableFen = max(0, settledFen − usedFen)`。
