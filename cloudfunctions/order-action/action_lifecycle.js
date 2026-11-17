@@ -1,6 +1,16 @@
 // order-action · 生命周期分组（从 index.js 物理抽出，行为逐字不变）
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
+// P3-62(2026-11-18): order_main 不存 partner_nickname, 通知需查 partner_profile 取昵称(同 P3-60 口径)
+async function getPartnerNickname(col, openid) {
+  if (!openid) return '耍伴';
+  try {
+    const r = await col('partner_profile').where({ openid }).limit(1).get();
+    const p = r.data && r.data[0];
+    return (p && (p.nickname || p.real_name)) || '耍伴';
+  } catch (e) { return '耍伴'; }
+}
+
 async function cancel(ctx) {
   const { event, order_id, openid, getOrder, roleOf, wxCtx, db, log, casStatus, getOrder: _g, logStatus, col, writeNotice, writeAudit, checkText } = ctx;
   const { reason } = event;
@@ -78,7 +88,7 @@ const START_APPLY_COOLDOWN_MS = 60 * 1000;
 // 开始履约申请(耍伴发起, S2→S2_6): 凭证前置(2026-10-15 需求变更)——定位快照 + 现场照片(1~3 张)同一次 CAS 落库 + 存证先行;
 // 需求方确认(阶段D)后才进入 S3 真正开始履约。旧 start_service(no.5 直连 S2→S3)已于 2026-11-01 形态A 收口删除, 入口由 index.js 墓碑守卫返回 oa_legacy_retired。
 async function start_apply(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm, col } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -191,10 +201,11 @@ async function start_apply(ctx) {
   }
   await logStatus(order_id, 'S2', 'S2_6', 'start_apply', openid);
   log.d(`start apply: ${order.order_no} S2→S2_6`);
+  const partnerNick = await getPartnerNickname(col, order.partner_openid);
   writeNotice({
     to_openid: order.user_openid, order_id, type: 'start_apply',
     title: '耍伴已到达履约点',
-    body: `${order.partner_nickname || '耍伴'} 已到达指定履约点, 请确认是否开始履约`,
+    body: `${partnerNick} 已到达指定履约点, 请确认是否开始履约`,
     action_key: 'jump_order', action_payload: { order_id }
   });
   await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_apply', target_type: 'order', target_id: order_id, detail: { status: 'S2_6', accuracy: evidence.accuracy }, result: 'ok', client_ip: clientIp, device });
@@ -571,10 +582,11 @@ async function start_photo(ctx) {
   }
 
   log.d(`start photo evidence stored: ${order.order_no} (photos=${evidence.photos.length})`);
+  const partnerNick = await getPartnerNickname(col, order.partner_openid);
   writeNotice({
     to_openid: order.user_openid, order_id, type: 'start_photo',
     title: '耍伴已上传现场照片',
-    body: `${order.partner_nickname || '耍伴'} 已上传履约现场照片, 可在订单详情查看`,
+    body: `${partnerNick} 已上传履约现场照片, 可在订单详情查看`,
     action_key: 'jump_order', action_payload: { order_id }
   });
   await writeAudit(db, log, { openid, role, category: 'business', action: 'order_start_photo', target_type: 'order', target_id: order_id, detail: { status: 'S3', photos: evidence.photos.length }, result: 'ok', client_ip: clientIp, device });
@@ -586,7 +598,7 @@ async function start_photo(ctx) {
 // 单次调用同时落 service_finish_evidence 并迁移状态(存证先行); evidence 结构与阶段E start_photo 同源, 供前端复用渲染。
 // 旧 complete_service(no.13 直连 S3→S5)已于 2026-11-01 形态A 收口删除, 入口由 index.js 墓碑守卫返回 oa_legacy_retired。
 async function finish_apply(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, isFrozen, wxCtx, db, log, casStatus, logStatus, writeNotice, writeAudit, haversineKm, col } = ctx;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   const order = await getOrder(order_id);
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
@@ -676,10 +688,11 @@ async function finish_apply(ctx) {
   }
   await logStatus(order_id, 'S3', 'S3_6', 'finish_apply', openid);
   log.d(`finish apply: ${order.order_no} S3→S3_6`);
+  const partnerNick = await getPartnerNickname(col, order.partner_openid);
   writeNotice({
     to_openid: order.user_openid, order_id, type: 'finish_apply',
     title: '耍伴已履约完毕',
-    body: `${order.partner_nickname || '耍伴'} 已发起履约完毕确认, 请查看履约凭证后确认`,
+    body: `${partnerNick} 已发起履约完毕确认, 请查看履约凭证后确认`,
     action_key: 'jump_order', action_payload: { order_id }
   });
   await writeAudit(db, log, { openid, role, category: 'business', action: 'order_finish_apply', target_type: 'order', target_id: order_id, detail: { status: 'S3_6', photos: evidence.photos.length }, result: 'ok', client_ip: clientIp, device });
