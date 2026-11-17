@@ -576,7 +576,7 @@ async function createFromTakeAction(ctx) {
       order_id: orderId,
       type: 'accept',
       title: '有人接单了',
-      body: `耍伴 ${demand.partner_nickname || ''} 已承接你的需求, 请进入聊天完成四确认`,
+      body: `耍伴 ${(partnerUser && (partnerUser.nickname || partnerUser.real_name)) || (profile && profile.nickname) || ''} 已承接你的需求, 请进入聊天完成四确认`,   // P3-60(2026-11-17): 原 demand.partner_nickname 字段不存在恒空
       action_key: 'jump_order',
       action_payload: { order_id: orderId },
       created_at: Date.now(),

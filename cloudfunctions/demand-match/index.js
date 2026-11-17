@@ -84,9 +84,9 @@ exports.main = async (event, context) => {
           status: 'approved',
           accept_switch: true,
           accept_scenes: scene,           // 数组含场景
-          partner_credit_score: _.gte(minCredit),
+          credit_score: _.gte(minCredit),   // P3-59(2026-11-17): partner_profile 字段是 credit_score 非 partner_credit_score
           is_deleted: false
-        }).orderBy('partner_credit_score', 'desc')
+        }).orderBy('credit_score', 'desc')
           .orderBy('updated_at', 'desc')
           .limit(50)
           .get();
