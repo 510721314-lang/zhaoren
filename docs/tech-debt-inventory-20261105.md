@@ -246,6 +246,7 @@
 
 - 规则体系季度体检：见[原清单 §规则体检台账](tech-debt-inventory-20261015.md)（下次到期 2027-01-05，`npm run rules:report`）。
 - 每次处置负债：更新本表状态 + 日期 + 证据（命令回执/后台字段/真机谁验），并同步 [CHANGELOG](CHANGELOG.md) 与 [FUNCTION-REGISTRY](FUNCTION-REGISTRY.md)。
+- **新增 P2/P3 编号前先 grep 本清单全文防复用**（2026-11-17 实证：§7 曾复用 §3.4/§3.5 的 P3-37/38/39 致「未闭合」清单两义，已改号 P3-48~50 并留映射注记）。
 - 真值优先级：云端回读 > 本清单 > [HANDOFF-20261103](HANDOFF-20261103.md) > CHANGELOG > 助手记忆。
 
 ---

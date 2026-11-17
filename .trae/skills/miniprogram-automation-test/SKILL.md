@@ -13,6 +13,7 @@ description: 用 miniprogram-automator 在微信开发者工具模拟器里跑�
 - 依赖：`miniprogram-automator ^0.13.0`（`package.json` devDependency）
 - 配置加载：`scripts/load-env.cjs` 导出 `devtools`（cliPath/projectPath/autoPort/servicePort）与 `validateDevtools()`
 - 环境自检：`npm run check:devtools`
+- **通道口径（2026-11-17 订正 HANDOFF C-4.18）**：本会话工具注册表实证**无 weapp-test MCP 注册**——实际可用通道＝本技能 npm `miniprogram-automator` 脚本（Shell 驱动，自动化端口 9420）+ DevTools CLI + Computer Use（GUI 操控）。历史记载「weapp-test MCP」为早期会话环境，勿据此假设 MCP 工具存在；接手新会话先用 ToolSearch 实证。
 
 ## 关键约束（先读）
 

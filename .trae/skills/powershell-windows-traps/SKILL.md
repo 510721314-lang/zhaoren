@@ -235,6 +235,16 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 
 ---
 
+## 陷阱 13：npm 全局 `tcb` 命中 `tcb.ps1` 垫片报 PSSecurityException；密钥登录禁止命令行传参（2026-11-17 实证）
+
+**现象**：①终端直接跑 `tcb ...` 报 `无法加载文件 ...\npm\tcb.ps1，因为在此系统上禁止运行脚本`（PSSecurityException）；②`tcb login --AKIDxxx`（含误敲成四横线）报 `unknown option`——密钥被 commander 当 option 解析且进了命令历史；③旧脚本硬编码 `C:\Users\Administrator\AppData\Roaming\npm\...` 在当前用户（DC）下 `Cannot find module`。
+
+**根因**：npm 全局 bin 同时提供 `tcb.ps1` / `tcb.cmd` / 无扩展名 `tcb` 三种垫片，PowerShell 优先命中 `.ps1`（受执行策略限制）；`login --key` 的**裸位置参数**（如 `--AKIDxxx`）会被 commander 当 option 解析报 `unknown option`（合法参数形为 `--apiKeyId/--apiKey`，见 zhaoren-ops 坑位 #11，但凭据进命令历史，交互粘贴更安全）；跨用户/跨机器路径不可硬编码。
+
+**修**：①直接调 **`tcb.cmd`**（绕过执行策略，零系统改动；`Set-ExecutionPolicy` 属系统配置变更不采用）；②密钥登录 `tcb.cmd login --key` 后在 `? 请输入秘钥 ID / 秘钥 Key` 提示处**交互粘贴**，密钥不写命令行；③脚本内全局包路径用 `$env:APPDATA` 派生（`%APPDATA%\npm\node_modules\@cloudbase\cli\dist\standalone\cli.js`）；KEY 文件路径见 zhaoren-ops 坑位 #15。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -248,6 +258,7 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 9. ✅ 提示「后台命令仍在跑」时先用 `Get-CimInstance Win32_Process` 枚举命令行核对
 10. ✅ `node -e` 内联含空格/括号路径时，改用独立 `.js` 文件（避免 PowerShell 二次解析）
 11. ✅ 管道中调用 npm 全局 CLI 用 `.cmd` 包装器（`tcb.cmd`），不用无扩展名 `bin/tcb`（「文档」不能在管道中激活）
+12. ✅ 命中 `tcb.ps1` PSSecurityException 时改 `tcb.cmd`；密钥类凭据只在交互提示处粘贴（不写命令行）；脚本内全局包路径从 `$env:APPDATA` 派生
 
 ## 实测踩坑记录（2026-09-21）
 
