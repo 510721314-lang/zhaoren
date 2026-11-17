@@ -54,8 +54,15 @@ function assertOk(step, r, extra) {
     console.log('[1] force_set_env → dev...');
     const envR = await callCloud(mp, 'init-db', { action: 'force_set_env', env: 'dev', reason: 'e2e-full-chain', confirm: true }, USER_OPENID);
     assertOk('force_set_env', envR, `from=${envR.raw && envR.raw.from} to=${envR.raw && envR.raw.to}`);
-    console.log('  等待 env 缓存过期(30s)...');
-    await sleep(30000);
+    console.log('  等待 env 缓存过期(60s, 热容器最长 5min)...');
+    await sleep(60000);
+
+    // 1.5. 前置清理: 清除上次运行残留的测试数据 (防 publish_time_conflict)
+    console.log('[1.5] purge_test_data (清理上次残留)...');
+    const dryR1 = await callCloud(mp, 'init-db', { action: 'purge_test_data', scope: 'all_istest' }, USER_OPENID);
+    const actual1 = (dryR1.raw && dryR1.raw.stats && dryR1.raw.stats.order_main) || 0;
+    const purgePre = await callCloud(mp, 'init-db', { action: 'purge_test_data', scope: 'all_istest', confirm: 'PURGE', expect_orders: actual1 }, USER_OPENID);
+    assertOk('purge_pre', purgePre);
 
     // 2. partner 实名 (dev 通道)
     console.log('[2] simulate_realname (partner)...');
@@ -72,13 +79,13 @@ function assertOk(step, r, extra) {
     const title = `e2e全链路_${Date.now()}`;
     const pubR = await callCloud(mp, 'demand-publish', {
       action: 'publish', scene: SCENE, title,
-      description: 'e2e全链路测试', content: 'e2e全链路测试',
+      description: 'e2e全链路测试',
       pricing_type: 'fixed', fixed_price_fen: 3000,
       content_options: ['排队代办'],
       start_time: Date.now() + 2 * 3600 * 1000, duration_h: 1,
       location: { name: '测试地点', address: '测试地点', latitude: 39.9042, longitude: 116.4074, city: '成都' },
       publish_location: { latitude: 39.9042, longitude: 116.4074 },
-      project_attr: 'commercial', match_mode: 'grab',
+      project_attr: 'commercial', match_mode: 'broadcast',
       aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
       headcount: 1, gender_pref: '不限',
       contact_phone: '13800000000', contact_phone_source: 'custom',
@@ -143,7 +150,10 @@ function assertOk(step, r, extra) {
     console.log('[12] finish_apply (partner)...');
     const faR = await callCloud(mp, 'order-action', {
       action: 'finish_apply', order_id: orderId,
-      finish_evidence: { photos: [{ file_id: 'cloud://e2e-mock-finish.jpg' }] },
+      finish_evidence: {
+        photos: [{ file_id: 'cloud://e2e-mock-finish.jpg' }],
+        partner_location: { latitude: 39.9042, longitude: 116.4074, accuracy: 10 },
+      },
     }, PARTNER_OPENID);
     const faData = assertOk('finish_apply', faR, `status=${faR.data && faR.data.status}`);
     if (faData.status !== 'S3_6') { console.error(`FAIL: 期望 S3_6, 实际 ${faData.status}`); process.exit(1); }
@@ -158,7 +168,7 @@ function assertOk(step, r, extra) {
     console.log('[14] evaluation submit (user)...');
     const evR = await callCloud(mp, 'evaluation-submit', {
       action: 'submit', order_id: orderId, star: 5,
-      tags: ['准时到达', '服务专业', '态度友好'], content: 'e2e全链路测试评价',
+      content: 'e2e全链路测试评价',
     }, USER_OPENID);
     const evData = assertOk('evaluation', evR, `star=${evR.data && evR.data.star}`);
 
@@ -178,7 +188,7 @@ function assertOk(step, r, extra) {
     console.log('[16] purge_test_data...');
     // 先 dry-run 拿 actual_orders
     const dryR = await callCloud(mp, 'init-db', { action: 'purge_test_data', scope: 'all_istest' }, USER_OPENID);
-    const actualOrders = (dryR.raw && dryR.raw.actual_orders) || (dryR.data && dryR.data.stats && dryR.data.stats.order_main) || 0;
+    const actualOrders = (dryR.raw && dryR.raw.stats && dryR.raw.stats.order_main) || 0;
     const purgeR = await callCloud(mp, 'init-db', {
       action: 'purge_test_data', scope: 'all_istest', confirm: 'PURGE', expect_orders: actualOrders,
     }, USER_OPENID);
