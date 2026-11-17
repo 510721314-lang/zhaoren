@@ -161,3 +161,61 @@ L1 冒烟：通过 / 不通过（P0 用例是否全绿）
 3. 开发者工具已登录（否则 auto 命令会弹登录框）
 4. 创建 `tests/e2e/` 目录放测试脚本
 5. 跑一个最简冒烟（reLaunch 首页 + 断言 page.data 非空）验证链路
+
+## L3 全链路云函数调用链 e2e（2026-11-17 实证）
+
+> 适用：验证「发布→接单→四确认→支付→履约→评价」等跨多云函数的端到端业务流。不碰 UI 交互，纯靠 `mp.evaluate(fn)` 在 AppService 调 `wx.cloud.callFunction`。
+
+### 核心机制
+
+| 机制 | 说明 |
+|---|---|
+| `mock_openid` 切换身份 | env=dev 时，`cloudfunctions/_shared/openid.js` 用 `event.mock_openid` 覆盖真实 OPENID。user 传 admin openid，partner 传 `test_partner_001` |
+| `force_set_env` | 调 `init-db {action:'force_set_env', env:'dev', reason, confirm:true}`，4h 自动回 prod。只清 init-db 本进程缓存，其他函数 5min 短缓存自然过期 |
+| `isMockCall` 逻辑 | `isMockCall = (wxCtx && !wxCtx.OPENID) && mock_openid`。**DevTools 有真实 OPENID → isMockCall=false → 定位/照片校验全部生效**，必须传真实格式数据 |
+
+### 脚本骨架（17 步）
+
+```
+[0] 启动 DevTools（复用 devtools-launcher.js）
+[1] force_set_env(dev) → sleep(60s 等缓存过期)
+[1.5] 前置 purge_test_data(scope:'all_istest') 清上次残留
+[2] simulate_realname(partner)
+[3] sign_disclaimer W8 (partner)
+[4] publish(user) → demand_id
+[5] create_from_take(partner) → order_id, status=S1
+[6] confirm_all(partner) → 4/8
+[7] confirm_all(user) → status=S0
+[8] mock_pay(user) → status=S2
+[9] start_apply(partner) → status=S2_6
+[10] start_confirm(user) → status=S3
+[11] milestone_submit×3 (partner)
+[12] finish_apply(partner) → status=S3_6
+[13] finish_confirm(user) → status=S5
+[14] evaluation(user) → status=S8
+[15] order detail 断言 status=S8, milestone=3/3
+[16] purge_test_data 清理
+[17] force_set_env(prod)
+```
+
+### 已实证的 4 个坑（必避）
+
+1. **字段路径逐 action 核对**：禁止假设相似 action 字段一致。`start_apply` 读顶层 `start_location`，但 `finish_apply` 读 `finish_evidence.partner_location`（action_lifecycle.js:621）。传顶层 `finish_location` 被静默丢弃 → `oa_finish_apply_location_required`。
+2. **前置 purge**：上次失败残留 is_test demand → 同场景同时段发布返 `publish_time_conflict`。force_set_env 后必须先 purge 再 publish。
+3. **purge dry-run 取值**：dry-run 返回 `{stats:{order_main:N}}`，取 `raw.stats.order_main`；`actual_orders` 仅在 expect_orders 不匹配的错误返回里出现，dry-run 取不到。
+4. **env 缓存**：`force_set_env` 只清 init-db 缓存，order-action/demand-publish 等热容器仍缓存 prod 最长 5min。冷启动 60s 足够；热容器需等 5min 或多调几次触发冷启动。
+
+### 调用封装
+
+```js
+async function callCloud(mp, name, event, mockOpenid) {
+  return await mp.evaluate(async ({ name, event, mockOpenid }) => {
+    const res = await wx.cloud.callFunction({ name, data: { ...event, mock_openid: mockOpenid } });
+    return res.result;
+  }, { name, event, mockOpenid });
+}
+```
+
+### 异常兜底
+
+catch 块必须 `force_set_env(prod)` 切回生产环境，防止 env 永久留在 dev。残留数据靠下次运行的前置 purge 清理。
