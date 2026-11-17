@@ -50,7 +50,7 @@ async function order_force_cancel(ctx) {
       actor: 'admin', actor_openid: openid, action: 'admin_force_cancel',
       note: String(note).trim(), created_at: now, updated_at: now, is_deleted: false
     }});
-  } catch (e) {}
+  } catch (e) { log.w('order_status_log force_cancel add fail:', e && e.message); }
   await logEvent('P2', 'order_force_cancel', openid, {
     order_id, order_no: o.order_no, before, after: 'S6', note: String(note).trim()
   });

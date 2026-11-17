@@ -40,7 +40,7 @@ async function dispute_handle(ctx) {
         order_id, type: 'refund', status: 'success', is_deleted: _.neq(true)
       }).limit(50).get();
       alreadyRefunded = (paid.data || []).reduce((s, t) => s + (Number(t.amount_fen) || 0), 0);
-    } catch (e) {}
+    } catch (e) { log.w('pay_transaction refund query fail:', e && e.message); }
     const refFenMax = Math.max(0, paidFen - alreadyRefunded);
     const raw = event.refund_fen;
     refFen = (raw === undefined || raw === null || raw === '') ? paidFen : Number(raw);
@@ -111,7 +111,7 @@ async function dispute_handle(ctx) {
       note: decision === 'refund' ? `${noteText}（退款 ¥${(refFen / 100).toFixed(2)}）` : noteText,
       created_at: now, updated_at: now, is_deleted: false
     }});
-  } catch (e) {}
+  } catch (e) { log.w('order_status_log dispute add fail:', e && e.message); }
   if (decision === 'refund') {
     const amtYuan = (refFen / 100).toFixed(2);
     await Promise.allSettled([

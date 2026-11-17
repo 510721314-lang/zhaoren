@@ -103,7 +103,7 @@ async function partner_profile_review(ctx) {
         : '你的耍伴资料已通过审核，已在耍伴卡片与详情页展示。',
       action_key: 'partner_profile_edit', action_payload: {}, created_at: _n, updated_at: _n, read: false
     }});
-  } catch (e) {}
+  } catch (e) { log.w('system_notice partner_profile add fail:', e && e.message); }
   await logEvent('P2', hasRemainingPending ? 'pp_profile_partial' : 'pp_profile_approved', openid, { target_openid, fields: items.map((i) => i.field).join(',') });
   return ok({ target_openid, profile_audit_status: hasRemainingPending ? 'pending' : 'approved' });
 }
@@ -128,7 +128,7 @@ async function review(ctx) {
   if (decision === 'approve') {
     await col('user_account').where({ openid: target_openid }).update({
       data: { roles: _.addToSet('partner'), updated_at: now }
-    }).catch(() => {});
+    }).catch((e) => { log.w('user_account roles addToSet fail:', e && e.message); });
   }
   await logEvent('P2', 'partner_review_' + decision, openid, {
     target_openid, before: profile.status, after: newStatus, note: note || ''

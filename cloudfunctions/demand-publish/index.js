@@ -459,7 +459,7 @@ async function lazyExpire() {
           n++;
           log.d(`demand expired: ${d.demand_no}`);
         }
-      } catch (e) {}
+      } catch (e) { log.w('demand expired update fail:', e && e.message); }
     }
     return n;
   } catch (e) {

@@ -20,7 +20,7 @@ async function user_ban_unban(ctx) {
   if (ban) {
     await col('partner_profile').where({ openid: target_openid }).update({
       data: { accept_switch: false, updated_at: now }
-    }).catch(() => {});
+    }).catch((e) => { log.w('accept_switch update fail:', e && e.message); });
   }
   await logEvent('P2', ban ? 'user_banned' : 'user_unbanned', openid, {
     target_openid, reason: reason || '', before: ur.data[0].status, after: patch.status
@@ -58,7 +58,7 @@ async function penalty(ctx) {
   if (level !== 'warning') {
     await col('partner_profile').where({ openid: target_openid }).update({
       data: { accept_switch: false, updated_at: now }
-    }).catch(() => {});
+    }).catch((e) => { log.w('accept_switch update fail:', e && e.message); });
   }
   await logEvent('P1', `penalty_${level}`, openid, {
     target_openid, reason: reason, level

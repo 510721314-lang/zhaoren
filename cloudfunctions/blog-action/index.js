@@ -182,7 +182,7 @@ exports.main = async (event, context) => {
         if (!doc || doc.status !== 'normal' || doc.is_deleted) {
           return { ok: false, code: 'post_gone', msg: '动态不存在或已下架' };
         }
-        await col('blog_post').doc(post_id).update({ data: { view_count: _.inc(1) } }).catch(() => {});
+        await col('blog_post').doc(post_id).update({ data: { view_count: _.inc(1) } }).catch((e) => { log.w('blog_post view_count inc fail:', e && e.message); });
         let liked = false;
         if (openid) {
           const lk = await col('blog_like').where({ post_id, openid }).limit(1).get();
@@ -299,7 +299,7 @@ exports.main = async (event, context) => {
         const exist = await col('blog_like').where({ post_id, openid }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
           await col('blog_like').doc(exist.data[0]._id).remove();
-          await col('blog_post').doc(post_id).update({ data: { like_count: _.inc(-1) } }).catch(() => {});
+          await col('blog_post').doc(post_id).update({ data: { like_count: _.inc(-1) } }).catch((e) => { log.w('blog_post like_count dec fail:', e && e.message); });
         }
         await writeAudit(db, log, {
           openid, role: 'user', category: 'business', action: 'blog_unlike',
@@ -353,7 +353,7 @@ exports.main = async (event, context) => {
           author_nickname: snap.author_nickname, author_avatar: snap.author_avatar,
           content, status: 'normal', created_at: now, is_deleted: false
         }});
-        await col('blog_post').doc(post_id).update({ data: { comment_count: _.inc(1) } }).catch(() => {});
+        await col('blog_post').doc(post_id).update({ data: { comment_count: _.inc(1) } }).catch((e) => { log.w('blog_post comment_count inc fail:', e && e.message); });
         await writeAudit(db, log, {
           openid, role: 'user', category: 'business', action: 'blog_comment_add',
           target_type: 'blog_comment', target_id: addRes._id || '',
@@ -378,7 +378,7 @@ exports.main = async (event, context) => {
         if (!doc) return { ok: false, code: 'comment_gone', msg: '评论不存在' };
         if (doc.author_openid !== openid) return { ok: false, code: 'forbidden', msg: '只能删除自己的评论' };
         await col('blog_comment').doc(comment_id).update({ data: { status: 'deleted', is_deleted: true } });
-        await col('blog_post').doc(doc.post_id).update({ data: { comment_count: _.inc(-1) } }).catch(() => {});
+        await col('blog_post').doc(doc.post_id).update({ data: { comment_count: _.inc(-1) } }).catch((e) => { log.w('blog_post comment_count dec fail:', e && e.message); });
         await writeAudit(db, log, {
           openid, role: 'user', category: 'business', action: 'blog_comment_delete',
           target_type: 'blog_comment', target_id: comment_id,

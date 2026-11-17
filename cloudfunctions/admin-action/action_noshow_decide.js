@@ -75,7 +75,7 @@ async function no_show_decide(ctx) {
           suspend_reason: `累计 ${outcome.times} 次爽约裁定成立`, suspend_at: now, suspend_by: openid, updated_at: now
         }});
         await col('partner_profile').where({ openid: rpt.target_openid })
-          .update({ data: { accept_switch: false, updated_at: now } }).catch(() => {});
+          .update({ data: { accept_switch: false, updated_at: now } }).catch((e) => { log.w('accept_switch update fail:', e && e.message); });
         penaltyApplied.suspend_until = outcome.suspendUntil;
         await logEvent('P1', 'penalty_no_show_suspend', openid, {
           report_id, target_openid: rpt.target_openid, times: outcome.times,
@@ -89,7 +89,7 @@ async function no_show_decide(ctx) {
             body: `信用分累计 ${outcome.times} 次爽约，账号停用 ${cfg.suspendDays} 天，将于 ${d.getUTCMonth() + 1}月${d.getUTCDate()}日自动恢复`,
             read: false, created_at: now, updated_at: now, is_deleted: false
           }});
-        } catch (e) {}
+        } catch (e) { log.w('system_notice account_suspended add fail:', e && e.message); }
       }
       await col('no_show_report').doc(report_id).update({ data: { penalty_applied: penaltyApplied, updated_at: now } });
     }
@@ -106,7 +106,7 @@ async function no_show_decide(ctx) {
           ? { updated_at: now }
           : { frozen: false, dispute_state: 'resolved', dispute_handled_at: now, updated_at: now }
       });
-    } catch (e) {}
+    } catch (e) { log.w('order_main dispute_state update fail:', e && e.message); }
   }
   const noticeTo = async (to, title, body) => {
     if (!to) return;
@@ -116,7 +116,7 @@ async function no_show_decide(ctx) {
         title, body, action_key: 'jump_order', action_payload: { order_id: rpt.order_id, report_id },
         read: false, created_at: now, updated_at: now, is_deleted: false
       }});
-    } catch (e) {}
+    } catch (e) { log.w('system_notice no_show_decided add fail:', e && e.message); }
   };
   if (verdict === 'upheld') {
     await noticeTo(rpt.reporter_openid, '爽约申诉已裁定：成立', '已按规则处理');

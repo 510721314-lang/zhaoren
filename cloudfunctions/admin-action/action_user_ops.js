@@ -12,7 +12,7 @@ async function user_freeze_unfreeze(ctx) {
   if (freeze) { patch.frozen_reason = reason || ''; patch.frozen_at = now; patch.frozen_by = openid; }
   await col('user_account').doc(ur.data[0]._id).update({ data: patch });
   if (freeze) {
-    await col('partner_profile').where({ openid: target_openid }).update({ data: { accept_switch: false, updated_at: now } }).catch(() => {});
+    await col('partner_profile').where({ openid: target_openid }).update({ data: { accept_switch: false, updated_at: now } }).catch((e) => { log.w('accept_switch update fail:', e && e.message); });
   }
   await logEvent('P2', freeze ? 'user_frozen' : 'user_unfrozen', openid, {
     target_openid, reason: reason || '', before: ur.data[0].status, after: patch.status
@@ -43,7 +43,7 @@ async function user_credit_adjust(ctx) {
       order_id: null, is_system: false, admin_openid: openid,
       created_at: now, updated_at: now, is_deleted: false
     }});
-  } catch (e) {}
+  } catch (e) { log.w('credit_score_log add fail:', e && e.message); }
   await logEvent('P2', 'credit_adjust', openid, {
     target_openid, score_type, before, after, delta: d, reason: String(reason).trim()
   });

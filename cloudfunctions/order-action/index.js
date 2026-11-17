@@ -313,7 +313,7 @@ async function sendUrgeSub(order, config, now, used) {
       await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([
         { key: 'demand_urge', openid: p, at: Date.now(), channel: 'local', status: 'fail', errCode: localErr, errMsg: 'skipped_by_local' }
       ]) } });
-    } catch (e5) {}
+    } catch (e5) { log.w('sub_msg_send_logs local write fail:', e5 && e5.message); }
     return { sent: false, errCode: localErr, errMsg: '' };
   }
   const fields = Object.assign({ thing4: 'urge_content', time3: 'urge_time' },
@@ -341,7 +341,7 @@ async function sendUrgeSub(order, config, now, used) {
       await col('partner_profile').doc(prof._id).update({ data: {
         ['sub_msgs.demand_urge']: sentPatch(prev, Date.now()), updated_at: Date.now()
       } });
-    } catch (e1) {}
+    } catch (e1) { log.w('partner_profile sub_msgs sentPatch update fail:', e1 && e1.message); }
   } else {
     entry.status = 'fail';
     entry.errCode = res.errCode;
@@ -352,7 +352,7 @@ async function sendUrgeSub(order, config, now, used) {
         await col('partner_profile').doc(prof._id).update({ data: {
           ['sub_msgs.demand_urge']: exhaustedPatch(prev, Date.now()), updated_at: Date.now()
         } });
-      } catch (e3) {}
+      } catch (e3) { log.w('partner_profile sub_msgs exhaustedPatch update fail:', e3 && e3.message); }
       try {
         await writeNotice({
           to_openid: p, order_id: order._id, type: 'sub_quota',
@@ -360,10 +360,10 @@ async function sendUrgeSub(order, config, now, used) {
           body: '点此重新开启，可再收 1 条催办提醒',
           action_key: 'jump_accept_config'
         });
-      } catch (e4) {}
+      } catch (e4) { log.w('writeNotice sub_quota fail:', e4 && e4.message); }
     }
   }
-  try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+  try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) { log.w('sub_msg_send_logs cloud write fail:', e2 && e2.message); }
   return { sent: res.sent, errCode: res.errCode, errMsg: res.errMsg };
 }
 
@@ -378,7 +378,7 @@ async function sendCommSub(order, config, item) {
       await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([
         { key: 'confirm_comm', openid: order.partner_openid || '', at: Date.now(), channel: 'local', status: 'fail', errCode: code, errMsg: 'early_return' }
       ]) } });
-    } catch (e0) {}
+    } catch (e0) { log.w('sub_msg_send_logs logLocal write fail:', e0 && e0.message); }
   };
   if (!tmpl || !tmpl.tmpl_id) { await logLocal('NO_TMPL'); return { sent: false, errCode: 'NO_TMPL', errMsg: '' }; }
   const p = order.partner_openid;
@@ -397,7 +397,7 @@ async function sendCommSub(order, config, item) {
       await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([
         { key: 'confirm_comm', openid: p, at: Date.now(), channel: 'local', status: 'fail', errCode: localErr, errMsg: 'skipped_by_local' }
       ]) } });
-    } catch (e5) {}
+    } catch (e5) { log.w('sub_msg_send_logs local write fail:', e5 && e5.message); }
     return { sent: false, errCode: localErr, errMsg: '' };
   }
   const fields = Object.assign({ thing1: 'comm_item', time2: 'comm_time', thing3: 'comm_scene' },
@@ -425,7 +425,7 @@ async function sendCommSub(order, config, item) {
       await col('partner_profile').doc(prof._id).update({ data: {
         ['sub_msgs.confirm_comm']: sentPatch(prev, Date.now()), updated_at: Date.now()
       } });
-    } catch (e1) {}
+    } catch (e1) { log.w('partner_profile sub_msgs sentPatch update fail:', e1 && e1.message); }
   } else {
     entry.status = 'fail';
     entry.errCode = res.errCode;
@@ -435,7 +435,7 @@ async function sendCommSub(order, config, item) {
         await col('partner_profile').doc(prof._id).update({ data: {
           ['sub_msgs.confirm_comm']: exhaustedPatch(prev, Date.now()), updated_at: Date.now()
         } });
-      } catch (e3) {}
+      } catch (e3) { log.w('partner_profile sub_msgs exhaustedPatch update fail:', e3 && e3.message); }
       try {
         await writeNotice({
           to_openid: p, order_id: order._id, type: 'sub_quota',
@@ -443,10 +443,10 @@ async function sendCommSub(order, config, item) {
           body: '点此重新开启，可再收 1 条沟通提醒',
           action_key: 'jump_accept_config'
         });
-      } catch (e4) {}
+      } catch (e4) { log.w('writeNotice sub_quota fail:', e4 && e4.message); }
     }
   }
-  try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) {}
+  try { await col('order_main').doc(order._id).update({ data: { sub_msg_send_logs: _.push([entry]) } }); } catch (e2) { log.w('sub_msg_send_logs cloud write fail:', e2 && e2.message); }
   return { sent: res.sent, errCode: res.errCode, errMsg: res.errMsg };
 }
 

@@ -301,7 +301,7 @@ async function resolvePhone(event, callerOpenid) {
           .catch((e) => { log.w('sms fail 计数写入失败:', e && e.message); });
         await col('user_account').where({ _id: u._id, sms_fail_count: _.gte(SMS_MAX_FAIL) })
           .update({ data: { sms_lock_until: Date.now() + SMS_LOCK_MS, sms_code: '', sms_expire_at: 0, sms_target: '' } })
-          .catch(() => {});
+          .catch((e) => { log.w('sms_lock write fail:', e && e.message); });
         return { ok: false, code: 'sms_wrong', msg: '验证码错误' };
       }
       // 验证通过, 消耗验证码、清零失败计数并写入手机号(加密落库, 不写明文)

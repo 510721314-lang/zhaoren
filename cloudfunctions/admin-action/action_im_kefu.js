@@ -151,7 +151,7 @@ async function kefu_conv_reply(ctx) {
   await col('im_conversation').doc(conv_id).update({ data: {
     last_msg_text: msg, last_msg_at: now, last_msg_from: 'kefu',
     kefu_status: 'handled', handled_at: now, updated_at: now
-  }}).catch(() => {});
+  }}).catch((e) => { log.w('im_conversation kefu update fail:', e && e.message); });
   const targets = [c.user_openid, c.partner_openid].filter(Boolean);
   for (const to of targets) {
     try {

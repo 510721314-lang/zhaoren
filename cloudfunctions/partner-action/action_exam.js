@@ -116,7 +116,7 @@ async function submitExamAction(ctx) {
         ['exam_at.' + subject]: now,
         updated_at: now
       };
-      await col('partner_profile').doc(profile._id).update({ data: patch }).catch(() => {});
+      await col('partner_profile').doc(profile._id).update({ data: patch }).catch((e) => { log.w('exam score update fail:', e && e.message); });
 
       // 通过发证: 已有有效证书则复用(幂等), 否则按 base 永久 / 其他科目 N 天新发一张
       let cert = null;
@@ -148,7 +148,7 @@ async function submitExamAction(ctx) {
         openid, role: 'partner', category: 'exam', action: 'submit_exam',
         target_type: 'partner_profile', target_id: profile._id || '',
         detail: { subject, score, passed, session_id: sessionId }, result: passed ? 'ok' : 'fail'
-      }).catch(() => {});
+      }).catch((e) => { log.w('exam audit write fail:', e && e.message); });
       return { ok: true, data: {
         subject, score, passed, pass_line: sub.pass_line,
         session_id: sessionId,

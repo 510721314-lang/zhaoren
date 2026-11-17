@@ -83,7 +83,7 @@ async function blog_comment_delete(ctx) {
   if (!cdoc || cdoc.is_deleted) return fail('blog_comment_gone', '评论不存在');
   await col('blog_comment').doc(comment_id).update({ data: { status: 'deleted', is_deleted: true, delete_by: openid, updated_at: now } });
   if (cdoc.status !== 'deleted') {
-    await col('blog_post').doc(cdoc.post_id).update({ data: { comment_count: db.command.inc(-1) } }).catch(() => {});
+    await col('blog_post').doc(cdoc.post_id).update({ data: { comment_count: db.command.inc(-1) } }).catch((e) => { log.w('blog_post comment_count dec fail:', e && e.message); });
   }
   await logEvent('P2', 'blog_comment_delete', openid, { comment_id, post_id: cdoc.post_id, note: String(note).trim() });
   return ok({ msg: '评论已删除' });

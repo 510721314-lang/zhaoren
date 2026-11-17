@@ -307,7 +307,7 @@ async function password_login_action(ctx) {
             .catch((e) => { log.w('password_login pwd_fail 计数写入失败:', e && e.message); });
           await col('user_account').where({ _id: u._id, pwd_fail_count: _.gte(PWD_MAX_FAIL) })
             .update({ data: { pwd_lock_until: Date.now() + PWD_LOCK_MS, pwd_fail_count: 0 } })
-            .catch(() => {});
+            .catch((e) => { log.w('pwd_lock write fail:', e && e.message); });
           return { ok: false, code: 'password_wrong', msg: '账号或密码错误' };
         }
         // 验密通过: 清零失败计数与锁定

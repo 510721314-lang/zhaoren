@@ -329,7 +329,7 @@ async function sendDemandSub(d, subTmpl, openid, profile, httpsPusher) {
       await col('partner_profile').doc(profile._id).update({ data: {
         ['sub_msgs.demand_grab']: sentPatch(prev, Date.now()), updated_at: Date.now()
       } });
-    } catch (e1) {}
+    } catch (e1) { log.w('partner_profile sub_msgs demand_grab sentPatch update fail:', e1 && e1.message); }
   } else {
     entry.status = 'fail';
     entry.errCode = res.errCode;
@@ -339,12 +339,12 @@ async function sendDemandSub(d, subTmpl, openid, profile, httpsPusher) {
         await col('partner_profile').doc(profile._id).update({ data: {
           ['sub_msgs.demand_grab']: exhaustedPatch(prev, Date.now()), updated_at: Date.now()
         } });
-      } catch (e3) {}
+      } catch (e3) { log.w('partner_profile sub_msgs demand_grab exhaustedPatch update fail:', e3 && e3.message); }
     }
   }
   try {
     await col('demand').doc(d._id).update({ data: { sub_msg_send_logs: _.push([entry]), updated_at: Date.now() } });
-  } catch (e2) {}
+  } catch (e2) { log.w('demand sub_msg_send_logs write fail:', e2 && e2.message); }
 }
 async function processDemandNotify(now, cfg) {
   const done = [];
