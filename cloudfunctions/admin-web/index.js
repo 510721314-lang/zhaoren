@@ -253,7 +253,7 @@ exports.main = async (event, context) => {
       const r = await adminLoginShared({
         event: body, openid: adminOpenid,
         ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent,
-        log: { w: function () {} }
+        log: { w: console.warn, d: console.log }   // P3-1 批1 审核修正: 原空函数吞掉 admin-login 6 处留痕(2026-11-17)
       });
       return makeJson(r);
     } catch (e) { return failJson('login_error', e); }
