@@ -126,7 +126,7 @@ const TRANSITIONS = [
   { no: 10, event: 'milestone', role: 'both', from: ['S3'], to: 'S3', guard: '', money: '', timeout: '确认窗(可配)自动确认' },
   { no: 11, event: 'extend_req', role: 'both', from: ['S3'], to: 'S3', guard: '未冻结', money: '', timeout: 'extend_confirm_min(后台可配, 分钟, 默认 20; 0=跟随改期确认窗口) 未回应→自动拒绝' },
   { no: 12, event: 'extend_paid', role: 'user', from: ['S3'], to: 'S3', guard: '加时补付流水成功', money: 'type=pay(sub=extend)', timeout: '未付不加结算基数' },
-  { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '双方各确认一次', money: '按 PRD 分段结算', timeout: '裁限期→平台介入' },
+  { no: 14, event: 'ratio_agree', role: 'both', from: ['S4'], to: 'S5', guard: '任一方确认(PRD 附录G「确认完成」; 2026-11-17 P3-52 订正: 原文「双方各确认一次」与 PRD 及实现不符)', money: '结算按订单全额(ratio_fen 暂无消费方)', timeout: '裁限期→平台介入' },
   { no: 15, event: 'evaluate', role: 'user', from: ['S5'], to: 'S8', guard: '无已有评价', money: '信用分±; settle ready', timeout: '48h→auto_done' },
   { no: 16, event: 'complaint_open', role: 'both', from: ['S2', 'S3', 'S3.5', 'S4'], to: null, guard: '售后/履约窗口内(目标态=原状态+frozen, 不改主轴); 2026-10-15 需求变更: 用户确认履约完毕(S5)起关闭投诉入口 → 移除 S5/S8, 与 action_dispute.COMPLAINT_OPEN_STATUS 对齐', money: '', timeout: '一审时限→升级二审/催办' },
   { no: 17, event: 'complaint_withdraw', role: 'both', from: ['*'], to: null, guard: '未受理(回 from_status)', money: '', timeout: '' },

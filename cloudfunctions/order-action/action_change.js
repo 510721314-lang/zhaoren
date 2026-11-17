@@ -77,13 +77,22 @@ async function validateValue(ctx, order, field, value, config) {
   }
   if (field === 'fee') {
     const fee = Number(value);
-    if (!Number.isInteger(fee)) return { ok: false, code: 'oa_fee_invalid', msg: '费用必须是整数(分)' };
-    const rateMin = config.rate_min_fen || 3000;
-    const rateMax = config.rate_max_fen || 10000;
-    if (fee < rateMin || fee > rateMax) {
-      // 变更是协商：不再“自动调整”，只告知合法区间（原 update_item 文案误导，此处不复用）
+    if (!Number.isInteger(fee) || fee <= 0) return { ok: false, code: 'oa_fee_invalid', msg: '费用必须是整数(分)' };
+    // P3-51(2026-11-17): fee 语义=订单总额, 校验按 pricing_type 折算——原实现直接钳时薪区间, 多时长/一口价单必误拒
+    let lo = 0, hi = 0, hasRange = false;
+    if (order.pricing_type !== 'fixed' && order.rate_fen) {
+      const dur = Number(order.duration_h) || 1;
+      lo = (config.rate_min_fen || 3000) * dur;
+      hi = (config.rate_max_fen || 10000) * dur;
+      hasRange = true;
+    } else {
+      const fLo = Number(config.fixed_price_min_fen), fHi = Number(config.fixed_price_max_fen);
+      if (Number.isFinite(fLo) && fLo > 0) { lo = fLo; hasRange = true; }
+      if (Number.isFinite(fHi) && fHi > 0) { hi = fHi; hasRange = true; }
+    }
+    if (hasRange && (fee < lo || fee > hi)) {
       return { ok: false, code: 'oa_fee_out_of_range',
-        msg: `费用超出耍伴时薪区间(${Math.round(rateMin / 100)}元-${Math.round(rateMax / 100)}元/小时),请修改后再发起` };
+        msg: `费用超出允许区间(${Math.round(lo / 100)}元-${Math.round(hi / 100)}元),请修改后再发起` };
     }
     const youthLimit = config.youth_limit_fen || 20000;
     const [u, p] = await Promise.all([

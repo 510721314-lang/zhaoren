@@ -120,17 +120,26 @@ async function update_item(ctx) {
     if (!Array.isArray(value)) return { ok: false, code: 'oa_content_invalid', msg: '服务内容格式有误' };
   } else if (item === 'fee') {
     const fee = Number(value);
-    if (!Number.isInteger(fee)) {
+    if (!Number.isInteger(fee) || fee <= 0) {
       return { ok: false, code: 'oa_fee_invalid', msg: '费用必须是整数(分)' };
     }
-    const rateMin = config.rate_min_fen || 3000;
-    const rateMax = config.rate_max_fen || 10000;
-    const clampedFee = Math.max(rateMin, Math.min(rateMax, fee));
-    if (clampedFee !== fee) {
-      return { ok: false, code: 'oa_fee_out_of_range',
-        msg: `费用超出耍伴时薪区间(${Math.round(rateMin/100)}元-${Math.round(rateMax/100)}元/小时),已自动调整为 ${Math.round(clampedFee/100)}元/小时`,
-        original_fen: fee, adjusted_fen: clampedFee };
+    // P3-51(2026-11-17): 同 action_change 口径——fee=订单总额, 校验按 pricing_type 折算(update_item 前端无入口, 同步修防休眠链复发)
+    let lo = 0, hi = 0, hasRange = false;
+    if (order.pricing_type !== 'fixed' && order.rate_fen) {
+      const dur = Number(order.duration_h) || 1;
+      lo = (config.rate_min_fen || 3000) * dur;
+      hi = (config.rate_max_fen || 10000) * dur;
+      hasRange = true;
+    } else {
+      const fLo = Number(config.fixed_price_min_fen), fHi = Number(config.fixed_price_max_fen);
+      if (Number.isFinite(fLo) && fLo > 0) { lo = fLo; hasRange = true; }
+      if (Number.isFinite(fHi) && fHi > 0) { hi = fHi; hasRange = true; }
     }
+    if (hasRange && (fee < lo || fee > hi)) {
+      return { ok: false, code: 'oa_fee_out_of_range',
+        msg: `费用超出允许区间(${Math.round(lo / 100)}元-${Math.round(hi / 100)}元),请修改后再发起` };
+    }
+    const clampedFee = fee;
     const { feeFen } = splitOrderAmount(clampedFee, config.platform_fee_rate_fen);
 
     const youthLimit = config.youth_limit_fen || 20000;
