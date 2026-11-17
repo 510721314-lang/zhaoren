@@ -105,6 +105,7 @@ Page({
         loading: false,
         isAdmin: (typeof getApp === 'function' && getApp().globalData && getApp().globalData.role === 'admin')
       });
+      this._checkinStarted = true;   // P3-54(2026-11-17): onShow 恢复条件依赖此标志, 此前从未赋值致切后台回来计时/GPS 不恢复
       this.startTimers();
       this.startLocationTracking();  // 安全场景立即开始高精度定位
     }).catch(() => {

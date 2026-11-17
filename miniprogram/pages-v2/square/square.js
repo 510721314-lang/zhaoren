@@ -154,7 +154,7 @@ Page({
       case 'demand_publish': {
         const bs = require('../../utils/bootstrap.js');
         if (!bs.gateOnboard('publish', '发布需求', { scene: p.scene || '' })) break;
-        const url = '/pages-v2/publish/publish' + (p.scene ? '?scene=' + p.scene : '');
+        const url = '/pages-v2/publish/publish' + (p.scene ? '?sceneCode=' + p.scene : '');   // P3-55(2026-11-17): 发布页 onLoad 只认 sceneCode(对齐 index.js:331 同款修复)
         wx.navigateTo({ url, fail: () => wx.showToast({ title: '发布页打开失败', icon: 'none' }) });
         break;
       }

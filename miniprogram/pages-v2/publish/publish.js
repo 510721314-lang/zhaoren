@@ -236,7 +236,8 @@ Page({
           const h = dt.getHours(), m = dt.getMinutes();
           // 时长预设映射 + date/time 回填
           const durationPresets = [1, 2, 3, 4, 6, 8];
-          const dur = durationPresets.includes(d.duration_hours) ? d.duration_hours : d.duration_hours;
+          // P3-53(2026-11-17): 原死三元两分支同值——非预设时长须回填 0 才渲染自定义输入框(wxml:91 按 ===0 渲染)
+          const dur = durationPresets.includes(d.duration_hours) ? d.duration_hours : 0;
           this.setData({
             'form.scene_code': d.scene_code || '',
             'form.content_options': Array.isArray(d.content_options) ? d.content_options : [],
