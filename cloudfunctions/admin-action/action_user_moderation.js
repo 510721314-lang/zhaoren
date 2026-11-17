@@ -2,7 +2,7 @@
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
 async function user_ban_unban(ctx) {
-  const { event, action, now, openid, isOpenid, col, logEvent, ok, fail } = ctx;
+  const { event, action, now, openid, isOpenid, col, logEvent, ok, fail, log } = ctx;
   const { target_openid, reason } = event;
   if (!isOpenid(target_openid)) return fail('ban_bad_openid', 'openid 格式不正确');
   const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
@@ -29,7 +29,7 @@ async function user_ban_unban(ctx) {
 }
 
 async function penalty(ctx) {
-  const { event, openid, isOpenid, col, logEvent, ok, fail } = ctx;
+  const { event, openid, isOpenid, col, logEvent, ok, fail, log } = ctx;
   const { target_openid, level, reason } = event;
   if (!isOpenid(target_openid)) return fail('pen_bad_openid', 'openid 格式不正确');
   if (!['warning', 'suspend_7d', 'ban'].includes(level)) {

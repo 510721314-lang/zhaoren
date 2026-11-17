@@ -2,7 +2,7 @@
 // 共享符号通过 ctx 注入，禁止反向 require('./index')。
 
 async function user_freeze_unfreeze(ctx) {
-  const { event, action, now, openid, isOpenid, col, logEvent, ok, fail } = ctx;
+  const { event, action, now, openid, isOpenid, col, logEvent, ok, fail, log } = ctx;
   const { target_openid, reason } = event;
   if (!isOpenid(target_openid)) return fail('freeze_bad_openid', 'openid 格式不正确');
   const ur = await col('user_account').where({ openid: target_openid }).limit(1).get();
@@ -21,7 +21,7 @@ async function user_freeze_unfreeze(ctx) {
 }
 
 async function user_credit_adjust(ctx) {
-  const { event, now, openid, isOpenid, col, logEvent, ok, fail } = ctx;
+  const { event, now, openid, isOpenid, col, logEvent, ok, fail, log } = ctx;
   const { target_openid, score_type, delta, reason } = event;
   if (!isOpenid(target_openid)) return fail('credit_bad_openid', 'openid 格式不正确');
   const d = parseInt(delta, 10);

@@ -82,7 +82,7 @@ async function partner_profile_pending_list(ctx) {
 }
 
 async function partner_profile_review(ctx) {
-  const { event, openid, isOpenid, col, _, buildAuditPatch, logEvent, ok, fail } = ctx;
+  const { event, openid, isOpenid, col, _, buildAuditPatch, logEvent, ok, fail, log } = ctx;
   const { target_openid, items } = event;
   if (!isOpenid(target_openid)) return fail('pp_bad_openid', 'openid 格式不正确');
   const pr = await col('partner_profile').where({ openid: target_openid, is_deleted: _.neq(true) }).limit(1).get();
@@ -109,7 +109,7 @@ async function partner_profile_review(ctx) {
 }
 
 async function review(ctx) {
-  const { event, now, openid, isOpenid, col, _, logEvent, ok, fail } = ctx;
+  const { event, now, openid, isOpenid, col, _, logEvent, ok, fail, log } = ctx;
   const { target_openid, decision, note } = event;
   if (!isOpenid(target_openid)) return fail('review_no_openid', '缺少耍伴 openid');
   if (decision !== 'approve' && decision !== 'reject') {

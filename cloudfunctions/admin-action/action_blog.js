@@ -75,7 +75,7 @@ async function blog_comment_list(ctx) {
 }
 
 async function blog_comment_delete(ctx) {
-  const { event, openid, isDocId, col, db, now, logEvent, ok, fail } = ctx;
+  const { event, openid, isDocId, col, db, now, logEvent, ok, fail, log } = ctx;
   const { comment_id, note } = event;
   if (!isDocId(comment_id)) return fail('blog_bad_comment_id', '评论 ID 格式不正确');
   if (!note || !String(note).trim()) return fail('blog_note_required', '请填写删除原因');
