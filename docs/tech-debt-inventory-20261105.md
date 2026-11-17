@@ -13,7 +13,7 @@
 | P0 提审阻断类 | 5 | **5 全部结案**（P0-3 于 2026-11-06 取按函数实测：触发器仅 112 次/24h，与 cron 精确吻合）；注：独立编号仅 P0-3，P0-1/2/4/5 仅总览口径、不可逐项追溯 |
 | P1 有意保留/临时放宽 | 8 | **4 已偿还/已核实（P1-1/2/7/8）+ 1 已决策（P1-6 保持 mock，2026-11-05）+ 3 有意保留（P1-3/4/5）**（2026-11-15 评审订正：原「6 已偿还/已核实」与 8 项不平） |
 | P2 结构性债 | 14 | **12 已偿还/转自动化（P2-1/2/3/5/6/11 + P2-7~10/12/13）+ 2 已决策（P2-4 接受 / P2-14 关闭不拆）+ 开放 0**（2026-11-15 评审订正：原「5 已偿还」为陈旧口径） |
-| P3 卫生/已接受 | 46（编号 P3-1~P3-47，P3-17 空缺） | **未闭合 8（P3-1/14b/26/38/44/45/46/47；P3-27 于 2026-11-15 真机闭环；P3-8/P3-32 已修、P3-33 部分收口于 2026-11-15 评审批次）**；**38 已结案/已偿还（2026-11-13 新增 P3-31/P3-36/P3-37/P3-40 四项偿还，双专家评审修正版落地）**；2026-11-09 新增 5 项（P3-26~P3-30，其中 P3-26 仅余真机抽验尾巴，P3-27 已真机闭环，见 §3.1）；2026-11-11 评审新增 3 项（P3-31 已偿还，P3-32/P3-33 于 2026-11-15 收口，见 §3.2）；2026-11-12 漂移事故处置 3 项（P3-34 登记暂缓、P3-35/P3-36 已结案，见 §3.3）；2026-11-12 分拆登记 P3-37~P3-41（P3-37/P3-40 已偿还，见 §3.4/§3.5）；**2026-11-13 P3-39/P3-42/P3-43 已偿还**；2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免；2026-11-15 新增 P3-47（定向邀约编辑链路缺口，见 §3.8） |
+| P3 卫生/已接受 | 49（编号 P3-1~P3-50，P3-17 空缺；2026-11-17 §7 复用号 P3-37/38/39 改号 P3-48/49/50） | **未闭合 8（P3-1/14b/26/38/44/45/46/47——P3-38 专指 §3.4 模块体积；P3-27 于 2026-11-15 真机闭环；P3-8/P3-32 已修、P3-33 部分收口于 2026-11-15 评审批次）**；**41 已结案/已偿还（2026-11-17 §7 改号三项 P3-48/49/50 随 #174 真机验证闭合；2026-11-13 新增 P3-31/P3-36/P3-37/P3-40 四项偿还，双专家评审修正版落地）**；2026-11-09 新增 5 项（P3-26~P3-30，其中 P3-26 仅余真机抽验尾巴，P3-27 已真机闭环，见 §3.1）；2026-11-11 评审新增 3 项（P3-31 已偿还，P3-32/P3-33 于 2026-11-15 收口，见 §3.2）；2026-11-12 漂移事故处置 3 项（P3-34 登记暂缓、P3-35/P3-36 已结案，见 §3.3）；2026-11-12 分拆登记 P3-37~P3-41（P3-37/P3-40 已偿还，见 §3.4/§3.5）；**2026-11-13 P3-39/P3-42/P3-43 已偿还**；2026-11-13 配额评审登记 P3-44~P3-45（P4，登记不动作，见 §3.6）；P3-1 资金主路径已收口、P3-14b 为已批准零代码豁免；2026-11-15 新增 P3-47（定向邀约编辑链路缺口，见 §3.8）；2026-11-17 §7 立项三项原编 P3-37/38/39 改号 P3-48/49/50 并全部闭合（见 §7） |
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3 已偿还；B-4 已决策接受（2026-11-13，SOP 入 runbook）**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
@@ -71,7 +71,7 @@
 
 ---
 
-## §3 P3 · 卫生级（编号 45 / 未闭合 10）
+## §3 P3 · 卫生级（编号 49 / 未闭合 8；§7 改号 P3-48~50 已闭合）
 
 | # | 负债 | 证据/影响 | 处置 |
 |---|---|---|---|
@@ -250,12 +250,12 @@
 
 ---
 
-## §7 2026-11-15 立项登记 · 选单模式与接单开关（开放）
+## §7 2026-11-15 立项登记 · 选单模式与接单开关（已闭合 · 2026-11-17 改号 P3-48~50）
 
-> 来源：选单模式真机回归期间双代理评审（A 事实核验 / B 方案设计）2/2 确认。用户已批准「另案」处置，本轮不实施。
+> 来源：选单模式真机回归期间双代理评审（A 事实核验 / B 方案设计）2/2 确认。用户已批准「另案」处置，本轮不实施。**三项已于 2026-11-15 全部修复并验证闭合（见各条）；2026-11-17 原编号 P3-37/38/39 改为 P3-48/49/50，消除与 §3.4/§3.5 的复用歧义——历史记载（HANDOFF-20261115 T-15.x、REGISTRY #174）中的 P3-37/38/39 指 §7 三项即本节。**
 
 | # | 负债 | 证据（文件:行号） | 影响 | 建议处置 |
 |---|---|---|---|---|
-| P3-37 | 「报名」侧不校验 `accept_switch`，与「接单」侧行为不一致 | 接单侧硬门禁 [action_take.js:69-72](../cloudfunctions/order-create/action_take.js) 返 `order_switch_off`；报名侧 [demand-match/index.js:341-342](../cloudfunctions/demand-match/index.js) 仅校验信用分与实名，**无 accept_switch 判断** | **✅ 已修并部署（2026-11-15，commit `e109ebe1`）**：`demand-match` apply 在耍伴身份审核通过后新增 `accept_switch===false → apply_switch_off`（字段缺省视为开，与 `partner-action` 的 `switchOn` 口径一致）；前端 `_applySelect` 错误码映射补 `apply_switch_off` 文案。CLI 部署 `success=true`（6 files / 10.4 KB），`tcb fn code download` 回读 **index.js SHA256 MATCH**；门禁 `verify:offline` EXIT=0 / `HANDLER-RUNTIME` 146 actions no throw。**待真机**：关闭接单开关后直接报名 → toast「接单开关已关闭,请开启后再报名」 |
-| P3-38 | `workbench` 页属孤儿页（全仓零用户入口） | 唯一跳转曾为 [take-order.js:109](../miniprogram/utils/take-order.js)（2026-11-15 随方案 A 已回滚为 accept-config）；`app.json:17` 注册但 tabBar 仅 4 项（[:104-109](../miniprogram/app.json)）；`scripts/auto-ui-pages.js:419` 为自动化脚本调用，非用户入口。**核心风险**：该页承载 `free_sos`（无单紧急求助）前端**全仓唯一**调用点（[workbench.js:326](../miniprogram/pages-v2/workbench/workbench.js)），不可达即红线 §9「无单=自由求助」能力线上无入口 | **✅ 已裁定并修复（2026-11-15，用户选 A）**：[profile.js:65-72](../miniprogram/pages-v2/profile/profile.js) `partnerEntries` 补 1 行「接单工作台」，经 `onPartnerEntry` 通用路由自动拼 `/pages-v2/workbench/workbench`（`LOW_PKG_KEYS` 未含该 key，映射正确）。恢复整页可达（无单求助/周日历/数据卡/资金速览）。**待真机**（下次体验版）：我的→我是耍伴→接单工作台→一键报警闭环 |
-| P3-39 | 无单紧急求助仅耍伴可达，纯需求方无入口（P3-38 衍生，独立缺陷） | workbench 卡在 `identity === 'partner'` 分支内（[profile.wxml:94](../miniprogram/pages-v2/profile/profile.wxml)）；红线 §9 未限定「无单求助」仅耍伴可用；云端 [safety-report/index.js:213-236](../cloudfunctions/safety-report/index.js) 的 `free_sos` 系列**不校验角色** | **✅ 已修（2026-11-15，commit `184825e1` + 体验版 v1.6.128，用户确认业务口径「非耍伴允许 free_sos」）**：新建 [utils/free-sos.js](../miniprogram/utils/free-sos.js) 作三态逻辑单一真相；`workbench.freeSosFlow` 改为委托（去重，原 −30/+1 行）；[profile.wxml:178-184](../miniprogram/pages-v2/profile/profile.wxml) 用户工作台新增「安全 · 紧急求助」入口 + `onFreeSos`（拨号/仅上报二次确认）。零后端改动、零部署。**待真机（安全链路）**：仅上报落库 + P0 事件、二次点击询问解除、10min 冷却拦截 |
+| P3-48 | 「报名」侧不校验 `accept_switch`，与「接单」侧行为不一致 | 接单侧硬门禁 [action_take.js:69-72](../cloudfunctions/order-create/action_take.js) 返 `order_switch_off`；报名侧 [demand-match/index.js:341-342](../cloudfunctions/demand-match/index.js) 仅校验信用分与实名，**无 accept_switch 判断** | **✅ 已修并部署（2026-11-15，commit `e109ebe1`）**：`demand-match` apply 在耍伴身份审核通过后新增 `accept_switch===false → apply_switch_off`（字段缺省视为开，与 `partner-action` 的 `switchOn` 口径一致）；前端 `_applySelect` 错误码映射补 `apply_switch_off` 文案。CLI 部署 `success=true`（6 files / 10.4 KB），`tcb fn code download` 回读 **index.js SHA256 MATCH**；门禁 `verify:offline` EXIT=0 / `HANDLER-RUNTIME` 146 actions no throw。→ **✅ 已闭合（2026-11-15）**：部署后负向验收通过（模拟器 T-15.5：apply 返回 `apply_switch_off`、UI 实际弹引导弹窗落 accept-config）；REGISTRY #174 已标已验证。**原编号 P3-37（§7），2026-11-17 改号；历史记载中的 P3-37 即本条** |
+| P3-49 | `workbench` 页属孤儿页（全仓零用户入口） | 唯一跳转曾为 [take-order.js:109](../miniprogram/utils/take-order.js)（2026-11-15 随方案 A 已回滚为 accept-config）；`app.json:17` 注册但 tabBar 仅 4 项（[:104-109](../miniprogram/app.json)）；`scripts/auto-ui-pages.js:419` 为自动化脚本调用，非用户入口。**核心风险**：该页承载 `free_sos`（无单紧急求助）前端**全仓唯一**调用点（[workbench.js:326](../miniprogram/pages-v2/workbench/workbench.js)），不可达即红线 §9「无单=自由求助」能力线上无入口 | **✅ 已裁定并修复（2026-11-15，用户选 A）**：[profile.js:65-72](../miniprogram/pages-v2/profile/profile.js) `partnerEntries` 补 1 行「接单工作台」，经 `onPartnerEntry` 通用路由自动拼 `/pages-v2/workbench/workbench`（`LOW_PKG_KEYS` 未含该 key，映射正确）。恢复整页可达（无单求助/周日历/数据卡/资金速览）。→ **✅ 已闭合（2026-11-15 用户真机）**：随 #174 三修通过（体验版 v1.6.128）。**原编号 P3-38（§7），2026-11-17 改号；此后 P3-38 专指 §3.4「confirm-flow 模块体积」** |
+| P3-50 | 无单紧急求助仅耍伴可达，纯需求方无入口（原 P3-38 衍生，现 P3-49，独立缺陷） | workbench 卡在 `identity === 'partner'` 分支内（[profile.wxml:94](../miniprogram/pages-v2/profile/profile.wxml)）；红线 §9 未限定「无单求助」仅耍伴可用；云端 [safety-report/index.js:213-236](../cloudfunctions/safety-report/index.js) 的 `free_sos` 系列**不校验角色** | **✅ 已修（2026-11-15，commit `184825e1` + 体验版 v1.6.128，用户确认业务口径「非耍伴允许 free_sos」）**：新建 [utils/free-sos.js](../miniprogram/utils/free-sos.js) 作三态逻辑单一真相；`workbench.freeSosFlow` 改为委托（去重，原 −30/+1 行）；[profile.wxml:178-184](../miniprogram/pages-v2/profile/profile.wxml) 用户工作台新增「安全 · 紧急求助」入口 + `onFreeSos`（拨号/仅上报二次确认）。零后端改动、零部署。→ **✅ 已闭合（2026-11-15 用户真机）**：随 #174 三修通过（安全链路）。**原编号 P3-39（§7），2026-11-17 改号；此后 P3-39 专指 §3.5「_acting 锁」** |
