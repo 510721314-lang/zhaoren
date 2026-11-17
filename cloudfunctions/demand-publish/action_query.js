@@ -157,6 +157,8 @@ async function detail_action(ctx) {
           contact_phone_masked: (d.creator_openid === openid) ? (d.phone_mask || d.contact_phone_mask || maskContact(d.contact_phone || '')) : undefined,
           // 原始发布地址(只读留痕, 编辑模式回填用; 安全: 精确坐标仅发布者本人可见, 他人不回传)
           publish_location: (d.creator_openid === openid) ? (d.publish_location || null) : null,
+          // P3-47(2026-11-17 口径 A1 允许编辑不通知): 定向邀约目标仅发布者本人回传, 编辑回填邀约对象用
+          target_openid: (d.creator_openid === openid) ? (d.target_openid || '') : undefined,
           // 是否入公共大厅(定向需求不在大厅/首页出现)
           broadcast: !!d.broadcast,
           status: d.status,

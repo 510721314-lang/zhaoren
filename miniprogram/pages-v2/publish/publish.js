@@ -281,6 +281,11 @@ Page({
               updatedAt: ''
             } : null
           });
+          // P3-47(2026-11-17 口径 A1): 编辑定向邀约回填邀约对象, 否则提交被「定向邀约缺少指定耍伴」误拦
+          if (d.match_mode === 'direct' && d.target_openid && !this.invitePartnerOpenid) {
+            this.invitePartnerOpenid = d.target_openid;
+            this._fetchInvitePartner(d.target_openid);
+          }
         })
         .catch(() => {
           wx.showToast({ title: '加载需求失败', icon: 'none' });
