@@ -256,9 +256,8 @@ async function update_action(ctx) {
       // W9 宠物照料授权(电子确认)状态同步; 非 W9 场景恒 false
       patch.pet_auth_signed = scene === 'W9' && !!pet_auth_checked;
       if (patch.pet_auth_signed) patch.pet_auth_signed_at = now;
-      if (mode === 'direct' && target_openid) {
-        patch.target_openid = target_openid;
-      }
+      // R1(2026-11-17 技术评审): 非 direct 时清空残留 target_openid(数据卫生, 防切广播后旧值滞留文档)
+      patch.target_openid = (mode === 'direct' && target_openid) ? target_openid : '';
 
       // ── CAS 更新: 仅 matching 状态可改, 防止并发冲突 ──
       try {
