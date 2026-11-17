@@ -120,7 +120,7 @@ exports.main = async (event, context) => {
         candidates.push({
           openid: p.openid,
           nickname: p.nickname || '耍伴',
-          credit: p.partner_credit_score || 800,
+          credit: p.credit_score || 800,   // P3-63(2026-11-18): p 来自 partner_profile, 字段为 credit_score 而非 partner_credit_score
           // 候选时薪:按需求场景从 scene_rates 取;无则取 rate_fen 兼容旧字段
           rate_fen: (p.scene_rates && p.scene_rates[scene]) || p.rate_fen || demand.rate_fen,
           avatar: p.avatar || ''
@@ -490,7 +490,7 @@ exports.main = async (event, context) => {
           partner_token: partnerToken(demand_id, a.openid),
           nickname: p.nickname || '耍伴',
           avatar: p.avatar || '',
-          credit: p.partner_credit_score || 800,
+          credit: p.credit_score || 800,   // P3-63(2026-11-18): p 来自 partner_profile, 字段为 credit_score 而非 partner_credit_score
           level: partnerLevel(completed).name,
           completed_orders: completed,
           applied_at: a.applied_at || 0,
