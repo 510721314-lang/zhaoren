@@ -327,6 +327,22 @@ async function update_action(ctx) {
           evidence_id: upEvidenceId, doc_hash: upEvidenceHash,
           result: 'ok', client_ip: clientIp, device
         });
+        // P3-47 口径 A2(2026-11-17): 编辑定向邀约成功后站内通知受邀耍伴「邀约内容已更新」(照 action_publish 回执通知先例, 不阻断主流程)
+        if (mode === 'direct' && target_openid) {
+          try {
+            await col('system_notice').add({ data: {
+              to_openid: target_openid,
+              order_id: '',
+              demand_id,
+              type: 'demand_updated',
+              title: '邀约内容已更新',
+              body: '发布者更新了邀约的时间/地点/费用等内容, 接单前请查看最新详情',
+              action_key: 'jump_demand',
+              action_payload: { demand_id },
+              created_at: now, read: false
+            }});
+          } catch (ne) { log.d(`direct update notice fail: ${(ne && ne.message) || ne}`); }
+        }
         return { ok: true, data: { _id: demand_id, updated_at: now } };
       } catch (e) {
         // 记录数据库原始错误(此前被吞, 无法定位; 查询通道: admin-action export_collection platform_event)
