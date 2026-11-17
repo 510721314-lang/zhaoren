@@ -18,17 +18,20 @@ async function admin_login(ctx) {
   const acc = String(event.account || '').trim();
   const password = event.password || '';
   if (!acc || !password) return { ok: false, code: 'login_invalid', msg: '账号和密码必填' };
-  const accR = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get().catch(() => ({ data: [] }));
+  const accR = await col('admin_accounts').where({ account: acc, is_deleted: _.neq(true) }).limit(1).get()
+    .catch((e) => { if (log && log.w) log.w('admin_login 账号查询失败(fail-closed 当 not_found):', (e && e.message) || e); return { data: [] }; });
   const u = (accR.data && accR.data[0]) || null;
   // 公网匿名试密码防护: 失败落 P1 事件(admin_login_fail), 供 order-timer errorScan 巡检项①推送管理员, 爆破可见; payload 不含密码。
   if (!u || u.status !== 'active') {
-    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: !u ? 'not_found' : 'inactive' }).catch(() => {});
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: !u ? 'not_found' : 'inactive' })
+      .catch((e) => { if (log && log.w) log.w('admin_login P1 事件(not_found/inactive)写失败:', (e && e.message) || e); });
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
   }
   // 防爆破锁定(fail-closed: 锁定中一律拒绝, 不再验密; 与 user-login password_login 同口径)
   const lock = evalPasswordLock(u.pwd_fail_count, u.pwd_lock_until, Date.now());
   if (lock.locked) {
-    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'locked' }).catch(() => {});
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'locked' })
+      .catch((e) => { if (log && log.w) log.w('admin_login P1 事件(locked)写失败:', (e && e.message) || e); });
     return { ok: false, code: 'login_locked', msg: '密码错误次数过多,请10分钟后再试' };
   }
   if (hashAdminPassword(password, u.password_salt) !== u.password_hash) {
@@ -37,14 +40,16 @@ async function admin_login(ctx) {
       .catch((e) => { if (log && log.w) log.w('admin_login pwd_fail 计数写入失败:', e && e.message); });
     const lockUpd = await col('admin_accounts').where({ _id: u._id, pwd_fail_count: _.gte(PWD_MAX_FAIL) })
       .update({ data: { pwd_lock_until: Date.now() + PWD_LOCK_MS, pwd_fail_count: 0 } })
-      .catch(() => null);
+      .catch((e) => { if (log && log.w) log.w('admin_login 锁定条件写失败(延迟锁定):', (e && e.message) || e); return null; });
     const locked = !!(lockUpd && lockUpd.stats && lockUpd.stats.updated === 1);
-    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password', locked }).catch(() => {});
+    await logEvent('P1', 'admin_login_fail', openid || '', { account: acc.slice(0, 40), reason: 'bad_password', locked })
+      .catch((e) => { if (log && log.w) log.w('admin_login P1 事件(bad_password)写失败:', (e && e.message) || e); });
     return { ok: false, code: 'login_bad', msg: '账号或密码错误' };
   }
   // 验密通过: 清零失败计数与锁定
   if (u.pwd_fail_count || u.pwd_lock_until) {
-    await col('admin_accounts').doc(u._id).update({ data: { pwd_fail_count: 0, pwd_lock_until: 0 } }).catch(() => {});
+    await col('admin_accounts').doc(u._id).update({ data: { pwd_fail_count: 0, pwd_lock_until: 0 } })
+      .catch((e) => { if (log && log.w) log.w('admin_login 解锁清零写失败(残留旧计数):', (e && e.message) || e); });
   }
   const token = 'ADMT-' + crypto.randomBytes(24).toString('hex');
   const now = Date.now();
