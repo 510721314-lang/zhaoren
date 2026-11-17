@@ -1,0 +1,64 @@
+name: BUG 报告
+description: 提交功能异常或缺陷
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请按模板填写，**复现步骤 + 截图 + Console 报错原文**是定位关键。
+        报错文案类 BUG 先参考 [error-message-tracing](file:///c:/zhaoren/.trae/skills/error-message-tracing/SKILL.md)。
+  - type: textarea
+    id: phenomenon
+    attributes:
+      label: 现象
+      description: 一句话描述出了什么问题
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 1/2/3 可操作复现
+      placeholder: |
+        1. 打开 xxx 页
+        2. 点击 xxx 按钮
+        3. 观察到 xxx
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 附上截图、Console 报错原文、Network 请求/响应
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: 分层判定
+      description: 按 bug-triage-sop §0 表判断（showModal=前端 / showToast=云端）
+      options:
+        - 前端
+        - 云端
+        - 不确定
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: 基础库版本 / 机型(iOS/Android) / 账号
+    validations:
+      required: true
+  - type: input
+    id: first_seen
+    attributes:
+      label: 首次出现
+      description: 最近是否改动引入（若知道 commit 请填）

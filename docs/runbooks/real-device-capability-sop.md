@@ -128,3 +128,13 @@
 - **模拟器（`npm run test:e2e`）**：45 页路由可达性 + `page.data()` 非空 → 每次提交前必跑
 - **真机（本 SOP）**：上表 10 项能力链路 → 提审前 + 每次涉及相关能力改动后必跑
 - **云函数契约测试（`npm test`）**：服务端逻辑正确性 → 每次提交前必跑
+
+## 5. 证据归档（G2）
+
+每次真机/模拟器验证后，证据必须落盘到 `docs/design/evidence/regression-<YYYYMMDD-HHMM>/`：
+
+- `screenshots/`：真机/模拟器截图
+- `receipts/`：云端回执（`tcb-query-order.js` 等输出）
+- `report.md`：结果表（编号｜能力｜设备｜结果｜截图｜回执｜备注）
+
+归档步骤与模板见 [`docs/design/evidence/README.md`](../design/evidence/README.md)。
