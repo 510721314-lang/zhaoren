@@ -720,6 +720,29 @@ test('change_apply: 与原值相同拒绝（oa_change_same）', async () => {
   assert.strictEqual(r.code, 'oa_change_same');
 });
 
+// ───────── P3-51(2026-11-17)：fee=订单总额，校验按 pricing_type 折算 ─────────
+test('change_apply: hourly 折算区间内放行（rate 6000×2h → 区间 [6000,20000]）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ pricing_type: 'hourly', rate_fen: 6000, duration_h: 2 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'fee', value: 11000, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const w = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
+  assert.strictEqual(w.data.pending_change.new_value, 11000, '折算区间内放行并写入申请值');
+});
+test('change_apply: hourly 折算区间外拒绝（25000 > 10000×2，oa_fee_out_of_range）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ pricing_type: 'hourly', rate_fen: 6000, duration_h: 2 }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'fee', value: 25000, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_fee_out_of_range');
+});
+test('change_apply: fixed 区间留空放行（旧版 15000>10000 会拒，现 fixed 留空不钳制）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({ pricing_type: 'fixed', rate_fen: null }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_apply', order_id: OID, field: 'fee', value: 15000, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+});
+
 // 2026-11-05：S1 窗口已耗尽时发起 → expire_at 落在过去，拒绝避免"发起即超时"
 test('change_apply: S1 窗口已耗尽拒绝发起（oa_change_window_closed）', async () => {
   const sdk = makeSdk({ openid: USER, store: s1Store({ created_at: Date.now() - 16 * 60 * 1000 }) });
