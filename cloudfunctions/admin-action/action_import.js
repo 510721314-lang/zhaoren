@@ -55,8 +55,24 @@ async function import_collection(ctx) {
   if (!docs) return fail('restore_bad_docs', 'docs 必须为数组');
   const mode = event.mode === 'append' ? 'append' : 'replace';
 
+  // R3(2026-11-18 双专家评审 §43 四件套): replace 擦除前先 count 取得待删文档数, 支持 dry_run 预览(不执行破坏性擦除/回灌)
+  // 兼容测试 mock(无 count 方法): 守卫式调用, 缺失时 willRemove 保持 0 不改变既有行为
+  let willRemove = 0;
+  try {
+    const collRef = col(collection);
+    if (collRef && typeof collRef.count === 'function') {
+      const c = await collRef.count();
+      willRemove = (c && c.total) || 0;
+    }
+  } catch (e) { /* count 失败不阻断恢复主流程 */ }
+  if (event.dry_run === true) {
+    await logEvent('P1', 'import_collection_dry_run', openid, { collection, mode, will_remove: willRemove, docs_len: docs.length });
+    return ok({ dry_run: true, collection, mode, will_remove: willRemove, docs_len: docs.length });
+  }
+
   let removed = 0;
   if (mode === 'replace') {
+    await logEvent('P1', 'import_collection_wipe_start', openid, { collection, will_remove: willRemove, docs_len: docs.length });
     // 分页清空（每次 remove 有内部上限，循环至无可删）
     for (let i = 0; i < 200; i++) {
       const r = await col(collection).where({ _id: _.exists(true) }).remove();

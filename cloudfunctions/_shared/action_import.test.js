@@ -79,3 +79,23 @@ test('action_import: 缺 confirm → restore_need_confirm', async () => {
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'restore_need_confirm');
 });
+
+// 4. R3(2026-11-18 双专家评审): dry_run 预览不执行擦除/回灌, 库内文档与 writes 均不变
+test('action_import: dry_run=true replace → 仅预览, 不擦除不回灌', async () => {
+  const store = makeStore([{ _id: 'keep1' }]);
+  const docsBefore = store.docs.length;
+  const writesBefore = store.writes.length;
+  const r = await import_collection(mkCtx(store, Object.assign({}, EVT_BASE, {
+    mode: 'replace',
+    docs: [{ _id: 'x1' }, { _id: 'x2' }],
+    dry_run: true
+  })));
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.dry_run, true);
+  assert.strictEqual(r.data.collection, 'order_main');
+  assert.strictEqual(r.data.mode, 'replace');
+  // 破坏性操作未执行: 库内文档数不变、writes 不变
+  assert.strictEqual(store.docs.length, docsBefore);
+  assert.strictEqual(store.writes.length, writesBefore);
+  assert.ok(store.docs.some((d) => d._id === 'keep1'), 'dry_run 不得擦除库内原有文档');
+});

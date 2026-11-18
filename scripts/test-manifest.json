@@ -2,7 +2,8 @@
   "cloudfunctions/_shared/action_import.test.js": [
     "action_import: append 全新 → inserted=3, skipped_conflict=0",
     "action_import: append 撞库 → inserted=2, skipped_conflict=1",
-    "action_import: 缺 confirm → restore_need_confirm"
+    "action_import: 缺 confirm → restore_need_confirm",
+    "action_import: dry_run=true replace → 仅预览, 不擦除不回灌"
   ],
   "cloudfunctions/_shared/admin-action-admin.entry.test.js": [
     "admin_account_create: 登录名格式非法 → acc_bad_account",
