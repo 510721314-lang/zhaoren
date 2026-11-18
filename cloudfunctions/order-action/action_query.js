@@ -388,12 +388,12 @@ async function my_counts(ctx) {
     COL.where({ [openidField]: openid, status: _.in(['S1','S2','S2_5','S3','S3.5']), is_deleted: false }).count().catch(() => ({ total: 0 })),
     // 待评价
     COL.where({ [openidField]: openid, status: 'S5', is_deleted: false }).count().catch(() => ({ total: 0 })),
-    // 售后(双方都能看)
-    COL.where({
-      $or: [{ user_openid: openid }, { partner_openid: openid }],
-      status: _.in(['S6','S7','S9','S10','S10.5']),
-      is_deleted: false
-    }).count().catch(() => ({ total: 0 }))
+    // 售后(双方都能看) — 2026-11-18 评审修复: 裸 $or 非法, 改 _.and([_.or(...)])
+    COL.where(_.and([
+      _.or([{ user_openid: openid }, { partner_openid: openid }]),
+      { status: _.in(['S6','S7','S9','S10','S10.5']) },
+      { is_deleted: false }
+    ])).count().catch(() => ({ total: 0 }))
   ]);
   return { ok: true, data: {
     role,

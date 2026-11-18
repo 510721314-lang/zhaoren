@@ -8,6 +8,7 @@
 const CONFIG = require('../config/index.js');
 
 // ── transform 工具 ──
+// 仅限整元配置限额转换(分→整元, 如 youth_limit/insurance/withdraw 上限); 金额展示禁用, 须用 (fen/100).toFixed(2)
 function fenToYuan(fen) { return Math.round(fen / 100); }
 function minsToHHmm(mins) {
   const m = Number(mins);

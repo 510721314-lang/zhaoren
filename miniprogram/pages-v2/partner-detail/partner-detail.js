@@ -259,11 +259,6 @@ Page({
     });
   },
 
-  // 时薪展示(分→元)
-  getRateYuan(code) {
-    const fen = this.data.sceneRatesMap && this.data.sceneRatesMap[code];
-    return fen ? (fen / 100) + '元/小时' : '面议';
-  },
   // 动态入口: 跳转该耍伴的动态流(blog 页 author 模式, 按 author_openid 过滤)
   goBlog() {
     const openid = this.data.partner && this.data.partner.openid;
