@@ -68,9 +68,9 @@
   </view>
 
   <!-- C3 限制提示条 -->
-  <view class="chat__limit {{unlocked ? 'is-ok' : ''}}">
+  <view class="chat__limit {{(unlocked || freeChat) ? 'is-ok' : ''}}">
     <block wx:if="{{chatBlocked}}">⛔ 订单已取消/关闭,会话已停止</block>
-    <block wx:elif="{{!unlocked}}">⚠ 四确认完成前仅可使用模板消息沟通</block>
+    <block wx:elif="{{!unlocked && !freeChat}}">⚠ 四确认完成前仅可使用模板消息沟通</block>
     <block wx:else>已解锁自由沟通</block>
   </view>
 
@@ -142,7 +142,7 @@
     <block wx:if="{{chatBlocked}}">
       <view class="chat__input-locked">⛔ 会话已停止</view>
     </block>
-    <block wx:elif="{{!unlocked}}">
+    <block wx:elif="{{!unlocked && !freeChat}}">
       <view class="chat__input-locked">🔒 四确认完成后解锁自由沟通...</view>
     </block>
     <block wx:else>

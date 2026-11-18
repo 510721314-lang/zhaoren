@@ -323,6 +323,8 @@
           <button class="od__btn od__btn--primary" bindtap="onModifyConfirm" hover-class="btn-press">同意改期</button>
         </view>
         <view class="od__after-sale-tip" wx:elif="{{order.pending_modify}}">等待对方确认…</view>
+        <!-- T-17.4 缺口修复(2026-11-18, 双专家 2/2): S2_5 改期协商窗口补聊天入口(S2_6/S3_6 同款, FREE_CHAT_STATUS 已放行 S2_5) -->
+        <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">与对方交流</button>
       </block>
 
       <!-- S10.5 争议处理中（PRD 3.5.2 nextActions: arbitration） -->
