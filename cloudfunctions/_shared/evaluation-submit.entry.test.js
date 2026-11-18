@@ -115,10 +115,29 @@ test('submit: 成功 S5→S8 star=5 → 信用分+2 且四个集合落库', asyn
   const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === OID);
   assert.ok(upd, '应对 order_main 做状态更新');
   assert.strictEqual(upd.data.status, 'S8');
+  // fund 正交位: 点路径更新 settle_state=ready, 不整体覆盖 fund, 不触碰 refunded_fen
+  assert.strictEqual(upd.data['fund.settle_state'], 'ready');
+  assert.strictEqual(upd.data['fund.paid_fen'], 1000);
+  assert.strictEqual(upd.data['fund.settled_at'], 0);
+  assert.strictEqual(upd.data.fund, undefined, '不应整体覆盖 fund 对象');
+  assert.strictEqual(upd.data['fund.refunded_fen'], undefined, '点路径不应触碰 refunded_fen');
   // 事务内三类落库
   assert.ok((sdk.writes.evaluation || []).some((w) => w.add), '应写 evaluation');
   assert.ok((sdk.writes.credit_score_log || []).some((w) => w.add), '应写 credit_score_log');
   assert.ok((sdk.writes.order_status_log || []).some((w) => w.add), '应写 order_status_log');
+});
+
+// 9b. fund 正交位: 预置 refunded_fen>0 的 S5 订单评价后不被清零
+test('submit: 预置 fund.refunded_fen=2000 → 评价后不触碰 refunded_fen', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({ fund: { paid_fen: 1000, refunded_fen: 2000, settle_state: 'pending', settled_at: 0 } }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'submit', order_id: OID, star: 5, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === OID);
+  assert.ok(upd);
+  assert.strictEqual(upd.data['fund.settle_state'], 'ready');
+  assert.strictEqual(upd.data['fund.refunded_fen'], undefined, '评价不应清零历史 refunded_fen');
+  assert.strictEqual(upd.data.fund, undefined, '不应整体覆盖 fund');
 });
 
 // 10. 幂等：已有评价记录 → 直接返回 idempotent

@@ -76,8 +76,8 @@ async function processAutoEval(ctx) {
       const evR = await col('evaluation').where({ order_id: o._id, is_deleted: false }).limit(1).get();
       if (evR.data && evR.data[0]) {
         const won = await casStatus(o._id, 'S5', { status: 'S8', evaluated_at: evR.data[0].created_at || now, updated_at: now, eval_state: 'user_done',
-          // Wave1 正交位 dual-write(§3.2): 评价达成 → 资金位 settle_state=ready(S5 单无历史退款)
-          fund: { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } }, 'evaluate');
+          // Wave1 正交位 dual-write: 评价达成 → settle_state=ready; 点路径保留 refunded_fen
+          'fund.paid_fen': Number(o.total_fen) || 0, 'fund.settle_state': 'ready', 'fund.settled_at': 0 }, 'evaluate');
         if (won) {
           evalResults.push({ o, from: 'S5', to: 'S8', action: 'timeout_eval_backfill' });
           log.d(`backfill S5→S8: ${o.order_no}`);
@@ -86,8 +86,8 @@ async function processAutoEval(ctx) {
       }
 
       const won = await casStatus(o._id, 'S5', { status: 'S9', evaluated_at: now, updated_at: now, eval_state: 'auto_done',
-        // Wave1 正交位 dual-write(§3.2): 默认评价亦达成结算资格
-        fund: { paid_fen: Number(o.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } }, 'evaluate');
+        // Wave1 正交位 dual-write: 默认评价达成结算资格; 点路径保留 refunded_fen
+        'fund.paid_fen': Number(o.total_fen) || 0, 'fund.settle_state': 'ready', 'fund.settled_at': 0 }, 'evaluate');
       if (!won) { out.skipped.push(o.order_no + ':S5竞态'); return; }
 
       // 写系统默认评价(文案固定「系统默认评价」)

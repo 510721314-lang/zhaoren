@@ -234,8 +234,8 @@ exports.main = async (event, context) => {
     try {
       casRes = await col('order_main').where({ _id: order_id, status: 'S5' }).update({
         data: { status: 'S8', evaluated_at: now, updated_at: now, eval_state: 'user_done',
-          // Wave1 正交位 dual-write(§3.2): 用户评价达成 → 资金位 settle_state=ready(S5 单无历史退款)
-          fund: { paid_fen: Number(order.total_fen) || 0, refunded_fen: 0, settle_state: 'ready', settled_at: 0 } }
+          // Wave1 正交位 dual-write(§3.2): 评价达成 → settle_state=ready; 点路径保留 refunded_fen 不被清零
+          'fund.paid_fen': Number(order.total_fen) || 0, 'fund.settle_state': 'ready', 'fund.settled_at': 0 }
       });
     } catch (e) {
       log.d(`evaluation cas fail: ${e.message}`);

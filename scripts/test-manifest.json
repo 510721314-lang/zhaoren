@@ -349,6 +349,7 @@
     "submit: 订单冻结 → ev_order_frozen",
     "submit: 状态非 S5 无评价 → ev_status",
     "submit: 成功 S5→S8 star=5 → 信用分+2 且四个集合落库",
+    "submit: 预置 fund.refunded_fen=2000 → 评价后不触碰 refunded_fen",
     "submit: 已有评价 → 幂等返回 idempotent",
     "submit: CAS 未抢到且无重复评价 → ev_status_conflict",
     "submit: 配置评价激励 → 双方各发一笔(mock) + 幂等标记 + 通知",
