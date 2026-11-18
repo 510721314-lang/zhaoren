@@ -249,7 +249,7 @@
 
 | # | 事项 | 状态 | 处置 |
 |---|---|---|---|
-| M1 | admin 三处 WXML 直接 `{{item.total_fen / 100}}` 输出 ¥19.9 不补零（[admin/demands.wxml:9](../miniprogram/pages-v2/admin/demands.wxml)、[admin/orders.wxml:8](../miniprogram/pages-v2/admin/orders.wxml)、[admin/config.wxml:44](../miniprogram/pages-v2/admin/config.wxml)）——值正确仅缺补零；WXML 不支持函数调用，修复须先在页 JS 预计算 `*_text` 字段（3 文件） | **✅ 已修（2026-11-15，commits `fac60654`/`8df80b53`/`21343db8` 三小轮 + 体验版 v1.6.125）** | 三页 JS 预计算 `total_yuan_text`/`rate_yuan_text`（`(fen/100).toFixed(2)`）+ wxml 改引用；真机验收：admin 需求/订单/配置三页金额两位小数 |
+| M1 | admin 三处 WXML 直接 `{{item.total_fen / 100}}` 输出 ¥19.9 不补零（admin/demands.wxml:9、admin/orders.wxml:8、admin/config.wxml:44 —— **三页均已随 pkgAdmin 分包移除**，对应 admin-web Demand/Orders/Config 模块）——值正确仅缺补零；WXML 不支持函数调用，修复须先在页 JS 预计算 `*_text` 字段（3 文件） | **✅ 已修（2026-11-15，commits `fac60654`/`8df80b53`/`21343db8` 三小轮 + 体验版 v1.6.125）** | 三页 JS 预计算 `total_yuan_text`/`rate_yuan_text`（`(fen/100).toFixed(2)`）+ wxml 改引用；真机验收：admin 需求/订单/配置三页金额两位小数 |
 | M2 | order-create 接单价格区间拦截 toast 4 处未补两位小数（[action_take.js:297/301/308/312](../cloudfunctions/order-create/action_take.js)），显示 "¥19.9"——值正确 | **✅ 已修（2026-11-15，commit `5cff4d69` + order-create 部署 SHA 11/11）** | 4 处改 toFixed(2)；补 2 条守护断言（19901/4999 非整百夹具锁 ¥199.01/¥49.99）；门禁 49/49 PASS |
 | M3 | partner-detail `getRateYuan`（[partner-detail.js:265](../miniprogram/pages-v2/partner-detail/partner-detail.js)）**全仓零调用为死代码**（双代理 A 证伪主对话原判「详情页时薪展示」） | **登记不修**（死代码，无用户可见影响） | 择机删除（§1 最小改动原则不顺手删） |
 | M4 | bootstrap `fenToYuan` 用 Math.round（[bootstrap.js:11](../miniprogram/utils/bootstrap.js)），仅喂整元配置限额（redline/wallet 数值比较），语义正确但易被误复用到金额展示 | **登记不修**（语义正确） | 择机补注释「仅限整元配置，金额展示禁用」 |
