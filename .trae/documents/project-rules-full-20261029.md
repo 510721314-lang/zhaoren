@@ -738,3 +738,17 @@ alwaysApply: true
 **R3 purge dry-run 返回结构**：`purge_test_data` 不传 confirm 时返回 `{ok:true, stats:{order_main:N, demand:N, ...}, dry_run:true}`，取 `raw.stats.order_main`；`actual_orders` 字段仅出现在 `expect_orders` 不匹配的错误返回里，不可用于 dry-run 取值。
 
 **R4 DevTools 环境 isMockCall=false**：`isMockCall = (wxCtx && !wxCtx.OPENID) && mock_openid`。DevTools 注入真实 OPENID，故 `!wxCtx.OPENID` 为 false，isMockCall=false——定位/照片校验全部生效，脚本必须传真实格式的 `start_location`/`finish_evidence.partner_location`/`start_evidence.photos`，不能依赖 mock 旁路。
+
+## 43. 数据清理铁律（2026-11-18 误删 186 单事故实证新增）
+
+> 背景：2026-11-17 05:28，e2e 脚本调用 `purge_test_data(scope:'all_istest')`，因 `admin_config.test_openids` 白名单混入主号 A 真实 openid，导致用户历史单被打 `is_test=true`，全量删命中 → 误删 186 单 + 1709 条 system_notice。经 11-16 黄金备份恢复。原护栏 `expect_orders` 只校数量不校范围，未能拦截。
+
+**R1 禁止「按标记位全量删」**：测试数据清理严禁以 `is_test:true`（或任何布尔标记位）为唯一条件全集合删除。原因：标记位的打标逻辑（如 `test_openids` 白名单命中）可能被污染，真实数据会被误标。清理仅允许两种模式：①**夹具前缀批量**（`order_no`/`demand_no` 以固定测试前缀开头）；②**ID 点名**（传 `order_ids`/`demand_ids` 数组，带格式校验与单次上限）。`init-db/action_seed.js` 的 `scope='all_istest'` 已硬拒绝（返回 `idb_purge_scope_disabled`）。
+
+**R2 批量删除四件套**：任何批量删除操作（含 purge / import_collection 的 replace 模式 / 集合清空）必须同时满足：①`confirm` 二次确认（默认 dry-run 只统计）；②**范围白名单**（夹具前缀 或 点名 ID 或 指定集合）；③**单次上限**（如 500 条，超限拒绝）；④**dry-run 预览**（先返回将删数量与样本 ID，确认后再执行）。
+
+**R3 test_openids 禁止混入真实 openid**：`admin_config.test_openids` 是测试身份白名单，命中即打 `is_test=true`。真实用户 openid（含主号 A、运营号）一律不得加入。测试必须用 `mock_openid` 或专用测试号。修改 `test_openids` 前必须 grep 全仓确认该 openid 无真实业务数据依赖。
+
+**R4 恢复脚本 target 用备份静态集**：数据恢复脚本中，级联数据的 target 集合必须定义为「备份中非夹具单的静态集合」，禁止定义为「云端缺失集」。否则主集合恢复完成后「缺失集=空」→ 级联 target 算成 0 → 无法续传级联。实证（2026-11-18 restore-continue.cjs）：`restoreIds = new Set(allNonFixture.map(o=>o._id))`，而非 `restoreIds = missingOrder`。
+
+**R5 §42-R2 已被本条取代**：原 §42-R2「前置 purge 用 scope:'all_istest'」已失效，e2e 清理改用夹具前缀 + 点名 ID（`flow-full-chain.js` 的 `.last-testdata.json` 清单机制）。

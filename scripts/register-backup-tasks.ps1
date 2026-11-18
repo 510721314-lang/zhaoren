@@ -1,16 +1,16 @@
 ﻿# register-backup-tasks.ps1 — 注册 3 个备份计划任务(zhaoren-backup-full/incr/verify)
 # 用法: powershell -File scripts\register-backup-tasks.ps1   (当前用户注册, 无需管理员)
 # 卸载: Unregister-ScheduledTask -TaskName 'zhaoren-backup-full','zhaoren-backup-incr','zhaoren-backup-verify' -Confirm:$false
-# 说明: -StartWhenAvailable = 错过(关机/睡眠)补跑；凌晨 2:00-4:00 电脑常开已由用户确认, 故不设 WakeToRun；
-#       incremental 任务全天每小时触发, 由脚本内时段守卫跳过 02:00-04:59(仅 0,1,5-23 点实际执行, 与需求 05:00-次日01:00 对齐)
+# 说明: -StartWhenAvailable = 错过(关机/睡眠)补跑；凌晨电脑常开已由用户确认, 故不设 WakeToRun；
+#       2026-11-18 调整: full=每日00:00(原02:30+14:30, 14:30连续超时失败已移除), incr=每日04:00(原每小时), verify=每日06:00
 $ErrorActionPreference = 'Stop'
 
 $cmd = 'C:\zhaoren\scripts\auto-backup.ps1'
 $launcher = 'C:\zhaoren\scripts\run-hidden.vbs'
 $tasks = @(
-  @{ Name = 'zhaoren-backup-full';  Mode = 'full';         At = @('02:30','14:30'); LimitH = 3; Desc = 'zhaoren 全量备份 每12小时一次(bundle+热备+37表脱敏+raw加密+CHECKSUMS)' },
-  @{ Name = 'zhaoren-backup-incr';  Mode = 'incremental';  At = $null;   LimitH = 1; Desc = 'zhaoren 每小时增量(时段守卫 05:00-次日01:00 内生效)' },
-  @{ Name = 'zhaoren-backup-verify'; Mode = 'verify';      At = '04:30'; LimitH = 1; Desc = 'zhaoren 每日备份校验汇总(SHA/bundle/解密探针/restore dry-run)' }
+  @{ Name = 'zhaoren-backup-full';  Mode = 'full';         At = '00:00'; LimitH = 4; Desc = 'zhaoren 全量备份 每日00:00(bundle+热备+37表脱敏+raw加密+CHECKSUMS+lark异地)' },
+  @{ Name = 'zhaoren-backup-incr';  Mode = 'incremental';  At = '04:00'; LimitH = 1; Desc = 'zhaoren 每日04:00增量(bundle+文件变更+admin_config+热集合raw加密)' },
+  @{ Name = 'zhaoren-backup-verify'; Mode = 'verify';      At = '06:00'; LimitH = 1; Desc = 'zhaoren 每日06:00备份校验汇总(SHA/bundle/解密探针/restore dry-run)' }
 )
 
 foreach ($t in $tasks) {

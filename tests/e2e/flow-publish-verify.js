@@ -116,7 +116,7 @@ const { PORT, startDevTools, waitForReady } = require('./devtools-launcher');
     // 4. 清理提示
     console.log('[4/4] 清理说明...');
     console.log(`  测试需求 demand_id=${createdDemandId} 已创建`);
-    console.log(`  清理需管理员调用 init-db purge_test_data(scope='all_istest', confirm='PURGE')`);
+    console.log(`  清理需管理员调用 init-db purge_test_data(confirm='PURGE', demand_ids=['${createdDemandId}'])`);
     console.log(`  或在云开发控制台手动删除 demand 集合中 title='${testTitle}' 的记录\n`);
 
     console.log('=== ALL PASS: 云函数回读业务断言链路验证成功 ===');

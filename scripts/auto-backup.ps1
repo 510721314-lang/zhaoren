@@ -9,7 +9,7 @@
 # 纪律: 跑前必检 UTF-8 BOM(20261013 BOM 事故)；断言失败硬 FAIL exit 1，禁静默假成功
 param(
   [Parameter(Mandatory=$true)][ValidateSet('full','incremental','verify')][string]$Mode,
-  [string]$BackupRoot = 'H:\zhaoren_bak_day'
+  [string]$BackupRoot = 'H:\zhaoren-bak'
 )
 $ErrorActionPreference = 'Stop'
 $PROJECT = 'C:\zhaoren'
@@ -249,14 +249,15 @@ if ($Mode -eq 'full') {
     Invoke-RoboCopy (Join-Path $dir 'files')
     # 3) manual-backup 全链(L2~L7: DB 37 表脱敏 + 函数代码下载 + 索引台账)
     #    B-1(2026-11-03): 外层 30 分钟总超时, 防整链挂起; 超时杀进程并 FAIL(锁随进程退出释放)
+    #    2026-11-18: 30min → 60min. 实证白天 L6 云函数代码下载需 30+min(DB 导出已完成但 L6 超时被杀), 14:30 全量因此连续失败 3 天
     Write-Heartbeat 'L3_manual_backup'
     $mbPs = Join-Path $PROJECT '.predeploy\manual-backup.ps1'
     $mb = Start-Process -FilePath 'powershell' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$mbPs,'-AdminKey',$ak) -NoNewWindow -PassThru
     $mbExited = $false
-    try { $mb | Wait-Process -Timeout 1800 -ErrorAction Stop; $mbExited = $true } catch { $mbExited = $false }
+    try { $mb | Wait-Process -Timeout 3600 -ErrorAction Stop; $mbExited = $true } catch { $mbExited = $false }
     if (-not $mbExited -or -not $mb.HasExited) {
       try { Stop-Process -Id $mb.Id -Force -ErrorAction SilentlyContinue } catch {}
-      throw 'manual-backup timeout 30min (killed)'
+      throw 'manual-backup timeout 60min (killed)'
     }
     if ($mb.ExitCode -ne 0) { throw "manual-backup.ps1 exit=$($mb.ExitCode)" }
     $srcBak = Get-ChildItem 'C:\zhaoren-bak' -Directory -Filter 'zhaoren_backup_*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -309,9 +310,9 @@ if ($Mode -eq 'full') {
 
 # ── incremental 模式 ──
 if ($Mode -eq 'incremental') {
-  # 时段守卫: 仅 05:00-次日01:00 生效(供 HOURLY 全天任务), 其余时段静默退出
+  # 时段守卫: 仅 04:00-次日01:00 生效(供每日 04:00 增量任务; 跳过 02:00-03:59 让 00:00 全量跑完), 其余时段静默退出
   $h = (Get-Date).Hour
-  if (-not (($h -ge 5 -and $h -le 23) -or $h -eq 0 -or $h -eq 1)) { Write-Host '[SKIP] 非增量时段(守卫静默退出)'; exit 0 }
+  if (-not (($h -ge 4 -and $h -le 23) -or $h -eq 0 -or $h -eq 1)) { Write-Host '[SKIP] 非增量时段(守卫静默退出)'; exit 0 }
   try {
     Invoke-Guard
     if (-not (Enter-BackupLock 'incremental')) { Write-Log 'SKIP' 'incremental: full/verify 正在运行, 跳过本轮'; exit 0 }

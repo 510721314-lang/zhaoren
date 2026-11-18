@@ -133,17 +133,11 @@ foreach ($col in $COLLECTIONS) {
 # L6: 云函数代码（从云端下载实际部署版本）
 Write-Host "`n===== L6 云函数代码(云端下载) =====" -ForegroundColor Yellow
 $fnCodeDir = $null
-# CLI 路径探测(2026-10-09 新机适配; 2026-10-13 补主用安装与迁移后路径):
-#   主用 = Program Files (x86)\Tencent 安装(实测 cli 可用); 桌面旧拷版已移入 Desktop\工具\
-$cliDirs = @(
-  'C:\Program Files (x86)\Tencent\微信web开发者工具',
-  'C:\Users\DC\Desktop\工具\微信WEB开发者工具',
-  'C:\Users\Administrator\Desktop\微信WEB开发者工具',
-  'C:\Users\DC\Desktop\微信WEB开发者工具',
-  (Join-Path $env:USERPROFILE 'Desktop\微信WEB开发者工具')
-)
-$cliBat = $cliDirs | Where-Object { Test-Path (Join-Path $_ 'cli.bat') } | Select-Object -First 1 | ForEach-Object { Join-Path $_ 'cli.bat' }
-if ($cliBat) {
+# 2026-11-18: 从 DevTools CLI(cli.bat) 改用 tcb CLI. 原因: cli.bat 依赖 DevTools 登录态,
+#   未登录时 tcbGetEnvironments 失败致 21 函数全败; tcb CLI 用 API 密钥认证, 不依赖 DevTools.
+$tcbCmd = Join-Path $env:APPDATA 'npm\tcb.cmd'
+if (-not (Test-Path $tcbCmd)) { $tcbCmd = (Get-Command tcb -ErrorAction SilentlyContinue).Source }
+if ($tcbCmd) {
   $fnRoot = "$BackupDir\meta\functions_code"
   New-Item -ItemType Directory -Force -Path $fnRoot | Out-Null
   $fnNames = @(Get-ChildItem "$PROJECT_DIR\cloudfunctions" -Directory -ErrorAction SilentlyContinue |
@@ -153,42 +147,36 @@ if ($cliBat) {
   foreach ($fn in $fnNames) {
     $target = Join-Path $fnRoot $fn
     $errFile = Join-Path $fnRoot "$fn.err.txt"
-    # B-1(2026-11-03): 单函数下载超时, 防 CLI 挂起拖死整条备份链; 每函数前后写心跳
-    # T-13.3-B(2026-11-12 实测 admin-action/admin-web >90s 被杀): 90 → 300s, 需完整下载后才能剔除 node_modules
     Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_START $fn" -ErrorAction SilentlyContinue
-    $p = Start-Process -FilePath $cliBat `
-      -ArgumentList @('cloud','functions','download','--env',$CLOUD_ENV,'--name',$fn,'--path',$target,'--project',$PROJECT_DIR) `
-      -RedirectStandardOutput (Join-Path $fnRoot "$fn.std.txt") -RedirectStandardError $errFile -NoNewWindow -PassThru
-    $exited = $false
-    try { $p | Wait-Process -Timeout 300 -ErrorAction Stop; $exited = $true } catch { $exited = $false }
-    if (-not $exited -or -not $p.HasExited) {
-      try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
-      Write-Host "[TIMEOUT] L6 download $fn > 300s, killed" -ForegroundColor Red
-      Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_TIMEOUT $fn" -ErrorAction SilentlyContinue
-      $failed += $fn
-      continue
-    }
-    $size = ((Get-ChildItem $target -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum)
-    if ($p.ExitCode -eq 0 -and $size -gt 0) {
-      $downloaded++
-      Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_OK $fn" -ErrorAction SilentlyContinue
-      # T-13.3-A(2026-11-12 用户批准): 云端下载的 node_modules 占备份体积约 99%(实测 29 目录/374MB),
-      #   备份只保留源码; 恢复时必须走 --remote-npm-install(runbook backup-restore.md 已补注)
-      $nmDir = Join-Path $target 'node_modules'
-      if (Test-Path $nmDir) {
-        try {
-          Remove-Item $nmDir -Recurse -Force -ErrorAction Stop
-          Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_PRUNE_NM $fn" -ErrorAction SilentlyContinue
-        } catch {
-          Write-Host "[WARN] L6 剔除 node_modules 失败(不影响该函数源码备份): $fn" -ForegroundColor Magenta
+    $fnOk = $false
+    for ($retry = 0; $retry -lt 3 -and -not $fnOk; $retry++) {
+      if ($retry -gt 0) { Start-Sleep -Seconds 10; Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_RETRY $fn #$retry" -ErrorAction SilentlyContinue }
+      # tcb fn code download <name> <dest> --envId <env>
+      & $tcbCmd fn code download $fn $target --env-id $CLOUD_ENV *> $errFile
+      $size = ((Get-ChildItem $target -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum)
+      if ($LASTEXITCODE -eq 0 -and $size -gt 0) {
+        $fnOk = $true
+        $downloaded++
+        Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_OK $fn" -ErrorAction SilentlyContinue
+        # T-13.3-A(2026-11-12 用户批准): 云端下载的 node_modules 占备份体积约 99%(实测 29 目录/374MB),
+        #   备份只保留源码; 恢复时必须走 --remote-npm-install(runbook backup-restore.md 已补注)
+        $nmDir = Join-Path $target 'node_modules'
+        if (Test-Path $nmDir) {
+          try {
+            Remove-Item $nmDir -Recurse -Force -ErrorAction Stop
+            Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_PRUNE_NM $fn" -ErrorAction SilentlyContinue
+          } catch {
+            Write-Host "[WARN] L6 剔除 node_modules 失败(不影响该函数源码备份): $fn" -ForegroundColor Magenta
+          }
         }
       }
+      else { Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_FAIL $fn exit=$LASTEXITCODE" -ErrorAction SilentlyContinue }
     }
-    else { $failed += $fn; Add-Content -Path $hbFile -Value "$(Get-Date -Format s) L6_FAIL $fn exit=$($p.ExitCode)" -ErrorAction SilentlyContinue }
+    if (-not $fnOk) { $failed += $fn; Write-Host "[FAIL] L6 download $fn (3 次重试均失败)" -ForegroundColor Red }
   }
   if ($downloaded -gt 0) { $fnCodeDir = $fnRoot; Write-Host "[OK] $downloaded/$($fnNames.Count) 函数已下载到 $fnRoot" -ForegroundColor Green }
   if ($failed.Count) { Write-Host "[WARN] 下载失败: $($failed -join ',')" -ForegroundColor Magenta }
-} else { Write-Host '[SKIP] CLI 未找到, 跳过 L6' -ForegroundColor Magenta }
+} else { Write-Host '[SKIP] tcb CLI 未找到, 跳过 L6' -ForegroundColor Magenta }
 
 # L7: 索引设计台账（从 init-db INDEXES 提取为 JSON）
 Write-Host "`n===== L7 INDEX LEDGER(design-level) =====" -ForegroundColor Yellow

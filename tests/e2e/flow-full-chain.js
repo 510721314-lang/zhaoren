@@ -4,12 +4,22 @@
 // 前置: test_partner_001 已具备 base 考试/紧急联系人/accept_scenes含W8/accept_switch=true
 // 用法: node tests/e2e/flow-full-chain.js  (需 DevTools 已打开项目)
 const automator = require('miniprogram-automator');
+const fs = require('fs');
+const path = require('path');
 const { PORT, startDevTools, waitForReady } = require('./devtools-launcher');
 
 const USER_OPENID = 'oLDJ73Yz_Yy_6yN5MrxhVlFDTw9c';   // admin openid (test_openids + admin_openids)
 const PARTNER_OPENID = 'test_partner_001';              // 测试耍伴 (test_openids)
 const SCENE = 'W8';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 2026-11-18 废除 scope=all_istest(误删事故加固)后, e2e 清理改为按 _id 点名:
+// 造单后登记到 .last-testdata.json, 下次前置清理/收尾清理按清单点名删(仅 is_test 单)
+const LAST_IDS_FILE = path.join(__dirname, '.last-testdata.json');
+function readLastIds() {
+  try { const j = JSON.parse(fs.readFileSync(LAST_IDS_FILE, 'utf8')); return { order_ids: j.order_ids || [], demand_ids: j.demand_ids || [] }; } catch (_) { return { order_ids: [], demand_ids: [] }; }
+}
+function saveLastIds(ids) { try { fs.writeFileSync(LAST_IDS_FILE, JSON.stringify(ids), 'utf8'); } catch (_) {} }
 
 // 通用: 在小程序 AppService 调云函数, 支持 mock_openid 切换身份
 async function callCloud(mp, name, data, mockOpenid) {
@@ -57,12 +67,18 @@ function assertOk(step, r, extra) {
     console.log('  等待 env 缓存过期(60s, 热容器最长 5min)...');
     await sleep(60000);
 
-    // 1.5. 前置清理: 清除上次运行残留的测试数据 (防 publish_time_conflict)
-    console.log('[1.5] purge_test_data (清理上次残留)...');
-    const dryR1 = await callCloud(mp, 'init-db', { action: 'purge_test_data', scope: 'all_istest' }, USER_OPENID);
-    const actual1 = (dryR1.raw && dryR1.raw.stats && dryR1.raw.stats.order_main) || 0;
-    const purgePre = await callCloud(mp, 'init-db', { action: 'purge_test_data', scope: 'all_istest', confirm: 'PURGE', expect_orders: actual1 }, USER_OPENID);
-    assertOk('purge_pre', purgePre);
+    // 1.5. 前置清理: 按上次运行登记的 _id 点名清除残留 (2026-11-18 废除 all_istest, 防误删改点名)
+    console.log('[1.5] purge_test_data (点名清理上次残留)...');
+    const lastIds = readLastIds();
+    if (lastIds.order_ids.length || lastIds.demand_ids.length) {
+      const purgePre = await callCloud(mp, 'init-db', {
+        action: 'purge_test_data', confirm: 'PURGE', order_ids: lastIds.order_ids, demand_ids: lastIds.demand_ids,
+      }, USER_OPENID);
+      assertOk('purge_pre', purgePre);
+      saveLastIds({ order_ids: [], demand_ids: [] });
+    } else {
+      console.log('  无上次残留清单, 跳过');
+    }
 
     // 2. partner 实名 (dev 通道)
     console.log('[2] simulate_realname (partner)...');
@@ -104,6 +120,7 @@ function assertOk(step, r, extra) {
     const takeData = assertOk('take', takeR);
     orderId = takeData && takeData.order_id;
     console.log(`  order_id=${orderId} status=${takeData && takeData.status}`);
+    saveLastIds({ order_ids: [orderId], demand_ids: [demandId] });   // 2026-11-18: 登记供点名清理(废除 all_istest 后)
 
     // 6. 四确认 (partner)
     console.log('[6] confirm_all (partner)...');
@@ -184,15 +201,13 @@ function assertOk(step, r, extra) {
     if (msCurrent !== 3) { console.error(`FAIL: 里程碑期望 3/3, 实际 ${msCurrent}`); process.exit(1); }
     console.log('  PASS 最终订单 status=S8, milestone=3/3\n');
 
-    // 16. 清理测试数据
-    console.log('[16] purge_test_data...');
-    // 先 dry-run 拿 actual_orders
-    const dryR = await callCloud(mp, 'init-db', { action: 'purge_test_data', scope: 'all_istest' }, USER_OPENID);
-    const actualOrders = (dryR.raw && dryR.raw.stats && dryR.raw.stats.order_main) || 0;
+    // 16. 清理测试数据 (2026-11-18: 点名本次造的单, 废除 all_istest 后不再全量删)
+    console.log('[16] purge_test_data (点名)...');
     const purgeR = await callCloud(mp, 'init-db', {
-      action: 'purge_test_data', scope: 'all_istest', confirm: 'PURGE', expect_orders: actualOrders,
+      action: 'purge_test_data', confirm: 'PURGE', order_ids: [orderId], demand_ids: [demandId],
     }, USER_OPENID);
     assertOk('purge', purgeR);
+    saveLastIds({ order_ids: [], demand_ids: [] });
 
     // 17. 切回 prod
     console.log('[17] force_set_env → prod...');

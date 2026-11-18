@@ -101,7 +101,7 @@ alwaysApply: true
 - **平台记忆只作旁证不作凭据**：`C:\Users\DC\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\YYYYMMDD\session_memory_*.jsonl` 当日存在，仅证明平台侧已写；缺失或内容被压缩时**以 docs + git 为准**，禁止向用户声称"已保存"而无 docs 凭据。
 - 存档提交沿用 §3/§9 纪律：单独 docs commit、不与代码混合、commit 与 push 分两步；一般会话不强制每次 push，收工日按备份六通道核对时一并 push。
 
-## 10–42. 实证型高危条款
+## 10–43. 实证型高危条款
 
 - §10–§13 重构/上线：A/B零差≠正确须补盲区；先commit再deploy；写操作防连点。
 - §14–§17 文案/迁移：toast≤14字；配置只认实测；部署逐个核验；迁移6项自证。
@@ -117,6 +117,7 @@ alwaysApply: true
 - §40 入口可达性：写入口禁落孤儿页；「去XX」落点须真解该码；安全入口禁限单身份→miniprogram-entry-reachability。
 - §41 验证前置：外部通道先探针（未通禁验·只登记待恢复）；后台任务以进程枚举为准；台账门禁分落笔前基线/落笔后复跑；待办改判与落点表同批。
 - §42 e2e测试：①云函数调用字段路径须逐 action 核对服务端解构位置（禁假设相似 action 一致，如 start_apply 读顶层 start_location 而 finish_apply 读 finish_evidence.partner_location）；②全链路脚本 force_set_env 后须前置 purge_test_data 清残留（防时段冲突）；③purge dry-run 返回 stats.order_main 非 actual_orders；④DevTools 有真实 OPENID 时 isMockCall=false，定位/照片校验生效。
+- §43 数据清理铁律（误删186单事故）：禁按标记位(如is_test)全量删，仅允许夹具前缀批量+ID点名；批量删须四件套(confirm+范围白名单+单次上限+dry-run预览)；test_openids禁混真实openid；恢复脚本级联target用备份静态集非云端缺失集。
 
 ## 附录A · 不可变红线（`.trae/rules.md` §三）
 
