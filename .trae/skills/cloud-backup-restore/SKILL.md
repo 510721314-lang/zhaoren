@@ -20,7 +20,7 @@ description: 找人帮忙云端全量备份与恢复（DB 导出 + 云函数代�
 - AppID: `wxbc4a4afacdf234f5`
 - admin_web_key: `<不入库, 向管理员索取或 init-db generate_admin_web_key 生成; 脚本通过 -AdminKey 参数或环境变量 ADMIN_WEB_KEY 传入>`
 - HTTP 网关: `https://cloud1-d9gkefwcp5c777088-1482004365.ap-shanghai.app.tcloudbase.com/api`
-- CLI: 主用安装 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-13 实测；原「桌面动态探测」已作废——桌面旧拷版移入 `Desktop\工具\微信WEB开发者工具`，manual-backup.ps1 的 L6 探测已同步修正）
+- CLI: 主用安装 `C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat`（2026-10-13 实测；原「桌面动态探测」已作废——桌面旧拷版移入 `Desktop\工具\微信WEB开发者工具`，manual-backup.ps1 的 L6 探测已同步修正）。**2026-11-18 更新：L6 云函数代码下载已从 cli.bat 改为 `tcb fn code download`**（cli.bat 依赖 DevTools 登录态，未登录时 `tcbGetEnvironments` 失败致 21 函数全败；tcb CLI 用 API 密钥认证，不依赖 DevTools）。tcb.cmd 路径：`C:\Users\DC\AppData\Roaming\npm\tcb.cmd`
 - HEAD: `git log --oneline -1` 先确认版本
 
 ## 备份范围（四层，缺一不可）
@@ -124,6 +124,14 @@ powershell -ExecutionPolicy Bypass -File .predeploy\restore.ps1 -BackupDir 'C:\z
 - **核验实测值**：bundle verify OK（complete history）；热备 915/915 逐文件 SHA（缺失 0/不一致 0）；DB 37/37 SHA+解析+计数 0 异常；**restore dry-run 39 OK / 0 BAD**；异地 3 件（bundle+DB zip+CHECKSUMS）push 后复核 unchanged。
 - **节点备份报告范本**：`docs/backup-report-20261013.md`（结构：摘要/范围明细/核验总表/恢复指引/前置修复/记录/已知边界）。
 - **已知边界**：functions_code（≈465MB 含 node_modules）不上异地；DB 导出为展示级脱敏；飞书目录保留 5 个历史包（10-07/10-09）未清理。
+
+## 实测记录（2026-11-18 事故加固 + L6 通道切换）
+
+- **L6 通道从 DevTools CLI 改为 tcb CLI**：原 `cli.bat cloud functions download` 依赖 DevTools 登录态，未登录时 `tcbGetEnvironments` 失败致 21 函数全败。新方案用 `tcb fn code download <name> <dest> --env-id <env>`（tcb CLI 用 API 密钥认证，不依赖 DevTools）。命令格式：位置参数 `<name> <dest>`，`--env-id`（`--envId` 已废弃有告警）。每个函数下载约 30-40s（含剔除 node_modules）。
+- **tcb CLI PowerShell 引号大坑**：PowerShell 向 `tcb.cmd` 传含双引号的 JSON（如 `--params '{"action":"x"}'`）会被 cmd.exe 剥引号 → `--params 参数不是有效的 JSON 字符串`。`shell:false` spawn `.cmd` 会 EINVAL。**规避方式**：①不需要传 JSON 的命令（如 `fn code download`）直接用 PowerShell 数组传参；②需要传 JSON 的 `fn invoke` 改用 Node SDK + secretId/secretKey，或写临时 JSON 文件后用 `Get-Content` 读取传入。
+- **init-db 部署后回读核验**：`tcb fn code update init-db --env-id <env> --dir <path>` 部署后，必须 `tcb fn code download init-db <tmp> --env-id <env>` 回读，确认关键代码行已生效（如 all_istest 硬拒绝 `idb_purge_scope_disabled`）。不能仅凭"部署成功"提示判断。
+- **备份根目录已改**：从 `H:\zhaoren_bak_day`（下划线）改为 `H:\zhaoren-bak`（连字符）。计划任务：full 00:00 / incr 04:00 / verify 06:00。manual-backup 超时 30→60min。
+- **完整备份成功样本**：`H:\zhaoren-bak\full\20261118_2051`，2578s，38 表 + 21 函数 + 49 索引 + raw 加密 + Lark 异地推送全绿。
 
 ## 已知限制
 
