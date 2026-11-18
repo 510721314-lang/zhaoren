@@ -407,7 +407,8 @@
     "send_kefu 空文本 → im_empty_text",
     "send_text 非法 order_id → im_bad_order_id",
     "send_text 订单不存在 → im_not_found",
-    "send_text 非参与方 → im_not_participant"
+    "send_text 非参与方 → im_not_participant",
+    "send_text S2_5/S2_6/S3_6 中间态放行自由文本"
   ],
   "cloudfunctions/_shared/init-db.entry.test.js": [
     "force_set_env: 缺 confirm → need_confirm",

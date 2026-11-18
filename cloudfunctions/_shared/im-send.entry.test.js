@@ -89,4 +89,16 @@ test('send_text 非参与方 → im_not_participant', async () => {
   assert.strictEqual(r.code, 'im_not_participant');
 });
 
+// P3-9②: S2_5/S2_6/S3_6 中间态已过四确认, 应放行自由文本(非 im_template_only)
+test('send_text S2_5/S2_6/S3_6 中间态放行自由文本', async () => {
+  for (const st of ['S2_5', 'S2_6', 'S3_6']) {
+    const sdk = makeSdk({ openid: USER, store: baseStore({
+      order_main: { [OID]: { _id: OID, user_openid: USER, partner_openid: OTHER, status: st } }
+    }) });
+    const { main } = loadIndex(sdk);
+    const r = await main({ action: 'send_text', order_id: OID, text: 'hi', mock_openid: USER }, {});
+    assert.notStrictEqual(r.code, 'im_template_only', `${st} 应放行自由文本, 实际 code=${r.code}`);
+  }
+});
+
 test.after(() => { Module._load = origLoad; });

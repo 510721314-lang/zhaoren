@@ -39,7 +39,7 @@ async function getMsgPageSize() {
 // 可聊天状态:S6 已取消 / S10 已关闭 禁止收发
 const CHAT_BLOCKED = ['S6', 'S10'];
 // 自由文本开放状态:四确认完成(S1 之后),且订单未取消/关闭
-const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
+const FREE_CHAT_STATUS = ['S0', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
 
 async function getConfig() {
   try {

@@ -17,7 +17,7 @@ const { writeAudit } = require('./audit');
 // 场景中文名兜底映射(规范源 _shared/scene_meta.js, 修改后跑 sync-scene-meta.ps1)
 const { SCENE_NAMES: SCENE_NAME } = require('./scene_meta');
 const CHAT_BLOCKED = ['S6', 'S10'];
-const FREE_CHAT_STATUS = ['S0', 'S2', 'S3', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
+const FREE_CHAT_STATUS = ['S0', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5', 'S4', 'S5', 'S7', 'S8', 'S9', 'S10.5'];
 const BLOCK_WORDS_FALLBACK = ['加微信', '加V', '转账', '私聊我', '威信', 'VX', 'vx', '加我vx', '扣扣', 'QQ号', '支付宝', '口令红包', '站外交易', '线下转账'];
 
 // 权威 IM 模板表(与前端 config/enums.js TM_TEMPLATES、init-db 种子一致)
