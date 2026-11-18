@@ -102,8 +102,7 @@ Page({
         redirect: false,
         checkinStartedAt: Date.now(),
         lastCheckin: order.safety.last_checkin || '--:--',
-        loading: false,
-        isAdmin: (typeof getApp === 'function' && getApp().globalData && getApp().globalData.role === 'admin')
+        loading: false
       });
       this._checkinStarted = true;   // P3-54(2026-11-17): onShow 恢复条件依赖此标志, 此前从未赋值致切后台回来计时/GPS 不恢复
       this.startTimers();
@@ -420,18 +419,6 @@ Page({
     // 倒计时中 → 尚未上报云端,仅本地撤销
     this.setData({ silentCountdownSec: 0 });
     wx.showToast({ title: '已撤销静默求助', icon: 'none' });
-  },
-
-  // 客服模拟解除(admin 白名单; 云端测试用管理员 mock_openid)
-  onKefuResolve() {
-    callCloud('safety-report', { action: 'resolve_sos', order_id: this.__orderId }).then((r) => {
-      if (r.ok) {
-        this.setData({ sosActive: false, silentActive: false });
-        wx.showToast({ title: '客服已介入并解除', icon: 'none' });
-      } else {
-        wx.showToast({ title: r.msg || '解除失败', icon: 'none' });
-      }
-    }).catch(() => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' }));
   },
 
   noop() {},

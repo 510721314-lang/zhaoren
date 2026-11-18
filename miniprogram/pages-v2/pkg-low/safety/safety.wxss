@@ -11,7 +11,6 @@
   top: 0;
   z-index: 10;
 }
-.sf__sos-kefu { font-size: var(--font-xs); color: var(--text-invert); text-decoration: underline; }
 .sf__body { padding-top: 20rpx; }
 .sf__card { background: var(--bg-card); border-radius: var(--r-lg); padding: 24rpx 28rpx; box-shadow: var(--shadow-card); margin-bottom: 20rpx; }
 .sf__card-title { font-size: var(--font-md); font-weight: 600; color: var(--text-1); margin-bottom: 16rpx; display: flex; justify-content: space-between; align-items: center; }
