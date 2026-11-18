@@ -23,20 +23,6 @@
   ],
   "subPackages": [
     {
-      "root": "pages-v2/admin",
-      "name": "pkgAdmin",
-      "pages": [
-        "admin",
-        "users",
-        "partners",
-        "demands",
-        "orders",
-        "finance",
-        "config",
-        "user-detail"
-      ]
-    },
-    {
       "root": "pages-v2/agreement",
       "name": "pkgAgreement",
       "pages": [
