@@ -1,19 +1,19 @@
 // T-7.26(2026-11-07): 自 init-db/index.js 物理拆分(逐字搬移, 零行为变更)。
 // 红线: 禁止 require('./index')(循环引用); 依赖一律经 ctx 注入。
 
-// ── 测试数据清理(D6): 默认只删夹具前缀 TEST840710820 的 is_test 单; 全量 is_test 须显式 scope='all_istest' + expect_orders 数量核对; 默认 dry-run 只统计, 真删须 confirm='PURGE' ──
+// ── 测试数据清理(D6): 默认只删夹具前缀 TEST840710820 的 is_test 单; scope='all_istest' 已废除(2026-11-17误删事故); 清理仅允许 夹具前缀批量(默认) 或 order_ids/demand_ids 点名(32hex, ≤50); 默认 dry-run 只统计, 真删须 confirm='PURGE' ──
 async function purge_test_data(ctx) {
   const { event, db, adminIdentity } = ctx;
   const _ = db.command;
   const confirmed = String(event.confirm || '') === 'PURGE';
-  // 2026-11-06 范围收紧: 默认只清本工具夹具前缀单; 全量 is_test 须显式 scope='all_istest'
+  // 2026-11-06 范围收紧: 默认只清本工具夹具前缀单(原全量 is_test 模式已于 2026-11-18 废除, 见 L13)
   // 背景: is_test 只是「参与方命中 test_openids」的打标, 真实单号(ORD...)也会命中;
   // 实测云端 is_test:true 中 86 条为非 TEST 前缀, 原全量硬删不可恢复, 与本模块「绝不误删真实用户数据」冲突
   const PURGE_PREFIX = 'TEST840710820';
   // 2026-11-18 事故加固: 废除 scope=all_istest 全删模式 —— test_openids 含真实openid导致用户历史单被打标,
-  // 11-17 all_istest 误删186单+1709通知(经11-16备份恢复)。清理仅允许: 夹具前缀批量(默认) 或 order_ids 点名(仅is_test单, ≤50)
+  // 11-17 all_istest 误删186单+1709通知(经11-16备份恢复)。清理仅允许: 夹具前缀批量(默认) 或 order_ids 点名(32hex, ≤50)
   if (String(event.scope || '') === 'all_istest') {
-    return { ok: false, code: 'idb_purge_scope_disabled', msg: 'scope=all_istest 已废除(2026-11-17误删事故加固)。清理仅允许夹具前缀批量(默认)或 order_ids 点名(仅is_test单≤50)' };
+    return { ok: false, code: 'idb_purge_scope_disabled', msg: 'scope=all_istest 已废除(2026-11-17误删事故加固)。清理仅允许夹具前缀批量(默认)或 order_ids 点名(32hex, ≤50)' };
   }
   const nameIds = Array.isArray(event.order_ids) ? event.order_ids.map(String).filter((x) => /^[a-f0-9]{32}$/i.test(x)).slice(0, 50) : [];
   // demand_ids 点名: 处理「发布后未成单中断」的 demand 残留(e2e 场景); 扫描源已是 is_test:true, 天然护栏

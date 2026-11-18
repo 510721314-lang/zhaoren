@@ -44,7 +44,9 @@ async function send_sms_code_action(ctx) {
         // 模拟发送: 验证码禁止写日志(防日志泄露被冒充)
         // TODO: 生产期替换为 await cloud.openapi.sms.send({...}) 或腾讯云 SMS SDK
         const env = require('./openid').getCachedEnv();
-        log.d(`[SMS-SEND] phone=${phone} expire_at=${expireAt} (code hidden)`);
+        // R2(2026-11-18 双专家评审): 日志不落明文手机号(同模块 sms_target 存 HMAC 不落 PII 口径), 仅保留前3后4
+        const maskedPhone = String(phone || '').replace(/(\d{3})\d+(\d{4})/, '$1****$2');
+        log.d(`[SMS-SEND] phone=${maskedPhone} expire_at=${expireAt} (code hidden)`);
         if (env === 'dev') {
           // dev 云端测试/真机调试: 走响应回传验证码, 不进日志
           return { ok: true, data: { msg: '验证码已发送(dev 模式)', dev_code: code } };

@@ -283,7 +283,8 @@ async function mockRefundAction(ctx) {
           created_at: now, read: false
         }})
       ]);
-      await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, refund_no: refundNo, amount_fen: order.total_fen }, result: 'ok', client_ip: clientIp, device });
+      // R4(2026-11-18 双专家评审): 退款审计金额口径须与实退一致(paidFen), 原写 total_fen(加时后会高估)
+      await writeAudit(db, log, { openid, role: 'user', category: 'business', action: 'mock_refund', target_type: 'order', target_id: order_id, detail: { order_id, order_no: order.order_no, refund_no: refundNo, amount_fen: paidFen }, result: 'ok', client_ip: clientIp, device });
       return {
         ok: true,
         data: { order_id, order_no: order.order_no, refund_no: refundNo, status: 'S7', is_mock: true }

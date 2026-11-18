@@ -242,7 +242,12 @@ async function logStatus(orderId, from, to, action, operator) {
 // CAS 条件更新: 仅当订单仍处于期望状态(字符串或数组)时更新, 防止并发/重复流转
 // 语义收敛至 _shared/order_state.js 的 casTransition(规范源); 本处仅注入本地 col/_/log。
 async function casStatus(orderId, expect, patch, event) {
-  return casTransition(col, _, orderId, expect, patch, { event, onError: (e) => log.d(`casStatus fail: ${e.message}`) });
+  return casTransition(col, _, orderId, expect, patch, {
+    event,
+    onError: (e) => log.d(`casStatus fail: ${e.message}`),
+    // R1(2026-11-18 双专家评审): 非法流转被拒时记审计日志, 满足红线#1「拒绝并在服务端记录非法流转日志」
+    onReject: (from, to) => log.w(`casStatus reject illegal transition order=${orderId} event=${event} ${from}->${to}`)
+  });
 }
 
 // 判定调用者在订单中的角色
