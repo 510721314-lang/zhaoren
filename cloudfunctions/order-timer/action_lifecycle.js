@@ -13,7 +13,9 @@ async function processInterruptPartial(ctx) {
       if (anchor >= iCut) return;
       // 2026-11-10 修复(评审): 冻结/争议中的 S3.5 不自动转 S4(原缺校验, 申诉期推进破坏裁定前提)
       if (o.frozen === true || o.dispute_state === 'open') return;
-      const won = await casStatus(o._id, 'S3.5', { status: 'S4', updated_at: now }, 'partial_agree');
+      // 评审修复(2026-11-19 R2-7): 补写 partial_confirmed_at(S4 入场锚点, 与 order-action partial_confirm
+      // 手动路径 action_modify_extend.js:386 同字段) —— processS4Escalate 裁定期不再锚 updated_at
+      const won = await casStatus(o._id, 'S3.5', { status: 'S4', partial_confirmed_at: now, updated_at: now }, 'partial_agree');
       if (!won) { out.skipped.push(o.order_no + ':S3.5竞态'); return; }
       s35OK.push(o);
     }));
@@ -34,7 +36,7 @@ async function processInterruptPartial(ctx) {
 }
 
 async function processMilestoneConfirm(ctx) {
-  const { col, log, trackBacklog, SCAN_MAX, scanAll, now, out, msConfirmMin } = ctx;
+  const { col, log, trackBacklog, SCAN_MAX, scanAll, now, out, msConfirmMin, _ } = ctx;
   // ───────── 3.5 里程碑自动确认:S3 状态提交超 15 分钟未确认 → 全部确认 ─────────
   try {
     const msCut = now - msConfirmMin * 60 * 1000;
@@ -47,9 +49,16 @@ async function processMilestoneConfirm(ctx) {
       if (!submittedAt || submittedAt >= msCut) return;
       const confirmed = Array.isArray(ms.confirmed) ? ms.confirmed : [false, false, false];
       if (confirmed.every(Boolean)) return;
-      await col('order_main').doc(o._id).update({
+      // 评审修复(2026-11-19 R2-2): 与 order-action 手动通道(其 action_lifecycle.js:282-289)守卫对齐 ——
+      // 补 status:'S3' + frozen/dispute CAS, 扫描到写入间订单转 S3.5/争议冻结或已冻结时不再事后补写 confirmed
+      const casRes = await col('order_main').where({
+        _id: o._id, status: 'S3',
+        frozen: _.neq(true),
+        dispute_state: _.neq('open')
+      }).update({
         data: { 'milestone.confirmed': [true, true, true], updated_at: now }
       });
+      if (!casRes.stats || casRes.stats.updated !== 1) return; // 状态已漂移, 留待下一轮扫描按新状态处理
       msOK.push(o);
     }));
     msOK.forEach(o => { out.milestone_auto_confirm.push(o.order_no); log.d(`milestone auto-confirm: ${o.order_no}`); });
@@ -173,7 +182,9 @@ async function processS4Escalate(ctx) {
     const s4s = await scanAll('order_main', () => ({ status: 'S4' }));
     trackBacklog('S4', s4s.length >= SCAN_MAX ? s4s : []);
     await Promise.allSettled(s4s.map(async (o) => {
-      const anchor = o.updated_at || 0;
+      // 评审修复(2026-11-19 R2-7): 裁定期锚点改 partial_confirmed_at(专用入场字段), 原锚通用 updated_at
+      // 会被任何后续写(admin 补写/备注类)重置致平台介入被无限推迟; 存量 timer 转入单无该字段时回退 updated_at(兼容原行为)
+      const anchor = o.partial_confirmed_at || o.updated_at || 0;
       if (!anchor || anchor >= pCut) return;
       if (o.s4_escalated_at) return;   // 已升级过, 防重复轰炸
       const upd = await col('order_main').where({ _id: o._id, status: 'S4' }).update({

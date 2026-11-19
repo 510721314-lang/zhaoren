@@ -97,8 +97,12 @@ test('S3 里程碑超时 → milestone_auto_confirm=1', async () => {
   const now = Date.now();
   const { r, sdk } = await run(baseStore({ E1: ord('E1', 'S3', { milestone: { current: 1, submitted_at: now - 20 * MIN, confirmed: [false, false, false] } }) }));
   assert.strictEqual(r.data.counts.milestone_auto_confirm, 1);
-  const upd = (sdk.writes.order_main || []).find((w) => w.doc === 'E1');
+  // 2026-11-19 R2-2: 写入改 where 条件 CAS(status/frozen/dispute 守卫), 断言随写入形态更新
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'E1');
   assert.deepStrictEqual(upd.data['milestone.confirmed'], [true, true, true]);
+  assert.strictEqual(upd.where.status, 'S3', 'CAS 应带 status 守卫');
+  assert.strictEqual(upd.where.frozen.__sentinel, 'neq', 'CAS 应带 frozen 守卫');
+  assert.strictEqual(upd.where.dispute_state.__sentinel, 'neq', 'CAS 应带 dispute 守卫');
 });
 
 // 6. S5 完成超 48h 未评价 → 默认 4 星 → S9 + 写系统评价

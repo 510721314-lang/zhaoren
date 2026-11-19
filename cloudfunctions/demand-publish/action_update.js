@@ -39,6 +39,11 @@ async function update_action(ctx) {
       if (suspendDaysU > 0) {
         return { ok: false, code: 'update_suspended', msg: `账号停用中,${suspendDaysU}天后自动恢复` };
       }
+      // 评审修复(2026-11-19 R2-5): 补信用分下单门槛(与 action_publish.js:243-245 同口径) ——
+      // 原仅 publish 有校验, 信用跌破 600 仍可编辑存量 matching 需求(含抬价), 红线半缺口
+      if ((user.user_credit_score || 800) < (config.min_credit_place_order || 600)) {
+        return { ok: false, code: 'update_credit_low', msg: '信用分低于下单门槛,暂不能编辑需求' };
+      }
 
       // ── 场景白名单(动态从 admin_config.scene_list 读取) ──
       const sceneCodes2 = await getSceneCodes();
@@ -56,8 +61,8 @@ async function update_action(ctx) {
         return { ok: false, code: 'update_time_too_far', msg: '服务时间距现在不能超过 30 天' };
       }
 
-      // ── 时长 1-12 ──
-      if (!duration_h || duration_h < 1 || duration_h > 12) {
+      // ── 时长 1-12（R2-1: 补整数校验, 浮点时长禁入） ──
+      if (!duration_h || !Number.isInteger(duration_h) || duration_h < 1 || duration_h > 12) {
         return { ok: false, code: 'update_duration', msg: '时长需 1-12 小时' };
       }
 
@@ -71,7 +76,8 @@ async function update_action(ctx) {
         }
         docPricingTypeU = 'fixed'; docFixedPriceFenU = wFen; docRateFenU = null; total_fen = wFen;
       } else if (pricingTypeU === 'fixed') {
-        if (!fixed_price_fen || typeof fixed_price_fen !== 'number' || fixed_price_fen <= 0) {
+        // R2-1: 一口价须整数分
+        if (!fixed_price_fen || !Number.isInteger(fixed_price_fen) || fixed_price_fen <= 0) {
           return { ok: false, code: 'update_fixed_price', msg: '一口价金额格式有误' };
         }
         const _uFLo = Number(config.fixed_price_min_fen);
@@ -84,7 +90,8 @@ async function update_action(ctx) {
         }
         docPricingTypeU = 'fixed'; docFixedPriceFenU = fixed_price_fen; docRateFenU = null; total_fen = fixed_price_fen;
       } else {
-        if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
+        // R2-1: 时薪须整数分
+        if (!rate_fen || !Number.isInteger(rate_fen) || rate_fen < 100) {
           return { ok: false, code: 'update_rate', msg: '时薪金额格式有误' };
         }
         // 0 是合法下限(不用 || 兜底); 区间与提示文案均按后台实配生成

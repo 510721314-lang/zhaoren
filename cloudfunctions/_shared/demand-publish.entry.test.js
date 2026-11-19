@@ -265,4 +265,51 @@ test('P3-7: safeStart 任意时刻都落在 06:00 之后且为未来', () => {
   }
 });
 
+// ── 2026-11-19 R2 评审修复新增：金额整数校验 + update 信用分门槛 ──
+
+test('R2-1: publish duration 浮点 → publish_duration 拒绝', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'publish', scene: 'W1', start_time: safeStart(), duration_h: 1.5, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'publish_duration');
+});
+
+test('R2-1: publish rate_fen 浮点 → publish_rate 拒绝', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'publish', scene: 'W1', start_time: safeStart(), duration_h: 2, rate_fen: 100.5, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'publish_rate');
+});
+
+test('R2-1: publish fixed_price_fen 浮点 → publish_fixed_price 拒绝', async () => {
+  // 校验顺序: location/AA/紧急联系人 均在 fixed 分支之前, 夹具须齐
+  const store = baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, is_realname_done: true } },
+    emergency_contact: { e1: { _id: 'e1', openid: USER, is_deleted: false } }
+  });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'publish', scene: 'W1', start_time: safeStart(), duration_h: 2, pricing_type: 'fixed', fixed_price_fen: 500.5, location: { name: 'X' }, aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true, contact_phone: '13800000000', mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'publish_fixed_price');
+});
+
+test('R2-1: update duration 浮点 → update_duration 拒绝', async () => {
+  const store = baseStore({ demand: { [DID]: { _id: DID, creator_openid: USER, status: 'matching' } } });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'update', demand_id: DID, scene: 'W1', start_time: safeStart(), duration_h: 2.5, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'update_duration');
+});
+
+test('R2-5: update 信用分低于门槛 → update_credit_low 拒绝', async () => {
+  const store = baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, user_credit_score: 500 } },
+    demand: { [DID]: { _id: DID, creator_openid: USER, status: 'matching' } }
+  });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'update', demand_id: DID, scene: 'W1', start_time: safeStart(), duration_h: 2, mock_openid: USER }, {});
+  assert.strictEqual(r.code, 'update_credit_low');
+});
+
 test.after(() => { Module._load = origLoad; });

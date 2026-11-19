@@ -283,16 +283,19 @@ exports.main = async (event, context) => {
     await clearUnread(conv_id, role, conv);
 
     // 2026-10-26 用量治理: 传入 after_ts 时只取增量消息(客户端尚未启用, 接口向后兼容)
+    // 评审修复(2026-11-19 R2-6): 首拉(after_ts=0)原 asc+limit(100) 取「最早」100 条, 会话超 100 条时
+    // 首屏看不到最新消息; 改 desc 取最新 100 条后反转为 asc 返回, 增量拉取(after_ts>0)口径不变
     const afterTs = Number(event.after_ts) || 0;
     const whereMsg = { conv_id, is_deleted: false };
     if (afterTs > 0) whereMsg.created_at = _.gt(afterTs);
+    const firstPull = afterTs <= 0;
     const r = await col('im_message')
       .where(whereMsg)
-      .orderBy('created_at', 'asc')
+      .orderBy('created_at', firstPull ? 'desc' : 'asc')
       .limit(100)
       .get();
 
-    const messages = (r.data || []).map((m) => ({
+    let messages = (r.data || []).map((m) => ({
       msg_id: m._id,
       from_openid: m.from_openid,
       from_role: m.from_role,
@@ -302,6 +305,7 @@ exports.main = async (event, context) => {
       template_id: m.template_id || '',
       created_at: m.created_at
     }));
+    if (firstPull) messages.reverse(); // desc 查询反转回 asc 时序, 前端渲染契约不变
 
     return {
       ok: true,

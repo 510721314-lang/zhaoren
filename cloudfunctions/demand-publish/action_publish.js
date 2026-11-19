@@ -38,12 +38,13 @@ async function publish_action(ctx) {
       if (!isServiceTimeAllowed(start_time)) {
         return { ok: false, code: 'publish_redline', msg: '00:00-06:00 为休息时段,请选择 06:00 后的服务时间' };
       }
-      if (!duration_h || duration_h < 1 || duration_h > 12) {
+      // 评审修复(2026-11-19 R2-1): 金额/时长入参补整数校验 —— 附录A#7 金额一律整数分, 浮点分禁入资金链路
+      if (!duration_h || !Number.isInteger(duration_h) || duration_h < 1 || duration_h > 12) {
         return { ok: false, code: 'publish_duration', msg: '时长需 1-12 小时' };
       }
       // 时薪模式才校验 rate_fen; 一口价/公益用 fixed_price_fen, 不传 rate_fen 合法
       if (pricingType === 'hourly' && !isWelfare) {
-        if (!rate_fen || typeof rate_fen !== 'number' || rate_fen < 100) {
+        if (!rate_fen || !Number.isInteger(rate_fen) || rate_fen < 100) {
           return { ok: false, code: 'publish_rate', msg: '时薪金额格式有误' };
         }
       }
@@ -200,7 +201,8 @@ async function publish_action(ctx) {
         docRateFen = null;
         total_fen = wFen;
       } else if (pricingType === 'fixed') {
-        if (!fixed_price_fen || typeof fixed_price_fen !== 'number' || fixed_price_fen <= 0) {
+        // R2-1: 一口价须整数分
+        if (!fixed_price_fen || !Number.isInteger(fixed_price_fen) || fixed_price_fen <= 0) {
           return { ok: false, code: 'publish_fixed_price', msg: '一口价金额格式有误' };
         }
         const _fLo = Number(config.fixed_price_min_fen);

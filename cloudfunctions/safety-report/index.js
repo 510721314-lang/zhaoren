@@ -24,7 +24,9 @@ const { writeAudit } = require('./audit');
 const phoneCrypt = require('./phone_crypt');
 
 // 可发起求助/报备的订单状态(赴约 ~ 待评价);终态(取消/退款/评价/关闭/争议)不可
-const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5', 'S4', 'S5'];
+// 评审修复(2026-11-19 R2-3): 补 S2_6(开始履约申请中)/S3_6(完毕确认中) —— 二者均为线下接触窗口,
+// 原白名单漏态致 SOS/报备被拒(安全真空); S2_5(改期处理中)经用户 2026-11-19 口径裁定一并入列
+const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3.5', 'S3_6', 'S4', 'S5'];
 
 // P2-11 自由求助: 解除后 10 分钟冷却(防误触反复轰炸平台安全中心)
 const FREE_SOS_COOLDOWN_MS = 10 * 60 * 1000;
@@ -292,7 +294,10 @@ exports.main = async (event, context) => {
       .where({ order_id: '', reporter_openid: openid, type: 'sos', sub_type: 'free', is_deleted: false })
       .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
     const last = lastR.data && lastR.data[0];
-    if (last && last.status !== 'active' && nowF - last.created_at < FREE_SOS_COOLDOWN_MS) {
+    // 评审修复(2026-11-19 R2-4): 冷却锚点改 resolved_at(口径=「解除后 10 分钟」), 原用 created_at
+    // 致长时间挂起后解除的求助几乎无冷却; 旧存量记录无 resolved_at 时回退 created_at
+    const cdAnchor = (last && last.resolved_at) || (last && last.created_at) || 0;
+    if (last && last.status !== 'active' && nowF - cdAnchor < FREE_SOS_COOLDOWN_MS) {
       return { ok: false, code: 'sr_free_cooldown', msg: '求助刚解除,请10分钟后再试' };
     }
 

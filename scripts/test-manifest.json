@@ -348,7 +348,12 @@
     "publish: 标题/描述在限内 → 成功穿透落库, 且服务端拼回 remark(独立行为守护)",
     "publish: 旧客户端只传 remark 整串 → 派生总上限(20+1+200=221)兜底: 221 放行 / 222 拒",
     "update: 标题超默认上限 → update_title_long「需求标题最长 20 字」",
-    "P3-7: safeStart 任意时刻都落在 06:00 之后且为未来"
+    "P3-7: safeStart 任意时刻都落在 06:00 之后且为未来",
+    "R2-1: publish duration 浮点 → publish_duration 拒绝",
+    "R2-1: publish rate_fen 浮点 → publish_rate 拒绝",
+    "R2-1: publish fixed_price_fen 浮点 → publish_fixed_price 拒绝",
+    "R2-1: update duration 浮点 → update_duration 拒绝",
+    "R2-5: update 信用分低于门槛 → update_credit_low 拒绝"
   ],
   "cloudfunctions/_shared/evaluation-submit.entry.test.js": [
     "get_default_star: → ok + default_star=4",
