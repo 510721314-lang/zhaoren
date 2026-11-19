@@ -58,6 +58,7 @@ App({
   cloudCall(name, data, opts) {
     opts = opts || {};
     // 写操作动词表(按下划线分词边界匹配); 新增写 action 命名须包含表内动词
+    // @VERIFIED 2026-11-19 已真机验证：WRITE_RE 含 publish/like/unlike，断网失败不再自动重试 2 次（体验版 1.6.45）
     const WRITE_RE = /(^|_)(create|add|new|submit|save|update|set|edit|modify|change|respond|cancel|close|delete|remove|pay|tip|withdraw|refund|start|finish|complete|confirm|accept|take|reject|review|approve|offline|claim|apply|send|sign|checkin|report|resolve|nudge|extend|resume|complaint|sos|login|open|milestone|publish|like|unlike)(_|$)/;
     const action = data && data.action ? String(data.action) : '';
     const isWrite = WRITE_RE.test(action);
