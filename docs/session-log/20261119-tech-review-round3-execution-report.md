@@ -92,3 +92,29 @@
 3. 下轮顺手项：①三轮 REGISTRY #182/#183/#184 云端行为实测合并一批（CLI mock_openid 打非法态 + 并发双击造单 + 冻结/封禁账号观察）；②补传体验版（app.js WRITE_RE）；③N5-N7 收敛（N7 先问产品意图）。
 4. 今日部署 1 批 8 函数次 + admin-web 发布，配额消耗留意色区（下一批部署前查余量）。
 5. 唯一索引铁律归位：`init-db` 声明 `{unique:true}` ≠ 线上已建，必须 `tcb listIndexes` 引擎回执实证（N1 已走通完整链路，可作范本）。
+
+## 七、收工补记（2026-11-19 同日续，前六段落盘后的后半程）
+
+> 前六段写于 admin-web 发布时点；以下为同日续做工作的收工落盘，口径与上文一致（证据均实测）。
+
+### 结论与证据（后半程）
+
+| 项 | 内容 | 证据 | commit |
+|---|---|---|---|
+| N7 修复+部署 | 用户拍板「封禁后禁止一切点赞交互」→ blog-action like/unlike 分支补 `getAuthorSnapshot` + `status!=='normal'` → `account_restricted`（与 publish/comment R3-7 同口径）；+2 单测；manifest 1178→**1180** | verify:offline EXIT=0（A/B 455）；blog-action 套件 8/8；部署 success（6 files/11.2KB）+ `tcb fn code download` 回读 **SHA 4/4 MATCH** + like/unlike 分支 account_restricted 标记串云端实证；**防假通过要点：mock sdk 无 `removes` 字段，unlike 断言改用 `sdk.calls` 数组验证拦截路径零触及 blog_like** | `eecff9ea` |
+| 台账 | CHANGELOG 追加 N7 行 / REGISTRY #184 补验收⑬ + 来源列 N7 销账 / deploy-log #488 | 部署前 bundle 归档 `zhaoren-deploy-20261119-182611.bundle`（verify OK），回滚点 `9e79c05f` | `2c11288d` |
+| 体验版 1.6.45 | cli upload ✔（IDE server 33306，AppID wxbc4a4afacdf234f5，包体 780.3KB = main 574.7 + pkg-low 192.9），R3-5 WRITE_RE 随包生效 | REGISTRY #184 状态更新 | `b9952be5` |
+| WRITE_RE 真机验证 | **用户确认通过**：断网点发布/点赞不再自动重试 2 次，「我的动态」页正常展示 | REGISTRY #184 验收⑤ 标「已真机验证」 | `753fcd87` |
+| @VERIFIED 标记 | [app.js:61](file:///c:/zhaoren/miniprogram/app.js) WRITE_RE 上方加标记（仅注释不动逻辑） | chore 提交 | `df469f6c` |
+
+### push 与网络故障实录（§44 教训强化）
+
+- 5 笔 commit 均以 `git -c http.proxy= -c https.proxy= ls-remote origin master` 实证**远程 SHA == 本地 HEAD**（最终 `df469f6c`）。
+- 两次网络故障（本地代理 127.0.0.1:7890 未运行 + 直连 reset）：故障期 push 可能输出 **"Everything up-to-date" 误导性成功**（N7 台账笔实测：报 up-to-date 后 ls-remote 证实远程仍停在 `9e79c05f`，三笔未推上）；网络恢复后补推成功。**判据再次确认：只认 ls-remote 回执 SHA，不认 push exit code / up-to-date 字样。**
+
+### 未决项（明日入口，覆盖第六段对应行）
+
+1. N5/N6 收敛：partner-action BUSY_STATUS 缺瞬态 / 注销 surname·real_name 残留（tech-debt 已登记）。
+2. 云端行为抽验合并一批：N7 封禁/冻结账号 like/unlike 实拒（REGISTRY #184 ⑬）+ ①并发双击 like_count + ②S2_5~S3_6 注销被拒 + ④封禁发帖评论被拒 + #182/#183 挂账项。
+3. 开工基线更新：manifest 预期 **87 文件 / 1180 用例**（第六段写 1178 已过时，以本段为准）。
+4. 工作区遗留（未入库，用户自决）：`docs/TRAE小程序技术手册_分章节节提示词.md`（用户同日新建，中文路径致工具链读取失败，内容未核）+ 3 个 `.docx`（一贯禁动）。
