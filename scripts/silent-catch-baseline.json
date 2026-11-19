@@ -5,7 +5,7 @@
     "catch (e) {}",
     ".catch(() => {})"
   ],
-  "total": 200,
+  "total": 202,
   "files": {
     "cloudfunctions/_shared/ab_equivalence.js": 1,
     "cloudfunctions/_shared/audit.js": 1,
@@ -21,7 +21,7 @@
     "cloudfunctions/admin-web/index.js": 2,
     "cloudfunctions/blog-action/audit.js": 1,
     "cloudfunctions/blog-action/index.js": 1,
-    "cloudfunctions/demand-match/heal.js": 1,
+    "cloudfunctions/demand-match/heal.js": 2,
     "cloudfunctions/demand-match/index.js": 1,
     "cloudfunctions/demand-publish/action_query.js": 1,
     "cloudfunctions/demand-publish/action_update.js": 1,
@@ -41,7 +41,7 @@
     "cloudfunctions/order-action/index.js": 1,
     "cloudfunctions/order-create/action_take.js": 2,
     "cloudfunctions/order-create/audit.js": 1,
-    "cloudfunctions/order-create/heal.js": 1,
+    "cloudfunctions/order-create/heal.js": 2,
     "cloudfunctions/partner-action/action_config.js": 1,
     "cloudfunctions/partner-action/action_public.js": 3,
     "cloudfunctions/partner-action/audit.js": 1,

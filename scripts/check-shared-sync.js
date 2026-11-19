@@ -13,7 +13,7 @@ const SYNC_MAP = {
   'take_rules.js': ['order-create', 'demand-publish', 'order-action', 'home-action', 'partner-apply', 'partner-action'],
   'money_rules.js': ['payment-mock', 'order-create', 'order-action'],
   'test_data.js': ['demand-publish', 'order-create', 'admin-action', 'init-db'],
-  'partner_audit.js': ['partner-action', 'admin-action'],
+  'partner_audit.js': ['partner-action', 'admin-action', 'demand-match', 'order-create'],
   'no_show_rules.js': ['order-action', 'admin-action'],
   'order_state.js': ['order-action', 'order-timer'],
   'urge_rules.js': ['order-timer', 'order-action'],
@@ -48,8 +48,8 @@ const SYNC_MAP = {
     'partner-action', 'partner-apply', 'payment-mock', 'safety-report', 'user-login',
     'admin-action', 'init-db'
   ],
-  // 补登记(2026-10-19, M1): canonical _shared/heal.js 含 healAuditLock(审核死锁治愈), partner-action 副本一致;
-  // demand-match/order-create 为旧版副本(缺该函数) → 依 §10「只登记不手修」登记 KNOWN_DRIFT
+  // 2026-11-19 评审修复: heal.js(新含 healAuditLock) require('./partner_audit'), demand-match/order-create
+  //   纳入 heal/partner_audit 消费方(原 KNOWN_DRIFT 豁免已随同步修复撤销); sync-heal.ps1 + sync-partner-audit.ps1 配套分发
   'heal.js': ['partner-action', 'demand-match', 'order-create'],
   // 题库兜底已在 S4 退役(2026-10-26)：题目 SSOT = questions 集合，exam_bank 仅保留科目 meta
   // 证书派生状态机/门禁单一规范源(2026-10-26 S2): partner-apply/order-create 做门禁, partner-action 发证;
@@ -75,12 +75,7 @@ const SYNC_MAP = {
 // F6 加固(2026-10-19): 每项豁免必须声明「期望的漂移性质」(occurrence + kind), 运行时逐项断言——
 //   断言不成立即 hard fail, 堵住「登记后永久静默豁免」与「漂移已修复但登记未撤」两种失真(§22 G3)。
 const KNOWN_DRIFT = {
-  // occurrence: 'differs' = 期望副本存在且与规范源内容不同(漂移实际存在)
-  // kind: 'subset-of-canonical' = 副本导出为规范源导出的严格子集(即旧版缺规范源新增的导出), 断言不硬编码具体函数名
-  'heal.js': [
-    { dir: 'demand-match', occurrence: 'differs', kind: 'subset-of-canonical' },
-    { dir: 'order-create', occurrence: 'differs', kind: 'subset-of-canonical' }
-  ]
+  // 2026-11-19 评审修复: heal.js demand-match/order-create 旧版副本已同步为规范源(豁免撤销, 空表=零豁免)
 };
 
 // KNOWN_RENAMED(2026-11-02 P2-6 F5 收尾): 「改名副本」显式豁免表, 键为 `函数目录/相对路径`。

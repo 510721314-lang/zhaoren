@@ -145,13 +145,16 @@ test('question_delete: 软删置 is_deleted=true；重复删 → question_not_fo
 });
 
 test('question_bulk_status: 批量发布命中项并回报 missing', async () => {
-  const s = sdk();
+  // 2026-11-19 评审修复#4: 循环逐条写改单次条件批量更新 —— updated 口径改为 stats.updated 实证值(mock 经 updateCount 注入命中数)
+  const s = makeSdk({ openid: ADMIN, store: store(), updateCount: (name) => (name === 'questions' ? 2 : 1) });
   const r = await call(s, { action: 'question_bulk_status', subject: 'base', qids: ['A-01', 'A-02', 'A-404'], status: 'published' });
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.data.updated, 2);
   assert.deepStrictEqual(r.data.missing, ['A-404']);
-  const docs = (s.writes.questions || []).filter((x) => x.doc).map((x) => x.doc).sort();
-  assert.deepStrictEqual(docs, ['q1', 'q2']);
+  const w = (s.writes.questions || [])[0];
+  assert.ok(w && w.where, '应为单次 where 条件批量更新(非逐条 doc.update)');
+  assert.strictEqual(w.where.subject, 'base');
+  assert.strictEqual(w.data.status, 'published');
 });
 
 test('question_import_markdown: 部分成功（合法落库 + 非法明细 + 多选字母转索引）', async () => {

@@ -249,11 +249,17 @@ async function question_bulk_status(ctx) {
   const wanted = new Set(qids);
   const targets = (r.data || []).filter((d) => d && wanted.has(d.qid));
   const missing = qids.filter((qid) => !targets.some((d) => d.qid === qid));
-  for (const d of targets) {
-    await col('questions').doc(d._id).update({ data: { status, updated_at: now, updated_by: openid } });
+  // 评审修复(2026-11-19 P3): 原循环逐条 await 最多 100 次串行写, 必超网关 2.5s 代理窗口致 504 错位;
+  // 改单次条件批量更新(命中数以 stats.updated 实证为准), 返回体字段名不变
+  let updated = 0;
+  if (targets.length) {
+    const ur = await col('questions').where({
+      subject, is_deleted: _.neq(true), _id: _.in(targets.map((d) => d._id))
+    }).update({ data: { status, updated_at: now, updated_by: openid } });
+    updated = (ur.stats && ur.stats.updated) || 0;
   }
-  await logEvent('P2', 'question_bulk_status', openid, { subject, status, count: targets.length, missing });
-  return ok({ updated: targets.length, missing });
+  await logEvent('P2', 'question_bulk_status', openid, { subject, status, count: updated, missing });
+  return ok({ updated, missing });
 }
 
 // ── Markdown 导入 ──

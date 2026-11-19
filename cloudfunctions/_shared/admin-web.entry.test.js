@@ -148,3 +148,135 @@ test('web: 已鉴权未知 action → 转发 admin-action', async () => {
   assert.strictEqual(body.__proxied, 'admin-action');
   assert.strictEqual(body.__data._admin_web_proxy_openid, ADMIN);
 });
+
+// 13. fn_migrate_tip_partner(2026-11-19 评审修复#3): 鉴权通过 → 直查回填 partner_openid/scene + audit_log 留痕
+test('web: fn_migrate_tip_partner → 回填 partner_openid/scene + 审计留痕', async () => {
+  const store = cfgWith(KEY, [ADMIN]);
+  store.pay_transaction = {
+    t1: { _id: 't1', type: 'tip', status: 'success', order_id: 'o1' }, // 缺 partner_openid → 命中回填
+    t2: { _id: 't2', type: 'tip', status: 'success', order_id: 'o_missing' } // 订单缺失 → 跳过
+  };
+  store.order_main = { o1: { _id: 'o1', partner_openid: 'op_1', scene: 'W1' } };
+  const sdk = makeSdk({ openid: '', store });
+  const { statusCode, body } = await run(sdk, apiEvent({ action: 'fn_migrate_tip_partner' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(statusCode, 200);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.data.fixed, 1, '仅 o1 一条被回填');
+  const upd = (sdk.writes.pay_transaction || []).find((w) => w.doc === 't1');
+  assert.ok(upd, '应对 t1 执行 doc.update');
+  assert.strictEqual(upd.data.partner_openid, 'op_1');
+  assert.strictEqual(upd.data.scene, 'W1');
+  const aud = (sdk.writes.audit_log || []).map((w) => w.data).find((a) => a && a.action === 'fn_migrate_tip_partner');
+  assert.ok(aud, '应写 audit_log 留痕');
+  assert.strictEqual(aud.result, 'ok');
+});
+
+// 14. fn_probe_tip_list(评审修复#3): 参数门 —— 缺 mock_openid / order_id 非 32 位 → bad_param 不转发
+test('web: fn_probe_tip_list 参数不全 → bad_param', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const r1 = await run(sdk, apiEvent({ action: 'fn_probe_tip_list', order_id: 'a'.repeat(32) }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r1.body.code, 'bad_param');
+  const r2 = await run(sdk, apiEvent({ action: 'fn_probe_tip_list', order_id: 'short', mock_openid: 'o_x' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r2.body.code, 'bad_param');
+});
+
+// 15. home_probe_system_notice(评审修复#3): 受鉴权保护 + 直查返回 count/list
+test('web: home_probe_system_notice → 未鉴权 401; 鉴权后直查 count', async () => {
+  const store = cfgWith(KEY, [ADMIN]);
+  store.system_notice = { n1: { _id: 'n1', type: 'modify_confirm', order_id: 'o1', to_openid: 'u1', read: false, created_at: Date.now(), title: '改期通知' } };
+  const sdkNoAuth = makeSdk({ openid: '', store });
+  const r401 = await run(sdkNoAuth, apiEvent({ action: 'home_probe_system_notice' }));
+  assert.strictEqual(r401.statusCode, 401);
+  const sdk = makeSdk({ openid: '', store });
+  const { statusCode, body } = await run(sdk, apiEvent({ action: 'home_probe_system_notice' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(statusCode, 200);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.data.count, 1);
+});
+
+// 16. bad-key 限频(评审修复#5): 同进程连续坏 key → 窗口内 gateway_bad_key 留痕封顶 5 条
+test('web: 连续 7 次坏 key → gateway_bad_key 留痕限频至 5 条', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const { main } = loadIndex(sdk); // 单次加载, 复用同一内存限频窗口
+  for (let i = 0; i < 7; i++) {
+    await main(apiEvent({ action: 'list_orders' }, { 'x-admin-key': 'wrong_key' }), {});
+  }
+  const ev = (sdk.writes.platform_event || []).filter((w) => w.data.type === 'gateway_bad_key');
+  assert.strictEqual(ev.length, 5, '窗口内最多留痕 5 条, 防公网刷库放大用量');
+});
+
+// 17. admin_login 失败留痕限频(同步审核 N1): 免 key 端点连续失败 → P1 admin_login_fail 留痕封顶 5 条
+test('web: 连续 7 次 admin_login 失败 → admin_login_fail 留痕限频至 5 条', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  for (let i = 0; i < 7; i++) {
+    const r = await main(apiEvent({ action: 'admin_login', account: 'ghost', password: 'x' }), {});
+    assert.strictEqual(JSON.parse(r.body).code, 'login_bad', '限频只拦留痕, 登录响应不变');
+  }
+  const ev = (sdk.writes.platform_event || []).filter((w) => w.data.type === 'admin_login_fail');
+  assert.strictEqual(ev.length, 5, 'P1 admin_login_fail 留痕窗口内封顶 5 条');
+});
+
+// 18. order_probe_tip(同步审核 N2): 参数门 —— 缺 order_id 且缺 openid → bad_param; 32 位 order_id → 直查返回 orders
+test('web: order_probe_tip → bad_param / order_id 直查', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const r1 = await run(sdk, apiEvent({ action: 'order_probe_tip' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r1.body.code, 'bad_param');
+  const store2 = cfgWith(KEY, [ADMIN]);
+  store2.order_main = { ['a'.repeat(32)]: { _id: 'a'.repeat(32), order_no: 'NO1', status: 'S5', user_openid: 'u1', partner_openid: 'p1', tip_total_fen: 500 } };
+  const sdk2 = makeSdk({ openid: '', store: store2 });
+  const r2 = await run(sdk2, apiEvent({ action: 'order_probe_tip', order_id: 'a'.repeat(32) }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r2.body.ok, true);
+  assert.strictEqual(r2.body.data.orders.length, 1);
+  assert.strictEqual(r2.body.data.orders[0].tip_total_fen, 500);
+});
+
+// 19. home_probe_square(同步审核 N2): 代理 home-action 且 limit 钳制 ≤50
+test('web: home_probe_square → 代理 home-action + limit 钳制', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const r1 = await run(sdk, apiEvent({ action: 'home_probe_square', limit: 99 }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r1.body.__proxied, 'home-action');
+  assert.strictEqual(r1.body.__data.limit, 50, 'limit 超限钳制到 50');
+  const r2 = await run(sdk, apiEvent({ action: 'home_probe_square' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r2.body.__data.limit, 20, '缺省 limit=20');
+});
+
+// 20. home_probe_modify_audit(同步审核 N2): 直查 audit_log 改期类留痕
+test('web: home_probe_modify_audit → 直查 count', async () => {
+  const store = cfgWith(KEY, [ADMIN]);
+  store.audit_log = { a1: { _id: 'a1', action: 'order_modify_apply', openid: 'u1', role: 'user', target_id: 'o1', result: 'ok', created_at: Date.now() } };
+  const sdk = makeSdk({ openid: '', store });
+  const { statusCode, body } = await run(sdk, apiEvent({ action: 'home_probe_modify_audit' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(statusCode, 200);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.data.count, 1);
+});
+
+// 21. init_db(同步审核 N2): 代理 init-db, 真实 action 走 __init_db_action(缺省 quick_check)
+test('web: init_db → 代理 init-db + __init_db_action 透传', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const r1 = await run(sdk, apiEvent({ action: 'init_db' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r1.body.__proxied, 'init-db');
+  assert.strictEqual(r1.body.__data.action, 'quick_check', '缺省 quick_check');
+  const r2 = await run(sdk, apiEvent({ action: 'init_db', __init_db_action: 'lookup' }, { 'x-admin-key': KEY }));
+  assert.strictEqual(r2.body.__data.action, 'lookup', '__init_db_action 透传');
+  assert.ok(!('__init_db_action' in r2.body.__data), '透传后删除冲突键');
+});
+
+// 22. seed_* 群 12 个 action(同步审核 N2): SEED_MAP 逐一映射 → 代理 zz-seed-orders
+test('web: seed_* 12 action → SEED_MAP 全量映射代理 zz-seed-orders', async () => {
+  const sdk = makeSdk({ openid: '', store: cfgWith(KEY, [ADMIN]) });
+  const expect = {
+    seed_run: 'run', seed_cleanup: 'cleanup', seed_count: 'count',
+    seed_simulate: 'simulate', seed_cleanup_sim: 'cleanup_sim', seed_count_sim: 'count_sim',
+    seed_service_orders: 'service_orders', seed_night_orders: 'night_orders',
+    seed_cleanup_seed_orders: 'cleanup_seed_orders', seed_backfill_matched: 'backfill_matched',
+    seed_scene_demands: 'scene_demands', seed_fix_sdm_city: 'fix_sdm_city'
+  };
+  for (const [act, mapped] of Object.entries(expect)) {
+    const { body } = await run(sdk, apiEvent({ action: act }, { 'x-admin-key': KEY }));
+    assert.strictEqual(body.__proxied, 'zz-seed-orders', `${act} 应代理 zz-seed-orders`);
+    assert.strictEqual(body.__data.action, mapped, `${act} → ${mapped}`);
+    assert.strictEqual(body.__data.__admin_web_proxy, true, '携代理握手键');
+  }
+});

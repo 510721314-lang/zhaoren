@@ -246,7 +246,17 @@
     "web: admin_login 免 key → 非 401",
     "web: 有效 X-Admin-Token → 放行转发 admin-action",
     "web: 无效 token + 有效 key → 回退放行",
-    "web: 已鉴权未知 action → 转发 admin-action"
+    "web: 已鉴权未知 action → 转发 admin-action",
+    "web: fn_migrate_tip_partner → 回填 partner_openid/scene + 审计留痕",
+    "web: fn_probe_tip_list 参数不全 → bad_param",
+    "web: home_probe_system_notice → 未鉴权 401; 鉴权后直查 count",
+    "web: 连续 7 次坏 key → gateway_bad_key 留痕限频至 5 条",
+    "web: 连续 7 次 admin_login 失败 → admin_login_fail 留痕限频至 5 条",
+    "web: order_probe_tip → bad_param / order_id 直查",
+    "web: home_probe_square → 代理 home-action + limit 钳制",
+    "web: home_probe_modify_audit → 直查 count",
+    "web: init_db → 代理 init-db + __init_db_action 透传",
+    "web: seed_* 12 action → SEED_MAP 全量映射代理 zz-seed-orders"
   ],
   "cloudfunctions/_shared/cert_state.test.js": [
     "配置: 缺省 → 门禁关 / W1 365 天 / base 永久",

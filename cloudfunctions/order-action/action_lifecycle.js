@@ -269,7 +269,7 @@ async function milestone_submit(ctx) {
 }
 
 async function milestone_confirm(ctx) {
-  const { event, order_id, openid, getOrder, roleOf, col, _, wxCtx, db, log, writeAudit } = ctx;
+  const { event, order_id, openid, getOrder, roleOf, col, _, wxCtx, db, log, writeAudit, isFrozen } = ctx;
   const { milestone } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   if (![1, 2, 3].includes(milestone)) return { ok: false, code: 'oa_ms_invalid', msg: 'milestone 须为 1/2/3' };
@@ -278,12 +278,15 @@ async function milestone_confirm(ctx) {
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   if (role !== 'user') return { ok: false, code: 'oa_ms_confirm_perm', msg: '仅需求者可确认履约进度' };
+  // 评审修复(2026-11-19 P3): 订单已离开 S3 或冻结期不可补写里程碑确认位(原缺守卫, S3_6/S5/冻结期仍可事后改 confirmed)
+  if (order.status !== 'S3') return { ok: false, code: 'oa_ms_status_invalid', msg: '订单不在履约中,不可确认进度' };
+  if (isFrozen(order)) return { ok: false, code: 'oa_order_frozen', msg: '订单争议/申诉处理中,暂不可确认进度' };
 
   const ms = order.milestone || { current: 0, confirmed: [false, false, false] };
   if (ms.current < milestone) return { ok: false, code: 'oa_ms_not_submitted', msg: '该进度尚未提交' };
 
   const idx = milestone - 1;
-  const casCond = { _id: order_id };
+  const casCond = { _id: order_id, status: 'S3' }; // 评审修复: CAS 补 status 条件, 前置校验与写入间状态漂移的竞态兜底
   casCond[`milestone.confirmed.${idx}`] = _.neq(true);
   const casData = { updated_at: Date.now() };
   casData[`milestone.confirmed.${idx}`] = true;

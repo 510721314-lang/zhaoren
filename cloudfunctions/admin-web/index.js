@@ -189,6 +189,28 @@ async function recordGatewayBadKey(reason, req) {
   } catch (e) { /* 告警写失败不影响鉴权响应 */ }
 }
 
+// 评审修复(2026-11-19 P3): 网关留痕写库内存限频 —— 防公网脚本高频打 401/登录失败刷 platform_event 放大用量。
+// 内存窗口为尽力而为(多实例/冷启动各自计数, key 打满全量重置防内存放大), 不追求精确限流。
+// N1(2026-11-19 同步专家审核): admin_login 免 key 端点失败逐次写 P1 admin_login_fail 同样可刷, 与 bad-key 共用工厂。
+function makeRateLimiter(maxPerWindow, windowMs) {
+  const hits = new Map(); // key -> [timestamps]
+  return function limited(key) {
+    const now = Date.now();
+    const arr = (hits.get(key) || []).filter((t) => now - t < windowMs);
+    if (arr.length >= maxPerWindow) { hits.set(key, arr); return true; }
+    arr.push(now);
+    hits.set(key, arr);
+    if (hits.size > 1000) hits.clear();
+    return false;
+  };
+}
+const badKeyLimited = makeRateLimiter(5, 10 * 60 * 1000);     // bad-key 留痕: 5 条/10min·IP
+const loginFailLimited = makeRateLimiter(5, 10 * 60 * 1000); // admin_login_fail 留痕: 5 条/10min·IP(N1)
+function clientIpOf(req) {
+  const h = (req && req.headers) || {};
+  return String(h['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+}
+
 // ── 主入口 ──
 exports.main = async (event, context) => {
   const req = event && event.requestContext ? event : { headers: {}, query: {} };
@@ -231,7 +253,8 @@ exports.main = async (event, context) => {
     if (!authOk) {
       const auth = checkAuth(cfg, key);
       if (!auth.ok) {
-        await recordGatewayBadKey(auth.msg, req);
+        // 评审修复: 限频窗口内跳过留痕写入(仍返回 401), 防刷库放大用量
+        if (!badKeyLimited(clientIpOf(req))) await recordGatewayBadKey(auth.msg, req);
         return makeJson({ ok: false, code: auth.msg }, 401);
       }
       // 2026-11-10 修复(安全): key 未初始化时 bootstrap 分支原放行任意非空 key 的全部动作;
@@ -249,10 +272,17 @@ exports.main = async (event, context) => {
   // (P2-6 重做, 2026-10-19) admin_login / admin_logout 本地直调 · 绕过 proxy admin-action,
   // 避免 admin-web 与 admin-action 双云函数冷启动叠加超网关 3s 硬限(原 504 根因)
   if (action === 'admin_login') {
+    // N1(2026-11-19 同步专家审核): admin_login_fail 留痕限频门 —— 仅拦截 P1 admin_login_fail 事件写库,
+    // 登录成功/其他事件留痕不受影响; 登录结果(响应码)不因限频变化, 爆破防护仍由 admin-login.js 锁定链承担
+    const rip = clientIpOf(req);
+    const gatedLogEvent = (level, type, openid, payload) => {
+      if (type === 'admin_login_fail' && loginFailLimited(rip)) return Promise.resolve();
+      return logEvent(level, type, openid, payload);
+    };
     try {
       const r = await adminLoginShared({
         event: body, openid: adminOpenid,
-        ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent,
+        ensureAdminColls, col, _, hashAdminPassword, crypto, logEvent: gatedLogEvent,
         log: { w: console.warn, d: console.log }   // P3-1 批1 审核修正: 原空函数吞掉 admin-login 6 处留痕(2026-11-17)
       });
       return makeJson(r);
