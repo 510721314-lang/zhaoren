@@ -67,6 +67,8 @@
     "finance_stats: 区间超 90 天 → fs_range_too_long",
     "finance_stats: 开始时间过早 → fs_bad_start",
     "finance_stats: 结束时间晚于明天 → fs_bad_end",
+    "withdraw_review: 双人复核启用 + key 模式(无账号) → wr_need_account",
+    "withdraw_review: 账号模式双人复核第一步 → step:1(R3-4 回归)",
     "withdraw_review: decision 非法 → wr_bad_decision",
     "withdraw_review: reject 无原因 → wr_need_reason",
     "withdraw_review: withdraw_id 非法 → wr_bad_id",
@@ -257,6 +259,14 @@
     "web: home_probe_modify_audit → 直查 count",
     "web: init_db → 代理 init-db + __init_db_action 透传",
     "web: seed_* 12 action → SEED_MAP 全量映射代理 zz-seed-orders"
+  ],
+  "cloudfunctions/_shared/blog-action.entry.test.js": [
+    "blog publish: 正常账号 → 发布成功",
+    "blog publish(R3-7): 封禁账号 → account_restricted 拒绝",
+    "blog comment_add(R3-7): 冻结账号 → account_restricted 拒绝",
+    "blog comment_delete(R3-6): 重复删除 → comment_gone(不重复扣计数)",
+    "blog like(R3-6): 第二次点赞 dup-key → 幂等返回, like_count 仅自增一次",
+    "blog like(N3): dup-key errCode=11000 且 msg 不含 duplicate → 仍幂等(旧 /duplicate/i 会漏判)"
   ],
   "cloudfunctions/_shared/cert_state.test.js": [
     "配置: 缺省 → 门禁关 / W1 365 天 / base 永久",

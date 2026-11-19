@@ -23,7 +23,8 @@ async function overviewAction(ctx) {
           col('user_account')
             .where({
               is_deleted: _.neq(true),
-              status: _.in(['normal', 'banned', 'frozen']),
+              // R3-8(2026-11-19): 与 square 活跃用户栏口径对齐 —— 原白名单含 banned/frozen, 封禁账号仍上首页曝光
+              status: _.nin(['frozen', 'banned', 'closed', 'suspended']),
               register_source: _.neq('phone_pending')
             })
             .orderBy('created_at', 'desc')

@@ -13,7 +13,8 @@ const { writeAudit } = require('./audit');
 const HANDLERS = { ...require('./action_aux'), ...require('./action_take') };
 
 // 进行中订单状态集合(用于"无进行中订单"校验)
-const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 评审修复(2026-11-19 R3-2): 补瞬态 S2_5/S2_6/S3_6 —— 改期/履约确认窗口内原被放行, 可双重预约
+const BUSY_STATUS = ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5'];
 
 // ── 接单互斥锁 ──
 // 事务不支持 where 批量查询(官方限制), 「时间重叠/日上限检查 → CAS → 建单」无法放进同一事务原子化;

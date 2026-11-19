@@ -192,6 +192,12 @@ async function withdraw_review(ctx) {
   const now2 = Date.now();
   const accCntR = await col('admin_accounts').where({ status: 'active', is_deleted: _.neq(true) }).count().catch(() => ({ total: 0 }));
   const rbacEnabled = (accCntR.total || 0) > 0;
+  // 评审修复(2026-11-19 R3-4): key 模式 operatorAccount 为空串 —— review1_by:'' falsy 碰撞致
+  // `!w.review1_by` 永真(复核死锁挂单 processing), 且多把 key 可绕 wr_self 校验单人双审;
+  // 双人复核启用时密钥链路一律拒绝, 须以管理员账号登录参与
+  if (rbacEnabled && !operatorAccount) {
+    return fail('wr_need_account', '双人复核须以管理员账号登录操作, 密钥模式不可参与复核');
+  }
   if (rbacEnabled && !w.review1_by) {
     await col('withdraw_record').doc(withdraw_id).update({ data: { review1_by: operatorAccount, review1_at: now2, updated_at: now2 } });
     await logEvent('P2', 'withdraw_review1', openid, { withdraw_id, by: operatorAccount });

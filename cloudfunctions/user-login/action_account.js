@@ -345,10 +345,13 @@ async function close_account_action(ctx) {
           data: { accept_switch: false, updated_at: now }
         });
         // ④ 账号匿名化 + 置 closed(openid 保留用于订单流水追溯, 其余个人信息清空)
+        // 评审修复(2026-11-19 R3-3): 补清 phone_enc/phone_hash/phone_mask —— 原仅清明文与身份证字段,
+        // 密文+确定性 HMAC+掩码残留, 匿名化口径未闭环
         await col('user_account').doc(uid).update({
           data: {
             status: 'closed', roles: [],
             nickname: '已注销用户', avatar: '', phone: '', idcard: '',
+            phone_enc: '', phone_hash: '', phone_mask: '',
             idcard_enc: '', idcard_mask: '', age: null,
             is_realname_done: false,
             closed_at: now, is_deleted: true, updated_at: now

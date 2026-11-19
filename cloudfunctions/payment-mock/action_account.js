@@ -41,8 +41,10 @@ async function balanceInfoAction(ctx) {
       // 打赏累计(已结算口径, 与订单记录 tip_total_fen 一致) —— 2026-10-05 打赏进入可结算收入
       const settledTipFen = bal.tipFen;
       let creditLevel = 'L1';
+      // 评审修复(2026-11-19 R3-17): 字段名订正 score → credit_score(P3-59/63 已实证改名) ——
+      // 原读不存在字段致钱包页信用分恒 0、等级恒 L1(纯展示层)
       if (pp.data && pp.data[0]) {
-        const score = pp.data[0].score || 0;
+        const score = pp.data[0].credit_score || 0;
         // 对齐 PRD R005(与 enums.js CREDIT_LEVEL 一致): 百段制
         creditLevel = score >= 900 ? 'L4' : score >= 800 ? 'L3' : score >= 700 ? 'L2' : 'L1';
       }
@@ -59,8 +61,8 @@ async function balanceInfoAction(ctx) {
           today_pending: pendingR.total || 0,                 // P2-12: 今日待履约(替代原 total_completed 的误用)
           week_income_fen: aggRowSum(weekR.list && weekR.list[0]),  // P2-13: 本周收入(周一 00:00 起)
           credit_level: creditLevel,
-          // P3-16(2026-11-03): 信用分与等级统一取 partner_profile.score; 无档案返回 null, 前端保留原值
-          credit_score: (pp.data && pp.data[0] && typeof pp.data[0].score === 'number') ? pp.data[0].score : null
+          // P3-16(2026-11-03): 信用分与等级统一取 partner_profile; R3-17(2026-11-19) 字段名订正 credit_score
+          credit_score: (pp.data && pp.data[0] && typeof pp.data[0].credit_score === 'number') ? pp.data[0].credit_score : null
         }
       };
 }

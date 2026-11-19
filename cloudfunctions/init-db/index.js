@@ -99,7 +99,9 @@ const INDEXES = [
   //   order-timer scanAll 各 status 段等值 seek + _id 游标（复合 _id 键 CloudBase 实测可建）
   { coll: 'order_main', name: 'idx_status_id', keys: { status: 1, _id: 1 } },
   //   法律文档版本库 (doc_type, scope, version) 唯一（防并发发布产生重复版本）
-  { coll: 'legal_doc', name: 'uniq_doc_type_scope_version', keys: { doc_type: 1, scope: 1, version: 1 }, unique: true }
+  { coll: 'legal_doc', name: 'uniq_doc_type_scope_version', keys: { doc_type: 1, scope: 1, version: 1 }, unique: true },
+  // blog_like 点赞幂等(2026-11-19 N1 评审修复): (post_id, openid) 唯一防并发双击重复计数, 已 listIndexes 实证
+  { coll: 'blog_like', name: 'uk_post_openid', keys: { post_id: 1, openid: 1 }, unique: true }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)

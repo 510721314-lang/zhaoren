@@ -18,6 +18,15 @@ const CONTENT_MAX = 1000;
 const COMMENT_MAX = 200;
 const SCENE_CODES_FALLBACK = ['W1', 'W2', 'W8', 'W10', 'W11'];
 let _sceneCodesCache = null;
+
+// 唯一索引冲突判定(2026-11-19 N3): 对齐 order-create/action_take.js isDupKeyErr 范式 ——
+// 原仅 /duplicate/i 漏判 errCode=11000 / E11000 形状, 致 dup-key 走 else throw 吞成 blog_server_error
+function isDupKeyErr(e) {
+  if (!e) return false;
+  const code = String(e.errCode || e.code || '');
+  const msg = String(e.message || e.errMsg || '');
+  return code === '11000' || /E11000|duplicate key|duplicate_key/i.test(msg);
+}
 async function getSceneCodes() {
   if (_sceneCodesCache) return _sceneCodesCache;
   try {
@@ -112,7 +121,8 @@ async function getAuthorSnapshot(openid) {
     return {
       author_nickname: u.nickname || '微信用户',
       author_avatar: u.avatar || '',
-      is_partner: Array.isArray(u.roles) && u.roles.indexOf('partner') >= 0
+      is_partner: Array.isArray(u.roles) && u.roles.indexOf('partner') >= 0,
+      author_status: u.status || 'normal'   // R3-7(2026-11-19): 供发布/评论前封禁拦截
     };
   } catch (e) {
     return null;
@@ -230,6 +240,8 @@ exports.main = async (event, context) => {
 
         const snap = await getAuthorSnapshot(openid);
         if (!snap) return { ok: false, code: 'no_account', msg: '请先完成登录后再发布' };
+        // R3-7(2026-11-19): 封禁/冻结/停用账号禁止发帖上公开信息流
+        if (snap.author_status !== 'normal') return { ok: false, code: 'account_restricted', msg: '账号状态异常,暂不可发布动态' };
 
         const addRes = await col('blog_post').add({ data: {
           author_openid: openid,
@@ -282,7 +294,17 @@ exports.main = async (event, context) => {
         if (!post || post.status !== 'normal' || post.is_deleted) {
           return { ok: false, code: 'post_gone', msg: '动态不存在或已下架' };
         }
-        await col('blog_like').add({ data: { post_id, openid, created_at: now } });
+        // R3-6(2026-11-19): 并发双击/重试下 check-then-add 竞态 —— 唯一索引命中(dup-key)幂等返回不计数
+        let likeDup = false;
+        try {
+          await col('blog_like').add({ data: { post_id, openid, created_at: now } });
+        } catch (e) {
+          if (isDupKeyErr(e)) { likeDup = true; }
+          else { throw e; }
+        }
+        if (likeDup) {
+          return { ok: true, data: { liked: true, msg: '已点赞', idempotent: true } };
+        }
         await col('blog_post').doc(post_id).update({ data: { like_count: _.inc(1) } });
         await writeAudit(db, log, {
           openid, role: 'user', category: 'business', action: 'blog_like',
@@ -347,6 +369,8 @@ exports.main = async (event, context) => {
         if (!check.pass) return { ok: false, code: 'content_blocked', msg: check.msg };
         const snap = await getAuthorSnapshot(openid);
         if (!snap) return { ok: false, code: 'no_account', msg: '请先登录后再评论' };
+        // R3-7(2026-11-19): 封禁/冻结/停用账号禁止评论
+        if (snap.author_status !== 'normal') return { ok: false, code: 'account_restricted', msg: '账号状态异常,暂不可评论' };
 
         const addRes = await col('blog_comment').add({ data: {
           post_id, author_openid: openid,
@@ -376,6 +400,8 @@ exports.main = async (event, context) => {
         if (!isValidDocId(comment_id)) return { ok: false, code: 'bad_comment_id', msg: '评论不存在' };
         const doc = await col('blog_comment').doc(comment_id).get().then((r) => r.data).catch(() => null);
         if (!doc) return { ok: false, code: 'comment_gone', msg: '评论不存在' };
+        // R3-6(2026-11-19): 已删/软删评论前置拦截 —— 原重复删可把 comment_count 扣成负数
+        if (doc.status === 'deleted' || doc.is_deleted) return { ok: false, code: 'comment_gone', msg: '评论不存在' };
         if (doc.author_openid !== openid) return { ok: false, code: 'forbidden', msg: '只能删除自己的评论' };
         await col('blog_comment').doc(comment_id).update({ data: { status: 'deleted', is_deleted: true } });
         await col('blog_post').doc(doc.post_id).update({ data: { comment_count: _.inc(-1) } }).catch((e) => { log.w('blog_post comment_count dec fail:', e && e.message); });

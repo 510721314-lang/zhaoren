@@ -28,7 +28,9 @@ const ACCOUNT_RE = /^[a-zA-Z0-9_]{4,20}$/;
 const PASSWORD_RE = /^\S{6,32}$/;
 
 // 进行中订单: 存在任一笔时不允许注销(需先完结/协商)
-const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 评审修复(2026-11-19 N2): 补瞬态 S2_5/S2_6/S3_6(与 order-create/demand-match BUSY_STATUS 同口径) ——
+// 原缺瞬态致改期/履约申请中间态用户可注销, 对方待确认流程孤儿化
+const ACTIVE_ORDER_STATUS = ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5'];
 
 // 身份证 18 位校验位算法(GB 11643-1999)
 const ID_WEIGHTS = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];

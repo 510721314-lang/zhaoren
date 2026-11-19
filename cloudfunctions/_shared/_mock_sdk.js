@@ -83,6 +83,11 @@ const commandProxy = new Proxy({}, {
       async add(payload) {
         calls.push({ method: 'add', name, payload });
         (writes[name] = writes[name] || []).push({ add: true, data: payload && payload.data });
+        // opt-in(默认关闭, 既有用例零影响): 模拟 add 失败(如唯一索引冲突 dup-key)
+        // 传函数 (name, payload) => error|null, 或传对象 { [collectionName]: error }
+        const rej = typeof opts.addReject === 'function' ? opts.addReject(name, payload)
+          : (opts.addReject ? opts.addReject[name] : null);
+        if (rej) throw rej;
         const _id = 'mock_id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         return { _id };
       },

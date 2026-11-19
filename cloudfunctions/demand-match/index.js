@@ -11,7 +11,9 @@ const log = require('./logger');
 const { getHealedPartnerProfile } = require('./heal');
 
 // 进行中订单状态集合(S1/S0/S2/S3/S3.5)
-const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 评审修复(2026-11-19 R3-2): 补瞬态 S2_5/S2_6/S3_6(与 order-create BUSY_STATUS 同口径) ——
+// 改期/履约确认窗口内原被 top5"无进行中订单"过滤放行
+const BUSY_STATUS = ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5'];
 // 已完成订单状态集合(计入耍伴累计履约单数)
 const DONE_STATUS = ['S5', 'S8', 'S9', 'S10'];
 

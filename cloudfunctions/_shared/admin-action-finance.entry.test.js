@@ -68,6 +68,32 @@ test('finance_stats: 结束时间晚于明天 → fs_bad_end', async () => {
 });
 
 // ── withdraw_review ──
+// R3-4(2026-11-19): 双人复核启用时 key 模式(operatorAccount='')一律拒绝 —— 防 review1_by falsy 碰撞死锁/单人双审
+test('withdraw_review: 双人复核启用 + key 模式(无账号) → wr_need_account', async () => {
+  const store = baseStore('dev', [ADMIN]);
+  store.admin_accounts = { a1: { _id: 'a1', account: 'accA', status: 'active', is_deleted: false, role: 'R1' } };
+  store.withdraw_record = { [DOC]: { _id: DOC, status: 'processing', amount_fen: 1000, is_deleted: false } };
+  const sdk = makeSdk({ openid: '', store, countFromStore: true }); // countFromStore 使 rbacEnabled 实数化
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'withdraw_review', withdraw_id: DOC, decision: 'approve', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'wr_need_account');
+});
+
+test('withdraw_review: 账号模式双人复核第一步 → step:1(R3-4 回归)', async () => {
+  const store = baseStore('dev', [ADMIN]);
+  store.admin_accounts = { a1: { _id: 'a1', account: 'accA', status: 'active', is_deleted: false, role: 'R1' } };
+  store.admin_web_sessions = { tok1: { account: 'accA', expires_at: Date.now() + 60000, is_deleted: false } };
+  store.withdraw_record = { [DOC]: { _id: DOC, status: 'processing', amount_fen: 1000, is_deleted: false } };
+  const sdk = makeSdk({ openid: '', store, countFromStore: true });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'withdraw_review', withdraw_id: DOC, decision: 'approve', mock_openid: ADMIN, __admin_token: 'tok1' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.step, 1);
+  const w = (sdk.writes.withdraw_record || [])[0];
+  assert.strictEqual(w.data.review1_by, 'accA', 'review1_by 落非空账号(不再有 falsy 碰撞)');
+});
+
 test('withdraw_review: decision 非法 → wr_bad_decision', async () => {
   const sdk = makeSdk({ openid: '', store: baseStore('dev', [ADMIN]) });
   const { main } = loadIndex(sdk);
