@@ -281,6 +281,10 @@ exports.main = async (event, context) => {
       case 'like': {
         const post_id = event.post_id;
         if (!isValidDocId(post_id)) return { ok: false, code: 'bad_post_id', msg: '动态不存在' };
+        const snap = await getAuthorSnapshot(openid);
+        if (!snap) return { ok: false, code: 'no_account', msg: '请先登录后再点赞' };
+        // N7(2026-11-19): 封禁/冻结/停用账号禁止点赞, 与 publish/comment R3-7 同口径
+        if (snap.author_status !== 'normal') return { ok: false, code: 'account_restricted', msg: '账号状态异常,暂不可点赞' };
         const exist = await col('blog_like').where({ post_id, openid }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
           await writeAudit(db, log, {
@@ -318,6 +322,10 @@ exports.main = async (event, context) => {
       case 'unlike': {
         const post_id = event.post_id;
         if (!isValidDocId(post_id)) return { ok: false, code: 'bad_post_id', msg: '动态不存在' };
+        const snap = await getAuthorSnapshot(openid);
+        if (!snap) return { ok: false, code: 'no_account', msg: '请先登录后再取消点赞' };
+        // N7(2026-11-19): 封禁/冻结/停用账号禁止取消点赞, 与 publish/comment R3-7 同口径
+        if (snap.author_status !== 'normal') return { ok: false, code: 'account_restricted', msg: '账号状态异常,暂不可取消点赞' };
         const exist = await col('blog_like').where({ post_id, openid }).limit(1).get();
         if (exist.data && exist.data.length > 0) {
           await col('blog_like').doc(exist.data[0]._id).remove();

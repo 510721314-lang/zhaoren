@@ -266,7 +266,9 @@
     "blog comment_add(R3-7): 冻结账号 → account_restricted 拒绝",
     "blog comment_delete(R3-6): 重复删除 → comment_gone(不重复扣计数)",
     "blog like(R3-6): 第二次点赞 dup-key → 幂等返回, like_count 仅自增一次",
-    "blog like(N3): dup-key errCode=11000 且 msg 不含 duplicate → 仍幂等(旧 /duplicate/i 会漏判)"
+    "blog like(N3): dup-key errCode=11000 且 msg 不含 duplicate → 仍幂等(旧 /duplicate/i 会漏判)",
+    "blog like(N7): 封禁账号 → account_restricted 拒绝, 不写 blog_like / 不自增 like_count",
+    "blog unlike(N7): 冻结账号 → account_restricted 拒绝, 不删 blog_like / 不自减 like_count"
   ],
   "cloudfunctions/_shared/cert_state.test.js": [
     "配置: 缺省 → 门禁关 / W1 365 天 / base 永久",

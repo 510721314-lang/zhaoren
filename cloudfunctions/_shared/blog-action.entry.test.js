@@ -123,4 +123,36 @@ test('blog like(N3): dup-key errCode=11000 且 msg 不含 duplicate → 仍幂�
   assert.strictEqual(incs.length, 0, 'dup-key 命中后不应自增 like_count');
 });
 
+test('blog like(N7): 封禁账号 → account_restricted 拒绝, 不写 blog_like / 不自增 like_count', async () => {
+  const store = baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, nickname: 'X', status: 'banned', roles: [] } },
+    blog_post: { [POST]: { _id: POST, status: 'normal', is_deleted: false, like_count: 0 } }
+  });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'like', post_id: POST }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'account_restricted');
+  assert.ok(!(sdk.writes.blog_like || []).length, '封禁账号不应写入 blog_like');
+  const incs = (sdk.writes.blog_post || []).filter((w) => w.doc === POST && w.data && w.data.like_count);
+  assert.strictEqual(incs.length, 0, '封禁账号不应自增 like_count');
+});
+
+test('blog unlike(N7): 冻结账号 → account_restricted 拒绝, 不删 blog_like / 不自减 like_count', async () => {
+  const store = baseStore({
+    user_account: { u1: { _id: 'u1', openid: USER, nickname: 'X', status: 'frozen', roles: [] } },
+    blog_post: { [POST]: { _id: POST, status: 'normal', is_deleted: false, like_count: 5 } }
+  });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'unlike', post_id: POST }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'account_restricted');
+  // N7 拦截在查 blog_like exist 之前, 故整个调用链不应触及 blog_like
+  const blogLikeCalls = (sdk.calls || []).filter((c) => c.name === 'blog_like');
+  assert.strictEqual(blogLikeCalls.length, 0, '冻结账号不应触及 blog_like(查/删)');
+  const decs = (sdk.writes.blog_post || []).filter((w) => w.doc === POST && w.data && w.data.like_count);
+  assert.strictEqual(decs.length, 0, '冻结账号不应自减 like_count');
+});
+
 test.after(() => { Module._load = origLoad; });
