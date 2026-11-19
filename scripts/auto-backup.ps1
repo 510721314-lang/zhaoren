@@ -1,9 +1,9 @@
 ﻿# auto-backup.ps1 — zhaoren 自动备份调度入口（full / incremental / verify 三模式）
 # 用法:
-#   powershell -File scripts\auto-backup.ps1 -Mode full         # 每日 02:30 任务(全量)
-#   powershell -File scripts\auto-backup.ps1 -Mode incremental  # HOURLY 任务(时段守卫内生效)
-#   powershell -File scripts\auto-backup.ps1 -Mode verify       # 每日 04:30 任务(校验汇总)
-# 备份根: H:\zhaoren_bak_day (full\ / incremental\ / logs\)
+#   powershell -File scripts\auto-backup.ps1 -Mode full         # 每日 00:00 任务(全量)
+#   powershell -File scripts\auto-backup.ps1 -Mode incremental  # 每日 04:00 任务(增量)
+#   powershell -File scripts\auto-backup.ps1 -Mode verify       # 每日 06:00 任务(校验汇总)
+# 备份根: H:\zhaoren-bak (full\ / incremental\ / logs\)
 # 依赖: .predeploy\manual-backup.ps1(L2~L7 脱敏链) / scripts\raw-export-encrypted.ps1(B 通道加密原值)
 #       C:\zhaoren-bak\admin-key-20261009.txt(admin key) / C:\zhaoren-bak\backup-enc-key.txt(加密密码)
 # 纪律: 跑前必检 UTF-8 BOM(20261013 BOM 事故)；断言失败硬 FAIL exit 1，禁静默假成功
