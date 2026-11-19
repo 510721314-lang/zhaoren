@@ -242,9 +242,16 @@ git -C C:\zhaoren push origin master
 
 ### 验证（推送前后都要跑）
 
+> ⚠️ **判定 push 是否成功的唯一准据（core §44，2026-11-19 实证）**：禁仅凭 push 的 exit code / 空输出 / 本地 `origin/master` 下结论——本地 `rev-parse origin/master` 是**本地缓存**，远程实际可能未更新（假成功）。必须用 `ls-remote` **直连远程**核对 SHA；且 ls-remote 须带与 push **相同的代理覆盖**（否则走失效代理报 `Connection reset` 假失败）。声明「已推送」必须附 ls-remote 实证值。
+
 ```powershell
-git -C C:\zhaoren rev-parse HEAD              # 当前
-git -C C:\zhaoren rev-parse origin/master     # 远端
+git -C C:\zhaoren rev-parse HEAD              # 当前本地 HEAD
+
+# 直连远程核对（与 push 同通道：直连 push 就加 -c 覆盖，代理 push 就不加）
+git -C C:\zhaoren -c http.proxy= -c https.proxy= ls-remote origin master
+# 输出的 SHA 必须 == 上面 rev-parse HEAD；不等 = 未推送成功，禁声称已推送
+
+git -C C:\zhaoren rev-parse origin/master     # 本地缓存，仅旁证，不作准
 git -C C:\zhaoren rev-list --count origin/master..HEAD   # 应 = 0
 ```
 

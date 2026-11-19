@@ -118,6 +118,7 @@ alwaysApply: true
 - §41 验证前置：外部通道先探针（未通禁验·只登记待恢复）；后台任务以进程枚举为准；台账门禁分落笔前基线/落笔后复跑；待办改判与落点表同批。
 - §42 e2e测试：①云函数调用字段路径须逐 action 核对服务端解构位置（禁假设相似 action 一致，如 start_apply 读顶层 start_location 而 finish_apply 读 finish_evidence.partner_location）；②全链路脚本 force_set_env 后须前置 purge_test_data 清残留（防时段冲突）；③purge dry-run 返回 stats.order_main 非 actual_orders；④DevTools 有真实 OPENID 时 isMockCall=false，定位/照片校验生效。
 - §43 数据清理铁律（误删186单事故）：禁按标记位(如is_test)全量删，仅允许夹具前缀批量+ID点名；批量删须四件套(confirm+范围白名单+单次上限+dry-run预览)；test_openids禁混真实openid；恢复脚本级联target用备份静态集非云端缺失集。
+- §44 push成功判据（2026-11-19）：禁仅凭exit code/空输出判定push成功，必须`git ls-remote origin master`直连远程核对SHA==本地HEAD；ls-remote须带与push相同的代理覆盖（防失效代理报Connection reset假失败）；本地origin/master引用只作旁证不作准；声明「已推送」必须附ls-remote实证值→zhaoren-frequent-flows流程4。
 
 ## 附录A · 不可变红线（`.trae/rules.md` §三）
 

@@ -752,3 +752,15 @@ alwaysApply: true
 **R4 恢复脚本 target 用备份静态集**：数据恢复脚本中，级联数据的 target 集合必须定义为「备份中非夹具单的静态集合」，禁止定义为「云端缺失集」。否则主集合恢复完成后「缺失集=空」→ 级联 target 算成 0 → 无法续传级联。实证（2026-11-18 restore-continue.cjs）：`restoreIds = new Set(allNonFixture.map(o=>o._id))`，而非 `restoreIds = missingOrder`。
 
 **R5 §42-R2 已被本条取代**：原 §42-R2「前置 purge 用 scope:'all_istest'」已失效，e2e 清理改用夹具前缀 + 点名 ID（`flow-full-chain.js` 的 `.last-testdata.json` 清单机制）。
+
+## 44. push 成功判据必须 ls-remote 直连远程实证（2026-11-19 假成功/假失败误导实证新增）
+
+> 背景：2026-11-19 两次实证——① commit `21c1b9b4` push 后，首次 `git ls-remote origin master` **未带代理覆盖**，走本机失效代理 `127.0.0.1` 报 `Failed to connect / Connection reset`，差点被误判为 push 失败；补 `-c http.proxy= -c https.proxy=` 后直连成功，远程 SHA 与本地一致。② 更早曾遇 `git push` 输出 `Everything up-to-date`（空输出）被误当作已推送，实际远程未更新。根因：`git rev-parse origin/master` 读的是**本地缓存的远程引用**，可能过期；push 的 exit code 0 / 空输出均不证明远程已更新。
+
+**R1 禁止仅凭 exit code 或空输出判定 push 成功**：push 完成后必须执行 `git ls-remote origin master` **直连远程**取真实 SHA，与本地 `git rev-parse HEAD` 核对，两者完全一致才算推送成功。不一致（或 ls-remote 失败）一律视为未推送，先报告再排查，禁止向用户声称「已推送」。
+
+**R2 ls-remote 必须与 push 同通道、带相同代理覆盖**：ls-remote 本身也受 git 代理配置影响，若本机默认代理失效，ls-remote 会报 `Connection reset` 假失败（非 push 失败）。执行 ls-remote 时须带与 push 相同的 `-c http.proxy= -c https.proxy=`（绕代理）或确认代理通道在听；判读失败要先区分「远程真不可达」与「本地代理失效」，按 `zhaoren-frequent-flows` 流程 4 四象限选通道，不得因 ls-remote 假失败就否定 push。
+
+**R3 本地 origin/master 引用只作旁证不作准**：`git rev-parse origin/master` / `git rev-list --count origin/master..HEAD` 读的是本地缓存，fetch 前可能滞后。真值以 `ls-remote` 直连为准；交接稿、deploy-log、台账中声明「已推送」必须附 ls-remote 实证 SHA，不得仅凭本地引用或 push exit code。
+
+**R4 与 §35 推送判据的关系**：§35「push 代理/判据/失败即停」负责选通道与失败处理；本条负责**成功判据的真值来源**（ls-remote 直连），两者互补不重复。

@@ -245,6 +245,52 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 
 ---
 
+## 陷阱 14：`Set-Content/Out-File -Encoding UTF8` 叠加 BOM（2026-11-19 实证）
+
+**现象**：`register-backup-tasks.ps1` 首 16 字节实测 `EF BB BF` 重复 4 份（BOM 叠加），脚本可能仍能跑但 BOM 异常；多次用 `-Encoding UTF8` 保存同一文件，BOM 份数逐次累加。
+
+**根因**：PS5 的 `Set-Content -Encoding UTF8` / `Out-File -Encoding UTF8` 每次写入都**强制前置 `EF BB BF`，且不剥除文件已有前导 BOM**——与陷阱 2（无 BOM 乱码）配对：陷阱 2 缺 BOM，本陷阱 BOM 多份。
+
+**对策**：
+1. **还原**：`git checkout <file>` 回仓库单 BOM 版本（最干净）。
+2. **写无 BOM 的 UTF-8**（`.md` / JSON 配置）：
+   ```powershell
+   [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($false))
+   ```
+3. **写有 BOM 的 UTF-8**（中文 `.ps1`）——`$true` 会正确处理、不叠加：
+   ```powershell
+   [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($true))
+   ```
+4. **复检**：任何编辑/工具改写中文 `.ps1` 后，`Format-Hex <file> | Select-Object -First 1` 看前 3 字节，必须**恰好一份** `EF BB BF`（与 §25 / 陷阱 2 纪律一致）。
+
+**对照**：JSON / `.md` 反之必须**无 BOM**，勿混淆（见 L269 实测记录）。
+
+---
+
+## 陷阱 15：递归删除含只读文件的目录报「访问被拒绝」（2026-11-19 实证）
+
+**现象**：`[System.IO.Directory]::Delete($dir, $true)` 或 `Remove-Item $dir -Recurse -Force` 删备份/还原目录时报「对路径"LICENSE"的访问被拒绝」，目录删不掉。
+
+**根因**：目录内含**只读属性**文件（从压缩包/备份还原的 `LICENSE`、`report.json` 等常带只读位），递归删除不自动清除只读属性即抛拒绝。
+
+**对策（分级）**：
+1. **先清只读再删**（首选）：
+   ```powershell
+   Get-ChildItem -Path $dir -Recurse -Force | ForEach-Object { $_.Attributes = 'Normal' }
+   Remove-Item $dir -Recurse -Force
+   ```
+2. **仍失败 → robocopy 镜像空目录清空**（rc ≤ 7 视为成功，≥ 8 才真失败）：
+   ```powershell
+   $empty = Join-Path $env:TEMP ("empty_" + [guid]::NewGuid())
+   New-Item -ItemType Directory -Path $empty -Force | Out-Null
+   robocopy $empty $dir /MIR /NFL /NDL /NJH /NJS /R:1 /W:1 | Out-Null
+   # rc∈{0..7} = 清空成功；然后 Remove-Item 空壳
+   Remove-Item $empty -Force; Remove-Item $dir -Force
+   ```
+3. **大目录 robocopy 可能长时间跑**：放后台时按陷阱 10 用 `Get-CimInstance Win32_Process` 核对 robocopy 进程是否真在跑，禁凭提示等待。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -259,6 +305,8 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 10. ✅ `node -e` 内联含空格/括号路径时，改用独立 `.js` 文件（避免 PowerShell 二次解析）
 11. ✅ 管道中调用 npm 全局 CLI 用 `.cmd` 包装器（`tcb.cmd`），不用无扩展名 `bin/tcb`（「文档」不能在管道中激活）
 12. ✅ 命中 `tcb.ps1` PSSecurityException 时改 `tcb.cmd`；密钥类凭据只在交互提示处粘贴（不写命令行）；脚本内全局包路径从 `$env:APPDATA` 派生
+13. ✅ 中文 `.ps1` 改动后复检前 3 字节恰好一份 `EF BB BF`（禁多份叠加，见陷阱 14）
+14. ✅ 删含只读文件的目录先清只读属性或用 robocopy `/MIR` 清空（rc ≤ 7 成功，见陷阱 15）
 
 ## 实测踩坑记录（2026-09-21）
 
