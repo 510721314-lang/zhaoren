@@ -101,6 +101,8 @@ App({
           }).catch((err) => {
             clearTimeout(timer);
             console.error('[cloudCall fail]', name, 'attempt=' + attempt, err && err.errMsg);
+            // 错误可观测性(P1 立项): 云函数调用失败进微信事件分析, 不阻塞业务
+            try { require('./utils/report.js').report('cloud_call_fail', { name, attempt, errMsg: String((err && err.errMsg) || '').slice(0, 120) }); } catch (ee) {}
             callPromise = null;   // 已失败, 下一轮重试才发起新调用
             if (attempt <= retries) {
               setTimeout(doCall, waitMs);
@@ -153,5 +155,27 @@ App({
     const path = (res && res.path) || '';
     console.warn('[onPageNotFound] path="' + path + '" → reLaunch 首页');
     wx.reLaunch({ url: '/pages-v2/index/index' });
+  },
+
+  // 全局错误上报(P1 立项, 2026-11-19 综合评审): 运行时 JS 错误 → 微信事件分析 + Console
+  // 基础库 onError 签名兼容: 新版传 error 对象, 旧版传 (msg,url,line,col)
+  onError(error) {
+    const e = (error && typeof error === 'object') ? error : { message: String(error || '') };
+    const msg = String(e.message || '').slice(0, 200);
+    const stack = String(e.stack || '').slice(0, 400);
+    // 错误分类(经验教训 389775: 区分 client_bug / network, 避免泛化 unknown)
+    let type = 'unknown_error';
+    if (/TypeError|ReferenceError|SyntaxError|is not a function|Cannot read|is undefined/i.test(msg)) type = 'client_bug';
+    else if (/timeout|request:fail|网络/i.test(msg)) type = 'network';
+    console.error('[app onError]', type, msg, stack);
+    try { require('./utils/report.js').report('app_error', { type, msg, stack, t: Date.now() }); } catch (ee) { /* 上报失败绝不阻塞 */ }
+  },
+
+  // 全局未处理 Promise 拒绝上报: await 漏 catch / 异步链路断在拒绝态
+  onUnhandledRejection(res) {
+    const reason = (res && res.reason !== undefined) ? res.reason : '';
+    const msg = String((reason && reason.message) || reason || '').slice(0, 200);
+    console.error('[app unhandledRejection]', msg);
+    try { require('./utils/report.js').report('app_unhandled_rejection', { msg, t: Date.now() }); } catch (ee) { /* 静默 */ }
   }
 });
