@@ -52,7 +52,7 @@
         <template #default="{row}">{{ fmtTime(row.at) }}</template>
       </el-table-column>
       <el-table-column label="openid" width="170">
-        <template #default="{row}"><code style="font-size:11px">{{ row.openid }}</code></template>
+        <template #default="{row}"><code style="font-size:11px">{{ row.openid?.slice(-10) }}</code></template>
       </el-table-column>
       <el-table-column label="角色" width="70">
         <template #default="{row}">{{ roleText(row.role) }}</template>

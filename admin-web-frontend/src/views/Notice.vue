@@ -44,7 +44,7 @@
           <template #default="{row}">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
         <el-table-column label="操作者" width="210">
-          <template #default="{row}"><code style="font-size:11px">{{ row.openid }}</code></template>
+          <template #default="{row}"><code style="font-size:11px">{{ row.openid?.slice(-10) }}</code></template>
         </el-table-column>
         <el-table-column label="标题" min-width="150" show-overflow-tooltip>
           <template #default="{row}">{{ row.payload?.title }}</template>

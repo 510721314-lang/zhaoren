@@ -17,7 +17,7 @@
         <template #default="{row}"><code style="font-size:11px">{{ row.order_id }}</code></template>
       </el-table-column>
       <el-table-column prop="openid" label="用户 OpenID" width="180">
-        <template #default="{row}"><code style="font-size:11px">{{ row.openid }}</code></template>
+        <template #default="{row}"><code style="font-size:11px">{{ row.openid?.slice(-10) }}</code></template>
       </el-table-column>
       <el-table-column prop="scene_code" label="场景" width="100" />
       <el-table-column label="状态" width="90">
