@@ -50,8 +50,8 @@ async function writeNotice(opt) {
   }
 }
 
-// 进行中订单状态集合
-const BUSY_STATUS = ['S0', 'S1', 'S2', 'S3', 'S3.5'];
+// 进行中订单状态集合(评审修复 2026-11-20 N5: 补瞬态 S2_5/S2_6/S3_6, 与 order-create/demand-match BUSY_STATUS 同口径 —— 否则改期/履约确认窗口可被重复接单)
+const BUSY_STATUS = ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5'];
 // 耍伴信用等级映射(SSOT 与 miniprogram/config/enums.js CREDIT_LEVEL 一致)
 // 2026-10-01 对齐 PRD R005: 百段制 L1[600,700) L2[700,800) L3[800,900) L4[900,1000]
 const CREDIT_LEVELS = [

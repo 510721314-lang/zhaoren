@@ -351,6 +351,8 @@ async function close_account_action(ctx) {
           data: {
             status: 'closed', roles: [],
             nickname: '已注销用户', avatar: '', phone: '', idcard: '',
+            // 评审修复(2026-11-20 N6): 补清 surname/real_name —— 实名落库字段注销后残留, 匿名化口径未闭环(与 R3-3 同性质遗漏)
+            surname: '', real_name: '',
             phone_enc: '', phone_hash: '', phone_mask: '',
             idcard_enc: '', idcard_mask: '', age: null,
             is_realname_done: false,
