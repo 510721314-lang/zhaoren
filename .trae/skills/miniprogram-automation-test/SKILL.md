@@ -89,6 +89,7 @@ await mp.disconnect();
 | `reLaunch(url)` | `const page = await miniProgram.reLaunch(url)` | 返回 `Page \| undefined`，需判空 |
 | `page.$(selector)` | `const el = await page.$('.btn')` | 返回元素句柄，需 await |
 | `element.text()` | `const t = await el.text()` | 异步 |
+| `page.$(selector)` 同名 class 多实例 | 多实例时用 `page.$$('.cls')` 取数组按索引定位 | **只返回第一个匹配**——如 workbench `.wb__data-num` 有 3 张卡，`page.$` 永远拿到第 1 张「今日待履约」而非目标卡（2026-11-20 verify-b8-wallet-credit.js 实证） |
 | `page.setData({k:v})` | `await page.setData({k:v})` | 异步 |
 | `page.waitFor(selector)` | `await page.waitFor('.toast', 5000)` | 第二个参数是超时 ms |
 | 导航 | `miniProgram.reLaunch('/pages/x/x')` | 不要用 `navigateTo` 测 tabBar 页 |

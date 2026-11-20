@@ -291,6 +291,39 @@ Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*zhaoren*' 
 
 ---
 
+## 陷阱 16：PS5 向 CLI 传 JSON 参数「三连坑」（`tcb db nosql execute --command` 等，2026-11-20 实证）
+
+**现象**：给 `.cmd`/`.bat` CLI 传 JSON 命令参数（如 `tcb db nosql execute --command '[{"TableName":...,"Command":"{\"find\":...}"}]'`），无论哪种传法都报 `命令参数 JSON 解析失败: Expected property name or '}' in JSON at position ...`。
+
+**三连坑**：① `ConvertTo-Json` 对单元素数组会被 PS5 解包成对象（输出缺 `[`）；② 内层 `\"` 反斜杠转义在 PS5→cmd.exe→Node 多层拼接中被逐层吞掉（here-string/`--%` 停止解析均救不了）；③ 陷阱 9 的 curl 对策只覆盖 `--data-binary` 场景，`--command` 这类**值参数**没有文件通道。
+
+**对策（唯一稳定解）**：JSON 写文件 + Node 包装器以 spawnSync 数组参数直传（项目已有 `scripts/tcb-exec.js`，正是为此而生）：
+```powershell
+@'
+[{"TableName":"admin_config","CommandType":"QUERY","Command":"{\"find\":\"admin_config\",\"filter\":{},\"limit\":1}"}]
+'@ | Set-Content -Path $f -Encoding UTF8   # here-string 字面量落盘, 不经命令行
+node scripts/tcb-exec.js $f --json
+```
+**判别口诀**：值参数要传 JSON（而非 stdin/body）→ 直接放弃命令行转义，走文件 + Node 数组传参。
+
+---
+
+## 陷阱 17：`Invoke-WebRequest` 拉中文内容返回假 False（编码静默错解，2026-11-20 实证）
+
+**现象**：`(iwr $url).Content.Contains('履约中')` 返回 False，`$js.Length` 却正常（≈86 万）——极像「产物不对/功能没上线」，实为**编码错解**。
+
+**根因**：响应头无 charset（Vite 产物 JS 常见）时 PS5 按默认编码（非 UTF-8）解码字节流，中文全部变成错码字符，`Contains`/`-match` 中文永远 False，且**不报任何错**。
+
+**对策（唯一可靠解）**：
+```powershell
+curl.exe -s -o $tmp $url                                   # 字节流原样落盘
+$js = [System.IO.File]::ReadAllText($tmp, [System.Text.Encoding]::UTF8)  # 显式 UTF-8 解码
+$js.Contains('履约完毕确认中')                              # True
+```
+**判别口诀**：`Content` 尺寸正常但中文匹配全 False → 先怀疑编码，再怀疑产物；拉中文内容一律 curl.exe 落盘 + 显式 UTF-8 解码，禁用 `Invoke-WebRequest .Content` 直接比对。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
