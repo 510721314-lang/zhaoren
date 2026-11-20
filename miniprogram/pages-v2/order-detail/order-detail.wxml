@@ -228,6 +228,9 @@
           <button class="od__action-btn {{order.pending_extend ? 'od__action-btn--disabled' : ''}}" wx:if="{{!order.pending_extend && !finishingService}}" bindtap="onAddTime" hover-class="btn-press">⏰ 加时申请</button>
           <button class="od__action-btn {{(order.canFinishService && !finishingService) ? 'od__action-btn--primary' : 'od__action-btn--disabled'}}" hover-class="btn-press" wx:if="{{order.my_role === 'partner'}}" bindtap="onFinishService" disabled="{{finishingService}}">✓ {{finishingService ? '提交中…' : '发起履约完毕确认'}}</button>
         </view>
+        <!-- T-17.4 姊妹缺口修复(2026-11-20): S3 履约中补聊天入口(FREE_CHAT_STATUS 已放行 S3; 此前对方发起沟通后停留在 S3 详情页无入口进聊天页回应) -->
+        <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'partner'}}" bindtap="goChat" hover-class="btn-press">联系用户</button>
+        <button class="od__btn od__btn--ghost" wx:if="{{order.my_role === 'user'}}" bindtap="goChat" hover-class="btn-press">与对方交流</button>
         <!-- 加时在途: S3 内嵌提示 + 对方确认/拒绝按钮 -->
         <view class="od__pending-banner {{order.pending_extend.can_respond ? 'od__pending-banner--mine' : 'od__pending-banner--wait'}}" wx:if="{{order.pending_extend}}">
           <view class="od__pending-banner-title">
