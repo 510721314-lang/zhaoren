@@ -61,8 +61,10 @@ router.beforeEach((to, _from, next) => {
   const key = localStorage.getItem('admin_web_key');
   const token = localStorage.getItem('admin_token');
   const authed = !!(key || token);
-  if (!to.meta.noAuth && !authed) next('/login');
-  else if (to.path === '/login' && authed) next('/dashboard');
+  if (!to.meta.noAuth && !authed) { next('/login'); return; }
+  // R1 专属页(账号管理): 非 R1 fail-closed 回工作台(对齐 Legal.vue 口径; key 模式无 admin_role 缺省即 R1)
+  if (to.meta.r1Only && (localStorage.getItem('admin_role') || 'R1') !== 'R1') { next('/dashboard'); return; }
+  if (to.path === '/login' && authed) next('/dashboard');
   else next();
 });
 

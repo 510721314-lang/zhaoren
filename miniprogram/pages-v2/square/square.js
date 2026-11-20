@@ -199,7 +199,7 @@ Page({
     if (activeSort === 1) {
       list = list.slice().sort((a, b) => (a.distance_km || 9999) - (b.distance_km || 9999));
     } else if (activeSort === 2) {
-      list = list.slice().sort((a, b) => (a.publisher.minutes_ago || 0) - (b.publisher.minutes_ago || 0));
+      list = list.slice().sort((a, b) => ((a.publisher || {}).minutes_ago || 0) - ((b.publisher || {}).minutes_ago || 0));
     } else if (activeSort === 3) {
       list = list.slice().sort((a, b) => (a.budget || 0) - (b.budget || 0));
     }

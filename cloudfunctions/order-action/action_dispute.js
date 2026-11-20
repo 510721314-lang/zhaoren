@@ -257,7 +257,7 @@ async function no_show_report_defense(ctx) {
     action_key: 'jump_order', action_payload: { order_id: report.order_id, report_id }
   });
   await writeAudit(db, log, {
-    openid, role: 'partner', category: 'business', action: 'no_show_report_defense',
+    openid, role: report.target_role || 'user', category: 'business', action: 'no_show_report_defense',
     target_type: 'no_show_report', target_id: report_id,
     detail: { order_no: report.order_no || '', overdue, files: files.length },
     result: 'ok', client_ip: clientIp, device

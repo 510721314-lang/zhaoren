@@ -93,7 +93,7 @@
           <el-table-column label="预期到账" width="160"><template #default="{row}">{{ row.expect_arrive_at ? formatTime(row.expect_arrive_at) : '-' }}</template></el-table-column>
           <el-table-column label="实际到账" width="160"><template #default="{row}">{{ row.arrived_at ? formatTime(row.arrived_at) : '-' }}</template></el-table-column>
           <el-table-column label="申请时间" width="160"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
-          <el-table-column v-if="wdStatus === 'pending' || wdStatus === ''" label="审批" width="150" fixed="right">
+          <el-table-column v-if="wdStatus === 'processing' || wdStatus === ''" label="审批" width="150" fixed="right">
             <template #default="{row}">
               <template v-if="row.status === 'processing'">
                 <el-button size="small" type="success" plain @click.stop="reviewWd(row, 'approve')">通过</el-button>
