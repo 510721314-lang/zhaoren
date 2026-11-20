@@ -1,4 +1,5 @@
 // action_tip.js — 从 index.js 物理抽出, 行为逐字不变; 共享符号经 ctx 注入, 禁 require('./index')
+const crypto = require('crypto');
 
     // ───────── tip_list: 打赏逐笔明细(订单双方可见, 按时间升序) ─────────
 async function tipListAction(ctx) {
@@ -45,7 +46,7 @@ async function mockInsAction(ctx) {
       }
       // 生成保单号 INS + 时间戳 + 6 位随机
       const ts = Date.now();
-      const rand = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+      const rand = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
       const policyNo = `INS${ts}${rand}`;
       const now = ts;
       const pcfg = await getConfig();

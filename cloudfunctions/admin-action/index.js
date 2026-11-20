@@ -108,12 +108,22 @@ function resolveOperations(config) {
   return ops;
 }
 
+// 2026-11-19 用量治理: admin_config 进程内 5min 缓存(同文件 _readProxyKey 先例), 降 DbRead
+let _cachedConfig = null;
+let _configCacheUntil = 0;
+const CONFIG_TTL_MS = 5 * 60 * 1000;      // 命中缓存 5 分钟
+const CONFIG_FAIL_TTL_MS = 10 * 1000;     // 读失败只短缓存, 便于恢复
+const CONFIG_FALLBACK = { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true, test_openids: [] };
 async function getConfig() {
+  const now = Date.now();
+  if (_cachedConfig !== null && now < _configCacheUntil) return _cachedConfig;
   try {
     const r = await db.collection('admin_config').doc('global').get();
-    if (r.data) return r.data;
+    if (r.data) { _cachedConfig = r.data; _configCacheUntil = now + CONFIG_TTL_MS; return r.data; }
   } catch (e) {}
-  return { admin_openids: [], platform_fee_rate_fen: 1000, auto_approve_partner: false, block_words: [], payment_visible: true, test_openids: [] };
+  _cachedConfig = CONFIG_FALLBACK;
+  _configCacheUntil = now + CONFIG_FAIL_TTL_MS;
+  return CONFIG_FALLBACK;
 }
 
 // 平台事件(P0 紧急 / P1 安全/越权 / P2 运营 / P3 业务异常)

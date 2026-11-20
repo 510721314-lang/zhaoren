@@ -108,11 +108,22 @@ function withTimeout(promise, ms) {
   ]);
 }
 
+// 2026-11-19 用量治理: admin_config 进程内 5min 缓存(与 admin-action _readProxyKey 同模式), 降 DbRead
+let _cachedCfg = null;
+let _cfgCacheUntil = 0;
+const CFG_TTL_MS = 5 * 60 * 1000;       // 命中缓存 5 分钟
+const CFG_FAIL_TTL_MS = 10 * 1000;      // 读失败只短缓存, 便于恢复
 async function loadConfig() {
+  const now = Date.now();
+  if (_cachedCfg !== null && now < _cfgCacheUntil) return _cachedCfg;
   try {
     const cfg = (await db.collection('admin_config').doc('global').get()).data;
-    return cfg || {};
+    _cachedCfg = cfg || {};
+    _cfgCacheUntil = now + CFG_TTL_MS;
+    return _cachedCfg;
   } catch (e) {
+    _cachedCfg = {};
+    _cfgCacheUntil = now + CFG_FAIL_TTL_MS;
     return {};
   }
 }
