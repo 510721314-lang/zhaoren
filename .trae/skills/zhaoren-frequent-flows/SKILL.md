@@ -112,6 +112,7 @@ git -C C:\zhaoren -c http.proxy= -c https.proxy= push origin master
 - `project.config.json` **没有** version 字段——上传版本号由 CLI `-v` 参数控制，不要去改受保护文件
 - v1.6.31/1.6.32 曾出现同号冲突——CLI 上传成功后用户手动上传规避同号，版本号必须每次递增
 - CLI upload 前必须先登录（`cli login`），否则报 credential 失效
+- 台账（deploy-log / CHANGELOG / FUNCTION-REGISTRY）一律**末尾追加**：文件顶部是历史旧条目（如顶部看到 v1.6.44 是旧的，最新在底部），追加前用 Grep 工具定位最后一行行号 + Read 工具读尾部确认末尾内容；版本号递增真相用 `git show <上一 commit>` diff 实证已上传的版本，**不凭顶部行号判断**（2026-11-22 实证：差点把 v1.6.10 误写成 v1.6.45）
 
 ---
 

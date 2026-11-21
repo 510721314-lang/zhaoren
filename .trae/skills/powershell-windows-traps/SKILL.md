@@ -324,6 +324,25 @@ $js.Contains('履约完毕确认中')                              # True
 
 ---
 
+## 陷阱 18：PS5 文本工具读 UTF-8 中文 .md 给错误行数 / 搜不到中文（2026-11-22 实证）
+
+**现象**：用 `Select-String` / `Get-Content | Measure-Object -Line` 读 `docs/deploy-log.md`、`docs/CHANGELOG.md` 等 UTF-8 中文文档，返回的**行数明显偏小**；`Select-String -Pattern "1.6.9"` **搜不到中文行里的关键词**。据此定位台账追加锚点会找错行、甚至误判文件末尾。
+
+**根因**：PS5 的 `Get-Content` / `Select-String` 默认按系统 ANSI（GBK）解码**无 BOM 的 UTF-8** 文件，中文字节被错解 → 行分割失效（多行被并成一行）、中文正则匹配全 False，且**不报任何错**。与陷阱 17（IWR 拉内容编码错解）同根，只是发生在**本地文件读取侧**。
+
+**对策**：读中文 docs / 定位行号 / 搜中文关键词，**一律用 Grep 工具（ripgrep）和 Read 工具**——它们正确处理 UTF-8：
+
+```text
+# 定位台账追加锚点（末尾追加，顶部是旧条目）——用 Grep 找关键词行号
+Grep  pattern="v1.6.9"  path="docs/deploy-log.md"  output_mode=content  -n=true
+# 读文件尾部确认最后一行内容
+Read  file_path="docs/deploy-log.md"  offset=490  limit=10
+```
+
+**判别口诀**：PS5 读中文 `.md` 行数对不上 / 中文搜不到 → 先怀疑编码，换 Grep / Read 工具，别信 `Get-Content` / `Select-String` 的结果。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -340,6 +359,7 @@ $js.Contains('履约完毕确认中')                              # True
 12. ✅ 命中 `tcb.ps1` PSSecurityException 时改 `tcb.cmd`；密钥类凭据只在交互提示处粘贴（不写命令行）；脚本内全局包路径从 `$env:APPDATA` 派生
 13. ✅ 中文 `.ps1` 改动后复检前 3 字节恰好一份 `EF BB BF`（禁多份叠加，见陷阱 14）
 14. ✅ 删含只读文件的目录先清只读属性或用 robocopy `/MIR` 清空（rc ≤ 7 成功，见陷阱 15）
+15. ✅ 读中文 `.md` 定位行号 / 搜中文关键词，用 Grep / Read 工具，不信 PS5 `Get-Content` / `Select-String`（行数会错、中文搜不到，见陷阱 18）
 
 ## 实测踩坑记录（2026-09-21）
 

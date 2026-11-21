@@ -19,6 +19,18 @@ description: "Deploy WeChat CloudBase cloud functions for the zhaoren mini progr
 - 项目根：`c:\zhaoren`（cloudfunctionRoot = cloudfunctions/）
 - 前置条件：IDE 已打开且「设置 → 安全设置 → 服务端口」已开启。实际端口以 IDE 启动后的 `.ide` 文件内容为准：`%LOCALAPPDATA%\微信开发者工具\User Data\<实例哈希>\Default\.ide`（旧实例残留的 58449 不可信；若 CLI 报 "please restart developer tools / auto testing" 类错误，提示用户检查该开关）。
 
+## 部署通道选择（tcb vs DevTools CLI，2026-11-22 实证）
+
+| 通道 | 适用 | 风险 |
+|---|---|---|
+| DevTools CLI `cloud functions deploy --remote-npm-install` | **默认首选**，本项目全部函数 | 保留云端既有运行时 / 超时，不会误改 |
+| `tcb fn deploy` | 仅 `cloudbaserc.json` **已登记**的函数（当前仅 5 个） | **未登记的函数用 tcb 部署会把运行时改成默认 Nodejs20**（项目禁 17+），且不应用 config.json 的 timeout / triggers |
+
+**纪律**：
+1. 部署 demand-publish / order-create 等 `cloudbaserc.json` 未登记的函数 → 必须用 DevTools CLI，**禁用** `tcb fn deploy`。
+2. 无论哪条通道，部署后必须 `tcb fn detail <fn> -e <env>` 回读，确认运行时仍为 Nodejs16.13、timeout 未变（防误改）。
+3. 部署产物 `.deploy-*.log` / `.tmp-tcb/` **未被 .gitignore**，会以未跟踪文件留在工作区 → 暂存台账时只显式 `git add <目标文件>`，**禁 `git add -A` / `git add .`**，避免把部署日志误提交。
+
 ## 部署命令（PowerShell）
 
 **铁律：云函数必须一个一个串行部署**。并发部署会触发 `FailedOperation.UpdateFunctionCode 当前函数处于 Updating 状态`。用 foreach 串行循环：
