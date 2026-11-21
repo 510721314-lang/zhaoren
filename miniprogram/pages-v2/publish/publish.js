@@ -56,6 +56,7 @@ Page({
       duration_hours: 3,           // B5
       duration_custom: '',
       location_name: '',           // B5
+      service_address: '',         // B5 手工输入履约地址(必填, 与地图选点 location 分离; 详情页展示)
       latitude: 0,                 // B5 wx.chooseLocation 回填
       longitude: 0,                // B5
       headcount: 1,                // B6
@@ -296,6 +297,7 @@ Page({
             useAccountPhone: false,
             // 履约地点
             'form.location_name': (d.location && d.location.name) || '',
+            'form.service_address': d.service_address || '',
             'form.latitude': (d.location && d.location.latitude) || 0,
             'form.longitude': (d.location && d.location.longitude) || 0,
             titleCount: (d.title || '').length,
@@ -449,6 +451,7 @@ Page({
         'form.duration_hours': _dur,
         'form.duration_custom': _durC,
         'form.location_name': d.location ? (d.location.name || '') : '',
+        'form.service_address': d.service_address || '',
         'form.latitude': (d.location && d.location.latitude) || 0,
         'form.longitude': (d.location && d.location.longitude) || 0,
         'form.headcount': d.headcount || 1,
@@ -791,6 +794,9 @@ Page({
   onLocationInput(e) {
     this.setData({ 'form.location_name': e.detail.value });
   },
+  onServiceAddressInput(e) {
+    this.setData({ 'form.service_address': e.detail.value });
+  },
   onLocationPick() {
     // 拆分阶段2(文件2, 2026-10-16): 手动选点外移 utils/publish-locate.js(经用户书面批准逐字搬迁); wxml bindtap 调用点不变
     return onLocationPick(this);
@@ -1063,6 +1069,7 @@ Page({
       start_time: startTs,
       duration_h: durationH,
       location,
+      service_address: f.service_address,
       // 发布地址: 新建时传真实GPS, 编辑模式传原发布地址(只读留痕不可改)
       publish_location: this.__editMode ? null : pubLoc,
       remark: `${f.title}｜${f.description}`,

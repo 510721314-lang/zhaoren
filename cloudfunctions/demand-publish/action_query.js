@@ -122,6 +122,7 @@ async function detail_action(ctx) {
           location: d.location || { name: '', address: '' },
           district: (d.location && d.location.city) || '',
           address_text: addressText,
+          service_address: d.service_address || '',
           distance_km: distanceKm,
           headcount: d.headcount || 1,
           // 计价分支: hourly=时薪(元); fixed=一口价(元, 取 total_fen); 存量无 pricing_type 按 hourly

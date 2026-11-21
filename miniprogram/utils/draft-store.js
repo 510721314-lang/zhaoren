@@ -88,6 +88,7 @@ function restoreDraft(page, e) {
     'form.duration_hours': _dur,
     'form.duration_custom': _durC,
     'form.location_name': d.location ? d.location.name : '',
+    'form.service_address': d.service_address || '',
     'form.latitude': (d.location && d.location.latitude) || 0,
     'form.longitude': (d.location && d.location.longitude) || 0,
     'form.headcount': d.headcount || 1,

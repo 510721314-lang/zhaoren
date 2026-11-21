@@ -28,6 +28,7 @@
         <view class="dd__info-item"><text class="dd__info-label">时间</text><text class="dd__info-val">{{demand.service_time}}</text></view>
         <view class="dd__info-item"><text class="dd__info-label">时长</text><text class="dd__info-val">{{demand.duration_hours}}小时</text></view>
         <view class="dd__info-item"><text class="dd__info-label">地点</text><text class="dd__info-val">{{demand.location.name}}</text></view>
+        <view class="dd__info-item" wx:if="{{demand.service_address}}"><text class="dd__info-label">履约地址</text><text class="dd__info-val">{{demand.service_address}}</text></view>
         <view class="dd__info-item"><text class="dd__info-label">人数</text><text class="dd__info-val">{{demand.headcount}}人</text></view>
         <view class="dd__info-item" wx:if="{{demand.project_attr === 'commercial'}}"><text class="dd__info-label">{{demand.pricing_type === 'fixed' ? '一口价' : '预算'}}</text><text class="dd__info-val">¥{{demand.budget_text || demand.budget}}{{demand.pricing_type === 'fixed' ? '' : '/小时'}}</text></view>
         <view class="dd__info-item"><text class="dd__info-label">AA区间</text><text class="dd__info-val">{{demand.aa_estimate}}</text></view>

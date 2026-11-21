@@ -396,6 +396,7 @@ async function createFromTakeAction(ctx) {
     start_time: demand.start_time,
     duration_h: demand.duration_h,
     location: demand.location,
+    service_address: demand.service_address || '',   // 履约地址(手工输入, 来自需求; 详情页展示)
     publish_location: demand.publish_location || null,   // 发布地址(留痕, 来自需求)
     content_options: demand.content_options || [],
     pricing_type: demand.pricing_type || 'hourly',   // 计价快照(hourly/fixed; fixed 含公益)

@@ -9,6 +9,7 @@ async function publish_action(ctx) {
         match_mode, disclaimer_signed, target_openid, pet_auth_checked, pet_auth_signature_file_id,
         pricing_type, fixed_price_fen, project_attr,
         headcount, gender_pref,
+        service_address,
         publish_type, service_target, proxy_signature_file_id, proxy_authorized,
         contact_phone, contact_phone_source,
         client_request_id
@@ -51,6 +52,10 @@ async function publish_action(ctx) {
       // 履约地点: MVP 阶段只校验 name 非空, 经纬度可选(隐私指引审核期间用户无法选点, 允许 0)
       if (!location || !location.name) {
         return { ok: false, code: 'publish_location', msg: '请填写履约地点名称' };
+      }
+      // 履约地址(手工输入, 必填): 与地图选点 location 分离, 详情页展示
+      if (!service_address || !String(service_address).trim()) {
+        return { ok: false, code: 'publish_service_address', msg: '请填写履约地址' };
       }
       // 发布地址(发布者当前精确 GPS, 只读留痕且不可手改):
       // 这里只解析, 强校验(必须真实坐标/与履约地距离)在 config 读取后执行; 禁止再用履约地兜底
@@ -421,6 +426,8 @@ async function publish_action(ctx) {
         start_time,
         duration_h,
         location: { name: location.name, latitude: location.latitude, longitude: location.longitude, city },
+        // 履约地址(手工输入, 必填; 与 location 地图选点分离)
+        service_address: String(service_address || '').trim().slice(0, 200),
         // 发布地址: 发布时实际GPS定位(只读留痕, 不参与接单距离/通勤计算)
         // 真实调用 pubLoc 已强校验非空; mock 自测链路无GPS, 沿用履约地兜底以免阻断自动化回归
         publish_location: isMockCall

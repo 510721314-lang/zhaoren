@@ -5,7 +5,7 @@ async function update_action(ctx) {
   const { event, openid, clientIp, device, action, wxCtx, db, _, col, log, writeAudit, getSceneCodes, MATCH_MODE_WHITELIST, DISCLAIMER_TYPE_MAP, SCENE_OPTIONS_FALLBACK, DEFAULT_PET_AUTHORIZATION, buildCheckboxEvidence, verifySignatureFile, titleMaxLen, descMaxLen, checkText, suspendLeftDays, getConfig, contentOptionsMax, getUser, isValidDocId } = ctx;
       const { demand_id, scene, start_time, duration_h, location, content_option, content_options,
         remark, title, description, rate_fen, aa_tier, aa_promise_checked, disclaimer_signed,
-        match_mode, target_openid, gender_pref, headcount, pet_auth_checked, pet_auth_signature_file_id,
+        match_mode, target_openid, gender_pref, headcount, service_address, pet_auth_checked, pet_auth_signature_file_id,
         pricing_type, fixed_price_fen, project_attr } = event;
       // 计价模式归一化(与 publish 同口径; 缺省 hourly/commercial 兼容存量)
       const pricingTypeU = pricing_type === 'fixed' ? 'fixed' : 'hourly';
@@ -108,6 +108,10 @@ async function update_action(ctx) {
       // ── 履约地点 ──
       if (!location || !location.name) {
         return { ok: false, code: 'update_location', msg: '请填写履约地点名称' };
+      }
+      // 履约地址(手工输入, 必填): 与地图选点 location 分离
+      if (!service_address || !String(service_address).trim()) {
+        return { ok: false, code: 'update_service_address', msg: '请填写履约地址' };
       }
 
       // ── AA + 免责声明 ──
@@ -239,6 +243,7 @@ async function update_action(ctx) {
           longitude: location.longitude || 0,
           city
         },
+        service_address: String(service_address || '').trim().slice(0, 200),
         remark: remarkStr,
         pricing_type: docPricingTypeU,
         project_attr: docProjectAttrU,

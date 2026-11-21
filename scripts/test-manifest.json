@@ -936,7 +936,7 @@
     "buildDraftData：时长三优先级与定位/金额兜底",
     "buildDraftData：其余字段透传不丢",
     "validatePublish：合法基线零错误",
-    "validatePublish：8 个必填项逐个拦截（文案顺序）",
+    "validatePublish：9 个必填项逐个拦截（文案顺序）",
     "validatePublish：商业一口价仅正整数",
     "validatePublish：商业小时价预算区间 10-500；公益不校验预算",
     "validatePublish：W9 必须勾宠物授权；非 W9 不要求",

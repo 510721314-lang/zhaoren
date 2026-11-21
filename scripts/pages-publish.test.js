@@ -12,7 +12,7 @@ function validForm(over) {
     project_attr: 'commercial', pricing_type: 'hourly', fixed_price: '', budget: '50',
     scene_code: 'W8', content_options: ['陪同聊天'], title: '陪同就医', description: '陪同老人去医院就诊',
     service_date: '2026-11-10', service_time: '10:00', duration_hours: 3, duration_custom: '',
-    location_name: '人民医院', latitude: 30.6, longitude: 104.0, headcount: 1,
+    location_name: '人民医院', latitude: 30.6, longitude: 104.0, service_address: '人民医院门诊大厅', headcount: 1,
     aa_estimate: '0-50', aa_custom: '', gender_pref: '不限', match_mode: 'broadcast'
   }, over || {});
 }

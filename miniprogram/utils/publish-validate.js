@@ -67,6 +67,7 @@ function buildDraftData(form) {
     service_time: f.service_time,
     duration_hours: f.duration_hours || Number(f.duration_custom) || 3,
     location: { name: f.location_name, latitude: f.latitude || 0, longitude: f.longitude || 0 },
+    service_address: f.service_address || '',
     headcount: f.headcount,
     budget: Number(f.budget) || 0,
     aa_estimate: f.aa_estimate,
@@ -89,6 +90,7 @@ function validatePublish(f, ctx) {
   if (!f.service_time) errs.push('请选择时间');
   if (!f.duration_hours && !f.duration_custom) errs.push('请选择时长');
   if (!f.location_name) errs.push('请输入地点');
+  if (!f.service_address || !f.service_address.trim()) errs.push('请输入履约地址');
   if (f.project_attr === 'commercial') {
     if (f.pricing_type === 'fixed') {
       const fp = Number(f.fixed_price);

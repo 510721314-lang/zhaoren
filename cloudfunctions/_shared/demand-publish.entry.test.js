@@ -121,6 +121,7 @@ test('publish 代发座机号 → publish_proxy_phone（2026-10-16 取消座机�
     aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
     publish_type: 'proxy', proxy_authorized: true,
     location: { name: '北京协和医院', latitude: 39.9042, longitude: 116.4074 },
+    service_address: '北京协和医院门诊楼',
     service_target: { name: '李四', relation: '父母', phone: '028-88888888' }
   }, {});
   assert.strictEqual(r.code, 'publish_proxy_phone');
@@ -182,6 +183,7 @@ function pubEvent(extra = {}) {
     action: 'publish', mock_openid: USER, device: 'test',
     scene: 'W1', start_time: safeStart(), duration_h: 1,
     location: { name: '成都武侯区某医院', latitude: 30.55, longitude: 104.05, city: '成都' },
+    service_address: '成都武侯区某医院门诊楼 3 层',
     publish_location: { name: '当前位置', latitude: 30.55, longitude: 104.05, city: '成都' },
     aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true,
     content_options: ['陪同挂号'], rate_fen: 5000, match_mode: 'broadcast',
@@ -289,7 +291,7 @@ test('R2-1: publish fixed_price_fen 浮点 → publish_fixed_price 拒绝', asyn
   });
   const sdk = makeSdk({ openid: USER, store });
   const { main } = loadIndex(sdk);
-  const r = await main({ action: 'publish', scene: 'W1', start_time: safeStart(), duration_h: 2, pricing_type: 'fixed', fixed_price_fen: 500.5, location: { name: 'X' }, aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true, contact_phone: '13800000000', mock_openid: USER }, {});
+  const r = await main({ action: 'publish', scene: 'W1', start_time: safeStart(), duration_h: 2, pricing_type: 'fixed', fixed_price_fen: 500.5, location: { name: 'X' }, service_address: '测试地址', aa_tier: '0-50', aa_promise_checked: true, disclaimer_signed: true, contact_phone: '13800000000', mock_openid: USER }, {});
   assert.strictEqual(r.code, 'publish_fixed_price');
 });
 

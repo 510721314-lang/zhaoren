@@ -120,6 +120,7 @@ const F = (over) => Object.assign({
   service_time: '09:00',
   duration_hours: 1,
   location_name: '成都春熙路',
+  service_address: '成都春熙路某小区 3 栋 2 单元 501',
   project_attr: 'commercial',
   pricing_type: 'hourly',
   budget: 100,
@@ -144,7 +145,7 @@ test('validatePublish：合法基线零错误', () => {
   assert.deepStrictEqual(validatePublish(F(), C()), []);
 });
 
-test('validatePublish：8 个必填项逐个拦截（文案顺序）', () => {
+test('validatePublish：9 个必填项逐个拦截（文案顺序）', () => {
   assert.deepStrictEqual(validatePublish(F({ scene_code: '' }), C()), ['请选择场景']);
   assert.deepStrictEqual(validatePublish(F({ content_options: [] }), C()), ['请选择服务内容']);
   assert.deepStrictEqual(validatePublish(F({ title: '' }), C()), ['请输入标题']);
@@ -153,6 +154,7 @@ test('validatePublish：8 个必填项逐个拦截（文案顺序）', () => {
   assert.deepStrictEqual(validatePublish(F({ service_time: '' }), C()), ['请选择时间']);
   assert.deepStrictEqual(validatePublish(F({ duration_hours: 0, duration_custom: '' }), C()), ['请选择时长']);
   assert.deepStrictEqual(validatePublish(F({ location_name: '' }), C()), ['请输入地点']);
+  assert.deepStrictEqual(validatePublish(F({ service_address: '' }), C()), ['请输入履约地址']);
   assert.deepStrictEqual(validatePublish(F({ aa_estimate: '' }), C()), ['请选择AA费用预估']);
 });
 
