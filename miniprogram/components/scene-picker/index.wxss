@@ -3,31 +3,37 @@
    本块共用的 .pub__block/.pub__label/.pub__required 为页面原语, 经 styleIsolation=apply-shared 生效
    服务内容选择窗(.pub__opt-tip/-list/-item/-check/-footer/-name)不在本组件内, 仍留页面 wxss */
 .pub__scene-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 每行3个, 1fr自动扣gap分配, 根治flex+calc溢出掉行 */
+  gap: 24rpx 16rpx; /* 纵向24 / 横向16, 间距均匀 */
 }
 .pub__scene-card {
   position: relative;
-  width: calc(33.33% - 11rpx);
+  box-sizing: border-box;
+  padding: 8rpx 0;
   border-radius: var(--r-md);
-  border: 2rpx solid var(--border-1);
-  padding: 16rpx 0;
   text-align: center;
 }
 .pub__scene-card.is-on {
-  border-color: var(--brand-primary);
   background: var(--brand-primary-light);
 }
+.pub__scene-card.is-on .pub__scene-ic {
+  border-color: var(--brand-primary);
+}
+.pub__scene-card.is-on .pub__scene-name {
+  color: var(--brand-primary);
+  font-weight: 600;
+}
 .pub__scene-ic {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 16rpx;
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 28rpx;
   margin: 0 auto 8rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-xxl);
+  font-size: 40rpx;
+  border: 2rpx solid transparent; /* 默认无边框, 选中时显绿框 */
 }
 .pub__scene-name {
   font-size: var(--font-sm);
