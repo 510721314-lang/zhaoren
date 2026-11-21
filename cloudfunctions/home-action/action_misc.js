@@ -79,6 +79,22 @@ async function homeActivityListAction(ctx) {
         }
 }
 
+      // ───────── 发布页顶部 Banner 列表(小程序端: 过滤 enabled + 按 sort 升序; 60s 缓存) ─────────
+async function publishBannerListAction(ctx) {
+  const { log, loadPublishBannersRaw } = ctx;
+  try {
+    const raw = await loadPublishBannersRaw();
+    const list = (raw || [])
+      .filter((b) => b && b.enabled !== false && b.image)
+      .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+      .map((b) => ({ id: b.id, image: b.image, link: b.link || '' }));
+    return { ok: true, data: { list } };
+  } catch (e) {
+    log.d('publish_banner_list err:', e && e.message);
+    return { ok: true, data: { list: [] } };
+  }
+}
+
       // ───────── 活动详情(按 id 取单条: 仅 active 且时间窗内, 含 content 详情) ─────────
 async function activityDetailAction(ctx) {
   const { event, openid, clientIp, device, action, col, log } = ctx;
@@ -102,5 +118,6 @@ async function activityDetailAction(ctx) {
 module.exports = {
   user_home: userHomeAction,
   home_activity_list: homeActivityListAction,
+  publish_banner_list: publishBannerListAction,
   activity_detail: activityDetailAction,
 };

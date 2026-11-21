@@ -40,6 +40,7 @@ Page({
     // 档位值取 CONFIG.AA_OPTIONS，展示文案取 enums AA_ESTIMATE_LABEL（PRD 3.5.1 SSOT）
     aaOptions: CONFIG.AA_OPTIONS.map((v) => ({ value: v, label: AA_ESTIMATE_LABEL[v] })),
     user: {},  // peek_login 异步填充
+    banners: [],  // 发布页顶部 Banner（后台可配；空数组时 WXML 整块不渲染）
 
     // 表单
     form: {
@@ -187,6 +188,33 @@ Page({
     };
   },
 
+  // 拉取发布页顶部 Banner（后台可配；无配置/失败时保持空数组，整块不渲染，不影响发布页）
+  fetchPublishBanners() {
+    callCloud('home-action', { action: 'publish_banner_list' })
+      .then((r) => {
+        const list = (r && r.ok && r.data && Array.isArray(r.data.list)) ? r.data.list : [];
+        this.setData({ banners: list });
+      })
+      .catch(() => {
+        // banner 拉取失败静默兜底：保持空数组，banner 区不渲染，不阻断发布页
+      });
+  },
+
+  // 点击 Banner：跳后台配置的小程序内部路径（tabBar 页用 switchTab，其余 navigateTo；均带 fail 兜底）
+  onBannerTap(e) {
+    const link = ((e.currentTarget || {}).dataset || {}).link;
+    if (!link || typeof link !== 'string' || link.charAt(0) !== '/') {
+      wx.showToast({ title: '链接未配置', icon: 'none' });
+      return;
+    }
+    const TAB_PATHS = ['/pages-v2/index/index', '/pages-v2/square/square', '/pages-v2/service/service', '/pages-v2/message/message', '/pages-v2/profile/profile'];
+    const tabBase = TAB_PATHS.find((p) => link === p || link.indexOf(p + '?') === 0);
+    if (tabBase) {
+      wx.switchTab({ url: tabBase, fail: () => wx.showToast({ title: '跳转失败', icon: 'none' }) });
+    } else {
+      wx.navigateTo({ url: link, fail: () => wx.showToast({ title: '跳转失败', icon: 'none' }) });
+    }
+  },
 
   onLoad(options) {
     // 平台总开关: 核心交易维护中 → 入口即提示并自动返回
@@ -207,6 +235,8 @@ Page({
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       this.setData({ statusBarHeight: info.statusBarHeight || 20 });
     } catch (e) {}
+
+    this.fetchPublishBanners();
 
     // 编辑模式: 从需求详情携带 mode=edit & demand_id 进来
     if (options.mode === 'edit' && options.demand_id) {

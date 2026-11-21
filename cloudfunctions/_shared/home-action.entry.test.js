@@ -48,3 +48,32 @@ test('service_detail: id 不存在 → home_not_found(查库后空兜底)', asyn
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, 'home_not_found');
 });
+
+// store 预置 admin_config.publish_banners; 未传则 loadPublishBannersRaw 兜底 []
+function storeWithBanners(banners) {
+  return { admin_config: { global: { publish_banners: banners } } };
+}
+
+test('publish_banner_list: 无配置 → ok 且 list 为空(发布页整块不渲染)', async () => {
+  const sdk = makeSdk({ openid: '', store: storeWithBanners([]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'publish_banner_list' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.data.list, []);
+});
+
+test('publish_banner_list: 过滤 disabled+缺图 + 按 sort 升序 + 只下发 id/image/link', async () => {
+  const sdk = makeSdk({ openid: '', store: storeWithBanners([
+    { id: 'b2', image: 'cloud://x/2.jpg', link: '/pages-v2/square/square', sort: 20, enabled: true },
+    { id: 'b1', image: 'cloud://x/1.jpg', link: '/pages-v2/index/index', sort: 10, enabled: true },
+    { id: 'b3', image: 'cloud://x/3.jpg', link: '/pages-v2/service/service', sort: 30, enabled: false },
+    { id: 'b4', image: '', link: '/x', sort: 5, enabled: true }
+  ]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'publish_banner_list' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.data.list, [
+    { id: 'b1', image: 'cloud://x/1.jpg', link: '/pages-v2/index/index' },
+    { id: 'b2', image: 'cloud://x/2.jpg', link: '/pages-v2/square/square' }
+  ]);
+});

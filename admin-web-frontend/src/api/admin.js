@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus';
 // 批 6.2: 这些写操作改的是带缓存的后台配置/活动, 生效有约 5 分钟传播延迟, 成功后统一提示
 const DELAY_EFFECT_ACTIONS = new Set([
   'config_set', 'home_activity_create', 'home_activity_update', 'home_activity_delete',
+  'publish_banner_create', 'publish_banner_update', 'publish_banner_delete',
   // S4: 题库/科目元数据写入后, 小程序端拉题缓存(≤5 分钟)才过期
   'question_upsert', 'question_delete', 'question_bulk_status', 'question_import_markdown',
   'exam_subject_meta_update'
@@ -21,7 +22,7 @@ const READ_ONLY_ACTIONS = new Set([
   'exam_subject_list', 'exam_subject_detail', 'event_list',
   'exam_subject_overview', 'question_list', 'question_detail',
   'content_list', 'content_detail',
-  'order_list', 'order_detail', 'insurance_list', 'home_activity_list',
+  'order_list', 'order_detail', 'insurance_list', 'home_activity_list', 'publish_banner_list',
   'user_list', 'user_detail', 'credit_log_list', 'partner_profile_pending_list',
   'safety_log_list', 'partner_list', 'no_show_report_list',
   'export_collection', 'export_admin_config'

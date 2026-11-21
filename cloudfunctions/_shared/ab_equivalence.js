@@ -728,6 +728,10 @@ function cleanupBaselineTmp(dirs) {
     'auto_admin_sop_project_list', 'auto_admin_sop_project_save', 'auto_admin_sop_project_delete', 'auto_admin_sop_project_status',
     // 2026-11-21 批2: 小程序端服务项目只读浏览 action(基线 home_unknown_action); 行为由云端测试面板 + 小程序模拟器独立守护
     'auto_ha_service_list', 'auto_ha_service_detail',
+    // 2026-11-21 发布页独立 Banner: 新增 publish_banner_* action(基线 home_unknown_action / admin_unknown_action);
+    // 行为由 home-action.entry.test.js 新增 2 例 + check-handlers 独立守护
+    'auto_ha_publish_banner_list',
+    'auto_admin_publish_banner_list', 'auto_admin_publish_banner_create', 'auto_admin_publish_banner_update', 'auto_admin_publish_banner_delete',
   ]);
   let fails = 0, known = 0;
   try {

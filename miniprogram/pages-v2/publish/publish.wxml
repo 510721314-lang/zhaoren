@@ -7,6 +7,15 @@
 
   <view style="height: {{statusBarHeight + 46}}px;"></view>
 
+  <!-- 发布页顶部 Banner（后台可配；未配置/空数据时整块不渲染，不留空白） -->
+  <swiper class="pub__banner" wx:if="{{banners.length}}" indicator-dots autoplay circular interval="5000" duration="500">
+    <block wx:for="{{banners}}" wx:key="id">
+      <swiper-item bindtap="onBannerTap" data-link="{{item.link}}">
+        <image class="pub__banner-img" src="{{item.image}}" mode="aspectFill" lazy-load></image>
+      </swiper-item>
+    </block>
+  </swiper>
+
   <!-- 定向邀约横幅(从耍伴详情"咨询/邀TA"进入) -->
   <view class="pub__direct" wx:if="{{directInvite}}">
     🎯 定向邀约：{{invitePartnerName || '指定耍伴'}} · 发布后仅TA可见可接单

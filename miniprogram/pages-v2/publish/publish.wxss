@@ -38,6 +38,21 @@
   font-weight: 600;
 }
 
+/* 发布页顶部 Banner（未配置时 WXML 整块不渲染；var token 自适应暗色模式） */
+.pub__banner {
+  margin-top: 20rpx;
+  width: 100%;
+  height: 280rpx;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.pub__banner-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 /* 地址信息小标题 */
 .pub__sub-title {
   margin-top: 20rpx;

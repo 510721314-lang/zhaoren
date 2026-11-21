@@ -137,6 +137,14 @@ async function loadHomeActivitiesRaw() {
   });
 }
 
+// 发布页顶部 Banner 原始配置(60s 缓存; 过滤 enabled + 按 sort 升序在 action 层做)
+async function loadPublishBannersRaw() {
+  return memo('publish_banners_raw', TTL_ACT_RAW, async () => {
+    const cfgR = await col('admin_config').doc('global').get();
+    return (cfgR.data && cfgR.data.publish_banners) || [];
+  });
+}
+
 // 运营配置: admin_config.scene_list 优先; 读取失败由外层兜底(且兜底值不进缓存)
 // 返回: { scenes: [{code,name,disclaimer_type,builtin}], legal_scene_disclaimers: {code:text} }
 async function loadSceneList() {
@@ -373,7 +381,7 @@ exports.main = async (event, context) => {
         TTL_SCENE_GROUPS,
         sceneOptionDisplayMax, ensureCollections, truncate,
         memSet, memGet, memo, sceneGroupsCacheKey, pickActivities,
-        loadHomeActivitiesRaw, loadSceneList, buildSceneGroups, mapDemand, fillPublisherSurname,
+        loadHomeActivitiesRaw, loadPublishBannersRaw, loadSceneList, buildSceneGroups, mapDemand, fillPublisherSurname,
         hallWhere, priceRangeWhere, loadVisitorPartner, loadTakeDistanceCap, haversineKm
       };
       return await HANDLERS[action](ctx);

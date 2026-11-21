@@ -310,6 +310,7 @@ const HANDLERS = Object.assign(
   require('./action_adminlist'),
   require('./action_blog'),
   require('./action_home_activity'),
+  require('./action_publish_banner'),
   require('./action_service_sop'),
   require('./action_config_read'),
   require('./action_misc'),

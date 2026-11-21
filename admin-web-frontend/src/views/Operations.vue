@@ -162,6 +162,34 @@
         </el-table>
       </el-tab-pane>
 
+      <!-- ── Tab: 发布页 Banner（发布页顶部轮播图，后台可配；未配置时发布页整块不渲染） ── -->
+      <el-tab-pane label="发布页 Banner" name="publish_banners">
+        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+          <el-button type="primary" :loading="pbLoading" @click="loadPublishBanners">刷新</el-button>
+          <el-button type="primary" plain @click="openAddBanner">＋ 新增 Banner</el-button>
+          <el-tag type="info" size="small">仅 enabled 且有图的 Banner 在发布页顶部显示；链接须为小程序内部路径（以 / 开头）</el-tag>
+        </div>
+        <el-table :data="publishBanners" v-loading="pbLoading" border stripe size="small">
+          <el-table-column prop="id" label="ID" width="140">
+            <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.id }}</span></template>
+          </el-table-column>
+          <el-table-column prop="image" label="图片 (cloud://)" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="link" label="跳转链接" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="sort" label="排序" width="70" sortable />
+          <el-table-column label="状态" width="80">
+            <template #default="{row}">
+              <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '显示' : '隐藏' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="160" fixed="right">
+            <template #default="{row}">
+              <el-button size="small" type="primary" text @click="openEditBanner(row)">编辑</el-button>
+              <el-button size="small" type="danger" text :loading="pbBusy === row.id" @click="doDeleteBanner(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <!-- ── Tab 4: 服务项目与 SOP（批1，feature-plan-service-sop-20261121） ── -->
       <el-tab-pane label="服务项目" name="service_sop">
         <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
@@ -356,6 +384,32 @@
       <template #footer>
         <el-button @click="actDialog = false">取消</el-button>
         <el-button type="primary" :loading="actSaving" @click="doSubmitActivity">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 发布页 Banner 编辑弹窗 -->
+    <el-dialog v-model="pbDialog" :title="pbIsEdit ? '编辑 Banner' : '新增 Banner'" width="560px">
+      <el-form label-position="top">
+        <el-form-item label="Banner 图 (横向, jpg/png/webp ≤2MB)">
+          <div class="act-img-row">
+            <el-button size="small" type="primary" plain :loading="pbUploading" @click="pickBannerImage">上传图片</el-button>
+            <span class="act-img-spec">自动压缩为宽 750 横向；过大请去云开发控制台→存储上传后粘贴 cloud:// 链接</span>
+          </div>
+          <el-input v-model="bannerForm.image" placeholder="cloud://..." class="act-img-input" />
+        </el-form-item>
+        <input ref="bannerFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="onBannerFileChange" />
+        <el-form-item label="跳转链接 (小程序内部路径, 以 / 开头)" required>
+          <el-input v-model="bannerForm.link" placeholder="如: /pages-v2/publish/publish?sceneCode=W1" />
+          <div style="font-size:12px;color:#909399;margin-top:4px">仅支持小程序内已注册路径；tabBar 页（首页/广场/服务/消息/我的）会自动用 switchTab 跳转</div>
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="排序 (越小越靠前)"><el-input-number v-model="bannerForm.sort" :min="0" :max="9999" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="启用"><el-switch v-model="bannerForm.enabled" /></el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="pbDialog = false">取消</el-button>
+        <el-button type="primary" :loading="pbSaving" @click="doSubmitBanner">确认</el-button>
       </template>
     </el-dialog>
 
@@ -691,6 +745,99 @@ async function doDeleteActivity(row) {
   const r = await call('home_activity_delete', { id: row.id });
   actBusy.value = '';
   if (r.ok) { ElMessage.success('已删除'); await loadActivities(); }
+  else { ElMessage.error(r.msg || r.code || '删除失败'); }
+}
+
+// ───────── 发布页顶部 Banner 管理（发布页轮播图；仅 enabled 且有图的在小程序端显示） ─────────
+const publishBanners = ref([]);
+const pbLoading = ref(false);
+const pbBusy = ref('');
+const pbDialog = ref(false);
+const pbIsEdit = ref(false);
+const pbSaving = ref(false);
+const pbUploading = ref(false);
+const bannerFileInput = ref(null);
+const bannerForm = reactive({ id: '', image: '', link: '', sort: 0, enabled: true });
+
+function resetBannerForm() {
+  Object.assign(bannerForm, { id: '', image: '', link: '', sort: 0, enabled: true });
+}
+
+async function loadPublishBanners() {
+  pbLoading.value = true;
+  const r = await call('publish_banner_list');
+  pbLoading.value = false;
+  if (r.ok) publishBanners.value = r.data?.list || [];
+  else ElMessage.error(r.msg || '加载 Banner 失败');
+}
+
+function openAddBanner() {
+  pbIsEdit.value = false;
+  resetBannerForm();
+  pbDialog.value = true;
+}
+
+function openEditBanner(row) {
+  pbIsEdit.value = true;
+  Object.assign(bannerForm, { id: row.id, image: row.image || '', link: row.link || '', sort: row.sort || 0, enabled: row.enabled !== false });
+  pbDialog.value = true;
+}
+
+async function doSubmitBanner() {
+  bannerForm.image = String(bannerForm.image || '').trim();
+  bannerForm.link = String(bannerForm.link || '').trim();
+  if (!bannerForm.image) { ElMessage.warning('Banner 图片必填'); return; }
+  if (!bannerForm.link || bannerForm.link.charAt(0) !== '/') { ElMessage.warning('链接须为小程序内部路径（以 / 开头）'); return; }
+  pbSaving.value = true;
+  const payload = { image: bannerForm.image, link: bannerForm.link, sort: bannerForm.sort, enabled: bannerForm.enabled };
+  const r = pbIsEdit.value
+    ? await call('publish_banner_update', { id: bannerForm.id, patch: payload })
+    : await call('publish_banner_create', { banner: payload });
+  pbSaving.value = false;
+  if (r.ok) {
+    ElMessage.success(pbIsEdit.value ? '已更新' : '已创建');
+    pbDialog.value = false;
+    await loadPublishBanners();
+  } else { ElMessage.error(r.msg || r.code || '保存失败'); }
+}
+
+function pickBannerImage() {
+  bannerFileInput.value && bannerFileInput.value.click();
+}
+
+async function onBannerFileChange(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { ElMessage.error('图片大小不能超过 2MB'); return; }
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { ElMessage.error('仅支持 jpg/png/webp 格式'); return; }
+  const b64 = await compressImageForUpload(file, 'banner');
+  if (!b64) {
+    ElMessage({ message: '图片处理后仍过大,请在 云开发控制台→存储→上传图片,再把 cloud:// 链接粘贴到下方输入框', type: 'warning', duration: 5000 });
+    return;
+  }
+  pbUploading.value = true;
+  try {
+    const r = await call('upload_image', { use: 'banner', fileData: b64 });
+    if (r.ok && r.data && r.data.fileID) {
+      bannerForm.image = r.data.fileID;
+      ElMessage.success('图片上传成功,已自动压缩为推荐规格');
+    } else {
+      ElMessage.error(r.msg || r.code || '图片上传失败');
+    }
+  } finally {
+    pbUploading.value = false;
+  }
+}
+
+async function doDeleteBanner(row) {
+  try {
+    await ElMessageBox.confirm('确认删除该 Banner?', '删除确认', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' });
+  } catch (_) { return; }
+  pbBusy.value = row.id;
+  const r = await call('publish_banner_delete', { id: row.id });
+  pbBusy.value = '';
+  if (r.ok) { ElMessage.success('已删除'); await loadPublishBanners(); }
   else { ElMessage.error(r.msg || r.code || '删除失败'); }
 }
 

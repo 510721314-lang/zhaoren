@@ -415,7 +415,9 @@
   "cloudfunctions/_shared/home-action.entry.test.js": [
     "service_detail: 缺 id → home_bad_param(不查库)",
     "service_list: scene_code 非法 → home_bad_scene(查库前白名单校验拦截)",
-    "service_detail: id 不存在 → home_not_found(查库后空兜底)"
+    "service_detail: id 不存在 → home_not_found(查库后空兜底)",
+    "publish_banner_list: 无配置 → ok 且 list 为空(发布页整块不渲染)",
+    "publish_banner_list: 过滤 disabled+缺图 + 按 sort 升序 + 只下发 id/image/link"
   ],
   "cloudfunctions/_shared/home_action_cache.test.js": [
     "scene_groups 同一暖实例第二次调用命中 60s 缓存, 不再重查 demand",
