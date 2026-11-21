@@ -1,20 +1,13 @@
 <view class="v2 svc-detail">
   <block wx:if="{{detail}}">
-    <image wx:if="{{detail.cover_fileid}}" class="sd__cover" src="{{detail.cover_fileid}}" mode="aspectFill"></image>
-    <view wx:else class="sd__cover sd__cover--ph">🛎️</view>
-
     <view class="sd__body">
       <view class="sd__name">{{detail.name}}</view>
       <text class="sd__scene">{{detail.scene_code}}</text>
       <view class="sd__brief" wx:if="{{detail.brief}}">{{detail.brief}}</view>
 
       <view class="sd__section-title">服务说明</view>
-      <view class="sd__content" wx:if="{{segments.length > 0}}">
-        <block wx:for="{{segments}}" wx:key="index">
-          <rich-text wx:if="{{item.type === 'text'}}" nodes="{{item.html}}"></rich-text>
-          <image wx:elif="{{item.type === 'image'}}" src="{{item.src}}" mode="widthFix" show-menu-by-longpress="{{true}}" class="sd__img" data-src="{{item.src}}" bindtap="onPreviewImage" lazy-load="{{true}}"></image>
-          <video wx:elif="{{item.type === 'video'}}" src="{{item.src}}" controls class="sd__video"></video>
-        </block>
+      <view class="sd__content" wx:if="{{sopHtml}}">
+        <mp-html content="{{sopHtml}}" scroll-table="{{true}}" lazy-load="{{true}}"></mp-html>
       </view>
       <view class="sd__content" wx:else>{{detail.sop_content}}</view>
     </view>

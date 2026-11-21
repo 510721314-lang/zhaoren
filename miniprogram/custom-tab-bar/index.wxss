@@ -37,23 +37,26 @@
 }
 .tabbar__pub {
   position: absolute;
-  left: 50%;
-  bottom: calc(36rpx + env(safe-area-inset-bottom));
+  left: 50%; /* 2026-11-21: 发布钮水平居中于「服务」(50%)正上方；bottom 抬高使圆与 tab 图标垂直分离不压字 */
+  bottom: calc(120rpx + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: 120rpx;
   text-align: center;
 }
 .tabbar__pub-circle {
-  width: 104rpx;
-  height: 104rpx;
+  width: 88rpx;
+  height: 88rpx;
   margin: 0 auto;
   border-radius: 50%;
   background: #07C160;
   color: #FFFFFF;
-  font-size: 56rpx;
-  line-height: 96rpx;
+  font-size: 40rpx;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 4rpx solid #FFFFFF;
-  box-shadow: 0 12rpx 28rpx rgba(7,193,96,0.4);
+  box-shadow: 0 8rpx 20rpx rgba(7,193,96,0.4);
 }
 .tabbar__pub-text {
   margin-top: 2rpx;

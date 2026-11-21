@@ -1,11 +1,11 @@
 {
   "note": "空 catch 增量门基线（只增不追溯）。刷新：node scripts/check-silent-catch.js --write",
-  "generated_at": "2026-11-20",
+  "generated_at": "2026-11-21",
   "patterns": [
     "catch (e) {}",
     ".catch(() => {})"
   ],
-  "total": 203,
+  "total": 204,
   "files": {
     "cloudfunctions/_shared/ab_equivalence.js": 1,
     "cloudfunctions/_shared/audit.js": 1,
@@ -63,6 +63,7 @@
     "cloudfunctions/zz-seed-orders/action_simulate.js": 2,
     "cloudfunctions/zz-seed-orders/index.js": 1,
     "miniprogram/app.js": 4,
+    "miniprogram/components/mp-html/node/node.js": 1,
     "miniprogram/components/signature-canvas/index.js": 1,
     "miniprogram/custom-tab-bar/index.js": 1,
     "miniprogram/pages-v2/chat/chat.js": 7,

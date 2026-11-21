@@ -1,16 +1,19 @@
 <view class="v2 service">
   <nav-bar title="服务" show-back="{{false}}"></nav-bar>
 
-  <!-- 场景筛选 chips -->
-  <scroll-view class="svc__chips" scroll-x enhanced show-scrollbar="{{false}}">
+  <!-- 场景筛选：图标宫格（一屏全展示，不横滑） -->
+  <view class="svc__grid">
     <view
-      class="svc__chip {{activeChip === item.code ? 'is-on' : ''}}"
+      class="svc__cell {{activeChip === item.code ? 'is-on' : ''}}"
       wx:for="{{chips}}"
       wx:key="code"
       data-code="{{item.code}}"
       bindtap="onChipTap"
-    >{{item.name}}</view>
-  </scroll-view>
+    >
+      <view class="svc__cell-ic" style="background: {{item.color}};">{{item.icon}}</view>
+      <view class="svc__cell-name">{{item.name}}</view>
+    </view>
+  </view>
 
   <!-- 服务卡片列表 -->
   <view class="svc__list" wx:if="{{!loading}}">
