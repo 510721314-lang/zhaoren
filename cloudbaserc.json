@@ -34,6 +34,20 @@
       "timeout": 20,
       "runtime": "Nodejs16.13",
       "handler": "index.main"
+    },
+    {
+      "name": "admin-action",
+      "timeout": 20,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "memorySize": 256
+    },
+    {
+      "name": "home-action",
+      "timeout": 8,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "memorySize": 256
     }
   ]
 }
