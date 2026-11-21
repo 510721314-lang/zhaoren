@@ -128,7 +128,7 @@ Page({
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      this.getTabBar().setData({ selected: 2 });
+      this.getTabBar().setData({ selected: 3 });
     }
     // 首次 onShow 跳过(onLoad 已拉); 之后进入消息列表刷新未读数
     if (this.__skipNextShow) { this.__skipNextShow = false; return; }

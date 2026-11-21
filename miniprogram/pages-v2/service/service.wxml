@@ -1,0 +1,41 @@
+<view class="v2 service">
+  <nav-bar title="服务" show-back="{{false}}"></nav-bar>
+
+  <!-- 场景筛选 chips -->
+  <scroll-view class="svc__chips" scroll-x enhanced show-scrollbar="{{false}}">
+    <view
+      class="svc__chip {{activeChip === item.code ? 'is-on' : ''}}"
+      wx:for="{{chips}}"
+      wx:key="code"
+      data-code="{{item.code}}"
+      bindtap="onChipTap"
+    >{{item.name}}</view>
+  </scroll-view>
+
+  <!-- 服务卡片列表 -->
+  <view class="svc__list" wx:if="{{!loading}}">
+    <block wx:if="{{list.length > 0}}">
+      <view
+        class="svc__card"
+        wx:for="{{list}}"
+        wx:key="_id"
+        data-id="{{item._id}}"
+        bindtap="onCardTap"
+      >
+        <image wx:if="{{item.cover_fileid}}" class="svc__card-cover" src="{{item.cover_fileid}}" mode="aspectFill" lazy-load="{{true}}"></image>
+        <view wx:else class="svc__card-cover svc__card-cover--ph">🛎️</view>
+        <view class="svc__card-body">
+          <view class="svc__card-name">{{item.name}}</view>
+          <view class="svc__card-brief" wx:if="{{item.brief}}">{{item.brief}}</view>
+          <view class="svc__card-foot">
+            <text class="svc__card-scene">{{item.scene_code}}</text>
+            <text class="svc__card-arrow">查看详情 ›</text>
+          </view>
+        </view>
+      </view>
+    </block>
+    <empty-state wx:else icon="🛎️" title="暂无服务项目" desc="该分类下还没有可预约的服务"></empty-state>
+  </view>
+
+  <view class="svc__loading" wx:if="{{loading}}">加载中…</view>
+</view>

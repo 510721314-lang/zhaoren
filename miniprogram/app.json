@@ -3,6 +3,7 @@
   "pages": [
     "pages-v2/index/index",
     "pages-v2/square/square",
+    "pages-v2/service/service",
     "pages-v2/message/message",
     "pages-v2/profile/profile",
     "pages-v2/login/login",
@@ -55,7 +56,8 @@
         "exam-status/exam-status",
         "study/study",
         "kefu/kefu",
-        "no-show-report/no-show-report"
+        "no-show-report/no-show-report",
+        "service-detail/service-detail"
       ]
     }
   ],
@@ -90,6 +92,7 @@
     "list": [
       { "pagePath": "pages-v2/index/index", "text": "首页" },
       { "pagePath": "pages-v2/square/square", "text": "广场" },
+      { "pagePath": "pages-v2/service/service", "text": "服务" },
       { "pagePath": "pages-v2/message/message", "text": "消息" },
       { "pagePath": "pages-v2/profile/profile", "text": "我的" }
     ]

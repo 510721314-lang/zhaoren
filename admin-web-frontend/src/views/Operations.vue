@@ -360,7 +360,7 @@
     </el-dialog>
 
     <!-- 服务项目编辑弹窗（批1，feature-plan-service-sop） -->
-    <el-dialog v-model="sopDialog" :title="sopIsEdit ? '编辑服务项目' : '新增服务项目'" width="560px">
+    <el-dialog v-model="sopDialog" :title="sopIsEdit ? '编辑服务项目' : '新增服务项目'" width="680px" destroy-on-close>
       <el-form label-position="top">
         <el-row :gutter="12">
           <el-col :span="12"><el-form-item label="关联场景" required>
@@ -375,8 +375,11 @@
         <el-form-item label="简介 (≤100 字)">
           <el-input v-model="sopForm.brief" maxlength="100" show-word-limit placeholder="一句话说明该服务项目" />
         </el-form-item>
-        <el-form-item label="SOP 正文 (≤5000 字, 纯文字)">
-          <el-input v-model="sopForm.sop_content" type="textarea" :rows="8" maxlength="5000" show-word-limit placeholder="履约前/中/后的标准操作步骤与注意事项" />
+        <el-form-item :label="`SOP 正文（纯文本 ≤20000 字，当前 ${sopWordCount}/20000）`">
+          <div style="border:1px solid #dcdfe6;border-radius:4px;z-index:100;">
+            <Toolbar :editor="sopEditorRef" :defaultConfig="sopToolbarConfig" style="border-bottom:1px solid #dcdfe6;" />
+            <Editor :defaultConfig="sopEditorConfig" v-model="sopForm.sop_content" style="height:320px;overflow-y:hidden;" @onCreated="onSopEditorCreated" @onChange="onSopEditorChange" />
+          </div>
         </el-form-item>
         <el-form-item label="封面图 fileID (可选, 暂留空)">
           <el-input v-model="sopForm.cover_fileid" placeholder="cloud://..." />
@@ -400,9 +403,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, shallowRef, onBeforeUnmount } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { call } from '../api/admin.js';
+import '@wangeditor/editor/dist/css/style.css';
+import { Editor, Toolbar } from '@wangeditor/editor-for-vue';
 
 const activeTab = ref('thresholds');
 const data = ref(null);
@@ -702,6 +707,44 @@ const sopForm = reactive({
 function resetSopForm() {
   Object.assign(sopForm, { _id: '', scene_code: '', name: '', brief: '', sop_content: '', cover_fileid: '', sort: 0, status: 'online' });
 }
+
+// ── SOP 富文本编辑器（wangEditor v5）：图片走 upload_image(use=sop)，视频阶段1仅粘贴 cloud:// 链接 ──
+const sopEditorRef = shallowRef(null);
+const sopWordCount = ref(0);
+const sopToolbarConfig = { excludeKeys: ['uploadVideo'] }; // 禁「上传视频」，保留「插入视频」粘贴链接
+const sopEditorConfig = {
+  placeholder: '履约前/中/后的标准操作步骤与注意事项，可插图/粘贴视频链接',
+  MENU_CONF: {
+    uploadImage: {
+      async customUpload(file, insertFn) {
+        // 复用活动图压缩链路：use=sop 走 banner 分支（限宽 750、不强制 1:1）
+        const b64 = await compressImageForUpload(file, 'sop');
+        if (!b64) { ElMessage.warning('图片处理后仍过大，请在云开发控制台→存储上传后粘贴 cloud:// 链接'); return; }
+        const r = await call('upload_image', { use: 'sop', fileData: b64 });
+        if (r.ok && r.data && r.data.fileID) {
+          insertFn(r.data.fileID, file.name, r.data.fileID); // <img src="cloud://...">，小程序端转临时链接渲染
+        } else {
+          ElMessage.error(r.msg || r.code || '图片上传失败');
+        }
+      }
+    }
+  }
+};
+function plainTextLen(html) {
+  // 与后端 action_service_sop.stripTags 口径一致：去标签/实体后按纯文本计字数
+  return String(html || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().length;
+}
+function onSopEditorCreated(editor) { sopEditorRef.value = editor; }
+function onSopEditorChange(editor) {
+  sopWordCount.value = plainTextLen(editor ? editor.getHtml() : sopForm.sop_content);
+}
+onBeforeUnmount(() => { const e = sopEditorRef.value; if (e) { e.destroy(); sopEditorRef.value = null; } });
+
 async function loadSopProjects() {
   sopLoading.value = true;
   const r = await call('sop_project_list');
@@ -712,6 +755,7 @@ async function loadSopProjects() {
 function openAddSop() {
   sopIsEdit.value = false;
   resetSopForm();
+  sopWordCount.value = 0;
   sopDialog.value = true;
 }
 function openEditSop(row) {
@@ -720,6 +764,7 @@ function openEditSop(row) {
     _id: row._id, scene_code: row.scene_code, name: row.name, brief: row.brief,
     sop_content: row.sop_content, cover_fileid: row.cover_fileid, sort: row.sort, status: row.status
   });
+  sopWordCount.value = plainTextLen(row.sop_content);
   sopDialog.value = true;
 }
 async function saveSop() {

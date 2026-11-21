@@ -356,6 +356,7 @@ const HANDLERS = Object.assign({},
   require('./action_scene'),
   require('./action_nearby'),
   require('./action_misc'),
+  require('./action_service'),
 );
 
 exports.main = async (event, context) => {

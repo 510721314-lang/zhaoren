@@ -13,6 +13,16 @@ function sceneWhitelist(config) {
   return ((config && config.scene_list) || []).map((s) => String(s.code || '').toUpperCase());
 }
 
+// 富文本口径：去掉 HTML 标签与实体，返回纯文本（用于字数统计/校验，标签不计入）
+function stripTags(html) {
+  return String(html || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // 列表：可按 scene_code 过滤；仅返回未软删；按 scene_code + sort 排序；下发正文供后台编辑回填
 async function sop_project_list(ctx) {
   const { event, ok, col } = ctx;
@@ -30,7 +40,7 @@ async function sop_project_list(ctx) {
       name: d.name || '',
       brief: d.brief || '',
       sop_content: d.sop_content || '',
-      sop_content_len: (d.sop_content || '').length,
+      sop_content_len: stripTags(d.sop_content || '').length,
       cover_fileid: d.cover_fileid || '',
       sort: Number(d.sort) || 0,
       status: d.status || 'offline',
@@ -52,7 +62,8 @@ async function sop_project_save(ctx) {
   if (!name || name.length > 30) return fail('sop_bad_name', '项目名须为 1-30 字');
   const brief = String(event.brief || '').trim().slice(0, 100);
   const sopContent = String(event.sop_content || '');
-  if (sopContent.length > 5000) return fail('sop_bad_content', 'SOP 正文不得超过 5000 字');
+  // 富文本口径：按去标签后的纯文本字数限 20000（HTML 标签/实体不计入）
+  if (stripTags(sopContent).length > 20000) return fail('sop_bad_content', 'SOP 正文纯文本不得超过 20000 字');
   const coverFileid = String(event.cover_fileid || '').trim().slice(0, 200);
   const status = event.status === 'offline' ? 'offline' : 'online';
   const sortRaw = parseInt(event.sort, 10);

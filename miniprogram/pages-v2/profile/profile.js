@@ -102,7 +102,7 @@ Page({
       this.setData({ isGuest: !require('../../utils/bootstrap.js').isLoggedIn() });
     } catch (e) {}
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      this.getTabBar().setData({ selected: 3 });
+      this.getTabBar().setData({ selected: 4 });
     }
     // 入驻进度卡(独立于 fetchUser 30s 防抖, 审核通过/考完试返回即可见状态变化)
     this.fetchOnboarding();

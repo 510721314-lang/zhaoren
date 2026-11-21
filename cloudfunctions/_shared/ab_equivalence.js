@@ -726,6 +726,8 @@ function cleanupBaselineTmp(dirs) {
     'pm_cashier_ok', 'auto_pm_cashier_info',
     // 2026-11-21 批1: 新增服务项目与 SOP 管理 action(基线 admin_unknown_action); 行为由 admin-action-ops.entry.test.js 新增 4 例独立守护
     'auto_admin_sop_project_list', 'auto_admin_sop_project_save', 'auto_admin_sop_project_delete', 'auto_admin_sop_project_status',
+    // 2026-11-21 批2: 小程序端服务项目只读浏览 action(基线 home_unknown_action); 行为由云端测试面板 + 小程序模拟器独立守护
+    'auto_ha_service_list', 'auto_ha_service_detail',
   ]);
   let fails = 0, known = 0;
   try {
