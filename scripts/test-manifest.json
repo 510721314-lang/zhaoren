@@ -140,7 +140,11 @@
     "audit_verify: openid 非法 → av_bad_openid",
     "report_handle: report_id 非法 → report_bad_id",
     "report_handle: 无处理说明 → report_no_note",
-    "report_handle: 举报不存在 → report_not_found"
+    "report_handle: 举报不存在 → report_not_found",
+    "sop_project_save: scene_code 空 → sop_bad_scene",
+    "sop_project_save: scene_code 不在白名单 → sop_scene_not_found",
+    "sop_project_delete: _id 空 → sop_bad_id",
+    "sop_project_status: status 非法 → sop_bad_status"
   ],
   "cloudfunctions/_shared/admin-action-partner.entry.test.js": [
     "partner_detail: openid 非法 → detail_bad_openid",

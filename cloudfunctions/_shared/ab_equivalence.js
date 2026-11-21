@@ -724,6 +724,8 @@ function cleanupBaselineTmp(dirs) {
     // 2026-11-09 AA 承诺书全档对齐补全: cashier_info 的 need_aa_promise 与 mock_pay 全档强校验同口径
     // (0-50 档亦需勾选 → true), 修复 0-50 档收银台无勾选入口死路; 行为由 payment-mock.entry.test.js 守护。
     'pm_cashier_ok', 'auto_pm_cashier_info',
+    // 2026-11-21 批1: 新增服务项目与 SOP 管理 action(基线 admin_unknown_action); 行为由 admin-action-ops.entry.test.js 新增 4 例独立守护
+    'auto_admin_sop_project_list', 'auto_admin_sop_project_save', 'auto_admin_sop_project_delete', 'auto_admin_sop_project_status',
   ]);
   let fails = 0, known = 0;
   try {

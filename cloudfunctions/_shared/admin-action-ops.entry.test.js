@@ -315,4 +315,41 @@ test('report_handle: 举报不存在 → report_not_found', async () => {
   assert.strictEqual(r.code, 'report_not_found');
 });
 
+// ── sop_project_*（批1，feature-plan-service-sop-20261121）：入参校验在查库前返回，零副作用 ──
+test('sop_project_save: scene_code 空 → sop_bad_scene', async () => {
+  const store = baseStore('dev', [ADMIN]);
+  store.admin_config.global.scene_list = [{ code: 'W1', name: '测试' }];
+  const sdk = makeSdk({ openid: '', store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sop_project_save', name: 'n', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'sop_bad_scene');
+});
+
+test('sop_project_save: scene_code 不在白名单 → sop_scene_not_found', async () => {
+  const store = baseStore('dev', [ADMIN]);
+  store.admin_config.global.scene_list = [{ code: 'W1', name: '测试' }];
+  const sdk = makeSdk({ openid: '', store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sop_project_save', scene_code: 'W999', name: 'n', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'sop_scene_not_found');
+});
+
+test('sop_project_delete: _id 空 → sop_bad_id', async () => {
+  const sdk = makeSdk({ openid: '', store: baseStore('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sop_project_delete', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'sop_bad_id');
+});
+
+test('sop_project_status: status 非法 → sop_bad_status', async () => {
+  const sdk = makeSdk({ openid: '', store: baseStore('dev', [ADMIN]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'sop_project_status', _id: DOC, status: 'xxx', mock_openid: ADMIN }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'sop_bad_status');
+});
+
 test.after(() => { Module._load = origLoad; });

@@ -19,7 +19,9 @@ const COLLECTIONS = [
   // 2026-10-10 补登记: 投诉记录(order-action complaint 写入, 后台纠纷处理详情时间线数据源)
   'complaint',
   // 2026-10-26 学习考试中心 S2(26→31): 题目 SSOT / 考试留痕 / 证书 / 学习进度 / 学习内容
-  'questions', 'exam_sessions', 'certificates', 'study_records', 'study_content'
+  'questions', 'exam_sessions', 'certificates', 'study_records', 'study_content',
+  // 2026-11-21 批1：服务项目与 SOP（feature-plan-service-sop D2 已批），纯台账登记，种子数据后补
+  'service_sop'
 ];
 
 // 索引清单(rules.md 第五节第7条索引设计规范)
@@ -101,7 +103,9 @@ const INDEXES = [
   //   法律文档版本库 (doc_type, scope, version) 唯一（防并发发布产生重复版本）
   { coll: 'legal_doc', name: 'uniq_doc_type_scope_version', keys: { doc_type: 1, scope: 1, version: 1 }, unique: true },
   // blog_like 点赞幂等(2026-11-19 N1 评审修复): (post_id, openid) 唯一防并发双击重复计数, 已 listIndexes 实证
-  { coll: 'blog_like', name: 'uk_post_openid', keys: { post_id: 1, openid: 1 }, unique: true }
+  { coll: 'blog_like', name: 'uk_post_openid', keys: { post_id: 1, openid: 1 }, unique: true },
+  // 服务项目 SOP（2026-11-21 批1，feature-plan-service-sop）：后台/小程序按场景列 + sort 排序；索引需控制台手工建（wx-server-sdk 无 createIndex）
+  { coll: 'service_sop', name: 'idx_scene_sort', keys: { scene_code: 1, sort: 1 } }
 ];
 
 // 运营参数种子配置(PRD 附录M / 8.5节 可运营参数 · SSOT)

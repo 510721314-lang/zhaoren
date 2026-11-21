@@ -161,6 +161,36 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
+
+      <!-- ── Tab 4: 服务项目与 SOP（批1，feature-plan-service-sop-20261121） ── -->
+      <el-tab-pane label="服务项目" name="service_sop">
+        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+          <el-button type="primary" :loading="sopLoading" @click="loadSopProjects">刷新</el-button>
+          <el-button type="primary" plain @click="openAddSop">＋ 新增服务项目</el-button>
+          <el-tag type="info" size="small">仅 online 状态对小程序端可见；scene_code 须在场景白名单内</el-tag>
+        </div>
+        <el-table :data="sopProjects" v-loading="sopLoading" border stripe size="small">
+          <el-table-column prop="scene_code" label="场景" width="90" />
+          <el-table-column prop="name" label="项目名" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="brief" label="简介" min-width="160" show-overflow-tooltip />
+          <el-table-column label="SOP 长度" width="90">
+            <template #default="{row}">{{ row.sop_content_len || 0 }} 字</template>
+          </el-table-column>
+          <el-table-column prop="sort" label="排序" width="70" sortable />
+          <el-table-column label="状态" width="80">
+            <template #default="{row}">
+              <el-tag :type="row.status === 'online' ? 'success' : 'info'" size="small">{{ row.status === 'online' ? '上架' : '下架' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="220" fixed="right">
+            <template #default="{row}">
+              <el-button size="small" type="primary" text @click="openEditSop(row)">编辑</el-button>
+              <el-button size="small" type="warning" text :loading="sopBusy === row._id" @click="toggleSopStatus(row)">{{ row.status === 'online' ? '下架' : '上架' }}</el-button>
+              <el-button size="small" type="danger" text :loading="sopBusy === row._id" @click="deleteSop(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 参数变更确认弹窗(diff + 原因) -->
@@ -326,6 +356,44 @@
       <template #footer>
         <el-button @click="actDialog = false">取消</el-button>
         <el-button type="primary" :loading="actSaving" @click="doSubmitActivity">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 服务项目编辑弹窗（批1，feature-plan-service-sop） -->
+    <el-dialog v-model="sopDialog" :title="sopIsEdit ? '编辑服务项目' : '新增服务项目'" width="560px">
+      <el-form label-position="top">
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="关联场景" required>
+            <el-select v-model="sopForm.scene_code" placeholder="选择场景" style="width:100%">
+              <el-option v-for="s in sceneList" :key="s.code" :label="`${s.name} (${s.code})`" :value="s.code" />
+            </el-select>
+          </el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="项目名 (1-30 字)" required>
+            <el-input v-model="sopForm.name" maxlength="30" show-word-limit placeholder="如: 就医陪同" />
+          </el-form-item></el-col>
+        </el-row>
+        <el-form-item label="简介 (≤100 字)">
+          <el-input v-model="sopForm.brief" maxlength="100" show-word-limit placeholder="一句话说明该服务项目" />
+        </el-form-item>
+        <el-form-item label="SOP 正文 (≤5000 字, 纯文字)">
+          <el-input v-model="sopForm.sop_content" type="textarea" :rows="8" maxlength="5000" show-word-limit placeholder="履约前/中/后的标准操作步骤与注意事项" />
+        </el-form-item>
+        <el-form-item label="封面图 fileID (可选, 暂留空)">
+          <el-input v-model="sopForm.cover_fileid" placeholder="cloud://..." />
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="8"><el-form-item label="排序 (越小越靠前)"><el-input-number v-model="sopForm.sort" :min="0" :max="9999" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="状态">
+            <el-select v-model="sopForm.status" style="width:100%">
+              <el-option label="上架" value="online" />
+              <el-option label="下架" value="offline" />
+            </el-select>
+          </el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="sopDialog = false">取消</el-button>
+        <el-button type="primary" :loading="sopSaving" @click="saveSop">确认保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -621,6 +689,78 @@ async function doDeleteActivity(row) {
   else { ElMessage.error(r.msg || r.code || '删除失败'); }
 }
 
+// ───────── 服务项目与 SOP 管理（批1，feature-plan-service-sop-20261121） ─────────
+const sopProjects = ref([]);
+const sopLoading = ref(false);
+const sopBusy = ref('');
+const sopDialog = ref(false);
+const sopIsEdit = ref(false);
+const sopSaving = ref(false);
+const sopForm = reactive({
+  _id: '', scene_code: '', name: '', brief: '', sop_content: '', cover_fileid: '', sort: 0, status: 'online'
+});
+function resetSopForm() {
+  Object.assign(sopForm, { _id: '', scene_code: '', name: '', brief: '', sop_content: '', cover_fileid: '', sort: 0, status: 'online' });
+}
+async function loadSopProjects() {
+  sopLoading.value = true;
+  const r = await call('sop_project_list');
+  sopLoading.value = false;
+  if (r.ok) sopProjects.value = r.data?.list || [];
+  else ElMessage.error(r.msg || '加载服务项目失败');
+}
+function openAddSop() {
+  sopIsEdit.value = false;
+  resetSopForm();
+  sopDialog.value = true;
+}
+function openEditSop(row) {
+  sopIsEdit.value = true;
+  Object.assign(sopForm, {
+    _id: row._id, scene_code: row.scene_code, name: row.name, brief: row.brief,
+    sop_content: row.sop_content, cover_fileid: row.cover_fileid, sort: row.sort, status: row.status
+  });
+  sopDialog.value = true;
+}
+async function saveSop() {
+  sopForm.name = String(sopForm.name || '').trim();
+  sopForm.brief = String(sopForm.brief || '').trim();
+  if (!sopForm.scene_code) { ElMessage.warning('请选择关联场景'); return; }
+  if (!sopForm.name) { ElMessage.warning('项目名必填'); return; }
+  sopSaving.value = true;
+  const payload = {
+    scene_code: sopForm.scene_code, name: sopForm.name, brief: sopForm.brief,
+    sop_content: sopForm.sop_content, cover_fileid: sopForm.cover_fileid,
+    sort: sopForm.sort, status: sopForm.status
+  };
+  if (sopIsEdit.value) payload._id = sopForm._id;
+  const r = await call('sop_project_save', payload);
+  sopSaving.value = false;
+  if (r.ok) {
+    ElMessage.success(sopIsEdit.value ? '已更新' : '已创建');
+    sopDialog.value = false;
+    await loadSopProjects();
+  } else { ElMessage.error(r.msg || r.code || '保存失败'); }
+}
+async function toggleSopStatus(row) {
+  const next = row.status === 'online' ? 'offline' : 'online';
+  sopBusy.value = row._id;
+  const r = await call('sop_project_status', { _id: row._id, status: next });
+  sopBusy.value = '';
+  if (r.ok) { ElMessage.success(next === 'online' ? '已上架' : '已下架'); await loadSopProjects(); }
+  else { ElMessage.error(r.msg || r.code || '操作失败'); }
+}
+async function deleteSop(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除服务项目「${row.name}」? 软删除, 小程序端不再展示。`, '删除确认', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' });
+  } catch (_) { return; }
+  sopBusy.value = row._id;
+  const r = await call('sop_project_delete', { _id: row._id });
+  sopBusy.value = '';
+  if (r.ok) { ElMessage.success('已删除'); await loadSopProjects(); }
+  else { ElMessage.error(r.msg || r.code || '删除失败'); }
+}
+
 // ───────── 场景列表 ─────────
 const sceneList = computed(() => data.value?.scene_list || []);
 const builtinCount = computed(() => sceneList.value.filter((s) => s.builtin).length);
@@ -773,6 +913,7 @@ async function doOptSubmit() {
 onMounted(async () => {
   await load();
   await loadActivities();
+  await loadSopProjects();
 });
 </script>
 
