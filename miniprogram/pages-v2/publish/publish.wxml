@@ -5,9 +5,8 @@
     </view>
   </nav-bar>
 
-  <view style="height: {{statusBarHeight + 46}}px;"></view>
-
   <!-- 发布页顶部 Banner（后台可配；未配置/空数据时整块不渲染，不留空白） -->
+  <!-- 2026-11-22: 移除重复的 statusBarHeight+46 占位符 —— nav-bar(fixed 默认 true) 自带 .navbar__placeholder 已占位, 叠加导致 banner 上方多出一个导航栏高的空白 -->
   <swiper class="pub__banner" wx:if="{{banners.length}}" indicator-dots autoplay circular interval="5000" duration="500">
     <block wx:for="{{banners}}" wx:key="id">
       <swiper-item bindtap="onBannerTap" data-link="{{item.link}}">
