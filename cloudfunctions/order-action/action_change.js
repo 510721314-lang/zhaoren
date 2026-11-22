@@ -3,7 +3,8 @@
 //   D1「其他」不计确认位：接受后写 order.extra_note + 审计，不重置 8 位；
 //   D2 S2/S3 不开放地点/内容/费用变更（时间走 pending_modify、加时走 pending_extend）；
 //      2026-11-05 例外：S2 的地点和内容另见 action_change_s2.js（费用仍禁止）；
-//   D3 拒绝/超时：值不变、8 个确认位原样保留；只有接受生效才重置；
+//   D3 拒绝/超时：值不变、8 个确认位原样保留；
+//   2026-11-22 修订：接受生效后仅把变更项置双确认，其余三项确认位保持原状（原「8 位全重置」作废，与 S2 口径统一）；
 //   D4 变更不顺延 S1 15 分钟：expire_at = min(发起+15min, created_at+S1 时限)；
 //   D5 次数：每项 ≤2 次/单，全单 ≤4 次；
 //   D6 费用变更 S1 内直接改总额（无补差）。
@@ -229,7 +230,7 @@ async function change_apply(ctx) {
 // ── 对方反馈：change_respond（accept / reject / 超时收口）───────────────
 async function change_respond(ctx) {
   const { event, order_id, openid, getOrder, roleOf, getConfig, col, _, log, writeAudit,
-    getConfirmation, writeNotice, FIELD_CN, db, wxCtx, CONFIRM_FIELDS,
+    getConfirmation, writeNotice, FIELD_CN, db, wxCtx,
     splitOrderAmount, reasonMaxLen } = ctx;
   const { decision, token } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
@@ -290,21 +291,15 @@ async function change_respond(ctx) {
     return { ok: true, data: { field: pc.field, accepted: false } };
   }
 
-  // 接受：先落确认单（重置 8 位），再落订单字段（CAS token）
+  // 接受：先落确认单（2026-11-22 口径变更：变更项双确认、其余三项保持原确认位），再落订单字段（CAS token）
   let confPrev = null; // 2026-11-04: 订单 CAS 落空时回滚确认单，防「确认单已是新值、订单仍旧值」
   if (pc.field !== 'other') {
     const conf = await getConfirmation(order_id);
     if (!conf) return { ok: false, code: 'oa_no_confirm_doc', msg: '确认单不存在' };
-    const newItems = {};
-    // 2026-11-05：费用变更接受即双方就新价达成一致 → 费用位直接置双确认，不再让双方重复点「确认费用」；其余三项照旧重置
-    for (const f of CONFIRM_FIELDS) {
-      const agreed = pc.field === 'fee' && f === 'fee';
-      newItems[f] = {
-        value: f === pc.field ? pc.new_value : conf.items[f].value,
-        user_ok: agreed,
-        partner_ok: agreed
-      };
-    }
+    // 2026-11-22 用户裁定：发起方提出新值、接受方同意 → 双方就该项已达成一致，
+    // 变更项直接置双确认（与费用、S2 阶段口径统一）；其余三项值未变，确认位原样保留，不再全量清零
+    const newItems = Object.assign({}, conf.items);
+    newItems[pc.field] = { value: pc.new_value, user_ok: true, partner_ok: true };
     const v = conf.version || 1;
     const occ = await col('order_confirmations').where({ _id: conf._id, version: v })
       .update({ data: { items: newItems, version: v + 1, updated_at: now } });
@@ -345,15 +340,12 @@ async function change_respond(ctx) {
 
   await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_change_accept',
     target_type: 'order', target_id: order_id,
-    detail: { field: pc.field, new_value: pc.new_value, bits_reset: pc.field !== 'other' },
+    detail: { field: pc.field, new_value: pc.new_value, bits_reset: false, item_confirmed: pc.field !== 'other' },
     result: 'ok', client_ip: clientIp, device });
 
-  // 生效通知：发起人需重新确认（其他项不涉及确认位）
+  // 生效通知：2026-11-22 起变更项接受即双方确认，其余项不动
   if (pc.field !== 'other') {
-    // 2026-11-05：费用项接受后已自动确认，通知文案不能再写「四项已重置」
-    const acceptBody = pc.field === 'fee'
-      ? '对方接受了「费用」的变更,费用已确认,其余三项请重新确认'
-      : `对方接受了「${FIELD_CN[pc.field] || pc.field}」的变更,四项确认已重置,请重新确认`;
+    const acceptBody = `对方接受了「${FIELD_CN[pc.field] || pc.field}」的变更,该项已确认,其余项保持不变`;
     await writeNotice({
       to_openid: proposer, order_id, type: 'change_accept',
       title: '变更已生效',
@@ -368,8 +360,8 @@ async function change_respond(ctx) {
       action_key: 'jump_order', action_payload: { order_id }
     });
   }
-  log.d(`change accept: order=${order.order_no} field=${pc.field} by=${role} bits_reset=${pc.field !== 'other'}`);
-  return { ok: true, data: { field: pc.field, accepted: true, bits_reset: pc.field !== 'other' } };
+  log.d(`change accept: order=${order.order_no} field=${pc.field} by=${role} item_confirmed=${pc.field !== 'other'}`);
+  return { ok: true, data: { field: pc.field, accepted: true, bits_reset: false, item_confirmed: pc.field !== 'other' } };
 }
 
 // 超时自动拒绝的双向站内通知（发起人/接收人文案区分）

@@ -529,9 +529,7 @@ function onRespondChange(page, e) {
     content: isAccept
       ? (isS2
         ? `「${pc.field_cn}」将改为 ${pc.new_text}。接受后按新信息履约，其余确认项不受影响。`
-        : (pc.field === 'fee'
-          ? `「${pc.field_cn}」将改为 ${pc.new_text}。接受后费用即确认生效，其余三项需重新确认。`
-          : `「${pc.field_cn}」将改为 ${pc.new_text}。接受后四项确认全部重置，需双方重新确认。`))
+        : `「${pc.field_cn}」将改为 ${pc.new_text}。接受后该项即视为双方已确认，其余项确认状态不变。`)
       : `「${pc.field_cn}」保持原值 ${pc.old_text}，已完成的确认位不受影响。`,
     confirmText: isAccept ? '接受' : '拒绝',
     cancelText: '取消',
@@ -549,13 +547,11 @@ function onRespondChange(page, e) {
           wx.showModal({ title: '处理失败', content: r.msg || '请稍后重试', showCancel: false });
           return;
         }
-        const d = r.data || {};
         wx.showToast({
           title: !isAccept
             ? '已拒绝,原值不变'
             : (isS2 ? '已接受,信息已更新'
-              : (pc.field === 'fee' ? '已接受,费用已确认'
-                : (d.bits_reset ? '已接受,四项已重置' : '已接受,已记录其他事项'))),
+              : (pc.field === 'other' ? '已接受,已记录其他事项' : '已接受,该项已确认')),
           icon: 'none', duration: 2000
         });
         return page.refreshConfirmation();

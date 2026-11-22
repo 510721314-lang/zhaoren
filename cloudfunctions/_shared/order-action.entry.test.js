@@ -841,26 +841,28 @@ test('update_item / confirm_item / confirm_all: 有在途变更时一律暂停�
   assert.strictEqual(c.code, 'oa_change_pending');
 });
 
-test('change_respond: 拒绝接受时清 8 位确认 + 落新值（accept）', async () => {
+test('change_respond: 接受后变更项双确认、其余三项保持原确认位（accept）', async () => {
   const NEW = Date.now() + 7200000;
   const pending = { field: 'time', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: NEW };
   const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
   assert.strictEqual(r.ok, true);
-  assert.strictEqual(r.data.bits_reset, true);
+  assert.strictEqual(r.data.bits_reset, false, '2026-11-22 起不再全量重置');
+  assert.strictEqual(r.data.item_confirmed, true, '变更项视为双方已确认');
   const cw = (sdk.writes.order_confirmations || [])[0];
   assert.ok(cw, '应先写确认单');
   assert.strictEqual(cw.data.items.time.value, NEW, '确认单时间值同步为新值');
-  assert.strictEqual(cw.data.items.time.user_ok, false, '8 位全重置');
-  assert.strictEqual(cw.data.items.time.partner_ok, false, '8 位全重置');
-  assert.strictEqual(cw.data.items.fee.user_ok, false, '未变更项同样重置');
+  assert.strictEqual(cw.data.items.time.user_ok, true, '接受方视为已确认');
+  assert.strictEqual(cw.data.items.time.partner_ok, true, '发起方已声明新值，视为已确认');
+  assert.strictEqual(cw.data.items.fee.user_ok, true, '未变更项保持原确认位');
+  assert.strictEqual(cw.data.items.location.partner_ok, true, '未变更项保持原确认位');
   const ow = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
   assert.strictEqual(ow.data.start_time, NEW, '接受后订单时间生效');
   assert.ok('pending_change' in ow.data, '应清在途变更');
 });
 
-test('change_respond: 费用变更接受后费用位自动双确认，其余三项重置', async () => {
+test('change_respond: 费用变更接受后费用位双确认，其余三项保持原确认位', async () => {
   const NEW_FEE = 12000;
   const pending = { field: 'fee', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: NEW_FEE };
   const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
@@ -872,9 +874,9 @@ test('change_respond: 费用变更接受后费用位自动双确认，其余三�
   assert.strictEqual(cw.data.items.fee.value, NEW_FEE, '确认单费用值同步为新价');
   assert.strictEqual(cw.data.items.fee.user_ok, true, '接受方视为已确认费用');
   assert.strictEqual(cw.data.items.fee.partner_ok, true, '发起方已声明新价，视为已确认');
-  assert.strictEqual(cw.data.items.time.user_ok, false, '时间位仍重置');
-  assert.strictEqual(cw.data.items.location.partner_ok, false, '地点位仍重置');
-  assert.strictEqual(cw.data.items.content.user_ok, false, '内容位仍重置');
+  assert.strictEqual(cw.data.items.time.user_ok, true, '未变更项保持原确认位');
+  assert.strictEqual(cw.data.items.location.partner_ok, true, '未变更项保持原确认位');
+  assert.strictEqual(cw.data.items.content.user_ok, true, '未变更项保持原确认位');
   const ow = (sdk.writes.order_main || []).find((x) => x.where && x.where._id === OID);
   assert.strictEqual(ow.data.total_fen, NEW_FEE, '订单总额生效');
 });
