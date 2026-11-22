@@ -375,6 +375,8 @@ function buildOrderView(d, now = Date.now()) {
     start_confirm_text: startConfirmText,                 // 阶段C/D: S2_6 需求方确认按钮文案
     location: d.location || {},
     service_address: d.service_address || '',              // 履约地址(手填门牌): 2026-11-22 补映射, 原白名单缺失致详情页 wx:if 恒假不展示
+    // 2026-11-22: 四确认单里「地点」项的最终确认值(双方确认后的地点), 详情页履约地址优先取它
+    confirmed_location_name: (d.confirm && d.confirm.items && d.confirm.items.location && d.confirm.items.location.value && d.confirm.items.location.value.name) || '',
     service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',
     service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
     duration_hours: d.duration_h || 0,

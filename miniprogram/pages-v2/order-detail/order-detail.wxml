@@ -65,7 +65,8 @@
         <view class="od__summary-line" wx:if="{{orderSummary.l2}}">{{orderSummary.l2}}</view>
         <view class="od__summary-line" wx:if="{{orderSummary.l3}}">{{orderSummary.l3}}</view>
       </view>
-      <view class="od__row" wx:if="{{order.service_address || (order.location && order.location.name)}}"><text class="od__label">履约地址</text><text class="od__val">{{order.service_address || (order.location && order.location.name)}}</text></view>
+      <!-- 履约地址(2026-11-22): 优先四确认单里双方最终确认的地点, 其次手填门牌; 不再回退地图 POI 短名 -->
+      <view class="od__row" wx:if="{{order.confirmed_location_name || order.service_address}}"><text class="od__label">履约地址</text><text class="od__val">{{order.confirmed_location_name || order.service_address}}</text></view>
       <view class="od__row" wx:if="{{order.partner_name}}"><text class="od__label">耍伴</text><text class="od__val">{{order.partner_name}}</text></view>
       <!-- 打赏记录(双方可见; 发单人"已打赏", 耍伴"收到打赏", 累计金额+逐笔明细) -->
       <view class="od__row" wx:if="{{order.tip_total_fen > 0}}">

@@ -39,11 +39,14 @@
 }
 
 /* 发布页顶部 Banner（未配置时 WXML 整块不渲染；var token 自适应暗色模式） */
+/* 2026-11-22: 上移贴顶 + 左右通栏到屏幕边缘(用负边距抵消 .pub 的 20rpx 水平内边距), 去圆角 */
 .pub__banner {
-  margin-top: 20rpx;
-  width: 100%;
+  margin-top: 0;
+  margin-left: -20rpx;
+  margin-right: -20rpx;
+  width: auto;
   height: 280rpx;
-  border-radius: var(--r-lg);
+  border-radius: 0;
   overflow: hidden;
   background: var(--bg-card);
 }
