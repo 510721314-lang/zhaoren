@@ -219,6 +219,19 @@
     </block>
   </ui-card>
 
+  <!-- 2026-11-22: 消息提示开关(提示音/震动), 覆盖订单详情页/聊天页/附近新单 -->
+  <view class="pf__acct-title">消息提示</view>
+  <ui-card ext-class="pf__card-wrap">
+    <view style="display:flex;align-items:center;justify-content:space-between;padding:24rpx 0;">
+      <text>提示音</text>
+      <switch checked="{{alertSound}}" color="#07C160" data-kind="sound" bindchange="onToggleAlert" />
+    </view>
+    <view style="display:flex;align-items:center;justify-content:space-between;padding:24rpx 0;border-top:1rpx solid #f2f2f2;">
+      <text>震动</text>
+      <switch checked="{{alertVibrate}}" color="#07C160" data-kind="vibrate" bindchange="onToggleAlert" />
+    </view>
+  </ui-card>
+
   <!-- U6 账号与安全 -->
   <view class="pf__acct-title">账号与安全</view>
   <view class="pf__logout pf__logout--exit" bindtap="onExitLogin">退出登录</view>

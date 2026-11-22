@@ -8,6 +8,7 @@ const { callCloud } = require('./cloud.js');
 const { ORDER_STATUS } = require('../config/enums.js');
 const { fmtNoticeTime } = require('./order-view.js');
 const once = require('./once-anchor.js');
+const { notify } = require('./alert-feedback.js'); // 2026-11-22: 统一震动+提示音
 
 // 迁自 order-detail.js clearTimers(定时器清理; 不依赖 wx, 仅 page 实例属性)
 function clearTimers(page) {
@@ -74,7 +75,7 @@ function startTipPoll(page) {
       };
       const respondHit = freshPrompt.find((n) => RESPOND_ALERT[n.type]);
       if (respondHit) {
-        try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+        notify('urgent'); // 2026-11-22: 重型震动 + 提示音(原仅震动)
         wx.showModal({
           title: RESPOND_ALERT[respondHit.type],
           content: respondHit.body || '',
@@ -82,6 +83,7 @@ function startTipPoll(page) {
           confirmText: '知道了'
         });
       } else if (freshPrompt.length) {
+        notify('order'); // 2026-11-22: 一般订单动态(含聊天消息)震动+提示音
         const key = freshPrompt[0];
         const TITLE_OF = {
           accept: '有人接单了', paid: '对方已支付',

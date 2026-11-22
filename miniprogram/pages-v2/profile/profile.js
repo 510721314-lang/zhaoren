@@ -7,6 +7,7 @@ const { CREDIT_LEVEL, ORDER_STATUS, normalizeStatus } = require('../../config/en
 
 const { callCloud } = require('../../utils/cloud.js');
 const once = require('../../utils/once-anchor.js');
+const { getSettings: getAlertSettings, setSettings: setAlertSettings } = require('../../utils/alert-feedback.js'); // 2026-11-22: 消息提示开关
 
 // showModal fail 兜底(部分真机弹窗静默失败时给反馈)
 function modalFail() {
@@ -82,7 +83,10 @@ Page({
     editSaving: false,
     editNick: '',
     editAvatar: '',         // 弹层内预览(当前头像或新选临时图)
-    editAvatarTemp: ''      // 新选图片临时路径, 保存时才上传
+    editAvatarTemp: '',     // 新选图片临时路径, 保存时才上传
+    // 2026-11-22: 消息提示开关(提示音/震动), 初始值 onLoad 从 Storage 读取
+    alertSound: true,
+    alertVibrate: true
   },
   onShareAppMessage() {
     return {
@@ -94,6 +98,17 @@ Page({
 
   onLoad() {
     this.fetchUser();
+    // 2026-11-22: 初始化消息提示开关(提示音/震动)
+    const a = getAlertSettings();
+    this.setData({ alertSound: a.sound, alertVibrate: a.vibrate });
+  },
+
+  // 2026-11-22: 消息提示开关(提示音/震动), 落 Storage 即时生效
+  onToggleAlert(e) {
+    const kind = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.kind) || '';
+    const val = !!(e.detail && e.detail.value);
+    const next = setAlertSettings(kind === 'sound' ? { sound: val } : { vibrate: val });
+    this.setData({ alertSound: next.sound, alertVibrate: next.vibrate });
   },
 
   onShow() {

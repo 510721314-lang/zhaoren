@@ -10,6 +10,7 @@
 // @VERIFIED 2026-11-10 已真机验证：回前台立即补拉一次提示，不再等首个轮询 tick（onShow，留页面未动）
 
 const once = require('./once-anchor.js');
+const { notify } = require('./alert-feedback.js'); // 2026-11-22: 统一震动+提示音
 
 // ── 分区一：applyConfirmation 的 setData 回调内弹窗群（归属表段9-15，原 chat.js L350-475 逐字）──
 // 状态提示 catch-up 模式: 每状态只提示一次, 不依赖轮询跳变/瞬时窗口(根治"提示不跳出/丢失"类问题)
@@ -185,7 +186,7 @@ function applyNotices(page, d) {
           && !commShown[n.id + '|' + (n.body || '')])
       : null;
     if (respondHit) {
-      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+      notify('urgent'); // 2026-11-22: 重型震动 + 提示音(原仅震动)
       wx.showModal({
         title: RESPOND_ALERT[respondHit.type],
         content: respondHit.body || '',
@@ -193,7 +194,7 @@ function applyNotices(page, d) {
         confirmText: '知道了'
       });
     } else if (modifyHit) {
-      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+      notify('urgent'); // 2026-11-22: 重型震动 + 提示音(原仅震动)
       wx.showModal({
         title: '对方发起改期',
         content: `${modifyHit.body || '对方申请变更服务时间'}\n请在倒计时内处理`,
@@ -207,7 +208,7 @@ function applyNotices(page, d) {
       // 先记账再弹窗: 弹窗未关时下一轮轮询(5s)不会重复弹出
       commShown[commHit.id + '|' + (commHit.body || '')] = 1;
       once.putMap('chat_comm:' + nOid, commShown);
-      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+      notify('urgent'); // 2026-11-22: 重型震动 + 提示音(原仅震动)
       wx.showModal({
         title: '对方发起沟通',
         content: `${commHit.body || '对方修改了确认项'}\n请回到上方四确认面板查看并重新确认`,
@@ -221,6 +222,7 @@ function applyNotices(page, d) {
       });
     } else {
       const key = fresh[0];
+      notify('order'); // 2026-11-22: 一般订单动态震动+提示音
       const TITLE_OF = {
         accept: '有人接单了', paid: '对方已支付',
         confirm_done: '四确认完成,待支付', start: '耍伴已开始履约',

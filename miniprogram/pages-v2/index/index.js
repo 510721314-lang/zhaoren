@@ -53,6 +53,7 @@ const SQUARE_TTL_MS = 10 * 60 * 1000;
 const SCENE_GROUPS_CACHE_KEY = 'home_scene_groups_v2';
 
 const { callCloud } = require('../../utils/cloud.js');
+const { notify } = require('../../utils/alert-feedback.js'); // 2026-11-22: 附近新单震动+提示音
 
 Page({
   data: {
@@ -238,7 +239,7 @@ Page({
       this.__nearbyFetching = false;
     }
   },
-  // 附近新单提醒(方案B 震动+toast, 音效后补): 首条变化即新单; 去响键=需求id+created_at(精确到秒)
+  // 附近新单提醒(方案B 震动+toast+提示音): 首条变化即新单; 去响键=需求id+created_at(精确到秒)
   __notifyNearbyNew(list) {
     const first = (list || [])[0];
     if (!first) return;
@@ -246,7 +247,7 @@ Page({
     if (!this.__nearbyLastKey) { this.__nearbyLastKey = key; return; }
     if (key === this.__nearbyLastKey) return;
     this.__nearbyLastKey = key;
-    if (typeof wx.vibrateShort === 'function') wx.vibrateShort({ type: 'medium', fail: () => {} });
+    notify('nearby'); // 2026-11-22: 震动 + 提示音(原仅震动, 音效后补项已补齐)
     wx.showToast({ title: '附近有新需求', icon: 'none' });
   },
   // 首页可见期间 60s 轮询附近新单(仅耍伴端; 2026-10-28 用量治理 30s→60s)
