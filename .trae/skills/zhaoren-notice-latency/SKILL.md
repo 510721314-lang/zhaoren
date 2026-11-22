@@ -19,6 +19,39 @@ description: 通知/提示时效排查与修复（提示滞后、第二次同类
 服务端事件产生粒度 → 客户端拉取时机/周期 → 去重键与通知存储语义。
 **只调周期（60s→30s）是最常见但收益最低的做法**，且直接吃云函数配额。
 
+## 第一步：三段取证（2026-11-22 双案实证，禁跳步）
+
+用户报「对方没收到提示」时，先按顺序回读三张表，再谈修复：
+
+| 顺序 | 集合 | 看什么 | 结论方向 |
+|---|---|---|---|
+| 1 | `im_message`（`order_id`） | 消息是否存在 | 有 → 排除发送失败/内容安全拦截 |
+| 2 | `im_conversation`（`order_id`） | `user_unread`/`partner_unread`、`last_msg_at` | +1 → 排除未读计数问题 |
+| 3 | `system_notice`（`order_id`） | 是否生成、`read`、`read_at` 与 `created_at` 间隔 | 无 → 查 `writeNotice` 调用点；`read=true` 且 `read_at` 仅差数十秒 → 对方已点过（前端无自动标读）；有通知但用户说没提示 → 转查提示渠道醒目度 |
+
+第 4 步才看配额/日志：`tcb logs search` 按 `status_code` 过滤（202 是中间态要排除）。
+**`tcb fn log` 显示「无调用日志」不可作为未调用证据**（2026-11-22 实测：DB 已有当日写入，日志仍为空）。
+
+## 第二条必查：`writeNotice` 是多副本，改一处必须全同步
+
+当前 4 份独立实现：`order-action/index.js`、`im-send/index.js`、`partner-action/index.js`、`admin-action/action_im_kefu.js`（内联同构）。
+2026-10-30 只在 order-action 修了「覆盖合并顺延 `created_at`」，另两份未同步 → 消息通知链上该修复失效近一个月（§45 R2）。
+**任何去重键/覆盖字段/action_key 变更，必须 `grep -n "function writeNotice" cloudfunctions` 逐份核对并同批部署。**
+
+正确覆盖写法（三处必须一致）：
+```js
+await col('system_notice').doc(exist.data[0]._id).update({
+  data: Object.assign({}, data, { created_at: data.updated_at })
+});
+```
+
+## 第三条：真人提示层（震动/提示音）
+
+数据与通知都正常、用户仍说「没感觉」时，是提示渠道不够醒目（订单详情页 `im_text` 通知默认只进横幅、不弹 toast）。
+统一入口 `miniprogram/utils/alert-feedback.js` 的 `notify(kind)`：`urgent`（改期/沟通待处理）/ `order`（一般动态）/ `nearby`（附近新单）。
+口径：包内本地 wav + 单例 `InnerAudioContext`（`obeyMuteSwitch=true`）、同类 2s 节流、开关落 Storage `settings:alert`、新文件 `catch` 不得为空（`[NEW-SILENT-CATCH]` 门禁）。
+边界：切后台/锁屏定时器停止，本机制不触达（仅订阅消息可穿透）；模拟器无震动/音效；前端改动必须重传体验版。
+
 ## 第一条必查：去重键是否含事件时间
 
 `writeNotice`（`cloudfunctions/order-action/index.js`）对同

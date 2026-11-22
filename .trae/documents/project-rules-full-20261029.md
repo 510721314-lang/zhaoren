@@ -764,3 +764,31 @@ alwaysApply: true
 **R3 本地 origin/master 引用只作旁证不作准**：`git rev-parse origin/master` / `git rev-list --count origin/master..HEAD` 读的是本地缓存，fetch 前可能滞后。真值以 `ls-remote` 直连为准；交接稿、deploy-log、台账中声明「已推送」必须附 ls-remote 实证 SHA，不得仅凭本地引用或 push exit code。
 
 **R4 与 §35 推送判据的关系**：§35「push 代理/判据/失败即停」负责选通道与失败处理；本条负责**成功判据的真值来源**（ls-remote 直连），两者互补不重复。
+
+## 45. 通知类故障三段取证与 writeNotice 多副本同步（2026-11-22 双案实证新增）
+
+> 背景：2026-11-22 连续两起「对方没收到提示」——① 履约完毕确认阶段发消息，对方端无提示；② 支付后四确认沟通，耍伴端无提示。两次都**不是消息丢失**，而是通知层问题。取证路径与结论固化为本节，避免下次再从「配额/网络/前端渲染」盲猜。
+
+**R1 三段取证顺序（先数据后推断，禁跳步）**：
+1. `im_message`（按 `order_id`）——消息**是否写入**。有则排除「发送失败/内容安全拦截」。
+2. `im_conversation`（按 `order_id`）——`user_unread` / `partner_unread` 是否 +1、`last_msg_at` 是否刷新。正常则排除「会话未读计数未更新」。
+3. `system_notice`（按 `order_id`）——通知**是否生成**、`read` 真假、`read_at` 与 `created_at` 的间隔。
+   - 无新通知 → 查产生端是否调用 `writeNotice`；
+   - `read=true` 且 `read_at` 距 `created_at` 仅数十秒 → 说明对方已点过（前端只有「点横幅/点通知/手动全部已读」会标读，**无自动标读逻辑**）；
+   - 通知存在但用户说没提示 → 转查「提示渠道是否醒目」（toast / 横幅 / 消息中心），不要继续改后端。
+4. 以上全部正常再看配额与调用日志：`tcb logs search` 按 `status_code` 过滤（202=中间态需排除），**不得仅凭 `tcb fn log` 的「无调用日志」判定未调用**。
+
+**R2 `writeNotice` 是多副本，改一处必须全同步**：当前共 4 份独立实现——`cloudfunctions/order-action/index.js`、`im-send/index.js`、`partner-action/index.js`、`admin-action/action_im_kefu.js`（内联同构）。2026-10-30 只在 order-action 修了「覆盖合并顺延 created_at」，im-send / partner-action 未同步，导致 §34/U1 的去重键修复在消息通知链上失效近一个月。**任何 `writeNotice` 语义变更（去重条件、覆盖字段、action_key 默认值）必须 grep 全仓 `function writeNotice` 逐份核对并同批部署**，属 §39 规范源漂移的同源问题。
+
+**R3 覆盖合并必须同时刷新 `created_at` 与 `updated_at`**：前端去重键为 `id|created_at`（`utils/order-poll.js`、`utils/chat-notice.js`），服务端覆盖同 `(to_openid, order_id, type, read=false)` 记录时若不刷新 `created_at`，第二次同类通知会被前端判为「已展示」而永久静默。正确写法：`update({ data: Object.assign({}, data, { created_at: data.updated_at }) })`。
+
+**R4 前端提示音/震动的实现口径**（2026-11-22 新增 `utils/alert-feedback.js` 为唯一入口）：
+- 提示音必须用**包内本地音频**（`miniprogram/assets/audio/*.wav`）+ 单例 `wx.createInnerAudioContext()`，播前 `stop()` + `seek(0)`；`obeyMuteSwitch=true` 尊重 iOS 静音。
+- **同类提示 2s 节流**，防一次轮询带回多条时连响。
+- 开关落 Storage（`settings:alert`），默认全开，用户可关。
+- 新增前端文件里的 `catch` **不得为空**（门禁 `[NEW-SILENT-CATCH]` 直接 FAIL），补 `console.warn` 并说明降级语义。
+- 前端改动**必须重传体验版**才能真机验证；模拟器无震动/无音频，不作验收依据。
+- 平台边界：小程序切后台/锁屏后定时器停，本机制不触达，只有订阅消息可穿透——**不得把「后台收不到提醒」当 bug 修**。
+
+**R5 体验版上传的 IDE 端口抖动**：`cli.bat upload` 报 `IDE may already started at port 28023` + `initialize error: wait IDE port timeout` 时，先用 `Test-NetConnection 127.0.0.1 -Port <端口>` 确认端口在听；在听则**重试一次**即可成功（IDE 存活但 CLI 首连超时的已知抖动），不得据此判定 CLI 损坏或改配置。若端口不在听，才按 `zhaoren-frequent-flows` 流程 2 查 IDE 服务端口开关。
+
