@@ -35,7 +35,9 @@ async function writeNotice(opt) {
       updated_at: Date.now()
     };
     if (exist.data && exist.data[0]) {
-      await col('system_notice').doc(exist.data[0]._id).update({ data });
+      // 2026-11-22: 覆盖合并同时顺延 created_at(语义=最近一次提醒时间), 与 order-action 2026-10-30 修复对齐;
+      // 前端去重键为 id|created_at(order-poll.js:48 / chat-notice.js:158), 只写 updated_at 会让第二次同类通知被误判为已展示
+      await col('system_notice').doc(exist.data[0]._id).update({ data: Object.assign({}, data, { created_at: data.updated_at }) });
     } else {
       await col('system_notice').add({ data: Object.assign({
         to_openid: opt.to_openid,
