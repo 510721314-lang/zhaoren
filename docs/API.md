@@ -430,7 +430,7 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 - 同刻只允许一条在途：`pending_change` 存在即 `oa_change_pending`；四确认窗口临近结束时 `oa_change_window_closed`（提示直接确认或取消）。
 - 提交前校验：`time` 未来时间（`oa_time_future`）；`location` 必含完整字段（`oa_location_invalid`）；`content` 结构（`oa_content_invalid`）；`fee` 必须整数分（`oa_fee_invalid`）、区间内（`oa_fee_out_of_range`）、18–22 岁单笔 ≤200 元（`oa_youth_limit`）；`other` 字数上限（`oa_other_invalid`）；与现值相同 → `oa_change_same`。
 - 并发：以 `pending_change.token` 做条件更新，抢不到 → `oa_conflict`。
-- **接受（`change_respond` decision=accept）**：写回字段 → 清 `pending_change` → `order_confirmations` 的 `items.{time,location,content,fee}.user_ok/partner_ok` 全部置 `false`、`version+1`（8 位全重置，规则附录 A 第 4 条）。
+- **接受（`change_respond` decision=accept）**：写回字段 → 清 `pending_change` → `order_confirmations` 的**变更项** `items.{field}.value` 写新值并置 `user_ok=true`、`partner_ok=true`（接受即双方达成一致，不再重复确认），**其余三项确认位保持原状**、`version+1`（2026-11-22 口径修订，规则附录 A 第 4 条；原「8 位全重置」作废）。
 - 拒绝：清 `pending_change` + `change_last_rejected_at`；超时由定时器 `change_auto_reject` 收口。
 - 错误码：`oa_bad_item` / `oa_not_editable` / `oa_frozen` / `oa_change_pending` / `oa_change_limit` / `oa_change_window_closed` / `oa_change_same` / `oa_content_blocked` / `oa_update_fail` / `oa_conflict` / `oa_bad_decision` / `oa_no_pending` / `oa_change_self` / `oa_change_stale` / `oa_change_expired` / `oa_no_confirm_doc`。
 
