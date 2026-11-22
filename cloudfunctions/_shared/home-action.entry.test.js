@@ -73,7 +73,31 @@ test('publish_banner_list: 过滤 disabled+缺图 + 按 sort 升序 + 只下发 
   const r = await main({ action: 'publish_banner_list' }, {});
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(r.data.list, [
-    { id: 'b1', image: 'cloud://x/1.jpg', link: '/pages-v2/index/index' },
-    { id: 'b2', image: 'cloud://x/2.jpg', link: '/pages-v2/square/square' }
+    { id: 'b1_0', image: 'cloud://x/1.jpg', link: '/pages-v2/index/index' },
+    { id: 'b2_0', image: 'cloud://x/2.jpg', link: '/pages-v2/square/square' }
   ]);
+});
+
+// 2026-11-22 多图改版：一条 banner 多图按图序展开，页面最多下发前 6 张
+test('publish_banner_list: 多图 banner 扁平展开 + 页面总张数封顶 6', async () => {
+  const sdk = makeSdk({ openid: '', store: storeWithBanners([
+    { id: 'm1', sort: 1, enabled: true, images: [
+      { image: 'cloud://x/a1.jpg', link: '/pages-v2/index/index' },
+      { image: 'cloud://x/a2.jpg', link: '/pages-v2/square/square' }
+    ] },
+    { id: 'm2', sort: 2, enabled: true, images: [
+      { image: 'cloud://x/b1.jpg', link: '/pages-v2/service/service' },
+      { image: 'cloud://x/b2.jpg', link: '/pages-v2/message/message' },
+      { image: 'cloud://x/b3.jpg', link: '/pages-v2/profile/profile' }
+    ] },
+    { id: 'm3', sort: 3, enabled: true, images: [
+      { image: 'cloud://x/c1.jpg', link: '/pages-v2/publish/publish' },
+      { image: 'cloud://x/c2.jpg', link: '/x-extra.jpg' }
+    ] }
+  ]) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'publish_banner_list' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.list.length, 6);
+  assert.deepStrictEqual(r.data.list.map((x) => x.id), ['m1_0', 'm1_1', 'm2_0', 'm2_1', 'm2_2', 'm3_0']);
 });

@@ -84,11 +84,22 @@ async function publishBannerListAction(ctx) {
   const { log, loadPublishBannersRaw } = ctx;
   try {
     const raw = await loadPublishBannersRaw();
-    const list = (raw || [])
-      .filter((b) => b && b.enabled !== false && b.image)
+    // 2026-11-22 多图改版：一条 banner 可含 1~6 张图，每张独立 link；旧数据 image/link 兼容为 1 张。
+    // 发布页 swiper 仍是扁平列表，按 banner.sort 再按图序展开，最多下发前 6 张。
+    const list = [];
+    (raw || [])
+      .filter((b) => b && b.enabled !== false)
       .sort((a, b) => (a.sort || 0) - (b.sort || 0))
-      .map((b) => ({ id: b.id, image: b.image, link: b.link || '' }));
-    return { ok: true, data: { list } };
+      .forEach((b) => {
+        const imgs = Array.isArray(b.images) && b.images.length
+          ? b.images
+          : (b.image ? [{ image: b.image, link: b.link || '' }] : []);
+        imgs.forEach((it, i) => {
+          if (!it || !it.image) return;
+          list.push({ id: b.id + '_' + i, image: it.image, link: it.link || '' });
+        });
+      });
+    return { ok: true, data: { list: list.slice(0, 6) } };
   } catch (e) {
     log.d('publish_banner_list err:', e && e.message);
     return { ok: true, data: { list: [] } };

@@ -173,8 +173,18 @@
           <el-table-column prop="id" label="ID" width="140">
             <template #default="{row}"><span style="font-family:monospace;font-size:11px">{{ row.id }}</span></template>
           </el-table-column>
-          <el-table-column prop="image" label="图片 (cloud://)" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="link" label="跳转链接" min-width="220" show-overflow-tooltip />
+          <el-table-column label="图片" min-width="240">
+            <template #default="{row}">
+              <span style="font-family:monospace;font-size:12px">{{ (row.images || []).length }} 张</span>
+              <span v-if="row.images && row.images[0]" style="margin-left:8px;color:#909399;font-size:11px">{{ row.images[0].image }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="跳转链接" min-width="220">
+            <template #default="{row}">
+              <div style="font-size:12px">{{ (row.images && row.images[0] && row.images[0].link) || '-' }}</div>
+              <div v-if="row.images && row.images.length > 1" style="color:#909399;font-size:11px">共 {{ row.images.length }} 个链接</div>
+            </template>
+          </el-table-column>
           <el-table-column prop="sort" label="排序" width="70" sortable />
           <el-table-column label="状态" width="80">
             <template #default="{row}">
@@ -387,21 +397,30 @@
       </template>
     </el-dialog>
 
-    <!-- 发布页 Banner 编辑弹窗 -->
-    <el-dialog v-model="pbDialog" :title="pbIsEdit ? '编辑 Banner' : '新增 Banner'" width="560px">
+    <!-- 发布页 Banner 编辑弹窗（2026-11-22 多图改版：1~6 张，每张独立链接） -->
+    <el-dialog v-model="pbDialog" :title="pbIsEdit ? '编辑 Banner' : '新增 Banner'" width="620px">
       <el-form label-position="top">
-        <el-form-item label="Banner 图 (横向, jpg/png/webp ≤2MB)">
+        <el-form-item :label="`Banner 图 (横向, jpg/png/webp ≤2MB, 最多 ${PB_MAX_IMAGES} 张)`">
           <div class="act-img-row">
-            <el-button size="small" type="primary" plain :loading="pbUploading" @click="pickBannerImage">上传图片</el-button>
-            <span class="act-img-spec">自动压缩为宽 750 横向；过大请去云开发控制台→存储上传后粘贴 cloud:// 链接</span>
+            <el-button size="small" type="primary" plain :loading="pbUploading" :disabled="bannerForm.images.length >= PB_MAX_IMAGES" @click="pickBannerImage">上传图片</el-button>
+            <span class="act-img-spec">已 {{ bannerForm.images.length }}/{{ PB_MAX_IMAGES }} 张；自动压缩为宽 750 横向。发布页只轮播前 {{ PB_MAX_IMAGES }} 张</span>
           </div>
-          <el-input v-model="bannerForm.image" placeholder="cloud://..." class="act-img-input" />
+          <input ref="bannerFileInput" type="file" multiple accept="image/jpeg,image/png,image/webp" style="display:none" @change="onBannerFileChange" />
+          <div v-for="(it, i) in bannerForm.images" :key="i" class="pb-img-item">
+            <div class="pb-img-idx">{{ i + 1 }}</div>
+            <div class="pb-img-thumb">
+              <img v-if="/^https?:/.test(it.image)" :src="it.image" alt="" style="width:100%;height:100%;object-fit:cover" />
+              <span v-else>{{ it.image ? '已上传' : '待上传' }}</span>
+            </div>
+            <div class="pb-img-main">
+              <el-input v-model="it.image" placeholder="cloud://..." size="small" />
+              <el-input v-model="it.link" placeholder="跳转链接，如 /pages-v2/publish/publish?sceneCode=W1" size="small" style="margin-top:6px" />
+            </div>
+            <el-button size="small" type="danger" text @click="removeBannerImage(i)">删除</el-button>
+          </div>
+          <div v-if="!bannerForm.images.length" class="pb-img-empty">暂无图片，请点「上传图片」或直接粘贴 cloud:// 链接</div>
         </el-form-item>
-        <input ref="bannerFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="onBannerFileChange" />
-        <el-form-item label="跳转链接 (小程序内部路径, 以 / 开头)" required>
-          <el-input v-model="bannerForm.link" placeholder="如: /pages-v2/publish/publish?sceneCode=W1" />
-          <div style="font-size:12px;color:#909399;margin-top:4px">仅支持小程序内已注册路径；tabBar 页（首页/广场/服务/消息/我的）会自动用 switchTab 跳转</div>
-        </el-form-item>
+        <div style="font-size:12px;color:#909399;margin:-8px 0 12px">每张图链接必填且须为小程序内部路径（以 / 开头）；tabBar 页（首页/广场/服务/消息/我的）会自动用 switchTab 跳转</div>
         <el-row :gutter="12">
           <el-col :span="12"><el-form-item label="排序 (越小越靠前)"><el-input-number v-model="bannerForm.sort" :min="0" :max="9999" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="启用"><el-switch v-model="bannerForm.enabled" /></el-form-item></el-col>
@@ -757,10 +776,17 @@ const pbIsEdit = ref(false);
 const pbSaving = ref(false);
 const pbUploading = ref(false);
 const bannerFileInput = ref(null);
-const bannerForm = reactive({ id: '', image: '', link: '', sort: 0, enabled: true });
+const PB_MAX_IMAGES = 6;
+// 2026-11-22 多图改版：images 为 [{image, link}]；旧数据 image/link 在编辑时兼容为 1 张
+const bannerForm = reactive({ id: '', images: [{ image: '', link: '' }], sort: 0, enabled: true });
 
 function resetBannerForm() {
-  Object.assign(bannerForm, { id: '', image: '', link: '', sort: 0, enabled: true });
+  Object.assign(bannerForm, { id: '', images: [{ image: '', link: '' }], sort: 0, enabled: true });
+}
+
+function removeBannerImage(i) {
+  bannerForm.images.splice(i, 1);
+  if (!bannerForm.images.length) bannerForm.images.push({ image: '', link: '' });
 }
 
 async function loadPublishBanners() {
@@ -779,17 +805,25 @@ function openAddBanner() {
 
 function openEditBanner(row) {
   pbIsEdit.value = true;
-  Object.assign(bannerForm, { id: row.id, image: row.image || '', link: row.link || '', sort: row.sort || 0, enabled: row.enabled !== false });
+  const images = Array.isArray(row.images) && row.images.length
+    ? row.images.map((it) => ({ image: it.image || '', link: it.link || '' }))
+    : [{ image: row.image || '', link: row.link || '' }];
+  Object.assign(bannerForm, { id: row.id, images, sort: row.sort || 0, enabled: row.enabled !== false });
   pbDialog.value = true;
 }
 
 async function doSubmitBanner() {
-  bannerForm.image = String(bannerForm.image || '').trim();
-  bannerForm.link = String(bannerForm.link || '').trim();
-  if (!bannerForm.image) { ElMessage.warning('Banner 图片必填'); return; }
-  if (!bannerForm.link || bannerForm.link.charAt(0) !== '/') { ElMessage.warning('链接须为小程序内部路径（以 / 开头）'); return; }
+  const images = (bannerForm.images || [])
+    .map((it) => ({ image: String(it.image || '').trim(), link: String(it.link || '').trim() }))
+    .filter((it) => it.image || it.link);
+  if (!images.length) { ElMessage.warning('Banner 图片必填'); return; }
+  if (images.length > PB_MAX_IMAGES) { ElMessage.warning(`最多 ${PB_MAX_IMAGES} 张图片`); return; }
+  for (const it of images) {
+    if (!it.image) { ElMessage.warning('每张图片的 cloud:// 地址必填'); return; }
+    if (!it.link || it.link.charAt(0) !== '/') { ElMessage.warning('每张图的链接须为小程序内部路径（以 / 开头）'); return; }
+  }
   pbSaving.value = true;
-  const payload = { image: bannerForm.image, link: bannerForm.link, sort: bannerForm.sort, enabled: bannerForm.enabled };
+  const payload = { images, sort: bannerForm.sort, enabled: bannerForm.enabled };
   const r = pbIsEdit.value
     ? await call('publish_banner_update', { id: bannerForm.id, patch: payload })
     : await call('publish_banner_create', { banner: payload });
@@ -805,25 +839,34 @@ function pickBannerImage() {
   bannerFileInput.value && bannerFileInput.value.click();
 }
 
+// 支持一次多选：逐张校验 ≤2MB + 格式，压缩后逐个上传并追加，最多 6 张
 async function onBannerFileChange(e) {
-  const file = e.target.files && e.target.files[0];
+  const files = Array.from(e.target.files || []);
   e.target.value = '';
-  if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { ElMessage.error('图片大小不能超过 2MB'); return; }
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { ElMessage.error('仅支持 jpg/png/webp 格式'); return; }
-  const b64 = await compressImageForUpload(file, 'banner');
-  if (!b64) {
-    ElMessage({ message: '图片处理后仍过大,请在 云开发控制台→存储→上传图片,再把 cloud:// 链接粘贴到下方输入框', type: 'warning', duration: 5000 });
-    return;
-  }
+  if (!files.length) return;
   pbUploading.value = true;
   try {
-    const r = await call('upload_image', { use: 'banner', fileData: b64 });
-    if (r.ok && r.data && r.data.fileID) {
-      bannerForm.image = r.data.fileID;
-      ElMessage.success('图片上传成功,已自动压缩为推荐规格');
-    } else {
-      ElMessage.error(r.msg || r.code || '图片上传失败');
+    for (const file of files) {
+      if (bannerForm.images.filter((it) => it.image).length >= PB_MAX_IMAGES) {
+        ElMessage.warning(`最多 ${PB_MAX_IMAGES} 张图片`);
+        break;
+      }
+      if (file.size > 2 * 1024 * 1024) { ElMessage.error(`${file.name} 大小超过 2MB`); continue; }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { ElMessage.error(`${file.name} 仅支持 jpg/png/webp`); continue; }
+      const b64 = await compressImageForUpload(file, 'banner');
+      if (!b64) {
+        ElMessage({ message: `${file.name} 处理后仍过大，请在云开发控制台→存储上传后粘贴 cloud:// 链接`, type: 'warning', duration: 5000 });
+        continue;
+      }
+      const r = await call('upload_image', { use: 'banner', fileData: b64 });
+      if (r.ok && r.data && r.data.fileID) {
+        // 首行空占位复用，其余追加
+        const empty = bannerForm.images.find((it) => !it.image);
+        if (empty) empty.image = r.data.fileID;
+        else bannerForm.images.push({ image: r.data.fileID, link: '' });
+      } else {
+        ElMessage.error(r.msg || r.code || '图片上传失败');
+      }
     }
   } finally {
     pbUploading.value = false;
@@ -1124,6 +1167,12 @@ onMounted(async () => {
 .v-new { color:#67c23a; font-weight:600; }
 .act-img-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
 .act-img-spec { font-size:12px; color:#909399; }
+/* 发布页 Banner 多图列表（2026-11-22） */
+.pb-img-item { display:flex; align-items:flex-start; gap:10px; padding:8px; border:1px solid var(--el-border-color-lighter); border-radius:6px; margin-bottom:8px; }
+.pb-img-idx { width:18px; height:18px; flex:0 0 18px; margin-top:12px; border-radius:50%; background:#f0f2f5; color:#909399; font-size:11px; line-height:18px; text-align:center; }
+.pb-img-main { flex:1; min-width:0; }
+.pb-img-thumb { width:96px; height:46px; flex:0 0 96px; border-radius:4px; background:#f5f7fa; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:11px; color:#909399; }
+.pb-img-empty { padding:14px; border:1px dashed var(--el-border-color); border-radius:6px; color:#909399; font-size:12px; text-align:center; }
 .act-img-input { font-size:12px; }
 .act-img-tip { font-size:12px; color:#E6A23C; background:#fdf6ec; border:1px solid #faecd8; border-radius:4px; padding:6px 8px; line-height:1.5; margin-bottom:8px; }
 </style>
