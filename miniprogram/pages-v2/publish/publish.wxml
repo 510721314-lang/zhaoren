@@ -111,7 +111,7 @@
     </view>
     <view class="pub__coord" wx:if="{{publishLocation && publishLocation.address}}">📍 {{publishLocation.address}}</view>
     <view class="pub__location-tip">📌 发布地址为您发布时的实际定位，自动记录不可修改；点击右侧按钮可重新定位</view>
-    <view class="pub__picker-row" bindtap="onLocationPick">
+    <view class="pub__picker-row pub__picker-row--wrap" bindtap="onLocationPick">
       <text class="pub__picker-label">履约点所在的地图位置</text>
       <input class="pub__picker-input" value="{{form.location_name}}" placeholder="点击在地图上选择履约地点" bindinput="onLocationInput" catchtap="noop" />
       <view class="pub__loc-btn" hover-class="pub__loc-btn--hover" hover-stay-time="80">

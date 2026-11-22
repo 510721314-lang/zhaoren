@@ -374,6 +374,7 @@ function buildOrderView(d, now = Date.now()) {
     partner_contact: pc,                                  // 阶段C/D: 需求方看耍伴实名+脱敏号(非需求方为 null)
     start_confirm_text: startConfirmText,                 // 阶段C/D: S2_6 需求方确认按钮文案
     location: d.location || {},
+    service_address: d.service_address || '',              // 履约地址(手填门牌): 2026-11-22 补映射, 原白名单缺失致详情页 wx:if 恒假不展示
     service_date: dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` : '',
     service_time: dt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
     duration_hours: d.duration_h || 0,

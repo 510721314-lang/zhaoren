@@ -151,6 +151,17 @@
   color: var(--text-2);
   flex-shrink: 0;
 }
+/* 「履约点所在的地图位置」标签 11 字: 72rpx 固定高会换 3 行溢出, 压住上下提示文案
+   → 仅该行高度自适应 + 标签列放宽(2 行), 其余 picker 行保持 72rpx */
+.pub__picker-row--wrap {
+  height: auto;
+  min-height: 72rpx;
+  padding: 12rpx 0;
+}
+.pub__picker-row--wrap .pub__picker-label {
+  width: 176rpx;
+  line-height: 1.35;
+}
 .pub__picker-val {
   flex: 1;
   font-size: var(--font-md);
