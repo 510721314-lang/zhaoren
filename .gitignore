@@ -50,3 +50,6 @@ zhaoren_backup_*/
 
 # A/B 基线临时副本（2026-11-05 P2-3：跑 npm test 时生成，脚本退出即删；异常中断残留不入库）
 cloudfunctions/*/__baseline_tmp*.js
+
+# e2e 截图/运行日志产物（2026-11-22：本地取证用，不入库）
+tests/e2e/artifacts/
