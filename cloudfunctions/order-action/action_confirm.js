@@ -214,6 +214,33 @@ async function update_item(ctx) {
   };
 }
 
+// 2026-11-22: 8 位全齐即推进 S1→S0（幂等分支兜底：防「变更接受已全齐但状态未推进」的卡单）
+// 尽力推进：CAS 落空（订单已流转/被取消）静默返回原状态，不阻断主流程
+async function promoteS0IfDone(ctx, order, openid, now) {
+  const { order_id, getConfig, casStatus, logStatus, writeNotice, log } = ctx;
+  const config = await getConfig();
+  const payExpire = now + (config.s0_timeout_min || 30) * 60 * 1000;
+  const won = await casStatus(order_id, 'S1', {
+    status: 'S0', pay_expire_at: payExpire, updated_at: now
+  }, 'confirm_done');
+  if (!won) return order.status;
+  await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
+  writeNotice({
+    to_openid: order.user_openid, order_id, type: 'confirm_done',
+    title: '四确认全部完成',
+    body: '订单已进入待支付,请在30分钟内完成支付',
+    action_key: 'jump_pay', action_payload: { order_id }
+  });
+  writeNotice({
+    to_openid: order.partner_openid, order_id, type: 'confirm_done',
+    title: '四确认全部完成',
+    body: '订单已进入待支付,等待发单人付款',
+    action_key: 'jump_order', action_payload: { order_id }
+  });
+  log.d(`four confirm done (promote): order=${order.order_no || order_id} → S0`);
+  return 'S0';
+}
+
 async function confirm_item(ctx) {
   const { event, order_id, openid, CONFIRM_FIELDS, getOrder, roleOf, getConfirmation, wxCtx, db, log, writeAudit, col, _, allConfirmed, getConfig, casStatus, logStatus, writeNotice, FIELD_CN } = ctx;
   const { item } = event;
@@ -245,8 +272,11 @@ async function confirm_item(ctx) {
       if (conf.items[f].user_ok) cnt++;
       if (conf.items[f].partner_ok) cnt++;
     }
+    // 2026-11-22: 8 位已全齐却仍停在 S1（如变更接受路径未推进）时补推进，避免反复点确认也无出路
+    let idemStatus = order.status;
+    if (allConfirmed(conf.items)) idemStatus = await promoteS0IfDone(ctx, order, openid, Date.now());
     await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_confirm_item', target_type: 'order', target_id: order_id, detail: { item, role, idempotent: true }, result: 'ok', client_ip: clientIp, device });
-    return { ok: true, data: { item, idempotent: true, confirmed_count: cnt, total_count: 8, all_confirmed: allConfirmed(conf.items), status: order.status } };
+    return { ok: true, data: { item, idempotent: true, confirmed_count: cnt, total_count: 8, all_confirmed: allConfirmed(conf.items), status: idemStatus } };
   }
 
   const now = Date.now();

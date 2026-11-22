@@ -602,6 +602,8 @@
     "update_item / confirm_item / confirm_all: 有在途变更时一律暂停（oa_change_pending）",
     "change_respond: 接受后变更项双确认、其余三项保持原确认位（accept）",
     "change_respond: 费用变更接受后费用位双确认，其余三项保持原确认位",
+    "change_respond: 接受后八位全齐立即推进 S0 待支付并通知双方",
+    "confirm_item: 幂等分支八位全齐时补推进 S0（防卡单）",
     "change_respond: 「其他」接受只记备注、不重置确认位（D1）",
     "s2_change_apply: 仅地点/内容，费用直接拒绝（oa_s2c_field）",
     "s2_change_apply: 非 S2 状态拒绝（oa_s2c_status）",

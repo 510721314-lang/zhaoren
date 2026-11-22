@@ -231,7 +231,7 @@ async function change_apply(ctx) {
 async function change_respond(ctx) {
   const { event, order_id, openid, getOrder, roleOf, getConfig, col, _, log, writeAudit,
     getConfirmation, writeNotice, FIELD_CN, db, wxCtx,
-    splitOrderAmount, reasonMaxLen } = ctx;
+    splitOrderAmount, reasonMaxLen, allConfirmed, casStatus, logStatus } = ctx;
   const { decision, token } = event;
   if (!order_id) return { ok: false, code: 'oa_no_order', msg: '缺少订单 ID' };
   if (decision !== 'accept' && decision !== 'reject') {
@@ -338,6 +338,36 @@ async function change_respond(ctx) {
     return { ok: false, code: 'oa_conflict', msg: '该变更已被处理,请刷新' };
   }
 
+  // 2026-11-22: 变更项接受即双确认，若因此 8 位全齐，立即推进 S1→S0 待支付
+  // （与 confirm_item/confirm_all 的 allConfirmed→casStatus 口径一致；否则订单会卡在 S1 直到 15 分钟超时）
+  let newStatus = 'S1';
+  if (pc.field !== 'other') {
+    const freshConf = await getConfirmation(order_id);
+    if (freshConf && allConfirmed(freshConf.items)) {
+      const payExpire = now + (config.s0_timeout_min || 30) * 60 * 1000;
+      const won = await casStatus(order_id, 'S1', {
+        status: 'S0', pay_expire_at: payExpire, updated_at: now
+      }, 'confirm_done');
+      if (won) {
+        await logStatus(order_id, 'S1', 'S0', 'four_confirm_done', openid);
+        newStatus = 'S0';
+        writeNotice({
+          to_openid: order.user_openid, order_id, type: 'confirm_done',
+          title: '四确认全部完成',
+          body: '订单已进入待支付,请在30分钟内完成支付',
+          action_key: 'jump_pay', action_payload: { order_id }
+        });
+        writeNotice({
+          to_openid: order.partner_openid, order_id, type: 'confirm_done',
+          title: '四确认全部完成',
+          body: '订单已进入待支付,等待发单人付款',
+          action_key: 'jump_order', action_payload: { order_id }
+        });
+        log.d(`four confirm done by change: order=${order.order_no} → S0, pay_expire=${payExpire}`);
+      }
+    }
+  }
+
   await writeAudit(db, log, { openid, role, category: 'consent', action: 'order_change_accept',
     target_type: 'order', target_id: order_id,
     detail: { field: pc.field, new_value: pc.new_value, bits_reset: false, item_confirmed: pc.field !== 'other' },
@@ -360,8 +390,8 @@ async function change_respond(ctx) {
       action_key: 'jump_order', action_payload: { order_id }
     });
   }
-  log.d(`change accept: order=${order.order_no} field=${pc.field} by=${role} item_confirmed=${pc.field !== 'other'}`);
-  return { ok: true, data: { field: pc.field, accepted: true, bits_reset: false, item_confirmed: pc.field !== 'other' } };
+  log.d(`change accept: order=${order.order_no} field=${pc.field} by=${role} item_confirmed=${pc.field !== 'other'} status=${newStatus}`);
+  return { ok: true, data: { field: pc.field, accepted: true, bits_reset: false, item_confirmed: pc.field !== 'other', status: newStatus } };
 }
 
 // 超时自动拒绝的双向站内通知（发起人/接收人文案区分）

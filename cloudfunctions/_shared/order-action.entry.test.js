@@ -881,6 +881,32 @@ test('change_respond: 费用变更接受后费用位双确认，其余三项保�
   assert.strictEqual(ow.data.total_fen, NEW_FEE, '订单总额生效');
 });
 
+test('change_respond: 接受后八位全齐立即推进 S0 待支付并通知双方', async () => {
+  const NEW = Date.now() + 7200000;
+  const pending = { field: 'time', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: NEW };
+  const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'change_respond', order_id: OID, decision: 'accept', token: 'tk', mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.status, 'S0', '八位全齐应进待支付');
+  const s0 = (sdk.writes.order_main || []).find((x) => x.data && x.data.status === 'S0');
+  assert.ok(s0, '应写 S0 状态');
+  assert.ok(Number(s0.data.pay_expire_at) > Date.now(), '应设置支付截止时间');
+  const payNotice = (sdk.writes.system_notice || []).find((x) => x.add && x.data.type === 'confirm_done' && x.data.action_key === 'jump_pay');
+  assert.ok(payNotice, '付款方应收到 jump_pay 通知');
+});
+
+test('confirm_item: 幂等分支八位全齐时补推进 S0（防卡单）', async () => {
+  const sdk = makeSdk({ openid: USER, store: s1Store({}, confDoc()) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'confirm_item', order_id: OID, item: 'time', mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.idempotent, true);
+  assert.strictEqual(r.data.status, 'S0', '已全齐应补推进待支付');
+  const s0 = (sdk.writes.order_main || []).find((x) => x.data && x.data.status === 'S0');
+  assert.ok(s0, '应写 S0 状态');
+});
+
 test('change_respond: 「其他」接受只记备注、不重置确认位（D1）', async () => {
   const pending = { field: 'other', by_openid: USER, by_role: 'user', token: 'tk', expire_at: Date.now() + 600000, new_value: '请带雨伞' };
   const sdk = makeSdk({ openid: PARTNER, store: s1Store({ pending_change: pending }, confDoc()) });
