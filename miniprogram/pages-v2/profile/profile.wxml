@@ -1,3 +1,11 @@
+<wxs module="sumCount">
+module.exports = function(arr){
+  if(!arr) return 0;
+  var s=0;
+  for(var i=0;i<arr.length;i++){ s += (arr[i].count||0); }
+  return s;
+};
+</wxs>
 <view class="v2 profile">
   <nav-bar title="我的" show-back="{{false}}"></nav-bar>
 
@@ -17,9 +25,9 @@
     <view class="pf__head-info">
       <view class="pf__name-line">
         <text class="pf__name">{{user.nickname || '微信用户'}}</text>
-        <text class="pf__badge" wx:if="{{user.is_realname_done}}">实名✓</text>
+        <text class="pf__badge" wx:if="{{user.is_realname_done}}">已实名</text>
       </view>
-      <view class="pf__phone">{{user.phone || '未绑定手机号'}}</view>
+      <view class="pf__phone">{{user.phone || '未绑定手机号'}}<text class="pf__phone-safe"> · 账号安全</text></view>
     </view>
     <view class="pf__edit-entry">编辑资料 ›</view>
   </view>
@@ -71,17 +79,33 @@
   <!-- U2 信用分卡（仅当前身份, 切换身份查看另一身份） -->
   <view class="pf__scores fade-in-up">
     <view class="pf__score" data-role="{{identity}}" bindtap="onScoreDetail">
-      <view class="pf__score-num">{{identity === 'partner' ? (user.partner_credit_score || '--') : user.user_credit_score}}</view>
-      <view class="pf__score-label">{{identity === 'partner' ? '耍伴信用分' : '用户信用分'}}</view>
-      <view class="pf__score-level">{{identity === 'partner' ? partnerLevel : userLevel}}</view>
+      <view class="pf__score-title">我的服务信用</view>
+      <view class="pf__score-row">
+        <view class="pf__score-num">{{identity === 'partner' ? (user.partner_credit_score || '--') : user.user_credit_score}}</view>
+        <view class="pf__score-meta">
+          <view class="pf__score-label">{{identity === 'partner' ? '耍伴信用分' : '用户信用分'}}</view>
+          <view class="pf__score-level">{{identity === 'partner' ? partnerLevel : userLevel}}</view>
+        </view>
+      </view>
     </view>
+    <view class="pf__score-btn" data-role="{{identity}}" bindtap="onScoreDetail" hover-class="pf__score-btn--hover">查看明细 ›</view>
   </view>
   <view class="pf__score-hint">切换身份可查看另一身份的信用分</view>
+
+  <!-- 订单动态横条（汇总待处理订单数，点击跳全部订单列表） -->
+  <view class="pf__order-banner fade-in-up" wx:if="{{sumCount(orderEntries) > 0}}" bindtap="onOrderEntry" hover-class="pf__order-banner--hover">
+    <view class="pf__order-banner-left">
+      <text class="pf__order-banner-ic">📋</text>
+      <text class="pf__order-banner-title">订单动态</text>
+      <text class="pf__order-banner-desc">有 {{sumCount(orderEntries)}} 条订单需要处理</text>
+    </view>
+    <text class="pf__order-banner-go">查看 ›</text>
+  </view>
 
   <!-- U3 订单四宫格（交错入场） -->
   <view class="pf__orders fade-in-up" style="animation-delay:0.05s;">
     <view class="pf__order" wx:for="{{orderEntries}}" wx:key="key" data-key="{{item.key}}" bindtap="onOrderEntry">
-      <view class="pf__order-ic">{{item.icon}}
+      <view class="pf__order-ic pf__order-ic--{{item.key}}">{{item.icon}}
         <text class="pf__order-dot" wx:if="{{item.count}}">{{item.count}}</text>
       </view>
       <view class="pf__order-name">{{item.name}}</view>
@@ -93,6 +117,7 @@
   <!-- 耍伴工作台 -->
   <view class="pf__card" wx:if="{{identity === 'partner'}}">
     <view class="pf__card-title">耍伴工作台</view>
+    <view class="pf__card-sub">订单与接单管理</view>
 
     <!-- 承接订单概览 -->
     <view class="pf__dash" wx:if="{{partnerRecentOrders.length > 0}}">
@@ -138,6 +163,7 @@
   <!-- 用户工作台 -->
   <view class="pf__card" wx:else>
     <view class="pf__card-title">用户工作台</view>
+    <view class="pf__card-sub">我的需求与服务</view>
 
     <!-- 发布需求概览 -->
     <view class="pf__dash" wx:if="{{userRecentDemands.length > 0}}">

@@ -66,10 +66,10 @@
   border-radius: var(--r-md); background: var(--brand-primary); color: #fff; font-size: var(--font-md);
 }
 
-/* U1 身份头部: 品牌浅底, 个人中心辨识度 */
+/* U1 身份头部: 浅绿渐变底, 个人中心辨识度（对齐参考图头部卡） */
 .pf__header {
   margin-top: 12rpx;
-  background: var(--brand-primary-light);
+  background: linear-gradient(135deg, #E8F7EE 0%, #D6F0E0 100%);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
   padding: 32rpx 28rpx;
@@ -105,17 +105,22 @@
   color: var(--text-1);
 }
 .pf__badge {
-  font-size: var(--font-xs);
-  color: var(--func-success);
-  border: 1rpx solid var(--cert-border);
+  font-size: 20rpx;
+  color: #fff;
+  background: #FA5151;
   border-radius: 8rpx;
-  padding: 0 8rpx;
+  padding: 2rpx 10rpx;
   margin-left: 10rpx;
+  font-weight: 600;
 }
 .pf__phone {
   margin-top: 10rpx;
   font-size: var(--font-sm);
   color: var(--text-4);
+}
+.pf__phone-safe {
+  color: var(--brand-primary);
+  font-weight: 600;
 }
 
 /* 身份切换 */
@@ -152,13 +157,30 @@
   background: var(--bg-card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
-  padding: 32rpx 0;
+  padding: 28rpx 28rpx;
   display: flex;
   align-items: center;
+  justify-content: space-between;
 }
 .pf__score {
   flex: 1;
-  text-align: center;
+  min-width: 0;
+}
+.pf__score-title {
+  font-size: var(--font-sm);
+  color: var(--text-3);
+  font-weight: 600;
+  margin-bottom: 10rpx;
+}
+.pf__score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16rpx;
+}
+.pf__score-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
 }
 .pf__score-num {
   font-size: var(--font-display-lg);
@@ -166,12 +188,10 @@
   color: var(--func-warning);
 }
 .pf__score-label {
-  margin-top: 6rpx;
   font-size: var(--font-sm);
   color: var(--text-3);
 }
 .pf__score-level {
-  margin-top: 10rpx;
   display: inline-block;
   font-size: var(--font-xs);
   font-weight: 600;
@@ -180,12 +200,49 @@
   border-radius: var(--r-full);
   padding: 4rpx 16rpx;
 }
+.pf__score-btn {
+  flex-shrink: 0;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 24rpx;
+  border-radius: 28rpx;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+.pf__score-btn--hover {
+  opacity: 0.85;
+}
 .pf__score-hint {
   margin: 8rpx 8rpx 0;
   font-size: var(--font-xs);
   color: var(--text-4);
   text-align: right;
 }
+
+/* 订单动态横条（绿色, 汇总待处理订单） */
+.pf__order-banner {
+  margin-top: 20rpx;
+  background: var(--brand-primary);
+  border-radius: var(--r-lg);
+  padding: 24rpx 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-card);
+}
+.pf__order-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+.pf__order-banner-ic { font-size: var(--font-lg); }
+.pf__order-banner-title { color: #fff; font-size: var(--font-md); font-weight: 700; }
+.pf__order-banner-desc { color: rgba(255,255,255,0.9); font-size: var(--font-sm); }
+.pf__order-banner-go { color: #fff; font-size: var(--font-sm); font-weight: 600; flex-shrink: 0; }
+.pf__order-banner--hover { opacity: 0.9; }
 
 /* U3 */
 .pf__orders {
@@ -202,12 +259,21 @@
 }
 .pf__order-ic {
   position: relative;
+  width: 88rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  margin: 0 auto;
+  border-radius: 50%;
   font-size: var(--font-display-lg);
 }
+.pf__order-ic--pay { background: #FFE8E8; }
+.pf__order-ic--doing { background: #E6F0FF; }
+.pf__order-ic--eval { background: #E8F7EE; }
+.pf__order-ic--after { background: #FFF3E0; }
 .pf__order-dot {
   position: absolute;
-  top: -8rpx;
-  right: 24rpx;
+  top: -6rpx;
+  right: 6rpx;
   min-width: 28rpx;
   height: 28rpx;
   line-height: 28rpx;
@@ -232,10 +298,15 @@
   padding: 8rpx 28rpx;
 }
 .pf__card-title {
-  padding: 24rpx 0 8rpx;
+  padding: 24rpx 0 6rpx;
   font-size: var(--font-md);
   font-weight: 600;
   color: var(--text-1);
+}
+.pf__card-sub {
+  margin-bottom: 10rpx;
+  font-size: var(--font-xs);
+  color: var(--text-4);
 }
 .pf__card-sub-title {
   margin-top: 16rpx;
@@ -268,8 +339,12 @@
   color: var(--text-1);
 }
 .pf__dash-status {
-  font-size: var(--font-xs);
-  color: var(--func-info);
+  font-size: 20rpx;
+  font-weight: 600;
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  border-radius: var(--r-full);
+  padding: 3rpx 14rpx;
 }
 .pf__dash-body {
   margin-top: 8rpx;
