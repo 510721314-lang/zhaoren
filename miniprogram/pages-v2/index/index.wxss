@@ -81,6 +81,20 @@
   font-size: var(--font-lg);
   flex-shrink: 0;
 }
+/* 搜索栏绿色「搜一搜」按钮（对齐参考图，复用 onSearchConfirm） */
+.home__search-btn {
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 26rpx;
+  border-radius: 28rpx;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+.home__search-btn--hover { opacity: 0.85; }
 .home__search-empty {
   margin: 20rpx;
   background: var(--bg-card);
@@ -179,6 +193,52 @@
   font-weight: 600;
 }
 
+/* H2a 主视觉卡（对齐参考图：浅绿渐变底 + 插画） */
+.home__hero {
+  margin: 16rpx 20rpx 0;
+  padding: 36rpx 32rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #E8F7EE 0%, #D6F0E0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+}
+.home__hero-left { flex: 1; min-width: 0; }
+.home__hero-eyebrow {
+  font-size: var(--font-sm);
+  color: var(--brand-primary);
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+.home__hero-title {
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #1A2330;
+  line-height: 1.35;
+}
+.home__hero-title + .home__hero-title { margin-top: 2rpx; }
+.home__hero-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 64rpx;
+  margin-top: 24rpx;
+  padding: 0 32rpx;
+  border-radius: 32rpx;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+.home__hero-btn--hover { opacity: 0.85; }
+.home__hero-img {
+  width: 240rpx;
+  height: 240rpx;
+  flex-shrink: 0;
+  margin-left: 12rpx;
+}
+
 /* H2b 运营 banner 轮播(后台 home_activity 管理) */
 .home__banner-wrap {
   margin: 16rpx 20rpx 0;
@@ -215,29 +275,29 @@
   margin-top: 6rpx;
 }
 
-/* H4 场景宫格 */
+/* H4 场景宫格（卡片化：每个场景独立彩色圆角卡，对齐参考图） */
 .home__grid {
   margin: 20rpx 20rpx 0;
-  background: var(--bg-card);
-  border-radius: var(--r-lg);
-  padding: 28rpx 12rpx 20rpx;
+  padding: 8rpx 4rpx 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  row-gap: 28rpx;
+  gap: 16rpx;
 }
 .home__cell {
   text-align: center;
   position: relative;
+  border-radius: 20rpx;
+  padding: 24rpx 0 18rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.04);
 }
 .home__cell-ic {
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: 28rpx;
+  width: 80rpx;
+  height: 80rpx;
   margin: 0 auto 10rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-display-lg);
+  font-size: 48rpx;
 }
 .home__cell-name {
   font-size: var(--font-sm);
@@ -292,13 +352,10 @@
 }
 
 /* H6 */
-/* H5b/H5c 活跃用户 / 活跃耍伴(图4) */
+/* H5b/H5c 活跃用户 / 活跃耍伴(图4): 卡片化对齐参考图「人气陪伴师」 */
 .home__active-card {
-  margin: 20rpx 20rpx 0;
-  background: var(--bg-card);
-  border-radius: var(--r-lg);
-  padding: 24rpx 24rpx 26rpx;
-  box-shadow: var(--shadow-card);
+  margin: 20rpx 0 0;
+  padding: 24rpx 0 26rpx;
 }
 .home__active-title {
   display: flex;
@@ -307,6 +364,7 @@
   font-weight: 700;
   color: var(--text-1);
   margin-bottom: 20rpx;
+  padding: 0 20rpx;
 }
 .home__title-bar {
   display: inline-block;
@@ -324,10 +382,16 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  width: 132rpx;
-  margin-right: 8rpx;
+  width: 152rpx;
+  margin-right: 16rpx;
+  padding: 20rpx 12rpx 16rpx;
+  background: var(--bg-card);
+  border-radius: 20rpx;
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
   vertical-align: top;
 }
+.home__active-item:first-child { margin-left: 20rpx; }
 .home__active-avatar {
   width: 96rpx;
   height: 96rpx;
@@ -400,6 +464,40 @@
 }
 
 /* H7 */
+
+/* H8b 底部服务保障条（对齐参考图） */
+.home__assurance {
+  margin: 28rpx 20rpx 0;
+  padding: 28rpx 24rpx;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  text-align: center;
+}
+.home__assurance-title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.home__assurance-tags {
+  display: flex;
+  justify-content: center;
+  gap: 16rpx;
+  margin: 16rpx 0;
+  flex-wrap: wrap;
+}
+.home__assurance-tag {
+  font-size: var(--font-xs);
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  padding: 6rpx 18rpx;
+  border-radius: 20rpx;
+  font-weight: 600;
+}
+.home__assurance-sub {
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  line-height: 1.6;
+}
 
 /* H8 */
 .home__footer {

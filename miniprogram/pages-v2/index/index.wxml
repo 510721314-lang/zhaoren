@@ -24,10 +24,22 @@
       bindconfirm="onSearchConfirm"
     />
     <text class="home__search-x" wx:if="{{searchKey}}" bindtap="onSearchClear">×</text>
+    <view class="home__search-btn" bindtap="onSearchConfirm" hover-class="home__search-btn--hover">搜一搜</view>
   </view>
 
   <!-- H2 卖点条 -->
   <safe-sell-bar></safe-sell-bar>
+
+  <!-- H2a 主视觉卡（对齐参考图：浅绿底 + 文案 + 立即找陪伴 + 双人插画） -->
+  <view class="home__hero">
+    <view class="home__hero-left">
+      <view class="home__hero-eyebrow">陪伴，让每一程都更安心</view>
+      <view class="home__hero-title">把重要的时光</view>
+      <view class="home__hero-title">交给值得信赖的人</view>
+      <view class="home__hero-btn" bindtap="onGoSquare" hover-class="home__hero-btn--hover">立即找陪伴</view>
+    </view>
+    <image class="home__hero-img" src="/images/home-banner-illustration.png" mode="aspectFit"></image>
+  </view>
 
   <!-- H2b 运营 Banner 轮播（后台 home_activity 管理，0-N 张，可空） -->
   <view class="home__banner-wrap" wx:if="{{banners.length}}">
@@ -72,9 +84,9 @@
 
   <!-- H4 场景宫格（常用场景 + 「更多场景」折叠, 搜索实时过滤, 交错入场） -->
   <view class="home__grid" wx:if="{{!loading && gridScenes.length > 0}}">
-    <view class="home__cell {{item.isMore ? 'home__cell--more' : ''}} fade-in-up" style="animation-delay:{{index * 0.03}}s;" wx:for="{{gridScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
+    <view class="home__cell {{item.isMore ? 'home__cell--more' : ''}} fade-in-up" style="animation-delay:{{index * 0.03}}s; background:{{item.color}};" wx:for="{{gridScenes}}" wx:key="code" data-code="{{item.code}}" bindtap="onSceneTap">
       <view class="home__gb-badge" wx:if="{{item.gb}}">国标</view>
-      <view class="home__cell-ic" style="background:{{item.color}};">{{item.icon}}</view>
+      <view class="home__cell-ic">{{item.icon}}</view>
       <view class="home__cell-name">{{item.name}}</view>
     </view>
   </view>
@@ -106,7 +118,7 @@
 
   <!-- H5b 活跃耍伴(图4): 横滑头像+昵称+信用分胶囊 -->
   <view class="home__active-card" wx:if="{{activePartners.length > 0}}">
-    <view class="home__active-title"><text class="home__title-bar"></text>⭐ 活跃耍伴</view>
+    <view class="home__active-title"><text class="home__title-bar"></text>人气陪伴师</view>
     <scroll-view scroll-x class="home__active-scroll" enhanced show-scrollbar="{{false}}">
       <view class="home__active-item" wx:for="{{activePartners}}" wx:key="openid" data-openid="{{item.openid}}" bindtap="onActivePartnerTap">
         <image wx:if="{{item.avatar}}" class="home__active-avatar" src="{{item.avatar}}" mode="aspectFill" lazy-load></image>
@@ -153,6 +165,18 @@
       </view>
     </block>
     <view wx:else class="home__near-empty">附近暂无可接需求</view>
+  </view>
+
+  <!-- H8b 底部服务保障条（对齐参考图：服务从每一步开始 + 标签 + 免责声明） -->
+  <view class="home__assurance">
+    <view class="home__assurance-title">服务，从每一步开始</view>
+    <view class="home__assurance-tags">
+      <text class="home__assurance-tag">安全</text>
+      <text class="home__assurance-tag">保障</text>
+      <text class="home__assurance-tag">隐私</text>
+      <text class="home__assurance-tag">合规</text>
+    </view>
+    <view class="home__assurance-sub">平台仅提供信息撮合，具体服务由耍伴提供，请线下确认服务内容与费用</view>
   </view>
 
   <!-- H8 页脚 -->
