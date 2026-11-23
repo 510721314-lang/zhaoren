@@ -1,6 +1,6 @@
-# 找人帮忙项目技术负债清单（2026-11-05 刷新版）
+# 找人帮忙项目技术负债清单（**现行唯一** · 2026-11-05 主体 · 2026-11-23 头部计数刷新）
 
-> 盘点日期：2026-11-05（2026-11-06 增量刷新）　基线：体验版 **v1.6.95**（TOTAL 790.1 KB / 809,040 B，main 548.0 KB；与 v1.6.94 字节一致）；HEAD `8b0c92d`（工作区干净、已推送）
+> 盘点日期：2026-11-05（2026-11-06 增量刷新 · **2026-11-23 头部计数刷新**）　基线：体验版 **v1.6.16**（HEAD `f126bb76`，verify:offline A/B **466 EQUIVALENT** / 1192 用例 / 103 known-evolution）；工作区干净、已推送（ls-remote 实证 MATCH_OK）
 > 数据来源：云端回读（`config_get` / `config_public` / `nosql`）、[deploy-log](deploy-log.md)、[CHANGELOG](CHANGELOG.md)、[FUNCTION-REGISTRY](FUNCTION-REGISTRY.md)、本会话实测（`npm test` / 入口测试 / SHA 核验）
 > 替代关系：本文件为**现行唯一**技术负债清单；[tech-debt-inventory-20261015.md](tech-debt-inventory-20261015.md) 转为**历史归档**（其日期口径、KNOWN 计数、REGISTRY 待验证数已过时）。
 > 后期路线图：[ROADMAP-post-review.md](ROADMAP-post-review.md)（2026-11-15 企业主体/保险/核身/税务规划与当前债映射；F12⑤/P1-5/P1-6 已移入后期）
@@ -17,7 +17,7 @@
 | 备份体系 B-1~B-6 | 6 | B-1/B-2 待自动窗口复核；**B-3 已偿还；B-4 已决策接受（2026-11-13，SOP 入 runbook）**；B-5/B-6 已接受/已处理 |
 | 本会话新增 N-3~N-7 | 5 | ✅ 全部偿还（2026-11-05，`a1f3dac`，见 §5） |
 
-关键计数（2026-11-05 实测）：`npm test` A/B **456 EQUIVALENT / 79 known-evolution**；入口测试 `order-action.entry.test.js` **67/67**；索引台账 **49 条**；`_shared` 同步门禁 **ALL OK**；空 catch 净口径约 **155 处**（窄类 25/25 已收口）。
+关键计数（**2026-11-23 实测，取代 2026-11-05 旧值**）：`npm run verify:offline` A/B **466 EQUIVALENT / 1192 用例 / 103 known-evolution**；入口测试全过（单测 1192/1192）；`_shared` 同步门禁 **ALL OK**；空 catch 基线 **200 处**（C 类有意设计 190 / B 类 10 维持不修；A 类高危 4 + B 类批 1/2/3 共 50 处已补 log.w/e，基线从 254→200）。
 
 ---
 
