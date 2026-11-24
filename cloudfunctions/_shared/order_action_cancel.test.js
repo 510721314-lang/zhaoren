@@ -203,6 +203,16 @@ test('cancel_withdraw: 发起方撤回 → withdrawn + 清 frozen(主轴不变) 
   assert.ok(cd > NOW && cd - NOW <= 61 * 60000);
 });
 
+test('cancel_withdraw: 撤回原因落独立字段 withdraw_reason, 不覆盖发起原因 reason + 截断 50 字(经验 100034919)', async () => {
+  const sdk = makeSdk({ openid: USER, store: store({ order: { cancel_request: { status: 'pending', by: 'user', by_openid: USER, at: NOW, deadline: NOW + 2 * H, reason: '发起时填的原因' } } }), docUpdateWritesBack: true });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_withdraw', order_id: OID, mock_openid: USER, reason: 'a'.repeat(60) }, {});
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const w = (sdk.writes.order_main || [])[0];
+  assert.equal(w.data['cancel_request.withdraw_reason'], 'a'.repeat(50), '撤回原因应截断到 REASON_MAX=50');
+  assert.equal(w.data['cancel_request.reason'], undefined, '点路径写入不得覆盖发起原因 reason');
+  assert.equal(w.data['cancel_request.status'], 'withdrawn');
+});
+
 test('cancel_withdraw: 非发起方 → oa_cancel_not_initiator', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: store({ order: { cancel_request: { status: 'pending', by: 'user', by_openid: USER, at: NOW, deadline: NOW + 2 * H } } }) });
   const r = await loadOrderAction(sdk).main({ action: 'cancel_withdraw', order_id: OID, mock_openid: PARTNER }, {});

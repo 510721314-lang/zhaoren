@@ -159,7 +159,8 @@ async function timeline(ctx) {
     });
     if (cr.status === 'withdrawn') events.push({
       at: Number(cr.withdrawn_at) || 0, type: 'cancel',
-      label: '撤回取消申请,订单继续履约', actor_role: crBy, detail: ''
+      label: '撤回取消申请,订单继续履约', actor_role: crBy,
+      detail: String(cr.withdraw_reason || '').slice(0, 100)
     });
     if (cr.status === 'timeout') events.push({
       at: Number(cr.timed_out_at) || 0, type: 'cancel',

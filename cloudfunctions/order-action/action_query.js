@@ -227,7 +227,8 @@ async function detail(ctx) {
         at: Number(order.cancel_request.at) || 0,
         deadline: Number(order.cancel_request.deadline) || 0,
         reason: String(order.cancel_request.reason || '').slice(0, 50),
-        reject_reason: String(order.cancel_request.reject_reason || '').slice(0, 50)
+        reject_reason: String(order.cancel_request.reject_reason || '').slice(0, 50),
+        withdraw_reason: String(order.cancel_request.withdraw_reason || '').slice(0, 50)
       } : null,
       cancel_cooldown_until: Number(order.cancel_cooldown_until) || 0,
       urge,

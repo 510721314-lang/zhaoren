@@ -223,14 +223,17 @@ function onNewCancelRequest(page) {
   const tiers = (page.data.cancelTiers || []).map((t) => `· ${t.label}：退款${t.rate * 100}%`).join('\n');
   page._modal({
     title: '申请取消',
-    content: `对方确认后按梯度退款：\n${tiers}\n\n取消会按档扣除发起方信用分；对方超时未响应将转平台裁决。确定申请？`,
+    content: `对方确认后按梯度退款：\n${tiers}\n\n取消会按档扣除发起方信用分；对方超时未响应将转平台裁决。可在下方填写取消原因（选填，最多50字）`,
     confirmText: '确定申请',
     confirmColor: '#fa5151',
+    editable: true,
+    placeholderText: '请填写取消原因（选填，最多50字）',
     fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
     success: (res) => {
       if (!res.confirm) return;
+      const reason = String(res.content || '').slice(0, 50);
       wx.showLoading({ title: '提交申请', mask: true });
-      return callCloud('order-action', { action: 'cancel_request', order_id: that.data.order._id }).then((r) => {
+      return callCloud('order-action', { action: 'cancel_request', order_id: that.data.order._id, reason }).then((r) => {
         wx.hideLoading();
         if (!r.ok) {
           if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '申请失败', icon: 'none' });
@@ -288,13 +291,16 @@ function onNewCancelWithdraw(page) {
   const that = page;
   page._modal({
     title: '撤回取消申请',
-    content: '撤回后订单继续正常流程，不扣信用分；撤回后 1 小时内不可再次申请。确定撤回？',
+    content: '撤回后订单继续正常流程，不扣信用分；撤回后 1 小时内不可再次申请。可在下方填写撤回原因（选填，最多50字）',
     confirmText: '确定撤回',
+    editable: true,
+    placeholderText: '请填写撤回原因（选填，最多50字）',
     fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
     success: (res) => {
       if (!res.confirm) return;
+      const reason = String(res.content || '').slice(0, 50);
       wx.showLoading({ title: '撤回中', mask: true });
-      return callCloud('order-action', { action: 'cancel_withdraw', order_id: that.data.order._id }).then((r) => {
+      return callCloud('order-action', { action: 'cancel_withdraw', order_id: that.data.order._id, reason }).then((r) => {
         wx.hideLoading();
         if (!r.ok) {
           if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '撤回失败', icon: 'none' });

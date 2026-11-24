@@ -734,6 +734,7 @@
     "cancel_confirm: 对方同意 → S7 + 单条 refund 流水(单款10500=订单10000+tip500) + 发起方扣25 + 清 frozen",
     "cancel_reject: 对方拒绝 → S10.5 + rejected + 写 24h 冷却 + pre_dispute_status",
     "cancel_withdraw: 发起方撤回 → withdrawn + 清 frozen(主轴不变) + 写 1h 冷却",
+    "cancel_withdraw: 撤回原因落独立字段 withdraw_reason, 不覆盖发起原因 reason + 截断 50 字(经验 100034919)",
     "cancel_withdraw: 非发起方 → oa_cancel_not_initiator"
   ],
   "cloudfunctions/_shared/order_create_take_success.test.js": [

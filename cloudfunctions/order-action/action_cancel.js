@@ -260,6 +260,8 @@ async function cancel_withdraw(ctx) {
     return { ok: false, code: 'oa_cancel_expired', msg: '申请已超时,等待平台处理' };
   }
   const cfg = cancelCfgOf(await getGlobalConfig(db));
+  // 撤回原因(选填 ≤50 字)落独立字段 withdraw_reason, 不复用 reason(发起原因) / reject_reason(拒绝原因), 避免覆盖(经验 100034919)
+  const withdrawReason = String((event && event.reason) || '').trim().slice(0, REASON_MAX);
   // CAS 撤回: 主轴不变(no.35 to=null), 清 frozen, 写冷却; 条件含发起方防对方并发操作竞态
   const won = await col('order_main').where({
     _id: order_id, status: _.in(CANCEL_REQUEST_STATUS),
@@ -267,6 +269,7 @@ async function cancel_withdraw(ctx) {
   }).update({ data: {
     'cancel_request.status': 'withdrawn',
     'cancel_request.withdrawn_at': now,
+    'cancel_request.withdraw_reason': withdrawReason,
     cancel_cooldown_until: now + cfg.withdrawCooldownMin * 60 * 1000,
     frozen: false, updated_at: now
   }});
