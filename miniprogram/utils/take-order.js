@@ -232,40 +232,42 @@ function _applySelect(demand, opts) {
   });
 }
 
-// 通过资格探针后的原接单链路(选单模式 → 免责 → 定位 → 建单)
+// 通过资格探针后的接单链路(报名/抢单共用 check_signed → 未签弹免责 → 各自后续)
 function _afterGate(demand, opts) {
-  // 选单模式(P1-12 激活, 2026-11-15 选单立项): 未被发布者选中 → 走报名; 已被选中 → 继续原建单链路
-  if (demand.match_mode === 'select' && !demand.select_confirmed_me) {
-    _applySelect(demand, opts);
-    return;
-  }
+  // 选单模式(未被发布者选中) → 报名; 抢单或已被选中 → 建单链路
+  const isApply = demand.match_mode === 'select' && !demand.select_confirmed_me;
   const scene = getScene(demand.scene_code);
   const d = scene && scene.disclaimer;
+  // 无内置免责声明的场景: 报名直接走 apply, 抢单直接定位建单
+  if (isApply && !d) { _applySelect(demand, opts); return; }
   if (d) {
-    // ④⑤ 分流: 单次只读拿到 signed(同场景免责已签) + certified(已开通该场景权限)
-    // - certified && signed → 一键接单: 一次确认(免免责 modal) → 定位 → 建单
-    // - !signed            → 弹免责 modal(首次需签署; 网络异常也走此兜底)
-    // - signed && !certified → 维持 ④ 直走定位(后端 order_scene_not_accepted 清晰拒绝)
+    // check_signed 分流(报名/抢单共用): 已签 → 走各自后续; 未签 → 弹免责声明
+    // - signed && certified(抢单) → 一键接单: 一次确认(免免责 modal) → 定位 → 建单
+    // - !signed                  → 弹免责 modal(首次需签署; 网络异常也走此兜底)
+    // - signed && !certified(抢单) → 直走定位(后端 order_scene_not_accepted 清晰拒绝)
     _grabInFlight = true;
     callCloud('order-create', { action: 'check_signed', scene: demand.scene_code }).then((r) => {
       const d0 = (r && r.data) || {};
-      if (d0.signed && d0.certified) {
-        // 一键接单: 免责已签 + 权限已开 → 单次确认后进入定位+建单
-        wx.showModal({
-          title: scene.name || '一键接单',
-          content: `${scene.name || ''}场景免责声明已签署,接单权限已开通。确认接单后将获取定位并创建订单。`,
-          confirmText: '一键接单', // 上限 4 字符
-          cancelText: '再想想',
-          success: (mr) => { if (mr.confirm) _locate(demand, opts); else _release(); },
-          fail: () => { _release(); _showDisclaimer(d, demand, opts); } // 弹窗失败兜底回免责(不阻断)
-        });
-      } else if (d0.signed) {
-        _locate(demand, opts);
+      if (d0.signed) {
+        if (isApply) { _applySelect(demand, opts); return; } // 报名: 已签直接报名
+        if (d0.certified) {
+          // 一键接单: 免责已签 + 权限已开 → 单次确认后进入定位+建单
+          wx.showModal({
+            title: scene.name || '一键接单',
+            content: `${scene.name || ''}场景免责声明已签署,接单权限已开通。确认接单后将获取定位并创建订单。`,
+            confirmText: '一键接单', // 上限 4 字符
+            cancelText: '再想想',
+            success: (mr) => { if (mr.confirm) _locate(demand, opts); else _release(); },
+            fail: () => { _release(); _showDisclaimer(d, demand, opts, false); } // 弹窗失败兜底回免责(不阻断)
+          });
+        } else {
+          _locate(demand, opts);
+        }
       } else {
-        _showDisclaimer(d, demand, opts);
+        _showDisclaimer(d, demand, opts, isApply);
       }
     }).catch(() => {
-      _showDisclaimer(d, demand, opts);
+      _showDisclaimer(d, demand, opts, isApply);
     });
   } else {
     _grabInFlight = true;
@@ -275,14 +277,34 @@ function _afterGate(demand, opts) {
 
 // 免责声明用 wx.showModal(真机稳定, 与发布侧弹法统一, 禁用 bottom-sheet)
 // 注意: confirmText 上限 4 字符, 超限真机上弹窗不渲染且无反应(教训已入 skill)
-function _showDisclaimer(d, demand, opts) {
+// isApply: 报名链路(true)签完走 _applySelect; 抢单链路(false)签完走 _locate 建单
+function _showDisclaimer(d, demand, opts, isApply) {
   wx.showModal({
     title: d.title,
     content: d.content,
     confirmText: '同意接单',
     cancelText: '不同意',
     success: (r) => {
-      if (r.confirm) _locate(demand, opts); else _release();
+      if (!r.confirm) { _release(); return; }
+      if (isApply) {
+        // 报名链路: 先签免责(幂等) → 再弹报名确认; 后端 apply 会校验已签
+        wx.showLoading({ title: '签署中...', mask: true });
+        callCloud('order-create', Object.assign({ action: 'sign_disclaimer', scene: demand.scene_code }, { device: _deviceInfo() })).then((r2) => {
+          wx.hideLoading();
+          if (!r2 || !r2.ok) {
+            wx.showToast({ title: (r2 && r2.msg) || '签署失败,请重试', icon: 'none' });
+            _release();
+            return;
+          }
+          _applySelect(demand, opts);
+        }).catch(() => {
+          wx.hideLoading();
+          wx.showToast({ title: '签署失败,请重试', icon: 'none' });
+          _release();
+        });
+      } else {
+        _locate(demand, opts);
+      }
     },
     fail: (err) => {
       // 静默失败兜底: 弹窗渲染失败时给出可见反馈, 不允许无反应
