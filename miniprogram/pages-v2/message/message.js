@@ -188,5 +188,12 @@ Page({
   onSystemTap() {
     wx.navigateTo({ url: '/pages-v2/pkg-low/notices/notices', fail: () => wx.showToast({ title: '通知页暂不可用', icon: 'none' }) });
   },
+  // 「全部订单消息」入口 → 全部订单列表（与 profile.onOrderEntry 同口径，tab=all）
+  onAllOrders() {
+    wx.navigateTo({
+      url: '/pages-v2/orders/orders?tab=all',
+      fail: () => wx.showToast({ title: '跳转失败', icon: 'none' })
+    });
+  },
   onReserve() { require('../../utils/redline.js').reserveNotice(); }
 });

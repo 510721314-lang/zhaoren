@@ -1,8 +1,24 @@
+<wxs module="sceneIcon">
+function getIcon(name) {
+  if (!name) return '💬';
+  if (name.indexOf('就医') >= 0) return '🏥';
+  if (name.indexOf('学习') >= 0) return '📚';
+  if (name.indexOf('健身') >= 0) return '💪';
+  if (name.indexOf('游玩') >= 0) return '🎡';
+  if (name.indexOf('情绪') >= 0) return '💭';
+  if (name.indexOf('生活') >= 0) return '🛠️';
+  if (name.indexOf('宠物') >= 0) return '🐾';
+  if (name.indexOf('出行') >= 0) return '🚗';
+  if (name.indexOf('线上') >= 0) return '💻';
+  return '💬';
+}
+module.exports = { getIcon: getIcon };
+</wxs>
 <view class="v2 msg">
   <nav-bar title="消息" show-back="{{false}}"></nav-bar>
 
   <!-- M0 留存提示条 -->
-  <view class="msg__retention">{{retentionText}}</view>
+  <view class="msg__retention"><text class="msg__retention-label">订单消息保留说明</text> {{retentionText}}</view>
 
   <!-- M2 固定入口 -->
   <view class="msg__entries">
@@ -14,11 +30,18 @@
         <view class="msg__entry-name">{{entries.system.counterpart}}</view>
         <view class="msg__entry-last">{{entries.system.last_msg}}</view>
       </view>
-      <view class="msg__entry-time">{{entries.system.last_msg_at}}</view>
+      <view class="msg__entry-right">
+        <view class="msg__entry-time">{{entries.system.last_msg_at}}</view>
+        <view class="msg__entry-action">查看 ›</view>
+      </view>
     </view>
   </view>
 
   <!-- M1 订单会话 -->
+  <view class="msg__section-head" wx:if="{{orderList.length > 0}}">
+    <text class="msg__section-title">订单会话</text>
+    <text class="msg__section-more" bindtap="onAllOrders">全部订单消息 ›</text>
+  </view>
   <view class="msg__list">
     <!-- 加载态 -->
     <view class="msg__loading" wx:if="{{loading}}">
@@ -38,9 +61,7 @@
         data-id="{{item._id}}"
         bindtap="onCardTap"
       >
-        <view class="msg__avatar">{{item.avatar}}
-          <text class="msg__badge" wx:if="{{item.unread_count}}">{{item.unread_count}}</text>
-        </view>
+        <view class="msg__avatar">{{item.avatar || sceneIcon.getIcon(item.sceneName)}}</view>
         <view class="msg__main">
           <view class="msg__row1">
             <text class="msg__name">{{item.displayTitle}}</text>
@@ -56,9 +77,10 @@
             <text class="msg__summary-l3" wx:if="{{item.order_summary.l3}}">{{item.order_summary.l3}}</text>
           </view>
           <view class="msg__row2">
-            <text class="msg__summary">{{item.summary}}</text>
+            <text class="msg__summary">最近消息：{{item.summary}}</text>
             <view class="msg__right">
               <text class="msg__time">{{item.last_msg_at_display}}</text>
+              <text class="msg__badge msg__badge--conv" wx:if="{{item.unread_count}}">{{item.unread_count}}</text>
               <text class="msg__read" wx:if="{{item.is_read}}">✓✓</text>
             </view>
           </view>

@@ -8,12 +8,13 @@
 
 /* M0 */
 .msg__retention {
-  background: var(--func-warning-light);
-  color: var(--text-aa);
+  background: linear-gradient(90deg, #4A3526 0%, #5C4030 100%);
+  color: #E8C887;
   font-size: var(--font-sm);
   text-align: center;
-  padding: 14rpx 20rpx;
+  padding: 16rpx 24rpx;
 }
+.msg__retention-label { font-weight: 600; margin-right: 10rpx; letter-spacing: 1rpx; }
 
 /* M2 */
 .msg__entries {
@@ -85,8 +86,9 @@
   font-size: var(--font-xs);
   color: var(--text-5);
   flex-shrink: 0;
-  margin-left: 16rpx;
 }
+.msg__entry-right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; margin-left: 16rpx; }
+.msg__entry-action { margin-top: 8rpx; font-size: var(--font-xs); color: var(--brand-primary); font-weight: 600; }
 
 /* M1 */
 .msg__list {
@@ -94,12 +96,12 @@
 }
 .msg__conv {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   background: var(--bg-card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
-  padding: 22rpx 24rpx;
-  margin-bottom: 16rpx;
+  padding: 28rpx 24rpx;
+  margin-bottom: 20rpx;
 }
 .msg__row1 {
   display: flex;
@@ -111,9 +113,9 @@
   font-weight: 600;
   color: var(--text-1);
 }
-.msg__summary-box { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; padding: 12rpx 14rpx; background: var(--bg-segment, rgba(255,255,255,0.05)); border-radius: 10rpx; }
-.msg__summary-l1 { font-size: 22rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
-.msg__summary-l2, .msg__summary-l3 { font-size: 20rpx; color: var(--text-3, #666666); }
+.msg__summary-box { display: flex; flex-direction: column; gap: 6rpx; margin-top: 12rpx; padding: 18rpx 20rpx; background: var(--bg-segment); border-radius: 16rpx; }
+.msg__summary-l1 { font-size: 24rpx; font-weight: 600; color: var(--func-warning, #ff8f3c); }
+.msg__summary-l2, .msg__summary-l3 { font-size: 22rpx; color: var(--text-3, #666666); line-height: 1.5; }
 /* 需求标题/详细描述(2026-10-17 新增展示): 会话列表内, 标题一行+描述多行 */
 .msg__demand-title { margin-top: 6rpx; font-size: 22rpx; font-weight: 600; color: var(--text-1, #ffffff); }
 .msg__demand-desc { margin-top: 4rpx; font-size: 20rpx; color: var(--text-3, #666666); line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
@@ -175,4 +177,26 @@
   background: var(--bg-card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
+}
+
+/* M1 section header（订单会话 + 全部订单消息） */
+.msg__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 28rpx 24rpx 12rpx;
+}
+.msg__section-title { font-size: var(--font-md); font-weight: 700; color: var(--text-1); }
+.msg__section-more { font-size: var(--font-sm); color: var(--text-4); }
+
+/* 会话卡右下角未读徽标（区别于系统通知头像上的徽标） */
+.msg__badge--conv {
+  position: static;
+  margin-top: 6rpx;
+}
+
+/* 头像圆底加轻微阴影，对齐参考图 */
+.msg__entry-avatar,
+.msg__avatar {
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
 }
