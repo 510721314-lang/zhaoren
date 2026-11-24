@@ -214,7 +214,8 @@ async function detail(ctx) {
       modify_rejected_at: Number(order.modify_rejected_at) || 0,
       pending_extend: order.pending_extend || null,
       // 撤回投诉入口(仅发起人、且平台未受理=订单仍 S10.5 时可见); 争议升级场景 complaint_by 为空时双方均可撤
-      can_withdraw_complaint: order.status === 'S10.5' && (!order.complaint_by || order.complaint_by === openid),
+      // Bug B 修复(2026-11-24): 仅投诉型争议(dispute_type='complaint')可自助撤回; cancel 争议须平台裁决, 不显示撤回入口
+      can_withdraw_complaint: order.status === 'S10.5' && order.dispute_type === 'complaint' && (!order.complaint_by || order.complaint_by === openid),
       complaint: complaintInfo,
       fund, refund, dispute, fees,
       // 争议/申诉冻结位(2026-10-12): 前端据此隐藏「发起投诉」等推进类入口(D2: 谁先发起谁冻结)

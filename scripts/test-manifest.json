@@ -575,6 +575,7 @@
     "complaint_withdraw: complaint_by空串 需求方撤 → restore S2_6 且 frozen=false",
     "complaint_withdraw: complaint_by空串 耍伴方撤 → restore S3_6(双方可撤)",
     "complaint_withdraw: complaint_by=USER 耍伴撤 → oa_not_complaint_owner(仅发起人可撤)",
+    "complaint_withdraw: cancel 争议 → oa_cancel_dispute_no_withdraw 且不写库",
     "timeline: 缺 order_id → oa_bad_order_id",
     "timeline: 非参与方 → oa_not_participant",
     "timeline: 多源合并/倒序/去重/隐私 → 契约",

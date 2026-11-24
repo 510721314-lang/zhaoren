@@ -221,9 +221,11 @@ function onCancel(page) {
 function onNewCancelRequest(page) {
   const that = page;
   const tiers = (page.data.cancelTiers || []).map((t) => `· ${t.label}：退款${t.rate * 100}%`).join('\n');
+  // Bug A 修复(2026-11-24): editable 模式下 content 会预填进输入框(非展示文案), 原长文案会污染 reason 落库;
+  // 说明移至 title(可换行), content 置空, 输入框初始为空, 只采用户真实输入
   page._modal({
-    title: '申请取消',
-    content: `对方确认后按梯度退款：\n${tiers}\n\n取消会按档扣除发起方信用分；对方超时未响应将转平台裁决。可在下方填写取消原因（选填，最多50字）`,
+    title: `申请取消\n\n对方确认后按梯度退款：\n${tiers}\n取消会按档扣除发起方信用分；对方超时未响应将转平台裁决。`,
+    content: '',
     confirmText: '确定申请',
     confirmColor: '#fa5151',
     editable: true,
@@ -254,10 +256,14 @@ function onNewCancelRespond(page, kind) {
   const isConfirm = kind === 'confirm';
   // 波2(2026-11-24): 拒绝弹 editable 输入框采集理由(≤50字) 传后端落 reject_reason, 对端可在订单动态查看
   const opts = {
-    title: isConfirm ? '同意取消' : '拒绝取消',
+    // Bug A 修复(2026-11-24): 拒绝分支 editable, content 置空(原长文案会污染 reject_reason), 说明移至 title;
+    // 同意分支非 editable, content 为纯展示文案, 保持不变
+    title: isConfirm
+      ? '同意取消'
+      : '拒绝取消\n\n拒绝后订单将转入平台裁决（S10.5），由平台判定取消与退款。',
     content: isConfirm
       ? '同意后订单将按梯度退款给付款方，申请方将被扣除相应信用分，订单不可恢复。确定同意？'
-      : '拒绝后订单将转入平台裁决（S10.5），由平台判定取消与退款。可在下方填写拒绝理由（选填，最多50字）',
+      : '',
     confirmText: isConfirm ? '同意取消' : '确定拒绝',
     confirmColor: '#fa5151',
     fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
@@ -289,9 +295,10 @@ function onNewCancelRespond(page, kind) {
 
 function onNewCancelWithdraw(page) {
   const that = page;
+  // Bug A 修复(2026-11-24): editable 模式 content 置空, 说明移至 title, 避免污染 withdraw_reason
   page._modal({
-    title: '撤回取消申请',
-    content: '撤回后订单继续正常流程，不扣信用分；撤回后 1 小时内不可再次申请。可在下方填写撤回原因（选填，最多50字）',
+    title: '撤回取消申请\n\n撤回后订单继续正常流程，不扣信用分；撤回后 1 小时内不可再次申请。',
+    content: '',
     confirmText: '确定撤回',
     editable: true,
     placeholderText: '请填写撤回原因（选填，最多50字）',

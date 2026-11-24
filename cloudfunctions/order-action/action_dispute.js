@@ -85,6 +85,12 @@ async function complaint_withdraw(ctx) {
   if (!order) return { ok: false, code: 'oa_not_found', msg: '订单不存在' };
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
+  // Bug B 修复(2026-11-24): cancel 争议(dispute_type='cancel', 由 cancel_reject/cancel_timeout 写入)不支持自助撤回,
+  // 须平台裁决; 否则 complaint_withdraw 会错误回退主轴到 pre_dispute_status 且遗留 cancel_request 脏态
+  // (order_status_log 实证: user_cancel_reject 后 15s 即被 complaint_withdraw 回退 S10.5→S2, cr.status 停留在 rejected)
+  if (order.dispute_type === 'cancel') {
+    return { ok: false, code: 'oa_cancel_dispute_no_withdraw', msg: '取消争议需平台裁决,不可自助撤回' };
+  }
   if (order.status !== 'S10.5') {
     if (order.complaint_withdrawn_by === openid) return { ok: true, data: { status: order.status || '', idempotent: true } };
     return { ok: false, code: 'oa_complaint_not_open', msg: '当前订单不在争议处理中, 不可撤回' };

@@ -339,6 +339,22 @@ test('complaint_withdraw: complaint_by=USER 耍伴撤 → oa_not_complaint_owner
   assert.strictEqual(r.code, 'oa_not_complaint_owner');
 });
 
+// 12h. Bug B 修复(2026-11-24): cancel 争议(dispute_type='cancel')不可自助撤回 → oa_cancel_dispute_no_withdraw
+// (防止 complaint_withdraw 错误回退主轴且遗留 cancel_request 脏态; 真机实证 2 单脏单)
+test('complaint_withdraw: cancel 争议 → oa_cancel_dispute_no_withdraw 且不写库', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    status: 'S10.5', complaint_by: '', complaint_from_status: 'S2',
+    dispute_state: 'open', dispute_type: 'cancel', frozen: true,
+    cancel_request: { status: 'rejected' },
+    complaint_at: Date.now() - 60000, complaint_withdrawn_at: 0, complaint_withdrawn_by: ''
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'complaint_withdraw', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, false, `cancel 争议应被拒绝: ${JSON.stringify(r)}`);
+  assert.strictEqual(r.code, 'oa_cancel_dispute_no_withdraw');
+  assert.strictEqual((sdk.writes.order_main || []).length, 0, 'cancel 争议撤回不得写 order_main');
+});
+
 // 13. timeline: 缺 order_id → oa_bad_order_id(分发层预检)
 test('timeline: 缺 order_id → oa_bad_order_id', async () => {
   const sdk = makeSdk({ openid: USER, store: baseStore() });
