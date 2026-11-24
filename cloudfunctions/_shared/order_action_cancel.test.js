@@ -177,6 +177,37 @@ test('cancel_confirm: 对方同意 → S7 + 单条 refund 流水(单款10500=订
   assert.ok(cl && cl.data.delta === -25 && cl.data.type === 'cancel' && cl.data.score === 775);
 });
 
+test('cancel_confirm: 老单缺 fund 子文档 → 兜底 total_fen 退款 + 跳过 fund 守卫 + 补建 fund(2026-11-24 修复)', async () => {
+  const sdk = makeSdk({
+    openid: PARTNER,
+    // fund: undefined 模拟 2026-11 前种子单缺 fund 子文档; total_fen 作为退款基准兜底
+    store: store({ order: { fund: undefined, total_fen: 8000, cancel_request: { status: 'pending', by: 'user', by_openid: USER, at: NOW, deadline: NOW + 2 * H } } }),
+    docUpdateWritesBack: true
+  });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.data.status, 'S7');
+  assert.equal(r.data.refund_fen, 4000);        // lead=0 近档 50% × 8000(total_fen 兜底, 修复前会算 0)
+  assert.equal(r.data.tip_refund_fen, 500);     // tip 1000 × (4000/8000)
+  assert.equal(r.data.total_refund_fen, 4500);
+  const w = (sdk.writes.order_main || [])[0];
+  assert.ok(w && w.data.status === 'S7');
+  // 修复点 1: 缺 fund 单 where 不应含 fund.refunded_fen 守卫($lt 对不存在字段恒不匹配 → CAS 恒失败)
+  assert.equal(w.where['fund.refunded_fen'], undefined, '缺 fund 单不应加 fund.refunded_fen 守卫');
+  // 修复点 2: patch 应补建 fund(paid_fen=total_fen, refunded_fen=本次退款), 后续逻辑数据完整
+  assert.ok(w.data.fund, '缺 fund 单应补建 fund 子文档');
+  assert.equal(w.data.fund.paid_fen, 8000);
+  assert.equal(w.data.fund.refunded_fen, 4500);
+  assert.equal(w.data.fund.settle_state, 'pending');
+  assert.equal(w.data.fund.settled_at, 0);
+  // 退款流水金额正确(修复前因 paidFen=0 会退 0)
+  const txn = (sdk.writes.pay_transaction || []).find((x) => x.add && x.data.type === 'refund');
+  assert.ok(txn, '应写 refund 流水');
+  assert.equal(txn.data.amount_fen, 4500);
+  assert.equal(txn.data.refund_fen, 4000);
+  assert.equal(txn.data.tip_refund_fen, 500);
+});
+
 test('cancel_reject: 对方拒绝 → S10.5 + rejected + 写 24h 冷却 + pre_dispute_status', async () => {
   const sdk = makeSdk({ openid: PARTNER, store: store({ order: { cancel_request: { status: 'pending', by: 'user', by_openid: USER, at: NOW, deadline: NOW + 2 * H } } }), docUpdateWritesBack: true });
   const r = await loadOrderAction(sdk).main({ action: 'cancel_reject', order_id: OID, mock_openid: PARTNER }, {});

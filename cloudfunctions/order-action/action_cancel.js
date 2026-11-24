@@ -111,7 +111,8 @@ async function cancel_confirm(ctx) {
     return { ok: false, code: 'oa_cancel_status', msg: `当前状态(${order.status})不可确认取消` };
   }
   const fromStatus = order.status;
-  const paidFen = (order.fund && Number(order.fund.paid_fen)) || 0;
+  // 2026-11-24 修复: 老单(2026-11 前)缺 fund 子文档, paid_fen 兜底用 total_fen, 否则退款额算 0 且 CAS 守卫恒失败
+  const paidFen = (order.fund && Number(order.fund.paid_fen)) || Number(order.total_fen) || 0;
   const alreadyRefunded = (order.fund && Number(order.fund.refunded_fen)) || 0;
   const tipTotalFen = Number(order.tip_total_fen) || 0;
   // leadMs = 履约开始时间 - 同意时刻(不按申请时刻, 评审 N10); 基准一律 fund.paid_fen
@@ -125,19 +126,30 @@ async function cancel_confirm(ctx) {
   const creditField = initiatorRole === 'partner' ? 'partner_credit_score' : 'user_credit_score';
 
   // 1) CAS 串行门: 主轴 S2/S2_6→S7(状态机 no.32) + fund 点路径 _.inc + cancel_request 落定(方案 §4.2)
-  const won = await col('order_main').where({
-    _id: order_id, status: _.in(CANCEL_REQUEST_STATUS), 'cancel_request.status': 'pending',
-    'fund.refunded_fen': _.lt(paidFen - refundFen + 1)   // 评审修复 #4: 纵深防御防超额退款(方案 §4.2)
-  }).update({ data: {
+  // 2026-11-24 修复: 老单缺 fund 子文档时, 'fund.refunded_fen': $lt 守卫对不存在字段永不匹配 → CAS 恒失败;
+  //   仅 fund 存在时加该守卫; 缺失单视为 refunded_fen=0 无超额风险, 并在 patch 补建 fund(paid_fen=total_fen)
+  const fundExists = !!(order.fund && order.fund.paid_fen != null);
+  const casWhere = {
+    _id: order_id, status: _.in(CANCEL_REQUEST_STATUS), 'cancel_request.status': 'pending'
+  };
+  if (fundExists) {
+    casWhere['fund.refunded_fen'] = _.lt(paidFen - refundFen + 1);   // 评审修复 #4: 纵深防御防超额退款
+  }
+  const casPatch = {
     status: 'S7', refunded_at: now,
-    'fund.refunded_fen': _.inc(totalRefund),
     'cancel_request.status': 'agreed',
     'cancel_request.refund_fen': refundFen,
     'cancel_request.tip_refund_fen': tipRefundFen,
     'cancel_request.confirmed_at': now,
     'cancel_request.confirmed_by': openid,
     frozen: false, updated_at: now
-  }});
+  };
+  if (fundExists) {
+    casPatch['fund.refunded_fen'] = _.inc(totalRefund);
+  } else {
+    casPatch.fund = { paid_fen: paidFen, refunded_fen: totalRefund, settle_state: 'pending', settled_at: 0 };
+  }
+  const won = await col('order_main').where(casWhere).update({ data: casPatch });
   if (!won.stats || won.stats.updated !== 1) {
     return { ok: false, code: 'oa_status_conflict', msg: '取消申请已处理或订单状态已变化,请刷新' };
   }
