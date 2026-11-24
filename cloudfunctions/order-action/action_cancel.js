@@ -99,7 +99,8 @@ async function cancel_confirm(ctx) {
   const role = roleOf(order, openid);
   if (!role) return { ok: false, code: 'oa_not_participant', msg: '你不是该订单参与方' };
   const cfg = cancelCfgOf(await getGlobalConfig(db));
-  if (!cfg.enable) return { ok: false, code: 'oa_cancel_disabled', msg: '取消功能未开放' };
+  // 2026-11-24 修复: 在途申请的确认不受全局开关 gate(与 cancel_reject/withdraw 对齐),
+  // 否则 cancel_enable=false 时 pending 申请死锁无法闭环; 开关仅控制 cancel_request 新发起
   const cr = order.cancel_request || {};
   if (cr.status !== 'pending') return { ok: false, code: 'oa_cancel_no_pending', msg: '无进行中的取消申请' };
   if (cr.by_openid === openid) return { ok: false, code: 'oa_cancel_self_confirm', msg: '不能确认自己发起的取消申请' };
@@ -219,12 +220,15 @@ async function cancel_reject(ctx) {
   const cfg = cancelCfgOf(await getGlobalConfig(db));
   const now = Date.now();
   const fromStatus = order.status;
+  // 2026-11-24 波2: 拒绝理由(选填 ≤50 字) 落 cancel_request.reject_reason, 供对端与时间线展示
+  const rejectReason = String((event && event.reason) || '').slice(0, 50);
   // 拒绝 → S10.5(no.33) + 记 pre_dispute_status(裁决不支持时回退) + 被拒冷却(D14); frozen 保持(争议中)
   const won = await casStatus(order_id, CANCEL_REQUEST_STATUS, {
     status: 'S10.5',
     pre_dispute_status: fromStatus,
     'cancel_request.status': 'rejected',
     'cancel_request.rejected_at': now,
+    'cancel_request.reject_reason': rejectReason,
     cancel_cooldown_until: now + cfg.rejectedCooldownMin * 60 * 1000,
     dispute_state: 'open', dispute_type: 'cancel',
     frozen: true, updated_at: now

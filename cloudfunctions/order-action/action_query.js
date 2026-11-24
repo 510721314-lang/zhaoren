@@ -219,6 +219,17 @@ async function detail(ctx) {
       fund, refund, dispute, fees,
       // 争议/申诉冻结位(2026-10-12): 前端据此隐藏「发起投诉」等推进类入口(D2: 谁先发起谁冻结)
       frozen: !!order.frozen,
+      // W3 补丁(2026-11-24): 协商型取消数据回传 —— 此前漏传导致详情页取消三态栏空白(用户实证 890 单)
+      cancel_request: order.cancel_request ? {
+        status: String(order.cancel_request.status || ''),
+        by: String(order.cancel_request.by || ''),
+        by_openid: String(order.cancel_request.by_openid || ''),
+        at: Number(order.cancel_request.at) || 0,
+        deadline: Number(order.cancel_request.deadline) || 0,
+        reason: String(order.cancel_request.reason || '').slice(0, 50),
+        reject_reason: String(order.cancel_request.reject_reason || '').slice(0, 50)
+      } : null,
+      cancel_cooldown_until: Number(order.cancel_cooldown_until) || 0,
       urge,
       order_summary: buildOrderSummary(order)
     }

@@ -49,7 +49,8 @@ const ACTION_LABEL = {
   user_confirm_start: '确认我已到场'
 };
 // 投诉/撤回类 status_log 跳过(由 complaint 集合承载, 避免同一动作重复两遍)
-const SKIP_STATUS_ACTIONS = ['user_complaint', 'partner_complaint', 'complaint_withdraw'];
+// 取消族跳过(2026-11-24 W3): 由 order_main.cancel_request 派生完整事件链(含申请原因), 避免重复
+const SKIP_STATUS_ACTIONS = ['user_complaint', 'partner_complaint', 'complaint_withdraw', 'cancel_confirm', 'user_cancel_reject', 'partner_cancel_reject', 'cancel_timeout'];
 
 const TIMELINE_LIMIT = 50;
 
@@ -136,6 +137,35 @@ async function timeline(ctx) {
       detail: t.note ? String(t.note).slice(0, 50) : ''
     });
   });
+
+  // 取消申请生命周期(2026-11-24 W3): 从 order_main.cancel_request 派生事件链(发起含原因/同意/拒绝/撤回/超时),
+  // status_log 中的取消族已在上方跳过, 以本派生为准(双方向可回看, 符合 E1 全事件族口径)
+  const cr = order.cancel_request;
+  if (cr && (Number(cr.at) || Number(cr.confirmed_at) || Number(cr.rejected_at) || Number(cr.withdrawn_at) || Number(cr.timed_out_at))) {
+    const crBy = cr.by === 'partner' ? 'partner' : 'user';
+    events.push({
+      at: Number(cr.at) || 0, type: 'cancel',
+      label: '发起取消申请', actor_role: crBy,
+      detail: String(cr.reason || '').slice(0, 100)
+    });
+    if (cr.status === 'agreed') events.push({
+      at: Number(cr.confirmed_at) || 0, type: 'cancel',
+      label: '同意取消申请,订单取消退款', actor_role: actorOf(cr.confirmed_by), detail: ''
+    });
+    if (cr.status === 'rejected') events.push({
+      at: Number(cr.rejected_at) || 0, type: 'cancel',
+      label: '拒绝取消申请,转平台处理', actor_role: crBy === 'user' ? 'partner' : 'user',
+      detail: String(cr.reject_reason || '').slice(0, 100)
+    });
+    if (cr.status === 'withdrawn') events.push({
+      at: Number(cr.withdrawn_at) || 0, type: 'cancel',
+      label: '撤回取消申请,订单继续履约', actor_role: crBy, detail: ''
+    });
+    if (cr.status === 'timeout') events.push({
+      at: Number(cr.timed_out_at) || 0, type: 'cancel',
+      label: '确认超时,自动转平台处理', actor_role: 'system', detail: ''
+    });
+  }
 
   // 里程碑(order_main.milestone.evidence) + 催办(order_main.urge_logs) —— 状态轴不落这两类
   const ms = order.milestone || {};

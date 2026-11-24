@@ -249,20 +249,23 @@ function onNewCancelRequest(page) {
 function onNewCancelRespond(page, kind) {
   const that = page;
   const isConfirm = kind === 'confirm';
-  page._modal({
+  // 波2(2026-11-24): 拒绝弹 editable 输入框采集理由(≤50字) 传后端落 reject_reason, 对端可在订单动态查看
+  const opts = {
     title: isConfirm ? '同意取消' : '拒绝取消',
     content: isConfirm
       ? '同意后订单将按梯度退款给付款方，申请方将被扣除相应信用分，订单不可恢复。确定同意？'
-      : '拒绝后订单将转入平台裁决（S10.5），由平台判定取消与退款。确定拒绝？',
+      : '拒绝后订单将转入平台裁决（S10.5），由平台判定取消与退款。可在下方填写拒绝理由（选填，最多50字）',
     confirmText: isConfirm ? '同意取消' : '确定拒绝',
     confirmColor: '#fa5151',
     fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
     success: (res) => {
       if (!res.confirm) return;
+      const reason = isConfirm ? '' : String(res.content || '').slice(0, 50);
       wx.showLoading({ title: isConfirm ? '确认中' : '提交中', mask: true });
       return callCloud('order-action', {
         action: isConfirm ? 'cancel_confirm' : 'cancel_reject',
-        order_id: that.data.order._id
+        order_id: that.data.order._id,
+        reason
       }).then((r) => {
         wx.hideLoading();
         if (!r.ok) {
@@ -276,7 +279,9 @@ function onNewCancelRespond(page, kind) {
         wx.showToast({ title: '网络异常', icon: 'none' });
       });
     }
-  });
+  };
+  if (!isConfirm) { opts.editable = true; opts.placeholderText = '请填写拒绝理由（选填，最多50字）'; }
+  page._modal(opts);
 }
 
 function onNewCancelWithdraw(page) {
