@@ -21,9 +21,12 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type,X-Admin-Key,X-Admin-Token',
 };
 
-const GATEWAY_HARD_TIMEOUT_MS = 3000;
+// [2026-11-24 W3 评审修复] 网关护栏 3000→15000: 函数超时实际 20s(实测 tcb fn detail), 原 2.5s 代理窗口在
+// admin-action 冷启动/慢查询下对浏览器误报 504——而请求已在后端跑完并落库(实证: config_history 4 条成功
+// 留痕但前端全部报 504, 用户误判「无法保存」循环重试)。放宽至 15s 仍留 5s 余量防挂死。
+const GATEWAY_HARD_TIMEOUT_MS = 15000;
 const SAFE_MARGIN_MS = 500;
-const PROXY_TIMEOUT_MS = GATEWAY_HARD_TIMEOUT_MS - SAFE_MARGIN_MS; // 2500ms
+const PROXY_TIMEOUT_MS = GATEWAY_HARD_TIMEOUT_MS - SAFE_MARGIN_MS; // 14500ms
 
 // ── 静态文件服务 ──
 const PUBLIC_DIR = path.join(__dirname, 'public'); // 常规布局: /var/user/public/
