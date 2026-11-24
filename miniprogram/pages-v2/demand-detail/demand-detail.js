@@ -327,6 +327,19 @@ Page({
       fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
     });
   },
+
+  // 2026-11-24: 发布者点击报名耍伴信息区 → 进耍伴详情(openid 由 demand-match.applicant_list 下发; 选择TA 按钮用 catchtap 防冒泡误跳)
+  onApplicantTap(e) {
+    const openid = e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.openid;
+    if (!openid) {
+      wx.showToast({ title: '耍伴数据异常', icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages-v2/partner-detail/partner-detail?partnerOpenid=${openid}`,
+      fail: () => wx.showToast({ title: '耍伴详情打开失败', icon: 'none' })
+    });
+  },
   // 卡片「查看更多动态」→ 该耍伴动态流(author 模式)
   onBlogMore(e) {
     const openid = (e.detail && e.detail.partner && e.detail.partner.openid) || '';

@@ -59,17 +59,17 @@
       </view>
     </scroll-view>
 
-    <!-- 2026-11-15 选单立项: 发布者视角报名名单(仅选单模式, 名单由 demand-match.applicant_list 下发, 不含 openid) -->
+    <!-- 2026-11-15 选单立项: 发布者视角报名名单(仅选单模式, 名单由 demand-match.applicant_list 下发; 2026-11-24 起含 openid 供点击进耍伴详情) -->
     <block wx:if="{{isOwner && demand.match_mode === 'select'}}">
       <view class="dd__section-title">报名耍伴（{{applicantCount}}）</view>
       <view class="dd__applicant" wx:for="{{applicants}}" wx:key="partner_token">
-        <view class="dd__applicant-main">
+        <view class="dd__applicant-main" hover-class="btn-press" data-openid="{{item.openid}}" bindtap="onApplicantTap">
           <view class="dd__applicant-name">{{item.nickname}}<text class="dd__applicant-lv">{{item.level}}</text></view>
           <view class="dd__applicant-meta">信用分 {{item.credit}} · 已履约 {{item.completed_orders}} 单</view>
         </view>
         <view class="dd__applicant-state" wx:if="{{item.is_confirmed}}">已选中</view>
         <view class="dd__applicant-state" wx:elif="{{demand.select_locked}}">未选中</view>
-        <button class="dd__applicant-btn" wx:else data-token="{{item.partner_token}}" data-name="{{item.nickname}}" bindtap="onSelectApplicant" hover-class="btn-press">选择TA</button>
+        <button class="dd__applicant-btn" wx:else data-token="{{item.partner_token}}" data-name="{{item.nickname}}" catchtap="onSelectApplicant" hover-class="btn-press">选择TA</button>
       </view>
       <view class="dd__applicant-empty" wx:if="{{applicantCount === 0}}">暂无耍伴报名，可稍后再来查看</view>
     </block>

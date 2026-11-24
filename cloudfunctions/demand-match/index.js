@@ -489,6 +489,9 @@ exports.main = async (event, context) => {
           completed = (cr && cr.total) || 0;
         } catch (e) { /* 统计失败按 0 处理 */ }
         return {
+          // 2026-11-24: 发布者点报名耍伴进详情需要 openid(partner-detail 对所有人公开可读, 不额外暴露隐私);
+          // confirm_apply 仍用 partner_token 后端反解校验, 下发 openid 不影响选单安全
+          openid: a.openid,
           partner_token: partnerToken(demand_id, a.openid),
           nickname: p.nickname || '耍伴',
           avatar: p.avatar || '',
