@@ -102,12 +102,14 @@ async function cancel_confirm(ctx) {
   // 2026-11-24 修复: 在途申请的确认不受全局开关 gate(与 cancel_reject/withdraw 对齐),
   // 否则 cancel_enable=false 时 pending 申请死锁无法闭环; 开关仅控制 cancel_request 新发起
   const cr = order.cancel_request || {};
+  const now = Date.now();
   if (cr.status !== 'pending') return { ok: false, code: 'oa_cancel_no_pending', msg: '无进行中的取消申请' };
   if (cr.by_openid === openid) return { ok: false, code: 'oa_cancel_self_confirm', msg: '不能确认自己发起的取消申请' };
+  // 评审修复 #3: 确认窗口过期后拒绝确认(与 cancel_withdraw 的 oa_cancel_expired 对齐), 避免与超时扫描竞态
+  if (cr.deadline && now > cr.deadline) return { ok: false, code: 'oa_cancel_expired', msg: '取消申请确认窗口已超时,已转平台处理' };
   if (CANCEL_REQUEST_STATUS.indexOf(order.status) < 0) {
     return { ok: false, code: 'oa_cancel_status', msg: `当前状态(${order.status})不可确认取消` };
   }
-  const now = Date.now();
   const fromStatus = order.status;
   const paidFen = (order.fund && Number(order.fund.paid_fen)) || 0;
   const alreadyRefunded = (order.fund && Number(order.fund.refunded_fen)) || 0;
@@ -124,7 +126,8 @@ async function cancel_confirm(ctx) {
 
   // 1) CAS 串行门: 主轴 S2/S2_6→S7(状态机 no.32) + fund 点路径 _.inc + cancel_request 落定(方案 §4.2)
   const won = await col('order_main').where({
-    _id: order_id, status: _.in(CANCEL_REQUEST_STATUS), 'cancel_request.status': 'pending'
+    _id: order_id, status: _.in(CANCEL_REQUEST_STATUS), 'cancel_request.status': 'pending',
+    'fund.refunded_fen': _.lt(paidFen - refundFen + 1)   // 评审修复 #4: 纵深防御防超额退款(方案 §4.2)
   }).update({ data: {
     status: 'S7', refunded_at: now,
     'fund.refunded_fen': _.inc(totalRefund),
@@ -155,7 +158,7 @@ async function cancel_confirm(ctx) {
       if (delta !== 0) {
         const u = (await t.collection('user_account').where({ openid: cr.by_openid }).limit(1).get()).data[0];
         if (u) {
-          const before = Number(u[creditField]) || 800;
+          const before = u[creditField] == null ? 800 : Number(u[creditField]);   // 评审修复#6: 0 是合法触底分, 不得被 || 800 当成缺省回退
           const after = Math.max(0, Math.min(1000, before + delta));
           await t.collection('user_account').doc(u._id).update({ data: { [creditField]: after, updated_at: now } });
           await t.collection('credit_score_log').add({ data: {
@@ -165,6 +168,13 @@ async function cancel_confirm(ctx) {
             order_id, is_system: false, admin_openid: '',
             created_at: now, updated_at: now, is_deleted: false
           }});
+        } else {
+          // 评审修复 #5: 发起方 user_account 缺行(异常), 扣分跳过但留痕, 不阻断退款主流程
+          await col('platform_event').add({ data: {
+            level: 'P1', type: 'cancel_credit_missing_account', order_id, order_no: order.order_no,
+            detail: { openid: cr.by_openid, delta, credit_field: creditField, reason: 'user_account 缺行,取消扣分未执行' },
+            created_at: now, is_deleted: false
+          }}).catch(() => null);
         }
       }
       await t.collection('order_status_log').add({ data: {
@@ -176,20 +186,25 @@ async function cancel_confirm(ctx) {
   } catch (e) {
     // 3) 补偿: 回退主轴/fund(增量回退, 防 prior refunded>0 被清零)/挂起恢复 pending; 二次失败 P0 留痕
     log.d(`cancel_confirm txn fail: ${e.message}; compensating ${order_id} → ${fromStatus}`);
-    const back = await col('order_main').where({ _id: order_id, status: 'S7' }).update({ data: {
-      status: fromStatus, refunded_at: 0,
-      'fund.refunded_fen': _.inc(-totalRefund),
-      'cancel_request.status': 'pending',
-      frozen: true, updated_at: Date.now()
-    }}).catch((e2) => {
+    let back;
+    try {
+      back = await col('order_main').where({ _id: order_id, status: 'S7' }).update({ data: {
+        status: fromStatus, refunded_at: 0,
+        'fund.refunded_fen': _.inc(-totalRefund),
+        'cancel_request.status': 'pending',
+        frozen: true, updated_at: Date.now()
+      }});
+    } catch (e2) {
+      // 评审修复 #7: 补偿失败留痕后标记 false 驱动文案提示(原 catch 返回 Promise 恒 truthy 致文案永不展示)
       log.e(`cancel_confirm compensate FAIL order=${order_id}: ${(e2 && e2.message) || e2}`);
-      return col('platform_event').add({ data: {
+      await col('platform_event').add({ data: {
         level: 'P0', type: 'cancel_compensate_fail', order_id, order_no: order.order_no,
         detail: { totalRefund, fromStatus, err: String((e2 && e2.message) || e2) },
         created_at: Date.now(), is_deleted: false
       }}).catch(() => null);
-    });
-    return { ok: false, code: 'cancel_db_fail', msg: '取消确认失败,请稍后重试' + (back ? '' : '(已留痕待人工核对)') };
+      back = false;
+    }
+    return { ok: false, code: 'cancel_db_fail', msg: '取消确认失败,请稍后重试' + (back ? '' : '(已留痕,待人工核对)') };
   }
 
   // 4) 通知双方(退款到账 + 扣分提示) + 审计
@@ -221,7 +236,7 @@ async function cancel_reject(ctx) {
   const now = Date.now();
   const fromStatus = order.status;
   // 2026-11-24 波2: 拒绝理由(选填 ≤50 字) 落 cancel_request.reject_reason, 供对端与时间线展示
-  const rejectReason = String((event && event.reason) || '').slice(0, 50);
+  const rejectReason = String((event && event.reason) || '').trim().slice(0, 50);   // 评审修复 #10: 与 request/withdraw 对齐 trim
   // 拒绝 → S10.5(no.33) + 记 pre_dispute_status(裁决不支持时回退) + 被拒冷却(D14); frozen 保持(争议中)
   const won = await casStatus(order_id, CANCEL_REQUEST_STATUS, {
     status: 'S10.5',

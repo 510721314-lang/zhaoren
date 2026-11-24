@@ -219,3 +219,87 @@ test('cancel_withdraw: 非发起方 → oa_cancel_not_initiator', async () => {
   assert.equal(r.ok, false);
   assert.equal(r.code, 'oa_cancel_not_initiator');
 });
+
+// ── 评审修复批1(2026-11-24): gate/守卫/钳制/留痕/补偿 单测补盲(评审#3/#5/#6/#7/#8) ──
+const CR_PENDING = { status: 'pending', by: 'user', by_openid: USER, at: NOW, deadline: NOW + 2 * H };
+
+test('评审#6: gate 仅控 cancel_request 新发起; confirm 在 cancel_enable=false 时仍可闭环(不被 gate 拦)', async () => {
+  const sdk = makeSdk({ openid: PARTNER, store: store({ order: { cancel_request: CR_PENDING }, config: {} }) });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.notEqual(r.code, 'oa_cancel_disabled');
+});
+
+test('评审#3: 确认窗口已过期 → oa_cancel_expired, 不落库(与超时扫描竞态隔离)', async () => {
+  const expired = Object.assign({}, CR_PENDING, { deadline: NOW - 1 });
+  const sdk = makeSdk({ openid: PARTNER, store: store({ order: { cancel_request: expired } }) });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, false);
+  assert.equal(r.code, 'oa_cancel_expired');
+  assert.equal((sdk.writes.order_main || []).length, 0, '过期确认不得写 order_main');
+});
+
+test('评审#6: 信用分钳制边界 — before=0 扣 25 仍为 0(不产生负分)', async () => {
+  const sdk = makeSdk({
+    openid: PARTNER,
+    store: store({ order: { cancel_request: CR_PENDING }, userAccount: { u1: { _id: 'u1', openid: USER, user_credit_score: 0, partner_credit_score: 800 } } }),
+    docUpdateWritesBack: true
+  });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const ua = (sdk.writes.user_account || []).find((x) => x.doc);
+  assert.equal(ua.data.user_credit_score, 0, '触底钳制不得为负');
+  const cl = (sdk.writes.credit_score_log || []).find((x) => x.add);
+  assert.equal(cl.data.score, 0);
+  assert.equal(cl.data.delta, -25);
+});
+
+test('评审#5: 发起方 user_account 缺行 → 退款仍成功, 扣分跳过, 写 platform_event 留痕不阻断主流程', async () => {
+  const sdk = makeSdk({
+    openid: PARTNER,
+    store: store({ order: { cancel_request: CR_PENDING }, userAccount: {} }),
+    docUpdateWritesBack: true
+  });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.data.status, 'S7');
+  assert.equal((sdk.writes.user_account || []).filter((x) => x.doc).length, 0, '缺行不得写 user_account');
+  const pe = (sdk.writes.platform_event || []).find((x) => x.add && x.data.type === 'cancel_credit_missing_account');
+  assert.ok(pe, '缺行应留痕 platform_event');
+  assert.equal(pe.data.level, 'P1');
+  assert.equal(pe.data.detail.delta, -25);
+});
+
+test('评审#8: 事务失败 → 补偿路径回退 fund(-n)/status 回滚/cr 回 pending/frozen 恢复, 返回 cancel_db_fail', async () => {
+  const sdk = makeSdk({
+    openid: PARTNER,
+    store: store({ order: { cancel_request: CR_PENDING } }),
+    txReject: new Error('txn boom')
+  });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, false);
+  assert.equal(r.code, 'cancel_db_fail');
+  const comp = (sdk.writes.order_main || []).find((w) => w.where && w.where.status === 'S7');
+  assert.ok(comp, '应执行补偿 update(where status=S7)');
+  assert.equal(comp.data.status, 'S2', '主轴应回滚到原状态');
+  assert.ok(comp.data['fund.refunded_fen'] && comp.data['fund.refunded_fen'].__sentinel === 'inc' && comp.data['fund.refunded_fen'].args[0] === -10500, 'fund 应增量回退 -10500');
+  assert.equal(comp.data['cancel_request.status'], 'pending', 'cr 应恢复 pending');
+  assert.equal(comp.data.frozen, true, '应恢复挂起');
+  assert.ok(!(sdk.writes.platform_event || []).find((x) => x.data && x.data.type === 'cancel_compensate_fail'), '补偿成功不应留 P0 失败痕');
+});
+
+test('评审#7: 补偿 update 二次失败 → back=false 驱动文案提示人工核对 + P0 留痕(原 catch 返回 Promise 恒 truthy 的修复验证)', async () => {
+  const sdk = makeSdk({
+    openid: PARTNER,
+    store: store({ order: { cancel_request: CR_PENDING } }),
+    txReject: new Error('txn boom'),
+    updateReject: (name, q) => (name === 'order_main' && q && q.status === 'S7') ? new Error('compensate boom') : null
+  });
+  const r = await loadOrderAction(sdk).main({ action: 'cancel_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.equal(r.ok, false);
+  assert.equal(r.code, 'cancel_db_fail');
+  assert.ok(/已留痕/.test(r.msg), '补偿失败文案应提示人工核对, 实际: ' + r.msg);
+  const pe = (sdk.writes.platform_event || []).find((x) => x.add && x.data.type === 'cancel_compensate_fail');
+  assert.ok(pe, '补偿二次失败应留 P0 痕');
+  assert.equal(pe.data.level, 'P0');
+});

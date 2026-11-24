@@ -189,6 +189,10 @@ const commandProxy = new Proxy({}, {
           async update(data) {
             calls.push({ method: 'where.update', name, query: q, data });
             (writes[name] = writes[name] || []).push({ where: q, data: data && data.data });
+            // opt-in(默认关闭, 既有用例零影响): 模拟 where.update 抛错(如补偿二次失败), 传函数 (name,query)=>error|null 或 {[name]:error}
+            const rej = typeof opts.updateReject === 'function' ? opts.updateReject(name, q)
+              : (opts.updateReject ? opts.updateReject[name] : null);
+            if (rej) throw rej;
             // updateCount 用于模拟 CAS 未抢到(updated=0): 默认 1(命中), 可传数字或 (name,query)=>n
             const n = typeof opts.updateCount === 'function' ? opts.updateCount(name, q)
               : (opts.updateCount == null ? 1 : opts.updateCount);
@@ -205,6 +209,9 @@ const commandProxy = new Proxy({}, {
     // 事务: 复用同一 collection 工厂, 事务对象持 collection(name) 满足 t.collection(...).add/doc().get/update
     async runTransaction(fn) {
       calls.push({ method: 'runTransaction' });
+      // opt-in(默认关闭, 既有用例零影响): 模拟事务体抛错, 触发调用方补偿路径测试(评审#8/#7)
+      const rej = typeof opts.txReject === 'function' ? opts.txReject() : opts.txReject;
+      if (rej) throw rej;
       return fn({ collection });
     },
     get command() { return commandProxy; }

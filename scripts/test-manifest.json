@@ -735,7 +735,13 @@
     "cancel_reject: 对方拒绝 → S10.5 + rejected + 写 24h 冷却 + pre_dispute_status",
     "cancel_withdraw: 发起方撤回 → withdrawn + 清 frozen(主轴不变) + 写 1h 冷却",
     "cancel_withdraw: 撤回原因落独立字段 withdraw_reason, 不覆盖发起原因 reason + 截断 50 字(经验 100034919)",
-    "cancel_withdraw: 非发起方 → oa_cancel_not_initiator"
+    "cancel_withdraw: 非发起方 → oa_cancel_not_initiator",
+    "评审#6: gate 仅控 cancel_request 新发起; confirm 在 cancel_enable=false 时仍可闭环(不被 gate 拦)",
+    "评审#3: 确认窗口已过期 → oa_cancel_expired, 不落库(与超时扫描竞态隔离)",
+    "评审#6: 信用分钳制边界 — before=0 扣 25 仍为 0(不产生负分)",
+    "评审#5: 发起方 user_account 缺行 → 退款仍成功, 扣分跳过, 写 platform_event 留痕不阻断主流程",
+    "评审#8: 事务失败 → 补偿路径回退 fund(-n)/status 回滚/cr 回 pending/frozen 恢复, 返回 cancel_db_fail",
+    "评审#7: 补偿 update 二次失败 → back=false 驱动文案提示人工核对 + P0 留痕(原 catch 返回 Promise 恒 truthy 的修复验证)"
   ],
   "cloudfunctions/_shared/order_create_take_success.test.js": [
     "create_from_take 成功路径: 建单三表 + demand CAS matched + 审计 + 接单通知, 返回 order_id/no",
@@ -849,7 +855,10 @@
     "G3: S2_6 已标记 remind1 → 仅补 sr2",
     "G3: S3_6 超 12min → finish_confirm_remind=1 (fr1)",
     "G3: S2_6 取消挂起 → 不提醒",
-    "G3: 后台改配提醒时刻生效"
+    "G3: 后台改配提醒时刻生效",
+    "评审: cancel_window 到期 → cancel_timeout=1 且转 S10.5 + cr.status=timeout + 通知双方",
+    "评审: cancel_window 未到期 → cancel_timeout=0(不触发)",
+    "评审: cancel_window 非 pending → cancel_timeout=0(守卫)"
   ],
   "cloudfunctions/_shared/partner-action.entry.test.js": [
     "无 OPENID → pa_no_openid",

@@ -50,7 +50,7 @@ const ACTION_LABEL = {
 };
 // 投诉/撤回类 status_log 跳过(由 complaint 集合承载, 避免同一动作重复两遍)
 // 取消族跳过(2026-11-24 W3): 由 order_main.cancel_request 派生完整事件链(含申请原因), 避免重复
-const SKIP_STATUS_ACTIONS = ['user_complaint', 'partner_complaint', 'complaint_withdraw', 'cancel_confirm', 'user_cancel_reject', 'partner_cancel_reject', 'cancel_timeout'];
+const SKIP_STATUS_ACTIONS = ['user_complaint', 'partner_complaint', 'complaint_withdraw', 'cancel_confirm', 'user_cancel_reject', 'partner_cancel_reject', 'cancel_timeout', 'cancel_window_timeout'];   // 评审修复 #1: 超时扫描落库 action 为 cancel_window_timeout, 补 SKIP 防时间线重复
 
 const TIMELINE_LIMIT = 50;
 

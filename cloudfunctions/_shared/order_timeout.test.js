@@ -178,4 +178,33 @@ test('G3: 后台改配提醒时刻生效', async () => {
   assert.deepStrictEqual(r.data.start_apply_remind, ['ORD-R6:sr1']);
 });
 
+// ── 评审修复批1(2026-11-24): 取消确认窗口超时扫描(processCancelWindowTimeout)单测补盲(评审#6) ──
+test('评审: cancel_window 到期 → cancel_timeout=1 且转 S10.5 + cr.status=timeout + 通知双方', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({ C1: ord('C1', 'S2', { cancel_request: { status: 'pending', deadline: now - 60 * 1000 } }) }));
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.data.counts.cancel_timeout, 1);
+  assert.deepStrictEqual(r.data.cancel_timeout, ['ORD-C1']);
+  const upd = (sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'C1' && w.data && w.data.status === 'S10.5');
+  assert.ok(upd, '应 CAS 写 order_main(S10.5)');
+  assert.strictEqual(upd.data['cancel_request.status'], 'timeout');
+  assert.strictEqual(upd.data.dispute_type, 'cancel');
+  assert.strictEqual(upd.data.frozen, true);
+  const notices = (sdk.writes.system_notice || []).filter((w) => w.add && w.data.type === 'cancel_timeout');
+  assert.strictEqual(notices.length, 2, '应通知双方');
+});
+
+test('评审: cancel_window 未到期 → cancel_timeout=0(不触发)', async () => {
+  const now = Date.now();
+  const { r, sdk } = await run(baseStore({ C2: ord('C2', 'S2', { cancel_request: { status: 'pending', deadline: now + 10 * 60 * 1000 } }) }));
+  assert.strictEqual(r.data.counts.cancel_timeout, 0);
+  assert.ok(!(sdk.writes.order_main || []).find((w) => w.where && w.where._id === 'C2'), '未到期不得写 order_main');
+});
+
+test('评审: cancel_window 非 pending → cancel_timeout=0(守卫)', async () => {
+  const now = Date.now();
+  const { r } = await run(baseStore({ C3: ord('C3', 'S2', { cancel_request: { status: 'agreed', deadline: now - 60 * 1000 } }) }));
+  assert.strictEqual(r.data.counts.cancel_timeout, 0);
+});
+
 test.after(() => { Module._load = origLoad; });

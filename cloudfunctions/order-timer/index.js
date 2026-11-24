@@ -710,6 +710,7 @@ exports.main = async (event, context) => {
       finish_confirm_remind: out.finish_confirm_remind,
       no_show_overdue: out.no_show_overdue,
       no_show_guide: out.no_show_guide,
+      cancel_timeout: out.cancel_timeout,
       skipped: out.skipped,
       counts: {
         s1_cancel: out.s1_cancel.length,
@@ -729,7 +730,8 @@ exports.main = async (event, context) => {
         start_apply_remind: out.start_apply_remind.length,
         finish_confirm_remind: out.finish_confirm_remind.length,
         no_show_overdue: out.no_show_overdue.length,
-        no_show_guide: out.no_show_guide.length
+        no_show_guide: out.no_show_guide.length,
+        cancel_timeout: out.cancel_timeout.length
       }
     }
   };
