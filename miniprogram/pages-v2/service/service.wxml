@@ -1,5 +1,44 @@
+<wxs module="svc">
+// 前端模糊过滤：name / brief / scene_code（搜索栏用，不动后端）
+function filterList(list, key) {
+  if (!key) return list || [];
+  var k = String(key).toLowerCase();
+  var out = [];
+  var arr = list || [];
+  for (var i = 0; i < arr.length; i++) {
+    var it = arr[i];
+    var hit = (it.name && String(it.name).toLowerCase().indexOf(k) >= 0)
+      || (it.brief && String(it.brief).toLowerCase().indexOf(k) >= 0)
+      || (it.scene_code && String(it.scene_code).toLowerCase().indexOf(k) >= 0);
+    if (hit) out.push(it);
+  }
+  return out;
+}
+// scene_code → emoji（无封面图时卡片左侧兜底，与 enums SCENES 一致）
+function sceneIcon(code) {
+  if (!code) return '🛎️';
+  var c = String(code);
+  if (c.indexOf('W1') === 0) return '🏥';
+  if (c.indexOf('W2') === 0) return '📚';
+  if (c.indexOf('W3') === 0) return '💪';
+  if (c.indexOf('W4') === 0) return '🎡';
+  if (c.indexOf('W7') === 0) return '💭';
+  if (c.indexOf('W8') === 0) return '🛠️';
+  if (c.indexOf('W9') === 0) return '🐾';
+  if (c.indexOf('W10') === 0) return '🚗';
+  if (c.indexOf('W11') === 0) return '💻';
+  return '🛎️';
+}
+module.exports = { filterList: filterList, sceneIcon: sceneIcon };
+</wxs>
 <view class="v2 service">
   <nav-bar title="服务" show-back="{{false}}"></nav-bar>
+
+  <!-- 搜索栏：前端过滤已加载 list（name/brief/scene_code），零后端改动 -->
+  <view class="svc__search">
+    <text class="svc__search-ic">🔍</text>
+    <input class="svc__search-input" placeholder="搜索服务或服务编号" placeholder-style="{{searchPhStyle}}" value="{{searchKey}}" bindinput="onSearchInput" confirm-type="search" />
+  </view>
 
   <!-- 场景筛选：图标宫格（一屏全展示，不横滑） -->
   <view class="svc__grid">
@@ -15,29 +54,40 @@
     </view>
   </view>
 
+  <!-- 全部服务 标题栏 -->
+  <view class="svc__section-head" wx:if="{{!loading && list.length > 0}}">
+    <text class="svc__section-title">全部服务</text>
+    <text class="svc__section-sub">共 {{list.length}} 项 · 按场景选择</text>
+  </view>
+
   <!-- 服务卡片列表 -->
   <view class="svc__list" wx:if="{{!loading}}">
-    <block wx:if="{{list.length > 0}}">
+    <block wx:if="{{svc.filterList(list, searchKey).length > 0}}">
       <view
         class="svc__card"
-        wx:for="{{list}}"
+        wx:for="{{svc.filterList(list, searchKey)}}"
         wx:key="_id"
         data-id="{{item._id}}"
         bindtap="onCardTap"
       >
-        <image wx:if="{{item.cover_fileid}}" class="svc__card-cover" src="{{item.cover_fileid}}" mode="aspectFill" lazy-load="{{true}}"></image>
-        <view wx:else class="svc__card-cover svc__card-cover--ph">🛎️</view>
+        <view class="svc__card-cover-wrap">
+          <image wx:if="{{item.cover_fileid}}" class="svc__card-cover" src="{{item.cover_fileid}}" mode="aspectFill" lazy-load="{{true}}"></image>
+          <view wx:else class="svc__card-cover svc__card-cover--ph">{{svc.sceneIcon(item.scene_code)}}</view>
+          <view class="svc__card-cover-tag">标准服务 {{item.scene_code}}</view>
+        </view>
         <view class="svc__card-body">
           <view class="svc__card-name">{{item.name}}</view>
+          <view class="svc__card-sub">标准服务 · {{item.scene_code}}</view>
           <view class="svc__card-brief" wx:if="{{item.brief}}">{{item.brief}}</view>
+          <view class="svc__card-divider"></view>
           <view class="svc__card-foot">
-            <text class="svc__card-scene">{{item.scene_code}}</text>
-            <text class="svc__card-arrow">查看详情 ›</text>
+            <text class="svc__card-range">查看服务范围</text>
+            <text class="svc__card-arrow">详情 ›</text>
           </view>
         </view>
       </view>
     </block>
-    <empty-state wx:else icon="🛎️" title="暂无服务项目" desc="该分类下还没有可预约的服务"></empty-state>
+    <empty-state wx:else icon="🔍" title="{{searchKey ? '未找到相关服务' : '暂无服务项目'}}" desc="{{searchKey ? '换个关键词试试' : '该分类下还没有可预约的服务'}}"></empty-state>
   </view>
 
   <view class="svc__loading" wx:if="{{loading}}">加载中…</view>

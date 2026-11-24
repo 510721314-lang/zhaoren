@@ -8,7 +8,9 @@ Page({
     loading: true,
     list: [],
     chips: [],
-    activeChip: 'all'
+    activeChip: 'all',
+    searchKey: '',   // 搜索关键词（前端过滤已加载 list，不动后端）
+    searchPhStyle: '' // 搜索框 placeholder 样式（按深浅色动态计算，规避 var() 在 placeholder 兼容问题）
   },
 
   // 场景筛选：优先全局动态场景（与广场/发布页同源），兜底 enums SCENES；补 icon/color 供宫格渲染
@@ -34,11 +36,13 @@ Page({
   onLoad() {
     // onLoad 已拉首屏，首次 onShow 跳过避免双拉
     this.__skipNextShow = true;
-    this.setData({ chips: this.buildChips() });
+    this.setData({ chips: this.buildChips(), searchPhStyle: this.getSearchPhStyle() });
     this.fetchList();
   },
 
   onShow() {
+    // 深浅色切换后重进页面时刷新 placeholder 颜色
+    this.setData({ searchPhStyle: this.getSearchPhStyle() });
     // tabBar 索引：0首页 1广场 2服务 3消息 4我的
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 2 });
@@ -76,6 +80,17 @@ Page({
     if (code === this.data.activeChip) return;
     this.setData({ activeChip: code });
     this.fetchList(code);
+  },
+
+  // 搜索：前端模糊过滤当前已加载 list（name/brief/scene_code），零后端改动
+  onSearchInput(e) {
+    this.setData({ searchKey: (e.detail.value || '').trim() });
+  },
+
+  // placeholder 颜色：小程序 placeholder 对 var() CSS 变量兼容不稳，用 placeholder-style 写死色值 + 按 theme 适配
+  getSearchPhStyle() {
+    const sys = (typeof wx.getWindowInfo === 'function') ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    return (sys && sys.theme === 'dark') ? 'color:#9097A0;' : 'color:#9aa0a6;';
   },
 
   onCardTap(e) {
