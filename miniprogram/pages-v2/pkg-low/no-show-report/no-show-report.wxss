@@ -48,7 +48,7 @@
 }
 .ns__chip.is-on {
   background: var(--brand-primary);
-  color: #fff;
+  color: var(--text-invert);
   font-weight: 600;
 }
 .ns__textarea {
@@ -110,7 +110,7 @@
   line-height: 88rpx;
   border-radius: var(--r-md);
   background: var(--brand-primary);
-  color: #fff;
+  color: var(--text-invert);
   font-size: var(--font-base);
   font-weight: 600;
 }

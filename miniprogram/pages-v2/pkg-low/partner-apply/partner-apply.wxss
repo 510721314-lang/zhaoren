@@ -23,10 +23,10 @@
 .pa__banner-desc { color: var(--text-3); }
 .pa__banner--pending { background: var(--brand-primary-light); }
 .pa__banner--pending .pa__banner-title { color: var(--brand-primary); }
-.pa__banner--rejected { background: #FDF0F0; }
-.pa__banner--rejected .pa__banner-title { color: #C0392B; }
-.pa__banner--ok { background: #EFF9F1; }
-.pa__banner--ok .pa__banner-title { color: #1E8E3E; }
+.pa__banner--rejected { background: var(--func-danger-light); }
+.pa__banner--rejected .pa__banner-title { color: var(--func-danger); }
+.pa__banner--ok { background: var(--func-success-light); }
+.pa__banner--ok .pa__banner-title { color: var(--func-success); }
 
 .pa__card {
   background: var(--bg-card); border-radius: 20rpx; padding: 32rpx 28rpx;
