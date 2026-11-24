@@ -178,6 +178,20 @@
         <view class="od__after-sale-tip" wx:if="{{noShowNotStarted}}">约定开始时间后可报告爽约</view>
         <!-- 发起投诉(D1 放开 2026-10-12): S2 起全周期可发起, 双方一致; 服务端二次校验状态白名单 -->
         <button class="od__btn od__btn--danger" wx:if="{{!order.frozen}}" bindtap="onComplaint" hover-class="btn-press">发起投诉</button>
+        <!-- 协商型取消(W3 2026-11-24): 三态(可申请/自己挂起/对方挂起); 服务端 cancel_enable 为权威开关, 关闭时点按钮提示未开放 -->
+        <block wx:if="{{cancelUi.show}}">
+          <view class="od__cancel-bar" wx:if="{{cancelUi.pendingSelf}}">
+            <text class="od__cancel-bar-txt">取消申请待对方确认，超时将转平台处理</text>
+            <button class="od__btn od__btn--ghost od__btn--sm" bindtap="onCancelWithdraw" hover-class="btn-press">撤回申请</button>
+          </view>
+          <view class="od__cancel-bar" wx:elif="{{cancelUi.pendingOther}}">
+            <text class="od__cancel-bar-txt">对方申请取消订单，请确认</text>
+            <button class="od__btn od__btn--danger od__btn--sm" bindtap="onCancelConfirm" hover-class="btn-press">同意取消</button>
+            <button class="od__btn od__btn--ghost od__btn--sm" bindtap="onCancelReject" hover-class="btn-press">拒绝</button>
+          </view>
+          <button class="od__btn od__btn--ghost" wx:elif="{{cancelUi.canRequest}}" bindtap="onCancelRequest" hover-class="btn-press">申请取消</button>
+          <view class="od__after-sale-tip" wx:elif="{{cancelUi.cooling}}">取消申请冷却中，稍后可再次发起</view>
+        </block>
       </block>
 
       <!-- S2.6 开始履约申请中(阶段C/D 2026-10-14): 需求方确认耍伴到场 / 耍伴等待对方确认 -->
@@ -196,6 +210,20 @@
         <block wx:else>
           <view class="od__after-sale-tip">已提交到场申请，等待需求方确认后开始履约</view>
           <button class="od__btn od__btn--ghost" bindtap="goChat" hover-class="btn-press">联系用户</button>
+        </block>
+        <!-- 协商型取消(W3 2026-11-24): S2_6 同协商型(耍伴已到场, 取消须经对方确认或平台裁决) -->
+        <block wx:if="{{cancelUi.show}}">
+          <view class="od__cancel-bar" wx:if="{{cancelUi.pendingSelf}}">
+            <text class="od__cancel-bar-txt">取消申请待对方确认，超时将转平台处理</text>
+            <button class="od__btn od__btn--ghost od__btn--sm" bindtap="onCancelWithdraw" hover-class="btn-press">撤回申请</button>
+          </view>
+          <view class="od__cancel-bar" wx:elif="{{cancelUi.pendingOther}}">
+            <text class="od__cancel-bar-txt">对方申请取消订单，请确认</text>
+            <button class="od__btn od__btn--danger od__btn--sm" bindtap="onCancelConfirm" hover-class="btn-press">同意取消</button>
+            <button class="od__btn od__btn--ghost od__btn--sm" bindtap="onCancelReject" hover-class="btn-press">拒绝</button>
+          </view>
+          <button class="od__btn od__btn--ghost" wx:elif="{{cancelUi.canRequest}}" bindtap="onCancelRequest" hover-class="btn-press">申请取消</button>
+          <view class="od__after-sale-tip" wx:elif="{{cancelUi.cooling}}">取消申请冷却中，稍后可再次发起</view>
         </block>
       </block>
 

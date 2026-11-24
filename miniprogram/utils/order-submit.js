@@ -216,4 +216,93 @@ function onCancel(page) {
   });
 }
 
-module.exports = { submitExtend, onExtendConfirm, submitModify, onModifyConfirm, onModifyReject, onCancel };
+// ── 协商型取消(2026-11-24 W3, 方案 cancel-fulfillment-v2.2.md §3.1) ──
+// 与 S0/S1 onCancel(直退)完全独立, 不复用; 服务端权威计算退款/扣分, 前端只展示规则文案。
+function onNewCancelRequest(page) {
+  const that = page;
+  const tiers = (page.data.cancelTiers || []).map((t) => `· ${t.label}：退款${t.rate * 100}%`).join('\n');
+  page._modal({
+    title: '申请取消',
+    content: `对方确认后按梯度退款：\n${tiers}\n\n取消会按档扣除发起方信用分；对方超时未响应将转平台裁决。确定申请？`,
+    confirmText: '确定申请',
+    confirmColor: '#fa5151',
+    fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+    success: (res) => {
+      if (!res.confirm) return;
+      wx.showLoading({ title: '提交申请', mask: true });
+      return callCloud('order-action', { action: 'cancel_request', order_id: that.data.order._id }).then((r) => {
+        wx.hideLoading();
+        if (!r.ok) {
+          if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '申请失败', icon: 'none' });
+          return;
+        }
+        wx.showToast({ title: '已提交,等待对方确认', icon: 'none' });
+        return that.fetchData({ orderId: that.data.order._id });
+      }).catch(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常', icon: 'none' });
+      });
+    }
+  });
+}
+
+function onNewCancelRespond(page, kind) {
+  const that = page;
+  const isConfirm = kind === 'confirm';
+  page._modal({
+    title: isConfirm ? '同意取消' : '拒绝取消',
+    content: isConfirm
+      ? '同意后订单将按梯度退款给付款方，申请方将被扣除相应信用分，订单不可恢复。确定同意？'
+      : '拒绝后订单将转入平台裁决（S10.5），由平台判定取消与退款。确定拒绝？',
+    confirmText: isConfirm ? '同意取消' : '确定拒绝',
+    confirmColor: '#fa5151',
+    fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+    success: (res) => {
+      if (!res.confirm) return;
+      wx.showLoading({ title: isConfirm ? '确认中' : '提交中', mask: true });
+      return callCloud('order-action', {
+        action: isConfirm ? 'cancel_confirm' : 'cancel_reject',
+        order_id: that.data.order._id
+      }).then((r) => {
+        wx.hideLoading();
+        if (!r.ok) {
+          if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '操作失败', icon: 'none' });
+          return;
+        }
+        wx.showToast({ title: isConfirm ? '已同意,订单已取消退款' : '已拒绝,转平台处理', icon: 'none', duration: 2000 });
+        return that.fetchData({ orderId: that.data.order._id });
+      }).catch(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常', icon: 'none' });
+      });
+    }
+  });
+}
+
+function onNewCancelWithdraw(page) {
+  const that = page;
+  page._modal({
+    title: '撤回取消申请',
+    content: '撤回后订单继续正常流程，不扣信用分；撤回后 1 小时内不可再次申请。确定撤回？',
+    confirmText: '确定撤回',
+    fail: () => wx.showToast({ title: '弹窗调用失败', icon: 'none' }),
+    success: (res) => {
+      if (!res.confirm) return;
+      wx.showLoading({ title: '撤回中', mask: true });
+      return callCloud('order-action', { action: 'cancel_withdraw', order_id: that.data.order._id }).then((r) => {
+        wx.hideLoading();
+        if (!r.ok) {
+          if (!that._handleConflict(r)) wx.showToast({ title: r.msg || '撤回失败', icon: 'none' });
+          return;
+        }
+        wx.showToast({ title: '已撤回', icon: 'none' });
+        return that.fetchData({ orderId: that.data.order._id });
+      }).catch(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常', icon: 'none' });
+      });
+    }
+  });
+}
+
+module.exports = { submitExtend, onExtendConfirm, submitModify, onModifyConfirm, onModifyReject, onCancel, onNewCancelRequest, onNewCancelRespond, onNewCancelWithdraw };

@@ -468,7 +468,9 @@ const HANDLERS = Object.assign(
   // 2026-11-05: S2 已支付待履约阶段「地点/内容」变更协商（费用/时间不在此通道）
   require('./action_change_s2'),
   require('./action_dispute'),
-  require('./action_timeline')
+  require('./action_timeline'),
+  // 2026-11-24 W3: 协商型取消链路(cancel_request/cancel_confirm/cancel_reject/cancel_withdraw, 方案 §3.1)
+  require('./action_cancel')
 );
 
 // ── handler 依赖注入上下文(ctx)类型契约 ──
@@ -533,7 +535,7 @@ exports.main = async (event, context) => {
   // 需要订单 _id 的动作统一做格式预检(避免 doc(非法ID) 抛错被吞成"订单不存在")
   // 订单 ID 解析: 支持 32 位 hex _id 或 ORD 开头订单号(后者查 order_main 反查 _id)
   let order_id = event.order_id;
-  const ORDER_ID_ACTIONS = ['get_confirmation', 'chat_poll', 'update_item', 'confirm_item', 'confirm_all', 'change_apply', 'change_respond', 's2_change_apply', 's2_change_respond', 'cancel', 'start_apply', 'start_confirm', 'start_reject', 'start_photo', 'finish_apply', 'finish_confirm', 'finish_reject', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail'];
+  const ORDER_ID_ACTIONS = ['get_confirmation', 'chat_poll', 'update_item', 'confirm_item', 'confirm_all', 'change_apply', 'change_respond', 's2_change_apply', 's2_change_respond', 'cancel', 'start_apply', 'start_confirm', 'start_reject', 'start_photo', 'finish_apply', 'finish_confirm', 'finish_reject', 'detail', 'timeline', 'modify', 'modify_confirm', 'modify_reject', 'extend', 'extend_confirm', 'extend_reject', 'resume_service', 'partial_confirm', 'ratio_confirm', 'complaint', 'complaint_withdraw', 'nudge_partner', 'user_confirm_start', 'no_show_report_submit', 'no_show_report_detail', 'cancel_request', 'cancel_confirm', 'cancel_reject', 'cancel_withdraw'];
   if (ORDER_ID_ACTIONS.indexOf(action) >= 0) {
     if (!order_id) {
       return { ok: false, code: 'oa_bad_order_id', msg: '缺少 order_id' };

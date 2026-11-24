@@ -668,6 +668,8 @@ function cleanupBaselineTmp(dirs) {
     'complaint_status', 'auto_order_complaint', // 投诉入口放开至 S2 起(原 S2 拒绝)
     'complaint_open_ok',                        // 2026-10-15 需求变更: S5(履约完成)/S8(已评价)起不再可发起投诉(原 S8 可发起·基线仍放开); 新行为由 order-action.entry.test.js 新增 2 例(S5 需求方 / S8 耍伴 → oa_complaint_status 且不落库)独立守护
     'auto_order_timeline',                      // 新增 timeline action(原 oa_unknown_action)
+    'auto_order_cancel_request', 'auto_order_cancel_confirm', 'auto_order_cancel_reject', 'auto_order_cancel_withdraw', // 2026-11-24 W3 取消方案: 协商型取消四 action(基线 oa_unknown_action); 行为由 order_action_cancel.test.js 独立守护(入口 9 例: 开关/挂起/幂等/frozen/冷却/自确认/事务全路径/拒绝/撤回)
+    'auto_order_cancelCfgOf',                   // 2026-11-24 W2 取消方案: action_cancel 导出 cancelCfgOf 纯函数(基线无); 行为由 order_action_cancel.test.js 4 例独立守护
     'auto_order_user_confirm_start',            // 2026-10-14 需求B二期: 新增 user_confirm_start action(原 oa_unknown_action); 行为由 order-action.entry.test.js 独立守护
     'auto_order_start_apply',                   // 2026-10-14 阶段C-1: 新增 start_apply action(原 order_unknown_action); 行为由 order_start_apply.test.js 独立守护(4 例)
     'auto_order_start_confirm', 'auto_order_start_reject', // 2026-10-14 阶段D: 新增 start_confirm/start_reject(原 order_unknown_action); 行为由 order_start_confirm.test.js 独立守护

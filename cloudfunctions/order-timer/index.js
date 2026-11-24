@@ -578,7 +578,7 @@ exports.main = async (event, context) => {
   // G3(2026-10-20) 超时前提醒: S2_6/S3_6 窗口内各 2 档(缺省 5/10 与 10/20, 后台可配)
   const remindMin = remindCfg(cfg);
 
-  const out = { s1_cancel: [], change_auto_reject: [], s2_change_auto_reject: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], select_stale: [], skipped: [] };
+  const out = { s1_cancel: [], change_auto_reject: [], s2_change_auto_reject: [], s0_close: [], interrupt_partial: [], modify_auto_reject: [], extend_auto_reject: [], account_restored: [], milestone_auto_confirm: [], auto_eval: [], s8_archive: [], s4_escalate: [], dispute_escalate: [], start_apply_timeout: [], finish_confirm_timeout: [], start_apply_remind: [], finish_confirm_remind: [], no_show_overdue: [], no_show_guide: [], select_stale: [], cancel_timeout: [], skipped: [] };
   log.d(`order-timer run: s1=${s1Min}min interrupt=${interruptH}h eval=${evalH}h star=${defaultStar} mode=${isTimer ? 'timer' : 'admin'}`);
 
   // 物理拆分(2026-10-13): 扫描段落经 sectionCtx 注入共享符号后执行(顺序与拆分前逐段一致)
@@ -629,6 +629,9 @@ exports.main = async (event, context) => {
 
   // ───────── 3.10 S3.6 履约完毕确认超时(30min) → S10.5 争议(阶段G, no.30) ─────────
   if (hasTime()) await SECTIONS.processFinishConfirmTimeout(sectionCtx);
+
+  // ───────── 3.11 取消确认窗口超时(2026-11-24 W3, 方案 §3.1; D6 不自动同意) → S10.5 裁决(no.34) ─────────
+  if (hasTime()) await SECTIONS.processCancelWindowTimeout(sectionCtx);
 
   // ───────── 3.8 账号停用到期恢复(2026-10-12 批1.2) ─────────
   if (hasTime()) await SECTIONS.processSuspendRestore(sectionCtx);

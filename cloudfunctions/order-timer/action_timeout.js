@@ -299,6 +299,48 @@ async function processNoShowGuide(ctx) {
   } catch (e) { log.d(`no_show guide scan fail: ${e.message}`); }
 }
 
+// ───────── 取消确认窗口超时(2026-11-24 W3, 方案 §3.1; D6: 超时不自动同意→转平台裁决) ─────────
+// 扫描 S2/S2_6 且 cancel_request=pending 且 deadline 已过 → S10.5(no.34) + 记 pre_dispute_status + 通知双方。
+// 仅读取「cancel_request pending 且过期」的订单(现库为空集), 不影响既有任何段; 窗口时长后台可配(cancel_confirm_window_min)。
+async function processCancelWindowTimeout(ctx) {
+  const { _, col, log, trackBacklog, SCAN_MAX, scanAll, logStatus, casStatus, now, out } = ctx;
+  try {
+    const list = await scanAll('order_main', () => ({
+      status: _.in(['S2', 'S2_6']),
+      'cancel_request.status': 'pending',
+      'cancel_request.deadline': _.lt(now)
+    }));
+    trackBacklog('CANCEL_WIN', list.length >= SCAN_MAX ? list : []);
+    const okList = [];
+    await Promise.allSettled(list.map(async (o) => {
+      const fromStatus = o.status;
+      const won = await casStatus(o._id, ['S2', 'S2_6'], {
+        status: 'S10.5',
+        pre_dispute_status: fromStatus,
+        'cancel_request.status': 'timeout',
+        'cancel_request.timed_out_at': now,
+        dispute_state: 'open', dispute_type: 'cancel',
+        frozen: true, updated_at: now
+      }, 'cancel_timeout');
+      if (!won) { out.skipped.push(o.order_no + ':取消窗口竞态'); return; }
+      okList.push({ o, fromStatus });
+    }));
+    await Promise.allSettled(okList.map(({ o, fromStatus }) => logStatus(o._id, fromStatus, 'S10.5', 'cancel_window_timeout', 'system')));
+    // 通知双方: 取消申请超时转平台裁决
+    await Promise.allSettled(okList.flatMap(({ o }) => {
+      const receivers = [o.user_openid, o.partner_openid].filter(Boolean);
+      return receivers.map(openid => col('system_notice').add({ data: {
+        to_openid: openid, order_id: o._id, type: 'cancel_timeout',
+        title: '取消申请超时,转平台处理',
+        body: '取消申请未在确认窗口内得到响应,订单已转平台裁决',
+        action_key: 'jump_order', action_payload: { order_id: o._id },
+        created_at: now, read: false
+      }}));
+    }));
+    okList.forEach(({ o }) => { out.cancel_timeout.push(o.order_no); log.d(`cancel window timeout →S10.5: ${o.order_no}`); });
+  } catch (e) { log.d(`cancel window scan fail: ${e.message}`); }
+}
+
 module.exports = {
   processS1Timeout,
   processS0Timeout,
@@ -308,4 +350,5 @@ module.exports = {
   processFinishConfirmRemind,
   processNoShowDefenseOverdue,
   processNoShowGuide,
+  processCancelWindowTimeout,
 };

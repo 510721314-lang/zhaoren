@@ -721,6 +721,21 @@
     "buildOrderView 服务内容：数组/单值/缺省三路",
     "buildOrderView 布尔/透传字段不漂移"
   ],
+  "cloudfunctions/_shared/order_action_cancel.test.js": [
+    "cancelCfgOf: 全缺省 → 开关关/窗口120/冷却60+1440, 档位字段 undefined(由规则函数兜底)",
+    "cancelCfgOf: 完整配置映射 + 百分数→小数(80→0.8)",
+    "cancelCfgOf: 非法数值 → undefined(交由规则函数兜底), 负数窗口回退 120",
+    "cancelCfgOf 与 money_rules 兜底链衔接: 缺省 cfg 经 normalize 回退 §0.1 默认",
+    "cancel_request: cancel_enable=false → oa_cancel_disabled(不落库)",
+    "cancel_request: S2 用户发起 → ok pending + 写挂起(frozen=true) + 通知对方",
+    "cancel_request: 自己已有 pending → 幂等 ok; 对方已有 pending → oa_cancel_pending",
+    "cancel_request: frozen → oa_order_frozen; 冷却期 → oa_cancel_cooldown",
+    "cancel_confirm: 发起方自确认 → oa_cancel_self_confirm",
+    "cancel_confirm: 对方同意 → S7 + 单条 refund 流水(单款10500=订单10000+tip500) + 发起方扣25 + 清 frozen",
+    "cancel_reject: 对方拒绝 → S10.5 + rejected + 写 24h 冷却 + pre_dispute_status",
+    "cancel_withdraw: 发起方撤回 → withdrawn + 清 frozen(主轴不变) + 写 1h 冷却",
+    "cancel_withdraw: 非发起方 → oa_cancel_not_initiator"
+  ],
   "cloudfunctions/_shared/order_create_take_success.test.js": [
     "create_from_take 成功路径: 建单三表 + demand CAS matched + 审计 + 接单通知, 返回 order_id/no",
     "门禁关(默认): 无 base 分数 → order_base_exam_required(旧路径不变)",

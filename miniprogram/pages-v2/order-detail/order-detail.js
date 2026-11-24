@@ -52,6 +52,8 @@ Page({
     extendReasonTypeIndex: -1,
     cancelTiers: CONFIG.CANCEL_REFUND,
     currentCancelIdx: 0,
+    // W3(2026-11-24): 协商型取消三态 UI(初始值, refreshOrder 每次刷新重算)
+    cancelUi: { show: false, canRequest: false, pendingSelf: false, pendingOther: false, cooling: false },
     modifyDate: '',
     modifyTime: '',
     modifyDateMin: '',
@@ -364,6 +366,21 @@ Page({
     const patch = buildOrderView(d);
     const { order, statusInfo } = patch;
     this.setData(patch);
+    // W3(2026-11-24): 协商型取消三态 UI(纯新增计算, 不动既有映射; 服务端 cancel_enable 为权威开关, 关闭时仅按钮隐藏于服务端提示)
+    const _cr = order.cancel_request;
+    const _st2 = ['S2', 'S2_6'].indexOf(order.status) >= 0;
+    const _pendingSelf = !!(_st2 && _cr && _cr.status === 'pending' && _cr.by === order.my_role);
+    const _pendingOther = !!(_st2 && _cr && _cr.status === 'pending' && _cr.by !== order.my_role);
+    const _cooling = !!(_st2 && !_pendingSelf && !_pendingOther && order.cancel_cooldown_until > Date.now());
+    this.setData({
+      cancelUi: {
+        show: _st2,
+        canRequest: !!(_st2 && !order.frozen && !(_cr && _cr.status === 'pending') && !_cooling),
+        pendingSelf: _pendingSelf,
+        pendingOther: _pendingOther,
+        cooling: _cooling
+      }
+    });
     // 醒目即时提醒: 有待自己确认的加时/改期时, 进页即弹 modal + 震动
     // 同单同类型只弹一次, 避免 onShow 轮询重复刷屏
     this.__pendingAlerted = this.__pendingAlerted || {};
@@ -1308,6 +1325,12 @@ Page({
   // ── §14 取消订单 & 梯度退款 (onCancel) ──
   // O5 取消(wx.showModal 展示梯度退款规则, 替代 bottom-sheet)
   onCancel() { orderSubmit.onCancel(this); },
+
+  // ── §14.1 协商型取消(2026-11-24 W3, 方案 §3.1): 申请/同意/拒绝/撤回 —— 只增不改, S0/S1 onCancel 不受影响 ──
+  onCancelRequest() { orderSubmit.onNewCancelRequest(this); },
+  onCancelConfirm() { orderSubmit.onNewCancelRespond(this, 'confirm'); },
+  onCancelReject() { orderSubmit.onNewCancelRespond(this, 'reject'); },
+  onCancelWithdraw() { orderSubmit.onNewCancelWithdraw(this); },
 
   // ── §15 快捷跳转 (支付/聊天/电话/预约/下一步操作) ──
   // 跳支付

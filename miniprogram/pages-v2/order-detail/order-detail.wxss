@@ -291,3 +291,26 @@
 
 /* 订单动态时间线卡专属样式(.od__tl* 15 行)拆分阶段3 A0(2026-10-16): 逐字迁 components/timeline-card/index.wxss; 共用 .od__card 原语留本文件 */
 
+
+/* ── 协商型取消(W3 2026-11-24): 挂起横幅 + 小号按钮(全走 token, 暗色自动适配) ── */
+.od__cancel-bar {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 16rpx;
+  padding: 20rpx 24rpx;
+  background: var(--func-warning-light);
+  border-radius: var(--r-md);
+}
+.od__cancel-bar-txt {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.od__btn--sm {
+  font-size: var(--font-sm);
+  padding: 0 24rpx;
+  min-height: 64rpx;
+  line-height: 64rpx;
+}

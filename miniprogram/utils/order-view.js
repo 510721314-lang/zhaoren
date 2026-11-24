@@ -359,6 +359,8 @@ function buildOrderView(d, now = Date.now()) {
     fees_view: feesView,                                  // 费用明细(平台服务费/耍伴收入/AA 档)
     can_withdraw_complaint: !!d.can_withdraw_complaint,   // 撤回投诉入口(仅发起人、平台受理前)
     frozen: !!d.frozen,                                   // 冻结位(2026-10-12): 在途争议/申诉期间隐藏投诉等推进入口
+    cancel_request: d.cancel_request || null,             // W3(2026-11-24): 协商型取消挂起状态(详情页三态 UI)
+    cancel_cooldown_until: Number(d.cancel_cooldown_until) || 0,  // W3: 取消重发冷却截止
     start_evidence: startEvidence,                        // 履约留痕(2026-10-14): 开始履约现场照片+到场地址/时间
     finish_evidence: finishEvidence,                      // 阶段F(2026-10-15): 完毕确认完成照片+地址/时间(双方可见)
     user_confirm: d.user_confirm || null,                 // 需求B二期到场确认(2026-10-14): 原白名单漏映射, 致 WXML「你已确认到场」不显示
