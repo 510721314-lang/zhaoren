@@ -39,7 +39,7 @@
     <view class="wb__card">
       <view class="wb__card-title">本周日程</view>
       <scroll-view scroll-x class="wb__week" enhanced show-scrollbar="{{false}}">
-        <view class="wb__week-day {{item.isToday ? 'is-today' : ''}} {{activeDayIndex === index ? 'is-active' : ''}}" wx:for="{{weekDays}}" wx:key="dateStr" data-index="{{index}}" bindtap="onWeekDayTap">
+        <view class="wb__week-day {{item.isToday ? 'is-today' : ''}} {{activeDayIndex === index ? 'is-active' : ''}}" wx:for="{{weekDays}}" wx:key="dateStr" data-index="{{index}}" bindtap="onWeekDayTap" hover-class="btn-press">
           <view class="wb__week-wd">周{{item.wd}}</view>
           <view class="wb__week-date">{{item.dateStr}}</view>
           <view class="wb__week-dot" wx:if="{{item.hasOrder}}"></view>
@@ -69,10 +69,10 @@
     <view class="wb__card">
       <view class="wb__card-title-row">
         <text class="wb__card-title">资金速览</text>
-        <view class="wb__go-wallet" bindtap="goWallet">去钱包 ›</view>
+        <view class="wb__go-wallet" bindtap="goWallet" hover-class="btn-press">去钱包 ›</view>
       </view>
       <view class="wb__fund-tabs">
-        <view class="wb__fund-tab {{fundActive === item.key ? 'is-on' : ''}}" wx:for="{{fundTabs}}" wx:key="key" data-key="{{item.key}}" bindtap="onFundTabTap">
+        <view class="wb__fund-tab {{fundActive === item.key ? 'is-on' : ''}}" wx:for="{{fundTabs}}" wx:key="key" data-key="{{item.key}}" bindtap="onFundTabTap" hover-class="btn-press">
           {{item.name}}
         </view>
       </view>

@@ -3,9 +3,9 @@
 
   <!-- C1 头部 -->
   <view class="chat__header">
-    <view class="chat__back" bindtap="goBack">‹</view>
+    <view class="chat__back" bindtap="goBack" hover-class="btn-press">‹</view>
     <view class="chat__title"><block wx:if="{{counterpart}}">{{counterpart}} · {{sceneName}}</block><block wx:else>加载中...</block></view>
-    <view class="chat__order-entry" bindtap="goOrderDetail">📋</view>
+    <view class="chat__order-entry" bindtap="goOrderDetail" hover-class="btn-press">📋</view>
   </view>
 
   <!-- 加载态 -->
@@ -17,7 +17,7 @@
   <!-- 正常态 -->
   <block wx:elif="{{orderId}}">
   <!-- 待支付横幅(仅付款方可见; 放弃支付后由此再次进入支付) -->
-  <view class="chat__pay-banner" wx:if="{{orderStatus === 'S0' && role === 'user'}}" bindtap="goPay">
+  <view class="chat__pay-banner" wx:if="{{orderStatus === 'S0' && role === 'user'}}" bindtap="goPay" hover-class="btn-press">
     <text>{{orderSummary ? orderSummary + ' · ' : ''}}✅ 四项确认完成,订单待支付(30分钟内有效)</text>
     <text class="chat__pay-go">去支付 ›</text>
   </view>
@@ -37,8 +37,8 @@
   <view class="chat__limit" wx:if="{{orderStatus === 'S2' && s2Enabled && !pendingChange && !chatBlocked}}">
     <text>✏️ 距履约≥{{s2MinH}}小时可协商</text>
     <view class="chat__limit-acts">
-      <text class="chat__limit-btn" data-field="location" bindtap="onS2ChangeTap">改地点</text>
-      <text class="chat__limit-btn" data-field="content" bindtap="onS2ChangeTap">改内容</text>
+      <text class="chat__limit-btn" data-field="location" bindtap="onS2ChangeTap" hover-class="btn-press">改地点</text>
+      <text class="chat__limit-btn" data-field="content" bindtap="onS2ChangeTap" hover-class="btn-press">改内容</text>
     </view>
   </view>
 
@@ -62,7 +62,7 @@
         <text class="chat__conf-tag {{item.myOk ? 'is-ok' : ''}}">{{item.myOk ? '我已确认' : '我待确认'}}</text>
         <text class="chat__conf-tag {{item.peerOk ? 'is-ok' : ''}}">{{item.peerOk ? '对方已确认' : '对方待确认'}}</text>
         <!-- 2026-11-09: 行内逐项确认(不依赖模板卡); 仅 S1/未确认/无变更在途/会话未停可点 -->
-        <text class="chat__conf-tag is-ok" wx:if="{{orderStatus === 'S1' && !item.myOk && !pendingChange && !chatBlocked}}" data-field="{{item.field}}" bindtap="onConfirmRow">确认 ›</text>
+        <text class="chat__conf-tag is-ok" wx:if="{{orderStatus === 'S1' && !item.myOk && !pendingChange && !chatBlocked}}" data-field="{{item.field}}" bindtap="onConfirmRow" hover-class="btn-press">确认 ›</text>
       </view>
     </view>
   </view>
@@ -131,7 +131,7 @@
 
   <!-- C5 模板快捷键行 -->
   <view class="chat__quick" wx:if="{{!unlocked && !chatBlocked}}">
-    <view class="chat__quick-item" wx:for="{{quickKeys}}" wx:key="id" wx:if="{{item.id !== 'TM5' || orderStatus === 'S1'}}" data-id="{{item.id}}" bindtap="onQuickKey">
+    <view class="chat__quick-item" wx:for="{{quickKeys}}" wx:key="id" wx:if="{{item.id !== 'TM5' || orderStatus === 'S1'}}" data-id="{{item.id}}" bindtap="onQuickKey" hover-class="btn-press">
       <view class="chat__quick-ic">{{item.icon}}</view>
       <view class="chat__quick-name">{{item.name}}</view>
     </view>
@@ -147,7 +147,7 @@
     </block>
     <block wx:else>
       <input class="chat__input" value="{{inputText}}" placeholder="{{rateCooldown > 0 ? '请稍候 ' + rateCooldown + ' 秒' : '输入消息...'}}" disabled="{{rateCooldown > 0}}" bindinput="onTextInput" confirm-type="send" bindconfirm="sendText" />
-      <view class="chat__send-btn {{rateCooldown > 0 ? 'chat__send-btn--disabled' : ''}}" bindtap="sendText">{{rateCooldown > 0 ? rateCooldown + 's' : '发送'}}</view>
+      <view class="chat__send-btn {{rateCooldown > 0 ? 'chat__send-btn--disabled' : ''}}" bindtap="sendText" hover-class="btn-press">{{rateCooldown > 0 ? rateCooldown + 's' : '发送'}}</view>
     </block>
   </view>
 

@@ -21,6 +21,8 @@
 /* W3 */
 .wb__week { white-space: nowrap; padding: 8rpx 0; }
 .wb__week-day { display: inline-block; width: 100rpx; text-align: center; padding: 12rpx 0; margin-right: 12rpx; border-radius: var(--r-md); background: var(--bg-segment); vertical-align: top; }
+.wb__week-day.is-active { background: var(--brand-primary-light); }
+.wb__week-day.is-active .wb__week-date { color: var(--brand-primary); }
 .wb__week-day.is-today { background: var(--brand-primary); color: var(--text-invert); }
 .wb__week-day.is-today .wb__week-wd, .wb__week-day.is-today .wb__week-date { color: var(--text-invert); }
 .wb__week-wd { font-size: var(--font-xs); color: var(--text-4); }

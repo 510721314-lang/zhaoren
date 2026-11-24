@@ -1,6 +1,6 @@
 <view class="v2 pub">
   <nav-bar title="{{navTitle}}" bg="var(--bg-card)">
-    <view slot="right" class="pub__draft-entry" wx:if="{{draftCount > 0}}" data-count="{{draftCount}}" bindtap="openDraftBox">
+    <view slot="right" class="pub__draft-entry" wx:if="{{draftCount > 0}}" data-count="{{draftCount}}" bindtap="openDraftBox" hover-class="btn-press">
       📋草稿箱({{draftCount}})
     </view>
   </nav-bar>
@@ -24,8 +24,8 @@
   <view class="pub__block">
     <view class="pub__label">项目属性</view>
     <view class="pub__segment">
-      <view class="pub__seg {{form.project_attr === 'commercial' ? 'is-on' : ''}}" data-attr="commercial" bindtap="setAttr">💰 商业付费</view>
-      <view class="pub__seg {{form.project_attr === 'public_welfare' ? 'is-on' : ''}}" data-attr="public_welfare" bindtap="setAttr">💚 公益免费</view>
+      <view class="pub__seg {{form.project_attr === 'commercial' ? 'is-on' : ''}}" data-attr="commercial" bindtap="setAttr" hover-class="btn-press">💰 商业付费</view>
+      <view class="pub__seg {{form.project_attr === 'public_welfare' ? 'is-on' : ''}}" data-attr="public_welfare" bindtap="setAttr" hover-class="btn-press">💚 公益免费</view>
     </view>
     <view class="pub__welfare-tip" wx:if="{{form.project_attr === 'public_welfare'}}">
       {{welfareText}}
@@ -33,8 +33,8 @@
     <view class="pub__pricing" wx:if="{{form.project_attr === 'commercial'}}">
       <view class="pub__pricing-label">计价方式</view>
       <view class="pub__segment">
-        <view class="pub__seg {{form.pricing_type === 'hourly' ? 'is-on' : ''}}" data-pt="hourly" bindtap="setPricing">⏱ 按小时</view>
-        <view class="pub__seg {{form.pricing_type === 'fixed' ? 'is-on' : ''}}" data-pt="fixed" bindtap="setPricing">🎯 一口价</view>
+        <view class="pub__seg {{form.pricing_type === 'hourly' ? 'is-on' : ''}}" data-pt="hourly" bindtap="setPricing" hover-class="btn-press">⏱ 按小时</view>
+        <view class="pub__seg {{form.pricing_type === 'fixed' ? 'is-on' : ''}}" data-pt="fixed" bindtap="setPricing" hover-class="btn-press">🎯 一口价</view>
       </view>
     </view>
   </view>
@@ -51,7 +51,7 @@
   <!-- B3.2 W9 宠物照料授权书(PRD R9: 「明确授权」须留存电子凭证, 无凭证视为未授权、不得履约) -->
   <view class="pub__block" wx:if="{{form.scene_code === 'W9'}}">
     <view class="pub__label">宠物照料授权 <text class="pub__required">*</text></view>
-    <view class="pub__pet-doc" bindtap="openPetAuthSheet">
+    <view class="pub__pet-doc" bindtap="openPetAuthSheet" hover-class="btn-press">
       <text class="pub__pet-doc-name">《宠物照料授权书》</text>
       <text class="pub__pet-doc-op">{{petAuthChecked ? '已签署 · 点击查看' : '点击查看全文'}}</text>
     </view>
@@ -94,12 +94,12 @@
     </picker>
     <view class="pub__sub-label">时长</view>
     <view class="pub__chips">
-      <view class="pub__chip {{form.duration_hours === item ? 'is-on' : ''}}" wx:for="{{durationOptions}}" wx:key="*this" data-val="{{item}}" bindtap="setDuration">{{item}}h</view>
+      <view class="pub__chip {{form.duration_hours === item ? 'is-on' : ''}}" wx:for="{{durationOptions}}" wx:key="*this" data-val="{{item}}" bindtap="setDuration" hover-class="btn-press">{{item}}h</view>
     </view>
     <input class="pub__input pub__input--mt" wx:if="{{form.duration_hours === 0}}" placeholder="自定义小时数" type="digit" bindinput="onDurationCustomInput" />
     <!-- 地址信息(图3): 发布地址=当前GPS自动记录不可改; 履约地址=地图选点 -->
     <view class="pub__sub-title">地址信息</view>
-    <view class="pub__picker-row" bindtap="onRelocatePublish">
+    <view class="pub__picker-row" bindtap="onRelocatePublish" hover-class="btn-press">
       <text class="pub__picker-label">发布地址</text>
       <text class="pub__picker-val {{publishLocation ? '' : 'is-empty'}} pub__pub-loc">
         {{locating ? '定位中…' : (publishLocation ? '当前位置' + (publishLocation.updatedAt ? ' · ' + publishLocation.updatedAt : '') : '点击获取当前位置')}}
@@ -110,7 +110,7 @@
     </view>
     <view class="pub__coord" wx:if="{{publishLocation && publishLocation.address}}">📍 {{publishLocation.address}}</view>
     <view class="pub__location-tip">📌 发布地址为您发布时的实际定位，自动记录不可修改；点击右侧按钮可重新定位</view>
-    <view class="pub__picker-row pub__picker-row--wrap" bindtap="onLocationPick">
+    <view class="pub__picker-row pub__picker-row--wrap" bindtap="onLocationPick" hover-class="btn-press">
       <text class="pub__picker-label">履约点所在的地图位置</text>
       <input class="pub__picker-input" value="{{form.location_name}}" placeholder="点击在地图上选择履约地点" bindinput="onLocationInput" catchtap="noop" />
       <view class="pub__loc-btn" hover-class="pub__loc-btn--hover" hover-stay-time="80">
@@ -135,9 +135,9 @@
     <view class="pub__row">
       <text class="pub__row-label">人数</text>
       <view class="pub__stepper">
-        <view class="pub__step-btn" bindtap="decHeadcount">-</view>
+        <view class="pub__step-btn" bindtap="decHeadcount" hover-class="btn-press">-</view>
         <view class="pub__step-val">{{form.headcount}}</view>
-        <view class="pub__step-btn" bindtap="incHeadcount">+</view>
+        <view class="pub__step-btn" bindtap="incHeadcount" hover-class="btn-press">+</view>
       </view>
     </view>
     <view class="pub__row" wx:if="{{form.project_attr === 'commercial' && form.pricing_type === 'hourly'}}">
@@ -156,7 +156,7 @@
   <view class="pub__block">
     <view class="pub__label">AA费用预估 <text class="pub__required">*</text></view>
     <view class="pub__chips">
-      <view class="pub__chip {{form.aa_estimate === item.value ? 'is-on' : ''}}" wx:for="{{aaOptions}}" wx:key="value" data-val="{{item.value}}" bindtap="setAA">
+      <view class="pub__chip {{form.aa_estimate === item.value ? 'is-on' : ''}}" wx:for="{{aaOptions}}" wx:key="value" data-val="{{item.value}}" bindtap="setAA" hover-class="btn-press">
         {{item.label}}
       </view>
     </view>
@@ -167,9 +167,9 @@
   <view class="pub__block">
     <view class="pub__label">性别偏好</view>
     <view class="pub__chips">
-      <view class="pub__chip {{form.gender_pref === '不限' ? 'is-on' : ''}}" data-val="不限" bindtap="setGender">不限</view>
-      <view class="pub__chip {{form.gender_pref === '男' ? 'is-on' : ''}}" data-val="男" bindtap="setGender">男</view>
-      <view class="pub__chip {{form.gender_pref === '女' ? 'is-on' : ''}}" data-val="女" bindtap="setGender">女</view>
+      <view class="pub__chip {{form.gender_pref === '不限' ? 'is-on' : ''}}" data-val="不限" bindtap="setGender" hover-class="btn-press">不限</view>
+      <view class="pub__chip {{form.gender_pref === '男' ? 'is-on' : ''}}" data-val="男" bindtap="setGender" hover-class="btn-press">男</view>
+      <view class="pub__chip {{form.gender_pref === '女' ? 'is-on' : ''}}" data-val="女" bindtap="setGender" hover-class="btn-press">女</view>
     </view>
   </view>
 
@@ -189,7 +189,7 @@
   <view class="pub__block">
     <view class="pub__label">发布类型</view>
     <view class="pub__mode-list">
-      <view class="pub__mode-card {{publishType === item.code ? 'is-on' : ''}}" wx:for="{{publishTypes}}" wx:key="code" data-pt="{{item.code}}" bindtap="setPublishType">
+      <view class="pub__mode-card {{publishType === item.code ? 'is-on' : ''}}" wx:for="{{publishTypes}}" wx:key="code" data-pt="{{item.code}}" bindtap="setPublishType" hover-class="btn-press">
         <view class="pub__mode-name">{{item.name}}</view>
         <view class="pub__mode-desc">{{item.desc}}</view>
       </view>
@@ -202,11 +202,11 @@
     <input class="pub__input" value="{{proxyName}}" placeholder="被代发人姓名" maxlength="20" bindinput="onProxyNameInput" />
     <view class="pub__label">与本人的关系 <text class="pub__required">*</text></view>
     <view class="pub__chips">
-      <view class="pub__chip {{proxyRelation === item ? 'is-on' : ''}}" wx:for="{{relationOptions}}" wx:key="*this" data-rel="{{item}}" bindtap="setProxyRelation">{{item}}</view>
+      <view class="pub__chip {{proxyRelation === item ? 'is-on' : ''}}" wx:for="{{relationOptions}}" wx:key="*this" data-rel="{{item}}" bindtap="setProxyRelation" hover-class="btn-press">{{item}}</view>
     </view>
     <input class="pub__input" wx:if="{{proxyRelation === '其他'}}" value="{{proxyRelationNote}}" placeholder="关系补充说明（20 字内）" maxlength="20" bindinput="onProxyRelationNoteInput" />
     <input class="pub__input" type="number" value="{{proxyPhone}}" placeholder="被代发人电话（11 位手机号）" maxlength="11" bindinput="onProxyPhoneInput" />
-    <view class="pub__pet-doc" bindtap="openProxySheet">
+    <view class="pub__pet-doc" bindtap="openProxySheet" hover-class="btn-press">
       <text class="pub__pet-doc-name">《委托授权书》</text>
       <text class="pub__pet-doc-op">{{proxyAuthChecked ? '已签署 · 点击查看' : '点击查看全文'}}</text>
     </view>
@@ -222,7 +222,7 @@
   <view class="pub__block" wx:if="{{!directInvite}}">
     <view class="pub__label">撮合模式</view>
     <view class="pub__mode-list">
-      <view class="pub__mode-card {{form.match_mode === item.code ? 'is-on' : ''}} {{item.code === 'smart' && smartLocked ? 'is-locked' : ''}}" wx:for="{{matchModes}}" wx:key="code" data-code="{{item.code}}" bindtap="setMatchMode">
+      <view class="pub__mode-card {{form.match_mode === item.code ? 'is-on' : ''}} {{item.code === 'smart' && smartLocked ? 'is-locked' : ''}}" wx:for="{{matchModes}}" wx:key="code" data-code="{{item.code}}" bindtap="setMatchMode" hover-class="btn-press">
         <view class="pub__mode-name">
           {{item.name}}
           <text class="pub__vip-badge" wx:if="{{item.needVip}}">VIP</text>
@@ -249,7 +249,7 @@
 
   <!-- 草稿箱弹窗(列表选择类弹层, bottom-sheet 保留) -->
   <bottom-sheet visible="{{draftBoxVisible}}" title="草稿箱" bind:close="closeDraftBox">
-    <view class="pub__draft-item" wx:for="{{draftList}}" wx:key="_id" data-index="{{index}}" bindtap="restoreDraft">
+    <view class="pub__draft-item" wx:for="{{draftList}}" wx:key="_id" data-index="{{index}}" bindtap="restoreDraft" hover-class="btn-press">
       <view class="pub__draft-title">{{item.demand_data.title}}</view>
       <view class="pub__draft-meta">{{item.demand_data.service_date}} · 保存于 {{item.saved_at}}</view>
     </view>
@@ -260,7 +260,7 @@
   <bottom-sheet visible="{{optionSheetVisible}}" title="选择服务内容" has-footer="{{true}}" bind:close="closeOptionSheet">
     <view class="pub__opt-tip">请选择本次需要的服务（至少 1 项，最多 {{contentOptionsMax}} 项）</view>
     <view class="pub__opt-list">
-      <view class="pub__opt-item {{item.checked ? 'is-on' : ''}}" wx:for="{{optionList}}" wx:key="name" data-name="{{item.name}}" bindtap="toggleOption">
+      <view class="pub__opt-item {{item.checked ? 'is-on' : ''}}" wx:for="{{optionList}}" wx:key="name" data-name="{{item.name}}" bindtap="toggleOption" hover-class="btn-press">
         <text class="pub__opt-name">{{item.name}}</text>
         <text class="pub__opt-check">{{item.checked ? '✓' : ''}}</text>
       </view>
