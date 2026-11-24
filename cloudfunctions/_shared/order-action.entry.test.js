@@ -1185,5 +1185,43 @@ test('notice_poll: since_ts 只返回增量且 server_now 存在（缺省向后�
   assert.strictEqual(r2.data.list[0].id, 'b');
 });
 
+// 2026-11-24: select_confirmed_poll —— 耍伴被选定强制弹窗触发源(仅查本人未读 select_confirmed, 不联表)
+test('select_confirmed_poll: 无未读 → has=false', async () => {
+  const store = baseStore();
+  store.system_notice = {};
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'select_confirmed_poll' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.has, false);
+});
+
+test('select_confirmed_poll: 有未读 → has=true 且 demand_id 取自 action_payload', async () => {
+  const DID = 'd'.repeat(32);
+  const store = baseStore();
+  store.system_notice = {
+    sc1: { _id: 'sc1', to_openid: USER, type: 'select_confirmed', order_id: '', read: false, title: '你被选中了', body: '发布者已选择你', action_payload: { demand_id: DID }, created_at: 1794700000000 }
+  };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'select_confirmed_poll' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.has, true);
+  assert.strictEqual(r.data.notice.id, 'sc1');
+  assert.strictEqual(r.data.notice.demand_id, DID);
+});
+
+test('select_confirmed_poll: 只返回本人未读 → 他人/已读通知 has=false', async () => {
+  const store = baseStore();
+  store.system_notice = {
+    other: { _id: 'other', to_openid: 'o_else', type: 'select_confirmed', read: false, action_payload: {}, created_at: 1 },
+    readed: { _id: 'readed', to_openid: USER, type: 'select_confirmed', read: true, action_payload: {}, created_at: 2 }
+  };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'select_confirmed_poll' }, {});
+  assert.strictEqual(r.data.has, false);
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

@@ -483,6 +483,28 @@ async function notice_poll(ctx) {
   return { ok: true, data: { has_new: list.length > 0, list, server_now: Date.now() } };
 }
 
+// 2026-11-24: 耍伴被选定强制弹窗触发源——仅查本人未读 select_confirmed(不联表), 供前端进页面/切前台时查一次
+async function select_confirmed_poll(ctx) {
+  const { openid, col } = ctx;
+  const r = await col('system_notice').where({ to_openid: openid, type: 'select_confirmed', read: false })
+    .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
+  const n = (r.data && r.data[0]) || null;
+  if (!n) return { ok: true, data: { has: false } };
+  const payload = n.action_payload || {};
+  return {
+    ok: true,
+    data: {
+      has: true,
+      notice: {
+        id: n._id,
+        title: n.title || '你被选定了',
+        body: n.body || '',
+        demand_id: payload.demand_id || ''
+      }
+    }
+  };
+}
+
 async function notice_read(ctx) {
   const { event, openid, col } = ctx;
   if (event.notice_id) {
@@ -495,4 +517,4 @@ async function notice_read(ctx) {
   return { ok: true };
 }
 
-module.exports = { detail, my_orders, my_counts, notice_list, notice_poll, notice_read };
+module.exports = { detail, my_orders, my_counts, notice_list, notice_poll, notice_read, select_confirmed_poll };

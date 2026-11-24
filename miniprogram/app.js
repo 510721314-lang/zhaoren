@@ -50,6 +50,11 @@ App({
     } catch (e) {}
   },
 
+  onShow() {
+    // 2026-11-24 B 方案: 切回前台时查一次是否有未读「被选定」通知, 命中弹强制窗(不做定时轮询)
+    try { require('./utils/select-confirmed-alert.js').checkOnce(); } catch (e) { console.warn('[select-alert] onShow 检查失败', e && e.message); }
+  },
+
   // 统一等云就绪后再 callFunction(带 retry)
   // 用法: await app.cloudCall('home-action', {action:'square'});
   // S7 性能/安全: 读类 action 失败重试 2 次; 写类 action(支付/发消息/状态流转/提交类)一次不重试,
