@@ -7,7 +7,8 @@ const {
   TIP_MIN_FEN, TIP_MAX_FEN, WD_MIN_FEN, DEFAULT_FEE_RATE_FEN,
   splitOrderAmount, isValidTipAmount,
   validateWithdrawBasic, validateWithdrawBalance,
-  computeBalance, aggRowSum
+  computeBalance, aggRowSum,
+  normalizeCancelRefundCfg, cancelRefundFen, refundCap, CANCEL_REFUND_DEFAULTS
 } = require('./money_rules');
 
 // ── splitOrderAmount(分账) ──
@@ -41,6 +42,51 @@ test('分账: total 0 / 非法 → 全 0 不产 NaN', () => {
 test('分账: 费率负数/非数值 → 回退默认 1000(防御)', () => {
   assert.strictEqual(splitOrderAmount(20000, -5).feeFen, 2000);
   assert.strictEqual(splitOrderAmount(20000, 'x').feeFen, 2000);
+});
+
+// ── 取消梯度退款(2026-11-24 W2, 方案 §4.1) ──
+const H = 3600e3;
+test('取消梯度: 三档默认 100%/80%/50% 命中(200 元单)', () => {
+  assert.strictEqual(cancelRefundFen(20000, 25 * H, null), 20000);   // >24h 全退
+  assert.strictEqual(cancelRefundFen(20000, 10 * H, null), 16000);   // 4-24h 退 80%
+  assert.strictEqual(cancelRefundFen(20000, 1 * H, null), 10000);    // <4h 退 50%
+});
+test('取消梯度: 档位边界含等于(=24h 走远档 / =4h 走中档)', () => {
+  assert.strictEqual(cancelRefundFen(20000, 24 * H, null), 20000);
+  assert.strictEqual(cancelRefundFen(20000, 24 * H - 1, null), 16000);
+  assert.strictEqual(cancelRefundFen(20000, 4 * H, null), 16000);
+  assert.strictEqual(cancelRefundFen(20000, 4 * H - 1, null), 10000);
+  assert.strictEqual(cancelRefundFen(20000, 0, null), 10000);        // lead=0 近档
+});
+test('取消梯度: 自定义 cfg 生效 + 四舍五入', () => {
+  const cfg = { far_hours: 48, mid_hours: 2, far_rate: 0.9, mid_rate: 0.7, near_rate: 0.3 };
+  assert.strictEqual(cancelRefundFen(10000, 48 * H, cfg), 9000);
+  assert.strictEqual(cancelRefundFen(10000, 3 * H, cfg), 7000);
+  assert.strictEqual(cancelRefundFen(10001, 1 * H, cfg), 3000);      // 10001*0.3=3000.3 → 3000
+});
+test('取消梯度: 非法 cfg 字段逐项回退默认(部分合法部分非法混合)', () => {
+  const cfg = normalizeCancelRefundCfg({ far_hours: 0, mid_hours: -1, far_rate: 1.5, mid_rate: 'x', near_rate: undefined });
+  assert.strictEqual(cfg.far_hours, 24);
+  assert.strictEqual(cfg.mid_hours, 4);
+  assert.strictEqual(cfg.far_rate, 1.0);      // >1 非法回退
+  assert.strictEqual(cfg.mid_rate, 0.8);
+  assert.strictEqual(cfg.near_rate, 0.5);
+});
+test('取消梯度: paid 0 / 负 lead / NaN → 有限值不产 NaN', () => {
+  assert.strictEqual(cancelRefundFen(0, 10 * H, null), 0);
+  assert.ok(Number.isFinite(cancelRefundFen(20000, -5, null)));
+  assert.ok(Number.isFinite(cancelRefundFen(NaN, 10 * H, null)));
+  assert.strictEqual(cancelRefundFen(undefined, 10 * H, null), 0);
+});
+test('取消梯度: CANCEL_REFUND_DEFAULTS 与方案 §0.1 默认一致(防漂移)', () => {
+  assert.deepStrictEqual(CANCEL_REFUND_DEFAULTS, { far_hours: 24, far_rate: 1.0, mid_hours: 4, mid_rate: 0.8, near_rate: 0.5 });
+});
+test('refundCap: 上限 = paid - already, 钳制 ≥0', () => {
+  assert.strictEqual(refundCap(20000, 0), 20000);
+  assert.strictEqual(refundCap(20000, 8000), 12000);
+  assert.strictEqual(refundCap(20000, 20000), 0);
+  assert.strictEqual(refundCap(20000, 25000), 0);    // 已退超付(脏数据) → 0 不再退
+  assert.strictEqual(refundCap(0, 0), 0);
 });
 
 // ── isValidTipAmount(打赏 1-500 元整数) ──

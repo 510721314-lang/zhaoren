@@ -153,7 +153,22 @@ const CONFIG_SCHEMA = [
   // ── 学习考试证书(2026-10-26 S2): 门禁开关默认关, S6 验证后开闸; 配置变更走 config_set 留痕 ──
   { f: 'cert_gate_enabled', t: 'bool', g: '学习考试', label: '证书接单门禁', def: false, d: '开启后入驻/接单按证书校验（默认关闭走旧考试分数口径）' },
   { f: 'w1_cert_valid_days', t: 'int', g: '学习考试', label: '场景证书有效期', unit: '天', min: 1, max: 3650, def: 365, d: '非 base 科目证书有效期（天）' },
-  { f: 'base_cert_permanent', t: 'bool', g: '学习考试', label: 'base 证书永久有效', def: true, d: '开启=base 证书不过期；关闭后按场景证书有效期计' }
+  { f: 'base_cert_permanent', t: 'bool', g: '学习考试', label: 'base 证书永久有效', def: true, d: '开启=base 证书不过期；关闭后按场景证书有效期计' },
+  // ── 订单取消(2026-11-24 W2, 方案 docs/schemes/cancel-fulfillment-v2.2.md §0.1; 扣分为正数幅度, 比例为百分数; 管理动作一律后台可配, 禁止写死) ──
+  { f: 'cancel_enable', t: 'bool', g: '订单取消', label: '取消功能开关', def: false, d: 'S2+ 取消链路全局开关（W3 真机通过后置 true）；false 时所有取消入口拒绝' },
+  { f: 'cancel_confirm_window_min', t: 'int', g: '订单取消', label: '对方确认窗口', unit: '分钟', min: 10, max: 1440, def: 120, d: 'S2/S2_6 取消申请对方确认时限，超时转平台裁决（D6：不自动同意）' },
+  { f: 'cancel_penalty_s2_far', t: 'int', g: '订单取消', label: '扣分·待履约远档', unit: '分', min: 0, max: 100, def: 5, d: 'S2/S2_6 提前≥远档线取消的发起方扣分幅度（0=不罚）' },
+  { f: 'cancel_penalty_s2_mid', t: 'int', g: '订单取消', label: '扣分·待履约中档', unit: '分', min: 0, max: 100, def: 15, d: 'S2/S2_6 提前介于远/中档线之间的发起方扣分幅度' },
+  { f: 'cancel_penalty_s2_near', t: 'int', g: '订单取消', label: '扣分·待履约近档', unit: '分', min: 0, max: 100, def: 25, d: 'S2/S2_6 提前<中档线取消的发起方扣分幅度' },
+  { f: 'cancel_penalty_s3', t: 'int', g: '订单取消', label: '扣分·履约中', unit: '分', min: 0, max: 100, def: 30, d: 'S3 履约中取消的发起方扣分幅度（重罚）' },
+  { f: 'cancel_penalty_fulfill', t: 'int', g: '订单取消', label: '扣分·履约前后档', unit: '分', min: 0, max: 100, def: 20, d: 'S2_5/S3_6/S3.5/S4 取消的发起方扣分幅度' },
+  { f: 'cancel_refund_far_hours', t: 'int', g: '订单取消', label: '梯度线·远档', unit: '小时', min: 1, max: 720, def: 24, d: '提前≥该小时数走远档退款比例（与扣分档线同源）' },
+  { f: 'cancel_refund_mid_hours', t: 'int', g: '订单取消', label: '梯度线·中档', unit: '小时', min: 1, max: 720, def: 4, d: '提前≥该小时数走中档退款比例，否则近档' },
+  { f: 'cancel_refund_far_rate_pct', t: 'int', g: '订单取消', label: '退款比例·远档', unit: '%', min: 0, max: 100, def: 100, d: '远档退款比例（百分数，100=全退）' },
+  { f: 'cancel_refund_mid_rate_pct', t: 'int', g: '订单取消', label: '退款比例·中档', unit: '%', min: 0, max: 100, def: 80, d: '中档退款比例（百分数）' },
+  { f: 'cancel_refund_near_rate_pct', t: 'int', g: '订单取消', label: '退款比例·近档', unit: '%', min: 0, max: 100, def: 50, d: '近档退款比例（百分数）' },
+  { f: 'cancel_cooldown_withdraw_min', t: 'int', g: '订单取消', label: '撤回后冷却', unit: '分钟', min: 0, max: 1440, def: 60, d: '发起方撤回取消申请后，多久内不可对同一订单重发（B6）' },
+  { f: 'cancel_cooldown_rejected_min', t: 'int', g: '订单取消', label: '被拒后冷却', unit: '分钟', min: 0, max: 10080, def: 1440, d: '取消被拒/裁决不支持后，多久内不可对同一订单重发（D14）' }
 ];
 
 module.exports = { CONFIG_SCHEMA };

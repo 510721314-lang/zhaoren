@@ -334,7 +334,12 @@
   ],
   "cloudfunctions/_shared/credit_rules.test.js": [
     "starCreditDelta: 各星数映射 5→+2 / 4→+1 / 3→0 / 2→-2 / 1→-5",
-    "starCreditDelta: 越界/异常值回退 -5(与原实现一致)"
+    "starCreditDelta: 越界/异常值回退 -5(与原实现一致)",
+    "cancelCreditDelta: S2/S2_6 按 leadMs 三档 -5/-15/-25(默认档线 24h/4h)",
+    "cancelCreditDelta: S3 -30 / 履约档(S2_5/S3_6/S3.5/S4) -20 / S0·S1 恒 0(D5)",
+    "cancelCreditDelta: cfg 覆盖生效(后台可配, 正数幅度→负增量)",
+    "cancelCreditDelta: 非法 cfg 数值回退默认(负数/NaN 防御)",
+    "cancelCreditDelta: 默认值与方案 §0.1 一致(防漂移)"
   ],
   "cloudfunctions/_shared/demand-match.entry.test.js": [
     "apply: 抢单模式需求不可报名 → apply_mode_invalid",
@@ -469,6 +474,13 @@
     "分账: 费率 10000 = 全抽",
     "分账: total 0 / 非法 → 全 0 不产 NaN",
     "分账: 费率负数/非数值 → 回退默认 1000(防御)",
+    "取消梯度: 三档默认 100%/80%/50% 命中(200 元单)",
+    "取消梯度: 档位边界含等于(=24h 走远档 / =4h 走中档)",
+    "取消梯度: 自定义 cfg 生效 + 四舍五入",
+    "取消梯度: 非法 cfg 字段逐项回退默认(部分合法部分非法混合)",
+    "取消梯度: paid 0 / 负 lead / NaN → 有限值不产 NaN",
+    "取消梯度: CANCEL_REFUND_DEFAULTS 与方案 §0.1 默认一致(防漂移)",
+    "refundCap: 上限 = paid - already, 钳制 ≥0",
     "打赏: 下界 100 / 上界 50000 通过",
     "打赏: 99 / 50001 拒绝",
     "打赏: 非整数 / NaN / undefined 拒绝",

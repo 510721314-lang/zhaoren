@@ -1,13 +1,15 @@
-# Sync money_rules.js (canonical) -> local copies in payment-mock, order-create, order-action
+# Sync money_rules.js (canonical) -> local copies in payment-mock, order-create, order-action, admin-action
 # Usage: powershell -File cloudfunctions/_shared/sync-money-rules.ps1
 # Canonical source: _shared/money_rules.js ; run this script after ANY edit to it.
+# 2026-11-24 W2: 新增 admin-action 目标(W4 裁决退款消费; 评审#6)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot   # cloudfunctions/
 $src  = Join-Path $root '_shared\money_rules.js'
 $dsts = @(
   (Join-Path $root 'payment-mock\money_rules.js'),
   (Join-Path $root 'order-create\money_rules.js'),
-  (Join-Path $root 'order-action\money_rules.js')
+  (Join-Path $root 'order-action\money_rules.js'),
+  (Join-Path $root 'admin-action\money_rules.js')
 )
 if (-not (Test-Path $src)) { throw "canonical source missing: $src" }
 foreach ($d in $dsts) {

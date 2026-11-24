@@ -122,6 +122,21 @@ const SEED_CONFIG = {
   dispute_escalate_d: 30,  // PRD S10.5 争议升级天数 · 2026-10-13 已落地: 超期→幂等标记+P1 dispute_escalate_overdue 平台事件(见 order-timer §4.8; 裁决仍人工)
   // 批2(2026-11-01): 约定开始后多久给双方发"可提交爽约申诉"提醒(分钟); 只提醒不判定, 与 no_show_report_window_h(申诉时限)独立
   no_show_grace_min: 30,
+  // 订单取消(2026-11-24 W2, 方案 cancel-fulfillment-v2.2.md §0.1): 扣分为正数幅度, 比例为百分数; 消费方 W3 接入, 缺键走规则函数兜底
+  cancel_enable: false,
+  cancel_confirm_window_min: 120,
+  cancel_penalty_s2_far: 5,
+  cancel_penalty_s2_mid: 15,
+  cancel_penalty_s2_near: 25,
+  cancel_penalty_s3: 30,
+  cancel_penalty_fulfill: 20,
+  cancel_refund_far_hours: 24,
+  cancel_refund_mid_hours: 4,
+  cancel_refund_far_rate_pct: 100,
+  cancel_refund_mid_rate_pct: 80,
+  cancel_refund_near_rate_pct: 50,
+  cancel_cooldown_withdraw_min: 60,
+  cancel_cooldown_rejected_min: 1440,
   // aa_tiers 已下线: 前端 AA_OPTIONS 硬编码, 格式不同; 第二批云化 AA_OPTIONS 时再按 admin_config.aa_tiers 接通
   // 信用分(PRD 8.1 SSOT)
   min_credit_take_order: 600,

@@ -1,10 +1,14 @@
-// @VERIFIED 2026-10-13 已真机验证：money_rules 退款上限(总额-已退,不含打赏)+S2梯度退款(用户全额/80%/50%, 耍伴全额+20%赔付)+部分退款非终态（依据：project_memory L41-52, L185-186）
+// @VERIFIED 2026-10-13 已真机验证：money_rules 退款上限(总额-已退,不含打赏)+部分退款非终态（依据：project_memory L41-52, L185-186）
+// [2026-11-24 W2 头注释订正(评审#12)] 原文声称「S2梯度退款(用户全额/80%/50%, 耍伴全额+20%赔付)已真机验证」与实现不符：
+//   归档验证记录对应 PRD 8.3 设计目标, 服务端此前无梯度实现(仅前端 config 展示)；现由本次新增 cancelRefundFen 承接。
+//   「+20%赔付」与状态机 no.21「一期零赔付」拍板冲突——取消一律零现金赔付只扣信用分(B2/D2, 用户 2026-11-24 拍板)。
 // 共享：资金规则纯函数库(规范源/单一实现)
 // ⚠️ 微信云开发按单函数目录打包, 不支持跨目录 require('../_shared/')。
 // 本文件为「规范源」, 修改后需运行 sync-money-rules.ps1 同步复制到:
 //   cloudfunctions/payment-mock/money_rules.js
 //   cloudfunctions/order-create/money_rules.js
 //   cloudfunctions/order-action/money_rules.js
+//   cloudfunctions/admin-action/money_rules.js   ← 2026-11-24 W2 新增目标(W4 裁决退款消费)
 // 单测: 同目录 money_rules.test.js (node --test)
 // 抽取来源(2026-10-06 D4-5 防漂移):
 //   order-create L583 / order-action L347+L1135: 分账公式(三处重复)
@@ -155,10 +159,65 @@ function aggRowSum(row) {
   return (Number(row.total) || 0) + (Number(row.tip) || 0);
 }
 
+// ── 取消梯度退款(2026-11-24 W2, 方案 docs/schemes/cancel-fulfillment-v2.2.md §4.1) ──
+// 档位 SSOT = admin_config cancel_refund_* 键(百分数存储), 此处为缺省兜底(与 §0.1 默认一致);
+// 服务端读取处把 pct/100 后传入, 或直接传原始 cfg 由 normalize 归一(两种字段名都认)。
+// 基准一律 fund.paid_fen(防加时 total_fen 高估); leadMs = 履约开始时间 - 同意时刻(不按申请时刻, N10)。
+const CANCEL_REFUND_DEFAULTS = { far_hours: 24, far_rate: 1.0, mid_hours: 4, mid_rate: 0.8, near_rate: 0.5 };
+
+/**
+ * 归一化取消退款档位配置(缺省/非法字段回退兜底默认; 0 档线非法回退, 比例钳制 [0,1])。
+ * @param {Object|null} cfg  admin_config 展平后的 { far_hours, mid_hours, far_rate, mid_rate, near_rate }
+ * @returns {Object}
+ */
+function normalizeCancelRefundCfg(cfg) {
+  const o = cfg || {};
+  const hours = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
+  const rate = (v, d) => (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1 ? Number(v) : d);
+  return {
+    far_hours: hours(o.far_hours, CANCEL_REFUND_DEFAULTS.far_hours),
+    mid_hours: hours(o.mid_hours, CANCEL_REFUND_DEFAULTS.mid_hours),
+    far_rate: rate(o.far_rate, CANCEL_REFUND_DEFAULTS.far_rate),
+    mid_rate: rate(o.mid_rate, CANCEL_REFUND_DEFAULTS.mid_rate),
+    near_rate: rate(o.near_rate, CANCEL_REFUND_DEFAULTS.near_rate)
+  };
+}
+
+/**
+ * 取消梯度退款金额: paid_fen × 档位比例(按 leadMs 命中远/中/近档)。
+ * @param {number} paidFen      已付金额(分, 基准一律 fund.paid_fen)
+ * @param {number} leadMs       履约开始时间 - 同意时刻(毫秒, ≥0)
+ * @param {Object|null} cfg     admin_config 档位(缺省走兜底)
+ * @returns {number} refund_fen(≥0, 四舍五入)
+ */
+function cancelRefundFen(paidFen, leadMs, cfg) {
+  const c = normalizeCancelRefundCfg(cfg);
+  const paid = Number(paidFen) || 0;
+  const lead = Number(leadMs) || 0;
+  const r = lead >= c.far_hours * 3600e3 ? c.far_rate
+          : lead >= c.mid_hours * 3600e3 ? c.mid_rate
+          : c.near_rate;
+  return Math.max(0, Math.round(paid * r));
+}
+
+/**
+ * 可退上限: 防超额退(refund_fen 不得超过本值; fund 纵深防御外仍需 CAS 串行门, 方案 §4.2)。
+ * @param {number} paidFen             已付金额(分)
+ * @param {number} alreadyRefundedFen  已退金额(分, 读云端当前值, 不用客户端陈旧值)
+ * @returns {number} cap(≥0)
+ */
+function refundCap(paidFen, alreadyRefundedFen) {
+  const paid = Number(paidFen) || 0;
+  const already = Number(alreadyRefundedFen) || 0;
+  return Math.max(0, paid - already);
+}
+
 module.exports = {
   TIP_MIN_FEN, TIP_MAX_FEN, WD_MIN_FEN,
   FAST_PER_ORDER_MAX_FEN, FAST_PER_DAY_MAX_FEN, DEFAULT_FEE_RATE_FEN,
+  CANCEL_REFUND_DEFAULTS,
   splitOrderAmount, isValidTipAmount,
   validateWithdrawBasic, validateWithdrawBalance,
-  computeBalance, aggRowSum
+  computeBalance, aggRowSum,
+  normalizeCancelRefundCfg, cancelRefundFen, refundCap
 };
