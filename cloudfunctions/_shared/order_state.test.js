@@ -28,9 +28,10 @@ test('履约存证: 字段集/坐标系/阶段常量符合规范', () => {
 
 // ── 迁移表 ──
 // 2026-11-01 形态A 收口: 删除旧 B1 链路两条(原 no.5 start_service / no.13 complete) → 30 条变 28 条;
+// 2026-11-24 W1 取消链路扩表: 新增 no.31-37 → 28 条变 35 条(docs/schemes/cancel-fulfillment-v2.2.md §7.2);
 // 编号保留空洞(no.5/no.13 不再复用, 避免与 docs/注释里的 no.N 交叉引用错位), 故只校验「唯一且递增」。
-test('迁移表: 28 条, no 唯一且严格递增', () => {
-  assert.strictEqual(S.TRANSITIONS.length, 28);
+test('迁移表: 35 条, no 唯一且严格递增', () => {
+  assert.strictEqual(S.TRANSITIONS.length, 35);
   let prev = 0;
   for (const t of S.TRANSITIONS) {
     assert.ok(t.no > prev, `no 非递增: #${t.no} <= #${prev}`);
@@ -92,6 +93,58 @@ test('canTransition 拒绝: 非法 from / 非法 to / 未知 event', () => {
   assert.ok(!S.canTransition('start_apply', 'S0', 'S2_6'));    // from 不在白名单
   assert.ok(!S.canTransition('pay', 'S0', 'S5'));              // to 不匹配
   assert.ok(!S.canTransition('no_such_event', 'S0', 'S2'));    // 未知事件
+});
+
+// ── 取消链路扩表(2026-11-24 W1, docs/schemes/cancel-fulfillment-v2.2.md §7.2) ──
+test('canTransition 取消链路: 协商/裁决/拒绝/超时/撤回/回退/强制取消 正向命中', () => {
+  // no.4 协商型申请: S2/S2_6 挂起(to=null, 只校验 from)
+  assert.ok(S.canTransition('cancel_request', 'S2'));
+  assert.ok(S.canTransition('cancel_request', 'S2_6'));
+  assert.ok(S.canTransition('cancel_request', 'S2', 'S7'));    // to=null → 任意 to 由业务上下文决定
+  // no.31 裁决型申请: S2_5/S3/S3_6/S3.5/S4 → S10.5
+  assert.ok(S.canTransition('cancel_request', 'S3', 'S10.5'));
+  assert.ok(S.canTransition('cancel_request', 'S3.5', 'S10.5'));
+  assert.ok(S.canTransition('cancel_request', 'S4', 'S10.5'));
+  assert.ok(S.canTransition('cancel_request', 'S2_5', 'S10.5'));
+  assert.ok(S.canTransition('cancel_request', 'S3_6', 'S10.5'));
+  // no.32 协商同意: S2/S2_6 → S7(直退, 新边)
+  assert.ok(S.canTransition('cancel_confirm', 'S2', 'S7'));
+  assert.ok(S.canTransition('cancel_confirm', 'S2_6', 'S7'));
+  // no.33 拒绝 → S10.5
+  assert.ok(S.canTransition('cancel_reject', 'S2', 'S10.5'));
+  assert.ok(S.canTransition('cancel_reject', 'S2_6', 'S10.5'));
+  // no.34 窗口超时 → S10.5
+  assert.ok(S.canTransition('cancel_timeout', 'S2', 'S10.5'));
+  assert.ok(S.canTransition('cancel_timeout', 'S2_6', 'S10.5'));
+  // no.35 撤回: to=null 回主轴不改状态
+  assert.ok(S.canTransition('cancel_withdraw', 'S2'));
+  assert.ok(S.canTransition('cancel_withdraw', 'S2_6'));
+  // no.36 裁决不支持取消: S10.5 回 pre_dispute_status(to=null)
+  assert.ok(S.canTransition('cancel_dismissed', 'S10.5'));
+  // no.37 平台强制取消: S0~S8(to=null, 目标 S6/S7 由业务定)
+  for (const st of ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5', 'S4', 'S5', 'S8']) {
+    assert.ok(S.canTransition('admin_force_cancel', st), `admin_force_cancel from ${st}`);
+  }
+});
+
+test('canTransition 取消链路: 越界被拒(旧 cancel 事件不因扩表放行新状态)', () => {
+  assert.ok(!S.canTransition('cancel', 'S2', 'S6'));           // S2 取消必须走 cancel_confirm→S7, 不能走旧 cancel
+  assert.ok(!S.canTransition('cancel', 'S3', 'S6'));           // 履约中无旧式取消
+  assert.ok(!S.canTransition('cancel_request', 'S1'));         // S1 直接取消走 cancel, 无 cancel_request
+  assert.ok(!S.canTransition('cancel_request', 'S5', 'S10.5'));// S5 禁自助取消(D7)
+  assert.ok(!S.canTransition('cancel_confirm', 'S3', 'S7'));   // 履约中不能协商直退(必须裁决型)
+  assert.ok(!S.canTransition('cancel_confirm', 'S1', 'S7'));   // S1 未支付不退, 走旧 cancel
+  assert.ok(!S.canTransition('cancel_timeout', 'S3', 'S10.5'));// 超时仅协商型(S2/S2_6)
+  assert.ok(!S.canTransition('cancel_dismissed', 'S3'));       // 回退仅从 S10.5
+  assert.ok(!S.canTransition('admin_force_cancel', 'S10'));    // 终态不可强制取消
+  assert.ok(!S.canTransition('admin_force_cancel', 'S9'));     // 退役态不受理
+});
+
+test('transitionAllowed 取消链路: 事件驱动判定 + 既有断言不回归', () => {
+  assert.strictEqual(S.transitionAllowed('cancel_confirm', 'S2', 'S7'), true);
+  assert.strictEqual(S.transitionAllowed('cancel_request', 'S3', 'S10.5'), true);
+  assert.strictEqual(S.transitionAllowed('cancel', 'S2', 'S3'), false);         // 既有断言(原 :199)仍真
+  assert.strictEqual(S.transitionAllowed('cancel', ['S1', 'S0'], 'S6'), true);  // 既有断言(原 :198)仍真
 });
 
 test('transitionFor: 返回命中规则本身(含 no/guard/money/timeout)', () => {

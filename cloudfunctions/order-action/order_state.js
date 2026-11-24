@@ -6,6 +6,10 @@
 //   cloudfunctions/order-timer/order_state.js
 // 单测: 同目录 order_state.test.js (node --test)
 // 抽取来源(2026-10-10 Wave1 防漂移): order-action L191 casStatus / order-timer L40 casStatus(两处重复实现)。
+// [2026-11-24 W1 取消链路扩表] 新增 no.31-37(cancel_request 裁决型 / cancel_confirm / cancel_reject / cancel_timeout /
+//   cancel_withdraw / cancel_dismissed / admin_force_cancel) + no.4 from 扩 S2_6 + no.18 口径订正(部分退→S7, B2 拍板)。
+//   向后兼容: no.3(S1/S0→S6)未动; 新事件暂无运行时调用方(零行为变更, grep 自证); 既有调用方/影子校验不受影响。
+//   方案: docs/schemes/cancel-fulfillment-v2.2.md §7.2; 决策记录 §0.2; 附录A 已同步补录。
 // 设计依据: docs/履约域业务逻辑与流程设计方案.md §3.1 设计原则 / §3.2 状态收编 / §3.3 目标状态迁移表。
 // ⚠️ Wave1 契约 = 行为不变: 本模块的 CAS 与既有 casStatus 语义逐字一致(含数组 expect / stats.updated 判定 / 异常返回 false);
 //    迁移白名单表此时仅作 SSOT + 单测目标 + 影子校验(不阻断), 强制拦截放后续波次。
@@ -115,7 +119,7 @@ const TRANSITIONS = [
   { no: 1, event: 'confirm_done', role: 'both', from: ['S1'], to: 'S0', guard: '8 位确认全满', money: '', timeout: '15min→S6(释放 demand)' },
   { no: 2, event: 'pay', role: 'user', from: ['S0'], to: 'S2', guard: '支付流水成功', money: 'type=pay 流水', timeout: '30min→S6(释放 demand)' },
   { no: 3, event: 'cancel', role: 'both', from: ['S1', 'S0'], to: 'S6', guard: '', money: '已付则原路退', timeout: '' },
-  { no: 4, event: 'cancel_request', role: 'both', from: ['S2'], to: null, guard: '挂起(不改主轴)', money: '按 PRD 取消梯度退款', timeout: '对方 2h 确认; 超时转裁决' },
+  { no: 4, event: 'cancel_request', role: 'both', from: ['S2', 'S2_6'], to: null, guard: '挂起(不改主轴); 未冻结; 置 frozen', money: '按 PRD 取消梯度退款(cancel_refund_tiers 可配)', timeout: '对方确认窗(cancel_confirm_window_min 可配, 默认 120min); 超时转裁决' },
   // [2026-11-01 形态A 收口] no.5(event=start_service 直连 S2→S3)与 no.13(event=complete 直连 S3→S5)已删除:
   // 两条均为旧 B1/完毕链路, 现由 start_apply+start_confirm(no.23-24) 与 finish_apply+finish_confirm(no.27-28) 取代。
   // 编号保留空洞(no.5/no.13 不再复用), 避免与历史文档/日志交叉引用错位。
@@ -130,7 +134,7 @@ const TRANSITIONS = [
   { no: 15, event: 'evaluate', role: 'user', from: ['S5'], to: 'S8', guard: '无已有评价', money: '信用分±; settle ready', timeout: '48h→auto_done' },
   { no: 16, event: 'complaint_open', role: 'both', from: ['S2', 'S3', 'S3.5', 'S4'], to: null, guard: '售后/履约窗口内(目标态=原状态+frozen, 不改主轴); 2026-10-15 需求变更: 用户确认履约完毕(S5)起关闭投诉入口 → 移除 S5/S8, 与 action_dispute.COMPLAINT_OPEN_STATUS 对齐', money: '', timeout: '一审时限→升级二审/催办' },
   { no: 17, event: 'complaint_withdraw', role: 'both', from: ['*'], to: null, guard: '未受理(回 from_status)', money: '', timeout: '' },
-  { no: 18, event: 'dispute_resolve_refund', role: 'platform', from: ['*'], to: null, guard: '金额≤可退上限; 全退→S7 / 部分退→回主轴', money: 'type=refund 流水+字段+通知', timeout: '' },
+  { no: 18, event: 'dispute_resolve_refund', role: 'platform', from: ['*'], to: null, guard: '金额≤可退上限; 全退/部分退均→S7 终态(2026-11-24 B2 拍板, 原口径「部分退→回主轴」作废; 结算基数=paid_fen-refunded_fen)', money: 'type=refund 流水+字段+通知+tip 同比例退(B4)', timeout: '' },
   { no: 19, event: 'dispute_resolve_complete', role: 'platform', from: ['*'], to: null, guard: '已有评价→S8(保留评价); 无评价→S5', money: '', timeout: '' },
   { no: 20, event: 'after_sale_expire', role: 'system', from: ['S8'], to: 'S10', guard: '售后窗口届满', money: 'settle ready 确认', timeout: '' },
   { no: 21, event: 'no_show_decide', role: 'platform', from: ['*'], to: null, guard: '受害方获退款通道', money: '一期零赔付(10% 赔付本期不做, 仅扣信用分/停用; 已拍板)', timeout: '' },
@@ -143,7 +147,16 @@ const TRANSITIONS = [
   { no: 27, event: 'finish_apply', role: 'partner', from: ['S3'], to: 'S3_6', guard: 'D≤N 且定位可信; 完成照片+定位快照已先落库(凭证前置)', money: '', timeout: '30min 无响应→S10.5(提醒2次)' },
   { no: 28, event: 'finish_confirm', role: 'user', from: ['S3_6'], to: 'S5', guard: '仅需求方; 已查看凭证; 确认完毕→S5(已完成)', money: '完毕确认即触发结算(不等评价)', timeout: '连续2次不确认→S10.5' },
   { no: 29, event: 'finish_reject', role: 'user', from: ['S3_6'], to: 'S3', guard: '仅需求方; 冷却60s 可重发', money: '', timeout: '' },
-  { no: 30, event: 'finish_confirm_timeout', role: 'platform', from: ['S3_6'], to: 'S10.5', guard: '30min 超时未响应(或连续2次不确认)', money: '资金冻结待裁定', timeout: '' }
+  { no: 30, event: 'finish_confirm_timeout', role: 'platform', from: ['S3_6'], to: 'S10.5', guard: '30min 超时未响应(或连续2次不确认)', money: '资金冻结待裁定', timeout: '' },
+  // ── 取消链路扩表(2026-11-24, docs/schemes/cancel-fulfillment-v2.2.md §7.2; 共 7 条 no.31-37) ──
+  // W1 仅扩表(零行为变更): 下列事件暂无运行时调用方, handler 于 W3(协商型)/W4(裁决型)/W5(平台强制) 接入。
+  { no: 31, event: 'cancel_request', role: 'both', from: ['S2_5', 'S3', 'S3_6', 'S3.5', 'S4'], to: 'S10.5', guard: '未冻结; 置 frozen; 记 pre_dispute_status(裁决型: 不走对方确认)', money: '', timeout: '' },
+  { no: 32, event: 'cancel_confirm', role: 'both', from: ['S2', 'S2_6'], to: 'S7', guard: 'cancel_request=pending; 同事务{退款+扣分+日志}(方案 §4.3)', money: 'type=refund 流水+tip 同比例退(B4); 梯度(cancel_refund_tiers 可配)', timeout: '' },
+  { no: 33, event: 'cancel_reject', role: 'both', from: ['S2', 'S2_6'], to: 'S10.5', guard: 'cancel_request=pending; 写冷却(cancel_cooldown_rejected_min 可配)', money: '', timeout: '' },
+  { no: 34, event: 'cancel_timeout', role: 'system', from: ['S2', 'S2_6'], to: 'S10.5', guard: '确认窗超时未响应(D6: 不自动同意, 转平台裁决)', money: '', timeout: '' },
+  { no: 35, event: 'cancel_withdraw', role: 'both', from: ['S2', 'S2_6'], to: null, guard: 'cancel_request=pending 且未超时; 回主轴不改状态; 清 frozen; 写冷却(cancel_cooldown_withdraw_min 可配)', money: '', timeout: '' },
+  { no: 36, event: 'cancel_dismissed', role: 'platform', from: ['S10.5'], to: null, guard: '裁决不支持取消; 回 pre_dispute_status; 清 frozen(D10: 不扣分, 判恶意可额外扣)', money: '', timeout: '' },
+  { no: 37, event: 'admin_force_cancel', role: 'platform', from: ['S0', 'S1', 'S2', 'S2_5', 'S2_6', 'S3', 'S3_6', 'S3.5', 'S4', 'S5', 'S8'], to: null, guard: '管理员后台人工操作; 必写审计; 接管 cancel_request(清 pending/清 frozen/撤销未生效扣分)', money: '管理员填 refund_fen(S8 需先回滚结算)', timeout: '' }
 ];
 
 // 事件 → 规则(可能多条, 如 cancel 覆盖 S1/S0)
