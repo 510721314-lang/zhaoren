@@ -52,6 +52,24 @@ description: 把一次排查/修复/机制设计得来的可复用结论固化�
 - **提交纪律**：单独 commit（不夹带无关改动）；`git status --short` 取证；**提交不代 push**，push 需用户明确指示。
 - **编码纪律**（§25）：含中文的 `.ps1` 必须带 UTF-8 BOM，改动后复检前三字节 `EF BB BF` 并用 `Parser::ParseFile` 复验；`.md` 用 UTF-8 无 BOM。
 
+## 台账长行编辑纪律（FUNCTION-REGISTRY / deploy-log 追加必守，2026-11-25 实证）
+
+FUNCTION-REGISTRY.md / deploy-log.md 的表格行常达上千字符（单行），编辑方式不当会**劈裂上一行**或**引入 BOM**。四条铁律：
+
+1. **追加新行 → 禁用 Edit 工具匹配长行**，用 .NET `AppendAllText`（UTF-8 无 BOM）：
+   ```powershell
+   $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+   [System.IO.File]::AppendAllText($path, $row, $utf8NoBom)
+   ```
+   追加前确认文件末尾是换行（末字节非 `\n` 时补一个），首 3 字节应为 `23 20`（`# `，无 BOM）。
+   **反面教材**：上轮用 Edit 匹配长行前缀插入 #212，把 #211 行劈裂，事后按 marker 精确拆分 + 去 BOM 才修好。
+
+2. **行内子串替换 → Edit 工具可用，但 old_string 必须是唯一短子串**：本轮用 Edit 替换 #213 状态列（唯一短子串）成功，不劈行。**禁止**用 Edit 匹配整行或行首前缀做插入。
+
+3. **统计 / 校验超长行** → 禁用 `$text | Select-String`（报 `InputObjectNotBound`，见 powershell-windows-traps 陷阱 19），改用 `.Contains()` / `[regex]::Matches` 或 Grep 工具。
+
+4. **复检**：追加 / 改写后跑 `git --no-pager diff --numstat`（追加预期 +1/-0，替换预期 +1/-1）、确认总行数变化符合预期、首 3 字节无 BOM。
+
 ## 取证模板（收尾自检）
 
 ```text

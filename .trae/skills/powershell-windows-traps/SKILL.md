@@ -343,6 +343,23 @@ Read  file_path="docs/deploy-log.md"  offset=490  limit=10
 
 ---
 
+## 陷阱 19：`Select-String` 对超长单行字符串管道输入报 `InputObjectNotBound`（2026-11-25 实证）
+
+**现象**：台账文件（`FUNCTION-REGISTRY.md` / `deploy-log.md`）的表格行常达上千字符，用 `$text | Select-String -Pattern $old` 统计/匹配某子串出现次数时报 `InputObjectNotBound`（ParameterBindingException），据此 `ABORT` 中断——但文件根本没被写，是工具参数绑定失败，不是内容不匹配。
+
+**根因**：`Select-String` 接受管道输入时要求输入对象绑定到 `-InputObject`；单个超长字符串（数千字符）经管道传入时，PS5 的参数绑定器无法正确绑定。与陷阱 18（编码错解导致行数错 / 中文搜不到）**不同根**——陷阱 18 是解码错，本陷阱是绑定失败，即使编码正确也会触发。
+
+**对策**：统计 / 匹配超长行内容，禁用 `$text | Select-String`，改用：
+```powershell
+$found = $text.Contains($old)                                          # 最简单，存在性
+$occurrences = ([regex]::Matches($text, [regex]::Escape($old))).Count  # 计数
+```
+或直接用 **Grep 工具（ripgrep）** 定位行号 / 计数，它对超长行无此问题。
+
+**判别口诀**：对单个超长字符串做子串统计 / 匹配 → 别走 `Select-String` 管道，用 `.Contains()` / `[regex]::Matches` 或 Grep 工具。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -360,6 +377,7 @@ Read  file_path="docs/deploy-log.md"  offset=490  limit=10
 13. ✅ 中文 `.ps1` 改动后复检前 3 字节恰好一份 `EF BB BF`（禁多份叠加，见陷阱 14）
 14. ✅ 删含只读文件的目录先清只读属性或用 robocopy `/MIR` 清空（rc ≤ 7 成功，见陷阱 15）
 15. ✅ 读中文 `.md` 定位行号 / 搜中文关键词，用 Grep / Read 工具，不信 PS5 `Get-Content` / `Select-String`（行数会错、中文搜不到，见陷阱 18）
+16. ✅ 对超长单行字符串（台账表格行）做子串统计 / 匹配，用 `.Contains()` / `[regex]::Matches` 或 Grep 工具，禁用 `$text | Select-String`（会报 `InputObjectNotBound`，见陷阱 19）
 
 ## 实测踩坑记录（2026-09-21）
 

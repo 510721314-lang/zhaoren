@@ -52,6 +52,22 @@ await col('system_notice').doc(exist.data[0]._id).update({
 口径：包内本地 wav + 单例 `InnerAudioContext`（`obeyMuteSwitch=true`）、同类 2s 节流、开关落 Storage `settings:alert`、新文件 `catch` 不得为空（`[NEW-SILENT-CATCH]` 门禁）。
 边界：切后台/锁屏定时器停止，本机制不触达（仅订阅消息可穿透）；模拟器无震动/音效；前端改动必须重传体验版。
 
+## 第四条：强制弹窗显隐真值必须与消息已读 `read` 解耦（2026-11-25 B+ 实证，经验 1529186）
+
+一次性 / 强制弹窗（如「你被选定了」「待处理」强提醒）的**显隐真值必须用云端独立 ack 字段驱动，严禁复用 `system_notice.read`**。
+
+**反面教材（B 方案漏弹根因）**：弹窗是否显示 = 云端是否存在本人 `read:false` 的 select_confirmed 通知 → 消息通知页「点单条通知」/「全部标记已读」会写 `read=true` → **永久吃掉弹窗机会**，用户只要去看过消息，就再也弹不出来。`read` 的语义是「消息已读」，与「弹窗是否需要强制提示」是两个独立维度，复用必冲突。
+
+**正确模式（B+，真机通过）**：
+1. 通知文档新增独立字段 `<事件>_alert_acked`（bool）+ `<事件>_alert_acked_at`（时间）。
+2. poll 查 `acked != true`：`where({to_openid: openid, type: '<事件>', select_alert_acked: _.neq(true)})`——**缺失字段也命中**（MongoDB `$ne` 对 undefined 为真；mock SDK `_mock_sdk.js` 同语义），老通知无需 backfill 即可弹。
+3. 点弹窗「确定」调独立 action 写 ack：`update({<事件>_alert_acked: true, <事件>_alert_acked_at: now, read: true, read_at: now})`——ack 控制弹窗显隐，**同步**把 read 标已读（让消息页不再显示未读），但 `read` 绝不反向控制弹窗。
+4. 鉴权：poll / ack 都带 `to_openid: openid` 守卫，无越权。
+
+**触发点纪律**：不要只挂 `app.onShow`（用户前台停留时被触发的事件不会回调 onShow）；在用户高频进入的页面（广场 / 我的）`onShow` 顶部（任何 early-return 之前）也查一次。仍不做定时轮询，省云函数用量。
+
+**判别口诀**：凡是「强制弹窗 / 一次性提醒」，先问——显隐字段是否会被别的入口（消息已读、清理缓存）误写？会 → 必须拆独立 ack 字段，不能复用 read / 本地缓存。
+
 ## 第一条必查：去重键是否含事件时间
 
 `writeNotice`（`cloudfunctions/order-action/index.js`）对同
