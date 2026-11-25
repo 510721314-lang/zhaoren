@@ -130,6 +130,8 @@ const commandProxy = new Proxy({}, {
         const q = query || {};
         // 解释 db.command 操作符哨兵，让带 _.neq / _.in / _.gte 等的查询能正确匹配
         const matchVal = (dv, qv) => {
+          // 对齐真实 MongoDB/cloudbase: 等值查询 {field: null} 匹配字段值为 null 或字段缺失(undefined)
+          if (qv === null) return dv === null || dv === undefined;
           if (qv && typeof qv === 'object' && qv.__sentinel) {
             // 字段级命令链 and_field(来自 _.gte(x).and(_.lte(y))): 子条件须全部成立
             if (qv.__sentinel === 'and_field') {
@@ -138,7 +140,7 @@ const commandProxy = new Proxy({}, {
             const op = qv.__sentinel, a = qv.args || [];
             switch (op) {
               case 'neq': return dv !== a[0];
-              case 'eq': return dv === a[0];
+              case 'eq': return a[0] === null ? (dv === null || dv === undefined) : dv === a[0];
               case 'in': return Array.isArray(a[0]) && a[0].includes(dv);
               case 'nin': return !(Array.isArray(a[0]) && a[0].includes(dv));
               case 'gt': return typeof dv === 'number' && dv > a[0];

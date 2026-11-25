@@ -299,7 +299,8 @@ function hallWhere(extra) {
     is_deleted: false,
     status: 'matching',
     expire_at: _.gt(Date.now()),
-    broadcast: true
+    broadcast: true,
+    matched_openid: null            // 已选定耍伴(等待接单中)的需求不进大厅; 超时释放后重置为 null 自动重回(action_select_stale)
   }, extra || {});
 }
 

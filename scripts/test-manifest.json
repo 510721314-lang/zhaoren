@@ -464,7 +464,8 @@
   "cloudfunctions/_shared/money-format.test.js": [
     "im-conv my_convs: 会话订单摘要金额 1990 分 → ¥19.90(非 ¥20)",
     "order-action my_orders: 订单摘要 1990 分 → ¥19.90(非 ¥20)",
-    "home-action square: 需求 1990 分 → budget_text=19.90 且 budget=19.9(不再取整为 20)"
+    "home-action square: 需求 1990 分 → budget_text=19.90 且 budget=19.9(不再取整为 20)",
+    "home-action square/nearby: 已选定耍伴(matched_openid 非空)的需求不进大厅, 字段缺失/null 正常显示"
   ],
   "cloudfunctions/_shared/money_rules.test.js": [
     "分账: 标准十抽 220 元 → 佣金 22 元 / 实收 198 元",

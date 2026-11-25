@@ -36,6 +36,7 @@ async function nearbyAction(ctx) {
           status: 'matching',
           match_mode: _.neq('direct'),        // 定向需求不进池
           creator_openid: _.neq(openid),      // 不展示自己的需求
+          matched_openid: null,               // 已选定耍伴(等待接单中)的需求不进附近池, 与 square 口径一致
           scene: _.in(whitelist)
         };
         const where = priceWhere ? _.and([ baseWhere, priceWhere ]) : baseWhere;

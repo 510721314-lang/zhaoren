@@ -78,3 +78,30 @@ test('home-action square: 需求 1990 分 → budget_text=19.90 且 budget=19.9(
   assert.strictEqual(d.budget_text, '19.90', `budget_text 应为两位小数字符串, 实际: ${d.budget_text}`);
   assert.strictEqual(d.budget, 19.9, `budget 应为 19.9, 实际: ${d.budget}`);
 });
+
+test('home-action square/nearby: 已选定耍伴(matched_openid 非空)的需求不进大厅, 字段缺失/null 正常显示', async () => {
+  const SEL = 's'.repeat(32);   // 已选定耍伴(等待接单中) → 应被过滤
+  const NORM = 'n'.repeat(32);  // 正常需求(无 matched_openid 字段) → 应显示
+  activeSdk = makeSdk({ openid: USER, store: {
+    admin_config: { global: {
+      env: 'dev', dev_until: Date.now() + 3600 * 1000, take_distance_max_km: 50,
+      scene_list: [{ code: 'W1', name: '就医陪诊', options: ['陪同挂号'], visible: true, builtin: true }]
+    } },
+    partner_profile: { ['p'.repeat(32)]: { _id: 'p'.repeat(32), openid: USER, status: 'approved', accept_scenes: ['W1'], home_location: { latitude: 30.5, longitude: 104.0 }, city: ['成都'], is_deleted: false } },
+    demand: {
+      [SEL]: { _id: SEL, demand_no: 'DR-SEL', scene: 'W1', status: 'matching', is_deleted: false, broadcast: true, match_mode: 'select', matched_openid: OTHER, creator_openid: 'x'.repeat(32), created_at: Date.now() - 60000, start_time: Date.now() + 3600000, expire_at: Date.now() + 7200000, location: { name: '成都市', city: '成都', latitude: 30.55, longitude: 104.05 }, rate_fen: 5000, pricing_type: 'hourly' },
+      [NORM]: { _id: NORM, demand_no: 'DR-NORM', scene: 'W1', status: 'matching', is_deleted: false, broadcast: true, match_mode: 'broadcast', creator_openid: 'y'.repeat(32), created_at: Date.now() - 30000, start_time: Date.now() + 3600000, expire_at: Date.now() + 7200000, location: { name: '成都市', city: '成都', latitude: 30.55, longitude: 104.05 }, rate_fen: 5000, pricing_type: 'hourly' }
+    },
+    user_account: {}, blog_post: {}, system_notice: {}, audit_log: {}
+  } });
+  const { main } = loadFn('../home-action/index.js');
+  const sq = await main({ action: 'square', mock_openid: USER }, {});
+  assert.strictEqual(sq.ok, true);
+  const sqList = (sq.data && (sq.data.list || sq.data.demands)) || [];
+  assert.ok(!sqList.find((x) => x._id === SEL), 'square 不应返回已选定耍伴的需求');
+  assert.ok(sqList.find((x) => x._id === NORM), 'square 应返回正常需求(字段缺失视为 null, 与真实 MongoDB 一致)');
+  const nb = await main({ action: 'nearby', page: 1, page_size: 20, mock_openid: USER }, {});
+  assert.strictEqual(nb.ok, true);
+  const nbList = (nb.data && (nb.data.list || nb.data.demands)) || [];
+  assert.ok(!nbList.find((x) => x._id === SEL), 'nearby 不应返回已选定耍伴的需求');
+});
