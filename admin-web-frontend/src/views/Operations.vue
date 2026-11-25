@@ -74,6 +74,7 @@
 
         <el-table :data="sceneList" border stripe size="small">
           <!-- 展开行: 该场景下的服务项目(SOP)管理区 —— 与场景管理整合(feature-plan-service-sop 批1 原计划) -->
+          <!-- @VERIFIED 2026-11-25 已后台验证：场景行展开内嵌服务项目子表格+新增，原 Tab5 并入，sopByScene 按 scene_code 过滤，CRUD 与原 Tab5 一致 -->
           <el-table-column type="expand" width="40">
             <template #default="{row}">
               <div style="padding:8px 24px 12px">
