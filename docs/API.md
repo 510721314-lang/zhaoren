@@ -443,7 +443,7 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 - 临近履约时间拦截 → `oa_s2c_blocked`（审计事件 `order_s2_change_block_near`），提示按原信息履约或申请取消。
 - 次数上限与窗口关闭为配置驱动；**原因必填**：归一化（去空白/标点/符号）后 ≥10 字（`oa_s2c_reason`，最短字数暂为服务端单点常量，配置化待立项）且需带结构化 `reason_type`（`oa_s2c_reason_type`）；原因同样过内容安全。
 - `pending_change` 带 `stage='S2'`；响应侧若 `stage!=='S2'` → `oa_s2c_none`；token 失配 → `oa_s2c_stale`；超时 → `oa_s2c_expired`。
-- 接受后同样重置四项确认（`items.*.user_ok/partner_ok=false`、`version+1`）。
+- 接受后变更项双确认并同步新值，其余三项确认位保持原状（附录A#4，`version+1`；2026-11-22 起「全量重置 8 位」已作废）。
 - 错误码：`oa_s2c_location_invalid` / `oa_s2c_content_invalid` / `oa_s2c_field` / `oa_s2c_status` / `oa_frozen` / `oa_s2c_off` / `oa_s2c_busy` / `oa_s2c_blocked` / `oa_s2c_limit` / `oa_s2c_same` / `oa_s2c_reason` / `oa_s2c_reason_type` / `oa_s2c_window_closed` / `oa_s2c_none` / `oa_s2c_self` / `oa_s2c_stale` / `oa_s2c_expired` / `oa_conflict` / `oa_update_fail`。
 
 ### 4.12 改期 `modify` / `modify_confirm` / `modify_reject`
@@ -473,7 +473,7 @@ S3 --finish_apply(耍伴,照片+定位+里程碑100%)--> S3_6 --finish_confirm--
 - 无在途申请且状态为 `S2`/`S3` → `ok:true` + `idempotent:true`；否则 `oa_modify_status`。
 - 发起人不能自己确认 → `oa_modify_self`。
 - 回退目标 `toStatus = pending.from_status === 'S3' ? 'S3' : 'S2'`（**S3 仅存量兼容**，新申请只允许 S2 发起）。
-- `modify_confirm`：再校验新时间未过期（`oa_modify_expired`）与运营时段（`oa_modify_redline`）→ 写 `start_time`、`modify_count+1`、清 `pending_modify` → **重置四项确认** → 通知 `type='modify_confirm'`。
+- `modify_confirm`：再校验新时间未过期（`oa_modify_expired`）与运营时段（`oa_modify_redline`）→ 写 `start_time`、`modify_count+1`、清 `pending_modify` → **时间项双确认并同步新值，其余三项确认位保持原状**（附录A#4，2026-11-22 起「全量重置 8 位」已作废）→ 通知 `type='modify_confirm'`。
 - `modify_reject`：清 `pending_modify` → `modify_rejected_at/by` → 通知 `type='modify_reject'`。
 - 超时：`order-timer` 的 `modify_auto_reject` 回 `from_status`。
 
