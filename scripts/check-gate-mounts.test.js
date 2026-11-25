@@ -10,6 +10,7 @@ const GATE = path.resolve(__dirname, 'check-gate-mounts.js');
 
 const DEPLOY = ['check-shared-sync.js', 'check-require-scope.js', 'check-cloud-timeout-policy.js', 'check-location-timeout-policy.js', 'check-miniprogram-syntax.js', 'check-rules-size.js', 'check-rule-refs.js', 'check-secrets.js', 'check-gate-mounts.js'];
 const VERIFY_ONLY = ['check-syntax.js', 'check-ssot.js', 'check-collections-consistency.js', 'check-config-defaults.js', 'check-handlers.js', 'check-index-ledger.js', 'check-deploy-config.js', 'check-manual-links.js', 'check-doc-links.js', 'check-ledger-placeholders.js', 'check-test-globs.js', 'check-test-manifest.js', 'check-once-prompts.js', 'check-nightmask.js', 'check-sub-msg-consistency.js', 'check-no-desktop-injection.js', 'check-silent-catch.js'];
+// ⚠️ 须与 check-gate-mounts.js 的 TOOL Set 完全一致（mkFixture 按此创建 scripts/ stub；漏同步→[STALE] 致 verify:offline 红，2026-11-25 实证）
 const TOOL = ['check-handoff-coverage.js', 'check-prd-drift.js', 'check-admin-web-live.js'];
 
 function mkFixture(opt = {}) {
