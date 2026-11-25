@@ -1185,8 +1185,9 @@ test('notice_poll: since_ts 只返回增量且 server_now 存在（缺省向后�
   assert.strictEqual(r2.data.list[0].id, 'b');
 });
 
-// 2026-11-24: select_confirmed_poll —— 耍伴被选定强制弹窗触发源(仅查本人未读 select_confirmed, 不联表)
-test('select_confirmed_poll: 无未读 → has=false', async () => {
+// 2026-11-24: select_confirmed_poll —— 耍伴被选定强制弹窗触发源(仅查本人未 ack 的 select_confirmed, 不联表)
+// 2026-11-25 B+: 显隐真值改走独立字段 select_alert_acked, 与消息页 read 解耦(经验 1529186)
+test('select_confirmed_poll: 无未 ack → has=false', async () => {
   const store = baseStore();
   store.system_notice = {};
   const sdk = makeSdk({ openid: USER, store });
@@ -1196,11 +1197,11 @@ test('select_confirmed_poll: 无未读 → has=false', async () => {
   assert.strictEqual(r.data.has, false);
 });
 
-test('select_confirmed_poll: 有未读 → has=true 且 demand_id 取自 action_payload', async () => {
+test('select_confirmed_poll: 未 ack → has=true(即使消息页已 read=true), demand_id 取自 action_payload', async () => {
   const DID = 'd'.repeat(32);
   const store = baseStore();
   store.system_notice = {
-    sc1: { _id: 'sc1', to_openid: USER, type: 'select_confirmed', order_id: '', read: false, title: '你被选中了', body: '发布者已选择你', action_payload: { demand_id: DID }, created_at: 1794700000000 }
+    sc1: { _id: 'sc1', to_openid: USER, type: 'select_confirmed', order_id: '', read: true, title: '你被选中了', body: '发布者已选择你', action_payload: { demand_id: DID }, created_at: 1794700000000 }
   };
   const sdk = makeSdk({ openid: USER, store });
   const { main } = loadIndex(sdk);
@@ -1211,16 +1212,50 @@ test('select_confirmed_poll: 有未读 → has=true 且 demand_id 取自 action_
   assert.strictEqual(r.data.notice.demand_id, DID);
 });
 
-test('select_confirmed_poll: 只返回本人未读 → 他人/已读通知 has=false', async () => {
+test('select_confirmed_poll: 只返回本人未 ack → 他人/已 ack 通知 has=false', async () => {
   const store = baseStore();
   store.system_notice = {
-    other: { _id: 'other', to_openid: 'o_else', type: 'select_confirmed', read: false, action_payload: {}, created_at: 1 },
-    readed: { _id: 'readed', to_openid: USER, type: 'select_confirmed', read: true, action_payload: {}, created_at: 2 }
+    other: { _id: 'other', to_openid: 'o_else', type: 'select_confirmed', action_payload: {}, created_at: 1 },
+    acked: { _id: 'acked', to_openid: USER, type: 'select_confirmed', select_alert_acked: true, action_payload: {}, created_at: 2 }
   };
   const sdk = makeSdk({ openid: USER, store });
   const { main } = loadIndex(sdk);
   const r = await main({ action: 'select_confirmed_poll' }, {});
   assert.strictEqual(r.data.has, false);
+});
+
+// 2026-11-25 B+: select_confirmed_ack —— 点弹窗确定写独立 ack 字段 + 同步 read, 与消息页 notice_read 解耦
+test('select_confirmed_ack: 缺 notice_id → oa_no_id', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore() });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'select_confirmed_ack' }, {});
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'oa_no_id');
+});
+
+test('select_confirmed_ack: 本人通知 → 写 select_alert_acked + read, updated=1', async () => {
+  const store = baseStore();
+  store.system_notice = { ack1: { _id: 'ack1', to_openid: USER, type: 'select_confirmed' } };
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'select_confirmed_ack', notice_id: 'ack1' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.updated, 1);
+  const w = (sdk.writes.system_notice || []).find((x) => x.where && x.where._id === 'ack1');
+  assert.ok(w, '应写入 system_notice');
+  assert.strictEqual(w.data.select_alert_acked, true);
+  assert.strictEqual(w.data.read, true);
+  assert.ok(w.data.select_alert_acked_at > 0);
+});
+
+test('select_confirmed_ack: 他人通知 → to_openid 守卫, updated=0', async () => {
+  const store = baseStore();
+  store.system_notice = { ack2: { _id: 'ack2', to_openid: 'o_else', type: 'select_confirmed' } };
+  const sdk = makeSdk({ openid: USER, store, updateCount: 0 });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'select_confirmed_ack', notice_id: 'ack2' }, {});
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.data.updated, 0);
 });
 
 // 还原 Module._load，避免污染后续测试文件

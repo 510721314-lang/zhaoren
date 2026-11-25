@@ -676,6 +676,7 @@ function cleanupBaselineTmp(dirs) {
     'auto_order_server_now', 'auto_order_start_photo', // 2026-10-14 阶段E: 新增 server_now(取服务端时间戳, §F3 水印用) / start_photo(S3 内现场照片存证, 不改状态); 行为由 order_start_photo.test.js 独立守护(7 例)
     'auto_order_notice_poll',                   // 2026-11-15 T-10.4: notice_poll 返回新增 server_now + 可选 since_ts 增量过滤(缺省行为不变); 行为由 order-action.entry.test.js 新增 3 例独立守护
     'auto_order_select_confirmed_poll',         // 2026-11-24 报名选单: 新增 select_confirmed_poll(基线 oa_unknown_action)——耍伴被选定强制弹窗触发源, 仅查本人未读 select_confirmed; 行为由 order-action.entry.test.js 新增 3 例独立守护
+    'auto_order_select_confirmed_ack',          // 2026-11-25 B+: 新增 select_confirmed_ack(基线 oa_unknown_action)——点弹窗确定写独立 ack 字段(与消息页 read 解耦); 行为由 order-action.entry.test.js 新增 3 例独立守护
     'auto_dp_detail_light', 'dp_detail_light_ok', // 2026-10-30 需求详情「已有人接单」反复弹修复: detail_light 返回新增 order_status(供前端按 S2 阶段判据弹窗, 原仅回 order_id)
     'auto_order_finish_apply', 'auto_order_finish_confirm', 'auto_order_finish_reject', // 2026-10-15 阶段F: 新增 finish_apply(S3→S3_6, 凭证前置) / finish_confirm(S3_6→S5) / finish_reject(S3_6→S3); 行为由 order_finish.test.js 独立守护(13 例)
     'auto_admin_config_get',                    // config_schema 新增 extend_confirm_h / scene_option_display_max · 2026-10-13 每项新增 d 说明文案(运营配置页内嵌) · extend_confirm_h→extend_confirm_min(分钟制默认20, 时间红线加 clock)

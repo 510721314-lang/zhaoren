@@ -639,9 +639,12 @@
     "notice_poll: 非法 order_id → oa_bad_order",
     "notice_poll: 有未读站内信 → has_new=true 且 list 字段形状固定",
     "notice_poll: since_ts 只返回增量且 server_now 存在（缺省向后兼容）",
-    "select_confirmed_poll: 无未读 → has=false",
-    "select_confirmed_poll: 有未读 → has=true 且 demand_id 取自 action_payload",
-    "select_confirmed_poll: 只返回本人未读 → 他人/已读通知 has=false"
+    "select_confirmed_poll: 无未 ack → has=false",
+    "select_confirmed_poll: 未 ack → has=true(即使消息页已 read=true), demand_id 取自 action_payload",
+    "select_confirmed_poll: 只返回本人未 ack → 他人/已 ack 通知 has=false",
+    "select_confirmed_ack: 缺 notice_id → oa_no_id",
+    "select_confirmed_ack: 本人通知 → 写 select_alert_acked + read, updated=1",
+    "select_confirmed_ack: 他人通知 → to_openid 守卫, updated=0"
   ],
   "cloudfunctions/_shared/order-create.entry.test.js": [
     "无 OPENID 且无 mock_openid → order_no_openid",

@@ -483,10 +483,11 @@ async function notice_poll(ctx) {
   return { ok: true, data: { has_new: list.length > 0, list, server_now: Date.now() } };
 }
 
-// 2026-11-24: 耍伴被选定强制弹窗触发源——仅查本人未读 select_confirmed(不联表), 供前端进页面/切前台时查一次
+// 2026-11-24: 耍伴被选定强制弹窗触发源——仅查本人未 ack 的 select_confirmed(不联表), 供前端进页面/切前台时查一次
+// 2026-11-25 B+: 显隐真值改用独立字段 select_alert_acked(与消息页 read 解耦), 避免消息页标已读吃掉弹窗机会(经验 1529186)
 async function select_confirmed_poll(ctx) {
-  const { openid, col } = ctx;
-  const r = await col('system_notice').where({ to_openid: openid, type: 'select_confirmed', read: false })
+  const { openid, col, _ } = ctx;
+  const r = await col('system_notice').where({ to_openid: openid, type: 'select_confirmed', select_alert_acked: _.neq(true) })
     .orderBy('created_at', 'desc').limit(1).get().catch(() => ({ data: [] }));
   const n = (r.data && r.data[0]) || null;
   if (!n) return { ok: true, data: { has: false } };
@@ -505,6 +506,19 @@ async function select_confirmed_poll(ctx) {
   };
 }
 
+// 2026-11-25 B+: 耍伴点了强制弹窗「确定」→ 写独立 ack 字段(跨设备不再重复弹), 同时标 read 让消息列表消红点
+// 与 notice_read 解耦: 消息页标已读只写 read, 不写 ack, 不会吃掉弹窗机会(经验 1529186)
+async function select_confirmed_ack(ctx) {
+  const { event, openid, col } = ctx;
+  const id = event && event.notice_id;
+  if (!id) return { ok: false, code: 'oa_no_id', msg: '缺少 notice_id' };
+  const now = Date.now();
+  const r = await col('system_notice').where({ _id: id, to_openid: openid, type: 'select_confirmed' })
+    .update({ data: { select_alert_acked: true, select_alert_acked_at: now, read: true, read_at: now } })
+    .catch(() => ({ stats: { updated: 0 } }));
+  return { ok: true, data: { updated: (r.stats && r.stats.updated) || 0 } };
+}
+
 async function notice_read(ctx) {
   const { event, openid, col } = ctx;
   if (event.notice_id) {
@@ -517,4 +531,4 @@ async function notice_read(ctx) {
   return { ok: true };
 }
 
-module.exports = { detail, my_orders, my_counts, notice_list, notice_poll, notice_read, select_confirmed_poll };
+module.exports = { detail, my_orders, my_counts, notice_list, notice_poll, notice_read, select_confirmed_poll, select_confirmed_ack };

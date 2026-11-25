@@ -25,8 +25,9 @@ function checkOnce() {
       confirmText: '确定',
       confirmColor: '#07C160',
       success: () => {
-        // 点确定: 先回写云端标已读(跨设备不重复弹), 再跳需求详情 → 点「去接单」→ 四确认
-        callCloud('order-action', { action: 'notice_read', notice_id: n.id }).catch((e) => { console.warn('[select-alert] 通知标已读失败', e && e.message); });
+        // 点确定: 回写云端 ack(独立字段, 跨设备不重复弹), 再跳需求详情 → 点「去接单」→ 四确认
+        // B+: 用 select_confirmed_ack 而非 notice_read, 与消息页 read 解耦, 不被消息页吃掉(经验 1529186)
+        callCloud('order-action', { action: 'select_confirmed_ack', notice_id: n.id }).catch((e) => { console.warn('[select-alert] 弹窗 ack 失败', e && e.message); });
         showing = false;
         if (n.demand_id) {
           wx.navigateTo({

@@ -65,6 +65,8 @@ Page({
   },
 
   onShow() {
+    // 2026-11-25 B+: 耍伴高频停留页每次显示查一次「被选定」强制弹窗(不做定时轮询, 省用量)
+    try { require('../../utils/select-confirmed-alert.js').checkOnce(); } catch (e) { console.warn('[select-alert] square onShow 检查失败', e && e.message); }
     this.setData({ isRedline: redline.isInRedline(), chips: this.buildChips() });
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 });
