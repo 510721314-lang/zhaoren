@@ -320,6 +320,7 @@ curl.exe -s -o $tmp $url                                   # 字节流原样落�
 $js = [System.IO.File]::ReadAllText($tmp, [System.Text.Encoding]::UTF8)  # 显式 UTF-8 解码
 $js.Contains('履约完毕确认中')                              # True
 ```
+4. **字节级对比绕过编码（2026-11-25 补）**：断言「线上产物 == 本地 dist」时，用 Node `https` 拿响应 `Buffer` 算 SHA256 与本地文件比对（项目 `scripts/check-admin-web-live.js` 即此方案），完全绕开字符串解码，不受中文 / 编码影响。
 **判别口诀**：`Content` 尺寸正常但中文匹配全 False → 先怀疑编码，再怀疑产物；拉中文内容一律 curl.exe 落盘 + 显式 UTF-8 解码，禁用 `Invoke-WebRequest .Content` 直接比对。
 
 ---
@@ -360,6 +361,18 @@ $occurrences = ([regex]::Matches($text, [regex]::Escape($old))).Count  # 计数
 
 ---
 
+## 陷阱 20：Vite SPA 线上回读找不到懒加载 chunk——须从入口 bundle 二次解析（2026-11-25 实证）
+
+**现象**：校验 admin-web 线上是否已部署某页面改动（如 Operations.vue 整合），从 `index.html` 提取所有 `<script src>` 里的 chunk 名，找不到目标 `Operations-*.js`，据此误判「没上线」。
+
+**根因**：Vite SPA 路由懒加载的 chunk 名**不写在 index.html 里**，而是编码在入口 bundle（`index-*.js`）内部（异步加载清单 / `__vitePreload` 映射）。只解析 index.html 只能拿到入口和首屏 chunk，懒加载页面的 chunk 名全部漏掉。
+
+**对策**：fetch `index.html` → 定位入口 `index-*.js` → fetch 入口 bundle → 用正则从入口源码解析全量 chunk 名（如 `/assets/([A-Za-z0-9_-]+\.js)/g`）→ 在全量集合里定位目标 → 断言指纹 + 可选 SHA256。项目 `scripts/check-admin-web-live.js` 已实现此二次解析逻辑。
+
+**判别口诀**：Vite / SPA 线上找某个懒加载页面 chunk → 别只看 index.html，必须 fetch 入口 bundle 二次解析全量 chunk 名。
+
+---
+
 ## 快速检查清单（写 ps1 后必过）
 
 1. ✅ 没有 `&&`（用 `; if ($?)`）
@@ -378,6 +391,7 @@ $occurrences = ([regex]::Matches($text, [regex]::Escape($old))).Count  # 计数
 14. ✅ 删含只读文件的目录先清只读属性或用 robocopy `/MIR` 清空（rc ≤ 7 成功，见陷阱 15）
 15. ✅ 读中文 `.md` 定位行号 / 搜中文关键词，用 Grep / Read 工具，不信 PS5 `Get-Content` / `Select-String`（行数会错、中文搜不到，见陷阱 18）
 16. ✅ 对超长单行字符串（台账表格行）做子串统计 / 匹配，用 `.Contains()` / `[regex]::Matches` 或 Grep 工具，禁用 `$text | Select-String`（会报 `InputObjectNotBound`，见陷阱 19）
+17. ✅ 断言「线上产物 == 本地 dist」用 Node https Buffer 算 SHA256 字节级对比（绕过 IWR 编码错解，见陷阱 17）；Vite SPA 找懒加载 chunk 须 fetch 入口 bundle 二次解析全量 chunk 名（见陷阱 20）
 
 ## 实测踩坑记录（2026-09-21）
 

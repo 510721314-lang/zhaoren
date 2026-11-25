@@ -38,6 +38,7 @@
 | 规则章节 | 核心摘要（占注入桶） | 正文/细则落点（不计量） | 专项门禁 | 登记日 |
 |---|---|---|---|---|
 | §37 桌面控制纪律 | core 仅留指针 | archive `project-rules-full-20261029.md` §37 + 技能 `zhaoren-desktop-control` | `check-no-desktop-injection.js`（verify + verify:offline 双挂载） | 2026-11-02 |
+| admin-web 前端上线闭环四件套（E-6.63） | core 不进（inject 余量 3B，零净增） | HANDOFF-20261125 §6 E-6.63 + project_memory「admin-web 部署闭环四件套」+ 技能 `powershell-windows-traps` 陷阱 17/20 | `check-admin-web-live.js`（TOOL 类，check-gate-mounts 已登记，部署后手动跑，不进 verify/offline/predeploy 链） | 2026-11-25 |
 
 ---
 

@@ -5,8 +5,8 @@
 // 本门禁把「人工探针回读」固化为可重复脚本：部署后必跑，命中才允许在台账写「已部署上线」。
 //
 // 用法：
-//   node scripts/verify-admin-web-live.js <chunk关键字> <预期指纹> [--local <本地dist文件>]
-//   例：node scripts/verify-admin-web-live.js Operations "仅 online 对小程序端可见" \
+//   node scripts/check-admin-web-live.js <chunk关键字> <预期指纹> [--local <本地dist文件>]
+//   例：node scripts/check-admin-web-live.js Operations "仅 online 对小程序端可见" \
 //          --local admin-web-frontend/dist/assets/Operations-CKYF4fYU.js
 //
 // 判据：
@@ -32,10 +32,10 @@ for (let i = 0; i < args.length; i++) {
 }
 const [chunkKey, fingerprint] = positional;
 if (!chunkKey || !fingerprint) {
-  console.error('用法: node scripts/verify-admin-web-live.js <chunk关键字> <预期指纹> [--local <文件>]');
+  console.error('用法: node scripts/check-admin-web-live.js <chunk关键字> <预期指纹> [--local <文件>]');
   process.exit(2);
 }
-const UA = 'verify-admin-web-live/1.0 (+zhaoren)';
+const UA = 'check-admin-web-live/1.0 (+zhaoren)';
 const noCacheHeaders = { 'Cache-Control': 'no-cache', Pragma: 'no-cache', 'User-Agent': UA };
 
 function fetch(url) {
@@ -95,10 +95,10 @@ function fetch(url) {
       console.log(`[SHA256] 线上=${liveHash} 本地=${localHash} MATCH=${liveHash === localHash}`);
       if (liveHash !== localHash) throw new Error('SHA256 不一致：线上与本地 dist 内容不同');
     }
-    console.log(`PASS verify-admin-web-live (${Date.now() - t0}ms) chunk=${target}`);
+    console.log(`PASS check-admin-web-live (${Date.now() - t0}ms) chunk=${target}`);
     process.exit(0);
   } catch (e) {
-    console.error(`FAIL verify-admin-web-live: ${e.message}`);
+    console.error(`FAIL check-admin-web-live: ${e.message}`);
     process.exit(1);
   }
 })();
