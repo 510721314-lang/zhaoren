@@ -158,6 +158,25 @@ if (baseline && baseline.l0) {
     }
 }
 
+// P3-44：单章节字节预算门禁（防单节无界膨胀吞掉整个 inject 配额；阈值随 targetBytes 动态缩放）
+//   >50% targetBytes → warn（该节已占常驻注入预算半数，应下沉到归档）
+//   >80% targetBytes → fail（硬拦截，单节不得吃掉整个配额）
+if (baseline && baseline.l0 && baseline.l0.targetBytes) {
+    const tgt = baseline.l0.targetBytes;
+    const warnAt = Math.round(tgt * 0.5);
+    const failAt = Math.round(tgt * 0.8);
+    const secRe = /^## (\d+)\./gm;
+    const secs = [];
+    let sm;
+    while ((sm = secRe.exec(core))) secs.push({ n: sm[1], idx: sm.index });
+    for (let i = 0; i < secs.length; i++) {
+        const end = i + 1 < secs.length ? secs[i + 1].idx : core.length;
+        const b = Buffer.from(core.slice(secs[i].idx, end), 'utf8').length;
+        if (b > failAt) fails.push(`[SECTION-CAP] core §${secs[i].n} ${b}B > 单节硬上限 ${failAt}B（targetBytes 80%）：须下沉到归档`);
+        else if (b > warnAt) warns.push(`[SECTION-WARN] core §${secs[i].n} ${b}B > 单节水位 ${warnAt}B（targetBytes 50%）：建议下沉到归档`);
+    }
+}
+
 // T-7.36：conditional 速率门（硬上限仍由 CONDITIONAL_LIMIT 把，这里防「定向桶慢慢堆满」）
 if (baseline) {
     const condGrowth = condTotal - (baseline.conditionalBytes || 0);
