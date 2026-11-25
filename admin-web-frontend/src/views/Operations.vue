@@ -73,6 +73,38 @@
         </div>
 
         <el-table :data="sceneList" border stripe size="small">
+          <!-- 展开行: 该场景下的服务项目(SOP)管理区 —— 与场景管理整合(feature-plan-service-sop 批1 原计划) -->
+          <el-table-column type="expand" width="40">
+            <template #default="{row}">
+              <div style="padding:8px 24px 12px">
+                <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+                  <el-button size="small" type="primary" plain @click="openAddSop(row.code)">＋ 新增「{{ row.name }}」服务项目</el-button>
+                  <el-tag size="small" type="info">共 {{ sopByScene(row.code).length }} 项</el-tag>
+                  <el-tag size="small" type="info">仅 online 对小程序端可见</el-tag>
+                </div>
+                <el-table :data="sopByScene(row.code)" border size="small" style="width:100%" empty-text="该场景暂无服务项目，点上方「新增」">
+                  <el-table-column prop="name" label="项目名" min-width="140" show-overflow-tooltip />
+                  <el-table-column prop="brief" label="简介" min-width="160" show-overflow-tooltip />
+                  <el-table-column label="SOP 长度" width="90">
+                    <template #default="{row: p}">{{ p.sop_content_len || 0 }} 字</template>
+                  </el-table-column>
+                  <el-table-column prop="sort" label="排序" width="70" />
+                  <el-table-column label="状态" width="80">
+                    <template #default="{row: p}">
+                      <el-tag :type="p.status === 'online' ? 'success' : 'info'" size="small">{{ p.status === 'online' ? '上架' : '下架' }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="220" fixed="right">
+                    <template #default="{row: p}">
+                      <el-button size="small" type="primary" text @click="openEditSop(p)">编辑</el-button>
+                      <el-button size="small" type="warning" text :loading="sopBusy === p._id" @click="toggleSopStatus(p)">{{ p.status === 'online' ? '下架' : '上架' }}</el-button>
+                      <el-button size="small" type="danger" text :loading="sopBusy === p._id" @click="deleteSop(p)">删除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="code" label="编码" width="80">
             <template #default="{row}">
               <span style="font-family:monospace;font-weight:600">{{ row.code }}</span>
@@ -200,35 +232,6 @@
         </el-table>
       </el-tab-pane>
 
-      <!-- ── Tab 4: 服务项目与 SOP（批1，feature-plan-service-sop-20261121） ── -->
-      <el-tab-pane label="服务项目" name="service_sop">
-        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
-          <el-button type="primary" :loading="sopLoading" @click="loadSopProjects">刷新</el-button>
-          <el-button type="primary" plain @click="openAddSop">＋ 新增服务项目</el-button>
-          <el-tag type="info" size="small">仅 online 状态对小程序端可见；scene_code 须在场景白名单内</el-tag>
-        </div>
-        <el-table :data="sopProjects" v-loading="sopLoading" border stripe size="small">
-          <el-table-column prop="scene_code" label="场景" width="90" />
-          <el-table-column prop="name" label="项目名" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="brief" label="简介" min-width="160" show-overflow-tooltip />
-          <el-table-column label="SOP 长度" width="90">
-            <template #default="{row}">{{ row.sop_content_len || 0 }} 字</template>
-          </el-table-column>
-          <el-table-column prop="sort" label="排序" width="70" sortable />
-          <el-table-column label="状态" width="80">
-            <template #default="{row}">
-              <el-tag :type="row.status === 'online' ? 'success' : 'info'" size="small">{{ row.status === 'online' ? '上架' : '下架' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
-            <template #default="{row}">
-              <el-button size="small" type="primary" text @click="openEditSop(row)">编辑</el-button>
-              <el-button size="small" type="warning" text :loading="sopBusy === row._id" @click="toggleSopStatus(row)">{{ row.status === 'online' ? '下架' : '上架' }}</el-button>
-              <el-button size="small" type="danger" text :loading="sopBusy === row._id" @click="deleteSop(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
     </el-tabs>
 
     <!-- 参数变更确认弹窗(diff + 原因) -->
@@ -942,9 +945,14 @@ async function loadSopProjects() {
   if (r.ok) sopProjects.value = r.data?.list || [];
   else ElMessage.error(r.msg || '加载服务项目失败');
 }
-function openAddSop() {
+// 按场景过滤服务项目(场景展开行用; 全量已在 onMounted 加载, 零额外请求)
+function sopByScene(code) {
+  return sopProjects.value.filter((p) => p.scene_code === code);
+}
+function openAddSop(sceneCode) {
   sopIsEdit.value = false;
   resetSopForm();
+  if (sceneCode) sopForm.scene_code = sceneCode;  // 从场景展开行新增时预设关联场景
   sopWordCount.value = 0;
   sopDialog.value = true;
 }
