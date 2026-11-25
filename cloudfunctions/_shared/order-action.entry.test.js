@@ -1004,6 +1004,38 @@ test('modify_confirm: 申请已超时 → oa_modify_expired 且不写订单', as
   assert.strictEqual((sdk.writes.order_main || []).length, 0, '过期被拒时不得写订单');
 });
 
+// P2-1(2026-11-25 双专家评审修复): 改期=时间项变更，按附录A#4 接受后仅 time 项双确认+同步新值，其余三项保持原确认位（原全量重置8位已作废）
+test('modify_confirm: 接受后仅 time 双确认+同步新值，其余三项保持原确认位（附录A#4）', async () => {
+  const CN = 8 * 3600 * 1000;
+  const cnDayStart = Math.floor((Date.now() + CN) / 86400000) * 86400000 - CN;
+  const NEW = cnDayStart + 2 * 86400000 + 12 * 3600 * 1000; // 2天后12点，落在运营时段内
+  // 构造部分确认的确认单：location/content 为部分确认，验证 modify 后保持不变（旧代码会全量重置为 false）
+  const conf = confDoc({
+    time: { value: Date.now() + 3600 * 1000, user_ok: true, partner_ok: true },
+    location: { value: { name: '人民医院', latitude: 30, longitude: 120 }, user_ok: true, partner_ok: false },
+    content: { value: ['陪诊'], user_ok: false, partner_ok: true },
+    fee: { value: 10000, user_ok: true, partner_ok: true }
+  });
+  const sdk = makeSdk({ openid: PARTNER, store: s2Store({
+    status: 'S2_5',
+    start_time: Date.now() + 3600 * 1000,
+    pending_modify: { from_status: 'S2', new_start_time: NEW, by_openid: USER, expire_at: Date.now() + 600000 }
+  }, conf) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'modify_confirm', order_id: OID, mock_openid: PARTNER }, {});
+  assert.strictEqual(r.ok, true, `改期接受应成功: ${JSON.stringify(r)}`);
+  const cw = (sdk.writes.order_confirmations || [])[0];
+  assert.ok(cw, '应写确认单');
+  assert.strictEqual(cw.data.items.time.value, NEW, '确认单时间值同步为新值');
+  assert.strictEqual(cw.data.items.time.user_ok, true, '时间项双确认-接受方');
+  assert.strictEqual(cw.data.items.time.partner_ok, true, '时间项双确认-发起方');
+  assert.strictEqual(cw.data.items.location.user_ok, true, '未变更项 location 保持原确认位');
+  assert.strictEqual(cw.data.items.location.partner_ok, false, '未变更项 location 保持原确认位（不得被重置）');
+  assert.strictEqual(cw.data.items.content.user_ok, false, '未变更项 content 保持原确认位（不得被重置）');
+  assert.strictEqual(cw.data.items.content.partner_ok, true, '未变更项 content 保持原确认位');
+  assert.strictEqual(cw.data.items.fee.user_ok, true, '未变更项 fee 保持原确认位');
+});
+
 test('s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）', async () => {
   const sdk = makeSdk({ openid: USER, store: s2Store() });
   const { main } = loadIndex(sdk);

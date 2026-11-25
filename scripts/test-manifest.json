@@ -624,6 +624,7 @@
     "s2_change_apply: 距履约不足 1 小时拒绝（oa_s2c_blocked）",
     "modify: 改期跨度超上限拒绝（oa_modify_span）",
     "modify_confirm: 申请已超时 → oa_modify_expired 且不写订单",
+    "modify_confirm: 接受后仅 time 双确认+同步新值，其余三项保持原确认位（附录A#4）",
     "s2_change_apply: 变更原因不足 10 字拒绝（oa_s2c_reason）",
     "s2_change_apply: 原因仅空格标点拒绝（oa_s2c_reason）",
     "s2_change_apply: 原因类型缺失拒绝（oa_s2c_reason_type）",
@@ -1397,7 +1398,9 @@
     "P3 表单校验拦截",
     "P4 AA 承诺书弹窗与取消",
     "P5 代发缺签字拦截",
-    "P6 公益计价豁免"
+    "P6 公益计价豁免",
+    "P7 onHide 清理草稿定时器",
+    "P8 onShow 守卫防定时器双开"
   ],
   "scripts/pages-workbench.test.js": [
     "W1 onLoad 云调用契约 6 次且顺序固定",

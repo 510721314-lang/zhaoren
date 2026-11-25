@@ -121,3 +121,34 @@ test('P6 公益计价豁免', async () => {
     p.restore();
   }
 });
+
+// P7(P2-2): onHide 清理草稿定时器 —— 切后台/被 navigateTo 覆盖时停止自动保存，避免持续云调用与内存泄漏
+test('P7 onHide 清理草稿定时器', () => {
+  const p = makePage();
+  try {
+    p.inst.startAutoSave();
+    const handle = p.inst._saveTimer;
+    assert.ok(handle, 'startAutoSave 应创建定时器句柄');
+    assert.ok(p.timers.indexOf(handle) >= 0, '句柄应在 timers 队列中');
+    p.inst.onHide();
+    assert.strictEqual(p.inst._saveTimer, null, 'onHide 应清空 _saveTimer');
+    assert.strictEqual(handle.cleared, true, 'onHide 应调 clearInterval 清理原定时器');
+  } finally {
+    p.restore();
+  }
+});
+
+// P8(P2-2): onShow 守卫防定时器双开 —— 已有定时器时再次 onShow 不得重复 setInterval
+test('P8 onShow 守卫防定时器双开', () => {
+  const p = makePage();
+  try {
+    p.inst.onShow();
+    const afterFirst = p.timers.length;
+    assert.ok(afterFirst > 0, '首次 onShow 应启动定时器');
+    assert.ok(p.inst._saveTimer, '_saveTimer 应存在');
+    p.inst.onShow();
+    assert.strictEqual(p.timers.length, afterFirst, '重复 onShow 不得再启动定时器（守卫防双开）');
+  } finally {
+    p.restore();
+  }
+});

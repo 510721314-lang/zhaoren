@@ -179,18 +179,22 @@ async function modify_confirm_or_reject(ctx) {
     updated_at: now
   }, 'modify');
   if (!won) return { ok: false, code: 'oa_status_conflict', msg: '订单状态已变化,请刷新后重试' };
+  // P2-1-FIX 2026-11-25: 改期=时间项变更，按附录A#4 仅 time 项置双确认+同步新值，其余三项保持原确认位（原全量重置8位的旧口径已作废）
   try {
     const conf = await getConfirmation(order_id);
     if (conf && conf.items) {
-      const resetPatch = { version: (Number(conf.version) || 1) + 1, updated_at: now };
-      for (const f of CONFIRM_FIELDS) {
-        resetPatch['items.' + f + '.user_ok'] = false;
-        resetPatch['items.' + f + '.partner_ok'] = false;
+      const newItems = Object.assign({}, conf.items);
+      newItems.time = { value: pending.new_start_time, user_ok: true, partner_ok: true };
+      const v = conf.version || 1;
+      const occ = await col('order_confirmations').where({ _id: conf._id, version: v })
+        .update({ data: { items: newItems, version: v + 1, updated_at: now } });
+      if (!occ.stats || occ.stats.updated !== 1) {
+        log.w(`modify_confirm confirmation CAS conflict ${order.order_no}: conf version changed`);
+      } else {
+        log.d(`modify confirmed: time item both-confirmed ok ${order.order_no}`);
       }
-      await col('order_confirmations').doc(conf._id).update({ data: resetPatch });
-      log.d(`modify confirmed: confirmations reset ok ${order.order_no}`);
     }
-  } catch (e) { log.d(`modify_confirm reset confirmations fail: ${e.message}`); }
+  } catch (e) { log.w(`modify_confirm sync time confirmation fail: ${e && e.message}`); }
   await logStatus(order_id, 'S2_5', toStatus, role === 'user' ? 'user_modify_confirm' : 'partner_modify_confirm', openid);
   log.d(`modify confirmed: ${order.order_no} S2_5→${toStatus} newStart=${pending.new_start_time} by=${role}`);
   await writeNotice({

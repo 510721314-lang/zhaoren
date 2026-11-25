@@ -136,6 +136,7 @@ Page({
   onShow() {
     this.setData({ isRedline: redline.isInRedline() });
     this.fetchScenes();  // 动态拉场景列表(运营后台可增删, 硬编码 SCENES 仅兜底 icon/color)
+    if (!this._saveTimer) this.startAutoSave();  // P2-2-FIX: 切回前台重启草稿自动保存，守卫防 onLoad+首次 onShow 双开
   },
 
   async fetchScenes() {
@@ -373,6 +374,11 @@ Page({
         if (r.ok && r.data) this.setData({ draftCount: (r.data.list || []).length });
       }).catch(() => {});
     }
+  },
+
+  onHide() {
+    // P2-2-FIX: 切后台/被 navigateTo 覆盖时触发 onHide（不触发 onUnload），停掉草稿自动保存定时器，避免持续云调用+内存泄漏
+    if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
   },
 
   onUnload() {
