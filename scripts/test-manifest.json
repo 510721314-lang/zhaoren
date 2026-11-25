@@ -374,7 +374,9 @@
     "R2-1: publish rate_fen 浮点 → publish_rate 拒绝",
     "R2-1: publish fixed_price_fen 浮点 → publish_fixed_price 拒绝",
     "R2-1: update duration 浮点 → update_duration 拒绝",
-    "R2-5: update 信用分低于门槛 → update_credit_low 拒绝"
+    "R2-5: update 信用分低于门槛 → update_credit_low 拒绝",
+    "P3-②: update headcount=999 越界归一化 + gender_pref 截断到 10 字",
+    "P3-②: update headcount=0 越界归一化为 1"
   ],
   "cloudfunctions/_shared/evaluation-submit.entry.test.js": [
     "get_default_star: → ok + default_star=4",
@@ -646,7 +648,9 @@
     "select_confirmed_poll: 只返回本人未 ack → 他人/已 ack 通知 has=false",
     "select_confirmed_ack: 缺 notice_id → oa_no_id",
     "select_confirmed_ack: 本人通知 → 写 select_alert_acked + read, updated=1",
-    "select_confirmed_ack: 他人通知 → to_openid 守卫, updated=0"
+    "select_confirmed_ack: 他人通知 → to_openid 守卫, updated=0",
+    "P3-③: detail complaint.refund_fen 优先取 fund.refunded_fen",
+    "P3-③: detail complaint.refund_fen 无 fund 时回退 order.refund_fen"
   ],
   "cloudfunctions/_shared/order-create.entry.test.js": [
     "无 OPENID 且无 mock_openid → order_no_openid",
@@ -1400,7 +1404,8 @@
     "P5 代发缺签字拦截",
     "P6 公益计价豁免",
     "P7 onHide 清理草稿定时器",
-    "P8 onShow 守卫防定时器双开"
+    "P8 onShow 守卫防定时器双开",
+    "P9 跳转调用补 fail 兜底防回归"
   ],
   "scripts/pages-workbench.test.js": [
     "W1 onLoad 云调用契约 6 次且顺序固定",

@@ -1290,5 +1290,33 @@ test('select_confirmed_ack: 他人通知 → to_openid 守卫, updated=0', async
   assert.strictEqual(r.data.updated, 0);
 });
 
+// ── P3-③(2026-11): detail 投诉卡退款金额优先取 fund.refunded_fen(争议裁决实退), 回退 order.refund_fen(取消退款) ──
+// action_query.js:132  refund_fen: Number(order.fund && order.fund.refunded_fen) || Number(order.refund_fen) || 0
+// 旧逻辑仅 Number(order.refund_fen)||0, 争议退款已退金额无法在投诉卡正确展示
+test('P3-③: detail complaint.refund_fen 优先取 fund.refunded_fen', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    complaint_at: Date.now(),
+    fund: { refunded_fen: 5000 },
+    refund_fen: 0
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'detail', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true, `detail 应成功: ${JSON.stringify(r)}`);
+  assert.ok(r.data.complaint, '订单有 complaint_at 应回传 complaintInfo');
+  assert.strictEqual(r.data.complaint.refund_fen, 5000, '应优先取 fund.refunded_fen=5000, 而非 refund_fen=0');
+});
+
+test('P3-③: detail complaint.refund_fen 无 fund 时回退 order.refund_fen', async () => {
+  const sdk = makeSdk({ openid: USER, store: baseStore({
+    complaint_at: Date.now(),
+    refund_fen: 3000
+  }) });
+  const { main } = loadIndex(sdk);
+  const r = await main({ action: 'detail', order_id: OID, mock_openid: USER }, {});
+  assert.strictEqual(r.ok, true, `detail 应成功: ${JSON.stringify(r)}`);
+  assert.ok(r.data.complaint, '订单有 complaint_at 应回传 complaintInfo');
+  assert.strictEqual(r.data.complaint.refund_fen, 3000, '无 fund 时应回退取 order.refund_fen=3000');
+});
+
 // 还原 Module._load，避免污染后续测试文件
 test.after(() => { Module._load = origLoad; });

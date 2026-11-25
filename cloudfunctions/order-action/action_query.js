@@ -128,7 +128,8 @@ async function detail(ctx) {
       : (order.dispute_state === 'resolved' ? 'resolved' : 'open'),
     handled_at: Number(order.dispute_handled_at) || 0,
     result_note: order.dispute_state === 'resolved' ? String(order.admin_note || '').slice(0, 200) : '',
-    refund_fen: Number(order.refund_fen) || 0
+    // P3-③: 投诉卡退款金额优先取 fund.refunded_fen(争议裁决退款实际已退), 兼容回退 order.refund_fen(取消退款)
+    refund_fen: Number(order.fund && order.fund.refunded_fen) || Number(order.refund_fen) || 0
   } : null;
 
   // 付款后信息全量展示(2026-10-12): 资金/退款/争议/费用明细 —— 一律不外传 openid(refund_by/dispute_handled_by 不返回)

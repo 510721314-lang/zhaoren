@@ -96,6 +96,9 @@ Page({
   onCardTap(e) {
     const id = e.currentTarget.dataset.id;
     if (!id) return;
-    wx.navigateTo({ url: `/pages-v2/pkg-low/service-detail/service-detail?id=${id}` });
+    wx.navigateTo({
+      url: `/pages-v2/pkg-low/service-detail/service-detail?id=${id}`,
+      fail: () => wx.showToast({ title: '跳转失败', icon: 'none' })
+    });
   }
 });

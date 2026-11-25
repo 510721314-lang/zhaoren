@@ -228,6 +228,12 @@ async function update_action(ctx) {
         }
       }
 
+      // ── 需求规模/性别偏好归一化(与 publish 同口径; update 此前漏写, 本次补齐 P3-②) ──
+      const headcountN = (Number.isInteger(Number(headcount)) && headcount >= 1 && headcount <= 10)
+        ? Number(headcount) : 1;
+      const genderPrefU = (typeof gender_pref === 'string' && gender_pref.trim())
+        ? gender_pref.trim().slice(0, 10) : '不限';
+
       // ── 白名单字段组装(publish_location/broadcast/invited 等系统字段禁止改) ──
       const now = Date.now();
       const patch = {
@@ -255,8 +261,8 @@ async function update_action(ctx) {
         disclaimer_signed: !!disclaimer_signed,
         disclaimer_signed_at: now,
         match_mode: mode,
-        headcount: headcount || 1,
-        gender_pref: gender_pref || '不限',
+        headcount: headcountN,
+        gender_pref: genderPrefU,
         updated_at: now
       };
       // match_mode 改了 → 同步更新 broadcast/invited(不改 publish_location!)

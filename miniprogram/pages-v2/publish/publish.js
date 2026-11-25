@@ -1137,7 +1137,10 @@ Page({
           if (this.__editMode) {
             // 编辑成功 → 返回详情页(会自动 onShow 刷新)
             wx.navigateBack({ fail: () => {
-              wx.redirectTo({ url: `/pages-v2/demand-detail/demand-detail?id=${demandId}` });
+              wx.redirectTo({
+                url: `/pages-v2/demand-detail/demand-detail?id=${demandId}`,
+                fail: () => wx.showToast({ title: '跳转失败', icon: 'none' })
+              });
             }});
           } else {
             wx.redirectTo({

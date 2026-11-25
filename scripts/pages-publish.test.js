@@ -2,6 +2,8 @@
 // 覆盖：联系号输入过滤 / 取号开关 / 表单校验拦截 / AA 承诺书弹窗 / 代发签字强制 / 公益计价豁免
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
 const { createPage, sleep } = require('./mp-page-harness.js');
 
 const PAGE = 'pages-v2/publish/publish.js';
@@ -150,5 +152,25 @@ test('P8 onShow 守卫防定时器双开', () => {
     assert.strictEqual(p.timers.length, afterFirst, '重复 onShow 不得再启动定时器（守卫防双开）');
   } finally {
     p.restore();
+  }
+});
+
+// P9(P3-①): 跳转调用必须带 fail 兜底（规则 §7）—— 源码扫描防回归
+test('P9 跳转调用补 fail 兜底防回归', () => {
+  const root = path.join(__dirname, '..');
+  const files = [
+    'miniprogram/pages-v2/publish/publish.js',
+    'miniprogram/pages-v2/service/service.js',
+  ];
+  for (const rel of files) {
+    const src = fs.readFileSync(path.join(root, rel), 'utf8');
+    const blocks = [];
+    const re = /wx\.(navigateTo|redirectTo)\(\{[\s\S]*?\}\);/g;
+    let m;
+    while ((m = re.exec(src))) blocks.push(m[0]);
+    assert.ok(blocks.length > 0, `${rel} 应至少有一个跳转调用`);
+    for (const b of blocks) {
+      assert.ok(/fail\s*:/.test(b), `${rel} 跳转缺 fail 兜底:\n${b.slice(0, 120)}`);
+    }
   }
 });

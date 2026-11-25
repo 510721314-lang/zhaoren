@@ -314,4 +314,40 @@ test('R2-5: update 信用分低于门槛 → update_credit_low 拒绝', async ()
   assert.strictEqual(r.code, 'update_credit_low');
 });
 
+// ── P3-②(2026-11): update 补齐 headcount/gender_pref 归一化(此前 update 仅 headcount||1 / gender_pref||'不限', 无范围校验与截断) ──
+// 口径与 action_publish.js:126-127 逐字一致: 合法整数 ∈[1,10] 才取原值, 越界回退默认 1; gender_pref trim 后截前 10 字
+// 旧逻辑会把 headcount=999 / 20 字 gender_pref 原样落库 → 本用例锁定修复后行为
+test('P3-②: update headcount=999 越界归一化 + gender_pref 截断到 10 字', async () => {
+  const store = pubStore({
+    demand: { [DID]: { _id: DID, creator_openid: USER, is_deleted: false, status: 'matching', demand_no: 'DR1', scene: 'W1', match_mode: 'broadcast' } }
+  });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main(pubEvent({
+    action: 'update', demand_id: DID,
+    headcount: 999,
+    gender_pref: '不限'.repeat(20)
+  }), {});
+  assert.strictEqual(r.ok, true, `update 应成功落库, 实际: ${r.code || ''} ${r.msg || ''}`);
+  // update 走 col('demand').where({_id,status:'matching'}).update() → 写入记录形状为 {where, data}
+  const w = (sdk.writes.demand || []).find((x) => x.where && x.where._id === DID);
+  assert.ok(w, '应写入 demand(CAS where.update)');
+  assert.strictEqual(w.data.headcount, 1, 'headcount=999 越出 [1,10] 应归一化为默认 1（旧 headcount||1 会存 999）');
+  assert.strictEqual(w.data.gender_pref.length, 10, 'gender_pref 应截断到 10 字（旧逻辑会存 20 字）');
+  assert.strictEqual(w.data.gender_pref, '不限'.repeat(5), '截断后取前 10 字');
+});
+
+test('P3-②: update headcount=0 越界归一化为 1', async () => {
+  const store = pubStore({
+    demand: { [DID]: { _id: DID, creator_openid: USER, is_deleted: false, status: 'matching', demand_no: 'DR1', scene: 'W1', match_mode: 'broadcast' } }
+  });
+  const sdk = makeSdk({ openid: USER, store });
+  const { main } = loadIndex(sdk);
+  const r = await main(pubEvent({ action: 'update', demand_id: DID, headcount: 0, gender_pref: '不限' }), {});
+  assert.strictEqual(r.ok, true, `update 应成功, 实际: ${r.code || ''} ${r.msg || ''}`);
+  const w = (sdk.writes.demand || []).find((x) => x.where && x.where._id === DID);
+  assert.ok(w, '应写入 demand');
+  assert.strictEqual(w.data.headcount, 1, 'headcount=0 越界应归一化为默认 1');
+});
+
 test.after(() => { Module._load = origLoad; });
