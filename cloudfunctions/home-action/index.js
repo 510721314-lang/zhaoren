@@ -293,6 +293,7 @@ async function fillPublisherSurname(list) {
   }
 }
 
+// @VERIFIED 2026-11-25 已真机验证：大厅过滤 matched_openid:null(已选定耍伴等待接单中的需求不进广场; 含发布者自身已选定需求也不显示; 超时 action_select_stale 重置 matched_openid=null 后自动重回大厅)
 // 公共大厅可接单需求过滤条件
 function hallWhere(extra) {
   return Object.assign({
