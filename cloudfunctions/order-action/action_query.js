@@ -483,6 +483,7 @@ async function notice_poll(ctx) {
   return { ok: true, data: { has_new: list.length > 0, list, server_now: Date.now() } };
 }
 
+// @VERIFIED 2026-11-25 已真机验证：select_confirmed_poll 查独立字段 select_alert_acked != true（与消息 read 解耦，缺失字段也命中，REGISTRY #213）
 // 2026-11-24: 耍伴被选定强制弹窗触发源——仅查本人未 ack 的 select_confirmed(不联表), 供前端进页面/切前台时查一次
 // 2026-11-25 B+: 显隐真值改用独立字段 select_alert_acked(与消息页 read 解耦), 避免消息页标已读吃掉弹窗机会(经验 1529186)
 async function select_confirmed_poll(ctx) {
@@ -506,6 +507,7 @@ async function select_confirmed_poll(ctx) {
   };
 }
 
+// @VERIFIED 2026-11-25 已真机验证：select_confirmed_ack 写 ack+read（to_openid 鉴权，跨设备不重复弹，REGISTRY #213）
 // 2026-11-25 B+: 耍伴点了强制弹窗「确定」→ 写独立 ack 字段(跨设备不再重复弹), 同时标 read 让消息列表消红点
 // 与 notice_read 解耦: 消息页标已读只写 read, 不写 ack, 不会吃掉弹窗机会(经验 1529186)
 async function select_confirmed_ack(ctx) {

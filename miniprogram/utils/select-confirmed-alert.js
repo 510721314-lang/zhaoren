@@ -1,11 +1,12 @@
 // 耍伴被选定 → 强制弹窗 → 点确定回写云端已读 → 跳需求详情引导接单/四确认
 // B 方案(2026-11-24 用户批准): 仅在 app 切回前台时查一次(不做定时轮询), 省云函数用量
-// 显隐真值在云端(system_notice.read), 跨设备一致; 本地标记仅挡 ack 写入前的竞态窗口(经验 1529186)
+// 显隐真值在云端(select_alert_acked), 跨设备一致; 本地标记仅挡 ack 写入前的竞态窗口(经验 1529186)
 const { callCloud } = require('./cloud.js');
 
 let checking = false;  // 防并发重入
-let showing = false;   // 防重复弹(云端 read 为最终真值)
+let showing = false;   // 防重复弹(云端 select_alert_acked 为最终真值)
 
+// @VERIFIED 2026-11-25 已真机验证：checkOnce 强制弹窗（仅确定/遮罩不可关）+ 点确定调 select_confirmed_ack + 跳需求详情（REGISTRY #213，经验 1529186）
 function checkOnce() {
   if (checking || showing) return;
   const app = getApp();
