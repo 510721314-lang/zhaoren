@@ -115,10 +115,10 @@ alwaysApply: true
 - §38 CLI库流程测→zhaoren-frequent-flows。
 - §39 数据对账：脱敏字段读写双侧须实测对账（双侧grep），禁单侧推断；#147。
 - §40 入口可达性：写入口禁落孤儿页；「去XX」落点须真解该码；安全入口禁限单身份→miniprogram-entry-reachability。
-- §41 验证前置：外部通道先探针（未通禁验·只登记待恢复）；后台任务以进程枚举为准；台账门禁分落笔前基线/落笔后复跑；待办改判与落点表同批。
-- §42 e2e测试：字段路径逐action核对解构位置；force_set_env后前置purge_test_data；dry-run看stats.order_main；真实OPENID时isMockCall=false（详见归档§42）。
-- §43 数据清理铁律（误删186单事故）：禁按标记位(如is_test)全量删，仅允许夹具前缀批量+ID点名；批量删须四件套(confirm+范围白名单+单次上限+dry-run预览)；test_openids禁混真实openid；恢复脚本级联target用备份静态集非云端缺失集。
-- §44 push成功判据（2026-11-19）：禁仅凭exit code/空输出判定push成功，必须`git ls-remote origin master`直连远程核对SHA==本地HEAD；ls-remote须带与push相同的代理覆盖（防失效代理报Connection reset假失败）；本地origin/master引用只作旁证不作准；声明「已推送」必须附ls-remote实证值→zhaoren-frequent-flows流程4。
+- §41 验证前置：外部通道先探针(未通禁验只登记)；后台任务以进程枚举为准；台账门禁分落笔前基线/落笔后复跑；待办改判与落点表同批。
+- §42 e2e测试：字段路径逐action核对解构位置；force_set_env前置purge_test_data；dry-run看stats.order_main；真OPENID时isMockCall=false(详见归档§42)。
+- §43 数据清理铁律(误删186单)：禁按标记位(如is_test)全量删，仅夹具前缀批量+ID点名；批量删须四件套(confirm+范围白名单+单次上限+dry-run预览)；test_openids禁混真实openid；恢复级联用备份静态集非云端缺失集。
+- §44 push判据(2026-11-19)：禁凭exit code/空输出判成功，须`git ls-remote origin master`直连核对SHA==本地HEAD；ls-remote须带与push相同代理覆盖(防失效代理Connection reset假失败)；本地origin/master仅旁证不作准；声明已推送须附ls-remote实证值→zhaoren-frequent-flows流程4。
 - §45 通知：三段取证(im_message/im_conversation/system_notice)；writeNotice 4副本同批改；覆盖顺延created_at；提示音走alert-feedback。
 
 ## 附录A · 不可变红线（`.trae/rules.md` §三）
