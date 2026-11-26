@@ -11,6 +11,10 @@
 //     ④[COUNT-DRIFT] A/B 总数 + known-evolution ← spawn cloudfunctions/_shared/ab_equivalence.js 解析 stdout
 //     ⑤[COUNT-DRIFT] 空 catch 总数 + generated_at ← scripts/silent-catch-baseline.json
 //     ⑥[COUNT-DRIFT] 体验版版本号 ← docs/deploy-log.md 最后一条「体验版 vX.Y.Z」
+//   三期（内部计数，2026-11-26 实现）：头部「规则配额」行 + 体验版行 HEAD 哈希亦须对齐，
+//       防 L79 类内部声明漂移未拦截（实证：2026-11-26 二次实测发现台账余量 2110B→1723B 漂移，二期未守）：
+//     ⑦[COUNT-DRIFT] 体验版 HEAD 哈希 ← docs/deploy-log.md 最后一条体验版行第 3 列 commit
+//     ⑧[COUNT-DRIFT] 规则配额余量 + max§ ← spawn scripts/check-rules-size.js 解析 stdout（inject used/cap → 余量=cap-used）
 //     真值测量失败 → [TRUTH-MEASURE-FAILED]；声明行缺失/不可解析 → [MISSING-COUNT]/[UNPARSEABLE]
 //   无任何 tech-debt-inventory 文件时不拦（项目初期），仅提示。
 // 自测：RULES_ROOT 指向临时夹具；A/B 真值可用 AB_EQUIVALENCE_PATH 覆盖为 stub 脚本。
@@ -90,14 +94,34 @@ try {
 try {
     const logPath = path.join(root, 'docs', 'deploy-log.md');
     if (!fs.existsSync(logPath)) throw new Error('docs/deploy-log.md 不存在');
-    let ver = null;
+    let ver = null, sha = null;
     for (const l of read(logPath).split('\n')) {
         const m = l.match(/体验版.*?v(\d+\.\d+\.\d+)/);
-        if (m) ver = m[1];
+        if (m) {
+            ver = m[1];
+            // 三期：提取该体验版对应的 commit SHA（优先第 3 列「前 commit」，fallback 行内首个 7+ hex）
+            const col3 = (l.split('|')[3] || '').trim();
+            const sm = col3.match(/([0-9a-f]{7,40})/) || l.match(/\b([0-9a-f]{7,40})\b/);
+            if (sm) sha = sm[1];
+        }
     }
     if (!ver) throw new Error('deploy-log 未找到「体验版 vX.Y.Z」记录');
-    truth.beta = ver;
+    truth.beta = { ver, sha };
 } catch (e) { fails.push(`[TRUTH-MEASURE-FAILED] deploy-log：${e.message}`); }
+
+// 三期 ⑧：规则配额余量 + max§ ← spawn check-rules-size 解析 stdout（测试可用 RULES_SIZE_PATH 覆盖为 stub）
+try {
+    const rsPath = process.env.RULES_SIZE_PATH
+        ? path.resolve(process.env.RULES_SIZE_PATH)
+        : path.join(root, 'scripts', 'check-rules-size.js');
+    if (!fs.existsSync(rsPath)) throw new Error('scripts/check-rules-size.js 不存在');
+    const r = spawnSync(process.execPath, [rsPath], { cwd: root, encoding: 'utf8', timeout: 15000 });
+    const out = `${r.stdout || ''}${r.stderr || ''}`;
+    const mu = out.match(/inject\s+(\d+)B\s*\/\s*(\d+)B/);
+    const mm = out.match(/max§\s*(\d+)/);
+    if (!mu) throw new Error(`check-rules-size 未输出可解析结果（exit=${r.status}）`);
+    truth.quota = { used: +mu[1], cap: +mu[2], headroom: +mu[2] - +mu[1], maxSection: mm ? +mm[1] : null };
+} catch (e) { fails.push(`[TRUTH-MEASURE-FAILED] check-rules-size：${e.message}`); }
 
 // 解析头部「关键计数」表行（按首单元格精确定位，避免误匹配「旧值」行/P3-1 行）
 const verifyRow = headLines.find(l => /^\|\s*`?verify:offline`?/.test(l));
@@ -141,9 +165,30 @@ if (!betaRow) {
 } else {
     const br = stripMd(betaRow);
     const declBeta = str(br, /v(\d+\.\d+\.\d+)/);
-    if (truth.beta && declBeta !== null && declBeta !== truth.beta)
-        fails.push(`[COUNT-DRIFT] 体验版版本：台账声明 v${declBeta}，实测 v${truth.beta}`);
+    const declSha = str(br, /HEAD\s*`?([0-9a-f]{7,40})`?/); // 三期：体验版 HEAD 哈希
+    if (truth.beta && declBeta !== null && declBeta !== truth.beta.ver)
+        fails.push(`[COUNT-DRIFT] 体验版版本：台账声明 v${declBeta}，实测 v${truth.beta.ver}`);
+    // 三期：仅当 deploy-log 实测到 SHA 时才比对 HEAD（deploy-log 无 SHA 则跳过，不阻断）
+    if (truth.beta && truth.beta.sha) {
+        if (declSha === null) fails.push('[MISSING-COUNT] 体验版行声明 HEAD 但未解析到有效哈希');
+        else if (declSha !== truth.beta.sha) fails.push(`[COUNT-DRIFT] 体验版 HEAD 哈希：台账声明 ${declSha}，实测 ${truth.beta.sha}`);
+    }
     if (declBeta === null) fails.push('[UNPARSEABLE] 体验版行未解析到 vX.Y.Z');
+}
+
+// 三期 ⑧：规则配额余量 + max§ 与实测对齐
+const quotaRow = headLines.find(l => /^\|\s*规则配额/.test(l));
+if (!quotaRow) {
+    fails.push('[MISSING-COUNT] 头部缺少「规则配额」计数行（inject/余量/max§ 无从核对）');
+} else {
+    const qr = stripMd(quotaRow);
+    const declHeadroom = num(qr, /余量\s*(\d+)\s*B/);
+    const declMax = num(qr, /max§\s*(\d+)/);
+    if (truth.quota && declHeadroom !== null && declHeadroom !== truth.quota.headroom)
+        fails.push(`[COUNT-DRIFT] 规则配额余量：台账声明 ${declHeadroom}B，实测 ${truth.quota.headroom}B（inject ${truth.quota.used}/${truth.quota.cap}）`);
+    if (truth.quota && truth.quota.maxSection !== null && declMax !== null && declMax !== truth.quota.maxSection)
+        fails.push(`[COUNT-DRIFT] 规则配额 max§：台账声明 ${declMax}，实测 ${truth.quota.maxSection}`);
+    if (declHeadroom === null) fails.push('[UNPARSEABLE] 规则配额行未解析到「余量 N B」数值');
 }
 
 if (fails.length) {

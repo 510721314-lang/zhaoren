@@ -1,4 +1,4 @@
-// 台账头部一致性门自测（P3-47）：一期指针 + 二期计数对齐
+// 台账头部一致性门自测（P3-47）：一期指针 + 二期计数对齐 + 三期内部计数（配额余量/体验版 HEAD）
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -11,6 +11,9 @@ const GATE = path.resolve(__dirname, 'check-tech-debt-header.js');
 // stub ab：打印与真实 ab_equivalence 同格式的汇总行，供二期解析（避免真实跑 ~7s）
 const STUB_AB = "console.log('A/B EQUIVALENT: 473 cases (237 explicit + 236 auto; 110 known-evolution)');\n";
 const STUB_AB_FAIL = "process.exitCode = 1;\n"; // 不打印汇总行 → 触发 TRUTH-MEASURE-FAILED
+// stub check-rules-size：打印与真实脚本同格式汇总行，供三期解析配额余量/max§（避免依赖真实规则文件）
+const STUB_RULES_SIZE = "console.log('RULES-SIZE OK inject 17733B/19456B (硬顶 30720B) | conditional 1011B/2048B | archive 2755B(不计) | max§ 46');\n";
+const STUB_RULES_SIZE_FAIL = "process.exitCode = 1;\n"; // 不打印汇总行 → 触发 TRUTH-MEASURE-FAILED
 
 function mkFixture(files) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zr-tdh-'));
@@ -37,9 +40,11 @@ function withFixture(files, fn) {
 // 基准真值（与台账声明一致 → 应 PASS）
 const baseTruth = (over = {}) => ({
     'stub-ab.js': STUB_AB,
+    'scripts/check-rules-size.js': STUB_RULES_SIZE, // 三期配额真值 stub
     'scripts/test-manifest.json': JSON.stringify({ 'a.test.js': ['t1', 't2'], 'b.test.js': ['t3'] }), // 3 用例 / 2 文件
     'scripts/silent-catch-baseline.json': JSON.stringify({ total: 200, generated_at: '2026-11-25' }),
-    'docs/deploy-log.md': '| 2026-11-20 | 体验版 v1.6.24 上传 |\n| 2026-11-25 | 体验版 **v1.6.25** 上传 |\n',
+    // deploy-log：三期取最后一条体验版行的第 3 列 commit 作 HEAD 真值（v1.6.24 行用不同 SHA 验证"取最后一条"）
+    'docs/deploy-log.md': '| 2026-11-20 | 1111111 | 体验版 v1.6.24 上传 |\n| 2026-11-25 | 966f009b | 体验版 **v1.6.25** 上传 |\n',
     ...over,
 });
 
@@ -52,7 +57,8 @@ const baseLedger = (over = {}) => `# 技术负债清单
 |---|---|
 | \`verify:offline\` | EXIT=0 / A/B **473 EQUIVALENT** / 3 用例 0 fail / 110 known-evolution |
 | 空 catch 基线 | **200 处**（generated_at=2026-11-25） |
-| 体验版 | **v1.6.25**（HEAD x） |
+| 体验版 | **v1.6.25**（HEAD 966f009b） |
+| 规则配额 | inject 17733B / 余量 1723B / max§ 46（check-rules-size 实测；targetBytes 19456） |
 ` + (over.tail || '');
 
 test('一期指针 + 二期计数全匹配应 PASS', () => {
@@ -150,5 +156,63 @@ test('无台账文件应跳过 OK', () => {
         const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
         assert.strictEqual(code, 0, out);
         assert.match(out, /无 tech-debt-inventory 文件，跳过/);
+    });
+});
+
+// —— 三期：内部计数守护（配额余量 / 体验版 HEAD）——
+test('规则配额余量漂移应 FAIL [COUNT-DRIFT]（三期，P3-47 盲区实证）', () => {
+    withFixture({
+        ...baseTruth(),
+        'docs/tech-debt-inventory-20261123.md': baseLedger().replace('余量 1723B', '余量 2110B'),
+    }, dir => {
+        const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
+        assert.strictEqual(code, 1, out);
+        assert.match(out, /\[COUNT-DRIFT\] 规则配额余量/);
+    });
+});
+
+test('规则配额 max§ 漂移应 FAIL [COUNT-DRIFT]（三期）', () => {
+    withFixture({
+        ...baseTruth(),
+        'docs/tech-debt-inventory-20261123.md': baseLedger().replace('max§ 46', 'max§ 45'),
+    }, dir => {
+        const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
+        assert.strictEqual(code, 1, out);
+        assert.match(out, /\[COUNT-DRIFT\] 规则配额 max§/);
+    });
+});
+
+test('体验版 HEAD 哈希漂移应 FAIL [COUNT-DRIFT]（三期）', () => {
+    withFixture({
+        ...baseTruth(),
+        'docs/tech-debt-inventory-20261123.md': baseLedger().replace('HEAD 966f009b', 'HEAD abcdef0'),
+    }, dir => {
+        const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
+        assert.strictEqual(code, 1, out);
+        assert.match(out, /\[COUNT-DRIFT\] 体验版 HEAD 哈希/);
+    });
+});
+
+test('缺少规则配额计数行应 FAIL [MISSING-COUNT]（三期）', () => {
+    withFixture({
+        ...baseTruth(),
+        'docs/tech-debt-inventory-20261123.md': baseLedger().replace(/\| 规则配额 \|.*\n/, ''),
+    }, dir => {
+        const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
+        assert.strictEqual(code, 1, out);
+        assert.match(out, /\[MISSING-COUNT\] 头部缺少「规则配额」/);
+    });
+});
+
+test('check-rules-size 测量失败应 FAIL [TRUTH-MEASURE-FAILED]（三期）', () => {
+    withFixture({
+        ...baseTruth(),
+        'docs/tech-debt-inventory-20261123.md': baseLedger(),
+    }, dir => {
+        // RULES_SIZE_PATH 指向不存在文件 → 三期配额真值测量失败
+        const env = { ...process.env, RULES_ROOT: dir, AB_EQUIVALENCE_PATH: path.join(dir, 'stub-ab.js'), RULES_SIZE_PATH: path.join(dir, 'nonexistent.js') };
+        const r = spawnSync(process.execPath, [GATE], { env, encoding: 'utf8' });
+        assert.strictEqual(r.status, 1, `${r.stdout}${r.stderr}`);
+        assert.match(`${r.stdout || ''}${r.stderr || ''}`, /\[TRUTH-MEASURE-FAILED\] check-rules-size/);
     });
 });

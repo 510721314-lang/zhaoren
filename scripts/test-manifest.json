@@ -1324,7 +1324,12 @@
     "缺少 verify:offline 计数行应 FAIL [MISSING-COUNT]",
     "ab 测量失败应 FAIL [TRUTH-MEASURE-FAILED]",
     "一期指针过时仍应 FAIL [STALE-POINTER]（与二期独立）",
-    "无台账文件应跳过 OK"
+    "无台账文件应跳过 OK",
+    "规则配额余量漂移应 FAIL [COUNT-DRIFT]（三期，P3-47 盲区实证）",
+    "规则配额 max§ 漂移应 FAIL [COUNT-DRIFT]（三期）",
+    "体验版 HEAD 哈希漂移应 FAIL [COUNT-DRIFT]（三期）",
+    "缺少规则配额计数行应 FAIL [MISSING-COUNT]（三期）",
+    "check-rules-size 测量失败应 FAIL [TRUTH-MEASURE-FAILED]（三期）"
   ],
   "scripts/check-test-globs.test.js": [
     "基线夹具应 PASS",
