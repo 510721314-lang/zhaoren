@@ -46,7 +46,7 @@ const VERIFY_ONLY = new Set([
     'check-no-desktop-injection.js',     // 桌面注入禁用（2026-11-02 §37）
     'check-silent-catch.js',             // 空 catch 增量门（2026-11-11 代码卫生 A1）
 ]);
-// ⚠️ 修改此 TOOL 集合须同步 check-gate-mounts.test.js 的 TOOL 基线数组（mkFixture 按此创建 scripts/ stub；漏同步→基线测试报 [STALE] 致 verify:offline 红，2026-11-25 实证）
+// ⚠️ 上述三个集合（DEPLOY_CRITICAL / VERIFY_ONLY / TOOL）任一改动，都须同步 check-gate-mounts.test.js 的对应基线数组——mkFixture 按 test 数组创建 scripts/ stub，漏同步→基线夹具缺 stub→报 [STALE] 致 verify:offline 假红（2026-11-25 TOOL 实证 + 2026-11-26 P3-47/P3-48 VERIFY_ONLY 实证）
 const TOOL = new Set([
     'check-handoff-coverage.js',         // 需 2 个 HANDOFF 路径参数，一次性比对工具
     'check-prd-drift.js',                // 2026-11-08 登记：PRD 漂移门（只读）。**暂归 TOOL 不入门禁链**——PRD 现有大批未提交改动且「150 条」断言待改 151，待 PRD 收尾后升为 VERIFY_ONLY 并挂 verify/verify:offline

@@ -249,6 +249,7 @@ alwaysApply: true
 > §21 为平台特化（CloudBase 单函数目录打包）；本节是**可泛化**部分，适用于任何「新增/修改校验、门禁、白名单」的改动。
 
 - **G1 双挂载**：新增或修改任何校验脚本，必须**同时**接入 ① `npm run verify:offline`（本地/CI 链）与 ② `.trae/predeploy.ps1`（部署入口，fail-closed）。**只挂一处＝形同虚设**——实证（F1）：只挂 verify 时，走合规部署入口同样不拦。
+- **G1.1 挂载三同步（含 test 基线数组，2026-11-26 P3-47/P3-48 实证）**：新增门禁除「`check-gate-mounts.js` 分类集合 + `package.json` 双挂」外，必须同步 `check-gate-mounts.test.js` 中 DEPLOY/VERIFY_ONLY/TOOL 三个硬编码数组——`mkFixture` 按此数组创建 `scripts/` stub，漏同步任一→基线夹具缺 stub→报 `[STALE]` 假红→ `verify:offline` 红（原注释曾只警告 TOOL，三个集合同理）。判据设计另须**先 dry-run 摸底存量分布**再定 FAIL 条件，避免上线即红大面积误报（P3-48 实证：拍脑袋「缺 BOM 即 FAIL」会红 21 个，摸底后定「缺 BOM 且含非 ASCII 才 FAIL」0 误报）。
 - **G2 有效性必须端到端实跑证明**：「闸门能拦住」的唯一有效证据 = 植入违规样本 → 跑门禁 → **exit≠0 且精确报出 `文件:行号`** → 移除样本 → exit=0。禁止以代码阅读、自我声明、「设计上应能拦」代替（复核轮 2/2 实证：专家 A 判「全部属实」仍 ≠ 已闭合）。
 - **G3 豁免必须可观测且口径与实测一致**：白名单/豁免（`KNOWN_EVOLUTION` / `KNOWN_DRIFT` 类）本质是「跳过比较」而非「提供保护」——每登记一例须 ① 配 owed 计数或独立断言，② 登记文字**逐条与实测一致**（复核轮实抓 P2-6 ①：声称有 `[DYNAMIC REQUIRE WARN]` 兜底，实测 `require.resolve` / `import` / 模板串表达式**静默**）。
 - **G4 探针纪律**：临时样本/探针用 `zz-` 前缀或系统 temp，**用完即删**，事后以 `git status --short` 取证；**并发/多专家复核禁止复用同名探针目录**（复核轮实证：两名复核专家同名 `zz-recheck` 并发 → 误报「高危残留、阻断全仓部署」）。
