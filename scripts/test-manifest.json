@@ -1314,6 +1314,17 @@
     "注释中的 subscribeMessage.send 不误报",
     "zz-* 探针/种子目录裸调豁免（探针须采集原始 errCode，无副作用契约）"
   ],
+  "scripts/check-tech-debt-header.test.js": [
+    "一期指针 + 二期计数全匹配应 PASS",
+    "A/B 总数漂移应 FAIL [COUNT-DRIFT]",
+    "用例总数漂移应 FAIL [COUNT-DRIFT]",
+    "空 catch generated_at 漂移应 FAIL [COUNT-DRIFT]",
+    "体验版版本漂移应 FAIL [COUNT-DRIFT]",
+    "缺少 verify:offline 计数行应 FAIL [MISSING-COUNT]",
+    "ab 测量失败应 FAIL [TRUTH-MEASURE-FAILED]",
+    "一期指针过时仍应 FAIL [STALE-POINTER]（与二期独立）",
+    "无台账文件应跳过 OK"
+  ],
   "scripts/check-test-globs.test.js": [
     "基线夹具应 PASS",
     "T1 子目录测试文件未被 glob 覆盖应 FAIL",

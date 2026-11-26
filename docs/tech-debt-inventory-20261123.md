@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| `verify:offline` | EXIT=0 / A/B **473 EQUIVALENT** / 1247 用例 0 fail / 110 known-evolution |
+| `verify:offline` | EXIT=0 / A/B **473 EQUIVALENT** / 1256 用例 0 fail / 110 known-evolution |
 | `_shared` 同步门禁 | ALL OK |
 | 空 catch 基线 | **200 处**（C 类有意设计 190 / B 类 10 维持不修；2026-11-26 刷新对齐活水位，baseline generated_at=2026-11-25，原基线 204） |
 | 体验版 | **v1.6.25**（HEAD `966f009b`，已推送，deploy-log 实证；包体 891.6KB / 主包 680.5KB < 2MB） |
@@ -30,7 +30,7 @@
 | **P3-44** | 规则配额门禁无 §-级字节预算 | 配额治理 | `scripts/check-rules-size.js` 加单节字节门禁（2026-11-25） | 单章节可无界膨胀 | **✅ 已实现（2026-11-25）**：单节 >targetBytes 50% warn / >80% fail；当前最大节 §9=7504B < 水位 8704B，0 误报 | 单节超水位时下沉归档 |
 | **P3-45** | 规则降级为技能的规避路径未登记 | 配额治理 | 技能/记忆/docs 不计量 | 紧急变更可能被「降级」规避配额 | **已加下沉登记表（2026-11-25，见下方附表）** | 新增规则下沉必须登记；发现未登记下沉视为规避 |
 | **P3-46** | 「支付提醒」订阅链仅 Android 单端真机验证 | 真机补验 | REGISTRY #171 | iOS 锁屏通知/点击路由未实证 | **有 iOS 条件时补验** | 待 iOS 测试设备 |
-| **P3-47** | 台账头部「现行唯一」指针可指向过时归档（专家评审 6.2） | 台账治理 | 头部声明行首个匹配的台账文件名 ≠ 自身（6.2 同类：1105 已降归档曾被头部引用致口径脱节） | 读者/脚本以过时台账为真值，计数与处置全错 | **✅ 已实现一期门禁（2026-11-26）**：`check-tech-debt-header.js`（verify + verify:offline 双挂），缺声明 [NO-DECL] / 指针错 [STALE-POINTER] 即 FAIL；**二期计数对齐门禁已立项（2026-11-26），待实现** | 头部关键计数（A/B/用例/known/余量/版本号/generated_at）与 test-manifest / check-rules-size 实测对齐 |
+| **P3-47** | 台账头部指针可指向过时归档 + 关键计数可与真值脱节（专家评审 6.2） | 台账治理 | 头部声明行首个匹配的台账文件名 ≠ 自身（6.2 同类：1105 已降归档曾被头部引用致口径脱节）；或头部「关键计数」表数值与实测不一致 | 读者/脚本以过时台账为真值，计数与处置全错 | **✅ 已实现（2026-11-26）**：`check-tech-debt-header.js`（verify + verify:offline 双挂）；一期指针 [NO-DECL]/[STALE-POINTER] FAIL；二期计数对齐 [COUNT-DRIFT]/[MISSING-COUNT]/[UNPARSEABLE]/[TRUTH-MEASURE-FAILED] FAIL | 9 项自测全过 + verify:offline 全链绿；二期守护 A/B 总数+known（spawn ab_equivalence 解析 stdout）/ 用例总数（test-manifest 求和）/ 空 catch 总数+generated_at（silent-catch-baseline）/ 体验版版本号（deploy-log 最后一条）；A/B spawn 使 verify 每次 +约 7s；未守：配额余量（check-rules-size 已守）、体验版 HEAD 哈希（留待三期） |
 | **P3-48** | 含中文 .ps1 缺 UTF-8 BOM 致 PS5 ParserError（专家评审 6.6） | 编码/部署 | `scripts/check-ps1-bom.js`；全仓 40 .ps1 dry-run 实测 6 处违规 | PS5 下含中文脚本静默解析失败，sync/backup 链路中断 | **✅ 已实现门禁 + 修 6 处存量（2026-11-26）**：缺 BOM 且含非 ASCII → FAIL [BOM-MISSING]（纯 ASCII 缺 BOM 不强制，避免 15 个生成型 sync-*.ps1 误报）；已修 backup.ps1 + sync-{audit,credit-rules,heal,money-rules,partner-audit}.ps1 | 生成型 sync-*.ps1 源头补 BOM（待 sync 生成脚本改造） |
 
 ### P3-45 规则下沉登记表（配额腾挪可审计，2026-11-25 建立）
