@@ -1,7 +1,7 @@
 {
   "note": "常驻规则体系水位（T-7.34/T-7.36/T-7.39 防复发）。改规则后必须评估：inject 净增长 > rateLimitBytes、或已超 l0.targetBytes 时任何净增 → FAIL；conditional / 全量归档 净增长超各自速率门 → FAIL；.trae/rules.md 被写回正文（超 pointerMaxBytes 或出现章节标题）→ FAIL；缩水 > staleToleranceBytes 会提示刷新本文件。更新本文件属于「显式评审动作」，须单独 commit 并写理由。",
   "updatedAt": "2026-11-26",
-  "updatedBy": "水位刷新（显式评审动作）2026-11-26：双代理交叉评审（zhaoren-tech-review，2/2 高置信）发现 baseline.injectBytes=16659 较干净 HEAD 活水位实测 17405B 已漂移 +746B 且无告警（[BASELINE-STALE] 只告警缩水、不告警增长），已吃掉 73% 速率预算（rateLimitBytes=1024B），致下一条 core 规则再增 278B 即触发 [RATE] 假阳性 FAIL（刀刃态：距 [QUOTA] 仅 3B、距 [RATE] 仅 278B）。本次将 injectBytes 校准至实测 17405B，使单提交速率预算从 278B 满血恢复到 1024B。未改动 targetBytes（17408B）/ rateLimitBytes（1024B）/ archiveFullBytes / 硬顶等任何判据——仅修漂移，不放松护栏。谁批：用户批准「第一步 refresh baseline 水位止血 + 速率满血」。【历史·2026-11-19】水位校准（显式评审动作）2026-11-19：基线自 2026-11-17（a523263e，injectBytes=15894 / archiveFullBytes=136560）后，§42、§43 先后落地但未同步刷新基线，已过期——干净 HEAD 实测 inject=16659B、archive=142790B，累计漂移 inject +765B / archive +6230B，致本次 §44 入库触发 [RATE]/[RATE-ARCHIVE] 假阳性（本次实测增长 inject +388B / archive +2163B 本均在速率限内）。本次将基线校准至干净 HEAD 实测值，使 §44 提交的真实增长被诚实计量。未改动 targetBytes（17408B）/ rateLimitBytes（1024B）/ archiveRateLimitBytes（8192B）/ 硬顶等判据。谁批：用户批准「A 升 core §44，B/C/D 入技能」经验沉淀（含落笔+commit），本基线刷新为完成门禁核验所必需。",
+  "updatedBy": "目标位上调（显式评审动作）2026-11-26：用户批准按方案A将 l0.targetBytes 17408→19456（距 TARGET_UPPER_LIMIT 20480 留 1024B 余量，合规不触发 [TARGET-CAP]）。效果：headroom 3B→2051B，[L0-HEADROOM] 告警消除；[QUOTA] 阻塞点后移 2048B（17409→19457），新增 2048B 真实可用空间；P3-44 单节阈值随 target 缩放（warnAt 8704→9728 / failAt 13926→15565），当前最大节 §9=7504B 仍 < warnAt，0 误报。未改 rateLimitBytes(1024)/硬顶(30720)/maxFiles/maxItems；配合本 commit 前已完成的 injectBytes 刷新(16659→17405，速率满血)，构成完整方案A。谁批：用户批准「按方案A执行，将targetBytes上调至19456」（含双代理交叉评审 2/2 结论）。【第一步·2026-11-26】水位刷新（显式评审动作）2026-11-26：双代理交叉评审（zhaoren-tech-review，2/2 高置信）发现 baseline.injectBytes=16659 较干净 HEAD 活水位实测 17405B 已漂移 +746B 且无告警（[BASELINE-STALE] 只告警缩水、不告警增长），已吃掉 73% 速率预算（rateLimitBytes=1024B），致下一条 core 规则再增 278B 即触发 [RATE] 假阳性 FAIL（刀刃态：距 [QUOTA] 仅 3B、距 [RATE] 仅 278B）。本次将 injectBytes 校准至实测 17405B，使单提交速率预算从 278B 满血恢复到 1024B。未改动 targetBytes（17408B）/ rateLimitBytes（1024B）/ archiveFullBytes / 硬顶等任何判据——仅修漂移，不放松护栏。谁批：用户批准「第一步 refresh baseline 水位止血 + 速率满血」。【历史·2026-11-19】水位校准（显式评审动作）2026-11-19：基线自 2026-11-17（a523263e，injectBytes=15894 / archiveFullBytes=136560）后，§42、§43 先后落地但未同步刷新基线，已过期——干净 HEAD 实测 inject=16659B、archive=142790B，累计漂移 inject +765B / archive +6230B，致本次 §44 入库触发 [RATE]/[RATE-ARCHIVE] 假阳性（本次实测增长 inject +388B / archive +2163B 本均在速率限内）。本次将基线校准至干净 HEAD 实测值，使 §44 提交的真实增长被诚实计量。未改动 targetBytes（17408B）/ rateLimitBytes（1024B）/ archiveRateLimitBytes（8192B）/ 硬顶等判据。谁批：用户批准「A 升 core §44，B/C/D 入技能」经验沉淀（含落笔+commit），本基线刷新为完成门禁核验所必需。",
   "injectBytes": 17405,
   "injectFiles": 2,
   "injectSections": 12,
@@ -15,6 +15,6 @@
   "l0": {
     "maxFiles": 3,
     "maxItems": 22,
-    "targetBytes": 17408
+    "targetBytes": 19456
   }
 }
