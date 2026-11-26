@@ -793,3 +793,21 @@ alwaysApply: true
 
 **R5 体验版上传的 IDE 端口抖动**：`cli.bat upload` 报 `IDE may already started at port 28023` + `initialize error: wait IDE port timeout` 时，先用 `Test-NetConnection 127.0.0.1 -Port <端口>` 确认端口在听；在听则**重试一次**即可成功（IDE 存活但 CLI 首连超时的已知抖动），不得据此判定 CLI 损坏或改配置。若端口不在听，才按 `zhaoren-frequent-flows` 流程 2 查 IDE 服务端口开关。
 
+
+## 46. verify 真值判定与残留排障（2026-11-26 实证新增）
+
+> 背景：2026-11-26 生成 HANDOFF 时实跑 `npm run verify:offline` 返回 EXIT=1（红），但台账头部「关键计数」表仍声明 `verify:offline EXIT=0`，且 P3-47 二期门禁 `check-tech-debt-header.js` 单独跑仍 EXIT=0。三者看似矛盾，暴露两个判定盲区，固化为本节。
+
+**R1 全链绿的判定只能信 `npm run verify:offline` 的 EXIT**：
+- P3-47 二期门禁（check-tech-debt-header.js）只校验台账头部「关键计数」表内 4 项（A/B / 用例 / 空 catch / 体验版版本号）与实测真值对齐，**不校验头部声明的「verify:offline EXIT=0」是否为真**——门禁自身就在 verify 链内，无法自证全链绿。
+- 本次实证：9 个 `cloudfunctions/*/__baseline_tmp_*.js` 残留致全链 verify 红（链在 check-sub-msg-consistency 处中断，后续 npm test 未跑），但台账头部仍写 EXIT=0、check-tech-debt-header 仍绿（EXIT=0）——单段门禁绿 ≠ 全链绿，台账声明 ≠ 实测真值。
+- 纪律：宣称 verify 绿前必须自己跑 `npm run verify:offline` 看 EXIT，不得仅凭某段门禁绿、或台账头部写 EXIT=0、或助手记忆口径就下结论。
+
+**R2 verify 红先查 `.gitignore` 忽略的临时残留**：
+- `cloudfunctions/*/__baseline_tmp_*.js` 是部署基线复制残留，被 `.gitignore` 的 `cloudfunctions/*/__baseline_tmp*.js` 规则忽略，故 `git status` 看不到；但 `check-sub-msg-consistency.js` 等扫描类门禁扫描目录下全部 .js 不过滤 gitignore，会扫到裸调 `subscribeMessage.send` 触发告警，致 verify 红，且链在该检查处中断、后续 `npm test` 不执行（造成「用例数拿不到」假象）。
+- 清理法：先 `Get-ChildItem -Recurse cloudfunctions -Filter '__baseline_tmp_*'` dry-run 列清单，确认 `cloudfunctions_baseline/*.js` 正本不在删除范围内（禁删正本），再 `Remove-Item`，删后复跑 `npm run verify:offline` 至 EXIT=0。
+- 通用：凡 verify 红且根因指向「某目录下扫描到不该存在的文件」，先查是否 gitignore 忽略的残留，再决定清理还是修门禁过滤；清理前禁止跳过 verify 继续改业务代码。
+
+**R3（可选优化，三期）**：在 verify 链外另起独立探针校验「上一次 verify 是否真绿」（如读 verify 日志退出码文件），或台账头部不再写 EXIT 声明而只写可被门禁校验的 4 项计数，消除 R1 盲区。本期不做，记为 P3-47 可选优化，不阻塞。
+
+- 与既有规则关系：§41 验证前置（同向：落笔前基线/落笔后复跑，本节补「判定真值来源」）；core §46 为本节摘要。
