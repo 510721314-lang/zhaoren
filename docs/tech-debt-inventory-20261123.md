@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| `verify:offline` | EXIT=0 / A/B **473 EQUIVALENT** / 1262 用例 0 fail / 110 known-evolution |
+| `verify:offline` | EXIT=0 / A/B **473 EQUIVALENT** / 1263 用例 0 fail / 110 known-evolution |
 | `_shared` 同步门禁 | ALL OK |
 | 空 catch 基线 | **200 处**（C 类有意设计 190 / B 类 10 维持不修；2026-11-26 刷新对齐活水位，baseline generated_at=2026-11-25，原基线 204） |
 | 体验版 | **v1.6.25**（HEAD `966f009b`，已推送，deploy-log 实证；包体 891.6KB / 主包 680.5KB < 2MB） |

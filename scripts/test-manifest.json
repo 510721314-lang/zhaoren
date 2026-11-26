@@ -1329,7 +1329,8 @@
     "规则配额 max§ 漂移应 FAIL [COUNT-DRIFT]（三期）",
     "体验版 HEAD 哈希漂移应 FAIL [COUNT-DRIFT]（三期）",
     "缺少规则配额计数行应 FAIL [MISSING-COUNT]（三期）",
-    "check-rules-size 测量失败应 FAIL [TRUTH-MEASURE-FAILED]（三期）"
+    "check-rules-size 测量失败应 FAIL [TRUTH-MEASURE-FAILED]（三期）",
+    "check-rules-size 缺 max§ 应 FAIL [UNPARSEABLE]（评审修复 #3，原静默跳过）"
   ],
   "scripts/check-test-globs.test.js": [
     "基线夹具应 PASS",

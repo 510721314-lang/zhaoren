@@ -186,6 +186,8 @@ if (!quotaRow) {
     const declMax = num(qr, /max§\s*(\d+)/);
     if (truth.quota && declHeadroom !== null && declHeadroom !== truth.quota.headroom)
         fails.push(`[COUNT-DRIFT] 规则配额余量：台账声明 ${declHeadroom}B，实测 ${truth.quota.headroom}B（inject ${truth.quota.used}/${truth.quota.cap}）`);
+    if (truth.quota && truth.quota.maxSection === null)
+        fails.push('[UNPARSEABLE] check-rules-size 实测未解析到 max§（无法核对台账 max§ 声明）'); // 评审修复 #3：原为静默跳过（maxSection null 时 max§ 漂移不被拦）
     if (truth.quota && truth.quota.maxSection !== null && declMax !== null && declMax !== truth.quota.maxSection)
         fails.push(`[COUNT-DRIFT] 规则配额 max§：台账声明 ${declMax}，实测 ${truth.quota.maxSection}`);
     if (declHeadroom === null) fails.push('[UNPARSEABLE] 规则配额行未解析到「余量 N B」数值');

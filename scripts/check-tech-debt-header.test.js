@@ -14,6 +14,7 @@ const STUB_AB_FAIL = "process.exitCode = 1;\n"; // 不打印汇总行 → 触发
 // stub check-rules-size：打印与真实脚本同格式汇总行，供三期解析配额余量/max§（避免依赖真实规则文件）
 const STUB_RULES_SIZE = "console.log('RULES-SIZE OK inject 17733B/19456B (硬顶 30720B) | conditional 1011B/2048B | archive 2755B(不计) | max§ 46');\n";
 const STUB_RULES_SIZE_FAIL = "process.exitCode = 1;\n"; // 不打印汇总行 → 触发 TRUTH-MEASURE-FAILED
+const STUB_RULES_SIZE_NO_MAX = "console.log('RULES-SIZE OK inject 17733B/19456B (硬顶 30720B) | conditional 1011B/2048B');\n"; // 有 inject 无 max§ → 评审修复 #3 断言 [UNPARSEABLE]
 
 function mkFixture(files) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zr-tdh-'));
@@ -43,8 +44,9 @@ const baseTruth = (over = {}) => ({
     'scripts/check-rules-size.js': STUB_RULES_SIZE, // 三期配额真值 stub
     'scripts/test-manifest.json': JSON.stringify({ 'a.test.js': ['t1', 't2'], 'b.test.js': ['t3'] }), // 3 用例 / 2 文件
     'scripts/silent-catch-baseline.json': JSON.stringify({ total: 200, generated_at: '2026-11-25' }),
-    // deploy-log：三期取最后一条体验版行的第 3 列 commit 作 HEAD 真值（v1.6.24 行用不同 SHA 验证"取最后一条"）
-    'docs/deploy-log.md': '| 2026-11-20 | 1111111 | 体验版 v1.6.24 上传 |\n| 2026-11-25 | 966f009b | 体验版 **v1.6.25** 上传 |\n',
+    // deploy-log：三期取最后一条体验版行的第 3 列（split[3]「前 commit」）作 HEAD 真值（评审修复 #1：夹具与真实 7 列表头同构，覆盖 col3 路径，不再走 fallback）
+    // v1.6.24 行用不同 SHA 验证"取最后一条"；表头/分隔行不含「体验版 v」不会被匹配
+    'docs/deploy-log.md': '| 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |\n|---|---|---|---|---|---|---|\n| 2026-11-20 | 小程序（体验版上传） | 1111111 | 1111111 | 未归档 | 1111111 | 体验版 v1.6.24 上传：col3 路径覆盖 |\n| 2026-11-25 | 小程序（体验版上传） | 966f009b | 966f009b | 未归档 | 966f009b | 体验版 **v1.6.25** 上传：col3 路径覆盖 |\n',
     ...over,
 });
 
@@ -214,5 +216,16 @@ test('check-rules-size 测量失败应 FAIL [TRUTH-MEASURE-FAILED]（三期）',
         const r = spawnSync(process.execPath, [GATE], { env, encoding: 'utf8' });
         assert.strictEqual(r.status, 1, `${r.stdout}${r.stderr}`);
         assert.match(`${r.stdout || ''}${r.stderr || ''}`, /\[TRUTH-MEASURE-FAILED\] check-rules-size/);
+    });
+});
+
+test('check-rules-size 缺 max§ 应 FAIL [UNPARSEABLE]（评审修复 #3，原静默跳过）', () => {
+    withFixture({
+        ...baseTruth({ 'scripts/check-rules-size.js': STUB_RULES_SIZE_NO_MAX }),
+        'docs/tech-debt-inventory-20261123.md': baseLedger(),
+    }, dir => {
+        const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
+        assert.strictEqual(code, 1, out);
+        assert.match(out, /\[UNPARSEABLE\] check-rules-size 实测未解析到 max§/);
     });
 });
