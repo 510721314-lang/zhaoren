@@ -1,4 +1,4 @@
-# zhaoren Cloud Backup Script L2+L3+L5
+﻿# zhaoren Cloud Backup Script L2+L3+L5
 # Usage: .\backup.ps1 [-BackupDir C:\zhaoren_backup_YYYYMMDD] [-AdminKey AWK-...]
 #        or set $env:ADMIN_WEB_KEY before running
 param(

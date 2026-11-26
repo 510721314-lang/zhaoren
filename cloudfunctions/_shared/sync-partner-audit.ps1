@@ -1,4 +1,4 @@
-# Sync partner_audit.js (canonical) -> local copies in partner-action & admin-action
+﻿# Sync partner_audit.js (canonical) -> local copies in partner-action & admin-action
 # Usage: powershell -File cloudfunctions/_shared/sync-partner-audit.ps1
 # Canonical source: _shared/partner_audit.js ; run this script after ANY edit to it.
 # 2026-11-19 评审修复: heal.js(新含 healAuditLock) require('./partner_audit') —— demand-match/order-create

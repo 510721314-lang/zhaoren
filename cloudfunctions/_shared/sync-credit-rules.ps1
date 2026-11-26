@@ -1,4 +1,4 @@
-# Sync credit_rules.js (canonical) -> local copies in evaluation-submit, order-timer, order-action, admin-action
+﻿# Sync credit_rules.js (canonical) -> local copies in evaluation-submit, order-timer, order-action, admin-action
 # Usage: powershell -File cloudfunctions/_shared/sync-credit-rules.ps1
 # Canonical source: _shared/credit_rules.js ; run this script after ANY edit to it.
 # 2026-11-24 W2: 新增 order-action / admin-action 目标(W3 取消扣分 / W5 强制取消消费; 评审确认原无副本)

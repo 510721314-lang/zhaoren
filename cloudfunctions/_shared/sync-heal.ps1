@@ -1,4 +1,4 @@
-# Sync heal.js (canonical) -> local copies in demand-match / order-create / partner-action
+﻿# Sync heal.js (canonical) -> local copies in demand-match / order-create / partner-action
 # Usage: powershell -File cloudfunctions/_shared/sync-heal.ps1
 # Canonical source: _shared/heal.js ; run this script after ANY edit to it.
 # 注意: heal.js require('./partner_audit') —— 消费方副本由 sync-partner-audit.ps1 分发

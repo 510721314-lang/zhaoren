@@ -1,4 +1,4 @@
-# Sync audit.js (canonical) -> local copies in the cloud functions that share it
+﻿# Sync audit.js (canonical) -> local copies in the cloud functions that share it
 # Usage: powershell -File cloudfunctions/_shared/sync-audit.ps1
 # Canonical source: _shared/audit.js ; run this script after ANY edit to it.
 $ErrorActionPreference = 'Stop'

@@ -1,4 +1,4 @@
-# Sync money_rules.js (canonical) -> local copies in payment-mock, order-create, order-action, admin-action
+﻿# Sync money_rules.js (canonical) -> local copies in payment-mock, order-create, order-action, admin-action
 # Usage: powershell -File cloudfunctions/_shared/sync-money-rules.ps1
 # Canonical source: _shared/money_rules.js ; run this script after ANY edit to it.
 # 2026-11-24 W2: 新增 admin-action 目标(W4 裁决退款消费; 评审#6)
