@@ -24,7 +24,7 @@ function walk(dir) {
         }
         if (!ent.name.endsWith('.js')) continue;
         const rel = path.relative(root, abs).replace(/\\/g, '/');
-        if (ent.name === '_orig_baseline.js' || ent.name.endsWith('.test.js')) continue;
+        if (ent.name === '_orig_baseline.js' || ent.name.endsWith('.test.js') || ent.name.startsWith('__baseline_tmp_')) continue;   // E-6.50: ab_equivalence 临时基线副本不参与扫描
         if (ent.name === 'sub_msg.js') continue;   // 唯一允许的发送入口
         scanned++;
         const text = fs.readFileSync(abs, 'utf8').replace(/\r\n/g, '\n');

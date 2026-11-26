@@ -51,6 +51,14 @@ test('_orig_baseline.js 冻结基线豁免', () => {
   assert.strictEqual(r.code, 0, r.out);
 });
 
+test('__baseline_tmp_*.js ab_equivalence 临时基线豁免（E-6.50 防复发）', () => {
+  const root = fixture('tmpbaseline');
+  fs.writeFileSync(path.join(root, 'cloudfunctions', 'a', '__baseline_tmp_1234_1700000000000.js'), "await cloud.openapi.subscribeMessage.send({});\n");
+  const r = run(root);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.ok(r.out.includes('SUB-MSG OK'), r.out);
+});
+
 test('测试文件 mock 豁免', () => {
   const root = fixture('testfile');
   fs.writeFileSync(path.join(root, 'cloudfunctions', 'a', 'x.test.js'), "sdk.openapi.subscribeMessage.send({});\n");

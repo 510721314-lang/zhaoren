@@ -69,11 +69,17 @@ try {
     const abPath = process.env.AB_EQUIVALENCE_PATH
         ? path.resolve(process.env.AB_EQUIVALENCE_PATH)
         : path.join(root, 'cloudfunctions', '_shared', 'ab_equivalence.js');
-    const r = spawnSync(process.execPath, [abPath], { cwd: root, encoding: 'utf8', timeout: 30000, maxBuffer: 20 * 1024 * 1024 });
-    const out = `${r.stdout || ''}${r.stderr || ''}`;
-    const m = out.match(/A\/B EQUIVALENT: (\d+) cases.*?(\d+) known-evolution/);
-    if (!m) throw new Error(`ab_equivalence 未输出可解析结果（${r.error ? r.error.message : 'exit=' + r.status}）`);
-    truth.ab = { total: +m[1], known: +m[2] };
+    // E-6.50: ab_equivalence 测量偶发超时/系统抖动会假红；失败自动重试 1 次（间隔 1s），
+    // 重试仍失败才记 [TRUTH-MEASURE-FAILED]，消除「需人工串行重跑」的摩擦（不掩盖真问题，重试上限 1 次）。
+    const sleep = ms => { const t = Date.now(); while (Date.now() - t < ms) {} };
+    const measure = () => {
+        const r = spawnSync(process.execPath, [abPath], { cwd: root, encoding: 'utf8', timeout: 30000, maxBuffer: 20 * 1024 * 1024 });
+        const out = `${r.stdout || ''}${r.stderr || ''}`;
+        const m = out.match(/A\/B EQUIVALENT: (\d+) cases.*?(\d+) known-evolution/);
+        if (!m) throw new Error(`ab_equivalence 未输出可解析结果（${r.error ? r.error.message : 'exit=' + r.status}）`);
+        return { total: +m[1], known: +m[2] };
+    };
+    try { truth.ab = measure(); } catch (e1) { sleep(1000); truth.ab = measure(); }
 } catch (e) { fails.push(`[TRUTH-MEASURE-FAILED] ab_equivalence：${e.message}`); }
 
 try {

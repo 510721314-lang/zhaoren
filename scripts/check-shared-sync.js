@@ -145,7 +145,7 @@ function walkJs(dir, out = []) {
     if (n === 'node_modules') continue;
     const p = path.join(dir, n);
     if (fs.statSync(p).isDirectory()) walkJs(p, out);
-    else if (n.endsWith('.js')) out.push(p);
+    else if (n.endsWith('.js') && !n.startsWith('__baseline_tmp_')) out.push(p);   // E-6.50: ab_equivalence 临时基线副本不参与改名副本扫描
   }
   return out;
 }

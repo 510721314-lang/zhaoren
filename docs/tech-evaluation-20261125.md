@@ -102,9 +102,9 @@ check-syntax → check-miniprogram-syntax → check-ssot → check-collections-c
 
 ### 3.3 已知摩擦：并行竞态假红 ⚠️
 
-**结论**：`verify:offline` 与 `ab_equivalence` 并行时存在竞态假失败，需串行重跑确认，不影响基线正确性但拖慢效率。
+**结论**：`verify:offline` 与 `ab_equivalence` 并行时曾存在竞态假失败（2026-11-26 已根治，见 tech-evaluation-20261126 §3.3），不影响基线正确性但拖慢效率。
 
-**证据**：2026-11-25 实测，并行触发两次 `verify:offline` 时，前台一次被 `check-sub-msg-consistency` 扫到后台 `ab_equivalence` 生成的 `__baseline_tmp_*` 临时文件，报 2 个 `[SUBMSG-DIRECT]` 误报致 EXIT=1；后台权威跑 EXIT=0，串行重跑 EXIT=0，残留 `__baseline_tmp_*`=0。已登记为 E-6.50，判失败前须先查残留。
+**证据**：2026-11-25 实测，并行触发两次 `verify:offline` 时，前台一次被 `check-sub-msg-consistency` 扫到后台 `ab_equivalence` 生成的 `__baseline_tmp_*` 临时文件，报 2 个 `[SUBMSG-DIRECT]` 误报致 EXIT=1；后台权威跑 EXIT=0，串行重跑 EXIT=0，残留 `__baseline_tmp_*`=0。已登记为 E-6.50，判失败前须先查残留（2026-11-26 已根治：6 门禁加 `__baseline_tmp_` 前缀豁免 + ab spawn 重试，并发复现全绿）。
 
 ---
 

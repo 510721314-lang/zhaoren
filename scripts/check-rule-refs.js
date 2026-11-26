@@ -12,7 +12,7 @@ const root = process.env.RULES_ROOT ? path.resolve(process.env.RULES_ROOT) : pat
 const corePath = path.join(root, '.trae', 'rules', 'project-rules-core.md');
 const archivePath = path.join(root, '.trae', 'documents', 'project-rules-full-20261029.md');
 const SCAN_DIRS = ['docs', '.trae', 'cloudfunctions', 'miniprogram'];
-const SKIP = /node_modules|\.git|[/\\]dist[/\\]|[/\\]public[/\\]|_orig_baseline\.js/;
+const SKIP = /node_modules|\.git|[/\\]dist[/\\]|[/\\]public[/\\]|_orig_baseline\.js|__baseline_tmp_/;   // E-6.50: ab_equivalence 临时基线副本不参与断链校验
 // 历史不可变载体（追加型台账/快照）不参与断链校验：过去写法不改写，断链无修复意义
 const SKIP_HISTORY = /^docs\/(CHANGELOG\.md|HANDOFF-[0-9]+(?:-v\d+)?\.md|session-log\/|backup-report-[0-9]+\.md|tech-debt-delivery-report-[0-9]+\.md)/;
 

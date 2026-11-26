@@ -34,7 +34,7 @@ function scan() {
             const rel = path.relative(root, p).replace(/\\/g, '/');
             if (SKIP_DIR.test(rel)) continue;
             if (e.isDirectory()) { walk(p); continue; }
-            if (!e.name.endsWith('.js') || e.name.endsWith('.test.js')) continue;
+            if (!e.name.endsWith('.js') || e.name.endsWith('.test.js') || e.name.startsWith('__baseline_tmp_')) continue;   // E-6.50: ab_equivalence 临时基线副本不计入空 catch
             const n = countIn(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
             if (n > 0) out[rel] = n;
         }

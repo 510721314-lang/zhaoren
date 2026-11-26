@@ -16,7 +16,7 @@ const path = require('path');
 
 const root = process.env.RULES_ROOT ? path.resolve(process.env.RULES_ROOT) : path.resolve(__dirname, '..');
 const PRD_REL = 'PRD/PRD.md';
-const SKIP = /node_modules|\.git|[/\\]dist[/\\]|[/\\]public[/\\]|\.backup-lark|[/\\]coverage[/\\]|miniprogram_npm/;
+const SKIP = /node_modules|\.git|[/\\]dist[/\\]|[/\\]public[/\\]|\.backup-lark|[/\\]coverage[/\\]|miniprogram_npm|__baseline_tmp_/;   // E-6.50: ab_equivalence 临时基线副本不参与 PRD 漂移扫描
 
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 const exists = (p) => { try { fs.statSync(p); return true; } catch (e) { return false; } };

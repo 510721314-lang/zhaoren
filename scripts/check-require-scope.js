@@ -141,7 +141,7 @@ function collectFiles(dir, out) {
     if (e.name === 'node_modules') continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) collectFiles(p, out);
-    else if (SCAN_EXT.test(e.name)) out.push(p);
+    else if (SCAN_EXT.test(e.name) && !e.name.startsWith('__baseline_tmp_')) out.push(p);   // E-6.50: ab_equivalence 临时基线副本不参与 require 作用域校验
   }
   return out;
 }
