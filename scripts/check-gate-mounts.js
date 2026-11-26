@@ -38,6 +38,7 @@ const VERIFY_ONLY = new Set([
     'check-nightmask.js',                // 提审合规：功能不可用页必挂 night-mask（2026-11-02 补挂）
     'check-doc-links.js',                // live docs 链接可达（T-7.40）
     'check-ledger-placeholders.js',      // 台账占位/冲突标记（T-7.42）
+    'check-tech-debt-header.js',         // 台账头部指针一致性（P3-47，6.2 防复发）
     'check-test-globs.js',               // 测试 glob 覆盖（T-7.43）
     'check-test-manifest.js',            // 用例清单：静默删/改用例即 FAIL（2026-11-13 C27 误删实证）
     'check-sub-msg-consistency.js',      // 订阅发送唯一入口（2026-11-02 方案A）
