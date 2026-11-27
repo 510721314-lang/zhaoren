@@ -30,6 +30,7 @@ const num = (s, re) => { const m = s.match(re); return m ? parseInt(m[1], 10) : 
 const str = (s, re) => { const m = s.match(re); return m ? m[1] : null; };
 
 const fails = [];
+const warnings = []; // M11（2026-11-27）：不阻断的可见提示，仅输出不影响 exit
 
 // 最新台账：按文件名 8 位日期取最大（现行唯一台账应是日期最新者）
 const inventories = fs.existsSync(docsDir)
@@ -172,6 +173,9 @@ if (!betaRow) {
     if (truth.beta && truth.beta.sha) {
         if (declSha === null) fails.push('[MISSING-COUNT] 体验版行声明 HEAD 但未解析到有效哈希');
         else if (declSha !== truth.beta.sha) fails.push(`[COUNT-DRIFT] 体验版 HEAD 哈希：台账声明 ${declSha}，实测 ${truth.beta.sha}`);
+    } else if (truth.beta) {
+        // M11（2026-11-27 修复）：deploy-log 最后一条体验版行无 SHA 时记 WARN（不阻断），原静默跳过不可见
+        warnings.push('[WARN] deploy-log 最后一条体验版行未解析到 commit SHA，体验版 HEAD 哈希校验已跳过（不阻断，建议补登 SHA）');
     }
     if (declBeta === null) fails.push('[UNPARSEABLE] 体验版行未解析到 vX.Y.Z');
 }
@@ -197,5 +201,6 @@ if (fails.length) {
     for (const f of fails) console.error('FAIL ' + f);
     process.exit(1);
 }
+for (const w of warnings) console.error('WARN ' + w); // M11：不阻断，仅可见提示
 console.log(`TECH-DEBT-HEADER OK: 现行台账 docs/${selfBase} 指针一致 + 关键计数对齐（共 ${inventories.length} 份台账，其余为历史归档）`);
 process.exit(0);

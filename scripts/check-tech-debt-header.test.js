@@ -229,3 +229,17 @@ test('check-rules-size 缺 max§ 应 FAIL [UNPARSEABLE]（评审修复 #3，原�
         assert.match(out, /\[UNPARSEABLE\] check-rules-size 实测未解析到 max§/);
     });
 });
+
+// M11（2026-11-27 修复）：deploy-log 体验版行无 commit SHA 时应记 [WARN] 但不阻断（原静默跳过不可见）
+test('deploy-log 体验版行无 SHA 应 WARN 不阻断（M11，原静默跳过）', () => {
+    const noShaLog = '| 日期 | 函数 | 前 commit | 后 commit | 部署前 bundle | 回滚点 | 说明 |\n|---|---|---|---|---|---|---|\n| 2026-11-25 | 小程序（体验版上传） | 无SHA | 无SHA | 未归档 | 无SHA | 体验版 **v1.6.25** 上传：col3 无 hex 触发 M11 WARN |\n';
+    withFixture({
+        ...baseTruth({ 'docs/deploy-log.md': noShaLog }),
+        'docs/tech-debt-inventory-20261123.md': baseLedger(),
+    }, dir => {
+        const { code, out } = run(dir, path.join(dir, 'stub-ab.js'));
+        assert.strictEqual(code, 0, out); // 不阻断，exit 0
+        assert.match(out, /\[WARN\]/); // 有可见提示
+        assert.doesNotMatch(out, /FAIL/); // 无 FAIL
+    });
+});
