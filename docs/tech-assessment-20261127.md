@@ -94,7 +94,7 @@
 1. **提审前必做（人工）**：iOS+Android 真机全链路回归（登录 / 发布 / 匹配 / 订单 / 模拟支付 / IM / SOS / 后台管理），留证入 FUNCTION-REGISTRY。
 2. **资质到位后切换**：mock 支付 → 真实微信支付、mock 人脸 → 真实核身、补短信 SDK（P1-5 / P1-6）。
 3. **长期演进（可选）**：关键云函数 action 逐步引入 TypeScript 或 JSDoc 类型注解，提升接口契约编译期保障。
-4. **监控告警**：order-timer 心跳、配额耗尽降级、广场 / 附近查询分页上限，当前为台账建议未落地。
+4. **监控告警**：经 2026-11-27 实证复核，三项均已落地——①order-timer 心跳（order-timer/index.js L207 写 `error_scan_heartbeat_at`，[check-heartbeat.ps1](file:///c:/zhaoren/scripts/check-heartbeat.ps1) 检查 <30min，ops-runbook 登记为每日巡检）；②订阅消息配额耗尽降级（order-timer L290/L397 catch 吞掉不阻断主流程）；③广场/附近分页上限（home-action `HOME_GROUP_SIZE=8`/`SCENE_PAGE_SIZE=50`，前端 `CONFIG.PAGING`，square.js 已 `@VERIFIED`）。原"未落地"表述系无证据泛化，已修正。
 
 ---
 
