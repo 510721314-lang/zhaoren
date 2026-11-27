@@ -101,7 +101,7 @@ alwaysApply: true
 - **平台记忆只作旁证不作凭据**：`C:\Users\DC\.trae-cn\memory\projects\-c-zhaoren--p2-f953b3c8ed7b028eaf39\YYYYMMDD\session_memory_*.jsonl` 当日存在，仅证明平台侧已写；缺失或内容被压缩时**以 docs + git 为准**，禁止向用户声称"已保存"而无 docs 凭据。
 - 存档提交沿用 §3/§9 纪律：单独 docs commit、不与代码混合、commit 与 push 分两步；一般会话不强制每次 push，收工日按备份六通道核对时一并 push。
 
-## 10–46. 实证型高危条款
+## 10–47. 实证型高危条款
 
 - §10–§13 重构/上线：A/B零差≠正确须补盲区；先commit再deploy；写操作防连点。
 - §14–§17 文案/迁移：toast≤14字；配置只认实测；部署逐个核验；迁移6项自证。
@@ -121,6 +121,7 @@ alwaysApply: true
 - §44 push判据(2026-11-19)：禁凭exit code/空输出判成功，须`git ls-remote origin master`直连核对SHA==本地HEAD；ls-remote须带与push相同代理覆盖(防失效代理Connection reset假失败)；本地origin/master仅旁证不作准；声明已推送须附ls-remote实证值→zhaoren-frequent-flows流程4。
 - §45 通知：三段取证(im_message/im_conversation/system_notice)；writeNotice 4副本同批改；覆盖顺延created_at；提示音走alert-feedback。
 - §46 verify真值判定(2026-11-26)：宣称全链绿必须实跑`npm run verify:offline`看EXIT，禁凭单段门禁绿或台账头部"EXIT=0"声明判定（门禁自身在链内无法自证全链绿，P3-47盲区见HANDOFF E-6.66）；verify红先查`.gitignore`忽略的临时残留（扫描类门禁不过滤gitignore），清理前禁跳过verify改业务代码（见E-6.67）。
+- §47 Audits入口与automator连接诊断(2026-11-27)：①Wedata「体验分析」(可视化日志/会话回放)≠体验评分(Audits)；Audits只能在开发者工具GUI「工具→Audits」跑，Web端无入口。②原生automator.connect只认wsEndpoint，传{port}报Failed connecting to undefined，正确connect({wsEndpoint:'ws://127.0.0.1:9420'})（MCP封装miniprogram_connect({port})认port，勿混）。③connect成功≠可调试：调API报Remote debug connection lost=DevTools调试通道未就绪，非代码问题，回退手工。详见归档§47。
 
 ## 附录A · 不可变红线（`.trae/rules.md` §三）
 

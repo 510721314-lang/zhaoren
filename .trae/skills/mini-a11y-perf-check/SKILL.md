@@ -30,6 +30,7 @@ description: Run accessibility and performance audits for existing WeChat mini p
 - 首屏渲染 < 1s，避免 setData 过大
 - 页面切换无白屏，用骨架屏替代"加载中"文案
 - 图片按需加载，列表图片加 `lazy-load`
+- **入口澄清（2026-11-27，规则 §47）**：体验评分只能在**开发者工具 GUI**「工具→Audits」跑并当场出分；`wedata.weixin.qq.com/.../experience/sessions` 是 We分析「体验分析」（可视化日志/会话回放/热力图），**不是**体验评分，Web 端拿不到分数。拿到该链接不要当作 Audits 数据源。
 
 ## 性能优化
 

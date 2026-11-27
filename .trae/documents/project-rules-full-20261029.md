@@ -811,3 +811,28 @@ alwaysApply: true
 **R3（可选优化，三期）**：在 verify 链外另起独立探针校验「上一次 verify 是否真绿」（如读 verify 日志退出码文件），或台账头部不再写 EXIT 声明而只写可被门禁校验的 4 项计数，消除 R1 盲区。本期不做，记为 P3-47 可选优化，不阻塞。
 
 - 与既有规则关系：§41 验证前置（同向：落笔前基线/落笔后复跑，本节补「判定真值来源」）；core §46 为本节摘要。
+
+
+## 47. Audits 入口澄清与 miniprogram-automator 连接诊断（2026-11-27 实证新增）
+
+> 背景：2026-11-27 用户给 `https://wedata.weixin.qq.com/mp2/experience/sessions?source=33` 链接要求跑 Audits 体验评分；随后尝试用 miniprogram-automator 自动化驱动路径覆盖未果。踩坑后固化三条可复用结论。
+
+**R1 Wedata「体验分析」≠ 体验评分（Audits）**：
+- `wedata.weixin.qq.com/mp2/experience/sessions` 是 We分析 的「体验分析 → 会话列表」，产出是**可视化日志 / 会话回放 / 热力图**（用户行为分析），不给小程序体验打分。
+- 体验评分（Audits / Experience Score）只能在**微信开发者工具 GUI** 跑：顶部菜单「工具」→「Audits」（或「体验评分」），当场出总分 + 首屏/内存/CPU/流量/可访问性等维度得分 + 优化建议。**Web 端无此入口**。
+- 实证：2026-11-27 用 browser_use 子代理扫码登录 We分析（账号「找个人帮忙」基础版），DOM 全文搜不到「总分/首屏/渲染/内存/CPU/流量/可访问性」等评分关键词，页面只有可视化日志（152 条，11-20~11-27）、热力图、转化分析 Beta。
+- 纪律：拿到 wedata experience 链接不要当作体验评分数据源；要 Audits 分数只能让用户在开发者工具 GUI 跑并截图。
+
+**R2 原生 automator.connect 只认 wsEndpoint，不认 port**：
+- 传 `automator.connect({ port: 9420 })` 报 `Failed connecting to undefined`——Launcher.js 把 `wsEndpoint` 解析为 undefined（`port` 字段被忽略）。
+- 正确写法：`automator.connect({ wsEndpoint: 'ws://127.0.0.1:9420' })`。
+- 注意：MCP 封装的 `miniprogram_connect({ port: 9420 })`（@creatoria/miniapp-mcp）是另一套 API，**认 port**——两套 API 参数口径不同，勿混淆。归档既有记录里写的 `miniprogram_connect({port})` 指 MCP 封装，非原生 connect。
+- 实证：本会话传 port 报错；改 wsEndpoint 后 connect 成功。项目 `tests/e2e/devtools-launcher.js`、`smoke-pages.js` 等所有能跑通的脚本均传 wsEndpoint。
+
+**R3 connect 成功 ≠ 可调试（Remote debug connection lost）**：
+- 现象：`connect()` 返回成功，但调用任何 API（`currentPage()` / `reLaunch()` / `systemInfo()`）立即报 `Remote debug connection lost`。
+- 含义：DevTools 自动化 WebSocket 通道建立了，但**项目窗口的调试后端未就绪**——常见原因：①DevTools 项目窗口未激活/在后台；②模拟器未编译渲染（页面栈为空）；③DevTools 调试端口与窗口不匹配。
+- 处置：这不是代码/脚本问题，重连/重试通常无效。回退**手工操作**（用户在 GUI 里操作小程序），或先在 DevTools GUI 手动点一次「编译」让模拟器渲染首页后再试 connect。
+- 实证：2026-11-27 connect OK 后 currentPage / reLaunch / systemInfo 全报 lost，轮询 120s 无果；用户决定改手工。
+
+- 与既有规则关系：本会话能力边界（无 computer-use MCP，RequestAuthorization 两次 invalid_service）属环境相关，不固化为通用规则；本节只固化可复用的入口/连接结论。core §47 为本节摘要。

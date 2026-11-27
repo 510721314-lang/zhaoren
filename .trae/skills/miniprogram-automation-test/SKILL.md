@@ -96,6 +96,14 @@ await mp.disconnect();
 
 完整 API 见 `node_modules/miniprogram-automator/out/MiniProgram.d.ts` 和 `Page.d.ts`。
 
+## 连接与通道故障（2026-11-27 实证）
+
+用例跑不起来时，**先按此排查 connect 级故障**（在「失败归因」之前）：
+
+1. **connect 报 `Failed connecting to undefined`**：传了 `{ port: 9420 }`。原生 `automator.connect` **只认 `wsEndpoint`，不认 `port`**——`port` 字段被忽略，`wsEndpoint` 为 undefined。改用 `connect({ wsEndpoint: 'ws://127.0.0.1:9420' })`。（注：MCP 封装 `miniprogram_connect({port})` 认 port，是另一套 API，勿混。详见规则 §47。）
+2. **connect 成功但调 API 全报 `Remote debug connection lost`**：通道建立了但项目窗口调试后端未就绪（窗口未激活 / 模拟器未编译渲染 / 端口与窗口不匹配）。**不是脚本问题**，重试通常无效。处置：先在 DevTools GUI 手动点「编译」让模拟器渲染首页，或回退手工操作。
+3. **端口 9420 不在听**：DevTools 未开自动化端口。跑 `cli.bat auto --project C:\zhaoren --auto-port 9420`（见上文「手动启动」），或用 `devtools-launcher.js` 的 `startDevTools()`。
+
 ## 失败归因（核心纪律）
 
 用例失败时，按此顺序排查，**先排除脚本缺陷再报产品 BUG**：
