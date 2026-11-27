@@ -1,3 +1,4 @@
+/* @VERIFIED 2026-11-27 已真机验证：token 收敛（服务卡封面占位字色 #fff→var(--text-invert)），浅色零变化/暗色跟随，iOS+Android 无异常，体验版 v1.6.33 */
 page { background: var(--bg-page); }
 .service { min-height: 100vh; padding-bottom: 40rpx; }
 

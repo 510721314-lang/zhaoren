@@ -1,3 +1,4 @@
+/* @VERIFIED 2026-11-27 已真机验证：px→rpx 换算（保留 1px 物理边框与 env(safe-area-inset-bottom)），弹层视觉正常，iOS+Android 无异常，体验版 v1.6.33 */
 .sheet-mask {
   position: fixed;
   inset: 0;

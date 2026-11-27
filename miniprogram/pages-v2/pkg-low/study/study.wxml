@@ -1,3 +1,4 @@
+<!-- @VERIFIED 2026-11-27 已真机验证：章节列表加载态改 ui-skeleton 骨架屏，浅色+暗色 iOS+Android 无异常，体验版 v1.6.33 -->
 <view class="study">
   <view class="study__head">
     <text class="study__title">学习中心</text>

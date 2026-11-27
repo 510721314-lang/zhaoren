@@ -1,3 +1,4 @@
+/* @VERIFIED 2026-11-27 已真机验证：骨架屏 .study__sk 留白，浅色+暗色 iOS+Android 无异常，体验版 v1.6.33 */
 .study {
   min-height: 100vh;
   background: var(--bg-page);
