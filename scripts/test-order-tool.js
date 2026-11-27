@@ -30,7 +30,7 @@ function write(cmd) {
 }
 // 2026-11-06 加固：未知参数不再静默丢弃（曾因 `cleanup --only DBG` 的 --only 被忽略而执行全量删除）
 // 值项=1 表示必须跟值；cleanup 无任何参数，传任何 --xxx 一律报错，避免"以为只删一类实则删全部"
-const SPEC = { create: { status: 1, suffix: 1, 'start-hours': 1, 'from-order': 1 }, cleanup: {} };
+const SPEC = { create: { status: 1, suffix: 1, 'start-hours': 1, 'from-order': 1, count: 1, 'start-at': 1 }, cleanup: {} };
 function parseArgs(action) {
   const spec = SPEC[action] || {};
   const argv = process.argv.slice(3);
@@ -52,14 +52,18 @@ function parseArgs(action) {
 function create() {
   const a = parseArgs('create');
   const status = a.status || 'S2';
-  const suffix = a.suffix || 'X';
+  const suffixBase = a.suffix || 'X';
   const hours = a['start-hours'] !== undefined ? Number(a['start-hours']) : 3;
+  const count = a.count !== undefined ? Number(a.count) : 1;
+  const startAt = a['start-at'] !== undefined ? Number(a['start-at']) : 0;
   if (!['S1', 'S2'].includes(status)) throw new Error('status 仅支持 S1/S2');
   if (!Number.isFinite(hours)) throw new Error('--start-hours 必须是数字（小时，可为负）');
+  if (!Number.isFinite(count) || count < 1 || count > 100) throw new Error('--count 必须是 1~100 的整数');
+  if (startAt && (!Number.isFinite(startAt) || startAt < 1e12)) throw new Error('--start-at 必须是毫秒时间戳（如 2026-11-28 15:00 对应的 epoch ms）');
   const NOW = Date.now();
 
   // 模板：--from-order 指定时按 _id 克隆（用于让夹具参与方与登录账号一致）；
-  //       否则优先同状态真实单，再取最近任意真实单
+  //       否则优先同状态真实单，再取最近任意真实单。多条共用同一模板（参与方一致）
   let tpl = null;
   if (a['from-order']) {
     tpl = find({ find: 'order_main', filter: { _id: a['from-order'] }, limit: 1 })[0];
@@ -70,45 +74,56 @@ function create() {
   if (!tpl) throw new Error('找不到可克隆的真实订单');
   const confTpl = find({ find: 'order_confirmations', filter: { order_id: tpl._id }, limit: 1 })[0];
 
-  const o = Object.assign({}, tpl);
-  delete o._id;
-  ['pending_change', 'pending_modify', 'pending_extend', 'change_counts',
-    'change_last_rejected_at', 'change_auto_rejected_at', 's2_change_counts',
-    's2_change_applied_at', 's2_change_auto_rejected_at', 'sub_msg_send_logs'].forEach((k) => delete o[k]);
-  o._id = netId();
-  o.order_no = PREFIX + suffix;
-  o.status = status;
-  o.start_time = NOW + hours * 3600000;
-  o.created_at = NOW;
-  o.updated_at = NOW;
-  o.is_test = true;
-  o.is_deleted = false;
-  o.pay_expire_at = null;
-  o.help_flag = false;
-
+  // --start-at 给定时：基准=指定时间戳，每条在 [基准, 基准+8h) 随机（默认覆盖 15:00~23:00）；
+  // 否则沿用原相对偏移（NOW + hours），多条共用同一 start
+  const baseStart = startAt || (NOW + hours * 3600000);
   const okAll = status === 'S2';
-  const c = {
-    _id: netId(),
-    order_id: o._id,
-    items: {
-      time: { value: o.start_time, user_ok: okAll, partner_ok: okAll },
-      location: { value: o.location, user_ok: okAll, partner_ok: okAll },
-      content: { value: o.content_options, user_ok: okAll, partner_ok: okAll },
-      fee: { value: o.total_fen, user_ok: okAll, partner_ok: okAll }
-    },
-    version: 1,
-    created_at: NOW,
-    updated_at: NOW,
-    is_deleted: false
-  };
-  write({ insert: 'order_main', documents: [o] });
-  write({ insert: 'order_confirmations', documents: [c] });
-  // 2026-11-06 加固：不再只信本地变量，回读断言落库结果（§31/§38）
-  const back = find({ find: 'order_main', filter: { _id: o._id }, projection: { status: 1, order_no: 1 }, limit: 1 })[0];
-  if (!back || back.status !== status) throw new Error('回读校验失败：期望 status=' + status + '，实得 ' + JSON.stringify(back || null));
+  const made = [];
+  for (let i = 0; i < count; i++) {
+    const startTs = startAt ? baseStart + Math.floor(Math.random() * 8 * 3600000) : baseStart;
+    const sfx = count > 1 ? `${suffixBase}${pad(i + 1)}` : suffixBase;
+    const o = Object.assign({}, tpl);
+    delete o._id;
+    ['pending_change', 'pending_modify', 'pending_extend', 'change_counts',
+      'change_last_rejected_at', 'change_auto_rejected_at', 's2_change_counts',
+      's2_change_applied_at', 's2_change_auto_rejected_at', 'sub_msg_send_logs'].forEach((k) => delete o[k]);
+    o._id = netId();
+    o.order_no = PREFIX + sfx;
+    o.status = status;
+    o.start_time = startTs;
+    o.created_at = NOW;
+    o.updated_at = NOW;
+    o.is_test = true;
+    o.is_deleted = false;
+    o.pay_expire_at = null;
+    o.help_flag = false;
+
+    const c = {
+      _id: netId(),
+      order_id: o._id,
+      items: {
+        time: { value: o.start_time, user_ok: okAll, partner_ok: okAll },
+        location: { value: o.location, user_ok: okAll, partner_ok: okAll },
+        content: { value: o.content_options, user_ok: okAll, partner_ok: okAll },
+        fee: { value: o.total_fen, user_ok: okAll, partner_ok: okAll }
+      },
+      version: 1,
+      created_at: NOW,
+      updated_at: NOW,
+      is_deleted: false
+    };
+    write({ insert: 'order_main', documents: [o] });
+    write({ insert: 'order_confirmations', documents: [c] });
+    // 2026-11-06 加固：不再只信本地变量，回读断言落库结果（§31/§38）
+    const back = find({ find: 'order_main', filter: { _id: o._id }, projection: { status: 1, order_no: 1 }, limit: 1 })[0];
+    if (!back || back.status !== status) throw new Error('回读校验失败：期望 status=' + status + '，实得 ' + JSON.stringify(back || null));
+    made.push({ order_no: o.order_no, _id: o._id, status, start: dtOf(o.start_time) });
+  }
   console.log(JSON.stringify({
-    order_no: o.order_no, _id: o._id, status, start: dtOf(o.start_time),
-    start_hours: hours, confirm_all: okAll, template: tpl.order_no, conf_template: confTpl ? confTpl._id : null
+    count: made.length, start_at: startAt ? dtOf(baseStart) : null,
+    start_hours: startAt ? null : hours, confirm_all: okAll,
+    template: tpl.order_no, template_user: tpl.user_openid, template_partner: tpl.partner_openid,
+    conf_template: confTpl ? confTpl._id : null, orders: made
   }, null, 2));
   if (status === 'S1') console.log('S1 窗口约 15 分钟后自动转 S6：' + dtOf(NOW + 15 * 60000));
 }
