@@ -1,3 +1,4 @@
+/* @VERIFIED 2026-11-27 已真机验证：token 收敛（品牌/危险色背景 #fff→var(--text-invert) + 徽章 #FA5151→var(--func-danger)），浅色零变化/暗色跟随，iOS+Android 无异常，体验版 v1.6.33 */
 .profile {
   min-height: 100vh;
   background: var(--bg-page);
