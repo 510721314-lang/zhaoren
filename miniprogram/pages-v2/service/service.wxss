@@ -139,7 +139,7 @@ page { background: var(--bg-page); }
   align-items: center;
   justify-content: center;
   font-size: 72rpx;
-  color: #fff;
+  color: var(--text-invert);
 }
 .svc__card-cover-tag {
   position: absolute;

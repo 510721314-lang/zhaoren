@@ -43,6 +43,7 @@
 /* 章节面板(紧贴选中科目) */
 .study__panel { margin: -4rpx 0 24rpx; padding: 0 4rpx; }
 .study__panel .study__tip { padding: 60rpx 0; }
+.study__sk { padding: 16rpx 4rpx 8rpx; }
 
 /* 模块分组标题: 左侧色条 + 小写字号 */
 .study__group { margin-top: 8rpx; }

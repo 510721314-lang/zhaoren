@@ -22,7 +22,7 @@
 
       <!-- 选中科目的章节面板: 紧随科目卡下方 -->
       <view class="study__panel" wx:if="{{picked && activeSubject === s.code}}">
-        <view wx:if="{{listLoading}}" class="study__tip">加载中…</view>
+        <view wx:if="{{listLoading}}" class="study__sk"><ui-skeleton type="list" rows="3" /></view>
         <view wx:elif="{{listError}}" class="study__tip" bindtap="onRetry">加载失败，点击重试</view>
         <view wx:elif="{{!groups.length}}" class="study__tip">该科目暂无已发布章节</view>
 

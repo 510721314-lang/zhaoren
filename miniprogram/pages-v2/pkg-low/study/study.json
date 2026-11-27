@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "学习中心",
-  "usingComponents": {}
+  "usingComponents": {
+    "ui-skeleton": "/components/ui-skeleton/ui-skeleton"
+  }
 }
