@@ -13,8 +13,8 @@
 | `verify:offline` | EXIT=0 / A/B **473 EQUIVALENT** / 1264 用例 0 fail / 110 known-evolution |
 | `_shared` 同步门禁 | ALL OK |
 | 空 catch 基线 | **200 处**（C 类有意设计 190 / B 类 10 维持不修；2026-11-26 刷新对齐活水位，baseline generated_at=2026-11-25，原基线 204） |
-| 体验版 | **v1.6.25**（HEAD `966f009b`，已推送，deploy-log 实证；包体 891.6KB / 主包 680.5KB < 2MB） |
-| 规则配额 | inject 17733B / 余量 1723B / max§ 46（check-rules-size 实测；targetBytes 19456，P3-47 三期门禁守护） |
+| 体验版 | **v1.6.33**（HEAD `05bec716`，已推送，deploy-log 实证；包体 891.8KB / 主包 680.6KB < 2MB；2026-11-27 真机验收通过） |
+| 规则配额 | inject 18306B / 余量 1150B / max§ 47（check-rules-size 实测；targetBytes 19456，P3-47 三期门禁守护；2026-11-28 同步 §47 新增后水位） |
 
 旧值（2026-11-05 已过时）：A/B 456 / 79 known / 67/67 / 155 处空 catch。
 
